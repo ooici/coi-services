@@ -21,6 +21,11 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RA
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor, RawSupplementConstructor
 
+### For new granule and stream interface
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from pyon.ion.granule.taxonomy import TaxyTool
+from pyon.ion.granule.granule import build_granule
+from pyon.util.containers import get_safe
 
 tx = TaxyTool()
 tx.add_taxonomy_set('google_dt_components','Google DT components for part or entire datatable')
@@ -79,20 +84,34 @@ class VizTransformGoogleDT(TransformFunction):
 
 
 
-        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
-        vardict = {}
-        arrLen = None
-        for varname in psd.list_field_names():
-            vardict[varname] = psd.get_values(varname)
-            arrLen = len(vardict[varname])
+#        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
+#        vardict = {}
+#        arrLen = None
+#        for varname in psd.list_field_names():
+#            vardict[varname] = psd.get_values(varname)
+#            arrLen = len(vardict[varname])
 
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        rdt0 = rdt['coordinates']
+        rdt1 = rdt['data']
+
+        vardict = {}
+        vardict['conductivity'] = get_safe(rdt1, 'cond')
+        vardict['pressure'] = get_safe(rdt1, 'pres')
+        vardict['temperature'] = get_safe(rdt1, 'temp')
+
+        vardict['longitude'] = get_safe(rdt0, 'lon')
+        vardict['latitude'] = get_safe(rdt0, 'lat')
+        vardict['time'] = get_safe(rdt0, 'time')
+        vardict['height'] = get_safe(rdt0, 'height')
+        arrLen = len(vardict)
 
         #iinit the dataTable
         # create data description from the variables in the message
         self.dataDescription = [('time', 'datetime', 'time')]
 
         # split the data string to extract variable names
-        for varname in psd.list_field_names():
+        for varname in  vardict.keys():   #psd.list_field_names():
             if varname == 'time':
                 continue
 

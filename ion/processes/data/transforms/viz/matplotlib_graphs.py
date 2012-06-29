@@ -8,6 +8,7 @@ import time
 from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from pyon.util.containers import get_safe
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
@@ -50,25 +51,40 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         log.debug('Matplotlib transform: Received Viz Data Packet')
 
         # parse the incoming data
-        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
+#        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
+#
+#        # re-arrange incoming data into an easy to parse dictionary
+#        vardict = {}
+#        arrLen = None
+#        for varname in psd.list_field_names():
+#            vardict[varname] = psd.get_values(varname)
+#            arrLen = len(vardict[varname])
 
-        # re-arrange incoming data into an easy to parse dictionary
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        rdt0 = rdt['coordinates']
+        rdt1 = rdt['data']
+
         vardict = {}
-        arrLen = None
-        for varname in psd.list_field_names():
-            vardict[varname] = psd.get_values(varname)
-            arrLen = len(vardict[varname])
+        vardict['conductivity'] = get_safe(rdt1, 'cond')
+        vardict['pressure'] = get_safe(rdt1, 'pres')
+        vardict['temperature'] = get_safe(rdt1, 'temp')
+
+        vardict['longitude'] = get_safe(rdt0, 'lon')
+        vardict['latitude'] = get_safe(rdt0, 'lat')
+        vardict['time'] = get_safe(rdt0, 'time')
+        vardict['height'] = get_safe(rdt0, 'height')
+        arrLen = len(vardict)
 
         if self.initDataFlag:
             # look at the incoming packet and store
-            for varname in psd.list_field_names():
+            for varname in vardict.keys():    #psd.list_field_names():
                 self.graph_data[varname] = []
 
             self.initDataFlag = False
 
         # If code reached here, the graph data storage has been initialized. Just add values
         # to the list
-        for varname in psd.list_field_names():
+        for varname in vardict.keys():  # psd.list_field_names():
             self.graph_data[varname].extend(vardict[varname])
 
         if (time.time() - self.lastRenderTime) > self.renderTimeThreshold:
