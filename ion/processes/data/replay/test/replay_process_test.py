@@ -8,7 +8,7 @@
 from pyon.core.interceptor.encode import encode_ion
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
-from ion.processes.data.replay.replay_process_a import ReplayProcess
+from ion.processes.data.replay.replay_process import ReplayProcess
 from mock import Mock
 from nose.plugins.attrib import attr
 import msgpack
