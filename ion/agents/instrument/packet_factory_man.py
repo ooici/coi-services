@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.instrument.packet_factories
-@file    ion/agents/instrument/packet_factories.py
+@package ion.agents.instrument.packet_factory_man
+@file    ion/agents/instrument/packet_factory_man.py
 @author  Carlos Rueda
 @brief   Manager of packet factories according to given stream IDs.
          The main responsibility of this module is to provide the granule
