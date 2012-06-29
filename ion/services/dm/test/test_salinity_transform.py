@@ -29,7 +29,7 @@ import unittest
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 
 @attr('INT',group='dm')
-@unittest.skip('Depracated')
+@unittest.skip('Deprecated')
 class CTDIntegrationTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

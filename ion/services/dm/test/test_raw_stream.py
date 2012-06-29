@@ -31,7 +31,7 @@ import gevent
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 
 @attr('INT',group='dm')
-@unittest.skip('Depracated')
+@unittest.skip('Deprecated')
 class RawStreamIntegration(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

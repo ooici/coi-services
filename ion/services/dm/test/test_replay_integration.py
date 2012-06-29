@@ -56,7 +56,7 @@ def _create_packet(definition):
 
 
 @attr('INT',group='dm')
-@unittest.skip('Depracated')
+@unittest.skip('Deprecated')
 class ReplayIntegrationTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
