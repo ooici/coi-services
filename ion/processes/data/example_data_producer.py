@@ -16,6 +16,7 @@ pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_data_p
 '''
 
 # Inherit some old machinery for this example
+from interface.objects import Granule
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 
 ### For new granule and stream interface
@@ -109,6 +110,7 @@ class ExampleDataProducer(SimpleCtdPublisher):
             g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
 
             log.info('Sending %d values!' % length)
-            self.publisher.publish(g)
+            if(isinstance(g,Granule)):
+                self.publisher.publish(g)
 
             time.sleep(2.0)

@@ -6,11 +6,14 @@
 @description DESCRIPTION
 '''
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from pyon.core.exception import Timeout
 from pyon.public import RT
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.objects import ProcessDefinition
+from interface.objects import ProcessDefinition, Granule
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
@@ -24,10 +27,12 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        self.process_dispatcher = ProcessDispatcherServiceClient()
-        self.pubsub_management  = PubsubManagementServiceClient()
-        self.resource_registry  = ResourceRegistryServiceClient()
+        self.process_dispatcher   = ProcessDispatcherServiceClient()
+        self.pubsub_management    = PubsubManagementServiceClient()
+        self.resource_registry    = ResourceRegistryServiceClient()
+        self.dataset_management   = DatasetManagementServiceClient()
         self.ingestion_management = IngestionManagementServiceClient()
+        self.data_retriever       = DataRetrieverServiceClient()
 
     def launch_producer(self, stream_id=''):
         #--------------------------------------------------------------------------------
@@ -59,7 +64,24 @@ class TestDMEnd2End(IonIntegrationTestCase):
         ingest_configs, _  = self.resource_registry.find_resources(restype=RT.IngestionConfiguration,id_only=True)
         return ingest_configs[0]
         
+    def wait_until_we_have_enough_granules(self, dataset_id=''):
+        dataset = self.dataset_management.read_dataset(dataset_id)
+        datastore_name = dataset.datastore_name
+        datastore = self.container.datastore_manager.get_datastore(datastore_name)
 
+        now = time.time()
+        timeout = now + 10
+        done = False
+        while not done:
+            if now >= timeout:
+                raise Timeout('Granules are not populating in time.')
+            if len(datastore.query_view(dataset.view_name)) > 3:
+                done = True
+
+
+            now = time.time()
+
+      
 
     def test_dm_end_2_end(self):
         #--------------------------------------------------------------------------------
@@ -80,7 +102,26 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         ingest_config_id = self.get_ingestion_config()
 
-        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id)
+        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id)
 
-        time.sleep(3)
+        #--------------------------------------------------------------------------------
+        # Now the granules are ingesting and persisted
+        #--------------------------------------------------------------------------------
+
+        self.wait_until_we_have_enough_granules(dataset_id)
+        
+        #--------------------------------------------------------------------------------
+        # Replay the data
+        # - Define the replay using the dataset
+        #--------------------------------------------------------------------------------
+
+        replay_id, replay_stream_id = self.data_retriever.define_replay(dataset_id)
+
+        #--------------------------------------------------------------------------------
+        # Now get the data in one chunk using an RPC Call to start_retreive
+        #--------------------------------------------------------------------------------
+        
+        replay_data = self.data_retriever.start_retrieve(replay_id)
+
+        self.assertIsInstance(replay_data, Granule)
 

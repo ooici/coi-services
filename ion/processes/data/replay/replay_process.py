@@ -88,7 +88,6 @@ class ReplayProcess(BaseReplayProcess):
             granule = combine_granules(granules.pop(0),granules.pop(0))
             granules.insert(0,granule)
         if granules:
-            self.output.publish(granules[0])
             return granules[0]
         return None
 
