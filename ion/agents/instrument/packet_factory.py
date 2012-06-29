@@ -112,7 +112,7 @@ class LCAPacketFactory(PacketFactory):
         def is_coordinate(nick_name):
             # just an ad hoc check to determine which group the nick_names
             # belong to
-            return nick_name in ['lat', 'lon', 'time']
+            return nick_name in ['lat', 'lon', 'time', 'height']
 
 
         # now, assign the values to the corresp record dicts:
@@ -133,16 +133,19 @@ class LCAPacketFactory(PacketFactory):
             if handle >= 0:
                 # ok, set value (using the nick_name):
                 nick_name = taxonomy.get_nick_name(handle)
-                np_value = numpy.array([value])
+
+                assert isinstance(value, list)
+                val = numpy.array(value)
+
                 if is_coordinate(nick_name):
-                    coordinates_rdt[nick_name] = np_value
+                    coordinates_rdt[nick_name] = val
                 else:
-                    data_rdt[nick_name] = np_value
+                    data_rdt[nick_name] = val
             else:
                 # TODO throw some exception?
                 log.warn("No handle found for '%s'" % name)
 
-        log.debug("dictionary created: %s" % rdt.pretty_print())
+        log.info("dictionary created: %s" % rdt.pretty_print())
 
         return build_granule(data_producer_id=data_producer_id, taxonomy=taxonomy, record_dictionary=rdt)
 

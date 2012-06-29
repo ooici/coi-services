@@ -11,8 +11,6 @@ __author__ = 'Bill French, Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-import unittest
-
 from pyon.public import log
 
 from nose.plugins.attrib import attr
@@ -55,6 +53,9 @@ class TestPacketFactory(PyonTestCase):
         log.debug("_parsed_taxonomy = %s" % self._parsed_taxonomy.dump())
         log.debug("_raw_taxonomy = %s" % self._raw_taxonomy.dump())
 
+        self.packet_factory = PacketFactory.get_packet_factory( PacketFactoryType.R2LCAFormat)
+        self.assertIsInstance(self.packet_factory, LCAPacketFactory)
+
 
 class TestLCAPacketFactory(TestPacketFactory):
 
@@ -69,21 +70,19 @@ class TestLCAPacketFactory(TestPacketFactory):
         """
         Test build granule with real names, not aliases
         """
-        packet_factory = PacketFactory.get_packet_factory(PacketFactoryType.R2LCAFormat)
-        self.assertIsInstance(packet_factory, LCAPacketFactory)
-
         # use the nick names
         sample_data = {
-            'cond': 10,
-            'temp': 10,
-            'pres': 10,
-            'lat': 10.112,
-            'lon': 12.122,
-            'time': 123122122
+            'cond': [10],
+            'temp': [10],
+            'pres': [10],
+            'lat': [10.112],
+            'lon': [12.122],
+            'time': [123122122],
+            'height': [33]
         }
 
         tax = self._parsed_taxonomy
-        granule = packet_factory.build_packet(data_producer_id='lca_parsed_granule', taxonomy=tax, data=sample_data)
+        granule = self.packet_factory.build_packet(data_producer_id='lca_parsed_granule', taxonomy=tax, data=sample_data)
         rd = granule.record_dictionary
         data = rd[tax.get_handle('data')]
         coordinates = rd[tax.get_handle('coordinates')]
@@ -105,21 +104,20 @@ class TestLCAPacketFactory(TestPacketFactory):
         """
         Test build granule with aliases
         """
-        packet_factory = PacketFactory.get_packet_factory(PacketFactoryType.R2LCAFormat)
-        self.assertIsInstance(packet_factory, LCAPacketFactory)
 
         # use aliases
         sample_data = {
-            'c': 10,
-            't': 10,
-            'd': 10,
-            'lt': 10.112,
-            'ln': 12.122,
-            'tm': 123122122
+            'c': [10],
+            't': [10],
+            'd': [10],
+            'lt': [10.112],
+            'ln': [12.122],
+            'tm': [123122122],
+            'h': [33]
         }
 
         tax = self._parsed_taxonomy
-        granule = packet_factory.build_packet(data_producer_id='lca_parsed_granule', taxonomy=tax, data=sample_data)
+        granule = self.packet_factory.build_packet(data_producer_id='lca_parsed_granule', taxonomy=tax, data=sample_data)
         rd = granule.record_dictionary
         data = rd[tax.get_handle('data')]
         coordinates = rd[tax.get_handle('coordinates')]
