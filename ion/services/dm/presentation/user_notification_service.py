@@ -59,7 +59,7 @@ activating and deactivating the subscriber
 """
 
 
-class Notification(object):
+class SubscribedNotification(object):
     """
     Encapsulates a notification's info and it's event subscriber
 
@@ -78,14 +78,14 @@ class Notification(object):
                                             event_type=notification_request.event_type,
                                             sub_type=notification_request.event_subtype,
                                             callback=subscriber_callback)
-        self.notification_id = None
+        self.subscribed_notification_id = None
 
     def set_notification_id(self, id_=None):
         """
         Set the notification id of the notification object
         @param notification id
         """
-        self.notification_id = id_
+        self.subscribed_notification_id = id_
 
     def activate(self):
         """
@@ -112,7 +112,7 @@ class EventProcessor(object):
 
     def __init__(self, notification_request, user_id):
         self.user_id = user_id
-        self.notification = self._add_notification(notification_request=notification_request)
+        self.subscribed_notification = self._add_notification(notification_request=notification_request)
         log.debug("UserEventProcessor.__init__():")
 
     def subscription_callback(self, message, headers):
@@ -131,12 +131,12 @@ class EventProcessor(object):
         """
 
         # create and save notification in notifications list
-        notification_obj = Notification(notification_request, self.subscription_callback)
+        subscribed_notification = SubscribedNotification(notification_request, self.subscription_callback)
 
         # start the event subscriber listening
-        notification_obj.activate()
+        subscribed_notification.activate()
         log.debug("UserEventProcessor.add_notification(): added notification " + str(notification_request) + " to user " + self.user_id)
-        return notification_obj
+        return subscribed_notification
 
     def remove_notification(self):
         """
@@ -145,7 +145,7 @@ class EventProcessor(object):
         @param notification_id
         @retval the number of notifications subscribed to by the user
         """
-        self.notification.deactivate()
+        self.subscribed_notification.deactivate()
 
     def __str__(self):
         return str(self.__dict__)
@@ -171,7 +171,7 @@ class EmailEventProcessor(EventProcessor):
         log.debug("event type = " + str(message._get_type()))
         log.debug('type of message: %s' % type(message))
 
-        msg_recipient = self.notification._res_obj.delivery_config.delivery['email']
+        msg_recipient = self.subscribed_notification._res_obj.delivery_config.delivery['email']
 
         send_email(message, msg_recipient, self.smtp_client)
 
@@ -196,7 +196,7 @@ class DetectionEventProcessor(EventProcessor):
 
         parser = QueryLanguage()
 
-        search_string = self.notification._res_obj.delivery_config.processing['search_string']
+        search_string = self.subscribed_notification._res_obj.delivery_config.processing['search_string']
         self.query_dict = parser.parse(search_string)
 
     def generate_event(self, msg):
@@ -207,16 +207,15 @@ class DetectionEventProcessor(EventProcessor):
         log.info('Detected an event')
         event_publisher = EventPublisher("DetectionEvent")
 
-        message = str(self.notification._res_obj.delivery_config.processing['search_string'])
+        message = str(self.subscribed_notification._res_obj.delivery_config.processing['search_string'])
 
         #@David What should the origin and origin type be for Detection Events
         event_publisher.publish_event(origin='DetectionEventProcessor',
             message=msg,
             description="Event was detected by DetectionEventProcessor",
             condition = message, # Concatenate the filter and make it a message
-            original_origin = self.notification._res_obj.origin,
-            original_type = self.notification._res_obj.origin_type)
-
+            original_origin = self.subscribed_notification._res_obj.origin,
+            original_type = self.subscribed_notification._res_obj.origin_type)
 
     def subscription_callback(self, message, headers):
 
