@@ -91,7 +91,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
        stm = os.popen('rm /tmp/*.pid.txt')
 
 
-    @unittest.skip ("timeout on start inst agent?")
+    @unittest.skip ("Deprecated by IngestionManagement refactor, timeout on start inst agent?")
     def test_reassignPrimaryDevice(self):
 
         # ensure no processes or pids are left around by agents or Sims

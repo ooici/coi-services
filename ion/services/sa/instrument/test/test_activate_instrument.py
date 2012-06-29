@@ -4,7 +4,6 @@ from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
@@ -71,7 +70,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.pubsubcli =  PubsubManagementServiceClient(node=self.container.node)
-        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.dpclient = DataProductManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
