@@ -52,7 +52,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='truck')
+@attr('INT', group='as')
 class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
     def setUp(self):
