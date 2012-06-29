@@ -131,13 +131,7 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
         # Persist the data stream
         #--------------------------------------------------------------------------------
 
-        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_configuration_id)
-
-        #@todo: Normally ingestion will handle the dataset creation but in the interim the 
-        dataset_id = self.dataset_management.create_dataset(
-            stream_id = stream_id, 
-            datastore_name = self.datastore_name,
-        )
+        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_configuration_id)
         #--------------------------------------------------------------------------------
         # Define the replay
         #--------------------------------------------------------------------------------

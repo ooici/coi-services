@@ -7,7 +7,6 @@
 '''
 from pyon.public import PRED
 from pyon.util.arg_check import validate_is_instance, validate_true
-
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
 from interface.objects import IngestionConfiguration, IngestionQueue, StreamQuery
 
@@ -70,7 +69,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         # Create dataset stuff here
         dataset_id = self._new_dataset(stream_id)
 
-        return ""
+        return dataset_id
 
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
         subscriptions, assocs = self.clients.resource_registry.find_objects(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
@@ -95,6 +94,8 @@ class IngestionManagementService(BaseIngestionManagementService):
         Handles stream definition inspection.
         Uses dataset management to create the dataset
         '''
-        return ''
+        datastore_name = self.CFG.get_safe('ingestion.datastore_name','datasets')
+        dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream_id,datastore_name=datastore_name)
+        return dataset_id
 
 

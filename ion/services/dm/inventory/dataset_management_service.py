@@ -6,10 +6,10 @@ from pyon.core.exception import BadRequest
 __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
 
-
+from pyon.public import PRED
+from pyon.datastore.datastore import DataStore
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService
 from interface.objects import DataSet
-from pyon.datastore.datastore import DataStore
 
 class DatasetManagementService(BaseDatasetManagementService):
     def __init__(self, *args, **kwargs):
@@ -57,6 +57,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
+        self.clients.resource_registry.create_association(subject=dataset_id,predicate=PRED.hasStream,object=stream_id)
         return dataset_id
 
 
@@ -81,8 +82,14 @@ class DatasetManagementService(BaseDatasetManagementService):
     def delete_dataset(self, dataset_id=''):
         """
         @throws NotFound if resource does not exist.
+
         """
+
+        assocs = self.clients.resource_registry.find_associations(subject=dataset_id,predicate=PRED.hasStream)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(dataset_id)
+
 
     def get_dataset_bounds(self, dataset_id=''):
         """@brief Get the bounding coordinates of the dataset using a couch map/reduce query

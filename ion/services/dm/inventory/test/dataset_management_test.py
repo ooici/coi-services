@@ -26,6 +26,9 @@ class DatasetManagementTest(PyonTestCase):
         self.mock_rr_read = self.dataset_management.clients.resource_registry.read
         self.mock_rr_update = self.dataset_management.clients.resource_registry.update
         self.mock_rr_delete = self.dataset_management.clients.resource_registry.delete
+        self.mock_rr_create_assoc = self.dataset_management.clients.resource_registry.create_association
+        self.mock_rr_find_assocs = self.dataset_management.clients.resource_registry.find_associations
+        self.mock_rr_delete_assoc = self.dataset_management.clients.resource_registry.delete_association
 
     def test_create_dataset(self):
         # mocks
@@ -38,6 +41,7 @@ class DatasetManagementTest(PyonTestCase):
         # assertions
         self.assertEquals(dataset_id,'dataset_id')
         self.assertTrue(self.mock_rr_create.called)
+        self.assertTrue(self.mock_rr_create_assoc.call_count)
 
     def test_update_dataset(self):
         # mocks
@@ -53,12 +57,14 @@ class DatasetManagementTest(PyonTestCase):
 
     def test_delete_dataset(self):
         # mocks
+        self.mock_rr_find_assocs.return_value = ['assoc']
 
         # execution
         self.dataset_management.delete_dataset('123')
 
         # assertions
         self.mock_rr_delete.assert_called_with('123')
+        self.assertTrue(self.mock_rr_delete_assoc.call_count == 1)
 
 
 @attr('INT', group='dm')
