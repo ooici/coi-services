@@ -216,6 +216,7 @@ class BootstrapService(BaseBootstrapService):
 
         Creating transform workers happens here...
         """
+
         exchange_point = config.get_safe('ingestion.exchange_point','science_data')
         queues = config.get_safe('ingestion.queues',None)
         if queues is None:
@@ -225,7 +226,7 @@ class BootstrapService(BaseBootstrapService):
             queues[i] = IngestionQueue(name=item['name'], type=item['type'], datastore_name=item['datastore_name'])
         
 
-        self.clients.ingestion_management.create_ingestion_configuration(
+        self.clients.ingestion_management.create_ingestion_configuration(name='standard ingestion config',
                                                     exchange_point_id=exchange_point,
                                                     queues=queues)
 
