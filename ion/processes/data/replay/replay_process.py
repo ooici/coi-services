@@ -15,8 +15,10 @@ from pyon.core.interceptor.encode import decode_ion
 from pyon.ion.granule import combine_granules
 from pyon.core.object import IonObjectDeserializer
 from pyon.core.bootstrap import get_obj_registry
+from gevent.event import Event
 from pyon.public import log
 import msgpack
+import gevent
 
 
 class ReplayProcessException(IonException):
@@ -43,6 +45,7 @@ class ReplayProcess(BaseReplayProcess):
         self.delivery_format = self.CFG.get_safe('process.delivery_format',{})
         self.start_time      = self.CFG.get_safe('process.delivery_format.start_time', None)
         self.end_time        = self.CFG.get_safe('process.delivery_format.end_time', None)
+        self.publishing      = Event()
 
         if self.dataset_id is None:
             raise BadRequest('dataset_id not specified')
@@ -89,8 +92,14 @@ class ReplayProcess(BaseReplayProcess):
             return granules[0]
         return None
 
-
     def execute_replay(self):
+        if self.publishing.is_set():
+            return False
+        gevent.spawn(self.replay)
+        return True
+
+    def replay(self):
+        self.publishing.set() # Minimal state, supposed to prevent two instances of the same process from replaying on the same stream
         datastore = self.container.datastore_manager.get_datastore(self.dataset.datastore_name)
         view_name = 'manifest/by_dataset'
 
@@ -122,6 +131,7 @@ class ReplayProcess(BaseReplayProcess):
 
         # Need to terminate the stream, null granule = {}
         self.output.publish({})
+        self.publishing.clear()
         return True
 
 
