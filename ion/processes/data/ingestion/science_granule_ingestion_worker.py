@@ -32,7 +32,6 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         self.subscriber = Subscriber(name=(get_sys_name(), self.queue_name), callback=self.consume)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         self.greenlet = spawn(self.subscriber.listen)
-        self.cache = {}
 
     def on_quit(self): #pragma no cover
         self.subscriber.close()
