@@ -7,7 +7,7 @@
 @description Implementation of the UserNotificationService
 '''
 
-from pyon.core.exception import BadRequest, NotFound
+from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.event.event import EventSubscriber
 from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
@@ -356,12 +356,12 @@ class UserNotificationService(BaseUserNotificationService):
         # create event processor for user
         #---------------------------------------------------------------------------------------------------
 
-        self.event_processors[notification_id] = create_event_processor(notification_request=notification,user_id=user_id)
-        log.debug("UserNotificationService.create_notification(): added event processor " +  str(self.event_processors[notification_id]))
+        self.event_processors[user_id] = create_event_processor(notification_request=notification,user_id=user_id)
+        log.debug("UserNotificationService.create_notification(): added event processor " +  str(self.event_processors[user_id]))
 
         return notification_id
 
-    def update_notification(self, notification=None):
+    def update_notification(self, notification=None, user_id = ''):
         """Updates the provided NotificationRequest object.  Throws NotFound exception if
         an existing version of NotificationRequest is not found.  Throws Conflict if
         the provided NotificationRequest object is not based on the latest persisted
@@ -373,10 +373,21 @@ class UserNotificationService(BaseUserNotificationService):
         @throws Conflict    object not based on latest persisted object version
         """
         # Read existing Notification object and see if it exists
-        old_notification = self.event_processors[notification_id].notification._res_obj
+
+        if notification is None:
+            raise BadRequest("NotificationRequest object not present")
+        elif not hasattr(notification, "_id") or not hasattr(notification, "_rev"):
+            raise BadRequest("NotificationRequest object does not have required '_id' or '_rev' attribute")
+            # Do an check whether LCS has been modified
+        elif notification._id == '':
+            raise BadRequest("NotificationRequest object does not have a set id")
+
+        notification_id = notification._id
+
+        old_notification = self.clients.resource_registry.read(notification_id)
 
         if not old_notification:
-            raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification_id)
+            raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification._id)
 
         # check to see if the new notification is different than the old notification only in the delivery config fields
         if notification.origin != old_notification.origin or\
@@ -389,9 +400,9 @@ class UserNotificationService(BaseUserNotificationService):
             raise BadRequest('Can not update the subscription for an event notification')
 
         else: # only the delivery_config is being modified, so we can go ahead with the update...
-            _event_processor = self.event_processors[notification_id]
-            _event_processor.notification = notification
-            _event_processor.notification.set_notification_id(notification_id)
+            _event_processor = self.event_processors[user_id]
+            _event_processor.subscribed_notification._res_obj = notification
+
             # finally update the notification in the RR
             self.clients.resource_registry.update(notification)
 
@@ -426,9 +437,11 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         """
 
-        _event_processor = self.event_processors[notification_id]
-        del self.event_processors[notification_id]
-        _event_processor.remove_notification(notification_id)
+        for user_id, subscribed_notification in self.event_processors.iteritems():
+            if subscribed_notification._res_obj._id == notification_id:
+                self.event_processors[user_id].remove_notification()
+                self.event_processors[user_id].subscribed_notification = None
+
         self.clients.resource_registry.delete(notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
@@ -617,12 +630,18 @@ class UserNotificationService(BaseUserNotificationService):
         #                               'range': {'from': 0.0, 'to': 100.0}}}
 
 
-        log.warning("user_info: %s" % self.user_info)
+        log.warning("In process_batch: user_info: %s" % self.user_info)
 
-        for user in self.user_info.iterkeys():
-            notifications = self.user_info[user]['notifications']
+        for value in self.user_info.itervalues():
+
+            log.warning("value: %s" % value)
+            log.warning("type of value: %s" % type(value))
+
+            notifications = value['notifications']
 
             events_message = ''
+
+            log.warning("inside loop: notifications: %s" % notifications)
 
             for notification in notifications:
 
@@ -638,12 +657,19 @@ class UserNotificationService(BaseUserNotificationService):
 
                 ret_vals = self.discovery.parse(search_string)
 
+                log.warning("ret_vals : %s" % ret_vals)
+
                 events_message += '\n' + str(ret_vals)
 
             log.warning("Each user gets the following message in email: %s" % events_message)
             # send a notification email to each user using a _send_email() method
 
-            smtp_client = self.event_processors[notifications[0]].smtp_client
+            log.warning("notifications[0]: %s" % notifications[0])
+            log.warning("self.event_processors: %s" % self.event_processors)
+
+#            self.clients.resource_registry.find_resources(RT.NotificationRequest)
+
+#            smtp_client = self.event_processors[notifications[0]].smtp_client
 
 #            send_email( message = events_message,
 #                        msg_recipient=self.user_info[user]['user_contact'].email,

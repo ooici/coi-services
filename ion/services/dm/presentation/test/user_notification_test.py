@@ -492,8 +492,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
-    @unittest.skip('skipped')
-#    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_batch_notifications(self):
         '''
         Test that batch notifications work
@@ -506,16 +505,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_request_1 = NotificationRequest(origin="instrument_1",
-            origin_type="type_1",
-            event_type='ResourceLifecycleEvent')
+                                                    origin_type="type_1",
+                                                    event_type='ResourceLifecycleEvent')
 
         notification_request_2 = NotificationRequest(origin="instrument_2",
-            origin_type="type_2",
-            event_type='DetectionEvent')
+                                                    origin_type="type_2",
+                                                    event_type='DetectionEvent')
 
         notification_request_3 = NotificationRequest(origin="instrument_3",
-            origin_type="type_3",
-            event_type='ResourceLifecycleEvent')
+                                                    origin_type="type_3",
+                                                    event_type='ResourceLifecycleEvent')
 
         #-------------------------------------------------------
         # Create users and get the user_ids
@@ -565,8 +564,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_publisher = EventPublisher("ResourceLifecycleEvent")
 
         for i in xrange(10):
-            event_publisher.publish_event( ts_created= float(i) , origin='instrument_1', description="RLE test event")
-            event_publisher.publish_event( ts_created= float(i) , origin='instrument_3', description="RLE test event")
+            event_publisher.publish_event( ts_created= float(i) ,
+                                            origin="instrument_1",
+                                            origin_type="type_1",
+                                            event_type='ResourceLifecycleEvent')
+
+            event_publisher.publish_event( ts_created= float(i) ,
+                                            origin="instrument_3",
+                                            origin_type="type_3",
+                                            event_type='ResourceLifecycleEvent')
 
         # allow enough time for elastic search to populate the events_index.
         gevent.sleep(2)
