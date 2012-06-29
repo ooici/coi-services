@@ -596,14 +596,17 @@ class IONLoader(ImmediateProcess):
             return
 
         xp = row["exchange_point_id"]
-        couch_cfg = self._create_object_from_row("CouchStorage", row, "couch_storage/")
-        hdf_cfg = self._create_object_from_row("HdfStorage", row, "hdf_storage/")
-        numw = int(row["number_of_workers"])
+        name = row["ic/name"]
+        ingest_queue = self._create_object_from_row("IngestionQueue",row,"ingestion_queue/")
+        #couch_cfg = self._create_object_from_row("CouchStorage", row, "couch_storage/")
+        #hdf_cfg = self._create_object_from_row("HdfStorage", row, "hdf_storage/")
+        #numw = int(row["number_of_workers"])
 
         svc_client = self._get_service_client("ingestion_management")
-        ic_id = svc_client.create_ingestion_configuration(xp, couch_cfg, hdf_cfg, numw)
+        #ic_id = svc_client.create_ingestion_configuration(xp, couch_cfg, hdf_cfg, numw)
+        ic_id = svc_client.create_ingestion_configuration(name=name, exchange_point_id=xp, queues=[ingest_queue])
 
-        ic_id = svc_client.activate_ingestion_configuration(ic_id)
+        #ic_id = svc_client.activate_ingestion_configuration(ic_id)
 
     def _load_DataProduct(self, row):
         strdef = row["stream_def_id"]

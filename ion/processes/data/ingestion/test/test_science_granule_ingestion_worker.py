@@ -8,7 +8,7 @@
 from pyon.util.unit_test import PyonTestCase
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.granule import build_granule
+from pyon.ion.granule.granule import build_granule as bg
 from ion.processes.data.ingestion.science_granule_ingestion_worker import ScienceGranuleIngestionWorker
 
 from mock import Mock
@@ -33,7 +33,7 @@ class ScienceGranuleIngestionWorkerUnitTest(PyonTestCase):
         rdt['t'] = np.array([0,1])
         rdt['d'] = np.array([0,1])
 
-        granule = build_granule(data_producer_id='test_identifier', taxonomy=tt, record_dictionary=rdt)
+        granule = bg(data_producer_id='test_identifier', taxonomy=tt, record_dictionary=rdt)
         return granule
 
     def test_consume(self):

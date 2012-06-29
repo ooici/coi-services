@@ -11,8 +11,8 @@ from pyon.util.containers import DotDict
 from pyon.core.bootstrap import get_sys_name
 from pyon.core.exception import Timeout
 from pyon.net.endpoint import Publisher
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from ion.processes.data.ingestion.test.test_science_granule_ingestion_worker import ScienceGranuleIngestionWorkerUnitTest
-from interface.services.dm.iingestion_management_service_a import IngestionManagementServiceAClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import IngestionQueue
 from nose.plugins.attrib import attr
@@ -31,19 +31,12 @@ class ScienceGranuleIngestionIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
         
-        self.launch_service()
-
-        self.ingestion_management = IngestionManagementServiceAClient()
+        self.ingestion_management = IngestionManagementServiceClient()
         self.pubsub               = PubsubManagementServiceClient()
 
 
     def build_granule(self):
         return ScienceGranuleIngestionWorkerUnitTest.build_granule()
-
-
-    def launch_service(self):
-        self.container.spawn_process(name='ingestion_management_a', module='ion.services.dm.ingestion.ingestion_management_service_a',cls='IngestionManagementServiceA',process_id='ingestion_management_a')
-
 
     def launch_worker(self):
         cfg = DotDict()

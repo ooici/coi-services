@@ -22,6 +22,7 @@ from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 import unittest
 
 @attr('INT',group='dm')
+@unittest.skip('Deprecated')
 class LastUpdateCacheTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

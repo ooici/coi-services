@@ -23,6 +23,7 @@ import time
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 
 import gevent
+import unittest
 
 ### For new granule and stream interface
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
@@ -33,6 +34,7 @@ from pyon.util.containers import get_safe
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 
 @attr('INT',group='dm')
+@unittest.skip('Deprecated')
 class CTDIntegrationTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
