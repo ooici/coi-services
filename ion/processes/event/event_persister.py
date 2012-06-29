@@ -41,7 +41,7 @@ class EventPersister(StandaloneProcess):
         # Persister thread
         g = Greenlet(self._trigger_func, self.persist_interval)
         g.start()
-        log.warn('Publisher Greenlet started in "%s"' % self.__class__.__name__)
+        log.debug('Publisher Greenlet started in "%s"' % self.__class__.__name__)
         self.thread_list.append(g)
 
         # Event subscription
