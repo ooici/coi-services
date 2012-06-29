@@ -14,7 +14,8 @@ from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
 from pyon.util.containers import get_ion_ts
 from pyon.util.file_sys import FileSystem, FS
-from pyon.public import log
+from pyon.public import log, PRED
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.objects import Granule
 from gevent import spawn
 import hashlib
@@ -31,6 +32,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         self.subscriber = Subscriber(name=(get_sys_name(), self.queue_name), callback=self.consume)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         self.greenlet = spawn(self.subscriber.listen)
+        self.cache = {}
 
     def on_quit(self): #pragma no cover
         self.subscriber.close()
@@ -45,6 +47,9 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         if msg == {}:
             return
         validate_is_instance(msg,Granule,'Incoming message is not compatible with this ingestion worker')
+
+
+
         simple_dict = ion_serializer.serialize(msg)
         byte_string = msgpack.packb(simple_dict, default=encode_ion)
 
@@ -64,7 +69,6 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         filename = FileSystem.get_hierarchical_url(FS.CACHE, calculated_sha1, ".%s" % encoding_type)
 
         self.write(filename,byte_string)
-
 
 
     def persist(self, dataset_granule):

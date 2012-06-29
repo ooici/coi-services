@@ -222,7 +222,7 @@ class BootstrapService(BaseBootstrapService):
             queues = [dict(name='science_granule_ingestion', type='SCIDATA')]
         for i in xrange(len(queues)):
             item = queues[i]
-            queues[i] = IngestionQueue(name=item['name'], type=item['type'])
+            queues[i] = IngestionQueue(name=item['name'], type=item['type'], datastore_name=item['datastore_name'])
         
 
         self.clients.ingestion_management.create_ingestion_configuration(

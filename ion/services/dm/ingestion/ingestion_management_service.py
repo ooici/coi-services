@@ -67,7 +67,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         )
 
         # Create dataset stuff here
-        dataset_id = self._new_dataset(stream_id)
+        dataset_id = self._new_dataset(stream_id, ingestion_queue.datastore_name)
 
         return dataset_id
 
@@ -89,12 +89,11 @@ class IngestionManagementService(BaseIngestionManagementService):
         # For now just return the first queue until stream definition is defined
         return queues[0]
 
-    def _new_dataset(self,stream_id=''):
+    def _new_dataset(self,stream_id='', datastore_name=''):
         '''
         Handles stream definition inspection.
         Uses dataset management to create the dataset
         '''
-        datastore_name = self.CFG.get_safe('ingestion.datastore_name','datasets')
         dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream_id,datastore_name=datastore_name)
         return dataset_id
 
