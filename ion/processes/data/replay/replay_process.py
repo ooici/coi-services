@@ -86,7 +86,8 @@ class ReplayProcess(BaseReplayProcess):
             granules.insert(0,granule)
         if granules:
             self.output.publish(granules[0])
-        return True
+            return granules[0]
+        return None
 
 
     def execute_replay(self):
