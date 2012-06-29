@@ -42,13 +42,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def create_data_process_definition(self, data_process_definition=None):
 
-        result, _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, data_process_definition.name, True)
+        result, _ = self.RR.find_resources(RT.DataProcessDefinition, None, data_process_definition.name, True)
         if result:
             raise BadRequest("A data process definition named '%s' already exists" % data_process_definition.name)
 
         #todo: determine validation checks for a data process def
 
-        data_process_definition_id, version = self.clients.resource_registry.create(data_process_definition)
+        data_process_definition_id, version = self.RR.create(data_process_definition)
 
         #-------------------------------
         # Process Definition
@@ -61,7 +61,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         process_definition.executable = {'module':data_process_definition.module, 'class':data_process_definition.class_name}
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
-        self.clients.resource_registry.create_association(data_process_definition_id, PRED.hasProcessDefinition, process_definition_id)
+        self.RR.create_association(data_process_definition_id, PRED.hasProcessDefinition, process_definition_id)
 
         return data_process_definition_id
 
@@ -69,18 +69,18 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # TODO: If executable has changed, update underlying ProcessDefinition
 
         # Overwrite DataProcessDefinition object
-        self.clients.resource_registry.update(data_process_definition)
+        self.RR.update(data_process_definition)
 
     def read_data_process_definition(self, data_process_definition_id=''):
         # Read DataProcessDefinition object with _id matching id
         log.debug("Reading DataProcessDefinition object id: %s" % data_process_definition_id)
-        data_proc_def_obj = self.clients.resource_registry.read(data_process_definition_id)
+        data_proc_def_obj = self.RR.read(data_process_definition_id)
 
         return data_proc_def_obj
 
     def delete_data_process_definition(self, data_process_definition_id=''):
         # Delete the data process
-        self.clients.resource_registry.delete(data_process_definition_id)
+        self.RR.delete(data_process_definition_id)
 
     def find_data_process_definitions(self, filters=None):
         """
@@ -89,17 +89,17 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @retval
         """
         #todo: add filtering
-        data_process_def_list , _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, None, True)
+        data_process_def_list , _ = self.RR.find_resources(RT.DataProcessDefinition, None, None, True)
         return data_process_def_list
 
     def assign_input_stream_definition_to_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
         """Connect the input  stream with a data process definition
         """
         # Verify that both ids are valid, RR will throw if not found
-        stream_definition_obj = self.clients.resource_registry.read(stream_definition_id)
-        data_process_definition_obj = self.clients.resource_registry.read(data_process_definition_id)
+        stream_definition_obj = self.RR.read(stream_definition_id)
+        data_process_definition_obj = self.RR.read(data_process_definition_id)
 
-        self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInputStreamDefinition,  stream_definition_id)
+        self.RR.create_association(data_process_definition_id,  PRED.hasInputStreamDefinition,  stream_definition_id)
 
     def unassign_input_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
         """
@@ -110,20 +110,20 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
-        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, stream_definition_id, id_only=True)
+        associations = self.RR.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, stream_definition_id, id_only=True)
         if not associations:
             raise NotFound("No Input Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
         for association in associations:
-            self.clients.resource_registry.delete_association(association)
+            self.RR.delete_association(association)
 
     def assign_stream_definition_to_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
         """Connect the output  stream with a data process definition
         """
         # Verify that both ids are valid, RR will throw if not found
-        stream_definition_obj = self.clients.resource_registry.read(stream_definition_id)
-        data_process_definition_obj = self.clients.resource_registry.read(data_process_definition_id)
+        stream_definition_obj = self.RR.read(stream_definition_id)
+        data_process_definition_obj = self.RR.read(data_process_definition_id)
 
-        self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasStreamDefinition,  stream_definition_id)
+        self.RR.create_association(data_process_definition_id,  PRED.hasStreamDefinition,  stream_definition_id)
 
     def unassign_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
         """
@@ -134,17 +134,17 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
-        associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasStreamDefinition, stream_definition_id, id_only=True)
+        associations = self.RR.find_associations(data_process_definition_id, PRED.hasStreamDefinition, stream_definition_id, id_only=True)
         if not associations:
             raise NotFound("No Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
         for association in associations:
-            self.clients.resource_registry.delete_association(association)
+            self.RR.delete_association(association)
 
 
     # ------------------------------------------------------------------------------------------------
     # Working with DataProcess
 
-    def create_data_process(self, data_process_definition_id=None, in_data_product_ids='', out_data_products=None, configuration=None):
+    def create_data_process(self, data_process_definition_id='', in_data_product_ids=None, out_data_products=None, configuration=None):
         """
         @param  data_process_definition_id: Object with definition of the
                     transform to apply to the input data product
@@ -162,6 +162,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if configuration is None:
             configuration = {}
 
+        if in_data_product_ids is None:
+            in_data_product_ids = []
+
+        if out_data_products is None:
+            out_data_products = {}
+
         # Create and store a new DataProcess with the resource registry
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry")
         data_process_def_obj = self.read_data_process_definition(data_process_definition_id)
@@ -169,7 +175,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_name = create_unique_identifier("process_" + data_process_def_obj.name)
 
         self.data_process = IonObject(RT.DataProcess, name=data_process_name)
-        data_process_id, version = self.clients.resource_registry.create(self.data_process)
+        data_process_id, version = self.RR.create(self.data_process)
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: %s" +  str(data_process_id))
 
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc
@@ -178,19 +184,19 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process register process with DataAcquisitionMgmtSvc: data_producer_id: %s   (L4-CI-SA-RQ-181)", str(data_producer_id) )
 
 
-        self.output_stream_dict = {}
+        output_stream_dict = {}
         #TODO: should this be outside this method? Called by orchestration?
         if out_data_products is None:
             raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
         for name, out_data_product_id in out_data_products.iteritems():
 
             # check that the product is not already associated with a producer
-            producer_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+            producer_ids, _ = self.RR.find_objects(out_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
             if producer_ids:
                 raise BadRequest("Data Product should not already be associated to a DataProducer %s hasDataProducer %s", str(data_process_id), str(producer_ids[0]))
 
             #Assign each output Data Product to this producer resource
-            out_data_product_obj = self.clients.resource_registry.read(out_data_product_id)
+            out_data_product_obj = self.RR.read(out_data_product_id)
             if not out_data_product_obj:
                 raise NotFound("Output Data Product %s does not exist" % out_data_product_id)
             # Associate with DataProcess: register as an output product for this process
@@ -198,19 +204,19 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, create_stream=False)
 
             # Retrieve the id of the OUTPUT stream from the out Data Product
-            stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, RT.Stream, True)
+            stream_ids, _ = self.RR.find_objects(out_data_product_id, PRED.hasStream, RT.Stream, True)
 
             log.debug("DataProcessManagementService:create_data_process retrieve out data prod streams: %s", str(stream_ids))
             if not stream_ids:
                 raise NotFound("No Stream created for output Data Product " + str(out_data_product_id))
             if len(stream_ids) != 1:
                 raise BadRequest("Data Product should only have ONE stream at this time" + str(out_data_product_id))
-            self.output_stream_dict[name] = stream_ids[0]
-            log.debug("DataProcessManagementService:create_data_process -Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream  out_stream_id: " +  str(self.output_stream_dict[name]))
+            output_stream_dict[name] = stream_ids[0]
+            log.debug("DataProcessManagementService:create_data_process -Register the data process instance as a data producer with DataAcquisitionMgmtSvc, then retrieve the id of the OUTPUT stream  out_stream_id: " +  str(output_stream_dict[name]))
 
 
         # Associate with dataProcess
-        self.clients.resource_registry.create_association(data_process_id,  PRED.hasProcessDefinition, data_process_definition_id)
+        self.RR.create_association(data_process_id,  PRED.hasProcessDefinition, data_process_definition_id)
 
         #check if data process has lookup tables attached
         self._find_lookup_tables(data_process_definition_id, configuration)
@@ -219,14 +225,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #Todo: currently this is handled explicitly after creating the data product, that code then calls DMAS:assign_data_product
         log.debug("DataProcessManagementService:create_data_process associate data process workflows with source data products %s hasInputProducts  %s   (L4-CI-SA-RQ-260)", str(data_process_id), str(in_data_product_ids))
         for  in_data_product_id in in_data_product_ids:
-            self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
+            self.RR.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
 
             #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
-            instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
+            instdevice_ids, _ = self.RR.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
             for instdevice_id in instdevice_ids:
                 log.debug("DataProcessManagementService:create_data_process instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
                 self._find_lookup_tables(instdevice_id, configuration)
-                instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
+                instmodel_ids, _ = self.RR.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
                 for instmodel_id in instmodel_ids:
                     log.debug("DataProcessManagementService:create_data_process instmodel_id assoc to the instDevice: %s", str(instmodel_id))
                     self._find_lookup_tables(instmodel_id, configuration)
@@ -237,7 +243,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 #        # first - get the data producer associated with this IN data product
 #        log.debug("DataProcessManagementService:create_data_process - get the data producer associated with this IN data product")
-#        producer_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+#        producer_ids, _ = self.RR.find_objects(in_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
 #        if not producer_ids:
 #            raise NotFound("No Data Producer created for this Data Product " + str(in_data_product_id))
 #        if len(producer_ids) != 1:
@@ -249,7 +255,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         in_stream_ids = []
         for  in_data_product_id in in_data_product_ids:
             log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data product")
-            stream_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, PRED.hasStream, RT.Stream, True)
+            stream_ids, _ = self.RR.find_objects(in_data_product_id, PRED.hasStream, RT.Stream, True)
             if not stream_ids:
                 raise NotFound("No Stream created for this IN Data Product " + str(in_data_product_id))
             if len(stream_ids) != 1:
@@ -259,38 +265,38 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # Finally - create a subscription to the input stream
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
-        in_data_product_obj = self.clients.data_product_management.read_data_product(in_data_product_id)
+        #in_data_product_obj = self.clients.data_product_management.read_data_product(in_data_product_id)
         query = StreamQuery(stream_ids=in_stream_ids)
-        #self.input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=in_data_product_obj.name)
-        self.input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=data_process_name)
-        log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(self.input_subscription_id))
+        #input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=in_data_product_obj.name)
+        input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=data_process_name)
+        log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(input_subscription_id))
 
         # add the subscription id to the resource for clean up later
-        data_process_obj = self.clients.resource_registry.read(data_process_id)
-        data_process_obj.input_subscription_id = self.input_subscription_id
-        self.clients.resource_registry.update(data_process_obj)
+        data_process_obj = self.RR.read(data_process_id)
+        data_process_obj.input_subscription_id = input_subscription_id
+        self.RR.update(data_process_obj)
 
-        procdef_ids,_ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
+        procdef_ids,_ = self.RR.find_objects(data_process_definition_id, PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
         if not procdef_ids:
             raise BadRequest("Cannot find associated ProcessDefinition for DataProcessDefinition id=%s" % data_process_definition_id)
         process_definition_id = procdef_ids[0]
 
         # Launch the transform process
         log.debug("DataProcessManagementService:create_data_process - Launch the first transform process: ")
-        log.debug("DataProcessManagementService:create_data_process - input_subscription_id: "   +  str(self.input_subscription_id) )
-        log.debug("DataProcessManagementService:create_data_process - out_stream_id: "   +  str(self.output_stream_dict) )
+        log.debug("DataProcessManagementService:create_data_process - input_subscription_id: "   +  str(input_subscription_id) )
+        log.debug("DataProcessManagementService:create_data_process - out_stream_id: "   +  str(output_stream_dict) )
         log.debug("DataProcessManagementService:create_data_process - process_definition_id: "   +  str(process_definition_id) )
         log.debug("DataProcessManagementService:create_data_process - data_process_id: "   +  str(data_process_id) )
 
         transform_id = self.clients.transform_management.create_transform( name=data_process_id, description=data_process_id,
-                           in_subscription_id=self.input_subscription_id,
-                           out_streams=self.output_stream_dict,
+                           in_subscription_id=input_subscription_id,
+                           out_streams=output_stream_dict,
                            process_definition_id=process_definition_id,
                            configuration=configuration)
 
         log.debug("DataProcessManagementService:create_data_process - transform_id: "   +  str(transform_id) )
 
-        self.clients.resource_registry.create_association(data_process_id, PRED.hasTransform, transform_id)
+        self.RR.create_association(data_process_id, PRED.hasTransform, transform_id)
         log.debug("DataProcessManagementService:create_data_process - Launch the first transform process   transform_id"  +  str(transform_id))
 
         # TODO: Flesh details of transform mgmt svc schedule method
@@ -301,7 +307,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def _find_lookup_tables(self, resource_id="", configuration=None):
         #check if resource has lookup tables attached
-        attachment_objs, _ = self.clients.resource_registry.find_objects(resource_id, PRED.hasAttachment, RT.Attachment, False)
+        attachment_objs, _ = self.RR.find_objects(resource_id, PRED.hasAttachment, RT.Attachment, False)
         for attachment_obj in attachment_objs:
             log.debug("DataProcessManagementService:_find_lookup_tables  attachment %s", str(attachment_obj))
             words = set(attachment_obj.keywords)
@@ -312,6 +318,18 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 log.debug("DataProcessManagementService:_find_lookup_tables NO lookup table in attachment %s", attachment_obj.name)
 
 
+    def update_data_process_inputs(self, data_process_id="", in_stream_ids=None):
+        if None == in_stream_ids:
+            in_data_product_ids_by_streamdef = []
+
+        # first - get the data process
+        data_process_obj = self.RR.read(data_process_id)
+
+        query = StreamQuery(stream_ids=in_stream_ids)
+        
+        self.clients.pubsub_management.update_subscription(data_process_obj.input_subscription_id, query)
+
+
     def update_data_process(self,):
         #todo: What are valid ways to update a data process?.
 
@@ -320,14 +338,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def read_data_process(self, data_process_id=""):
         # Read DataProcess object with _id matching  id
         log.debug("Reading DataProcess object id: %s" % data_process_id)
-        data_proc_obj = self.clients.resource_registry.read(data_process_id)
+        data_proc_obj = self.RR.read(data_process_id)
         if not data_proc_obj:
             raise NotFound("DataProcess %s does not exist" % data_process_id)
         return data_proc_obj
 
     def delete_data_process(self, data_process_id=""):
         # Delete the specified DataProcessDefinition object
-        data_process_obj = self.clients.resource_registry.read(data_process_id)
+        data_process_obj = self.RR.read(data_process_id)
         if data_process_obj is None:
             raise NotFound("Data Process %s does not exist" % data_process_id)
 
@@ -344,63 +362,63 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.data_acquisition_management.unregister_process(data_process_id)
 
         # Delete the output stream, but not the output product
-        out_products, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasOutputProduct, RT.DataProduct, True)
+        out_products, _ = self.RR.find_objects(data_process_id, PRED.hasOutputProduct, RT.DataProduct, True)
         if len(out_products) < 1:
             raise NotFound('The the Data Process %s output product cannot be located.' % str(data_process_id))
 
-#        outprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasOutputProduct)
+#        outprod_associations = self.RR.find_associations(data_process_id, PRED.hasOutputProduct)
 #        for outprod_association in outprod_associations:
 #            log.debug("DataProcessManagementService:delete_data_process  delete outprod assoc")
-#            self.clients.resource_registry.delete_association(outprod_association)
+#            self.RR.delete_association(outprod_association)
 
         for out_product in out_products:
-            out_streams, _ = self.clients.resource_registry.find_objects(out_product, PRED.hasStream, RT.Stream, True)
+            out_streams, _ = self.RR.find_objects(out_product, PRED.hasStream, RT.Stream, True)
             for out_stream in out_streams:
 
-                outprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasOutputProduct, out_product)
+                outprod_associations = self.RR.find_associations(data_process_id, PRED.hasOutputProduct, out_product)
                 log.debug("DataProcessManagementService:delete_data_process  delete outprod assoc")
-                self.clients.resource_registry.delete_association(outprod_associations[0])
+                self.RR.delete_association(outprod_associations[0])
 
                 # delete the stream def assoc to the stream
-                streamdef_list = self.clients.resource_registry.find_objects(subject=out_stream, predicate=PRED.hasStreamDefinition, id_only=True)
+                streamdef_list = self.RR.find_objects(subject=out_stream, predicate=PRED.hasStreamDefinition, id_only=True)
 
                 # delete the associations link first
-                streamdef_assocs = self.clients.resource_registry.find_associations(out_stream, PRED.hasStreamDefinition)
+                streamdef_assocs = self.RR.find_associations(out_stream, PRED.hasStreamDefinition)
                 for streamdef_assoc in streamdef_assocs:
                     log.debug("DataProcessManagementService:delete_data_process  delete streamdef assocs")
-                    self.clients.resource_registry.delete_association(streamdef_assoc)
+                    self.RR.delete_association(streamdef_assoc)
 
 #                for streamdef in streamdef_list:
-#                    self.clients.resource_registry.delete_association(streamdef)
+#                    self.RR.delete_association(streamdef)
 
                 # delete the connector first
-                stream_associations = self.clients.resource_registry.find_associations(out_product, PRED.hasStream)
+                stream_associations = self.RR.find_associations(out_product, PRED.hasStream)
                 for stream_association in stream_associations:
                     log.debug("DataProcessManagementService:delete_data_process  delete stream assocs")
-                    self.clients.resource_registry.delete_association(stream_association)
+                    self.RR.delete_association(stream_association)
 
                 log.debug("DataProcessManagementService:delete_data_process  delete outstreams")
                 self.clients.pubsub_management.delete_stream(out_stream)
 
         # Delete the input products link
-        inprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasInputProduct)
+        inprod_associations = self.RR.find_associations(data_process_id, PRED.hasInputProduct)
         if len(inprod_associations) < 1:
             raise NotFound('The the Data Process %s input product link cannot be located.' % str(data_process_id))
         for inprod_association in inprod_associations:
             log.debug("DataProcessManagementService:delete_data_process  delete inprod assocs")
-            self.clients.resource_registry.delete_association(inprod_association)
+            self.RR.delete_association(inprod_association)
 
 
         # Delete the transform
-        transforms, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
+        transforms, _ = self.RR.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
         if len(transforms) < 1:
             raise NotFound('There is no Transform linked to this Data Process %s' % str(data_process_id))
 
         # delete the transform associations link first
-        transform_assocs = self.clients.resource_registry.find_associations(data_process_id, PRED.hasTransform)
+        transform_assocs = self.RR.find_associations(data_process_id, PRED.hasTransform)
         for transform_assoc in transform_assocs:
             log.debug("DataProcessManagementService:delete_data_process  delete transform assocs")
-            self.clients.resource_registry.delete_association(transform_assoc)
+            self.RR.delete_association(transform_assoc)
 
         for transform in transforms:
             log.debug("DataProcessManagementService:delete_data_process  delete transform")
@@ -408,21 +426,21 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
         # Delete the assoc with Data Process Definition
-        data_process_defs = self.clients.resource_registry.find_associations(data_process_id, PRED.hasProcessDefinition, None)
+        data_process_defs = self.RR.find_associations(data_process_id, PRED.hasProcessDefinition, None)
         if len(data_process_defs) < 1:
             raise NotFound('The the Data Process %s is not linked to a Data Process Definition.' % str(data_process_id))
         for data_process_def in data_process_defs:
             log.debug("DataProcessManagementService:delete_data_process  data_process_def transform")
-            self.clients.resource_registry.delete_association(data_process_def)
+            self.RR.delete_association(data_process_def)
 
-#        other_assocs = self.clients.resource_registry.find_associations(subject=data_process_id)
+#        other_assocs = self.RR.find_associations(subject=data_process_id)
 #        for other_assoc in other_assocs:
 #            log.debug("DataProcessManagementService:delete_data_process  delete other assoc")
-#            self.clients.resource_registry.delete_association(other_assoc)
+#            self.RR.delete_association(other_assoc)
 
         # Delete the data process
         log.debug("DataProcessManagementService:delete_data_process the data_process")
-        self.clients.resource_registry.delete(data_process_id)
+        self.RR.delete(data_process_id)
         return
 
 
@@ -433,7 +451,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @retval
         """
         #todo: add filter processing
-        data_process_list , _ = self.clients.resource_registry.find_resources(RT.DataProcess, None, None, True)
+        data_process_list , _ = self.RR.find_resources(RT.DataProcess, None, None, True)
         return data_process_list
 
     def activate_data_process(self, data_process_id=""):
@@ -442,7 +460,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         #find the Transform
         log.debug("DataProcessManagementService:activate_data_process - get the transform associated with this data process")
-        transforms, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
+        transforms, _ = self.RR.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
         if not transforms:
             raise NotFound("No Transform created for this Data Process " + str(transforms))
         if len(transforms) != 1:
@@ -458,7 +476,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         #find the Transform
         log.debug("DataProcessManagementService:deactivate_data_process - get the transform associated with this data process")
-        transforms, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
+        transforms, _ = self.RR.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
         if not transforms:
             raise NotFound("No Transform created for this Data Process " + str(transforms))
         if len(transforms) != 1:
