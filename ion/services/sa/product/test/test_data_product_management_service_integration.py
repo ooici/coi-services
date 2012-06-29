@@ -7,15 +7,18 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
 from interface.objects import HdfStorage, CouchStorage, DataProduct, LastUpdate
 
 from pyon.util.context import LocalContextMixin
+from pyon.util.containers import DotDict
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, PRED
 from mock import Mock
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
+from interface.objects import ProcessDefinition
 import unittest
 import time
 
@@ -44,6 +47,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.pubsubcli =  PubsubManagementServiceClient(node=self.container.node)
         self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
+        self.process_dispatcher   = ProcessDispatcherServiceClient()
 
     def test_get_last_update(self):
         from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
@@ -77,6 +81,27 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
     def test_createDataProduct(self):
         client = self.client
+
+
+
+        self.process_definitions  = {}
+        ingestion_worker_definition = ProcessDefinition(name='ingestion worker')
+        ingestion_worker_definition.executable = {
+            'module':'ion.processes.data.ingestion.science_granule_ingestion_worker',
+            'class' :'ScienceGranuleIngestionWorker'
+        }
+        process_definition_id = self.process_dispatcher.create_process_definition(process_definition=ingestion_worker_definition)
+        self.process_definitions['ingestion_worker'] = process_definition_id
+        
+
+        # First launch the ingestors
+        self.exchange_space       = 'science_ingestion'
+        self.exchange_point       = 'science_data'
+        config = DotDict()
+        config.process.datastore_name = 'datasets'
+        config.process.queue_name = '%s.%s' %(self.exchange_point, self.exchange_space)
+
+        self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
 
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = ctd_stream_definition()
@@ -124,44 +149,21 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # test activate and suspend data product persistence
         try:
             client.activate_data_product_persistence(dp_id2, persist_data=True, persist_metadata=True)
-            time.sleep(3)
-            client.suspend_data_product_persistence(dp_id2)
         except BadRequest as ex:
-            self.fail("failed to activate / deactivate data product persistence : %s" %ex)
+            self.fail("failed to activate  data product persistence : %s" %ex)
 
 
-
+        # test suspend data product persistence
+#        try:
+#            client.suspend_data_product_persistence(dp_id2)
+#        except BadRequest as ex:
+#            self.fail("failed to suspend deactivate data product persistence : %s" %ex)
 
         pid = self.container.spawn_process(name='dummy_process_for_test',
                                            module='pyon.ion.process',
                                            cls='SimpleProcess',
                                            config={})
         dummy_process = self.container.proc_manager.procs[pid]
-        '''
-        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
-        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.in_stream_id)
-
-        msg = {'num':'3'}
-        self.ctd_stream1_publisher.publish(msg)
-
-        time.sleep(1)
-
-        msg = {'num':'5'}
-        self.ctd_stream1_publisher.publish(msg)
-
-        time.sleep(1)
-
-        msg = {'num':'9'}
-        self.ctd_stream1_publisher.publish(msg)
-        '''
-
-
-
-
-
-
-
-
 
 
         # test creating a duplicate data product
