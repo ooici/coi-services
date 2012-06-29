@@ -21,7 +21,6 @@ from pyon.event.event import EventPublisher
 import gevent
 from mock import Mock, mocksignature
 from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent, Frequency
-from ion.services.dm.presentation.discovery_service import QueryLanguage
 from ion.services.dm.utility.query_language import QueryLanguage
 import os
 import gevent
@@ -371,11 +370,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
+        #--------------------------------------------------------------------------------------
         # Create a user and get the user_id
+        #--------------------------------------------------------------------------------------
+
         user = UserInfo(name = 'new_user')
         user_id, _ = self.rrc.create(user)
 
+        #--------------------------------------------------------------------------------------
         # set up....
+        #--------------------------------------------------------------------------------------
+
         notification_id = self.unsc.create_email(event_type='ResourceLifecycleEvent',
             event_subtype=None,
             origin='Some_Resource_Agent_ID1',
@@ -395,7 +400,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # publish an event for each notification to generate the emails
         rle_publisher = EventPublisher("ResourceLifecycleEvent")
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
-
 
         msg_tuple = proc1.event_processors[notification_id].smtp_client.sentmail.get(timeout=4)
 
@@ -448,16 +452,22 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
-        # Make a notification request object
-        notification_request_1 = NotificationRequest(origin="Some_user",
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(origin="instrument_1",
             origin_type="some_type",
             event_type='ResourceLifecycleEvent')
 
-        notification_request_2 = NotificationRequest(origin="A_user",
+        notification_request_2 = NotificationRequest(origin="instrument_2",
             origin_type="some_type",
             event_type='DetectionEvent')
 
+        #--------------------------------------------------------------------------------------
         # Create a user and get the user_id
+        #--------------------------------------------------------------------------------------
+
         user = UserInfo()
         user.name = 'new_user'
         user.contact.phone = '5551212'
@@ -465,28 +475,119 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         user_id, _ = self.rrc.create(user)
 
+        #--------------------------------------------------------------------------------------
         # Create notification
+        #--------------------------------------------------------------------------------------
+
         self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
 
-        gevent.sleep(5)
+        gevent.sleep(2)
 
-
-        print ("here... proc1.user_info: ", proc1.user_info)
-
+        #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info in UNS got reloaded
+        #--------------------------------------------------------------------------------------
+
         self.assertEquals(proc1.user_info['new_user']['notifications'], user.variables[0]['value'])
         self.assertEquals(proc1.user_info['new_user']['user_contact'].phone, '5551212' )
 
 
-
     @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    @unittest.skip('skipped')
+#    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_batch_notifications(self):
         '''
         Test that batch notifications work
         '''
 
-        pass
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
+
+        notification_request_3 = NotificationRequest(origin="instrument_3",
+            origin_type="type_3",
+            event_type='ResourceLifecycleEvent')
+
+        #-------------------------------------------------------
+        # Create users and get the user_ids
+        #-------------------------------------------------------
+
+        # user_1
+        user_1 = UserInfo()
+        user_1.name = 'user_1'
+        user_1.contact.phone = '555-12321'
+        user_1.variables = [{'name' : 'notification', 'value' : [notification_request_1, notification_request_2]}]
+
+        user_id_1, _ = self.rrc.create(user_1)
+
+        # user_2
+        user_2 = UserInfo()
+        user_2.name = 'user_2'
+        user_2.contact.phone = '324-23323'
+        user_2.variables = [{'name' : 'notification', 'value' : [notification_request_2]}]
+
+        # user_3
+        user_3 = UserInfo()
+        user_3.name = 'user_3'
+        user_3.contact.phone = '323-24423'
+        user_3.variables = [{'name' : 'notification', 'value' : [notification_request_2, notification_request_3]}]
+
+
+        user_id_1, _ = self.rrc.create(user_1)
+        user_id_2, _ = self.rrc.create(user_2)
+        user_id_3, _ = self.rrc.create(user_3)
+
+
+        #--------------------------------------------------------------------------------------
+        # Create a notification using UNS. This should cause the user_info to be reloaded
+        #--------------------------------------------------------------------------------------
+
+        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
+
+        # allow elastic search to populate the users_index. This gives enough time for the reload of user_info
+        gevent.sleep(2)
+
+        #--------------------------------------------------------------------------------------
+        # Publish events corresponding to the notification requests just made
+        # These events will get stored in the event repository allowing UNS to batch process
+        # them later for batch notifications
+        #--------------------------------------------------------------------------------------
+
+        event_publisher = EventPublisher("ResourceLifecycleEvent")
+
+        for i in xrange(10):
+            event_publisher.publish_event( ts_created= float(i) , origin='instrument_1', description="RLE test event")
+            event_publisher.publish_event( ts_created= float(i) , origin='instrument_3', description="RLE test event")
+
+        # allow enough time for elastic search to populate the events_index.
+        gevent.sleep(2)
+
+        #--------------------------------------------------------------------------------------
+        # Do a process_batch() in order to start the batch notifications machinery
+        #--------------------------------------------------------------------------------------
+
+        self.unsc.process_batch(start_time=5.0, end_time= 8.0)
+
+        #--------------------------------------------------------------------------------------
+        # Check that the emails were sent to the users. This is done using the fake smtp client
+        # Make assertions....
+        #--------------------------------------------------------------------------------------
+
+
+
+
+
+
+
 
     @attr('LOCOINT')
     @unittest.skip('SMS is being deprecated for now')
@@ -495,11 +596,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
+        #--------------------------------------------------------------------------------------
         # Create a user and get the user_id
+        #--------------------------------------------------------------------------------------
+
         user = UserInfo(name = 'new_user')
         user_id, _ = self.rrc.create(user)
 
+        #--------------------------------------------------------------------------------------
         # set up....
+        #--------------------------------------------------------------------------------------
+
         notification_id = self.unsc.create_email(event_type='ResourceLifecycleEvent',
             event_subtype=None,
             origin='Some_Resource_Agent_ID1',
@@ -519,7 +626,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # publish an event for each notification to generate the emails
         rle_publisher = EventPublisher("ResourceLifecycleEvent")
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
-
 
         msg_tuple = proc1.event_processors[notification_id].smtp_client.sentmail.get(timeout=4)
 
@@ -561,11 +667,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
+        #--------------------------------------------------------------------------------------
         # Create a user and get the user_id
+        #--------------------------------------------------------------------------------------
+
         user = UserInfo(name = 'new_user')
         user_id, _ = self.rrc.create(user)
 
+        #--------------------------------------------------------------------------------------
         # Create detection notification
+        #--------------------------------------------------------------------------------------
+
         dfilt = DetectionFilterConfig()
 
         field = 'voltage'
@@ -629,6 +741,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
             description="RLE test event",
             voltage = 5)
+
         # The smtp_client's sentmail queue should now empty
         self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
 

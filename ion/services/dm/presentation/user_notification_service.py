@@ -74,10 +74,10 @@ class Notification(object):
         # be started and killed
 
         self.subscriber = EventSubscriber(origin=notification_request.origin,
-            origin_type = notification_request.origin_type,
-            event_type=notification_request.event_type,
-            sub_type=notification_request.event_subtype,
-            callback=subscriber_callback)
+                                            origin_type = notification_request.origin_type,
+                                            event_type=notification_request.event_type,
+                                            sub_type=notification_request.event_subtype,
+                                            callback=subscriber_callback)
         self.notification_id = None
 
     def set_notification_id(self, id_=None):
@@ -253,6 +253,13 @@ class UserNotificationService(BaseUserNotificationService):
         self.user_info = {}
         self.reverse_user_info = {}
 
+        # Get the discovery client for batch processing
+        self.discovery = DiscoveryServiceClient()
+
+        #-----------------------------------------------------------------
+        # For discovery to work, we need elastic search
+        #-----------------------------------------------------------------
+
         use_es = CFG.get_safe('system.elasticsearch',False)
 
         if use_es:
@@ -367,7 +374,6 @@ class UserNotificationService(BaseUserNotificationService):
         @throws Conflict    object not based on latest persisted object version
         """
         # Read existing Notification object and see if it exists
-        notification_id = notification._id
         old_notification = self.event_processors[notification_id].notification._res_obj
 
         if not old_notification:
@@ -409,7 +415,9 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         """
         # Read UserNotification object with _id matching passed notification_id
-        return self.event_processors[notification_id].notification
+        notification = self.clients.resource_registry.read(notification_id)
+
+        return notification
 
     def delete_notification(self, notification_id=''):
         """For now, permanently deletes NotificationRequest object with the specified
@@ -418,6 +426,7 @@ class UserNotificationService(BaseUserNotificationService):
         @param notification_id    str
         @throws NotFound    object with specified id does not exist
         """
+
         _event_processor = self.event_processors[notification_id]
         del self.event_processors[notification_id]
         _event_processor.remove_notification(notification_id)
@@ -608,6 +617,9 @@ class UserNotificationService(BaseUserNotificationService):
         #                               'index': 'events_index',
         #                               'range': {'from': 0.0, 'to': 100.0}}}
 
+
+        log.warning("user_info: %s" % self.user_info)
+
         for user in self.user_info.iterkeys():
             notifications = self.user_info[user]['notifications']
 
@@ -631,8 +643,12 @@ class UserNotificationService(BaseUserNotificationService):
 
             log.warning("Each user gets the following message in email: %s" % events_message)
             # send a notification email to each user using a _send_email() method
-            send_email(message = events_message, msg_recipient=self.user_info[user]['user_contact'].email)
 
+            smtp_client = self.event_processors[notifications[0]].smtp_client
+
+#            send_email( message = events_message,
+#                        msg_recipient=self.user_info[user]['user_contact'].email,
+#                        smtp_client=smtp_client )
 
 
 

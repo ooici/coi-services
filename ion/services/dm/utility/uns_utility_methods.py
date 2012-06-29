@@ -160,12 +160,12 @@ def load_user_info():
     '''
     #todo make this method more efficient and accept different parameters instead of using *
 
-    log.warning("Came here!!!!")
-
-    search_string = 'search "name" is "new_user" from "users_index"'
+    search_string = 'search "name" is "*" from "users_index"'
 
     results = []
     user_info = {}
+
+    log.warning("came here!")
 
     try:
         discovery = DiscoveryServiceClient()
@@ -173,7 +173,7 @@ def load_user_info():
     except NotFound as exc:
         log.warning("Discovery could not find the index, users_index. Exception message: %s" % exc.message)
 
-    log.warning("results --- : %s" % results)
+    log.warning("results --- %s" % results)
 
     for result in results:
         user_name = result['_source'].name
@@ -183,12 +183,9 @@ def load_user_info():
 
         for variable in result['_source'].variables:
             if variable['name'] == 'notification':
-                log.warning("variable: %s" % variable )
                 notifications.extend(variable['value'])
 
         user_info[user_name] = { 'user_contact' : user_contact, 'notifications' : notifications}
-
-    log.warning("user_info: %s" % user_info)
 
     return user_info
 
@@ -213,8 +210,6 @@ def calculate_reverse_user_info(user_info = {}):
     for user_name, value in user_info.iteritems():
 
         notifications = value['notifications']
-
-        log.warning("notifications: %s" % notifications)
 
         if notifications:
 
