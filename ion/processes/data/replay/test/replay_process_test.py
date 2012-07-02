@@ -46,6 +46,9 @@ class ReplayProcessUnitTest(PyonTestCase):
                 self.end_stream = True
 
         self.replay.output.publish.side_effect = output_test
+        self.replay.publishing = DotDict()
+        self.replay.publishing.set = Mock()
+        self.replay.publishing['clear'] = Mock() # Really bad
 
 
         result = DotDict()
@@ -58,7 +61,7 @@ class ReplayProcessUnitTest(PyonTestCase):
         self.replay.read_persisted_cache.return_value = mock_data
 
 
-        retval = self.replay.execute_replay()
+        retval = self.replay.replay()
 
         self.assertTrue(retval)
         self.assertTrue(self.received_packet)

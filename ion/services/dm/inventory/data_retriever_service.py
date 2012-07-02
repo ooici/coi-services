@@ -9,6 +9,8 @@ from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
 from prototype.sci_data.constructor_apis import DefinitionTree, StreamDefinitionConstructor
 from pyon.core.exception import BadRequest, NotFound
+from pyon.util.arg_check import validate_is_instance, validate_true
+from ion.processes.data.replay.replay_process import ReplayProcess
 from pyon.public import PRED, RT
 
 
@@ -128,14 +130,26 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.delete(replay_id)
 
-    def start_retrieve(self, replay_id=''):
+    def start_retrieve(self, dataset_id='', query=None, delivery_format=None):
 
-        replay = self.clients.resource_registry.read(replay_id)
+        if query is None:
+            query = {}
+        if delivery_format is None:
+            delivery_format = {}
 
-        pid = replay.process_id
+        validate_is_instance(query,dict,'Query was improperly formatted.')
+        validate_true(dataset_id, 'No dataset provided')
+        
 
-        cli = ReplayProcessClient(name=pid)
+        replay_instance = ReplayProcess()
 
-        return cli.execute_retrieve()
+        replay_instance.dataset = self.clients.dataset_management.read_dataset(dataset_id)
+        replay_instance.start_time = query.get('start_time', None)
+        replay_instance.end_time = query.get('end_time', None)
+        replay_instance.container = self.container
+
+        retrieve_data = replay_instance.execute_retrieve()
+
+        return retrieve_data
 
 

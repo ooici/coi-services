@@ -8,6 +8,7 @@
 from nose.plugins.attrib import attr
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from ion.processes.data.replay.replay_process import ReplayProcess
 from pyon.util.containers import DotDict
@@ -48,6 +49,7 @@ class DataRetrieverIntTest(IonIntegrationTestCase):
         self.data_retriever     = DataRetrieverServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
         self.resource_registry  = ResourceRegistryServiceClient()
+        self.pubsub_management  = PubsubManagementServiceClient()
 
         xs_dot_xp = CFG.core_xps.science_data
 
@@ -59,8 +61,10 @@ class DataRetrieverIntTest(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_define_replay(self):
+        fake_stream = self.pubsub_management.create_stream()
+
         # Create a dataset to work with
-        dataset_id = self.dataset_management.create_dataset('fakestream', self.datastore_name)
+        dataset_id = self.dataset_management.create_dataset(fake_stream, self.datastore_name)
 
         replay_id, stream_id = self.data_retriever.define_replay(dataset_id=dataset_id)
 
