@@ -259,25 +259,25 @@ class UserNotificationService(BaseUserNotificationService):
         # For discovery to work, we need elastic search
         #-----------------------------------------------------------------
 
-        use_es = CFG.get_safe('system.elasticsearch',False)
-
-        if use_es:
-            self.es_host   = CFG.get_safe('server.elasticsearch.host', 'localhost')
-            self.es_port   = CFG.get_safe('server.elasticsearch.port', '9200')
-            CFG.server.elasticsearch.shards         = 1
-            CFG.server.elasticsearch.replicas       = 0
-            CFG.server.elasticsearch.river_shards   = 1
-            CFG.server.elasticsearch.river_replicas = 0
-            self.es = ep.ElasticSearch(
-                host=self.es_host,
-                port=self.es_port,
-                timeout=10,
-                verbose=True
-            )
-
-            op = DotDict(CFG)
-            op.op = 'clean_bootstrap'
-            self.container.spawn_process('index_bootstrap','ion.processes.bootstrap.index_bootstrap','IndexBootStrap', op)
+#        use_es = CFG.get_safe('system.elasticsearch',False)
+#
+#        if use_es:
+#            self.es_host   = CFG.get_safe('server.elasticsearch.host', 'localhost')
+#            self.es_port   = CFG.get_safe('server.elasticsearch.port', '9200')
+#            CFG.server.elasticsearch.shards         = 1
+#            CFG.server.elasticsearch.replicas       = 0
+#            CFG.server.elasticsearch.river_shards   = 1
+#            CFG.server.elasticsearch.river_replicas = 0
+#            self.es = ep.ElasticSearch(
+#                host=self.es_host,
+#                port=self.es_port,
+#                timeout=10,
+#                verbose=True
+#            )
+#
+#            op = DotDict(CFG)
+#            op.op = 'clean_bootstrap'
+#            self.container.spawn_process('index_bootstrap','ion.processes.bootstrap.index_bootstrap','IndexBootStrap', op)
 
         for originator in self.event_originators:
             try:
@@ -310,7 +310,7 @@ class UserNotificationService(BaseUserNotificationService):
             event_type="ReloadUserInfoEvent",
             callback=reload_user_info
         )
-        self.event_subscriber.activate()
+        self.event_subscriber.start()
 
     def on_quit(self):
 
@@ -657,11 +657,6 @@ class UserNotificationService(BaseUserNotificationService):
                 log.warning("search_event_type: %s" % search_event_type)
                 log.warning("search_time: %s" % search_time)
 
-#
-#                search_string = search_origin + 'and' + search_origin_type + 'and' + search_event_type + 'and' +\
-#                                search_time
-
-#                search_string = search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
 
                 search_origin = 'search "origin" is "*" from "events_index"'
                 search_string = search_time + ' and ' + search_origin
@@ -691,8 +686,4 @@ class UserNotificationService(BaseUserNotificationService):
 #            send_email( message = events_message,
 #                        msg_recipient=self.user_info[user]['user_contact'].email,
 #                        smtp_client=smtp_client )
-
-
-
-
 
