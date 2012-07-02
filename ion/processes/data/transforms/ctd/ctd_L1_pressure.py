@@ -52,15 +52,16 @@ class CTDL1PressureTransform(TransformFunction):
         """
 
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        rdt0 = rdt['coordinates']
-        rdt1 = rdt['data']
+        #todo: use only flat dicts for now, may change later...
+#        rdt0 = rdt['coordinates']
+#        rdt1 = rdt['data']
 
         pressure = get_safe(rdt1, 'pres') #psd.get_values('conductivity')
 
-        longitude = get_safe(rdt0, 'lon') # psd.get_values('longitude')
-        latitude = get_safe(rdt0, 'lat')  #psd.get_values('latitude')
-        time = get_safe(rdt0, 'time') # psd.get_values('time')
-        height = get_safe(rdt0, 'height') # psd.get_values('time')
+        longitude = get_safe(rdt, 'lon') # psd.get_values('longitude')
+        latitude = get_safe(rdt, 'lat')  #psd.get_values('latitude')
+        time = get_safe(rdt, 'time') # psd.get_values('time')
+        height = get_safe(rdt, 'height') # psd.get_values('time')
 
         log.warn('Got pressure: %s' % str(pressure))
 
@@ -89,18 +90,18 @@ class CTDL1PressureTransform(TransformFunction):
 
         root_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
-        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
+        #todo: use only flat dicts for now, may change later...
+#        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
+#        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
-        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
+        root_rdt['pres'] = scaled_pressure
+        root_rdt['time'] = time
+        root_rdt['lat'] = latitude
+        root_rdt['lon'] = longitude
+        root_rdt['height'] = height
 
-        data_rdt['pres'] = scaled_pressure
-        coord_rdt['time'] = time
-        coord_rdt['lat'] = latitude
-        coord_rdt['lon'] = longitude
-        coord_rdt['height'] = height
-
-        root_rdt['coordinates'] = coord_rdt
-        root_rdt['data'] = data_rdt
+#        root_rdt['coordinates'] = coord_rdt
+#        root_rdt['data'] = data_rdt
 
         return build_granule(data_producer_id='ctd_L1_pressure', taxonomy=self.tx, record_dictionary=root_rdt)
 

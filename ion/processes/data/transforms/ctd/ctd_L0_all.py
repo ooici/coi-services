@@ -80,17 +80,18 @@ class ctd_L0_all(TransformDataProcess):
         # Use the PointSupplementStreamParser to pull data from a granule
         #psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=packet)
         rdt = RecordDictionaryTool.load_from_granule(packet)
-        rdt0 = rdt['coordinates']
-        rdt1 = rdt['data']
+        #todo: use only flat dicts for now, may change later...
+#        rdt0 = rdt['coordinates']
+#        rdt1 = rdt['data']
 
-        conductivity = get_safe(rdt1, 'cond') #psd.get_values('conductivity')
-        pressure = get_safe(rdt1, 'pres') #psd.get_values('pressure')
-        temperature = get_safe(rdt1, 'temp') #psd.get_values('temperature')
+        conductivity = get_safe(rdt, 'cond') #psd.get_values('conductivity')
+        pressure = get_safe(rdt, 'pres') #psd.get_values('pressure')
+        temperature = get_safe(rdt, 'temp') #psd.get_values('temperature')
 
-        longitude = get_safe(rdt0, 'lon') # psd.get_values('longitude')
-        latitude = get_safe(rdt0, 'lat')  #psd.get_values('latitude')
-        time = get_safe(rdt0, 'time') # psd.get_values('time')
-        height = get_safe(rdt0, 'height') # psd.get_values('time')
+        longitude = get_safe(rdt, 'lon') # psd.get_values('longitude')
+        latitude = get_safe(rdt, 'lat')  #psd.get_values('latitude')
+        time = get_safe(rdt, 'time') # psd.get_values('time')
+        height = get_safe(rdt, 'height') # psd.get_values('time')
 
         log.warn('Got conductivity: %s' % str(conductivity))
         log.warn('Got pressure: %s' % str(pressure))
@@ -114,19 +115,20 @@ class ctd_L0_all(TransformDataProcess):
 
         root_rdt = RecordDictionaryTool(taxonomy=taxonomy)
 
-        data_rdt = RecordDictionaryTool(taxonomy=taxonomy)
+        #data_rdt = RecordDictionaryTool(taxonomy=taxonomy)
 
-        data_rdt[field_name] = value
+        root_rdt[field_name] = value
 
-        coor_rdt = RecordDictionaryTool(taxonomy=taxonomy)
+        #coor_rdt = RecordDictionaryTool(taxonomy=taxonomy)
 
-        coor_rdt['time'] = time
-        coor_rdt['lat'] = latitude
-        coor_rdt['lon'] = longitude
-        coor_rdt['height'] = height
+        root_rdt['time'] = time
+        root_rdt['lat'] = latitude
+        root_rdt['lon'] = longitude
+        root_rdt['height'] = height
 
-        root_rdt['coordinates'] = coor_rdt
-        root_rdt['data'] = data_rdt
+        #todo: use only flat dicts for now, may change later...
+#        root_rdt['coordinates'] = coor_rdt
+#        root_rdt['data'] = data_rdt
 
         log.debug("ctd_L0_all:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
 
