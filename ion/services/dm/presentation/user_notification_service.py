@@ -676,7 +676,8 @@ class UserNotificationService(BaseUserNotificationService):
             log.warning("notifications[0]: %s" % notifications[0])
             log.warning("self.event_processors: %s" % self.event_processors)
 
-#            self.clients.resource_registry.find_resources(RT.NotificationRequest)
+            #todo when the use of and/or in discovery is completely sorted, ret_vals will be a list of objects
+            # todo (contd): when that happens complete the rest of this method (mostly the commented part below)
 
 #            smtp_client = self.event_processors[notifications[0]].smtp_client
 

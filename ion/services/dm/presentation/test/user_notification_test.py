@@ -523,7 +523,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # user_1
         user_1 = UserInfo()
         user_1.name = 'user_1'
-        user_1.contact.phone = '555-12321'
+        user_1.contact.email = 'user_1@gmail.com'
         user_1.variables = [{'name' : 'notification', 'value' : [notification_request_1, notification_request_2]}]
 
         user_id_1, _ = self.rrc.create(user_1)
@@ -531,13 +531,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # user_2
         user_2 = UserInfo()
         user_2.name = 'user_2'
-        user_2.contact.phone = '324-23323'
+        user_2.contact.phone = 'user_2@gmail.com'
         user_2.variables = [{'name' : 'notification', 'value' : [notification_request_2]}]
 
         # user_3
         user_3 = UserInfo()
         user_3.name = 'user_3'
-        user_3.contact.phone = '323-24423'
+        user_3.contact.phone = 'user_3@gmail.com'
         user_3.variables = [{'name' : 'notification', 'value' : [notification_request_2, notification_request_3]}]
 
 

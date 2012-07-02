@@ -72,7 +72,7 @@ class NotificationWorker(TransformDataProcess):
         """
 
         #------------------------------------------------------------------------------------
-        # From the reverse user info dict find out which users have subscribed to that event.
+        # From the reverse user info dict find out which users have subscribed to that event
         #------------------------------------------------------------------------------------
 
         users = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
@@ -84,21 +84,22 @@ class NotificationWorker(TransformDataProcess):
         #todo format the message better instead of just converting the event_msg to a string
         message = str(msg)
 
-        for user in users:
+        for user_name in users:
             smtp_client = setting_up_smtp_client()
-            send_email(message = message, msg_recipient = user, smtp_client = smtp_client )
+            msg_recipient = user_info[user_name]['user_contact'].email
+            send_email(message = message, msg_recipient = msg_recipient, smtp_client = smtp_client )
 
     def on_stop(self):
         TransformDataProcess.on_stop(self)
 
-        # close subscribers  safely
+        # close subscribers safely
         self.event_subscriber.stop()
         self.reload_user_info_subscriber.stop()
 
     def on_quit(self):
         TransformDataProcess.on_quit(self)
 
-        # close subscribers  safely
+        # close subscribers safely
         self.event_subscriber.stop()
         self.reload_user_info_subscriber.stop()
 

@@ -128,7 +128,7 @@ def check_user_notification_interest(event, reverse_user_info):
     @param notification NotificationRequest
     @param reverse_user_info    dict
 
-    @retval users list
+    @retval user_names list
     '''
 
     user_list_1 = reverse_user_info['event_origin'][event.origin]
