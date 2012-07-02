@@ -91,13 +91,13 @@ class SubscribedNotification(object):
         """
         Start subscribing
         """
-        self.subscriber.activate()
+        self.subscriber.start()
 
     def deactivate(self):
         """
         Stop subscribing
         """
-        self.subscriber.deactivate()
+        self.subscriber.stop()
 
 class EventProcessor(object):
     """

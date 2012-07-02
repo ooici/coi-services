@@ -60,7 +60,7 @@ class TestScienceObjectCodec(IonUnitTestCase):
 
         length = 1
 
-        packet = self.px_ctd._get_ctd_packet("STR_ID", length)
+        packet = self.px_ctd._get_new_ctd_packet("STR_ID", length)
 
         log.info("Packet: %s" % packet)
 

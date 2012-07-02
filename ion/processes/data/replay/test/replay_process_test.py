@@ -8,7 +8,7 @@
 from pyon.core.interceptor.encode import encode_ion
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
-from ion.processes.data.replay.replay_process_a import ReplayProcess
+from ion.processes.data.replay.replay_process import ReplayProcess
 from mock import Mock
 from nose.plugins.attrib import attr
 import msgpack
@@ -20,6 +20,7 @@ class ReplayProcessUnitTest(PyonTestCase):
         self.replay.dataset_id = 'dataset'
         self.replay.dataset = DotDict()
         self.replay.dataset.datastore_name='datasets'
+        self.replay.dataset.primary_view_key = 'stream_id'
         self.replay.deliver_format = {}
         self.replay.start_time = None
         self.replay.end_time = None

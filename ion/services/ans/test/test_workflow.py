@@ -38,7 +38,7 @@ from interface.objects import Granule
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-
+from pyon.util.containers import get_safe
 
 from pyon.util.context import LocalContextMixin
 
@@ -212,11 +212,14 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
         first_salinity_values = None
 
         for message in results:
-
+            rdt = RecordDictionaryTool.load_from_granule(message)
+            rdt0 = rdt['coordinates']
+            rdt1 = rdt['data']
             try:
-                psd = PointSupplementStreamParser(stream_definition=self.ctd_stream_def, stream_granule=message)
-                temp = psd.get_values('temperature')
-                log.info(psd.list_field_names())
+                temp = get_safe(rdt1, 'temp')
+#                psd = PointSupplementStreamParser(stream_definition=self.ctd_stream_def, stream_granule=message)
+#                temp = psd.get_values('temperature')
+#                log.info(psd.list_field_names())
             except KeyError as ke:
                 temp = None
 
@@ -228,14 +231,15 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
                 first_salinity_values = None
 
             else:
-                psd = PointSupplementStreamParser(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
-                log.info( psd.list_field_names())
+                #psd = PointSupplementStreamParser(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
+                #log.info( psd.list_field_names())
 
                 # Test the handy info method for the names of fields in the stream def
-                assertions('salinity' in psd.list_field_names())
+                #assertions('salinity' in psd.list_field_names())
 
                 # you have to know the name of the coverage in stream def
-                salinity = psd.get_values('salinity')
+                salinity = get_safe(rdt1, 'salinity')
+                #salinity = psd.get_values('salinity')
                 log.info( 'salinity=' + str(numpy.nanmin(salinity)))
 
                 assertions(isinstance(salinity, numpy.ndarray))
@@ -513,7 +517,8 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
                 #log.warn(tx.pretty_print())
                 #log.warn(rdt.pretty_print())
 
-                gdt_component = rdt['google_dt_components'][0]
+                #gdt_component = rdt['google_dt_components'][0]
+                gdt_component = get_safe(rdt, 'google_dt_components')
 
                 assertions(gdt_component['viz_product_type'] == 'google_realtime_dt' )
                 gdt_description = gdt_component['data_table_description']

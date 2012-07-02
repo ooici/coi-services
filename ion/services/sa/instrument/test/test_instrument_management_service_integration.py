@@ -7,6 +7,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
 from interface.services.sa.iinstrument_management_service import IInstrumentManagementService, InstrumentManagementServiceClient
+from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
@@ -35,6 +36,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
         self.IMS = InstrumentManagementServiceClient(node=self.container.node)
+        self.IDS = IdentityManagementServiceClient(node=self.container.node)
         
         print 'started services'
 
@@ -138,16 +140,30 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
         self.RR.create_association(platform_device_id, PRED.hasInstrument, instrument_device_id)
 
-        platform_model_id #is only a target
 
-        #sensor_device
-        self.RR.create_association(sensor_device_id, PRED.hasModel, sensor_model_id)
+        #Testing multiple instrument owners
+        subject1 = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254"
 
-        #Used for testing of computed attributes for calculating associations
-        self.RR.create_association(instrument_device_id,PRED.hasSensor, sensor_device_id)
+        actor_identity_obj1 = IonObject("ActorIdentity", {"name": subject1})
+        user_id1 = self.IDS.create_actor_identity(actor_identity_obj1)
 
-        sensor_model_id #is only a target
+        user_info_obj1 = IonObject("UserInfo", {"name": "Foo"})
+        user_info_id1 = self.IDS.create_user_info(user_id1, user_info_obj1)
+
+        self.RR.create_association(instrument_device_id, PRED.hasOwner, user_id1)
+
+        subject2 = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Bob Cumbers A256"
+
+        actor_identity_obj2 = IonObject("ActorIdentity", {"name": subject2})
+        user_id2 = self.IDS.create_actor_identity(actor_identity_obj2)
+
+        user_info_obj2 = IonObject("UserInfo", {"name": "Foo2"})
+        user_info_id2 = self.IDS.create_user_info(user_id2, user_info_obj2)
+
+        self.RR.create_association(instrument_device_id, PRED.hasOwner, user_id2)
 
         extended_instrument = self.IMS.get_instrument_device_extension(instrument_device_id)
         self.assertEqual(instrument_device_id,extended_instrument._id)
-        self.assertEqual(extended_instrument.computed.sensor_count,1)
+        self.assertEqual(len(extended_instrument.owners),2)
+        self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
+        self.assertEqual(extended_instrument.computed.data_producer_count,1)

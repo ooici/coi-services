@@ -63,6 +63,16 @@ class InstrumentSiteImpl(SiteImpl):
     def unlink_model(self, instrument_site_id='', instrument_model_id=''):
         return self._unlink_resources(instrument_site_id, PRED.hasModel, instrument_model_id)
 
+    def link_output_product(self, site_id, data_product_id):
+        # output product can't be linked to any other site, this site can't be linked to any other output product
+        if 0 < len(self.find_stemming_output_product(site_id)):
+            raise BadRequest("Site already has an output data product assigned")
+
+        return self._link_resources_single_subject(site_id, PRED.hasOutputProduct, data_product_id)
+
+    def unlink_output_product(self, site_id, data_product_id):
+        return self._unlink_resources(site_id, PRED.hasOutputProduct, data_product_id)
+
     def find_having_deployment(self, deployment_id):
         return self._find_having(PRED.hasDeployment, deployment_id)
 
@@ -81,6 +91,11 @@ class InstrumentSiteImpl(SiteImpl):
     def find_stemming_model(self, instrument_site_id):
         return self._find_stemming(instrument_site_id, PRED.hasModel, RT.InstrumentModel)
 
+    def find_having_output_product(self, data_product_id):
+        return self._find_having(PRED.hasOutputProduct, data_product_id)
+
+    def find_stemming_output_product(self, site_id):
+        return self._find_stemming(site_id, PRED.hasModel, RT.DataProduct)
 
     def on_pre_delete(self, obj_id, obj):
         #todo: unlink parent/children sites, agents, models, devices?

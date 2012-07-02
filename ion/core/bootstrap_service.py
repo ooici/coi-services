@@ -6,13 +6,14 @@
 __author__ = 'Michael Meisinger'
 
 from pyon.public import CFG, IonObject, log, get_sys_name, RT, LCS, PRED, iex
+from pyon.util.containers import DotDict
 from pyon.ion.exchange import ION_ROOT_XS
 
 from interface.services.ibootstrap_service import BaseBootstrapService
 from ion.services.coi.policy_management_service import MANAGER_ROLE, ION_MANAGER
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from interface.objects import ProcessDefinition
-from interface.objects import CouchStorage, HdfStorage
+from interface.objects import IngestionQueue
 
 class BootstrapService(BaseBootstrapService):
     """
@@ -48,8 +49,6 @@ class BootstrapService(BaseBootstrapService):
             self.post_org_management(config)
         elif level == "exchange_management":
             self.post_exchange_management(config)
-        elif level == "visualization_service":
-            self.bootstrap_viz_svc(config)
         elif level == "load_system_policy":
             self.load_system_policy(config)
 
@@ -185,24 +184,6 @@ class BootstrapService(BaseBootstrapService):
 
         #self.clients.resource_registry.find_subjects(self.xs_id, "HAS-A")
 
-    def bootstrap_viz_svc(self, config):
-
-        # Create process definitions which will used to spawn off the transform processes
-        matplotlib_proc_def = IonObject(RT.ProcessDefinition, name='viz_matplotlib_transform_process')
-        matplotlib_proc_def.executable = {
-            'module': 'ion.services.ans.visualization_service',
-            'class':'VizTransformProcForMatplotlibGraphs'
-        }
-        matplotlib_proc_def_id, _ = self.clients.resource_registry.create(matplotlib_proc_def)
-
-        google_dt_proc_def = IonObject(RT.ProcessDefinition, name='viz_google_dt_transform_process')
-        google_dt_proc_def.executable = {
-            'module': 'ion.services.ans.visualization_service',
-            'class':'VizTransformProcForGoogleDT'
-        }
-        google_dt_proc_def_id, _ = self.clients.resource_registry.create(google_dt_proc_def)
-
-        return
 
     def post_startup(self):
         log.info("Cannot sanity check bootstrap yet, need better plan to sync local state (or pull from datastore?)")
@@ -235,39 +216,49 @@ class BootstrapService(BaseBootstrapService):
 
         Creating transform workers happens here...
         """
-        exchange_point = config.get_safe('ingestion.exchange_point','science_data')
-        couch_opts = config.get_safe('ingestion.couch_storage',{})
-        couch_storage = CouchStorage(**couch_opts)
-        hdf_opts = config.get_safe('ingestion.hdf_storage',{})
-        hdf_storage = HdfStorage(**hdf_opts)
-        number_of_workers = config.get_safe('ingestion.number_of_workers',2)
 
-        ingestion_id = self.clients.ingestion_management.create_ingestion_configuration(
-            exchange_point_id=exchange_point,
-            couch_storage=couch_storage,
-            hdf_storage=hdf_storage,
-            number_of_workers=number_of_workers
-        )
-        self.clients.ingestion_management.activate_ingestion_configuration(ingestion_id)
+        exchange_point = config.get_safe('ingestion.exchange_point','science_data')
+        queues = config.get_safe('ingestion.queues',None)
+        if queues is None:
+            queues = [dict(name='science_granule_ingestion', type='SCIDATA')]
+        for i in xrange(len(queues)):
+            item = queues[i]
+            queues[i] = IngestionQueue(name=item['name'], type=item['type'], datastore_name=item['datastore_name'])
+        
+
+        self.clients.ingestion_management.create_ingestion_configuration(name='standard ingestion config',
+                                                    exchange_point_id=exchange_point,
+                                                    queues=queues)
 
     def post_process_dispatcher(self, config):
-        ingestion_module = config.get_safe('bootstrap.processes.ingestion.module','ion.processes.data.ingestion.ingestion_worker')
-        ingestion_class  = config.get_safe('bootstrap.processes.ingestion.class' ,'IngestionWorker')
+        ingestion_module    = config.get_safe('bootstrap.processes.ingestion.module','ion.processes.data.ingestion.science_granule_ingestion_worker')
+        ingestion_class     = config.get_safe('bootstrap.processes.ingestion.class' ,'ScienceGranuleIngestionWorker')
+        ingestion_datastore = config.get_safe('bootstrap.processes.ingestion.datastore_name', 'datasets')
+        ingestion_queue     = config.get_safe('bootstrap.processes.ingestion.queue' , 'science_data.science_granule_ingestion')
 
-        replay_module    = config.get_safe('bootstrap.processes.replay.module', 'ion.processes.data.replay.replay_process')
-        replay_class     = config.get_safe('bootstrap.processes.replay.class' , 'ReplayProcess')
+        replay_module       = config.get_safe('bootstrap.processes.replay.module', 'ion.processes.data.replay.replay_process')
+        replay_class        = config.get_safe('bootstrap.processes.replay.class' , 'ReplayProcess')
 
         process_definition = ProcessDefinition(
-            name='ingestion_worker_process',
-            description='Worker transform process for ingestion of datasets')
+                name='ingestion_worker_process',
+                description='Worker transform process for ingestion of datasets')
         process_definition.executable['module']= ingestion_module
         process_definition.executable['class'] = ingestion_class
-        self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+        ingestion_procdef_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+
+        #--------------------------------------------------------------------------------
+        # Simulate a HA ingestion worker by creating two of them 
+        #--------------------------------------------------------------------------------
+        config = DotDict()
+        config.process.datastore_name = ingestion_datastore
+        config.process.queue_name     = ingestion_queue
+
+        for i in xrange(2):
+            self.clients.process_dispatcher.schedule_process(process_definition_id=ingestion_procdef_id, configuration=config)
 
 
-        process_definition = ProcessDefinition(
-            name='data_replay_process',
-            description='Process for the replay of datasets')
+
+        process_definition = ProcessDefinition(name='data_replay_process', description='Process for the replay of datasets')
         process_definition.executable['module']= replay_module
         process_definition.executable['class'] = replay_class
         self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)

@@ -6,9 +6,10 @@ __license__ = 'Apache 2.0'
 from pyon.util.log import log
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from ion.services.sa.product.data_product_impl import DataProductImpl
+from interface.objects import IngestionQueue
 
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, LCS
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -97,13 +98,39 @@ class DataProductManagementService(BaseDataProductManagementService):
         #todo: convert to impl call
         producer_ids = self.data_product.find_stemming_data_producer(data_product_id)
 
-        if producer_ids:
-            log.debug("unassigning data producers: %s")
-            self.clients.data_acquisition_management.unassign_data_product(data_product_id)
-        
+        for producer_id in producer_ids:
+            log.debug("DataProductManagementService:delete_data_product unassigning data producers: %s")
+            self.clients.data_acquisition_management.unassign_data_product(producer_id, data_product_id, True)
+
+#        # find any stream links
+#        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
+#
+#        # delete the stream associations link first
+#        stream_assocs = self.clients.resource_registry.find_associations(data_product_id, PRED.hasStream)
+#        for stream_assoc in stream_assocs:
+#            self.clients.resource_registry.delete_association(stream_assoc)
+#
+#        for stream_id in stream_ids:
+#            self.clients.pubsub_management.delete_stream(stream_id)
+#
+#        # delete the hasOutputDataProduct associations link
+#        dp_assocs = self.clients.resource_registry.find_associations(data_product_id, PRED.hasOutputProduct)
+#        for dp_assoc in dp_assocs:
+#            self.clients.resource_registry.delete_association(dp_assoc)
+#        # delete the hasInputDataProduct associations link
+#        dp_assocs = self.clients.resource_registry.find_associations(data_product_id, PRED.hasInputProduct)
+#        for dp_assoc in dp_assocs:
+#            self.clients.resource_registry.delete_association(dp_assoc)
+
         # Delete the data product
         self.clients.resource_registry.delete(data_product_id)
+        #self.clients.resource_registry.set_lifecycle_state(data_product_id, LCS.RETIRED)
         return
+
+    def hard_delete_data_product(self, data_product_id=''):
+
+        return
+
 
     def find_data_products(self, filters=None):
         """
@@ -137,60 +164,71 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest('Data Product %s must have one stream associated' % str(data_product_id))
 
         #todo: what if there are multiple streams?
-        stream = streams[0]
-        log.debug("activate_data_product_persistence: stream = %s"  % str(stream._id))
+        stream_id = streams[0]
+        log.debug("activate_data_product_persistence: stream = %s"  % str(stream_id))
 
-        # Find THE ingestion configuration in the RR to create a ingestion configuration
-        # todo: how are multiple ingest configs for a site managed?
-        ingest_config_objs, _ = self.clients.resource_registry.find_resources(restype=RT.IngestionConfiguration, id_only=False)
-        if len(ingest_config_objs) != 1:
-            log.debug("activate_data_product_persistence: ERROR ingest_config_objs = %s"  % str(ingest_config_objs))
-            raise BadRequest('Data Product must have one ingestion configuration %s' % str(data_product_id))
+        #--------------------------------------------------------------------------------
+        # Create the ingestion config for this exchange
+        #--------------------------------------------------------------------------------
 
-        ingestion_configuration_obj = ingest_config_objs[0]
-        log.debug("activate_data_product_persistence: ingestion_configuration_obj = %s"  % str(ingestion_configuration_obj))
 
-        if data_product_obj.dataset_id:
-            objs,_ = self.clients.resource_registry.find_objects(data_product_obj.dataset_id,
-                    PRED.hasIngestionConfiguration, RT.DatasetIngestionConfiguration, id_only=False)
-            if not objs:
-                log.debug('activate_data_product_persistence: Calling create_dataset_configuration for EXISTING Dataset', )
-                dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration(
-                    dataset_id=data_product_obj.dataset_id, archive_data=persist_data,
-                    archive_metadata=persist_metadata, ingestion_configuration_id=ingestion_configuration_obj._id)
-                log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
-            else:
-                dataset_configuration_obj = objs[0]
+        self.exchange_point       = 'science_data'
+        self.exchange_space       = 'science_ingestion'
+        ingest_queue = IngestionQueue(name=self.exchange_space, type='science_granule')
+        ingestion_configuration_id = self.clients.ingestion_management.create_ingestion_configuration(name='standard_ingest', exchange_point_id=self.exchange_point, queues=[ingest_queue])
 
-                dataset_configuration_obj.configuration.archive_data = persist_data
-                dataset_configuration_obj.configuration.archive_metadata = persist_metadata
+        log.debug("activate_data_product_persistence: ingestion_configuration_id = %s"  % str(ingestion_configuration_id))
 
-                # call ingestion management to update a dataset configuration
-                log.debug('activate_data_product_persistence: Calling update_dataset_config', )
-                dataset_configuration_id = self.clients.ingestion_management.update_dataset_config(dataset_configuration_obj)
-                log.debug("activate_data_product_persistence: update_dataset_config = %s"  % str(dataset_configuration_id))
-        else:
-            # create the dataset for the data
-            # !!!!!!!! (Currently) The Datastore name MUST MATCH the ingestion configuration name!!!
-            data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream,
-                    datastore_name=ingestion_configuration_obj.couch_storage.datastore_name, description=data_product_obj.description)
-            log.debug("activate_data_product_persistence: create_dataset = %s"  % str(data_product_obj.dataset_id))
+        #--------------------------------------------------------------------------------
+        # Persist the data stream
+        #--------------------------------------------------------------------------------
 
-            self.update_data_product(data_product_obj)
+        dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_configuration_id)
 
-            # Need to read again, because the _rev has changed. Otherwise error on update later.
-            data_product_obj = self.clients.resource_registry.read(data_product_id)
 
-            # call ingestion management to create a dataset configuration
-            log.debug('activate_data_product_persistence: Calling create_dataset_configuration', )
-            dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration(
-                        dataset_id=data_product_obj.dataset_id, archive_data=persist_data,
-                        archive_metadata=persist_metadata, ingestion_configuration_id=ingestion_configuration_obj._id)
-            log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
+#        if data_product_obj.dataset_id:
+#            objs,_ = self.clients.resource_registry.find_objects(data_product_obj.dataset_id,
+#                    PRED.hasIngestionConfiguration, RT.DatasetIngestionConfiguration, id_only=False)
+#            if not objs:
+#                log.debug('activate_data_product_persistence: Calling create_dataset_configuration for EXISTING Dataset', )
+#                dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration(
+#                    dataset_id=data_product_obj.dataset_id, archive_data=persist_data,
+#                    archive_metadata=persist_metadata, ingestion_configuration_id=ingestion_configuration_obj._id)
+#                log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
+#            else:
+#                dataset_configuration_obj = objs[0]
+#
+#                dataset_configuration_obj.configuration.archive_data = persist_data
+#                dataset_configuration_obj.configuration.archive_metadata = persist_metadata
+#
+#                # call ingestion management to update a dataset configuration
+#                log.debug('activate_data_product_persistence: Calling update_dataset_config', )
+#                dataset_configuration_id = self.clients.ingestion_management.update_dataset_config(dataset_configuration_obj)
+#                log.debug("activate_data_product_persistence: update_dataset_config = %s"  % str(dataset_configuration_id))
+#        else:
+#            # create the dataset for the data
+#            # !!!!!!!! (Currently) The Datastore name MUST MATCH the ingestion configuration name!!!
+#            data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream,
+#                    datastore_name=ingestion_configuration_obj.couch_storage.datastore_name, description=data_product_obj.description)
+#            log.debug("activate_data_product_persistence: create_dataset = %s"  % str(data_product_obj.dataset_id))
+#
+#            self.update_data_product(data_product_obj)
+#
+#            # Need to read again, because the _rev has changed. Otherwise error on update later.
+#            data_product_obj = self.clients.resource_registry.read(data_product_id)
+#
+#            # call ingestion management to create a dataset configuration
+#            log.debug('activate_data_product_persistence: Calling create_dataset_configuration', )
+#            dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration(
+#                        dataset_id=data_product_obj.dataset_id, archive_data=persist_data,
+#                        archive_metadata=persist_metadata, ingestion_configuration_id=ingestion_configuration_obj._id)
+#            log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
+
 
         # save the dataset_configuration_id in the product resource? Can this be found via the stream id?
-
-        data_product_obj.dataset_configuration_id = dataset_configuration_id
+        data_product_obj.dataset_id = dataset_id
+        # todo: dataset_configuration_obj contains the ingest config for now...
+        data_product_obj.dataset_configuration_id = ingestion_configuration_id
         self.update_data_product(data_product_obj)
 
     def suspend_data_product_persistence(self, data_product_id=''):
@@ -214,11 +252,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         if dataset_configuration_obj is None:
             raise NotFound("Dataset Configuration %s does not exist" % data_product_obj.dataset_configuration_id)
 
-        #Set the dataset config archive data/metadata attrs to false
-        dataset_configuration_obj.configuration.archive_data = False
-        dataset_configuration_obj.configuration.archive_metadata = False
+#        #Set the dataset config archive data/metadata attrs to false
+#        dataset_configuration_obj.configuration.archive_data = False
+#        dataset_configuration_obj.configuration.archive_metadata = False
 
-        ret = self.clients.ingestion_management.update_dataset_config(dataset_configuration_obj)
+        # todo: dataset_configuration_obj contains the ingest config for now...
+        ret = self.clients.ingestion_management.unpersist_data_stream(dataset_configuration_obj)
 
         log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
 

@@ -60,7 +60,7 @@ class InstrumentDeviceImpl(ResourceImpl):
                 if site_deployments[0]._id != deployment_id:
                     raise BadRequest("Site to which this device is assigned has a different deployment")
 
-            for dev in self._find_stemming(sites[0]._id, PRED.hasDevice, RT.InsrumentDevice):
+            for dev in self._find_stemming(sites[0]._id, PRED.hasDevice, RT.InstrumentDevice):
                 if 0 < len(self._find_stemming(dev, PRED.hasDeployment, RT.Deployment)):
                     raise BadRequest("Site already has a device with a deployment")
 
