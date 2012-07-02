@@ -110,18 +110,12 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.wait_until_we_have_enough_granules(dataset_id)
         
-        #--------------------------------------------------------------------------------
-        # Replay the data
-        # - Define the replay using the dataset
-        #--------------------------------------------------------------------------------
-
-        replay_id, replay_stream_id = self.data_retriever.define_replay(dataset_id)
 
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
         #--------------------------------------------------------------------------------
         
-        replay_data = self.data_retriever.start_retrieve(replay_id)
+        replay_data = self.data_retriever.start_retrieve(dataset_id)
 
         self.assertIsInstance(replay_data, Granule)
 

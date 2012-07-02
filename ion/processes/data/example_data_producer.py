@@ -80,30 +80,25 @@ class ExampleDataProducer(SimpleCtdPublisher):
 
             # This is an example of using groups it is not a normative statement about how to use groups
 
-            rdt0 = RecordDictionaryTool(taxonomy=tx)
 
 
-            rdt0['temp'] = t
-            rdt0['cond'] = c
-            rdt0['pres'] = p
-
-            #add a value sequence of raw bytes - not sure the type below is correct?
-            with open('/dev/urandom','r') as rand:
-                rdt0['raw_fixed'] = numpy.array([rand.read(32) for i in xrange(length)], dtype='a32')
+            rdt['temp'] = t
+            rdt['cond'] = c
+            rdt['pres'] = p
 
             #add a value sequence of raw bytes - not sure the type below is correct?
             with open('/dev/urandom','r') as rand:
-                rdt0['raw_blob'] = numpy.array([rand.read(random.randint(1,40)) for i in xrange(length)], dtype=object)
+                rdt['raw_fixed'] = numpy.array([rand.read(32) for i in xrange(length)], dtype='a32')
+
+            #add a value sequence of raw bytes - not sure the type below is correct?
+            with open('/dev/urandom','r') as rand:
+                rdt['raw_blob'] = numpy.array([rand.read(random.randint(1,40)) for i in xrange(length)], dtype=object)
 
 
-            rdt1 = RecordDictionaryTool(taxonomy=tx)
 
-            rdt1['time'] = tvar
-            rdt1['lat'] = lat
-            rdt1['lon'] = lon
-
-            rdt['group1'] = rdt1
-            rdt['group0'] = rdt0
+            rdt['time'] = tvar
+            rdt['lat'] = lat
+            rdt['lon'] = lon
 
             log.info("logging published Record Dictionary:\n %s", rdt.pretty_print())
 
