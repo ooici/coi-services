@@ -661,9 +661,6 @@ class UserNotificationService(BaseUserNotificationService):
                 search_origin = 'search "origin" is "*" from "events_index"'
                 search_string = search_time + ' and ' + search_origin
 
-#                search_string = 'search "origin" is "*" from "events_index"'
-#                search_string = search_time
-
                 ret_vals = self.discovery.parse(search_string)
 
                 log.warning("ret_vals : %s" % ret_vals)

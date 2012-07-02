@@ -15,6 +15,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from pyon.event.event import EventSubscriber, EventPublisher
 from ion.services.dm.utility.uns_utility_methods import send_email, load_user_info, calculate_reverse_user_info
+from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, check_user_notification_interest
 
 class NotificationWorker(TransformDataProcess):
     """
@@ -32,68 +33,72 @@ class NotificationWorker(TransformDataProcess):
     def on_start(self):
         super(NotificationWorker,self).on_start()
 
-        self.update_user_info()
+        #------------------------------------------------------------------------------------
+        # Start by loading the user info and reverse user info dictionaries
+        #------------------------------------------------------------------------------------
 
-#        def receive_event(event_msg, headers):
-#            # use the subscription call back of the email event processor to send an email
-#            self.process_event(event_msg)
+        load_user_info()
+        if self.user_info:
+            calculate_reverse_user_info(self.user_info)
 
         def receive_update_notification_event(event_msg, headers):
-            self.update_user_info()
-
-#        #------------------------------------------------------------------------------------
-#        # start the event subscriber for all events that are of interest for notifications
-#        #------------------------------------------------------------------------------------
-#
-#        self.event_subscriber = EventSubscriber(
-#            event_type="Event",
-#            queue_name = 'uns_queue', # modify this to point at the right queue
-#            callback=receive_event
-#        )
+            load_user_info()
+            calculate_reverse_user_info()
 
         #------------------------------------------------------------------------------------
-        # start the event subscriber for listening to events which get generated when
-        # notifications are updated
+        # start the event subscriber for all events that are of interest for notifications
         #------------------------------------------------------------------------------------
 
         self.event_subscriber = EventSubscriber(
+            event_type="Event",
+            queue_name = 'uns_queue', # modify this to point at the right queue
+            callback=self.process_event
+        )
+
+        #------------------------------------------------------------------------------------
+        # start the event subscriber for reload user info
+        #------------------------------------------------------------------------------------
+
+        self.reload_user_info_subscriber = EventSubscriber(
             event_type="UpdateNotificationEvent",
             callback=receive_update_notification_event
         )
+        self.reload_user_info_subscriber.start()
 
-        self.event_subscriber.activate()
-
-        # calculate the user info dictionary
-        self.user_info = update_user_info()
-
-        # calculate the reverse user info
-        self.event_type_user, self.event_subtype_user, \
-        self.event_origin_user, self.event_origin_type_user =  calculate_reverse_user_info(self.user_info)
-
-    def process(self, packet):
-        """Process incoming data!!!!
-
+    def process_event(self, msg, headers):
+        """
         From the user_info dict find out which user has subscribed to that event.
         Send email to the user
-
         """
 
-        for key,value in packet.identifiables.iteritems():
-            pass
+        #------------------------------------------------------------------------------------
+        # From the reverse user info dict find out which users have subscribed to that event.
+        #------------------------------------------------------------------------------------
+
+        users = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
+
+        #------------------------------------------------------------------------------------
+        # Send email to the users
+        #------------------------------------------------------------------------------------
+
+        #todo format the message better instead of just converting the event_msg to a string
+        message = str(msg)
+
+        for user in users:
+            smtp_client = setting_up_smtp_client()
+            send_email(message = message, msg_recipient = user, smtp_client = smtp_client )
 
     def on_stop(self):
         TransformDataProcess.on_stop(self)
 
-        # close event subscriber safely
-        self.event_subscriber.close()
-        self.gl.join(timeout=5)
-        self.gl.kill()
+        # close subscribers  safely
+        self.event_subscriber.stop()
+        self.reload_user_info_subscriber.stop()
 
     def on_quit(self):
         TransformDataProcess.on_quit(self)
 
-        # close event subscriber safely
-        self.event_subscriber.close()
-        self.gl.join(timeout=5)
-        self.gl.kill()
+        # close subscribers  safely
+        self.event_subscriber.stop()
+        self.reload_user_info_subscriber.stop()
 

@@ -121,7 +121,7 @@ def send_email(message, msg_recipient, smtp_client):
 #    if CFG.get_safe('system.smtp',False):
 #        smtp_client.close()
 
-def check_user_notification_interest(notification, reverse_user_info):
+def check_user_notification_interest(event, reverse_user_info):
     '''
     A method to check which user is interested in a notification. Returns the list of users interested in the notification
 
@@ -131,10 +131,10 @@ def check_user_notification_interest(notification, reverse_user_info):
     @retval users list
     '''
 
-    user_list_1 = reverse_user_info[notification.origin]
-    user_list_2 = reverse_user_info[notification.origin_type]
-    user_list_3 = reverse_user_info[notification.event_type]
-    user_list_4 = reverse_user_info[notification.event_subtype]
+    user_list_1 = reverse_user_info['event_origin'][event.origin]
+    user_list_2 = reverse_user_info['event_origin_type'][event.origin_type]
+    user_list_3 = reverse_user_info['event_type'][event.event_type]
+    user_list_4 = reverse_user_info['event_subtype'][event.event_subtype]
 
     users = list( set.intersection(set(user_list_1), set(user_list_2), set(user_list_3), set(user_list_4)))
 
@@ -193,11 +193,17 @@ def calculate_reverse_user_info(user_info = {}):
     '''
     Calculate a reverse user info... used by the notification workers and the UNS
 
-    reverse_user_info = {'an_event_type' : ['user_1', 'user_2'..],
-                        'an_event_subtype' : ['user_1', 'user_2'..],
-                        'an_event_origin' : ['user_1', 'user_2'..],
-                        'an_event_origin_type' : ['user_1', 'user_2'..],
+    reverse_user_info = {'event_type' : { <event_type_1> : ['user_1', 'user_2'..],
+                                             <event_type_2> : ['user_3'],... },
 
+                        'event_subtype' : { <event_subtype_1> : ['user_1', 'user_2'..],
+                                               <event_subtype_2> : ['user_3'],... },
+
+                        'event_origin' : { <event_origin_1> : ['user_1', 'user_2'..],
+                                              <event_origin_2> : ['user_3'],... },
+
+                        'event_origin_type' : { <event_origin_type_1> : ['user_1', 'user_2'..],
+                                                   <event_origin_type_2> : ['user_3'],... },
     '''
 
     reverse_user_info = {}
