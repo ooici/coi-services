@@ -632,7 +632,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         log.warning("In process_batch: user_info: %s" % self.user_info)
 
-        for value in self.user_info.itervalues():
+        for user, value in self.user_info.iteritems():
 
             log.warning("value: %s" % value)
             log.warning("type of value: %s" % type(value))
@@ -645,19 +645,36 @@ class UserNotificationService(BaseUserNotificationService):
 
             for notification in notifications:
 
-                search_origin = 'search "origin" is "%s" from "users_index"' % notification.origin
-                search_origin_type= 'search "origin_type" is "%s" from "users_index"' % notification.origin_type
-                search_event_type = 'search "type_" is "%s" from "users_index"' % notification.event_type
+                search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
+                search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
+                search_event_type = 'search "type_" is "%s" from "events_index"' % notification.event_type
 
                 search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'"\
                 % (start_time, end_time)
 
-                search_string = search_origin + 'and' + search_origin_type + 'and' + search_event_type + 'and' +\
-                                search_time
+                log.warning("search_origin: %s" % search_origin)
+                log.warning("search_origin_type: %s" % search_origin_type)
+                log.warning("search_event_type: %s" % search_event_type)
+                log.warning("search_time: %s" % search_time)
+
+#
+#                search_string = search_origin + 'and' + search_origin_type + 'and' + search_event_type + 'and' +\
+#                                search_time
+
+#                search_string = search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
+
+                search_origin = 'search "origin" is "*" from "events_index"'
+                search_string = search_time + ' and ' + search_origin
+
+#                search_string = 'search "origin" is "*" from "events_index"'
+#                search_string = search_time
 
                 ret_vals = self.discovery.parse(search_string)
 
                 log.warning("ret_vals : %s" % ret_vals)
+
+                log.warning("event.origin: %s" % ret_vals[0].origin)
+
 
                 events_message += '\n' + str(ret_vals)
 
