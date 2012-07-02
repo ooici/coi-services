@@ -79,9 +79,7 @@ class ReplayProcess(BaseReplayProcess):
                 # Warning: redundant serialization
                 byte_string = self.read_persisted_cache(sha1,encoding)
                 obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
-                log.critical(type(obj))
                 ion_obj = self.deserializer.deserialize(obj) # Problem here is that nested objects get deserialized
-                log.critical(type(ion_obj))
                 granules.append(ion_obj)
 
         while len(granules) > 1:
