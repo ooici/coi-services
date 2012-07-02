@@ -13,9 +13,10 @@ from pyon.util.arg_check import validate_true, validate_is_instance
 from pyon.public import PRED, CFG, RT, log
 from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
-from pyon.core.bootstrap import get_obj_registry
+from pyon.core.bootstrap import get_obj_registry, get_sys_name
 from pyon.core.object import IonObjectDeserializer
 from ion.services.dm.inventory.index_management_service import IndexManagementService
+from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from collections import deque
 from ion.services.dm.utility.query_language import QueryLanguage
 
@@ -40,6 +41,28 @@ class DiscoveryService(BaseDiscoveryService):
 
         self.ep = EventPublisher(event_type = 'SearchBufferExceededEvent')
         self.heuristic_cutoff = 4
+
+    def on_quit(self): # pragma: no cover
+        if 'test' in get_sys_name():
+            self.es_cleanup()
+    
+   
+    @staticmethod
+    def es_cleanup():
+        es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
+        es_port = CFG.get_safe('server.elasticsearch.port', '9200')
+        es = ep.ElasticSearch(
+            host=es_host,
+            port=es_port,
+            timeout=10
+        )
+        indexes = STD_INDEXES.keys()
+        indexes.append('%s_resources_index' % get_sys_name().lower())
+        indexes.append('%s_events_index' % get_sys_name().lower())
+
+        for index in indexes:
+            IndexManagementService._es_call(es.river_couchdb_delete,index)
+            IndexManagementService._es_call(es.index_delete,index)
 
     #===================================================================
     # Views
