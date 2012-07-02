@@ -56,7 +56,7 @@ class CTDL1PressureTransform(TransformFunction):
 #        rdt0 = rdt['coordinates']
 #        rdt1 = rdt['data']
 
-        pressure = get_safe(rdt1, 'pres') #psd.get_values('conductivity')
+        pressure = get_safe(rdt, 'pres') #psd.get_values('conductivity')
 
         longitude = get_safe(rdt, 'lon') # psd.get_values('longitude')
         latitude = get_safe(rdt, 'lat')  #psd.get_values('latitude')
