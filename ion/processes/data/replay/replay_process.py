@@ -43,8 +43,8 @@ class ReplayProcess(BaseReplayProcess):
 
         self.dataset_id      = self.CFG.get_safe('process.dataset_id', None)
         self.delivery_format = self.CFG.get_safe('process.delivery_format',{})
-        self.start_time      = self.CFG.get_safe('process.delivery_format.start_time', None)
-        self.end_time        = self.CFG.get_safe('process.delivery_format.end_time', None)
+        self.start_time      = self.CFG.get_safe('process.query.start_time', None)
+        self.end_time        = self.CFG.get_safe('process.query.end_time', None)
         self.publishing      = Event()
 
         if self.dataset_id is None:
