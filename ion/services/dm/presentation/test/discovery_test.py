@@ -399,23 +399,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.ims       = IndexManagementServiceClient()
         self.rr        = ResourceRegistryServiceClient()
 
-        if use_es:
-            self.es_host   = CFG.get_safe('server.elasticsearch.host', 'localhost')
-            self.es_port   = CFG.get_safe('server.elasticsearch.port', '9200')
-            CFG.server.elasticsearch.shards         = 1
-            CFG.server.elasticsearch.replicas       = 0
-            CFG.server.elasticsearch.river_shards   = 1
-            CFG.server.elasticsearch.river_replicas = 0
-            self.es = ep.ElasticSearch(
-                host=self.es_host,
-                port=self.es_port,
-                timeout=10,
-                verbose=True
-            )
-            op = DotDict(CFG)
-            op.op = 'clean_bootstrap'
-            self.container.spawn_process('index_bootstrap','ion.processes.bootstrap.index_bootstrap','IndexBootStrap', op)
-
     @staticmethod
     def es_cleanup():
         es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')

@@ -64,7 +64,8 @@ class BootstrapService(BaseBootstrapService):
             self.post_process_dispatcher(config)
 
         ### DM bootstrap levels:
-
+        elif level == "elasticsearch_indexes":
+            self.post_index_creation(config)
         elif level == "ingestion_management":
             self.post_ingestion_management(config)
         elif level == "transform_management":
@@ -290,5 +291,17 @@ class BootstrapService(BaseBootstrapService):
             for transform_id in transform_ids:
                 restart_transform(transform_id)
 
+    def post_index_creation(self,config):
+        if self.CFG.get_safe('system.elasticsearch'):
+            #---------------------------------------------
+            # Spawn the index bootstrap
+            #---------------------------------------------
+            config = DotDict(config)
+            config.op                   = 'clean_bootstrap'
 
+            self.container.spawn_process('index_bootstrap','ion.processes.bootstrap.index_bootstrap','IndexBootStrap',config)
+            #---------------------------------------------
+        else:
+            log.info("Not creating the ES indexes.")
+        
 
