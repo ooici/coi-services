@@ -89,15 +89,11 @@ class NotificationWorker(SimpleProcess):
             send_email(message = message, msg_recipient = msg_recipient, smtp_client = smtp_client )
 
     def on_stop(self):
-        TransformDataProcess.on_stop(self)
-
         # close subscribers safely
         self.event_subscriber.stop()
         self.reload_user_info_subscriber.stop()
 
     def on_quit(self):
-        TransformDataProcess.on_quit(self)
-
         # close subscribers safely
         self.event_subscriber.stop()
         self.reload_user_info_subscriber.stop()

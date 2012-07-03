@@ -601,7 +601,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         Test the creation of notification workers
         '''
 
-        pass
+        #--------------------------------------------------------------------------------------
+        # Create three notification workers
+        #--------------------------------------------------------------------------------------
+
+        self.unsc.create_worker(number_of_workers=1)
 
 
 
