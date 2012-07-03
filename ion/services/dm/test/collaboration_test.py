@@ -26,7 +26,6 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
         config = DotDict()
-        config.bootstrap.processes.replay.module    = 'ion.processes.data.replay.replay_process_a'
         self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
 
 
