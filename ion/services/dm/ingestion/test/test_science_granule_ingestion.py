@@ -26,7 +26,7 @@ class ScienceGranuleIngestionIntTest(IonIntegrationTestCase):
     def setUp(self):
         self.datastore_name = 'datasets'
         self.exchange_point = 'science_data'
-        self.exchange_space = 'science_ingestion'
+        self.exchange_space = 'science_granule_ingestion'
         self.queue_name     = '%s.%s' % (self.exchange_point,self.exchange_space)
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')

@@ -292,7 +292,7 @@ class BootstrapService(BaseBootstrapService):
                 restart_transform(transform_id)
 
     def post_index_creation(self,config):
-        if self.CFG.get_safe('system.elasticsearch'):
+        if self.CFG.get_safe('system.elasticsearch') and self.CFG.get_safe('bootstrap.use_es'):
             #---------------------------------------------
             # Spawn the index bootstrap
             #---------------------------------------------
