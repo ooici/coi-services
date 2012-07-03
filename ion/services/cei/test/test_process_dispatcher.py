@@ -19,7 +19,7 @@ from ion.services.cei.process_dispatcher_service import ProcessDispatcherService
     PDLocalBackend, PDBridgeBackend
 
 
-@attr('UNIT',group='cei')
+@attr('UNIT', group='cei')
 class ProcessDispatcherServiceTest(PyonTestCase):
 
     def setUp(self):
@@ -57,7 +57,7 @@ class ProcessDispatcherServiceTest(PyonTestCase):
 
         proc_def = DotDict()
         proc_def['name'] = "someprocess"
-        proc_def['executable'] = {'module':'my_module', 'class':'class'}
+        proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
         self.mock_rr_read.return_value = proc_def
         self.mock_cc_spawn.return_value = '123'
 
@@ -87,6 +87,10 @@ class ProcessDispatcherServiceTest(PyonTestCase):
         self.assertEqual(called_config, configuration)
 
         self.assertEqual(event_pub.publish_event.call_count, 1)
+
+        process = self.pd_service.read_process('123')
+        self.assertEqual(process.process_id, '123')
+        self.assertEqual(process.process_state, ProcessStateEnum.SPAWN)
 
     def test_schedule_process_notfound(self):
         proc_schedule = DotDict()
@@ -121,22 +125,22 @@ class ProcessDispatcherServiceTest(PyonTestCase):
 
         # sneak in and replace dashi connection method
         mock_dashi = Mock()
-        mock_dashi.consume.return_value = lambda : None
-        self.pd_service.backend._init_dashi = lambda : mock_dashi
+        mock_dashi.consume.return_value = lambda: None
+        self.pd_service.backend._init_dashi = lambda: mock_dashi
 
         self.pd_service.start()
         self.assertEqual(mock_dashi.handle.call_count, 1)
 
         proc_def = DotDict()
         proc_def['name'] = "someprocess"
-        proc_def['executable'] = {'module':'my_module', 'class':'class'}
+        proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
         self.mock_rr_read.return_value = proc_def
 
         pid = self.pd_service.create_process("fake-process-def-id")
 
         proc_schedule = DotDict()
         proc_schedule['target'] = DotDict()
-        proc_schedule.target['constraints'] = {"hats" : 4}
+        proc_schedule.target['constraints'] = {"hats": 4}
 
         configuration = {"some": "value"}
 
@@ -180,8 +184,8 @@ class ProcessDispatcherServiceTest(PyonTestCase):
 
         # sneak in and replace dashi connection method
         mock_dashi = Mock()
-        mock_dashi.consume.return_value = lambda : None
-        self.pd_service.backend._init_dashi = lambda : mock_dashi
+        mock_dashi.consume.return_value = lambda: None
+        self.pd_service.backend._init_dashi = lambda: mock_dashi
 
         self.pd_service.start()
 
@@ -230,7 +234,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
         self.process_definition = ProcessDefinition(name='test_process')
         self.process_definition.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
-                                              'class':'TestProcess'}
+                                              'class': 'TestProcess'}
         self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
         self.event_queue = queue.Queue()
 
@@ -244,7 +248,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.event_queue.put(event)
 
     def subscribe_events(self, origin):
-        self.event_sub =  EventSubscriber(event_type="ProcessLifecycleEvent",
+        self.event_sub = EventSubscriber(event_type="ProcessLifecycleEvent",
             callback=self._event_callback, origin=origin, origin_type="DispatchedProcess")
         self.event_sub.start()
 
@@ -267,11 +271,17 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
         self.await_state_event(pid, ProcessStateEnum.SPAWN)
 
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_configuration, {})
+        self.assertEqual(proc.process_definition.name, self.process_definition.name)
+        self.assertEqual(proc.process_definition.executable['module'], self.process_definition.executable['module'])
+        self.assertEqual(proc.process_definition.executable['class'], self.process_definition.executable['class'])
+
         # now try communicating with the process to make sure it is really running
-        test_client =  TestClient()
+        test_client = TestClient()
         for i in range(5):
             # this timeout may be too low
-            self.assertEqual(i+1, test_client.count(timeout=1))
+            self.assertEqual(i + 1, test_client.count(timeout=1))
 
         # kill the process and start it again
         self.pd_cli.cancel_process(pid)
@@ -292,7 +302,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
         for i in range(5):
             # this timeout may be too low
-            self.assertEqual(i+1, test_client.count(timeout=1))
+            self.assertEqual(i + 1, test_client.count(timeout=1))
 
         # kill the process for good
         self.pd_cli.cancel_process(pid)
@@ -307,5 +317,5 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
         with self.assertRaises(BadRequest) as ar:
             self.pd_cli.schedule_process(self.process_definition_id,
-                process_schedule, configuration={"bad" : o})
+                process_schedule, configuration={"bad": o})
         self.assertTrue(ar.exception.message.startswith("bad configuration"))

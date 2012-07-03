@@ -14,7 +14,7 @@ from pyon.util.containers import create_valid_identifier
 from pyon.event.event import EventPublisher
 
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
-from interface.objects import ProcessStateEnum
+from interface.objects import ProcessStateEnum, Process
 
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
@@ -103,7 +103,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         """
         self.clients.resource_registry.delete(process_definition_id)
 
-
     def associate_execution_engine(self, process_definition_id='', execution_engine_definition_id=''):
         """Declare that the given process definition is compatible with the given execution engine.
 
@@ -126,7 +125,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
                                                           PRED.supportsExecutionEngine,
                                                           execution_engine_definition_id)
         self.clients.resource_registry.delete_association(assoc)
-
 
     def create_process(self, process_definition_id=''):
         """Create a process resource and process id. Does not yet start the process
@@ -167,7 +165,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         try:
             module = process_definition.executable['module']
             cls = process_definition.executable['class']
-        except KeyError,e:
+        except KeyError, e:
             raise BadRequest("Process definition incomplete. missing: %s", e)
 
         if configuration is None:
@@ -192,6 +190,26 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
 
         return self.backend.cancel(process_id)
 
+    def read_process(self, process_id=''):
+        """Returns a Process as an object.
+
+        @param process_id    str
+        @retval process    Process
+        @throws NotFound    object with specified id does not exist
+        """
+        pass
+        if not process_id:
+            raise NotFound('No process was provided')
+
+        return self.backend.read_process(process_id)
+
+    def list_processes(self):
+        """Lists managed processes
+
+        @retval processes    list
+        """
+        return self.backend.list()
+
 
 class PDLocalBackend(object):
     """Scheduling backend to PD that manages processes in the local container
@@ -200,6 +218,7 @@ class PDLocalBackend(object):
     def __init__(self, container):
         self.container = container
         self.event_pub = EventPublisher()
+        self._processes = []
 
     def initialize(self):
         pass
@@ -225,6 +244,7 @@ class PDLocalBackend(object):
         pid = self.container.spawn_process(name=name, module=module, cls=cls,
             config=configuration, process_id=name)
         log.debug('PD: Spawned Process (%s)', pid)
+        self._add_process(pid, definition, configuration, ProcessStateEnum.SPAWN)
 
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=name, origin_type="DispatchedProcess",
@@ -235,6 +255,10 @@ class PDLocalBackend(object):
     def cancel(self, process_id):
         self.container.proc_manager.terminate_process(process_id)
         log.debug('PD: Terminated Process (%s)', process_id)
+        try:
+            self._remove_process(process_id)
+        except ValueError:
+            log.warning("PD: No record of %s to remove?" % process_id)
 
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=process_id, origin_type="DispatchedProcess",
@@ -242,16 +266,39 @@ class PDLocalBackend(object):
 
         return True
 
+    def read_process(self, process_id):
+        return self._get_process(process_id)
+
+    def _add_process(self, pid, definition, config, state):
+        proc = Process(process_id=pid, process_state=state,
+                process_configuration=config, process_definition=definition)
+
+        self._processes.append(proc)
+
+    def _remove_process(self, pid):
+        self._processes = filter(lambda u: u.process_id != pid, self._processes)
+
+    def _get_process(self, pid):
+        wanted_procs = filter(lambda u: u.process_id == pid, self._processes)
+        if len(wanted_procs) >= 1:
+            return wanted_procs[0]
+        else:
+            return None
+
+    def list(self):
+        return self._processes
+
 
 # map from internal PD states to external ProcessStateEnum values
 _PD_PROCESS_STATE_MAP = {
-    "500-RUNNING" : ProcessStateEnum.SPAWN,
-    "600-TERMINATING" : ProcessStateEnum.TERMINATE,
-    "700-TERMINATED" : ProcessStateEnum.TERMINATE,
-    "800-EXITED" : ProcessStateEnum.TERMINATE,
-    "850-FAILED" : ProcessStateEnum.ERROR,
-    "900-REJECTED" : ProcessStateEnum.ERROR
+    "500-RUNNING": ProcessStateEnum.SPAWN,
+    "600-TERMINATING": ProcessStateEnum.TERMINATE,
+    "700-TERMINATED": ProcessStateEnum.TERMINATE,
+    "800-EXITED": ProcessStateEnum.TERMINATE,
+    "850-FAILED": ProcessStateEnum.ERROR,
+    "900-REJECTED": ProcessStateEnum.ERROR
 }
+
 
 class PDBridgeBackend(object):
     """Scheduling backend to PD that bridges to external CEI Process Dispatcher
@@ -266,7 +313,7 @@ class PDBridgeBackend(object):
             self.uri = conf.uri
             self.topic = conf.topic
             self.exchange = conf.exchange
-        except AttributeError,e:
+        except AttributeError, e:
             log.warn("Needed Process Dispatcher config not found: %s", e)
             raise
 
@@ -295,7 +342,7 @@ class PDBridgeBackend(object):
         try:
             import dashi
         except ImportError:
-            log.warn("Attempted to use Process Dispatcher bridge mode but the "+
+            log.warn("Attempted to use Process Dispatcher bridge mode but the " +
                      "dashi library dependency is not available.")
             raise
         return dashi.DashiConnection(self.dashi_name, self.uri, self.exchange)
@@ -317,7 +364,7 @@ class PDBridgeBackend(object):
 
         ion_process_state = _PD_PROCESS_STATE_MAP.get(state)
         if not ion_process_state:
-            log.debug("Received unknown process state from Process Dispatcher."+
+            log.debug("Received unknown process state from Process Dispatcher." +
                       " process=%s state=%s", process_id, state)
             return
 
@@ -364,3 +411,34 @@ class PDBridgeBackend(object):
         proc = self.dashi.call(self.topic, "terminate_process", upid=process_id)
         log.debug("Dashi Process Dispatcher terminating process: %s", proc)
         return True
+
+    def list(self):
+
+        processes = self.dashi.call(self.topic, "describe_processes")
+        return processes
+
+    def read_process(self, process_id):
+
+        d_process = self.dashi.call(self.topic, "describe_process", upid=process_id)
+
+        apps = d_process.get('spec', {}).get('parameters', {}).get('rel', {}).get('apps', [])
+        config = apps.get('config', {})
+        if len(apps) != 1:
+            raise ValueError("Expected 1 app in process, but found %s?" % len(apps))
+        app = apps[0]
+        processapp = app.get('processapp', [None, None, None])
+        name = processapp[0]
+        module = processapp[1]
+        cls = processapp[2]
+
+        definition = ProcessDefinition(name=name)
+        definition.executable['module'] = module
+        definition.executable['class'] = cls
+
+        process = Process(process_id=process.get('upid'),
+                process_state=_PD_PROCESS_STATE_MAP(process.get('state')),
+                process_definition=definition,
+                process_configuration=config)
+
+        return process
+
