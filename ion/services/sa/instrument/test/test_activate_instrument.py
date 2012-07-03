@@ -1,7 +1,6 @@
 from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import Container, log, IonObject
-from pyon.util.int_test import IonIntegrationTestCase
+
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -10,35 +9,48 @@ from interface.services.sa.idata_product_management_service import IDataProductM
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import StreamQuery
+from interface.objects import AgentCommand
 
-from pyon.public import log
-from nose.plugins.attrib import attr
 
-from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.stream_defs import ctd_stream_definition
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from pyon.agent.agent import ResourceAgentClient
+
 from interface.objects import AgentCommand
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.public import CFG
+
 from gevent.event import AsyncResult
 
 from pyon.public import CFG
-from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
-from pyon.util.context import LocalContextMixin
-from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, LCS, PRED
-from mock import Mock, patch
+from pyon.public import Container, log, IonObject
+from pyon.public import StreamSubscriberRegistrar
+
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.context import LocalContextMixin
 from pyon.util.unit_test import PyonTestCase
+from pyon.util.int_test import IonIntegrationTestCase
+
+from pyon.agent.agent import ResourceAgentClient
+
+from pyon.ion.granule.taxonomy import TaxyTool
+
+from pyon.core.exception import BadRequest, NotFound, Conflict
+
 from nose.plugins.attrib import attr
+
 import unittest
 import time
 
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 
-
+# Driver config.
+# DVR_CONFIG['comms_config']['port'] is set by the setup.
+#DVR_CONFIG = {
+#    'dvr_mod' : DRV_MOD,
+#    'dvr_cls' : DRV_CLS,
+#    'workdir' : WORK_DIR,
+#    'process_type' : ('ZMQPyClassDriverLauncher',)
+#}
 
 class FakeProcess(LocalContextMixin):
     """
@@ -50,7 +62,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('HARDWARE', group='sa')
-@unittest.skip('run locally only')
+#@unittest.skip('run locally only')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -63,8 +75,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #print 'started container'
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-
-        print 'started services'
 
         # Now create client to DataProductManagementService
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
@@ -79,7 +89,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self._no_samples = None
         self._samples_received = []
 
-    @unittest.skip("TBD")
+    #@unittest.skip("TBD")
     def test_activateInstrumentSample(self):
 
         # Create InstrumentModel
@@ -108,13 +118,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
-            
+
         log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
         driver_config = {
             'dvr_mod' : 'mi.instrument.seabird.sbe37smb.ooicore.driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
+            'process_type' : ('ZMQPyClassDriverLauncher',)
         }
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = driver_config,
@@ -138,11 +149,22 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
+        #self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
         print 'Data product streams1 = ', stream_ids
+
+
+        #todo: attaching the taxonomy to the stream is a TEMPORARY measure
+        # Create taxonomies for both parsed and attach to the stream
+        ParsedTax = TaxyTool()
+        ParsedTax.add_taxonomy_set('temp','long name for temp')
+        ParsedTax.add_taxonomy_set('cond','long name for cond')
+        ParsedTax.add_taxonomy_set('lat','long name for latitude')
+        ParsedTax.add_taxonomy_set('lon','long name for longitude')
+        ParsedTax.add_taxonomy_set('pres','long name for pres')
+        ParsedTax.add_taxonomy_set('time','long name for time')
 
 
         print 'Creating new RAW data product with a stream definition'
@@ -158,15 +180,19 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2, persist_data=True, persist_metadata=True)
+        #self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2, persist_data=True, persist_metadata=True)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
         print 'Data product streams2 = ', stream_ids
 
+        #todo: attaching the taxonomy to the stream is a TEMPORARY measure
+        # Create taxonomies for both parsed and attach to the stream
+        RawTax = TaxyTool()
+        RawTax.add_taxonomy_set('raw_fixed','Fixed length bytes in an array of records')
+        RawTax.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
 
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
-
 
         inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
         print 'Instrument agent instance obj: = ', inst_agent_instance_obj
@@ -233,6 +259,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
 
+    @unittest.skip("TBD")
     def test_activateInstrumentStream(self):
 
         # Create InstrumentModel
@@ -264,13 +291,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         log.debug("test_activateInstrumentStream: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
-        driver_config = {
+        self.driver_config = {
             'dvr_mod' : 'mi.instrument.seabird.sbe37smb.ooicore.driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
+            'process_type': 'ZMQPyClassDriverLauncher',
         }
 
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = driver_config,
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = self.driver_config,
                                           comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
@@ -378,19 +406,19 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrument: run %s", str(reply))
         time.sleep(2)
 
-        log.debug("test_activateInstrumentStream: calling go_streaming ")
-        cmd = AgentCommand(command='go_streaming')
-        reply = self._ia_client.execute(cmd)
-        log.debug("test_activateInstrumentStream: return from go_streaming %s", str(reply))
-
-
-        time.sleep(15)
-
-        log.debug("test_activateInstrumentStream: calling go_observatory")
-        cmd = AgentCommand(command='go_observatory')
-        reply = self._ia_client.execute(cmd)
-        log.debug("test_activateInstrumentStream: return from go_observatory   %s", str(reply))
-        time.sleep(2)
+#        log.debug("test_activateInstrumentStream: calling go_streaming ")
+#        cmd = AgentCommand(command='go_streaming')
+#        reply = self._ia_client.execute(cmd)
+#        log.debug("test_activateInstrumentStream: return from go_streaming %s", str(reply))
+#
+#
+#        time.sleep(5)
+#
+#        log.debug("test_activateInstrumentStream: calling go_observatory")
+#        cmd = AgentCommand(command='go_observatory')
+#        reply = self._ia_client.execute(cmd)
+#        log.debug("test_activateInstrumentStream: return from go_observatory   %s", str(reply))
+#        time.sleep(2)
 
 
         log.debug("test_activateInstrumentStream: calling reset ")
