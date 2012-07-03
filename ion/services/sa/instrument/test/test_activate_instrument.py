@@ -61,7 +61,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='persist')
+@attr('HARDWARE', group='sa')
 #@unittest.skip('run locally only')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
