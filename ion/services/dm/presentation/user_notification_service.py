@@ -27,7 +27,7 @@ from gevent import Greenlet
 import elasticpy as ep
 
 from ion.services.dm.presentation.sms_providers import sms_providers
-from interface.objects import NotificationRequest, DeliveryConfig, NotificationType, Frequency
+from interface.objects import NotificationRequest, DeliveryConfig, NotificationType, Frequency, ProcessDefinition
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, load_user_info, setting_up_smtp_client
@@ -331,8 +331,6 @@ class UserNotificationService(BaseUserNotificationService):
         @retval notification_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
 
-        @todo Can we remove the user_id field? Not sure it makes sense for all notification requests and should be gotten
-        from the context of the message - who sent it?
         """
 
         if not user_id:
@@ -477,7 +475,6 @@ class UserNotificationService(BaseUserNotificationService):
         '''
          Creates a NotificationRequest object for the specified User Id. Associate the Notification
          resource with the user. Setup subscription and call back to send email
-         @todo - is the user email automatically selected from the user id?
         '''
 
         if not email:
@@ -586,30 +583,47 @@ class UserNotificationService(BaseUserNotificationService):
     def create_worker(self, number_of_workers=1):
         '''
         Creates notification workers
+
+        @param number_of_workers int
+        @ret_val pids list
+
         '''
 
-        # ------------------------------------------------------------------------------------
-        # Use CEI (process_dispatcher) to create a new process definition
-        # ------------------------------------------------------------------------------------
+        pids = []
 
-        process_definition = IonObject(RT.ProcessDefinition, name='notification_worker_definition')
-        process_definition.executable = {
-            'module': 'ion.processes.data.transforms.notification_worker',
-            'class':'NotificationWorker'
-        }
-        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+        for n in xrange(number_of_workers):
 
-        # ------------------------------------------------------------------------------------
-        # Process Spawning
-        # ------------------------------------------------------------------------------------
+            process_definition = ProcessDefinition( name='notification_worker_definition')
+            process_definition.executable = {
+                'module': 'ion.processes.data.transforms.notification_worker',
+                'class':'NotificationWorker'
+            }
+            process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
-        #@todo put in a configuration
-        configuration = {}
+            # ------------------------------------------------------------------------------------
+            # Process Spawning
+            # ------------------------------------------------------------------------------------
 
-        pid = self.clients.process_dispatcher.schedule_process(
-            process_definition_id=process_definition_id,
-            configuration=configuration
-        )
+            pid2 = self.clients.process_dispatcher.create_process(process_definition_id)
+
+            #@todo put in a configuration
+            configuration = {}
+            configuration['process'] = dict({
+                'name': 'notification_worker',
+                'type':'simple',
+                'listen_name':'uns_queue', #@todo find the appropriate listen_name
+            })
+
+            pid  = self.clients.process_dispatcher.schedule_process(
+                process_definition_id,
+                configuration = configuration,
+                process_id=pid2
+            )
+
+            pids.append(pid)
+
+        return pids
+
 
     def process_batch(self, start_time = 0, end_time = 10.0):
         '''
@@ -664,8 +678,6 @@ class UserNotificationService(BaseUserNotificationService):
                 ret_vals = self.discovery.parse(search_string)
 
                 log.warning("ret_vals : %s" % ret_vals)
-
-                log.warning("event.origin: %s" % ret_vals[0].origin)
 
 
                 events_message += '\n' + str(ret_vals)

@@ -175,6 +175,9 @@ def load_user_info():
 
     log.warning("results --- %s" % results)
 
+    if not results:
+        return {}
+
     for result in results:
         user_name = result['_source'].name
         user_contact = result['_source'].contact

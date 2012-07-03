@@ -11,13 +11,12 @@ from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
 from pyon.util.async import spawn
 from pyon.core.exception import BadRequest
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.dm.idiscovery_service import DiscoveryServiceClient
+from pyon.ion.process import SimpleProcess
 from pyon.event.event import EventSubscriber, EventPublisher
 from ion.services.dm.utility.uns_utility_methods import send_email, load_user_info, calculate_reverse_user_info
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, check_user_notification_interest
 
-class NotificationWorker(TransformDataProcess):
+class NotificationWorker(SimpleProcess):
     """
     Instances of this class acts as a Notification Worker.
     """
