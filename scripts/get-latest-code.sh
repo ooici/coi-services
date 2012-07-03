@@ -34,7 +34,7 @@ fi
 git pull --rebase origin master
 cd $THISDIR
 
-cd extern/ion-marine-integrations
+cd extern/marine-integrations
 git checkout master
 if [ $? -ne 0 ]; then
     git status
