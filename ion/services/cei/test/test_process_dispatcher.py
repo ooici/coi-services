@@ -272,10 +272,9 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.await_state_event(pid, ProcessStateEnum.SPAWN)
 
         proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
         self.assertEqual(proc.process_configuration, {})
-        self.assertEqual(proc.process_definition.name, self.process_definition.name)
-        self.assertEqual(proc.process_definition.executable['module'], self.process_definition.executable['module'])
-        self.assertEqual(proc.process_definition.executable['class'], self.process_definition.executable['class'])
+        self.assertEqual(proc.process_state, ProcessStateEnum.SPAWN)
 
         # now try communicating with the process to make sure it is really running
         test_client = TestClient()

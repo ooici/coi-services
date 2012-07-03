@@ -244,7 +244,7 @@ class PDLocalBackend(object):
         pid = self.container.spawn_process(name=name, module=module, cls=cls,
             config=configuration, process_id=name)
         log.debug('PD: Spawned Process (%s)', pid)
-        self._add_process(pid, definition, configuration, ProcessStateEnum.SPAWN)
+        self._add_process(pid, configuration, ProcessStateEnum.SPAWN)
 
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=name, origin_type="DispatchedProcess",
@@ -269,9 +269,9 @@ class PDLocalBackend(object):
     def read_process(self, process_id):
         return self._get_process(process_id)
 
-    def _add_process(self, pid, definition, config, state):
+    def _add_process(self, pid, config, state):
         proc = Process(process_id=pid, process_state=state,
-                process_configuration=config, process_definition=definition)
+                process_configuration=config)
 
         self._processes.append(proc)
 
@@ -423,21 +423,9 @@ class PDBridgeBackend(object):
 
         apps = d_process.get('spec', {}).get('parameters', {}).get('rel', {}).get('apps', [])
         config = apps.get('config', {})
-        if len(apps) != 1:
-            raise ValueError("Expected 1 app in process, but found %s?" % len(apps))
-        app = apps[0]
-        processapp = app.get('processapp', [None, None, None])
-        name = processapp[0]
-        module = processapp[1]
-        cls = processapp[2]
-
-        definition = ProcessDefinition(name=name)
-        definition.executable['module'] = module
-        definition.executable['class'] = cls
 
         process = Process(process_id=process.get('upid'),
                 process_state=_PD_PROCESS_STATE_MAP(process.get('state')),
-                process_definition=definition,
                 process_configuration=config)
 
         return process
