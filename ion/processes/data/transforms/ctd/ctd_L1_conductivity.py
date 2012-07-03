@@ -50,15 +50,16 @@ class CTDL1ConductivityTransform(TransformFunction):
         """Processes incoming data!!!!
         """
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        rdt0 = rdt['coordinates']
-        rdt1 = rdt['data']
+        #todo: use only flat dicts for now, may change later...
+#        rdt0 = rdt['coordinates']
+#        rdt1 = rdt['data']
 
-        conductivity = get_safe(rdt1, 'cond') #psd.get_values('conductivity')
+        conductivity = get_safe(rdt, 'cond') #psd.get_values('conductivity')
 
-        longitude = get_safe(rdt0, 'lon') # psd.get_values('longitude')
-        latitude = get_safe(rdt0, 'lat')  #psd.get_values('latitude')
-        time = get_safe(rdt0, 'time') # psd.get_values('time')
-        height = get_safe(rdt0, 'height') # psd.get_values('time')
+        longitude = get_safe(rdt, 'lon') # psd.get_values('longitude')
+        latitude = get_safe(rdt, 'lat')  #psd.get_values('latitude')
+        time = get_safe(rdt, 'time') # psd.get_values('time')
+        height = get_safe(rdt, 'height') # psd.get_values('time')
 
 
 
@@ -66,9 +67,9 @@ class CTDL1ConductivityTransform(TransformFunction):
 
         root_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
-        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
-
-        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
+        #todo: use only flat dicts for now, may change later...
+#        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
+#        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
         scaled_conductivity = conductivity
 
@@ -76,14 +77,14 @@ class CTDL1ConductivityTransform(TransformFunction):
             scaled_conductivity[i] = (conductivity[i] / 100000.0) - 0.5
 
 
-        data_rdt['cond'] = scaled_conductivity
-        coord_rdt['time'] = time
-        coord_rdt['lat'] = latitude
-        coord_rdt['lon'] = longitude
-        coord_rdt['height'] = height
+        root_rdt['cond'] = scaled_conductivity
+        root_rdt['time'] = time
+        root_rdt['lat'] = latitude
+        root_rdt['lon'] = longitude
+        root_rdt['height'] = height
 
-        root_rdt['coordinates'] = coord_rdt
-        root_rdt['data'] = data_rdt
+#        root_rdt['coordinates'] = coord_rdt
+#        root_rdt['data'] = data_rdt
 
         return build_granule(data_producer_id='ctd_L1_conductivity', taxonomy=self.tx, record_dictionary=root_rdt)
 

@@ -17,6 +17,7 @@ from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from ion.services.dm.inventory.index_management_service import IndexManagementService
+import unittest
 
 
 
@@ -315,6 +316,7 @@ class IndexManagementIntTest(IonIntegrationTestCase):
         for index_id in id_pool:
             rr_cli.delete(index_id)
 
+    @unittest.skip('Deprecated')
     def test_list_indexes(self):
         ims_cli = self.ims_cli
         rr_cli  = self.rr_cli

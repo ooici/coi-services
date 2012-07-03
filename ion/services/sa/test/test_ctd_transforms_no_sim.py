@@ -84,16 +84,16 @@ PARAMS = {
 
 
 ### Taxonomies are defined before hand out of band... somehow.
-tx = TaxyTool()
-tx.add_taxonomy_set('temp','long name for temp')
-tx.add_taxonomy_set('cond','long name for cond')
-tx.add_taxonomy_set('lat','long name for latitude')
-tx.add_taxonomy_set('lon','long name for longitude')
-tx.add_taxonomy_set('pres','long name for pres')
-tx.add_taxonomy_set('time','long name for time')
-# This is an example of using groups it is not a normative statement about how to use groups
-tx.add_taxonomy_set('coordinates','This group contains coordinates...')
-tx.add_taxonomy_set('data','This group contains data...')
+#tx = TaxyTool()
+#tx.add_taxonomy_set('temp','long name for temp')
+#tx.add_taxonomy_set('cond','long name for cond')
+#tx.add_taxonomy_set('lat','long name for latitude')
+#tx.add_taxonomy_set('lon','long name for longitude')
+#tx.add_taxonomy_set('pres','long name for pres')
+#tx.add_taxonomy_set('time','long name for time')
+## This is an example of using groups it is not a normative statement about how to use groups
+#tx.add_taxonomy_set('coordinates','This group contains coordinates...')
+#tx.add_taxonomy_set('data','This group contains data...')
 
 
 class FakeProcess(LocalContextMixin):
