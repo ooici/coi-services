@@ -18,6 +18,8 @@ from unittest.case import skipIf
 from nose.plugins.attrib import attr
 import elasticpy as ep
 
+import unittest
+
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
@@ -96,6 +98,7 @@ class IndexBootStrapUnitTest(PyonTestCase):
 
 
 @attr('INT',group='dm')
+@unittest.skip('Deprecated')
 class IndexBootStrapIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
