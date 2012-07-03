@@ -53,7 +53,7 @@ class NotificationWorker(SimpleProcess):
             queue_name = 'uns_queue', # modify this to point at the right queue
             callback=self.process_event
         )
-
+        self.event_subscriber.start()
         #------------------------------------------------------------------------------------
         # start the event subscriber for reload user info
         #------------------------------------------------------------------------------------
