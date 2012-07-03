@@ -173,7 +173,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         self.exchange_point       = 'science_data'
-        self.exchange_space       = 'science_ingestion'
+        self.exchange_space       = 'science_granule_ingestion'
         ingest_queue = IngestionQueue(name=self.exchange_space, type='science_granule')
         ingestion_configuration_id = self.clients.ingestion_management.create_ingestion_configuration(name='standard_ingest', exchange_point_id=self.exchange_point, queues=[ingest_queue])
 

@@ -95,7 +95,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         
 
         # First launch the ingestors
-        self.exchange_space       = 'science_ingestion'
+        self.exchange_space       = 'science_granule_ingestion'
         self.exchange_point       = 'science_data'
         config = DotDict()
         config.process.datastore_name = 'datasets'
