@@ -5,13 +5,13 @@
 @date 04/18/12 11:56
 @description DESCRIPTION
 '''
-from mock import Mock
 from interface.objects import Catalog, Index, SearchOptions
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.icatalog_management_service import CatalogManagementServiceClient
+from interface.services.dm.iindex_management_service import IndexManagementServiceClient
 from ion.services.dm.presentation.catalog_management_service import CatalogManagementService
-from pyon.core.exception import BadRequest, NotFound
-from pyon.ion.resource import PRED
+from pyon.core.exception import NotFound
+from pyon.public import RT
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
@@ -123,6 +123,12 @@ class CatalogManagementIntTest(IonIntegrationTestCase):
 
         self.cms_cli = CatalogManagementServiceClient()
         self.rr_cli  = ResourceRegistryServiceClient()
+        self.ims_cli = IndexManagementServiceClient()
+    
+    def _clear_indexes(self):
+        res, meta = self.rr_cli.find_resources(restype=RT.ElasticSearchIndex, id_only=True)
+        for index in res:
+            self.ims_cli.delete_index(index)
 
     def test_create_catalog(self):
         #-------------------------------------
@@ -136,10 +142,13 @@ class CatalogManagementIntTest(IonIntegrationTestCase):
         catalog_id = self.cms_cli.create_catalog('common_catalog', ['common'])
         self.assertTrue(index_id in self.cms_cli.list_indexes(catalog_id))
 
+
     def test_create_catalog_matching(self):
         #-------------------------------------------
         # Tests catalog creation and index matching
         #-------------------------------------------
+        # Delete the standard indexes
+        self._clear_indexes()
 
         indexes = [
             Index(name='index1'),
@@ -173,7 +182,7 @@ class CatalogManagementIntTest(IonIntegrationTestCase):
 
         names_catalog_id = self.cms_cli.create_catalog('names_catalog', ['name'])
         names_list = self.cms_cli.list_indexes(names_catalog_id)
-        self.assertTrue(set(index_ids) == set(names_list), 'The catalog did\'nt match the correct index.')
+        self.assertTrue(set(index_ids) == set(names_list), 'The catalog did\'nt match the correct index. \n%s\n%s' % (set(index_ids), set(names_list)))
 
     def test_catalog_field_exclusion(self):
         half_match = Index(name='half_match', options=SearchOptions(attribute_match=['one']))
