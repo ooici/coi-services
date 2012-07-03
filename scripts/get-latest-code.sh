@@ -32,9 +32,19 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 git pull --rebase origin master
+cd $THISDIR
+
+cd extern/ion-marine-integrations
+git checkout master
+if [ $? -ne 0 ]; then
+    git status
+    echo -e "\n$(basename $0) aborting due to inability to switch branches"
+    exit 1
+fi
+git pull --rebase origin master
+cd $THISDIR
 
 echo -e "\n\n=== UPDATING COI-SERVICES ===\n"
-cd $THISDIR
 git pull --rebase
 if [ $? -ne 0 ]; then
     git status
