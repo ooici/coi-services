@@ -97,17 +97,17 @@ class LCAPacketFactory(PacketFactory):
         # in this version, expect 'data' and 'coordinates' to be included in
         # the taxonomy -- TODO the idea would be to be more general here?
 
-        if not 'data' in nick_names:
-            raise PacketFactoryException("expected name 'data' in taxonomy")
-        if not 'coordinates' in nick_names:
-            raise PacketFactoryException("expected name 'coordinates' in taxonomy")
+#        if not 'data' in nick_names:
+#            raise PacketFactoryException("expected name 'data' in taxonomy")
+#        if not 'coordinates' in nick_names:
+#            raise PacketFactoryException("expected name 'coordinates' in taxonomy")
 
         rdt = RecordDictionaryTool(taxonomy=taxonomy)
-        data_rdt = RecordDictionaryTool(taxonomy=taxonomy)
-        coordinates_rdt = RecordDictionaryTool(taxonomy=taxonomy)
-
-        rdt['data'] = data_rdt
-        rdt['coordinates'] = coordinates_rdt
+#        data_rdt = RecordDictionaryTool(taxonomy=taxonomy)
+#        coordinates_rdt = RecordDictionaryTool(taxonomy=taxonomy)
+#
+#        rdt['data'] = data_rdt
+#        rdt['coordinates'] = coordinates_rdt
 
         def is_coordinate(nick_name):
             # just an ad hoc check to determine which group the nick_names
@@ -138,9 +138,9 @@ class LCAPacketFactory(PacketFactory):
                 val = numpy.array(value)
 
                 if is_coordinate(nick_name):
-                    coordinates_rdt[nick_name] = val
+                    rdt[nick_name] = val
                 else:
-                    data_rdt[nick_name] = val
+                    rdt[nick_name] = val
             else:
                 # TODO throw some exception?
                 log.warn("No handle found for '%s'" % name)
