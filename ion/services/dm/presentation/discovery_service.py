@@ -42,9 +42,6 @@ class DiscoveryService(BaseDiscoveryService):
         self.ep = EventPublisher(event_type = 'SearchBufferExceededEvent')
         self.heuristic_cutoff = 4
 
-    def on_quit(self): # pragma: no cover
-        if 'test' in get_sys_name():
-            self.es_cleanup()
     
    
     @staticmethod
