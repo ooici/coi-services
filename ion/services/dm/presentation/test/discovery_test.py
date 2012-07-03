@@ -389,10 +389,12 @@ class DiscoveryUnitTest(PyonTestCase):
 class DiscoveryIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(DiscoveryIntTest, self).setUp()
+        config = DotDict()
+        config.bootstrap.use_es = True
 
         self._start_container()
         self.addCleanup(DiscoveryIntTest.es_cleanup)
-        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+        self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
 
         self.discovery = DiscoveryServiceClient()
         self.catalog   = CatalogManagementServiceClient()
