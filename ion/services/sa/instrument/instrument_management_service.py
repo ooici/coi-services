@@ -302,6 +302,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self._start_pagent(instrument_agent_instance_id)
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
+
+        # Create driver config.
+        instrument_agent_instance_obj.driver_config = {
+            'dvr_mod' : instrument_agent_instance_obj.driver_module,
+            'dvr_cls' : instrument_agent_instance_obj.driver_class,
+            'workdir' : '/tmp/',
+            'process_type' : ('ZMQPyClassDriverLauncher',),
+            'comms_config' : instrument_agent_instance_obj.driver_config['comms_config'],
+            'pagent_pid' : instrument_agent_instance_obj.driver_config['pagent_pid']
+        }
+
         # Create agent config.
         instrument_agent_instance_obj.agent_config = {
             'driver_config' : instrument_agent_instance_obj.driver_config,
