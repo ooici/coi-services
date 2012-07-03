@@ -256,6 +256,10 @@ class InstrumentAgent(ResourceAgent):
         # append data packets prior to publication.
         self._lon = 0
 
+        # height value. Set by subscription to platform. Used to
+        # append data packets prior to publication.
+        self._height = 0
+
         # Flag indicates if the agent is running in a test so that it
         # can instruct drivers to self destruct if it disappears.
         self._test_mode = False
@@ -340,6 +344,7 @@ class InstrumentAgent(ResourceAgent):
                 stream_name = value.pop('stream_name')
                 value['lat'] = [self._lat]
                 value['lon'] = [self._lon]
+                value['height'] = [self._height]
                 value['stream_id'] = self._data_streams[stream_name]
                 packet = self._packet_factories[stream_name](**value)
                 self._data_publishers[stream_name].publish(packet)
