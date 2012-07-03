@@ -158,7 +158,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # retrieve the data_process object
         data_product_obj = self.data_product.read_one(data_product_id)
 
-        # get the Stream associated with this data set; if no stream then create one, if multiple streams then Throw
+        # get the Stream associated with this data product; if no stream then create one, if multiple streams then Throw
         streams = self.data_product.find_stemming_stream(data_product_id)
         if not streams:
             raise BadRequest('Data Product %s must have one stream associated' % str(data_product_id))
@@ -173,7 +173,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         self.exchange_point       = 'science_data'
-        self.exchange_space       = 'science_ingestion'
+        self.exchange_space       = 'science_granule_ingestion'
         ingest_queue = IngestionQueue(name=self.exchange_space, type='science_granule')
         ingestion_configuration_id = self.clients.ingestion_management.create_ingestion_configuration(name='standard_ingest', exchange_point_id=self.exchange_point, queues=[ingest_queue])
 
@@ -246,18 +246,18 @@ class DataProductManagementService(BaseDataProductManagementService):
         if data_product_obj.dataset_configuration_id is None:
             raise NotFound("Data Product %s dataset configuration does not exist" % data_product_id)
 
+        # get the Stream associated with this data product; if no stream then create one, if multiple streams then Throw
+        streams = self.data_product.find_stemming_stream(data_product_id)
+        if not streams:
+            raise BadRequest('Data Product %s must have one stream associated' % str(data_product_id))
 
-        #retrieve the dataset configuation object so that attrs can be changed
-        dataset_configuration_obj = self.clients.resource_registry.read(data_product_obj.dataset_configuration_id)
-        if dataset_configuration_obj is None:
-            raise NotFound("Dataset Configuration %s does not exist" % data_product_obj.dataset_configuration_id)
+        #todo: what if there are multiple streams?
+        stream_id = streams[0]
+        log.debug("activate_data_product_persistence: stream = %s"  % str(stream_id))
 
-#        #Set the dataset config archive data/metadata attrs to false
-#        dataset_configuration_obj.configuration.archive_data = False
-#        dataset_configuration_obj.configuration.archive_metadata = False
 
         # todo: dataset_configuration_obj contains the ingest config for now...
-        ret = self.clients.ingestion_management.unpersist_data_stream(dataset_configuration_obj)
+        ret = self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=data_product_obj.dataset_configuration_id)
 
         log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
 
