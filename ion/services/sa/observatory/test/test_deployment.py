@@ -40,6 +40,7 @@ class TestDeployment(IonIntegrationTestCase):
 
 
     #@unittest.skip("targeting")
+    @unittest.skip('Deprecated by commit 515d6b449bc20a8cb4cd5650c4c02809a6cbcb64')
     def test_create_deployment(self):
 
         #create a deployment with metadata and an initial site and device
@@ -84,6 +85,7 @@ class TestDeployment(IonIntegrationTestCase):
 
 
     #@unittest.skip("targeting")
+    @unittest.skip('Deprecated by commit 515d6b449bc20a8cb4cd5650c4c02809a6cbcb64')
     def test_activate_deployment(self):
 
         #create a deployment with metadata and an initial site and device
