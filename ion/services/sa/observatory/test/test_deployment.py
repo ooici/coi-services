@@ -8,6 +8,9 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from ion.services.sa.observatory.observatory_management_service import ObservatoryManagementService
 from interface.services.sa.iobservatory_management_service import IObservatoryManagementService, ObservatoryManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
@@ -37,7 +40,7 @@ class TestDeployment(IonIntegrationTestCase):
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
         self.omsclient = ObservatoryManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
-
+        self.dmpsclient = DataProductManagementServiceClient(node=self.container.node)
 
     #@unittest.skip("targeting")
     @unittest.skip('Deprecated by commit 515d6b449bc20a8cb4cd5650c4c02809a6cbcb64')
@@ -57,7 +60,9 @@ class TestDeployment(IonIntegrationTestCase):
         deployment_obj = IonObject(RT.Deployment,
                                         name='TestDeployment',
                                         description='some new deployment')
-        deployment_id = self.omsclient.create_deployment(deployment_obj, site_id, device_id)
+        deployment_id = self.omsclient.create_deployment(deployment_obj)
+        self.omsclient.deploy_platform_site(site_id, deployment_id)
+        self.imsclient.deploy_platform_device(device_id, deployment_id)
 
         log.debug("test_create_deployment: created deployment id: %s ", str(deployment_id) )
 
@@ -114,6 +119,13 @@ class TestDeployment(IonIntegrationTestCase):
                                         description='test instrument site')
         instrument_site_id = self.omsclient.create_instrument_site(instrument_site__obj, site_id)
 
+        #assign data products appropriately
+        #set up stream (this would be preload)
+        ctd_stream_def = SBE37_CDM_stream_definition()
+        ctd_stream_def_id = c.PSMS.create_stream_definition(container=ctd_stream_def)
+        log_data_product_id = self.dmpsclient.create_data_product(any_old(RT.DataProduct), ctd_stream_def_id)
+        self.omsclient.create_site_data_product(instrument_site_id, log_data_product_id)
+
         instrument_device__obj = IonObject(RT.InstrumentDevice,
                                         name='InstrumentDevice1',
                                         description='test instrument device')
@@ -131,7 +143,9 @@ class TestDeployment(IonIntegrationTestCase):
         deployment_obj = IonObject(RT.Deployment,
                                         name='TestDeployment',
                                         description='some new deployment')
-        deployment_id = self.omsclient.create_deployment(deployment_obj, site_id, device_id)
+        deployment_id = self.omsclient.create_deployment(deployment_obj)
+        self.omsclient.deploy_instrument_site(instrument_site_id, deployment_id)
+        self.imsclient.deploy_instrument_device(instrument_device_id, deployment_id)
 
         log.debug("test_create_deployment: created deployment id: %s ", str(deployment_id) )
 
