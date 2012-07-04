@@ -82,3 +82,9 @@ class SampleException(InstrumentException):
     An expected sample could not be extracted.
     """
     pass
+
+class PacketFactoryException(InstrumentException):
+    """
+    Packet factory creation failed.
+    """
+    pass

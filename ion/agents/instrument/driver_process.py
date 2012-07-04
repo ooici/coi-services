@@ -22,6 +22,7 @@ from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.instrument.exceptions import DriverLaunchException
 from ion.agents.instrument.exceptions import NotImplementedException
+from ion.agents.instrument.packet_factory_man import create_packet_builder
 
 PYTHON_PATH = 'bin/python'
 
@@ -344,33 +345,68 @@ class ZMQPyClassDriverProcess(DriverProcess):
             if not driver_module:
                 raise DriverLaunchException("missing driver config: driver_module")
 
-            # Should we poll the driver process to give us these configurations?  If defined in an interface then
-            # this method could be generalized for all driver processes.  It also seems like execing an import
-            # might be unsafe.
-            import_str = 'from %s import PACKET_CONFIG' % driver_module
+            packet_config = None
             try:
+                import_str = 'from %s import PACKET_CONFIG' % driver_module
                 exec import_str
                 log.debug("PACKET_CONFIG: %s", PACKET_CONFIG)
-                for (name, val) in PACKET_CONFIG.iteritems():
-                    if val:
-                        try:
-                            mod = val[0]
-                            cls = val[1]
-                            import_str = 'from %s import %s' % (mod, cls)
-                            ctor_str = 'ctor = %s' % cls
-                            exec import_str
-                            exec ctor_str
-                            self._packet_factories[name] = ctor
+                packet_config = PACKET_CONFIG
+            except:
+                log.error('PACKET_CONFIG undefined in driver module %s ' % driver_module)
 
-                        except Exception, e:
-                            log.error('error creating packet factory: %s', e)
-
-                        else:
-                            log.info('created packet factory for stream %s', name)
-            except Exception, e:
-                log.error('Instrument agent %s had error creating packet factories. %s', e)
+            if packet_config:
+                for (name, val) in packet_config.iteritems():
+                    # NOTE ignoring val for the moment
+                    try:
+                        packet_builder = create_packet_builder(name)
+                        self._packet_factories[name] = packet_builder
+                        log.info('created packet builder for stream %s' % name)
+                    except Exception, e:
+                        log.error('error creating packet builder: %s' % e)
 
         return self._packet_factories
+
+# TODO remove
+#    def get_packet_factories(self):
+#        """
+#        Construct packet factories from packet_config member of the driver_config.
+#        @retval a list of packet factories defined.
+#        """
+#        if not self._packet_factories:
+#            log.info("generating packet factories")
+#            self._packet_factories = {}
+#
+#            driver_module = self.config.get('dvr_mod')
+#            if not driver_module:
+#                raise DriverLaunchException("missing driver config: driver_module")
+#
+#            # Should we poll the driver process to give us these configurations?  If defined in an interface then
+#            # this method could be generalized for all driver processes.  It also seems like execing an import
+#            # might be unsafe.
+#            import_str = 'from %s import PACKET_CONFIG' % driver_module
+#            try:
+#                exec import_str
+#                log.debug("PACKET_CONFIG: %s", PACKET_CONFIG)
+#                for (name, val) in PACKET_CONFIG.iteritems():
+#                    if val:
+#                        try:
+#                            mod = val[0]
+#                            cls = val[1]
+#                            import_str = 'from %s import %s' % (mod, cls)
+#                            ctor_str = 'ctor = %s' % cls
+#                            exec import_str
+#                            exec ctor_str
+#                            self._packet_factories[name] = ctor
+#
+#                        except Exception, e:
+#                            log.error('error creating packet factory: %s', e)
+#
+#                        else:
+#                            log.info('created packet factory for stream %s', name)
+#            except Exception, e:
+#                log.error('Instrument agent %s had error creating packet factories. %s', e)
+#
+#        return self._packet_factories
 
 class ZMQEggDriverLauncher(DriverProcess):
     """

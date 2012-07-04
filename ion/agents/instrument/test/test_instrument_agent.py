@@ -207,7 +207,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._start_container()
         
         # Bring up services in a deploy file (no need to message)
-        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.

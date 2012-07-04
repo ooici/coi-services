@@ -179,6 +179,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             'dvr_mod' : 'mi.instrument.seabird.sbe37smb.ooicore.driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
+            'process_type' : ('ZMQPyClassDriverLauncher',)
         }
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = driver_config,

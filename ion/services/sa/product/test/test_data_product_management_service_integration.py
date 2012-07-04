@@ -49,6 +49,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
         self.process_dispatcher   = ProcessDispatcherServiceClient()
 
+    @unittest.skip('OBE')
     def test_get_last_update(self):
         from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 
@@ -95,7 +96,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         
 
         # First launch the ingestors
-        self.exchange_space       = 'science_ingestion'
+        self.exchange_space       = 'science_granule_ingestion'
         self.exchange_point       = 'science_data'
         config = DotDict()
         config.process.datastore_name = 'datasets'
@@ -154,10 +155,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
 
         # test suspend data product persistence
-#        try:
-#            client.suspend_data_product_persistence(dp_id2)
-#        except BadRequest as ex:
-#            self.fail("failed to suspend deactivate data product persistence : %s" %ex)
+        try:
+            client.suspend_data_product_persistence(dp_id2)
+        except BadRequest as ex:
+            self.fail("failed to suspend deactivate data product persistence : %s" %ex)
 
         pid = self.container.spawn_process(name='dummy_process_for_test',
                                            module='pyon.ion.process',
