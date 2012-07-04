@@ -5,6 +5,7 @@ from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
 
 import time
+import numpy
 from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
@@ -61,19 +62,17 @@ class VizTransformMatplotlibGraphs(TransformFunction):
 #            arrLen = len(vardict[varname])
 
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        rdt0 = rdt['coordinates']
-        rdt1 = rdt['data']
 
         vardict = {}
-        vardict['conductivity'] = get_safe(rdt1, 'cond')
-        vardict['pressure'] = get_safe(rdt1, 'pres')
-        vardict['temperature'] = get_safe(rdt1, 'temp')
+        vardict['conductivity'] = get_safe(rdt, 'cond')
+        vardict['pressure'] = get_safe(rdt, 'pres')
+        vardict['temperature'] = get_safe(rdt, 'temp')
 
-        vardict['longitude'] = get_safe(rdt0, 'lon')
-        vardict['latitude'] = get_safe(rdt0, 'lat')
-        vardict['time'] = get_safe(rdt0, 'time')
-        vardict['height'] = get_safe(rdt0, 'height')
-        arrLen = len(vardict)
+        vardict['longitude'] = get_safe(rdt, 'lon')
+        vardict['latitude'] = get_safe(rdt, 'lat')
+        vardict['time'] = get_safe(rdt, 'time')
+        vardict['height'] = get_safe(rdt, 'height')
+        arrLen = len(vardict['time'])
 
         if self.initDataFlag:
             # look at the incoming packet and store
@@ -107,7 +106,8 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         xAxisVar = 'time'
         xAxisFloatData = self.graph_data[xAxisVar]
         rdt = RecordDictionaryTool(taxonomy=tx)
-        rdt['matplotlib_graphs'] = array([])
+        #rdt['matplotlib_graphs'] = numpy.array([])
+        msgs = []
 
         for varName, varData in self.graph_data.iteritems():
             if varName == 'time' or varName == 'height' or varName == 'longitude' or varName == 'latitude':
@@ -131,15 +131,15 @@ class VizTransformMatplotlibGraphs(TransformFunction):
 
             # submit resulting table back using the out stream publisher
             msg = {"viz_product_type": "matplotlib_graphs",
-                   "data_product_id": "FAKE_DATAPRODUCT_ID_0001",
                    "image_obj": imgInMem.getvalue(),
                    "image_name": fileName}
 
-            append(rdt['matplotlib_graphs'], msg)
+            msgs.append(msg)
 
             #clear the canvas for the next image
             ax.clear()
 
+        rdt['matplotlib_graphs'] = numpy.array(msgs)
         #Generate a list of the graph objects generated
         self.out_granule = build_granule(data_producer_id='matplotlib_graphs_transform', taxonomy=tx, record_dictionary=rdt)
 

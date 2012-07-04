@@ -213,10 +213,9 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
         for message in results:
             rdt = RecordDictionaryTool.load_from_granule(message)
-            rdt0 = rdt['coordinates']
-            rdt1 = rdt['data']
+
             try:
-                temp = get_safe(rdt1, 'temp')
+                temp = get_safe(rdt, 'temp')
 #                psd = PointSupplementStreamParser(stream_definition=self.ctd_stream_def, stream_granule=message)
 #                temp = psd.get_values('temperature')
 #                log.info(psd.list_field_names())
@@ -238,21 +237,22 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
                 #assertions('salinity' in psd.list_field_names())
 
                 # you have to know the name of the coverage in stream def
-                salinity = get_safe(rdt1, 'salinity')
+                salinity = get_safe(rdt, 'salinity')
                 #salinity = psd.get_values('salinity')
                 log.info( 'salinity=' + str(numpy.nanmin(salinity)))
 
-                assertions(isinstance(salinity, numpy.ndarray))
+                # Check to see if salinity has values before running further tests
+                if salinity != None:
+                    assertions(isinstance(salinity, numpy.ndarray))
+                    assertions(numpy.nanmin(salinity) > 0.0) # salinity should always be greater than 0
 
-                assertions(numpy.nanmin(salinity) > 0.0) # salinity should always be greater than 0
-
-                if first_salinity_values is None:
-                    first_salinity_values = salinity.tolist()
-                else:
-                    second_salinity_values = salinity.tolist()
-                    assertions(len(first_salinity_values) == len(second_salinity_values))
-                    for idx in range(0,len(first_salinity_values)):
-                        assertions(first_salinity_values[idx]*2.0 == second_salinity_values[idx])
+                    if first_salinity_values is None:
+                        first_salinity_values = salinity.tolist()
+                    else:
+                        second_salinity_values = salinity.tolist()
+                        assertions(len(first_salinity_values) == len(second_salinity_values))
+                        for idx in range(0,len(first_salinity_values)):
+                            assertions(first_salinity_values[idx]*2.0 == second_salinity_values[idx])
 
 
     def _create_salinity_data_process_definition(self):
@@ -514,11 +514,22 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
                 tx = TaxyTool.load_from_granule(g)
                 rdt = RecordDictionaryTool.load_from_granule(g)
-                #log.warn(tx.pretty_print())
+
                 #log.warn(rdt.pretty_print())
 
                 #gdt_component = rdt['google_dt_components'][0]
-                gdt_component = get_safe(rdt, 'google_dt_components')
+                gdt_components = get_safe(rdt, 'google_dt_components')
+
+                # IF this granule does not contains google dt, skip
+                if gdt_components == None:
+                    continue
+
+                gdt_component = gdt_components[0]
+                #print ">>>>>>>>>> gdt_component = ", gdt_component
+
+                #assertions((get_safe(rdt['viz_product_type'])) == 'google_realtime_dt' )
+                #gdt_description = get_safe(rdt['data_table_description'])
+                #gdt_content = get_safe(gdt_component['data_table_content'])
 
                 assertions(gdt_component['viz_product_type'] == 'google_realtime_dt' )
                 gdt_description = gdt_component['data_table_description']
@@ -569,10 +580,13 @@ class TestWorkflowManagementIntegration(IonIntegrationTestCase):
 
                 tx = TaxyTool.load_from_granule(g)
                 rdt = RecordDictionaryTool.load_from_granule(g)
-                #log.warn(tx.pretty_print())
-                #log.warn(rdt.pretty_print())
 
-                graphs = rdt['matplotlib_graphs']
+                #print ">>>>>>> RDT " , rdt.pretty_print()
+
+                graphs = get_safe(rdt, 'matplotlib_graphs')
+
+                if graphs == None:
+                    continue
 
                 for graph in graphs:
                     assertions(graph['viz_product_type'] == 'matplotlib_graphs' )

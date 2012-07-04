@@ -40,16 +40,13 @@ class SalinityDoubler(TransformFunction):
         # Use the PointSupplementStreamParser to pull data from a granule
         #psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=packet)
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        rdt0 = rdt['coordinates']
-        rdt1 = rdt['data']
 
-        salinity = get_safe(rdt1, 'salinity')
+        salinity = get_safe(rdt, 'salinity')
 
-
-        longitude = get_safe(rdt0, 'lon')
-        latitude = get_safe(rdt0, 'lat')
-        time = get_safe(rdt0, 'time')
-        height = get_safe(rdt0, 'height')
+        longitude = get_safe(rdt, 'lon')
+        latitude = get_safe(rdt, 'lat')
+        time = get_safe(rdt, 'time')
+        height = get_safe(rdt, 'height')
 #        #  pull data from a granule
 #        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
 #
