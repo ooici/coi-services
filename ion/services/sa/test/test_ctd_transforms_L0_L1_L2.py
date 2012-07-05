@@ -91,7 +91,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='bigdog')
+@attr('HARDWARE', group='sa')
 #@unittest.skip("run locally only")
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
