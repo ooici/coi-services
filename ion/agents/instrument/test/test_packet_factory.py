@@ -84,21 +84,22 @@ class TestLCAPacketFactory(TestPacketFactory):
         tax = self._parsed_taxonomy
         granule = self.packet_factory.build_packet(data_producer_id='lca_parsed_granule', taxonomy=tax, data=sample_data)
         rd = granule.record_dictionary
-        data = rd[tax.get_handle('data')]
-        coordinates = rd[tax.get_handle('coordinates')]
+        #todo: removed nested record dictionaries in packet_factory temporarily
+#        data = rd[tax.get_handle('data')]
+#        coordinates = rd[tax.get_handle('coordinates')]
 
 #        print "granule: %s" % granule
 #        print "granule.record_dictionary: %s" % rd
 #        print "data: %s" % data
 #        print "coordinates: %s" % coordinates
 
-        self.assertEqual([10], data[tax.get_handle('cond')])
-        self.assertEqual([10], data[tax.get_handle('temp')])
-        self.assertEqual([10], data[tax.get_handle('pres')])
+        self.assertEqual([10], rd[tax.get_handle('cond')])
+        self.assertEqual([10], rd[tax.get_handle('temp')])
+        self.assertEqual([10], rd[tax.get_handle('pres')])
 
-        self.assertEqual([10.112], coordinates[tax.get_handle('lat')])
-        self.assertEqual([12.122], coordinates[tax.get_handle('lon')])
-        self.assertEqual([123122122], coordinates[tax.get_handle('time')])
+        self.assertEqual([10.112], rd[tax.get_handle('lat')])
+        self.assertEqual([12.122], rd[tax.get_handle('lon')])
+        self.assertEqual([123122122], rd[tax.get_handle('time')])
 
     def test_build_granule_with_aliases(self):
         """
@@ -119,18 +120,19 @@ class TestLCAPacketFactory(TestPacketFactory):
         tax = self._parsed_taxonomy
         granule = self.packet_factory.build_packet(data_producer_id='lca_parsed_granule', taxonomy=tax, data=sample_data)
         rd = granule.record_dictionary
-        data = rd[tax.get_handle('data')]
-        coordinates = rd[tax.get_handle('coordinates')]
+        #todo: removed nested record dictionaries in packet_factory temporarily
+#        data = rd[tax.get_handle('data')]
+#        coordinates = rd[tax.get_handle('coordinates')]
 
 #        print "granule: %s" % granule
 #        print "granule.record_dictionary: %s" % rd
 #        print "data: %s" % data
 #        print "coordinates: %s" % coordinates
 
-        self.assertEqual([sample_data['c']], data[tax.get_handle('cond')])
-        self.assertEqual([sample_data['t']], data[tax.get_handle('temp')])
-        self.assertEqual([sample_data['d']], data[tax.get_handle('pres')])
+        self.assertEqual([sample_data['c']], rd[tax.get_handle('cond')])
+        self.assertEqual([sample_data['t']], rd[tax.get_handle('temp')])
+        self.assertEqual([sample_data['d']], rd[tax.get_handle('pres')])
 
-        self.assertEqual([sample_data['lt']], coordinates[tax.get_handle('lat')])
-        self.assertEqual([sample_data['ln']], coordinates[tax.get_handle('lon')])
-        self.assertEqual([sample_data['tm']], coordinates[tax.get_handle('time')])
+        self.assertEqual([sample_data['lt']], rd[tax.get_handle('lat')])
+        self.assertEqual([sample_data['ln']], rd[tax.get_handle('lon')])
+        self.assertEqual([sample_data['tm']], rd[tax.get_handle('time')])
