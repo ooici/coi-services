@@ -130,11 +130,6 @@ def check_user_notification_interest(event, reverse_user_info):
 
     @retval user_names list
     '''
-
-    log.warning("In check_user_notification_interest:")
-    log.warning("event: %s" % event)
-    log.warning("reverse_user_info: %s" % reverse_user_info)
-
     user_list_1 = reverse_user_info['event_origin'][event.origin]
     user_list_2 = reverse_user_info['event_origin_type'][event.origin_type]
     user_list_3 = reverse_user_info['event_type'][event.event_type]
@@ -169,8 +164,6 @@ def load_user_info():
     results = []
     user_info = {}
 
-    log.warning("came here!")
-
     try:
         discovery = DiscoveryServiceClient()
         results = poll(9, discovery.parse,search_string)
@@ -183,12 +176,10 @@ def load_user_info():
         return {}
 
     for result in results:
-
-        log.warning("result['_source']: %s" % result['_source'])
-        log.warning("result['_source'].variables: %s" % result['_source'].variables)
-
         user_name = result['_source'].name
         user_contact = result['_source'].contact
+
+        log.warning("result['_source'].variables : %s" % result['_source'].variables)
 
         notifications = []
         for variable in result['_source'].variables:
@@ -196,6 +187,7 @@ def load_user_info():
                 notifications = variable['value']
 
         user_info[user_name] = { 'user_contact' : user_contact, 'notifications' : notifications}
+        log.warning("user_info: %s" % user_info)
 
     return user_info
 

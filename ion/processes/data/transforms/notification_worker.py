@@ -36,8 +36,9 @@ class NotificationWorker(SimpleProcess):
         # Start by loading the user info and reverse user info dictionaries
         #------------------------------------------------------------------------------------
 
-        self.user_info = load_user_info()
-        calculate_reverse_user_info(self.user_info)
+        # todo fix the problem of load_user_info
+#        self.user_info = load_user_info()
+#        calculate_reverse_user_info(self.user_info)
 
         def receive_update_notification_event(event_msg, headers):
             self.user_info = load_user_info()
