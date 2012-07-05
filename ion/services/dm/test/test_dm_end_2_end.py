@@ -19,6 +19,8 @@ from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
 import time
+import unittest
+import os
 
 @attr('INT',group='dm')
 class TestDMEnd2End(IonIntegrationTestCase):
@@ -82,7 +84,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
             now = time.time()
 
       
-
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_dm_end_2_end(self):
         #--------------------------------------------------------------------------------
         # Set up a stream and have a mock instrument (producer) send data
