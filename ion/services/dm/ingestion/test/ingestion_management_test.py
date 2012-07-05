@@ -12,8 +12,9 @@ from pyon.util.containers import DotDict
 from pyon.core.exception import NotFound
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.objects import IngestionQueue, Subscription
+from interface.objects import IngestionQueue, Subscription, DataSet
 from mock import Mock
 from nose.plugins.attrib import attr
 
@@ -137,19 +138,26 @@ class IngestionManagementIntTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
 
         self.ingestion_management = IngestionManagementServiceClient()
-        self.resource_regsitry    = ResourceRegistryServiceClient()
+        self.resource_registry    = ResourceRegistryServiceClient()
+        self.pubsub_management    = PubsubManagementServiceClient()
+        self.ingest_name = 'basic'
+        self.exchange    = 'testdata'
 
-    def test_ingestion_config_crud(self):
-        ingest_name = 'basic'
-        exchange    = 'testdata'
-        queue = IngestionQueue(name='test', type='testdata')
+    def create_ingest_config(self):
+        self.queue = IngestionQueue(name='test', type='testdata')
 
         # Create the ingestion config
-        ingestion_config_id = self.ingestion_management.create_ingestion_configuration(name=ingest_name, exchange_point_id=exchange, queues=[queue])
+        ingestion_config_id = self.ingestion_management.create_ingestion_configuration(name=self.ingest_name, exchange_point_id=self.exchange, queues=[self.queue])
+        return ingestion_config_id
+
+
+
+    def test_ingestion_config_crud(self):
+        ingestion_config_id = self.create_ingest_config()
 
         ingestion_config = self.ingestion_management.read_ingestion_configuration(ingestion_config_id)
-        self.assertTrue(ingestion_config.name == ingest_name)
-        self.assertTrue(ingestion_config.queues == [queue])
+        self.assertTrue(ingestion_config.name == self.ingest_name)
+        self.assertTrue(ingestion_config.queues == [self.queue])
 
         ingestion_config.name = 'another'
 
@@ -157,11 +165,36 @@ class IngestionManagementIntTest(IonIntegrationTestCase):
 
         # Create an association just to make sure that it will delete them
         sub = Subscription()
-        sub_id, _ = self.resource_regsitry.create(sub)
-        assoc_id, _ = self.resource_regsitry.create_association(subject=ingestion_config_id, predicate=PRED.hasSubscription,object=sub_id)
+        sub_id, _ = self.resource_registry.create(sub)
+        assoc_id, _ = self.resource_registry.create_association(subject=ingestion_config_id, predicate=PRED.hasSubscription,object=sub_id)
 
         self.ingestion_management.delete_ingestion_configuration(ingestion_config_id)
 
         with self.assertRaises(NotFound):
-            self.resource_regsitry.read(assoc_id)
+            self.resource_registry.read(assoc_id)
+
+    def test_list_ingestion(self):
+
+        # Create the ingest_config
+        config_id = self.create_ingest_config()
+
+        retval = self.ingestion_management.list_ingestion_configurations(id_only=True)
+        # Nice thing about this is that it breaks if r2dm adds an ingest_config
+        self.assertTrue(retval == [config_id])
+
+    def test_persist_data(self):
+        config_id = self.create_ingest_config()
+
+        stream_id = self.pubsub_management.create_stream()
+
+        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
+
+        assoc = self.resource_registry.find_associations(subject=config_id, predicate=PRED.hasSubscription)
+
+        sub = self.resource_registry.read(assoc[0].o)
+
+        self.assertTrue(sub.is_active)
+
+        dataset = self.resource_registry.read(dataset_id)
+        self.assertIsInstance(dataset,DataSet)
 
