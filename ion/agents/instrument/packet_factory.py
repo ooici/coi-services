@@ -60,6 +60,13 @@ class PacketFactory(object):
 
         return [v[0] for v in taxonomy._t.map.itervalues()]
 
+    def _get_nick_name_set_from_taxonomy(self, taxonomy):
+
+        # NOTE this operation should probably be provided by the taxonomy
+        # object itself.
+
+        return [v[1] for v in taxonomy._t.map.itervalues()]
+
 
 class LCAPacketFactory(PacketFactory):
     """
@@ -88,6 +95,8 @@ class LCAPacketFactory(PacketFactory):
 
         # the nick_names in the taxonomy:
         nick_names = self._get_nick_names_from_taxonomy(taxonomy)
+        nick_name_set = self._get_nick_name_set_from_taxonomy(taxonomy)
+
 
         #
         # TODO in general, how are groups (and the individual values
@@ -102,6 +111,7 @@ class LCAPacketFactory(PacketFactory):
 #        if not 'coordinates' in nick_names:
 #            raise PacketFactoryException("expected name 'coordinates' in taxonomy")
 
+
         rdt = RecordDictionaryTool(taxonomy=taxonomy)
 #        data_rdt = RecordDictionaryTool(taxonomy=taxonomy)
 #        coordinates_rdt = RecordDictionaryTool(taxonomy=taxonomy)
@@ -115,37 +125,50 @@ class LCAPacketFactory(PacketFactory):
             return nick_name in ['lat', 'lon', 'time', 'height']
 
 
-        # now, assign the values to the corresp record dicts:
+#        # now, assign the values to the corresp record dicts:
+#
+#        for name, value in data.iteritems():
+#            handle = -1
+#            log.info("packetfactory: name: %s" % str(name))
+#            if name in nick_names:
+#                handle = taxonomy.get_handle(name)
+#                log.info("packetfactory: handle: %s" % str(handle))
+#            else:
+#                handles = taxonomy.get_handles(name)
+#                log.info("packetfactory: handles: %s" % str(handles))
+#                if len(handles) == 1:
+#                    handle = handles.pop()
+#                elif len(handles) > 1:
+#                    # TODO proper handling of this case
+#                    log.warn("Multiple handles found for '%s': %s" % (name %
+#                                                                 handles))
+#
+#            if handle >= 0:
+#                # ok, set value (using the nick_name):
+#                nick_name = taxonomy.get_nick_name(handle)
 
         for name, value in data.iteritems():
-            handle = -1
-            if name in nick_names:
-                handle = taxonomy.get_handle(name)
-            else:
-                handles = taxonomy.get_handles(name)
-                if len(handles) == 1:
-                    handle = handles.pop()
-                elif len(handles) > 1:
-                    # TODO proper handling of this case
-                    log.warn("Multiple handles found for '%s': %s" % (name %
-                                                                 handles))
-
-            if handle >= 0:
-                # ok, set value (using the nick_name):
-                nick_name = taxonomy.get_nick_name(handle)
-
-                assert isinstance(value, list)
-                val = numpy.array(value)
-
-                if is_coordinate(nick_name):
-                    rdt[nick_name] = val
+            idx = 0
+            for set in nick_name_set:
+                if name in set:
+                    rdt[nick_names[idx]] = numpy.array(value)
+                    break
                 else:
-                    rdt[nick_name] = val
-            else:
-                # TODO throw some exception?
-                log.warn("No handle found for '%s'" % name)
+                    idx = idx + 1
 
-        log.info("dictionary created: %s" % rdt.pretty_print())
+
+#                assert isinstance(value, list)
+#                val = numpy.array(value)
+#
+#                if is_coordinate(nick_name):
+#                    rdt[nick_name] = val
+#                else:
+#                    rdt[nick_name] = val
+#            else:
+#                # TODO throw some exception?
+#                log.warn("No handle found for '%s'" % name)
+
+        log.debug("dictionary created: %s" % rdt.pretty_print())
 
         return build_granule(data_producer_id=data_producer_id, taxonomy=taxonomy, record_dictionary=rdt)
 

@@ -102,7 +102,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         return pid
 
 
-    @unittest.skip("TBD")
+    #@unittest.skip("TBD")
     def test_activateInstrumentSample(self):
 
         self.loggerpids = []
