@@ -448,7 +448,7 @@ class TestAssembly(IonIntegrationTestCase):
         c.OMS.deploy_instrument_site(instrument_site_id, deployment_id)
         c.IMS.deploy_instrument_device(instrument_device_id, deployment_id)
 
-        c.OMS.activate_deployment(deployment_id)
+        c.OMS.activate_deployment(deployment_id, True)
 
 
         #now along comes a new device
@@ -474,7 +474,16 @@ class TestAssembly(IonIntegrationTestCase):
                                    data_product_id=inst_data_product_id2,
                                    create_stream=True)
 
-        c.OMS.transfer_site_subscription(deployment_id, instrument_site_id, instrument_device_id2)
+        # create a new deployment for the new device
+        deployment_id2 = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, False)
+        c.OMS.deploy_instrument_site(instrument_site_id, deployment_id2)
+        c.IMS.deploy_instrument_device(instrument_device_id2, deployment_id2)
+
+        # activate the new deployment -- changing the primary device -- but don't switch subscription
+        c.OMS.activate_deployment(deployment_id2, False)
+        #todo: assert site hasDevice instrument_device_id2
+
+        c.OMS.transfer_site_subscription(instrument_site_id)
 
     #----------------------------------------------
         #
