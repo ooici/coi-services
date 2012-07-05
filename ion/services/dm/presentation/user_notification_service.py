@@ -8,12 +8,11 @@
 '''
 
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.event.event import EventSubscriber
 from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
 from pyon.util.containers import DotDict
-from pyon.event.event import EventPublisher
+from pyon.event.event import EventPublisher, EventSubscriber
 from ion.services.dm.utility.query_language import QueryLanguage
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 
@@ -223,6 +222,7 @@ class DetectionEventProcessor(EventProcessor):
             self.generate_event(message) # pass in the event message so we can put some of the content in the new event.
 
 def create_event_processor(notification_request, user_id):
+
     if notification_request.type == NotificationType.EMAIL:
         return EmailEventProcessor(notification_request,user_id)
 
@@ -347,15 +347,24 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
+        log.warning("Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
+
         event_publisher = EventPublisher("ReloadUserInfoEvent")
         event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.", notification_id = notification_id)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Put in the notification request into the UserInfo object for each user
+        #-------------------------------------------------------------------------------------------------------------------
+
+        self._update_user_with_notification(user_id, notification)
 
         #---------------------------------------------------------------------------------------------------
         # create event processor for user
         #---------------------------------------------------------------------------------------------------
 
         self.event_processors[user_id] = create_event_processor(notification_request=notification,user_id=user_id)
-        log.debug("UserNotificationService.create_notification(): added event processor " +  str(self.event_processors[user_id]))
+        log.warning("UserNotificationService.create_notification(): added event processor " +  str(self.event_processors[user_id]))
+        log.warning("In UNS create_notification() method: Created notification with notification_id: %s" % notification_id)
 
         return notification_id
 
@@ -407,6 +416,8 @@ class UserNotificationService(BaseUserNotificationService):
             #-------------------------------------------------------------------------------------------------------------------
             # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
             #-------------------------------------------------------------------------------------------------------------------
+            log.warning("Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
+
             event_publisher = EventPublisher("ReloadUserInfoEvent")
             event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.", notification_id = notification_id)
 
@@ -445,6 +456,8 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
+        log.warning("Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
+
         event_publisher = EventPublisher("ReloadUserInfoEvent")
         event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.", notification_id = notification_id)
 
@@ -565,7 +578,7 @@ class UserNotificationService(BaseUserNotificationService):
         '''
 
         #todo - is there a concept of a general time in the system?
-        # todo - publish an event at a particular time
+        # todo - when the timer gets integrated into the system, we can publish an event at a particular time
 
         if event:
             type = event.type_
@@ -653,7 +666,7 @@ class UserNotificationService(BaseUserNotificationService):
 
             notifications = value['notifications']
 
-            events_message = ''
+            events_for_message = []
 
             log.warning("inside loop: notifications: %s" % notifications)
 
@@ -671,7 +684,6 @@ class UserNotificationService(BaseUserNotificationService):
                 log.warning("search_event_type: %s" % search_event_type)
                 log.warning("search_time: %s" % search_time)
 
-
                 search_origin = 'search "origin" is "*" from "events_index"'
                 search_string = search_time + ' and ' + search_origin
 
@@ -679,10 +691,13 @@ class UserNotificationService(BaseUserNotificationService):
 
                 log.warning("ret_vals : %s" % ret_vals)
 
+                for event_id in ret_vals:
+#                    datastore = cc.datastore_manager.get_datastore('events')
+                    datastore = self.container.datastore_manager.get_datastore('events')
+                    event_obj = datastore.read(event_id)
+                    events_for_message.append(event_obj)
 
-                events_message += '\n' + str(ret_vals)
-
-            log.warning("Each user gets the following message in email: %s" % events_message)
+            log.warning("Each user gets the following message in email: %s" % str(events_for_message))
             # send a notification email to each user using a _send_email() method
 
             log.warning("notifications[0]: %s" % notifications[0])
@@ -696,4 +711,33 @@ class UserNotificationService(BaseUserNotificationService):
 #            send_email( message = events_message,
 #                        msg_recipient=self.user_info[user]['user_contact'].email,
 #                        smtp_client=smtp_client )
+
+
+    def _update_user_with_notification(self, user_id, notification):
+
+        user = self.clients.resource_registry.read(user_id)
+        if not user:
+            raise BadRequest("No user with the provided user_id: %s" % user_id)
+
+        notification_present = False
+
+        for item in user.variables:
+            log.warning("item.... %s" %item)
+            if item['name'] == 'notification':
+                notifications = item['value']
+                if notifications and isinstance(notifications, list) :
+                    notifications.append(notification)
+                    item['value'] = notifications
+                else:
+                    item['value'] = [notification]
+                notification_present = True
+
+        if not notification_present:
+            user.variables= [{'name' : 'notification', 'value' : [notification]}]
+
+        log.warning("In the _update_user_with_notification:")
+        log.warning("user: %s" % user)
+        log.warning("user.variables: %s" % user.variables )
+
+        self.clients.resource_registry.update(user)
 

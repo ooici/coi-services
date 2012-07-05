@@ -131,6 +131,10 @@ def check_user_notification_interest(event, reverse_user_info):
     @retval user_names list
     '''
 
+    log.warning("In check_user_notification_interest:")
+    log.warning("event: %s" % event)
+    log.warning("reverse_user_info: %s" % reverse_user_info)
+
     user_list_1 = reverse_user_info['event_origin'][event.origin]
     user_list_2 = reverse_user_info['event_origin_type'][event.origin_type]
     user_list_3 = reverse_user_info['event_type'][event.event_type]
@@ -179,14 +183,17 @@ def load_user_info():
         return {}
 
     for result in results:
+
+        log.warning("result['_source']: %s" % result['_source'])
+        log.warning("result['_source'].variables: %s" % result['_source'].variables)
+
         user_name = result['_source'].name
         user_contact = result['_source'].contact
 
         notifications = []
-
         for variable in result['_source'].variables:
             if variable['name'] == 'notification':
-                notifications.extend(variable['value'])
+                notifications = variable['value']
 
         user_info[user_name] = { 'user_contact' : user_contact, 'notifications' : notifications}
 
@@ -208,6 +215,9 @@ def calculate_reverse_user_info(user_info = {}):
                         'event_origin_type' : { <event_origin_type_1> : ['user_1', 'user_2'..],
                                                    <event_origin_type_2> : ['user_3'],... },
     '''
+
+    if not user_info:
+        return {}
 
     reverse_user_info = {}
 

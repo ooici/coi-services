@@ -36,13 +36,12 @@ class NotificationWorker(SimpleProcess):
         # Start by loading the user info and reverse user info dictionaries
         #------------------------------------------------------------------------------------
 
-        load_user_info()
-        if self.user_info:
-            calculate_reverse_user_info(self.user_info)
+        self.user_info = load_user_info()
+        calculate_reverse_user_info(self.user_info)
 
         def receive_update_notification_event(event_msg, headers):
-            load_user_info()
-            calculate_reverse_user_info()
+            self.user_info = load_user_info()
+            calculate_reverse_user_info(self.user_info)
 
         #------------------------------------------------------------------------------------
         # start the event subscriber for all events that are of interest for notifications
@@ -73,8 +72,9 @@ class NotificationWorker(SimpleProcess):
         #------------------------------------------------------------------------------------
         # From the reverse user info dict find out which users have subscribed to that event
         #------------------------------------------------------------------------------------
-
-        users = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
+        users = []
+        if self.reverse_user_info: #todo check why we need this protection
+            users = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
 
         #------------------------------------------------------------------------------------
         # Send email to the users

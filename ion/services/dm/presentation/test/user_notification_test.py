@@ -17,13 +17,13 @@ from pyon.core.exception import NotFound, BadRequest
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
-from pyon.event.event import EventPublisher
+from pyon.event.event import EventPublisher, EventSubscriber
 import gevent
 from mock import Mock, mocksignature
 from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent, Frequency
 from ion.services.dm.utility.query_language import QueryLanguage
 import os
-import gevent
+from gevent import event, queue
 from gevent.timeout import Timeout
 
 @attr('UNIT',group='dm')
@@ -369,7 +369,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_email(self):
+    def test_create_email(self):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
@@ -444,6 +444,114 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_pub_sub_reload_user_info_event(self):
+        '''
+        Test that the publishing of reload user info event occurs every time a create, update
+        or delete notification occurs. Test the subscription of the event in UNS and notification
+        worker
+        '''
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        #--------------------------------------------------------------------------------------
+        # Create subscribers for reload events
+        #--------------------------------------------------------------------------------------
+
+        queue = gevent.queue.Queue()
+
+        def reload_event_received(message, headers):
+            queue.put(message)
+
+        reload_event_subscriber = EventSubscriber(origin="UserNotificationService",
+                                                    event_type="ReloadUserInfoEvent",
+                                                    callback=reload_event_received)
+        reload_event_subscriber.start()
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
+
+        #--------------------------------------------------------------------------------------
+        # Create a user and get the user_id
+        #--------------------------------------------------------------------------------------
+
+        user = UserInfo()
+        user.name = 'new_user'
+        user.contact.email = 'new_user@yahoo.com'
+
+        user_id, _ = self.rrc.create(user)
+
+        #--------------------------------------------------------------------------------------
+        # Create notification
+        #--------------------------------------------------------------------------------------
+
+        notification_id_1 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+
+        notifications = set([notification_id_1, notification_id_2])
+
+        #--------------------------------------------------------------------------------------
+        # Check the publishing
+        #--------------------------------------------------------------------------------------
+
+        received_event_1 = queue.get()
+        received_event_2 = queue.get()
+
+        notifications_received = set([received_event_1.notification_id, received_event_2.notification_id])
+
+        self.assertEquals(notifications, notifications_received)
+
+        #todo Do the same thing for update and delete notifications
+
+        #--------------------------------------------------------------------------------------
+        # Update notification
+        #--------------------------------------------------------------------------------------
+
+        notification_id_1 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+
+        notifications = set([notification_id_1, notification_id_2])
+
+        #--------------------------------------------------------------------------------------
+        # Check that the correct events were published
+        #--------------------------------------------------------------------------------------
+
+        received_event_1 = queue.get()
+        received_event_2 = queue.get()
+
+        notifications_received = set([received_event_1.notification_id, received_event_2.notification_id])
+
+        self.assertEquals(notifications, notifications_received)
+
+        #--------------------------------------------------------------------------------------
+        # Delete notification
+        #--------------------------------------------------------------------------------------
+
+        notification_id_1 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+
+        notifications = set([notification_id_1, notification_id_2])
+
+        #--------------------------------------------------------------------------------------
+        # Check that the correct events were published
+        #--------------------------------------------------------------------------------------
+
+        received_event_1 = queue.get()
+        received_event_2 = queue.get()
+
+        notifications_received = set([received_event_1.notification_id, received_event_2.notification_id])
+
+        self.assertEquals(notifications, notifications_received)
+
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -460,11 +568,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_request_1 = NotificationRequest(origin="instrument_1",
-            origin_type="some_type",
+            origin_type="type_1",
             event_type='ResourceLifecycleEvent')
 
         notification_request_2 = NotificationRequest(origin="instrument_2",
-            origin_type="some_type",
+            origin_type="type_2",
             event_type='DetectionEvent')
 
         #--------------------------------------------------------------------------------------
@@ -473,25 +581,103 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         user = UserInfo()
         user.name = 'new_user'
-        user.contact.phone = '5551212'
-        user.variables = [{'name' : 'notification', 'value' : [notification_request_1, notification_request_2]}]
+        user.contact.email = 'new_user@gmail.com'
 
         user_id, _ = self.rrc.create(user)
 
         #--------------------------------------------------------------------------------------
-        # Create notification
+        # Create a notification
         #--------------------------------------------------------------------------------------
 
         self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
 
-        gevent.sleep(2)
+        gevent.sleep(4)
 
         #--------------------------------------------------------------------------------------
-        # Check the user_info and reverse_user_info in UNS got reloaded
+        # Create notification workers
         #--------------------------------------------------------------------------------------
 
-        self.assertEquals(proc1.user_info['new_user']['notifications'], user.variables[0]['value'])
-        self.assertEquals(proc1.user_info['new_user']['user_contact'].phone, '5551212' )
+#        self.unsc.create_worker(number_of_workers=1)
+
+        #--------------------------------------------------------------------------------------
+        # Check the user_info and reverse_user_info got reloaded
+        #--------------------------------------------------------------------------------------
+
+        # Check for UNS ------------>
+
+        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
+        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_1])
+
+        #--------------------------------------------------------------------------------------
+        # Create another notification
+        #--------------------------------------------------------------------------------------
+
+        self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+
+        gevent.sleep(4)
+
+        log.warning("proc1.user_info: %s" % proc1.user_info)
+        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
+        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_1, notification_request_2])
+
+
+#        not_req_1= proc1.user_info['new_user']['notifications'][0]
+#        not_req_2= proc1.user_info['new_user']['notifications'][1]
+#
+#        dict1 = {'origin' : not_req_1.origin, 'origin_type' : not_req_1.origin_type, 'event_type' : not_req_1.event_type }
+#        dict2 = {'origin' : not_req_2.origin, 'origin_type' : not_req_2.origin_type, 'event_type' : not_req_2.event_type }
+#
+#        orig_dict1 = {'origin' : notification_request_1.origin, 'origin_type' : notification_request_1.origin_type, 'event_type' : notification_request_1.event_type }
+#        orig_dict2 = {'origin' : notification_request_1.origin, 'origin_type' : notification_request_1.origin_type, 'event_type' : notification_request_1.event_type }
+#
+#        test_list_1 = [dict1, dict2]
+#        test_list_2 = [orig_dict1, orig_dict2]
+#
+##        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_1, notification_request_1])
+#
+#        self.assertEquals(test_list_1, test_list_2)
+
+        # reverse_user_info
+
+        # Check for notification workers ------->
+
+        # user_info
+
+        # reverse_user_info
+
+        #--------------------------------------------------------------------------------------
+        # Update notification and check that the user_info and reverse_user_info in UNS got reloaded
+        #--------------------------------------------------------------------------------------
+
+        # Check for UNS ------->
+
+        # user_info
+
+        # reverse_user_info
+
+        # Check for notification workers ------->
+
+        # user_info
+
+        # reverse_user_info
+
+
+        #--------------------------------------------------------------------------------------
+        # Delete notification and check that the user_info and reverse_user_info in UNS got reloaded
+        #--------------------------------------------------------------------------------------
+
+        # Check for UNS ------->
+
+        # user_info
+
+        # reverse_user_info
+
+        # Check for notification workers ------->
+
+        # user_info
+
+        # reverse_user_info
+
 
 
     @attr('LOCOINT')
@@ -527,22 +713,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@gmail.com'
-        user_1.variables = [{'name' : 'notification', 'value' : [notification_request_1, notification_request_2]}]
-
-        user_id_1, _ = self.rrc.create(user_1)
 
         # user_2
         user_2 = UserInfo()
         user_2.name = 'user_2'
         user_2.contact.phone = 'user_2@gmail.com'
-        user_2.variables = [{'name' : 'notification', 'value' : [notification_request_2]}]
 
         # user_3
         user_3 = UserInfo()
         user_3.name = 'user_3'
         user_3.contact.phone = 'user_3@gmail.com'
-        user_3.variables = [{'name' : 'notification', 'value' : [notification_request_2, notification_request_3]}]
-
 
         user_id_1, _ = self.rrc.create(user_1)
         user_id_2, _ = self.rrc.create(user_2)
@@ -554,6 +734,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
+        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_1)
+
+        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
+
+        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_3)
+        self.unsc.create_notification(notification=notification_request_3, user_id=user_id_3)
+
 
         # allow elastic search to populate the users_index. This gives enough time for the reload of user_info
         gevent.sleep(2)
@@ -592,27 +779,112 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
 
-        #todo: add assertions
+        #todo: add assertions when batch_notifications is completed
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_create_worker(self):
+    def test_worker(self):
         '''
         Test the creation of notification workers
         '''
 
         #--------------------------------------------------------------------------------------
-        # Create three notification workers
+        # Create notification workers
         #--------------------------------------------------------------------------------------
 
-        self.unsc.create_worker(number_of_workers=1)
+        self.unsc.create_worker(number_of_workers=3)
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
+
+        notification_request_3 = NotificationRequest(origin="instrument_3",
+            origin_type="type_3",
+            event_type='ResourceLifecycleEvent')
+
+        #-------------------------------------------------------
+        # Create users and get the user_ids
+        #-------------------------------------------------------
+
+        # user_1
+        user_1 = UserInfo()
+        user_1.name = 'user_1'
+        user_1.contact.email = 'user_1@gmail.com'
+
+        # user_2
+        user_2 = UserInfo()
+        user_2.name = 'user_2'
+        user_2.contact.phone = 'user_2@gmail.com'
+
+        # user_3
+        user_3 = UserInfo()
+        user_3.name = 'user_3'
+        user_3.contact.phone = 'user_3@gmail.com'
+
+        user_id_1, _ = self.rrc.create(user_1)
+        user_id_2, _ = self.rrc.create(user_2)
+        user_id_3, _ = self.rrc.create(user_3)
+
+        #--------------------------------------------------------------------------------------
+        # Create notifications using UNS.
+        #--------------------------------------------------------------------------------------
+
+        # same notification for three users
+        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
+        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_2)
+        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_3)
+
+        # same user gets three notifications
+        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_2)
+        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
+        self.unsc.create_notification(notification=notification_request_3, user_id=user_id_2)
+
+        # allow elastic search to populate the users_index. This gives enough time for the reload of user_info
+        gevent.sleep(2)
 
 
+        #--------------------------------------------------------------------------------------
+        # Publish events
+        #--------------------------------------------------------------------------------------
+
+        event_publisher = EventPublisher("ResourceLifecycleEvent")
+
+        for i in xrange(10):
+            event_publisher.publish_event( ts_created= float(i) ,
+                origin="instrument_1",
+                origin_type="type_1",
+                event_type='ResourceLifecycleEvent')
+
+            event_publisher.publish_event( ts_created= float(i) ,
+                origin="instrument_3",
+                origin_type="type_3",
+                event_type='ResourceLifecycleEvent')
+
+        #todo check whether we really need to have a sleep here
+        gevent.sleep(2)
+
+        #--------------------------------------------------------------------------------------
+        # Check that the workers processed the events
+        #--------------------------------------------------------------------------------------
+
+        # check fake smtp client for emails sent
+
+        # check if the correct users were sent email to regarding the correct events
+
+        #todo check if the workers took the events from the queue in round robin
 
 
 
     @attr('LOCOINT')
-    @unittest.skip('SMS is being deprecated for now')
+    @unittest.skip('SMS is being deprecated')
     #    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_sms(self):
 
@@ -684,7 +956,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 
     @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    @unittest.skip('SMS is being deprecated for now')
+#    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_event_detection(self):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
