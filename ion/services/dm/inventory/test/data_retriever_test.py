@@ -6,14 +6,16 @@
 @description DESCRIPTION
 '''
 from nose.plugins.attrib import attr
+from pyon.util.containers import DotDict
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.public import CFG
+from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from ion.processes.data.replay.replay_process import ReplayProcess
-from pyon.util.containers import DotDict
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.public import CFG
+from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from pyon.datastore.datastore import DataStore
 from pyon.core.bootstrap import get_sys_name
 import unittest
@@ -21,11 +23,47 @@ import os
 from pyon.util.unit_test import PyonTestCase
 @attr('UNIT',group='dm')
 class DataRetrieverUnitTest(PyonTestCase):
+    def setUp(self):
+        mock_clients = self._create_service_mock('data_retriever')
+        self.data_retriever = DataRetrieverService()
+        self.data_retriever.clients = mock_clients
+        self.pubsub_create_stream = mock_clients.pubsub_management.create_stream
+        self.rr_create = mock_clients.resource_registry.create
+        self.rr_read = mock_clients.resource_registry.read
+        self.rr_delete = mock_clients.resource_registry.delete
+        self.rr_delete_association = mock_clients.resource_registry.delete_association
+        self.rr_find_assocs = mock_clients.resource_registry.find_associations
+
+        self.pd_schedule = mock_clients.process_dispatcher.schedule_process
+
     def test_define_replay(self):
-        pass
+        with self.assertRaises(BadRequest):
+            self.data_retriever.define_replay()
+        self.data_retriever.process_definition_id = 'fakeprocid'
+
+        dataset = DotDict()
+        dataset.datastore_name = 'testdatastore'
+        dataset.view_name = 'manifest/by_dataset' # use real name so that when I refactor I know it needs to be changed here too
+        dataset.primary_view_key = 'timestamp'
+
+        stream_id = 'stream_id'
+
+        self.pubsub_create_stream.return_value = stream_id
+        self.rr_read.return_value = dataset
+        self.rr_create.return_value = ('replay_id', 'rev')
+        self.pd_schedule.return_value = 'pid'
+
+        retval = self.data_retriever.define_replay(dataset_id='dataset_id')
+
+        self.assertTrue(retval == ('replay_id','stream_id'))
 
     def test_delete_replay(self):
-        pass
+        self.rr_find_assocs.return_value = ['assoc']
+        self.data_retriever.delete_replay('replay_id')
+
+        self.rr_delete.assert_called_once_with('replay_id')
+        self.rr_delete_association.assert_called_once_with('assoc')
+
 
     def test_start_replay(self):
         pass
@@ -58,6 +96,7 @@ class DataRetrieverIntTest(IonIntegrationTestCase):
             self.XP = '.'.join([get_sys_name(), xp_base])
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
+
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_define_replay(self):
