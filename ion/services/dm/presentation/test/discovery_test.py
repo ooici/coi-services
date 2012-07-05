@@ -25,6 +25,7 @@ from mock import Mock, patch
 
 import elasticpy as ep
 import time
+import os
 import unittest
 
 
@@ -386,6 +387,8 @@ class DiscoveryUnitTest(PyonTestCase):
 
         
 @attr('INT', group='dm')
+@attr('LOCOINT')
+@unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 class DiscoveryIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(DiscoveryIntTest, self).setUp()
