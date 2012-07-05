@@ -25,7 +25,7 @@ class DaemonProcess(object):
     """
     
     def __init__(self, pidfname='daemon.pid.txt', logfname='daemon.log.txt',
-                 workdir='/'):
+                 workdir='/tmp'):
         """
         DaemonProcess constructor.
         @param pidfname the filename of the dameon process id file.
@@ -179,9 +179,7 @@ class DaemonProcess(object):
             return -1
     
         # Decouple the child process from parent environment.
-        os.chdir('/')
         os.setsid()
-        os.umask(0)
 
         try:
             # Fork a second child process.
