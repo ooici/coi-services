@@ -5,7 +5,7 @@
 @date 06/21/12 17:43
 @description DESCRIPTION
 '''
-from pyon.public import PRED
+from pyon.public import PRED, RT
 from pyon.util.arg_check import validate_is_instance, validate_true
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
 from interface.objects import IngestionConfiguration, IngestionQueue, StreamQuery
@@ -36,13 +36,18 @@ class IngestionManagementService(BaseIngestionManagementService):
         return self.clients.resource_registry.update(ingestion_configuration)
 
     def delete_ingestion_configuration(self, ingestion_configuration_id=''):
-        assocs = self.clients.resource_registry.find_associations(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
+        assocs = self.clients.resource_registry.find_associations(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=False)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
             self.clients.pubsub_management.delete_subscription(assoc.o)
         return self.clients.resource_registry.delete(ingestion_configuration_id)
 
-    # --
+    def list_ingestion_configurations(self, id_only=False):
+        resources, _  = self.clients.resource_registry.find_resources(restype=RT.IngestionConfiguration,id_only=id_only)
+        return resources
+
+
+    # --- 
 
     def persist_data_stream(self, stream_id='', ingestion_configuration_id=''):
         # Figure out which MIME or xpath in the stream definition belongs where

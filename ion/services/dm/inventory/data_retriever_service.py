@@ -22,7 +22,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         self.process_definition_id = None
 
 
-    def on_start(self):
+    def on_start(self): #pragma no cover
         super(DataRetrieverService,self).on_start()
 
         res_list, _ = self.clients.resource_registry.find_resources(
@@ -34,17 +34,13 @@ class DataRetrieverService(BaseDataRetrieverService):
             self.process_definition_id = res_list[0]
 
 
-    def on_quit(self):
+    def on_quit(self): #pragma no cover
         #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
         super(DataRetrieverService,self).on_quit()
 
 
-
-
-
     def define_replay(self, dataset_id='', query=None, delivery_format=None):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
-
         '''
 
         if not dataset_id:
