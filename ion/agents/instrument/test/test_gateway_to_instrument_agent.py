@@ -47,6 +47,11 @@ class TestInstrumentAgentViaGateway(TestInstrumentAgent):
         log.info('Accessing resource agent client through gateway')
 
 
+    @attr('SMOKE')
+    def test_autosample(self):
+        super(TestInstrumentAgentViaGateway, self).test_autosample()
+
+
 class ResourceAgentViaServiceGateway(ResourceAgentClient):
     """
     A test fixture for routing resource agent client requests through the service gateway.
