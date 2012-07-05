@@ -360,7 +360,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentModel: %s" %ex)
-        log.debug( 'new InstrumentModel id = %s', str(instModel_id))
+        log.debug( 'new InstrumentModel id = %s ', instModel_id)
 
         # Create InstrumentAgent
         instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.agents.instrument.instrument_agent", driver_class="InstrumentAgent" )
@@ -368,12 +368,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentAgent: %s" %ex)
-        log.debug( 'new InstrumentAgent id = %s', str(instAgent_id))
+        log.debug( 'new InstrumentAgent id = %s', instAgent_id)
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
         # Create InstrumentDevice
-        log.debug('test_activateInstrumentStream: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
+        log.debug('test_activateInstrumentSample: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
         instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
         try:
             instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
@@ -381,28 +381,26 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
 
-        log.debug("test_activateInstrumentStream: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
-
+        log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance",
                                           driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver', driver_class='SBE37Driver',
                                           comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
-
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = SBE37_CDM_stream_definition()
         ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def)
 
-        log.debug( 'test_activateInstrumentStream new Stream Definition id = %s', instDevice_id )
+        log.debug( 'new Stream Definition id = %s', instDevice_id)
 
-        log.debug( 'test_activateInstrumentStream Creating new CDM data product with a stream definition' )
+        log.debug( 'Creating new CDM data product with a stream definition')
         dp_obj = IonObject(RT.DataProduct,name='the parsed data',description='ctd stream test')
         try:
             data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
-        log.debug( 'test_activateInstrumentStream new dp_id = %s', str(data_product_id1) )
+        log.debug( 'new dp_id = %s', data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
@@ -410,8 +408,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
-        log.debug( 'test_activateInstrumentStream Data product streams1 = %s', str(stream_ids) )
-
+        log.debug( 'Data product streams1 = %s', stream_ids)
 
         pid = self.create_logger('ctd_parsed', stream_ids[0] )
         self.loggerpids.append(pid)
@@ -439,7 +436,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 #        self.pubsubcli.activate_subscription(simdata_subscription_id)
 
 
-        log.debug( 'test_activateInstrumentStream Creating new RAW data product with a stream definition' )
+        log.debug( 'Creating new RAW data product with a stream definition')
         raw_stream_def = SBE37_RAW_stream_definition()
         raw_stream_def_id = self.pubsubcli.create_stream_definition(container=raw_stream_def)
 
@@ -448,7 +445,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
-        log.debug( 'test_activateInstrumentStream new dp_id = %s', str(data_product_id2) )
+        log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
@@ -456,7 +453,13 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
-        log.debug( 'test_activateInstrumentStream Data product streams2 = %s', str(stream_ids) )
+        log.debug( 'Data product streams2 = %s', str(stream_ids))
+
+        #todo: attaching the taxonomy to the stream is a TEMPORARY measure
+        # Create taxonomies for both parsed and attach to the stream
+        RawTax = TaxyTool()
+        RawTax.add_taxonomy_set('raw_fixed','Fixed length bytes in an array of records')
+        RawTax.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
 
 
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
@@ -505,12 +508,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self._ia_client.set_param(params)
         time.sleep(2)
 
-        self._no_samples = 3
-
 
         log.debug("test_activateInstrumentStream: calling go_streaming ")
         cmd = AgentCommand(command='go_streaming')
-        reply = self._ia_client.execute(cmd)
+        reply = self._ia_client.execute_agent(cmd)
         time.sleep(2)
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
@@ -520,15 +521,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         time.sleep(5)
 
-        log.debug("test_activateInstrumentStream: calling execute_stop_autosample")
+        log.debug("test_activateInstrumentStream: calling go_observatory")
         cmd = AgentCommand(command='go_observatory')
-        reply = self._ia_client.execute(cmd)
-        time.sleep(2)
+        reply = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         log.debug("test_activateInstrumentStream: return from go_observatory state  %s", str(state))
-        time.sleep(2)
+
 
 
         log.debug("test_activateInstrumentStream: calling reset ")
