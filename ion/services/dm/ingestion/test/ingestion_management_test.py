@@ -5,10 +5,15 @@
 @date Mon Jul  2 13:50:40 EDT 2012
 @description Testing for Ingestion Management Service
 '''
+from pyon.public import PRED
 from pyon.util.unit_test import PyonTestCase
+from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.containers import DotDict
+from pyon.core.exception import NotFound
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
-from interface.objects import IngestionQueue
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.objects import IngestionQueue, Subscription
 from mock import Mock
 from nose.plugins.attrib import attr
 
@@ -28,6 +33,7 @@ class IngestionManagementUnitTest(PyonTestCase):
         self.rr_delete = mock_clients.resource_registry.delete
         self.rr_find_objs = mock_clients.resource_registry.find_objects
         self.rr_find_assocs = mock_clients.resource_registry.find_associations
+        self.rr_find_res = mock_clients.resource_registry.find_resources
         self.rr_create_assoc = mock_clients.resource_registry.create_association
         self.rr_del_assoc =  mock_clients.resource_registry.delete_association
         self.pubsub_create_sub = mock_clients.pubsub_management.create_subscription
@@ -117,4 +123,45 @@ class IngestionManagementUnitTest(PyonTestCase):
         retval = self.ingestion_management._new_dataset('stream_id', 'datastore_name')
         self.assertTrue(retval == testval)
 
+    def test_list_ingestion(self):
+        testval = (['resource'], ['other'])
+        self.rr_find_res.return_value = testval
+        retval = self.ingestion_management.list_ingestion_configurations(id_only=True)
+        self.assertTrue(retval == testval[0])
+        self.assertTrue(self.rr_find_res.call_count)
+
+@attr('INT', group='dm')
+class IngestionManagementIntTest(IonIntegrationTestCase):
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+
+        self.ingestion_management = IngestionManagementServiceClient()
+        self.resource_regsitry    = ResourceRegistryServiceClient()
+
+    def test_ingestion_config_crud(self):
+        ingest_name = 'basic'
+        exchange    = 'testdata'
+        queue = IngestionQueue(name='test', type='testdata')
+
+        # Create the ingestion config
+        ingestion_config_id = self.ingestion_management.create_ingestion_configuration(name=ingest_name, exchange_point_id=exchange, queues=[queue])
+
+        ingestion_config = self.ingestion_management.read_ingestion_configuration(ingestion_config_id)
+        self.assertTrue(ingestion_config.name == ingest_name)
+        self.assertTrue(ingestion_config.queues == [queue])
+
+        ingestion_config.name = 'another'
+
+        self.ingestion_management.update_ingestion_configuration(ingestion_config)
+
+        # Create an association just to make sure that it will delete them
+        sub = Subscription()
+        sub_id, _ = self.resource_regsitry.create(sub)
+        assoc_id, _ = self.resource_regsitry.create_association(subject=ingestion_config_id, predicate=PRED.hasSubscription,object=sub_id)
+
+        self.ingestion_management.delete_ingestion_configuration(ingestion_config_id)
+
+        with self.assertRaises(NotFound):
+            self.resource_regsitry.read(assoc_id)
 
