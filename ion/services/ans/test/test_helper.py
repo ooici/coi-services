@@ -193,18 +193,19 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 #salinity = psd.get_values('salinity')
                 log.info( 'salinity=' + str(numpy.nanmin(salinity)))
 
-                # Check to see if salinity has values before running further tests
-                if salinity != None:
-                    assertions(isinstance(salinity, numpy.ndarray))
-                    assertions(numpy.nanmin(salinity) > 0.0) # salinity should always be greater than 0
+                # Check to see if salinity has values
+                assertions(salinity != None)
 
-                    if first_salinity_values is None:
-                        first_salinity_values = salinity.tolist()
-                    else:
-                        second_salinity_values = salinity.tolist()
-                        assertions(len(first_salinity_values) == len(second_salinity_values))
-                        for idx in range(0,len(first_salinity_values)):
-                            assertions(first_salinity_values[idx]*2.0 == second_salinity_values[idx])
+                assertions(isinstance(salinity, numpy.ndarray))
+                assertions(numpy.nanmin(salinity) > 0.0) # salinity should always be greater than 0
+
+                if first_salinity_values is None:
+                    first_salinity_values = salinity.tolist()
+                else:
+                    second_salinity_values = salinity.tolist()
+                    assertions(len(first_salinity_values) == len(second_salinity_values))
+                    for idx in range(0,len(first_salinity_values)):
+                        assertions(first_salinity_values[idx]*2.0 == second_salinity_values[idx])
 
 
 

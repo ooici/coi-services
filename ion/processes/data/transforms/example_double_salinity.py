@@ -71,16 +71,17 @@ class SalinityDoubler(TransformFunction):
 #
 #        return psc.close_stream_granule()
         root_rdt = RecordDictionaryTool(taxonomy=self.tx)
-        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
-        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
-        data_rdt['salinity'] = salinity
-        coord_rdt['time'] = time
-        coord_rdt['lat'] = latitude
-        coord_rdt['lon'] = longitude
-        coord_rdt['height'] = height
+        #data_rdt = RecordDictionaryTool(taxonomy=self.tx)
+        #coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
-        root_rdt['coordinates'] = coord_rdt
-        root_rdt['data'] = data_rdt
+        root_rdt['salinity'] = salinity
+        root_rdt['time'] = time
+        root_rdt['lat'] = latitude
+        root_rdt['lon'] = longitude
+        root_rdt['height'] = height
+
+        #root_rdt['coordinates'] = coord_rdt
+        #root_rdt['data'] = data_rdt
 
         return build_granule(data_producer_id='ctd_L2_salinity', taxonomy=self.tx, record_dictionary=root_rdt)
