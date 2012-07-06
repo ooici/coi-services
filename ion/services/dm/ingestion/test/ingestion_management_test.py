@@ -135,7 +135,7 @@ class IngestionManagementUnitTest(PyonTestCase):
 class IngestionManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.ingestion_management = IngestionManagementServiceClient()
         self.resource_registry    = ResourceRegistryServiceClient()
@@ -157,7 +157,8 @@ class IngestionManagementIntTest(IonIntegrationTestCase):
 
         ingestion_config = self.ingestion_management.read_ingestion_configuration(ingestion_config_id)
         self.assertTrue(ingestion_config.name == self.ingest_name)
-        self.assertTrue(ingestion_config.queues == [self.queue])
+        self.assertTrue(ingestion_config.queues[0].name == 'test')
+        self.assertTrue(ingestion_config.queues[0].type == 'testdata')
 
         ingestion_config.name = 'another'
 
@@ -180,7 +181,7 @@ class IngestionManagementIntTest(IonIntegrationTestCase):
 
         retval = self.ingestion_management.list_ingestion_configurations(id_only=True)
         # Nice thing about this is that it breaks if r2dm adds an ingest_config
-        self.assertTrue(retval == [config_id])
+        self.assertTrue(config_id in retval)
 
     def test_persist_data(self):
         config_id = self.create_ingest_config()

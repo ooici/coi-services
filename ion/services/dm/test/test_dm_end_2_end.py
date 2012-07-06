@@ -13,12 +13,15 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.datastore.datastore import DataStore
 from interface.objects import ProcessDefinition, Granule
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
 import time
+import unittest
+import os
 
 @attr('INT',group='dm')
 class TestDMEnd2End(IonIntegrationTestCase):
@@ -67,7 +70,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
     def wait_until_we_have_enough_granules(self, dataset_id=''):
         dataset = self.dataset_management.read_dataset(dataset_id)
         datastore_name = dataset.datastore_name
-        datastore = self.container.datastore_manager.get_datastore(datastore_name)
+        datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
+        
 
         now = time.time()
         timeout = now + 10
@@ -82,7 +86,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
             now = time.time()
 
       
-
     def test_dm_end_2_end(self):
         #--------------------------------------------------------------------------------
         # Set up a stream and have a mock instrument (producer) send data
