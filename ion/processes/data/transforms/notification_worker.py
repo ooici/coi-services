@@ -10,11 +10,12 @@
 from pyon.public import log
 from pyon.ion.transform import TransformDataProcess
 from pyon.util.async import spawn
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, NotFound
 from pyon.ion.process import SimpleProcess
 from pyon.event.event import EventSubscriber, EventPublisher
 from ion.services.dm.utility.uns_utility_methods import send_email, load_user_info, calculate_reverse_user_info
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, check_user_notification_interest
+import gevent
 
 class NotificationWorker(SimpleProcess):
     """
@@ -23,6 +24,7 @@ class NotificationWorker(SimpleProcess):
 
     def on_init(self):
         self.event_pub = EventPublisher()
+        self.user_info = {}
 
     def on_start(self):
         super(NotificationWorker,self).on_start()
@@ -36,9 +38,7 @@ class NotificationWorker(SimpleProcess):
 #        calculate_reverse_user_info(self.user_info)
 
         #------------------------------------------------------------------------------------
-        # start the event subscriber for listening to events which get generated when
-        # notifications are updated.. this is required so that the notification worker can update
-        # its user_info dict that it needs for batch notifications
+        # Create an event subscriber for Reload User Info events
         #------------------------------------------------------------------------------------
 
         def reload_user_info(event_msg, headers):
@@ -49,10 +49,14 @@ class NotificationWorker(SimpleProcess):
             #------------------------------------------------------------------------------------------
             # reloads the user_info and reverse_user_info dictionaries
             #------------------------------------------------------------------------------------------
+#            gevent.sleep(10)
 
-            self.user_info = load_user_info()
-            if self.user_info:
-                self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
+            try:
+                self.user_info = load_user_info()
+            except NotFound:
+                log.warning("ElasticSearch has not yet loaded the user_index.")
+
+            self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
 
             log.warning("After reload: ''' user_info: %s" % self.user_info)
             log.warning("After reload: ''' reverse_user_info: %s" % self.reverse_user_info)
@@ -64,7 +68,7 @@ class NotificationWorker(SimpleProcess):
         self.reload_user_info_subscriber.start()
 
         #------------------------------------------------------------------------------------
-        # start the event subscriber for all events that are of interest for notifications
+        # Create an event subscriber for all events that are of interest for notifications
         #------------------------------------------------------------------------------------
 
         self.event_subscriber = EventSubscriber(

@@ -171,6 +171,7 @@ def load_user_info():
         results = poll(9, discovery.parse,search_string)
     except NotFound as exc:
         log.warning("Discovery could not find the index, users_index. Exception message: %s" % exc.message)
+        raise NotFound("Discovery could not find the index, users_index.")
 
     log.warning("results --- %s" % results)
 

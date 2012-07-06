@@ -447,10 +447,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_pub_sub_reload_user_info_event(self):
+    def test_pub_reload_user_info_event(self):
         '''
         Test that the publishing of reload user info event occurs every time a create, update
-        or delete notification occurs. Test the subscription of the event in UNS and notification
+        or delete notification occurs. Test the subscription of the event in the notification
         worker
         '''
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
@@ -698,6 +698,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         '''
 
         #--------------------------------------------------------------------------------------
+        # Create notification workers
+        #--------------------------------------------------------------------------------------
+
+        self.unsc.create_worker(number_of_workers=1)
+
+        #--------------------------------------------------------------------------------------
         # Make notification request objects
         #--------------------------------------------------------------------------------------
 
@@ -725,11 +731,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
 
-        #--------------------------------------------------------------------------------------
-        # Create notification workers
-        #--------------------------------------------------------------------------------------
+#        self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
-        self.unsc.create_workers(number_of_workers=1)
 
         #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info got reloaded
@@ -742,7 +745,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create another notification
         #--------------------------------------------------------------------------------------
 
-        self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+#        self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         # Check in UNS ------------>
 #        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
@@ -863,7 +866,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create notification workers
         #--------------------------------------------------------------------------------------
 
-        pids = self.unsc.create_workers(number_of_workers=3)
+        pids = self.unsc.create_worker(number_of_workers=3)
 
         log.warning("pids: %s" % pids)
 

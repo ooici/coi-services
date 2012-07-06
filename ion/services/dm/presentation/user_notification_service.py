@@ -566,7 +566,7 @@ class UserNotificationService(BaseUserNotificationService):
         event_publisher = EventPublisher(type)
         event_publisher.publish_event(origin=origin, description= description)
 
-    def create_workers(self, number_of_workers=1):
+    def create_worker(self, number_of_workers=1):
         '''
         Creates notification workers
 
