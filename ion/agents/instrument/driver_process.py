@@ -217,13 +217,14 @@ class DriverProcess(object):
         @return port port number read from the file
         @raise ServerError if file not read w/in 10sec
         """
-        log.debug("read port from file: %s" % filename)
         maxWait=10          # try for up to 10sec
         waitInterval=0.5    # repeating every 1/2 sec
-        for n in xrange(maxWait/waitInterval):
+        log.debug("about to read port from file %s" % filename)
+        for n in xrange(int(maxWait/waitInterval)):
             try:
-                with file(filename, 'r') as f:
+                with open(filename, 'r') as f:
                     port = int(f.read().strip())
+                    log.debug("read port %d from file %s" % (port, filename))
                     return port
             except: pass
             time.sleep(waitInterval)
