@@ -630,18 +630,14 @@ class UserNotificationService(BaseUserNotificationService):
         #                               'range': {'from': 0.0, 'to': 100.0}}}
 
 
-        log.warning("In process_batch: user_info: %s" % self.user_info)
+        for user_name, value in self.user_info.iteritems():
 
-        for user, value in self.user_info.iteritems():
-
-            log.warning("value: %s" % value)
-            log.warning("type of value: %s" % type(value))
+#            log.warning("value: %s" % value)
+#            log.warning("type of value: %s" % type(value))
 
             notifications = value['notifications']
 
             events_for_message = []
-
-            log.warning("inside loop: notifications: %s" % notifications)
 
             for notification in notifications:
 
@@ -660,8 +656,8 @@ class UserNotificationService(BaseUserNotificationService):
                 search_origin = 'search "origin" is "*" from "events_index"'
                 search_string = search_time + ' and ' + search_origin
 
+                # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
-
                 log.warning("ret_vals : %s" % ret_vals)
 
                 for event_id in ret_vals:
@@ -670,10 +666,8 @@ class UserNotificationService(BaseUserNotificationService):
                     event_obj = datastore.read(event_id)
                     events_for_message.append(event_obj)
 
-            log.warning("Each user gets the following message in email: %s" % str(events_for_message))
             # send a notification email to each user using a _send_email() method
-
-            log.warning("notifications[0]: %s" % notifications[0])
+            message = self.format_message(events_for_message, user_name)
 
             #todo when the use of and/or in discovery is completely sorted, ret_vals will be a list of objects
             # todo (contd): when that happens complete the rest of this method (mostly the commented part below)
@@ -683,6 +677,14 @@ class UserNotificationService(BaseUserNotificationService):
 #            send_email( message = events_message,
 #                        msg_recipient=self.user_info[user]['user_contact'].email,
 #                        smtp_client=smtp_client )
+
+    def format_message(self, events_for_message, user_name):
+        '''
+        Format the message for a particular user containing information about the events he is to be notified about
+        '''
+        log.warning("The user, %s, gets the following message in email: %s" % (user_name, str(events_for_message)))
+
+        return message
 
 
     def _update_user_with_notification(self, user_id, notification):

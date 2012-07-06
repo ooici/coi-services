@@ -371,6 +371,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @unittest.skip("")
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_create_email(self):
+        '''
+        Test the functionality of the create_email method of the User Notification Service
+
+        '''
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
@@ -450,8 +454,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     def test_pub_reload_user_info_event(self):
         '''
         Test that the publishing of reload user info event occurs every time a create, update
-        or delete notification occurs. Test the subscription of the event in the notification
-        worker
+        or delete notification occurs.
         '''
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
@@ -804,7 +807,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
 
         #--------------------------------------------------------------------------------------
-        # Create a notification using UNS. This should cause the user_info to be reloaded
+        # Create a notification using UNS. This should cause the user_info to be updated
         #--------------------------------------------------------------------------------------
 
         self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
@@ -815,9 +818,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id_3)
         self.unsc.create_notification(notification=notification_request_3, user_id=user_id_3)
 
-
-        # allow elastic search to populate the users_index. This gives enough time for the reload of user_info
-        gevent.sleep(2)
 
         #--------------------------------------------------------------------------------------
         # Publish events corresponding to the notification requests just made
@@ -857,9 +857,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_worker(self):
+    def test_worker_send_email(self):
         '''
-        Test the creation of notification workers
+        Test that the workers process the notification event and send email using the
+        fake smtp client
         '''
 
         #--------------------------------------------------------------------------------------
