@@ -100,19 +100,6 @@ class DaemonProcess(object):
 
         return pid            
 
-    def get_pidfname(self):
-        """
-        Return the pidfile name for this logger.
-        """
-        return os.path.split(self.pidfname)[1]
-    
-    def get_workdir(self):
-        """
-        Return the work dir for this logger.
-        """
-        return (os.path.split(self.pidfname)[0] + '/')
-    
-
     def stop(self):
         """
         Stop the daemon process. Check that the pidfile is present, then
@@ -197,13 +184,9 @@ class DaemonProcess(object):
 
         # Write pid file.
         pid = os.getpid()
-        try:
-            file(self.pidfname, 'w+').write('%i\n' % pid)
-            self.logfile = file(self.logfname,'w+')
-
-        except IOError:
-            sys.stderr.write('Could not create pid or logfile.')
-            exit(1)
+        with file(self.pidfname, 'w+') as f:
+            f.write('%i\n' % pid)
+        self.logfile = file(self.logfname,'w+')
 
         # Redirect std file descriptors.
         sys.stdout.flush()
