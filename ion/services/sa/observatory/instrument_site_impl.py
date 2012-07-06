@@ -24,7 +24,7 @@ class InstrumentSiteImpl(SiteImpl):
 
 
     def link_deployment(self, instrument_site_id='', deployment_id=''):
-        return self._link_resources_single_object(instrument_site_id, PRED.hasDeployment, deployment_id)
+        return self._link_resources(instrument_site_id, PRED.hasDeployment, deployment_id)
 
     def unlink_deployment(self, instrument_site_id='', deployment_id=''):
         return self._unlink_resources(instrument_site_id, PRED.hasDeployment, deployment_id)
@@ -32,25 +32,28 @@ class InstrumentSiteImpl(SiteImpl):
     def link_device(self, instrument_site_id='', instrument_device_id=''):
         # a device may not be linked to any other site
         if 0 < len(self._find_having(PRED.hasDevice, instrument_device_id)):
-            raise BadRequest("Instrument device is already associated with a site")
+            raise BadRequest("Platform device is already associated with a site")
 
-        # make sure that only 1 site-device-deployment triangle exists at one time
-        deployments_site = self.find_stemming_deployment(instrument_site_id)
-        if 1 < len(deployments_site):
-            raise Inconsistent("The site is associated to multiple deployments!")
+        if 0 < len(self.find_stemming_device(instrument_site_id)):
+            raise BadRequest("Platform site already has an associated device")
 
-        deployments_inst = self._find_stemming(instrument_device_id, PRED.hasDeployment, RT.Deployment)
-        if 1 < len(deployments_inst):
-            raise Inconsistent("The instrument device is associated to multiple deployments!")
+        # make sure that the device and site share a deployment
+        deployments_dev = self._find_stemming(instrument_device_id, PRED.hasDeployment, RT.Deployment)
+        deployments_site = self._find_stemming(instrument_site_id, PRED.hasDeployment, RT.Deployment)
 
-        if 1 == len(deployments_inst):
-            if 1 == len(deployments_site):
-                if deployments_site[0]._id != deployments_inst[0]._id:
-                    raise BadRequest("The deployments of the device and site do not agree")
+        found_depl = None
 
-            for dev in self.find_stemming_device(instrument_site_id):
-                if 0 < len(self._find_stemming(dev, PRED.hasDeployment, RT.Deployment)):
-                    raise BadRequest("Device has deployment, and site already has a device with deployment")
+        for dd in deployments_dev:
+            for sd in deployments_site:
+                if dd._id == sd._id:
+                    found_depl = dd
+                    break
+            if found_depl:
+                break
+
+        if not found_depl:
+            raise BadRequest("Device and site do not share a deployment")
+
 
         return self._link_resources(instrument_site_id, PRED.hasDevice, instrument_device_id)
 

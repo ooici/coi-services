@@ -26,7 +26,6 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
         config = DotDict()
-        config.bootstrap.processes.replay.module    = 'ion.processes.data.replay.replay_process_a'
         self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
 
 
@@ -37,7 +36,7 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
         self.process_dispatcher   = ProcessDispatcherServiceClient()
         self.ingestion_management = IngestionManagementServiceClient()
         self.data_retriever       = DataRetrieverServiceClient()
-        self.exchange_space       = 'science_ingestion'
+        self.exchange_space       = 'science_granule_ingestion'
         self.exchange_point       = 'science_data'
         self.process_definitions  = {}
 

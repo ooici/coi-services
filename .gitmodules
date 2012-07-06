@@ -2,3 +2,6 @@
 	path = extern/ion-definitions
 	url = https://github.com/ooici/ion-definitions.git
 
+[submodule "extern/marine-integrations"]
+	path = extern/marine-integrations
+	url = https://github.com/ooici/marine-integrations.git

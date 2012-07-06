@@ -148,7 +148,7 @@ class BaseLoggerProcess(DaemonProcess):
             self.driver_sock.setblocking(0)            
             self.driver_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)                            
             self.driver_addr = addr
-            self.statusfile.write('_accept_driver_comms: driver connected at %s, %i.\n' % self.driver_addr)
+            self.statusfile.write('_accept_driver_comms: driver connected at %s.\n' % self.driver_addr)
             self.statusfile.flush()
         
     def _close_driver_comms(self):
@@ -513,7 +513,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
             #-self.device_sock.shutdown(socket.SHUT_RDWR)
             self.device_sock.close()
             self.device_sock = None
-            time.wait(1)
+            time.sleep(1)
             self.statusfile.write('_close_device_comms: device connection closed.\n')
             self.statusfile.flush()                            
 

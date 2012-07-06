@@ -56,17 +56,18 @@ class DensityTransform(TransformFunction):
         """
 
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        rdt0 = rdt['coordinates']
-        rdt1 = rdt['data']
+        #todo: use only flat dicts for now, may change later...
+#        rdt0 = rdt['coordinates']
+#        rdt1 = rdt['data']
 
-        temperature = get_safe(rdt1, 'pres')
-        conductivity = get_safe(rdt1, 'cond')
-        pressure = get_safe(rdt1, 'temp')
+        temperature = get_safe(rdt, 'pres')
+        conductivity = get_safe(rdt, 'cond')
+        pressure = get_safe(rdt, 'temp')
 
-        longitude = get_safe(rdt0, 'lon')
-        latitude = get_safe(rdt0, 'lat')
-        time = get_safe(rdt0, 'time')
-        height = get_safe(rdt0, 'height')
+        longitude = get_safe(rdt, 'lon')
+        latitude = get_safe(rdt, 'lat')
+        time = get_safe(rdt, 'time')
+        height = get_safe(rdt, 'height')
 
 
         log.warn('Got conductivity: %s' % str(conductivity))
@@ -89,17 +90,18 @@ class DensityTransform(TransformFunction):
         ### application level like this!
 
         root_rdt = RecordDictionaryTool(taxonomy=self.tx)
-        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
-        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
+        #todo: use only flat dicts for now, may change later...
+#        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
+#        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
-        data_rdt['density'] = density
-        coord_rdt['time'] = time
-        coord_rdt['lat'] = latitude
-        coord_rdt['lon'] = longitude
-        coord_rdt['height'] = height
+        root_rdt['density'] = density
+        root_rdt['time'] = time
+        root_rdt['lat'] = latitude
+        root_rdt['lon'] = longitude
+        root_rdt['height'] = height
 
-        root_rdt['coordinates'] = coord_rdt
-        root_rdt['data'] = data_rdt
+#        root_rdt['coordinates'] = coord_rdt
+#        root_rdt['data'] = data_rdt
 
         return build_granule(data_producer_id='ctd_L2_density', taxonomy=self.tx, record_dictionary=root_rdt)
 

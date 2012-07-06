@@ -148,8 +148,8 @@ class SimpleCtdPublisher(StandaloneProcess):
     def _get_new_ctd_packet(self, stream_id, length):
 
         rdt = RecordDictionaryTool(taxonomy=tx)
-        rdt0 = RecordDictionaryTool(taxonomy=tx)
-        rdt1 = RecordDictionaryTool(taxonomy=tx)
+#        rdt0 = RecordDictionaryTool(taxonomy=tx)
+#        rdt1 = RecordDictionaryTool(taxonomy=tx)
 
 
 
@@ -173,16 +173,16 @@ class SimpleCtdPublisher(StandaloneProcess):
         log.warn('Got time: %s' % str(tvar))
         log.warn('Got t: %s' % str(t))
 
-        rdt0['time'] = tvar
-        rdt0['lat'] = lat
-        rdt0['lon'] = lon
-        rdt0['height'] = h
-        rdt1['temp'] = t
-        rdt1['cond'] = c
-        rdt1['pres'] = p
+        rdt['time'] = tvar
+        rdt['lat'] = lat
+        rdt['lon'] = lon
+        rdt['height'] = h
+        rdt['temp'] = t
+        rdt['cond'] = c
+        rdt['pres'] = p
 
-        rdt['coordinates'] = rdt0
-        rdt['data'] = rdt1
+#        rdt['coordinates'] = rdt0
+#        rdt['data'] = rdt1
 
         g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
 

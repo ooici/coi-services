@@ -84,16 +84,16 @@ PARAMS = {
 
 
 ### Taxonomies are defined before hand out of band... somehow.
-tx = TaxyTool()
-tx.add_taxonomy_set('temp','long name for temp')
-tx.add_taxonomy_set('cond','long name for cond')
-tx.add_taxonomy_set('lat','long name for latitude')
-tx.add_taxonomy_set('lon','long name for longitude')
-tx.add_taxonomy_set('pres','long name for pres')
-tx.add_taxonomy_set('time','long name for time')
-# This is an example of using groups it is not a normative statement about how to use groups
-tx.add_taxonomy_set('coordinates','This group contains coordinates...')
-tx.add_taxonomy_set('data','This group contains data...')
+#tx = TaxyTool()
+#tx.add_taxonomy_set('temp','long name for temp')
+#tx.add_taxonomy_set('cond','long name for cond')
+#tx.add_taxonomy_set('lat','long name for latitude')
+#tx.add_taxonomy_set('lon','long name for longitude')
+#tx.add_taxonomy_set('pres','long name for pres')
+#tx.add_taxonomy_set('time','long name for time')
+## This is an example of using groups it is not a normative statement about how to use groups
+#tx.add_taxonomy_set('coordinates','This group contains coordinates...')
+#tx.add_taxonomy_set('data','This group contains data...')
 
 
 class FakeProcess(LocalContextMixin):
@@ -310,6 +310,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
 
 
+        self.loggerpids = []
 
 
         #-------------------------------
@@ -370,15 +371,31 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         ctd_l1_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_conductivity_output_dp_obj, outgoing_stream_l1_conductivity_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
 
+        stream_ids, _ = self.rrclient.find_objects(ctd_l1_conductivity_output_dp_id, PRED.hasStream, None, True)
+        log.debug(" ctd_l1_conductivity stream id =  %s", str(stream_ids) )
+        pid = self.create_logger(' ctd_l1_conductivity', stream_ids[0] )
+        self.loggerpids.append(pid)
+
         log.debug("test_createTransformsThenActivateInstrument: create output data product L1 pressure")
         ctd_l1_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L1_Pressure',description='transform output L1 pressure')
         ctd_l1_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_pressure_output_dp_obj, outgoing_stream_l1_pressure_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_pressure_output_dp_id, persist_data=True, persist_metadata=True)
 
+        stream_ids, _ = self.rrclient.find_objects(ctd_l1_pressure_output_dp_id, PRED.hasStream, None, True)
+        log.debug(" ctd_l1_pressure stream id =  %s", str(stream_ids) )
+        pid = self.create_logger(' ctd_l1_pressure', stream_ids[0] )
+        self.loggerpids.append(pid)
+
         log.debug("test_createTransformsThenActivateInstrument: create output data product L1 temperature")
         ctd_l1_temperature_output_dp_obj = IonObject(RT.DataProduct, name='L1_Temperature',description='transform output L1 temperature')
         ctd_l1_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_temperature_output_dp_obj, outgoing_stream_l1_temperature_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+
+        stream_ids, _ = self.rrclient.find_objects(ctd_l1_temperature_output_dp_id, PRED.hasStream, None, True)
+        log.debug(" ctd_l1_temperature stream id =  %s", str(stream_ids) )
+        pid = self.create_logger(' ctd_l1_temperature', stream_ids[0] )
+        self.loggerpids.append(pid)
+
 
 
         #-------------------------------
@@ -404,7 +421,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_density_output_dp_id, persist_data=True, persist_metadata=True)
 
 
-        self.loggerpids = []
+
         # Set up subscribers/loggers to these streams
         stream_ids, _ = self.rrclient.find_objects(ctd_l2_salinity_output_dp_id, PRED.hasStream, None, True)
         log.debug("L2 salinity stream id =  %s", str(stream_ids) )
@@ -412,7 +429,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         self.loggerpids.append(pid)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l2_density_output_dp_id, PRED.hasStream, None, True)
-        log.debug("L2 salinity stream id =  %s", str(stream_ids) )
+        log.debug("L2 density stream id =  %s", str(stream_ids) )
         pid = self.create_logger('L2_density', stream_ids[0] )
         self.loggerpids.append(pid)
 

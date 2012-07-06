@@ -28,11 +28,12 @@ import csv
 from StringIO import StringIO
 import tempfile
 import subprocess
+import signal
 
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
-#from interface.objects import ProcessSchedule, ProcessTarget
 
+from pyon.ion.granule.taxonomy import TaxyTool
 
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
 from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
@@ -52,6 +53,7 @@ from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.agents.port.logger_process import EthernetDeviceLogger
+from ion.agents.port.port_agent_process import PortAgentProcess
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
@@ -184,10 +186,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         Launch the instument agent instance and return the id
         """
 
-        instrument_agent_instance_obj = self.RR.read(instrument_agent_instance_id)
+        instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
+
+        log.debug("activate_instrument: initial agent_config %s ", str(instrument_agent_instance_obj))
+
+        #if there is a agent pid then assume that a drive is already started
+        if instrument_agent_instance_obj.agent_process_id:
+            raise BadRequest("Instrument Agent Instance already running for this device pid: %s" + str(instrument_agent_instance_obj.agent_process_id))
 
         #retrieve the associated instrument device
-        inst_device_ids, _ = self.RR.find_subjects(RT.InstrumentDevice, PRED.hasAgentInstance, instrument_agent_instance_id, True)
+        inst_device_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasAgentInstance, instrument_agent_instance_id, True)
         if not inst_device_ids:
             raise NotFound("No Instrument Device attached to this Instrument Agent Instance " + str(instrument_agent_instance_id))
         if len(inst_device_ids) > 1:
@@ -196,7 +204,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("start_instrument_agent_instance: device is %s connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
 
         #retrieve the instrument model
-        model_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
+        model_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
         if not model_ids:
             raise NotFound("No Instrument Model  attached to this Instrument Device " + str(instrument_device_id))
 
@@ -205,7 +213,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         #retrieve the associated instrument agent
-        agent_ids, _ = self.RR.find_subjects(RT.InstrumentAgent, PRED.hasModel, instrument_model_id, True)
+        agent_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentAgent, PRED.hasModel, instrument_model_id, True)
         if not agent_ids:
             raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
 
@@ -214,7 +222,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         #retrieve the associated process definition
-        process_def_ids, _ = self.RR.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
+        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
         if not process_def_ids:
             raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
         if len(process_def_ids) > 1:
@@ -224,19 +232,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("activate_instrument: agent process definition %s"  +  str(process_definition_id))
 
         # retrieve the process definition information
-        process_def_obj = self.RR.read(process_definition_id)
+        process_def_obj = self.clients.resource_registry.read(process_definition_id)
         if not process_def_obj:
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
 
         out_streams = {}
         #retrieve the output products
-        data_product_ids, _ = self.RR.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
+        data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
         if not data_product_ids:
             raise NotFound("No output Data Products attached to this Instrument Device " + str(instrument_device_id))
 
         for product_id in data_product_ids:
-            stream_ids, _ = self.RR.find_objects(product_id, PRED.hasStream, RT.Stream, True)
+            stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
 
             log.debug("activate_instrument:output stream ids: %s"  +  str(stream_ids))
             #One stream per product ...for now.
@@ -246,7 +254,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
 
             # retrieve the stream
-            stream_obj = self.RR.read(stream_ids[0])
+            stream_obj = self.clients.resource_registry.read(stream_ids[0])
             if not stream_obj:
                 raise NotFound("Stream %s does not exist" % stream_ids[0])
 
@@ -264,44 +272,46 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 log.debug("activate_instrument:ctd_raw %s ", str(stream_ids[0]) )
             else:
                 raise NotFound("Stream %s is not CTD raw or parsed" % stream_obj.name)
-
-
-        # Start port agent, add stop to cleanup.
-        self._start_pagent(instrument_agent_instance_obj)
-
-        # todo: this is hardcoded to the SBE37 model; need to abstract the driver configuration when more instruments are coded
-        # todo: how to tell which prod is raw and which is parsed? Check the name?
-        #stream_config = {"ctd_raw":out_streams["ctd_raw"], "ctd_parsed":out_streams["ctd_parsed"]}
         log.debug("activate_instrument:output stream config: %s"  +  str(out_streams))
-        # Driver configuration.
-#        driver_config = {
-#            'svr_addr': instrument_agent_instance_obj.svr_addr,
-#            'cmd_port': int(instrument_agent_instance_obj.cmd_port),
-#            'evt_port':int(instrument_agent_instance_obj.evt_port),
-#            'dvr_mod': instrument_agent_instance_obj.driver_module,
-#            'dvr_cls': instrument_agent_instance_obj.driver_class,
-#            'comms_config': {
-#                SBE37Channel.CTD: {
-#                    'method':instrument_agent_instance_obj.comms_method,
-#                    'device_addr': instrument_agent_instance_obj.comms_device_address,
-#                    'device_port': int(instrument_agent_instance_obj.comms_device_port),
-#                    'server_addr': instrument_agent_instance_obj.comms_server_address,
-#                    'server_port': int(instrument_agent_instance_obj.comms_server_port)
-#                    }
-#                }
-#            }
 
-#        driver_config = {
-#            'svr_addr': instrument_agent_instance_obj.svr_addr,
-#            'cmd_port': int(instrument_agent_instance_obj.cmd_port),
-#            'evt_port':int(instrument_agent_instance_obj.evt_port),
-#            'dvr_mod': instrument_agent_instance_obj.driver_module,
-#            'dvr_cls': instrument_agent_instance_obj.driver_class,
-#            'comms_config': {
-#                    'addr': instrument_agent_instance_obj.comms_device_address,
-#                    'port': int(instrument_agent_instance_obj.comms_device_port),
-#                }
-#            }
+
+        #todo: move this up and out
+        # Create taxonomies for both parsed and raw
+        ParsedTax = TaxyTool()
+        ParsedTax.add_taxonomy_set('temp','long name for temp')
+        ParsedTax.add_taxonomy_set('cond','long name for cond')
+        ParsedTax.add_taxonomy_set('lat','long name for latitude')
+        ParsedTax.add_taxonomy_set('lon','long name for longitude')
+        ParsedTax.add_taxonomy_set('pres','long name for pres')
+        ParsedTax.add_taxonomy_set('time','long name for time')
+        # This is an example of using groups it is not a normative statement about how to use groups
+        ParsedTax.add_taxonomy_set('coordinates','This group contains coordinates...')
+        ParsedTax.add_taxonomy_set('data','This group contains data...')
+
+
+        RawTax = TaxyTool()
+        RawTax.add_taxonomy_set('raw_fixed','Fixed length bytes in an array of records')
+        RawTax.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
+
+
+        stream_info = { 'parsed' : { id: out_streams['ctd_parsed'], 'taxonomy': ParsedTax.dump() },
+                         'raw' : { id: out_streams['ctd_raw'], 'taxonomy': RawTax.dump() }
+        }
+
+
+        self._start_pagent(instrument_agent_instance_id)
+        instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
+
+
+        # Create driver config.
+        instrument_agent_instance_obj.driver_config = {
+            'dvr_mod' : instrument_agent_instance_obj.driver_module,
+            'dvr_cls' : instrument_agent_instance_obj.driver_class,
+            'workdir' : '/tmp/',
+            'process_type' : ('ZMQPyClassDriverLauncher',),
+            'comms_config' : instrument_agent_instance_obj.driver_config['comms_config'],
+            'pagent_pid' : instrument_agent_instance_obj.driver_config['pagent_pid']
+        }
 
         # Create agent config.
         instrument_agent_instance_obj.agent_config = {
@@ -324,20 +334,22 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return
 
-    def _start_pagent(self, instrument_agent_instance=None):
+
+    def _start_pagent(self, instrument_agent_instance_id=None):
         """
         Construct and start the port agent.
         """
+        instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
+        log.debug("IMS: _start_pagent ")
         # Create port agent object.
         this_pid = os.getpid()
         self._pagent = EthernetDeviceLogger.launch_process(
-            instrument_agent_instance.comms_device_address,
-            int(instrument_agent_instance.comms_device_port),
-            instrument_agent_instance.port_agent_work_dir,
-            instrument_agent_instance.port_agent_delimeter,
+            instrument_agent_instance_obj.comms_device_address,
+            int(instrument_agent_instance_obj.comms_device_port),
+            instrument_agent_instance_obj.port_agent_work_dir,
+            instrument_agent_instance_obj.port_agent_delimeter,
             this_pid)
-
 
         # Get the pid and port agent server port number.
         pid = self._pagent.get_pid()
@@ -349,39 +361,38 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             gevent.sleep(.1)
             port = self._pagent.get_port()
 
+        log.debug("IMS: _start_pagent pid %s ", str(pid))
+
         # Configure driver to use port agent port number.
-        instrument_agent_instance.driver_config['comms_config'] = {
+        instrument_agent_instance_obj.driver_config['comms_config'] = {
             'addr' : 'localhost',
             'port' : port
         }
-
-        # Report.
-        log.info('Started port agent pid %d listening at port %d.', pid, port)
+        instrument_agent_instance_obj.driver_config['pagent_pid'] = pid
+        self.update_instrument_agent_instance(instrument_agent_instance_obj)
 
 
     def stop_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
         Deactivate the instrument agent instance
         """
-        instrument_agent_instance_obj = self.RR.read(instrument_agent_instance_id)
+        instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
 
         # Cancels the execution of the given process id.
         self.clients.process_dispatcher.cancel_process(instrument_agent_instance_obj.agent_process_id)
-        
-        instrument_agent_instance_obj.agent_process_id = None
 
-        self.RR.update(instrument_agent_instance_obj)
+        port_agent_pid = instrument_agent_instance_obj.driver_config['pagent_pid']
 
 
         #Stop the port agent.
+        log.debug("IMS:stop_instrument_agent_instance stop pagent  %s ", str(port_agent_pid))
+        if port_agent_pid:
+            os.kill(port_agent_pid, signal.SIGTERM)
 
-#        if self._pagent:
-#            pid = self._pagent.get_pid()
-#            if pid:
-#                log.info('Stopping pagent pid %i.', pid)
-#                self._pagent.stop()
-#            else:
-#                log.warning('No port agent running.')
+        #reset the process ids.
+        instrument_agent_instance_obj.agent_process_id = None
+        instrument_agent_instance_obj.driver_config['pagent_pid'] = None
+        self.clients.resource_registry.update(instrument_agent_instance_obj)
 
         return
 
@@ -419,7 +430,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("create_instrument_agent: create_process_definition id %s"  +  str(process_definition_id))
 
         #associate the agent and the process def
-        self.RR.create_association(instrument_agent_id,  PRED.hasProcessDefinition, process_definition_id)
+        self.clients.resource_registry.create_association(instrument_agent_id,  PRED.hasProcessDefinition, process_definition_id)
 
         return instrument_agent_id
 
@@ -631,7 +642,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #insert all attachments
         log.debug("inserting attachments")
         for att in attachments:
-            self.RR.create_attachment(instrument_agent_id, att)
+            self.clients.resource_registry.create_attachment(instrument_agent_id, att)
 
         #updates the state of this InstAgent to integrated
         log.debug("firing life cycle event: integrate")

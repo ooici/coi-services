@@ -40,16 +40,13 @@ class SalinityDoubler(TransformFunction):
         # Use the PointSupplementStreamParser to pull data from a granule
         #psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=packet)
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        rdt0 = rdt['coordinates']
-        rdt1 = rdt['data']
 
-        salinity = get_safe(rdt1, 'salinity')
+        salinity = get_safe(rdt, 'salinity')
 
-
-        longitude = get_safe(rdt0, 'lon')
-        latitude = get_safe(rdt0, 'lat')
-        time = get_safe(rdt0, 'time')
-        height = get_safe(rdt0, 'height')
+        longitude = get_safe(rdt, 'lon')
+        latitude = get_safe(rdt, 'lat')
+        time = get_safe(rdt, 'time')
+        height = get_safe(rdt, 'height')
 #        #  pull data from a granule
 #        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
 #
@@ -74,16 +71,17 @@ class SalinityDoubler(TransformFunction):
 #
 #        return psc.close_stream_granule()
         root_rdt = RecordDictionaryTool(taxonomy=self.tx)
-        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
-        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
-        data_rdt['salinity'] = salinity
-        coord_rdt['time'] = time
-        coord_rdt['lat'] = latitude
-        coord_rdt['lon'] = longitude
-        coord_rdt['height'] = height
+        #data_rdt = RecordDictionaryTool(taxonomy=self.tx)
+        #coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
-        root_rdt['coordinates'] = coord_rdt
-        root_rdt['data'] = data_rdt
+        root_rdt['salinity'] = salinity
+        root_rdt['time'] = time
+        root_rdt['lat'] = latitude
+        root_rdt['lon'] = longitude
+        root_rdt['height'] = height
+
+        #root_rdt['coordinates'] = coord_rdt
+        #root_rdt['data'] = data_rdt
 
         return build_granule(data_producer_id='ctd_L2_salinity', taxonomy=self.tx, record_dictionary=root_rdt)
