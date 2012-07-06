@@ -88,8 +88,23 @@ class VisualizationService(BaseVisualizationService):
 
         return datatable
 
-    def get_image(self, data_product_id='', query=''):
+    def get_image(self, data_product_id='', image_id=''):
 
         image_obj = None
 
         return image_obj
+
+    def get_image_list(self, data_product_id='', query=''):
+
+        # Discover the existing data_product_ids active in the system
+        sys_prod_ids, _ = self.rr_cli.find_resources(RT.DataProduct, None, None, True)
+
+        # get the dataset_id associated with the data_product. Need it to do the data retrieval
+        for dp in sys_prod_ids:
+            ds_ids, = self.rr_cli.find_resources(RT.DataProduct, PRED.hasDataset, RT.Dataset, True)
+            print ">>>>>>>>>>>>>>> DATASET IDS = ", ds_ids
+
+
+        image_list = None
+
+        return image_list
