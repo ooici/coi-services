@@ -110,9 +110,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         xq = self.container.ex_manager.create_xn_queue(user_queue_name)
         self.addCleanup(xq.delete)
 
+        #This is so not needed.
         def cb(m, h):
             raise StandardError("Subscriber callback never gets called back!")
-
 
         salinity_subscription_id = self.pubsubclient.create_subscription(
             query=StreamQuery(data_product_stream_ids),
@@ -122,6 +122,11 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
 
         subscriber_registrar = StreamSubscriberRegistrar(node=self.container.node)
+
+        #subscriber = subscriber_registrar.create_subscriber(exchange_name=user_queue_name, callback=cb)
+        #subscriber.start()
+
+        #Using endpoint Subscriber directly; but should be a Stream-based subscriber that does nto require a process
         subscriber = Subscriber(from_name=(subscriber_registrar.XP, user_queue_name), callback=cb)
         subscriber.initialize()
 
@@ -132,13 +137,13 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #Start the output stream listener to monitor and collect messages
         #results = self.start_output_stream_and_listen(None, data_product_stream_ids)
 
+        #Not sure why this is needed - but it is
         subscriber._chan.stop_consume()
 
         ctd_sim_pid = self.start_simple_input_stream_process(ctd_stream_id)
 
         gevent.sleep(10.0)  # Send some messages - don't care how many
 
-        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
         msg_count,_ = subscriber._chan.get_stats()
         print 'Messages in user queue: ' + str(msg_count)
@@ -146,6 +151,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #Validate the data from each of the messages along the way
         #self.validate_messages(results)
 
+        #Not sure why this is needed - but it is
         subscriber._chan.start_consume()
 
         for x in range(msg_count):
@@ -153,9 +159,12 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
             print mo.body
             mo.ack()
 
+        #Should be zero after pulling all of the messages.
         msg_count,_ = subscriber._chan.get_stats()
         print 'Messages in user queue: ' + str(msg_count)
 
-
-
         subscriber.close()
+
+        #Turning off after everything - since it is more representative of an always on stream of data!
+        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
