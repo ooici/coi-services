@@ -56,7 +56,7 @@ def create_packet_builder(stream_name, stream_config):
     assert isinstance(stream_config, dict)
     assert 'id' in stream_config
     assert 'taxonomy' in stream_config
-    assert 'data_producer_id' in stream_config
+#    assert 'data_producer_id' in stream_config
 
     stream_id = stream_config['id']
     if stream_id in _cache:
@@ -65,7 +65,9 @@ def create_packet_builder(stream_name, stream_config):
         return _cache[stream_id]
 
     taxonomy = stream_config['taxonomy']
-    data_producer_id = stream_config['data_producer_id']
+
+#    data_producer_id = stream_config['data_producer_id']
+    data_producer_id = stream_id
 
     # TODO get packet_factory_type in an appropriate wayl for now, hard-coded.
     packet_factory_type = PacketFactoryType.R2LCAFormat
