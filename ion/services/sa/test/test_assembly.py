@@ -485,7 +485,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         c.OMS.transfer_site_subscription(instrument_site_id)
 
-    #----------------------------------------------
+        #----------------------------------------------
         #
         # generic find ops
         #
