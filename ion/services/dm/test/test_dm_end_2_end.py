@@ -16,12 +16,11 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.datastore.datastore import DataStore
 from interface.objects import ProcessDefinition, Granule
 from pyon.util.containers import DotDict
+from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
 import time
-import unittest
-import os
 
 @attr('INT',group='dm')
 class TestDMEnd2End(IonIntegrationTestCase):
@@ -36,6 +35,14 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.dataset_management   = DatasetManagementServiceClient()
         self.ingestion_management = IngestionManagementServiceClient()
         self.data_retriever       = DataRetrieverServiceClient()
+        self.pids                 = []
+        
+
+    def tearDown(self):
+        for pid in self.pids:
+            self.process_dispatcher.cancel_process(pid)
+        IngestionManagementIntTest.clean_subscriptions()
+        
 
     def launch_producer(self, stream_id=''):
         #--------------------------------------------------------------------------------
@@ -55,7 +62,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         config = DotDict()
         config.process.stream_id =  stream_id
-        self.process_dispatcher.schedule_process(process_definition_id=process_definition_id, configuration=config)
+        pid = self.process_dispatcher.schedule_process(process_definition_id=process_definition_id, configuration=config)
+        self.pids.append(pid)
 
     def get_ingestion_config(self):
         #--------------------------------------------------------------------------------
