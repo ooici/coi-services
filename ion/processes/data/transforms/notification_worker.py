@@ -23,11 +23,6 @@ class NotificationWorker(SimpleProcess):
 
     def on_init(self):
         self.event_pub = EventPublisher()
-        # the dictionary containing info for all the users
-        self.user_info = {} #  dict = {'user_id' : notification}
-
-        # the reverse  user info dictionary that maps event types etc to users
-        self.reverse_user_info = {}
 
     def on_start(self):
         super(NotificationWorker,self).on_start()
@@ -40,9 +35,33 @@ class NotificationWorker(SimpleProcess):
 #        self.user_info = load_user_info()
 #        calculate_reverse_user_info(self.user_info)
 
-        def receive_update_notification_event(event_msg, headers):
+        #------------------------------------------------------------------------------------
+        # start the event subscriber for listening to events which get generated when
+        # notifications are updated.. this is required so that the notification worker can update
+        # its user_info dict that it needs for batch notifications
+        #------------------------------------------------------------------------------------
+
+        def reload_user_info(event_msg, headers):
+
+            notification_id =  event_msg.notification_id
+            log.warning("In reload_user_info: Received notification with id: %s" % notification_id)
+
+            #------------------------------------------------------------------------------------------
+            # reloads the user_info and reverse_user_info dictionaries
+            #------------------------------------------------------------------------------------------
+
             self.user_info = load_user_info()
-            calculate_reverse_user_info(self.user_info)
+            if self.user_info:
+                self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
+
+            log.warning("After reload: ''' user_info: %s" % self.user_info)
+            log.warning("After reload: ''' reverse_user_info: %s" % self.reverse_user_info)
+
+        self.reload_user_info_subscriber = EventSubscriber(
+            event_type="ReloadUserInfoEvent",
+            callback=reload_user_info
+        )
+        self.reload_user_info_subscriber.start()
 
         #------------------------------------------------------------------------------------
         # start the event subscriber for all events that are of interest for notifications
@@ -54,15 +73,6 @@ class NotificationWorker(SimpleProcess):
             callback=self.process_event
         )
         self.event_subscriber.start()
-        #------------------------------------------------------------------------------------
-        # start the event subscriber for reload user info
-        #------------------------------------------------------------------------------------
-
-        self.reload_user_info_subscriber = EventSubscriber(
-            event_type="UpdateNotificationEvent",
-            callback=receive_update_notification_event
-        )
-        self.reload_user_info_subscriber.start()
 
     def process_event(self, msg, headers):
         """

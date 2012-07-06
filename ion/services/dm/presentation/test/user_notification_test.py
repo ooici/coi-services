@@ -556,13 +556,146 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_user_info(self):
+    def test_user_info_UNS(self):
         '''
         Test that the user info dictionary maintained by the notification workers get updated when
         a notification is created, updated, or deleted by UNS
         '''
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent',
+            event_subtype = 'subtype_1')
+
+        notification_request_2 = NotificationRequest(origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent',
+            event_subtype = 'subtype_2')
+
+
+        #--------------------------------------------------------------------------------------
+        # Create users and make user_ids
+        #--------------------------------------------------------------------------------------
+
+        user_1 = UserInfo()
+        user_1.name = 'user_1'
+        user_1.contact.email = 'user_1@gmail.com'
+
+
+        user_2 = UserInfo()
+        user_2.name = 'user_2'
+        user_2.contact.email = 'user_2@gmail.com'
+
+        user_id_1, _ = self.rrc.create(user_1)
+        user_id_2, _ = self.rrc.create(user_2)
+
+
+        #--------------------------------------------------------------------------------------
+        # Create a notification
+        #--------------------------------------------------------------------------------------
+
+        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
+        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
+
+        #--------------------------------------------------------------------------------------
+        # Check the user_info and reverse_user_info got reloaded
+        #--------------------------------------------------------------------------------------
+
+        # Check in UNS ------------>
+
+        # check user_info dictionary
+        self.assertEquals(proc1.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
+        self.assertEquals(proc1.user_info['user_1']['notifications'], [notification_request_1])
+
+        self.assertEquals(proc1.user_info['user_2']['user_contact'].email, 'user_2@gmail.com' )
+        self.assertEquals(proc1.user_info['user_2']['notifications'], [notification_request_2])
+
+
+        # check the reverse user info dictionary
+        log.warning("The reverse user_info: %s" % proc1.reverse_user_info )
+
+        self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_1'], ['user_1'])
+        self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_2'], ['user_2'])
+
+        self.assertEquals(proc1.reverse_user_info['event_type']['ResourceLifecycleEvent'], ['user_1'])
+        self.assertEquals(proc1.reverse_user_info['event_type']['DetectionEvent'], ['user_2'])
+
+        self.assertEquals(proc1.reverse_user_info['event_subtype']['subtype_1'], ['user_1'])
+        self.assertEquals(proc1.reverse_user_info['event_subtype']['subtype_2'], ['user_2'])
+
+        self.assertEquals(proc1.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
+        self.assertEquals(proc1.reverse_user_info['event_origin_type']['type_2'], ['user_2'])
+
+
+        #--------------------------------------------------------------------------------------
+        # Create another notification for the first user
+        #--------------------------------------------------------------------------------------
+
+        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_1)
+
+        # Check in UNS ------------>
+        self.assertEquals(proc1.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
+        self.assertEquals(proc1.user_info['user_1']['notifications'], [notification_request_1, notification_request_2])
+
+
+        # reverse_user_info
+        log.warning("The reverse user_info: %s" % proc1.reverse_user_info )
+
+        self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_1'], ['user_1'])
+        self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_2'], ['user_2', 'user_1'])
+
+        self.assertEquals(proc1.reverse_user_info['event_type']['ResourceLifecycleEvent'], ['user_1'])
+        self.assertEquals(proc1.reverse_user_info['event_type']['DetectionEvent'], ['user_2', 'user_1'])
+
+        self.assertEquals(proc1.reverse_user_info['event_subtype']['subtype_1'], ['user_1'])
+        self.assertEquals(proc1.reverse_user_info['event_subtype']['subtype_2'], ['user_2', 'user_1'])
+
+        self.assertEquals(proc1.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
+        self.assertEquals(proc1.reverse_user_info['event_origin_type']['type_2'], ['user_2', 'user_1'])
+
+        #--------------------------------------------------------------------------------------
+        # Update notification and check that the user_info and reverse_user_info in UNS got reloaded
+        #--------------------------------------------------------------------------------------
+
+        #todo The update method for UNS is not yet implementable with ids inside notification workers
+
+#        notification_request_1 = notification_request_2
+#        self.unsc.update_notification(notification=notification_request_1, user_id=user_id)
+#
+#        # Check for UNS ------->
+#
+#        # user_info
+#        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
+#        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_2])
+
+        # reverse_user_info
+
+
+        #--------------------------------------------------------------------------------------
+        # Delete notification and check that the user_info and reverse_user_info in UNS got reloaded
+        #--------------------------------------------------------------------------------------
+
+        #todo whether the user_info contains the user_ids or the user_names need to be sorted
+
+        # Check for UNS ------->
+
+        # user_info
+
+        # reverse_user_info
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_user_info_notification_worker(self):
+        '''
+        Test the user_info and reverse user info dictionary capability of the notification worker
+        '''
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects
@@ -596,16 +729,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create notification workers
         #--------------------------------------------------------------------------------------
 
-        self.unsc.create_worker(number_of_workers=1)
+        self.unsc.create_workers(number_of_workers=1)
 
         #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info got reloaded
         #--------------------------------------------------------------------------------------
 
-        # Check for UNS ------------>
-
-        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
-        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_1])
+#        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
+#        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_1])
 
         #--------------------------------------------------------------------------------------
         # Create another notification
@@ -613,67 +744,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
-
-        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
-        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_1, notification_request_2])
-
-
-#        not_req_1= proc1.user_info['new_user']['notifications'][0]
-#        not_req_2= proc1.user_info['new_user']['notifications'][1]
-#
-#        dict1 = {'origin' : not_req_1.origin, 'origin_type' : not_req_1.origin_type, 'event_type' : not_req_1.event_type }
-#        dict2 = {'origin' : not_req_2.origin, 'origin_type' : not_req_2.origin_type, 'event_type' : not_req_2.event_type }
-#
-#        orig_dict1 = {'origin' : notification_request_1.origin, 'origin_type' : notification_request_1.origin_type, 'event_type' : notification_request_1.event_type }
-#        orig_dict2 = {'origin' : notification_request_1.origin, 'origin_type' : notification_request_1.origin_type, 'event_type' : notification_request_1.event_type }
-#
-#        test_list_1 = [dict1, dict2]
-#        test_list_2 = [orig_dict1, orig_dict2]
-#
-##        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_1, notification_request_1])
-#
-#        self.assertEquals(test_list_1, test_list_2)
-
-        # reverse_user_info
-
-        # Check for notification workers ------->
-
-        # user_info
-
-        # reverse_user_info
-
-        #--------------------------------------------------------------------------------------
-        # Update notification and check that the user_info and reverse_user_info in UNS got reloaded
-        #--------------------------------------------------------------------------------------
-
-        # Check for UNS ------->
-
-        # user_info
-
-        # reverse_user_info
-
-        # Check for notification workers ------->
-
-        # user_info
-
-        # reverse_user_info
-
-
-        #--------------------------------------------------------------------------------------
-        # Delete notification and check that the user_info and reverse_user_info in UNS got reloaded
-        #--------------------------------------------------------------------------------------
-
-        # Check for UNS ------->
-
-        # user_info
-
-        # reverse_user_info
-
-        # Check for notification workers ------->
-
-        # user_info
-
-        # reverse_user_info
+        # Check in UNS ------------>
+#        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
+#        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_1, notification_request_2])
 
 
 
@@ -703,9 +776,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                                                     origin_type="type_3",
                                                     event_type='ResourceLifecycleEvent')
 
-        #-------------------------------------------------------
+        #----------------------------------------------------------------------------------------
         # Create users and get the user_ids
-        #-------------------------------------------------------
+        #----------------------------------------------------------------------------------------
 
         # user_1
         user_1 = UserInfo()
@@ -790,7 +863,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create notification workers
         #--------------------------------------------------------------------------------------
 
-        pids = self.unsc.create_worker(number_of_workers=3)
+        pids = self.unsc.create_workers(number_of_workers=3)
 
         log.warning("pids: %s" % pids)
 

@@ -261,62 +261,11 @@ class UserNotificationService(BaseUserNotificationService):
         # Get the discovery client for batch processing
         self.discovery = DiscoveryServiceClient()
 
-        #-----------------------------------------------------------------
-        # For discovery to work, we need elastic search
-        #-----------------------------------------------------------------
-
-#        use_es = CFG.get_safe('system.elasticsearch',False)
-#
-#        if use_es:
-#            self.es_host   = CFG.get_safe('server.elasticsearch.host', 'localhost')
-#            self.es_port   = CFG.get_safe('server.elasticsearch.port', '9200')
-#            CFG.server.elasticsearch.shards         = 1
-#            CFG.server.elasticsearch.replicas       = 0
-#            CFG.server.elasticsearch.river_shards   = 1
-#            CFG.server.elasticsearch.river_replicas = 0
-#            self.es = ep.ElasticSearch(
-#                host=self.es_host,
-#                port=self.es_port,
-#                timeout=10,
-#                verbose=True
-#            )
-#
-#            op = DotDict(CFG)
-#            op.op = 'clean_bootstrap'
-#            self.container.spawn_process('index_bootstrap','ion.processes.bootstrap.index_bootstrap','IndexBootStrap', op)
-
         for originator in self.event_originators:
             try:
                 self.event_table[originator] = CFG.event[originator]
             except NotFound:
                 log.info("UserNotificationService.on_start(): event originator <%s> not found in configuration" %originator)
-
-        #------------------------------------------------------------------------------------
-        # start the event subscriber for listening to events which get generated when
-        # notifications are updated.. this is required so that the UNS can update its user_info dict
-        # that it needs for batch notifications
-        #------------------------------------------------------------------------------------
-
-#        def reload_user_info(event_msg, headers):
-#            notification_id =  event_msg.notification_id
-#            log.warning("In reload_user_info: Received notification with id: %s" % notification_id)
-#
-#            #------------------------------------------------------------------------------------------
-#            # reloads the user_info and reverse_user_info dictionaries
-#            #------------------------------------------------------------------------------------------
-#
-#            self.user_info = load_user_info()
-#            if self.user_info:
-#                self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
-#
-#            log.warning("After reload: ''' user_info: %s" % self.user_info)
-#            log.warning("After reload: ''' reverse_user_info: %s" % self.reverse_user_info)
-#
-#        self.event_subscriber = EventSubscriber(
-#            event_type="ReloadUserInfoEvent",
-#            callback=reload_user_info
-#        )
-#        self.event_subscriber.start()
 
     def on_quit(self):
 
@@ -356,19 +305,16 @@ class UserNotificationService(BaseUserNotificationService):
         event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.", notification_id = notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
-        # Put in the notification request into the UserInfo object for each user
+        # Update the UserInfo object and the user_info dictionary maintained by the UNS
         #-------------------------------------------------------------------------------------------------------------------
 
         self._update_user_with_notification(user_id, notification)
 
-        log.warning("self.user_info: %s" % self.user_info)
+        #---------------------------------------------------------------------------------------------------
+        # create event processor for user
+        #---------------------------------------------------------------------------------------------------
 
-#        #---------------------------------------------------------------------------------------------------
-#        # create event processor for user
-#        #---------------------------------------------------------------------------------------------------
-#
         create_event_processor(notification_request=notification,user_id=user_id)
-        log.warning("In UNS create_notification() method: Created notification with origin: %s" % notification.origin)
 
         return notification_id
 
@@ -383,51 +329,63 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         @throws Conflict    object not based on latest persisted object version
         """
-        # Read existing Notification object and see if it exists
 
-        if notification is None:
-            raise BadRequest("NotificationRequest object not present")
-        elif not hasattr(notification, "_id") or not hasattr(notification, "_rev"):
-            raise BadRequest("NotificationRequest object does not have required '_id' or '_rev' attribute")
-            # Do an check whether LCS has been modified
-        elif notification._id == '':
-            raise BadRequest("NotificationRequest object does not have a set id")
+        #todo Not yet possible to implement this without having ids inside the notification objects
+        # todo (contd) How can we get the old notification object to update, if we cant find the id?
 
-        notification_id = notification._id
+        raise NotImplementedError
 
-        old_notification = self.clients.resource_registry.read(notification_id)
-
-        if not old_notification:
-            raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification._id)
-
-        # check to see if the new notification is different than the old notification only in the delivery config fields
-        if notification.origin != old_notification.origin or\
-           notification.origin_type != old_notification.origin_type or\
-           notification.event_type != old_notification.event_type or\
-           notification.event_subtype != old_notification.event_subtype:
-
-            log.info('Update unsuccessful. Only the delivery config is allowed to be modified!')
-            raise BadRequest('Can not update the subscription for an event notification')
-
-        else:
-
-            #-------------------------------------------------------------------------------------------------------------------
-            # only the delivery_config is being modified, so we can go ahead with the update...
-            # update the notification in the RR
-            #-------------------------------------------------------------------------------------------------------------------
-
-            self.clients.resource_registry.update(notification)
-
-            #-------------------------------------------------------------------------------------------------------------------
-            # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
-            #-------------------------------------------------------------------------------------------------------------------
-            log.warning("Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
-
-            event_publisher = EventPublisher("ReloadUserInfoEvent")
-            event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.", notification_id = notification_id)
-
-
-            log.debug('Updated notification object with id: %s' % notification_id)
+#        # Read existing Notification object and see if it exists
+#
+#        if notification is None:
+#            raise BadRequest("NotificationRequest object not present")
+#        elif not hasattr(notification, "_id") or not hasattr(notification, "_rev"):
+#            raise BadRequest("NotificationRequest object does not have required '_id' or '_rev' attribute")
+#            # Do an check whether LCS has been modified
+#        elif notification._id == '':
+#            raise BadRequest("NotificationRequest object does not have a set id")
+#
+#        notification_id = notification._id
+#
+#        old_notification = self.clients.resource_registry.read(notification_id)
+#
+#        if not old_notification:
+#            raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification._id)
+#
+#        # check to see if the new notification is different than the old notification only in the delivery config fields
+#        if notification.origin != old_notification.origin or\
+#           notification.origin_type != old_notification.origin_type or\
+#           notification.event_type != old_notification.event_type or\
+#           notification.event_subtype != old_notification.event_subtype:
+#
+#            log.info('Update unsuccessful. Only the delivery config is allowed to be modified!')
+#            raise BadRequest('Can not update the subscription for an event notification')
+#
+#        else:
+#
+#            #-------------------------------------------------------------------------------------------------------------------
+#            # only the delivery_config is being modified, so we can go ahead with the update...
+#            # update the notification in the RR
+#            #-------------------------------------------------------------------------------------------------------------------
+#
+#            self.clients.resource_registry.update(notification)
+#
+#            #-------------------------------------------------------------------------------------------------------------------
+#            # Update the UserInfo object and the user_info dictionary maintained by the UNS
+#            #-------------------------------------------------------------------------------------------------------------------
+#
+#            self._update_user_with_notification(user_id, notification)
+#
+#            #-------------------------------------------------------------------------------------------------------------------
+#            # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
+#            #-------------------------------------------------------------------------------------------------------------------
+#            log.warning("Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
+#
+#            event_publisher = EventPublisher("ReloadUserInfoEvent")
+#            event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.", notification_id = notification_id)
+#
+#
+#            log.debug('Updated notification object with id: %s' % notification_id)
 
     def read_notification(self, notification_id=''):
         """Returns the NotificationRequest object for the specified notification id.
@@ -451,6 +409,22 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified id does not exist
         """
         self.clients.resource_registry.delete(notification_id)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Update the UserInfo object and the user_info dictionary maintained by the UNS
+        #-------------------------------------------------------------------------------------------------------------------
+
+        # find from the reverse_user_info dictionary, the users who are interested in the notification
+
+        #todo Not Implemented yet... resolve the problem of user_info dictionary storing
+        # todo (contd) user_names as keys and not user_ids
+
+#        notification = self.clients.resource_registry.read(notification_id)
+#        user_ids = check_user_notification_interest(notification, self.reverse_user_info)
+#
+#        # update
+#        for user_id in user_ids:
+#            self._update_user_with_notification(user_id, notification)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -592,7 +566,7 @@ class UserNotificationService(BaseUserNotificationService):
         event_publisher = EventPublisher(type)
         event_publisher.publish_event(origin=origin, description= description)
 
-    def create_worker(self, number_of_workers=1):
+    def create_workers(self, number_of_workers=1):
         '''
         Creates notification workers
 
@@ -612,22 +586,18 @@ class UserNotificationService(BaseUserNotificationService):
             }
             process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
-            log.warning("process_definition_id: %s" % process_definition_id)
-
             # ------------------------------------------------------------------------------------
             # Process Spawning
             # ------------------------------------------------------------------------------------
 
             pid2 = self.clients.process_dispatcher.create_process(process_definition_id)
 
-            log.warning("pid2: %s" % pid2)
-
             #@todo put in a configuration
             configuration = {}
             configuration['process'] = dict({
                 'name': 'notification_worker_%s' % n,
                 'type':'simple',
-                'listen_name':'uns_queue', #@todo find the appropriate listen_name
+                'listen_name':'uns_queue' #@todo find the appropriate listen_name
             })
 
             pid  = self.clients.process_dispatcher.schedule_process(
@@ -637,8 +607,6 @@ class UserNotificationService(BaseUserNotificationService):
             )
 
             pids.append(pid)
-
-            log.warning("pids: %s" % pids)
 
         return pids
 
@@ -719,6 +687,10 @@ class UserNotificationService(BaseUserNotificationService):
 
     def _update_user_with_notification(self, user_id, notification):
 
+        #------------------------------------------------------------------------------------
+        # Update the UserInfo object
+        #------------------------------------------------------------------------------------
+
         user = self.clients.resource_registry.read(user_id)
         if not user:
             raise BadRequest("No user with the provided user_id: %s" % user_id)
@@ -738,11 +710,9 @@ class UserNotificationService(BaseUserNotificationService):
         if not notification_present:
             user.variables= [{'name' : 'notification', 'value' : [notification]}]
 
-#        log.warning("In the _update_user_with_notification:")
-#        log.warning("user.variables: %s" % user.variables )
-#        for item in user.variables:
-#            for notification in item['value']:
-#                log.warning("notification event type: %s" % notification.event_type)
+        #------------------------------------------------------------------------------------
+        # Update the user_info dictionary maintained by UNS
+        #------------------------------------------------------------------------------------
 
         notifications = []
         if self.user_info.has_key(user.name):
@@ -753,6 +723,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         # update the user info
         self.user_info[user.name] = { 'user_contact' : user.contact, 'notifications' : notifications}
+        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
         self.clients.resource_registry.update(user)
 

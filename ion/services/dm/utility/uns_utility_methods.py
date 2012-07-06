@@ -123,9 +123,11 @@ def send_email(message, msg_recipient, smtp_client):
 
 def check_user_notification_interest(event, reverse_user_info):
     '''
-    A method to check which user is interested in a notification. Returns the list of users interested in the notification
+    A method to check which user is interested in a notification or an event.
+    The input parameter event can be used interchangeably with notification in this method
+    Returns the list of users interested in the notification
 
-    @param notification NotificationRequest
+    @param event NotificationRequest or Event
     @param reverse_user_info    dict
 
     @retval user_names list
