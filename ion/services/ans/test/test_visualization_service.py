@@ -138,7 +138,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #results = self.start_output_stream_and_listen(None, data_product_stream_ids)
 
         #Not sure why this is needed - but it is
-        subscriber._chan.stop_consume()
+        #subscriber._chan.stop_consume()
 
         ctd_sim_pid = self.start_simple_input_stream_process(ctd_stream_id)
 
@@ -152,16 +152,37 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #self.validate_messages(results)
 
         #Not sure why this is needed - but it is
-        subscriber._chan.start_consume()
+        #subscriber._chan.start_consume()
 
-        for x in range(msg_count):
-            mo = subscriber.get_one_msg(timeout=1)
-            print mo.body
-            mo.ack()
+#        for x in range(msg_count):
+#            mo = subscriber.get_one_msg(timeout=1)
+#            print mo.body
+#            mo.ack()
+
+        msgs = subscriber.get_n_msgs(msg_count, timeout=2)
+        for x in range(len(msgs)):
+            print msgs[x].body
 
         #Should be zero after pulling all of the messages.
         msg_count,_ = subscriber._chan.get_stats()
         print 'Messages in user queue: ' + str(msg_count)
+
+
+        #Trying to continue to receive messages in the queue
+        gevent.sleep(5.0)  # Send some messages - don't care how many
+
+        #Should see more messages in the queue
+        msg_count,_ = subscriber._chan.get_stats()
+        print 'Messages in user queue: ' + str(msg_count)
+
+        msgs = subscriber.get_n_msgs(msg_count, timeout=2)
+        for x in range(len(msgs)):
+            print msgs[x].body
+
+        #Should be zero after pulling all of the messages.
+        msg_count,_ = subscriber._chan.get_stats()
+        print 'Messages in user queue: ' + str(msg_count)
+
 
         subscriber.close()
 
