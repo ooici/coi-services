@@ -157,11 +157,10 @@ class UserEventProcessor(object):
 
 class EmailEventProcessor(UserEventProcessor):
 
-    def __init__(self):
+    def __init__(self, smtp_client):
 
         super(EmailEventProcessor, self).__init__()
-
-        self.smtp_client = setting_up_smtp_client()
+        self.smtp_client = smtp_client
 
     def subscription_callback(self, message, headers):
         """
@@ -227,10 +226,10 @@ class DetectionEventProcessor(UserEventProcessor):
         if QueryLanguage.evaluate_condition(message, self.query_dict):
             self.generate_events(message) # pass in the event message so we can put some of the content in the new event.
 
-def create_event_processor(notification_request, user_id):
+def create_event_processor(notification_request, user_id, smtp_client):
 
     if notification_request.type == NotificationType.EMAIL:
-        event_processor = EmailEventProcessor()
+        event_processor = EmailEventProcessor(smtp_client = smtp_client)
         event_processor.add_notification_for_user(notification_request=notification_request, user_id=user_id)
 
     elif notification_request.type == NotificationType.FILTER:
@@ -249,6 +248,10 @@ class UserNotificationService(BaseUserNotificationService):
 
         # Get the event Repository
         self.event_repo = self.container.instance.event_repository
+
+        self.smtp_client = setting_up_smtp_client()
+
+        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
         # load event originators, types, and table
         self.event_originators = CFG.event.originators
@@ -314,7 +317,7 @@ class UserNotificationService(BaseUserNotificationService):
         # create event processor for user
         #---------------------------------------------------------------------------------------------------
 
-        create_event_processor(notification_request=notification,user_id=user_id)
+        create_event_processor(notification_request=notification,user_id=user_id, smtp_client = self.smtp_client)
 
         return notification_id
 
@@ -643,18 +646,16 @@ class UserNotificationService(BaseUserNotificationService):
 
                 search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
                 search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
-                search_event_type = 'search "type_" is "%s" from "events_index"' % notification.event_type
+                search_event_type = 'search "event_type" is "%s" from "events_index"' % notification.event_type
+                search_event_subtype='search "event_subtype" is "%s" from "events_index"' % notification.event_subtype
 
-                search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'"\
-                % (start_time, end_time)
-
-                log.warning("search_origin: %s" % search_origin)
-                log.warning("search_origin_type: %s" % search_origin_type)
-                log.warning("search_event_type: %s" % search_event_type)
-                log.warning("search_time: %s" % search_time)
+                search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (start_time, end_time)
 
                 search_origin = 'search "origin" is "*" from "events_index"'
-                search_string = search_time + ' and ' + search_origin
+#                search_string = search_time + ' and ' + search_origin
+
+                search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and '\
+                                    + search_event_type + ' and ' + search_event_subtype
 
                 # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
@@ -667,24 +668,57 @@ class UserNotificationService(BaseUserNotificationService):
                     events_for_message.append(event_obj)
 
             # send a notification email to each user using a _send_email() method
-            message = self.format_message(events_for_message, user_name)
+            self.format_and_send_email(events_for_message, user_name)
 
-            #todo when the use of and/or in discovery is completely sorted, ret_vals will be a list of objects
-            # todo (contd): when that happens complete the rest of this method (mostly the commented part below)
-
-#            smtp_client =
-
-#            send_email( message = events_message,
-#                        msg_recipient=self.user_info[user]['user_contact'].email,
-#                        smtp_client=smtp_client )
-
-    def format_message(self, events_for_message, user_name):
+    def format_and_send_email(self, events_for_message, user_name):
         '''
         Format the message for a particular user containing information about the events he is to be notified about
         '''
-        log.warning("The user, %s, gets the following message in email: %s" % (user_name, str(events_for_message)))
 
-        return message
+        message = str(events_for_message)
+        log.warning("The user, %s, gets the following message in email: %s" % (user_name, message))
+
+        msg_body = ''
+        for event in events_for_message:
+            # build the email from the event content
+            msg_body = string.join(("Event: %s" %  event,
+                                    "",
+                                    "Originator: %s" %  event.origin,
+                                    "",
+                                    "Description: %s" % event.description ,
+                                    "",
+                                    "Event time stamp: %s" %  event.ts_created,
+                                    "",
+                                    "You received this notification from ION because you asked to be "\
+                                    "notified about this event from this source. ",
+                                    "To modify or remove notifications about this event, "\
+                                    "please access My Notifications Settings in the ION Web UI.",
+                                    "Do not reply to this email.  This email address is not monitored "\
+                                    "and the emails will not be read."),
+                                    "\r\n")
+        msg_subject = "(SysName: " + get_sys_name() + ") ION event "
+
+        self.send_batch_email(  msg_body = msg_body,
+                                msg_subject = msg_subject,
+                                msg_recipient=self.user_info[user_name]['user_contact'].email,
+                                smtp_client=self.smtp_client )
+
+    def send_batch_email(self, msg_body, msg_subject, msg_recipient, smtp_client):
+        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
+
+        # the 'from' email address for notification emails
+        msg_sender = self.ION_NOTIFICATION_EMAIL_ADDRESS
+
+        msg = MIMEText(msg_body)
+        msg['Subject'] = msg_subject
+        msg['From'] = msg_sender
+        msg['To'] = msg_recipient
+        log.debug("UserEventProcessor.subscription_callback(): sending email to %s"\
+        %msg_recipient)
+
+        smtp_sender = CFG.get_safe('server.smtp.sender')
+
+        smtp_client.sendmail(smtp_sender, msg_recipient, msg.as_string())
 
 
     def _update_user_with_notification(self, user_id, notification):
@@ -717,15 +751,18 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
 
         notifications = []
+
+        # find the already existing notifications for the user
         if self.user_info.has_key(user.name):
             notifications = self.user_info[user.name]['notifications']
 
-        # append the new notification
+        # append the new notification to the list of notifications for the user
         notifications.append(notification)
 
         # update the user info
         self.user_info[user.name] = { 'user_contact' : user.contact, 'notifications' : notifications}
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
+        # update the resource registry
         self.clients.resource_registry.update(user)
 
