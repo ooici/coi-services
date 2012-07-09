@@ -184,7 +184,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
 
         dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_configuration_id)
-
+        log.debug("activate_data_product_persistence: dataset_id = %s"  % str(dataset_id))
 
 #        if data_product_obj.dataset_id:
 #            objs,_ = self.clients.resource_registry.find_objects(data_product_obj.dataset_id,
@@ -226,7 +226,13 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         # save the dataset_configuration_id in the product resource? Can this be found via the stream id?
+        #todo: remove the dataset_id from the data product resource
         data_product_obj.dataset_id = dataset_id
+        # Create association
+
+        if dataset_id:
+         self.data_product.link_data_set(data_product_id, dataset_id)
+
         # todo: dataset_configuration_obj contains the ingest config for now...
         data_product_obj.dataset_configuration_id = ingestion_configuration_id
         self.update_data_product(data_product_obj)
