@@ -294,10 +294,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         RawTax.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
 
 
-        stream_info = {
-            'ctd_parsed' : { 'id': out_streams['ctd_parsed'], 'taxonomy': ParsedTax.dump() },
-            'ctd_raw' : { 'id': out_streams['ctd_raw'], 'taxonomy': RawTax.dump()}
+        stream_info = { 'parsed' : { id: out_streams['ctd_parsed'], 'taxonomy': ParsedTax.dump() },
+                         'raw' : { id: out_streams['ctd_raw'], 'taxonomy': RawTax.dump() }
         }
+
 
         self._start_pagent(instrument_agent_instance_id)
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
@@ -316,7 +316,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Create agent config.
         instrument_agent_instance_obj.agent_config = {
             'driver_config' : instrument_agent_instance_obj.driver_config,
-            'stream_config' : stream_info,
+            'stream_config' : out_streams,
             'agent'         : {'resource_id': instrument_device_id}
         }
 

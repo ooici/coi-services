@@ -214,11 +214,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._no_samples = None
         self._async_data_result = AsyncResult()
         self._data_greenlets = []
-        self._stream_config = {
-            'ctd_parsed' : { 'id': out_streams['ctd_parsed'], 'taxonomy': ParsedTax.dump() },
-            'ctd_raw' : { 'id': out_streams['ctd_raw'], 'taxonomy': RawTax.dump()}
-        }
-
+        self._stream_config = {}
         self._samples_received = []
         self._data_subscribers = []
         self._start_data_subscribers()
