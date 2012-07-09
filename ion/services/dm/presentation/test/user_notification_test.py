@@ -8,11 +8,15 @@
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
+from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
-from interface.objects import DeliveryMode, UserInfo, DeliveryConfig, DetectionFilterConfig, NotificationRequest
+from ion.services.dm.inventory.index_management_service import IndexManagementService
+from interface.objects import DeliveryMode, UserInfo, DeliveryConfig, DetectionFilterConfig
+from interface.objects import NotificationRequest, InstrumentDevice
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.public import IonObject, RT, PRED, Container
+from pyon.util.containers import DotDict
+from pyon.public import IonObject, RT, PRED, Container, CFG
 from pyon.core.exception import NotFound, BadRequest
 from nose.plugins.attrib import attr
 import unittest
@@ -22,9 +26,12 @@ import gevent
 from mock import Mock, mocksignature
 from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent, Frequency
 from ion.services.dm.utility.query_language import QueryLanguage
-import os
+import os, time
 from gevent import event, queue
 from gevent.timeout import Timeout
+import elasticpy as ep
+
+use_es = CFG.get_safe('system.elasticsearch',False)
 
 @attr('UNIT',group='dm')
 class UserNotificationTest(PyonTestCase):
@@ -357,14 +364,47 @@ class UserNotificationTest(PyonTestCase):
 @attr('INT', group='dm')
 class UserNotificationIntTest(IonIntegrationTestCase):
     def setUp(self):
+        super(UserNotificationIntTest, self).setUp()
+        config = DotDict()
+        config.bootstrap.use_es = True
+
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+        self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
 
         self.unsc = UserNotificationServiceClient()
         self.rrc = ResourceRegistryServiceClient()
         self.imc = IdentityManagementServiceClient()
+        self.discovery = DiscoveryServiceClient()
 
+#    @staticmethod
+#    def es_cleanup():
+#        es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
+#        es_port = CFG.get_safe('server.elasticsearch.port', '9200')
+#        es = ep.ElasticSearch(
+#            host=es_host,
+#            port=es_port,
+#            timeout=10
+#        )
+#        indexes = STD_INDEXES.keys()
+#        indexes.append('%s_resources_index' % get_sys_name().lower())
+#        indexes.append('%s_events_index' % get_sys_name().lower())
+#
+#        for index in indexes:
+#            IndexManagementService._es_call(es.river_couchdb_delete,index)
+#            IndexManagementService._es_call(es.index_delete,index)
 
+    def poll(self, tries, callback, *args, **kwargs):
+        '''
+        Polling wrapper for queries
+        Elasticsearch may not index and cache the changes right away so we may need
+        a couple of tries and a little time to go by before the results show.
+        '''
+        for i in xrange(tries):
+            retval = callback(*args, **kwargs)
+            if retval:
+                return retval
+            time.sleep(0.2)
+        return None
 
 
     @attr('LOCOINT')
@@ -666,7 +706,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Update notification and check that the user_info and reverse_user_info in UNS got reloaded
         #--------------------------------------------------------------------------------------
 
-        #todo The update method for UNS is not yet implementable with ids inside notification workers
+        #todo The update method for UNS is not yet implementable without ids inside notification workers
 
 #        notification_request_1 = notification_request_2
 #        self.unsc.update_notification(notification=notification_request_1, user_id=user_id)
@@ -693,7 +733,29 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # reverse_user_info
 
 
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    def test_search_by_name_index(self):
+        inst_dev = InstrumentDevice(name='test_dev',serial_number='ABC123')
+
+        dev_id, _ = self.rrc.create(inst_dev)
+        search_string = "search 'serial_number' is 'abc*' from 'resources_index'"
+
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        self.assertIsNotNone(results, 'Results not found')
+        self.assertTrue(results[0]['_id'] == dev_id)
+
+#        bank_acc = BankAccount(name='blah', cash_balance=10)
+#        res_id , _ = self.rrc.create(bank_acc)
+#
+#        search_string = "search 'cash_balance' values from 0 to 100 from 'resources_index'"
+#
+#        results = self.poll(9, self.discovery.parse,search_string)
+#        self.assertIsNotNone(results, 'Results not found')
+#        self.assertTrue(results[0]['_id'] == res_id)
+
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_user_info_notification_worker(self):
         '''
@@ -701,10 +763,29 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         '''
 
         #--------------------------------------------------------------------------------------
+        # Create a user and get the user_id
+        #--------------------------------------------------------------------------------------
+
+        user = UserInfo()
+        user.name = 'new_user'
+        user.contact.email = 'new_user@gmail.com'
+
+        user_id, _ = self.rrc.create(user)
+
+        # confirm that users_index got created by discovery
+        search_string = 'search "name" is "*" from "users_index"'
+
+        results = self.poll(9, self.discovery.parse,search_string)
+        log.warning("results : %s" % results)
+        self.assertIsNotNone(results, 'Results not found')
+
+        #--------------------------------------------------------------------------------------
         # Create notification workers
         #--------------------------------------------------------------------------------------
 
-        self.unsc.create_worker(number_of_workers=1)
+        pids = self.unsc.create_worker(number_of_workers=1)
+        self.assertIsNotNone(pids, 'No workers were created')
+        log.warning("pids: %s" % pids)
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects
@@ -719,16 +800,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_type='DetectionEvent')
 
         #--------------------------------------------------------------------------------------
-        # Create a user and get the user_id
-        #--------------------------------------------------------------------------------------
-
-        user = UserInfo()
-        user.name = 'new_user'
-        user.contact.email = 'new_user@gmail.com'
-
-        user_id, _ = self.rrc.create(user)
-
-        #--------------------------------------------------------------------------------------
         # Create a notification
         #--------------------------------------------------------------------------------------
 
@@ -740,9 +811,23 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info got reloaded
         #--------------------------------------------------------------------------------------
+        proc1 = self.container.proc_manager.procs_by_name[pids[0]]
 
-#        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
-#        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_1])
+        ar = gevent.event.AsyncResult()
+        def received_reload(msg, headers):
+            ar.set(msg)
+
+        proc1.test_hook = received_reload
+
+        log.warning("worked... %s" % ar.get(timeout=10))
+
+        reloaded_user_info = ar.get(timeout=10)
+
+        log.warning("reloaded_user_info: %s" % reloaded_user_info)
+        log.warning("keys: %s" % reloaded_user_info.keys())
+
+        self.assertEquals(reloaded_user_info['new_user']['notifications'], [notification_request_1] )
+        self.assertEquals(reloaded_user_info['new_user']['user_contact'].email, 'new_user@gmail.com')
 
         #--------------------------------------------------------------------------------------
         # Create another notification

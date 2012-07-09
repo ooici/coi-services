@@ -16,6 +16,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from ion.services.dm.utility.query_language import QueryLanguage
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 import string
 import time
@@ -263,6 +264,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         # Get the discovery client for batch processing
         self.discovery = DiscoveryServiceClient()
+        self.process_dispatcher = ProcessDispatcherServiceClient()
 
         for originator in self.event_originators:
             try:
@@ -300,14 +302,6 @@ class UserNotificationService(BaseUserNotificationService):
         notification_id, _ = self.clients.resource_registry.create(notification)
 
         #-------------------------------------------------------------------------------------------------------------------
-        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
-        #-------------------------------------------------------------------------------------------------------------------
-        log.warning("Publishing ReloadUserInfoEvent for notification_id, notification origin: (%s, %s)" % (notification_id, notification.origin))
-
-        event_publisher = EventPublisher("ReloadUserInfoEvent")
-        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.", notification_id = notification_id)
-
-        #-------------------------------------------------------------------------------------------------------------------
         # Update the UserInfo object and the user_info dictionary maintained by the UNS
         #-------------------------------------------------------------------------------------------------------------------
 
@@ -318,6 +312,25 @@ class UserNotificationService(BaseUserNotificationService):
         #---------------------------------------------------------------------------------------------------
 
         create_event_processor(notification_request=notification,user_id=user_id, smtp_client = self.smtp_client)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Allow the indexes to be updated for ElasticSearch
+        # We publish event only after this so that the reload of the user info works by the
+        # notification workers work properly
+        #-------------------------------------------------------------------------------------------------------------------
+
+        #todo when things are more refined, it will be nice to have an event generated when the
+        # indexes are updated so that a subscriber here when it received that event will publish
+        # the reload user info event.
+        time.sleep(4)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
+        #-------------------------------------------------------------------------------------------------------------------
+        log.warning("Publishing ReloadUserInfoEvent for notification_id, notification origin: (%s, %s)" % (notification_id, notification.origin))
+
+        event_publisher = EventPublisher("ReloadUserInfoEvent")
+        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.", notification_id = notification_id)
 
         return notification_id
 
@@ -587,13 +600,13 @@ class UserNotificationService(BaseUserNotificationService):
                 'module': 'ion.processes.data.transforms.notification_worker',
                 'class':'NotificationWorker'
             }
-            process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+            process_definition_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
 
             # ------------------------------------------------------------------------------------
             # Process Spawning
             # ------------------------------------------------------------------------------------
 
-            pid2 = self.clients.process_dispatcher.create_process(process_definition_id)
+            pid2 = self.process_dispatcher.create_process(process_definition_id)
 
             #@todo put in a configuration
             configuration = {}
@@ -603,7 +616,7 @@ class UserNotificationService(BaseUserNotificationService):
                 'listen_name':'uns_queue' #@todo find the appropriate listen_name
             })
 
-            pid  = self.clients.process_dispatcher.schedule_process(
+            pid  = self.process_dispatcher.schedule_process(
                 process_definition_id,
                 configuration = configuration,
                 process_id=pid2
@@ -728,6 +741,8 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
 
         user = self.clients.resource_registry.read(user_id)
+
+        log.warning("read the user")
         if not user:
             raise BadRequest("No user with the provided user_id: %s" % user_id)
 
@@ -746,6 +761,17 @@ class UserNotificationService(BaseUserNotificationService):
         if not notification_present:
             user.variables= [{'name' : 'notification', 'value' : [notification]}]
 
+        log.warning("In _update_user_with_notification... user: %s" % user)
+        log.warning("user.variables: %s" % user.variables)
+
+        # update the resource registry
+        self.clients.resource_registry.update(user)
+
+        log.warning("updated the user")
+
+        updated_user = self.clients.resource_registry.read(user_id)
+        log.warning("now user is: user.variables: %s" % updated_user.variables)
+
         #------------------------------------------------------------------------------------
         # Update the user_info dictionary maintained by UNS
         #------------------------------------------------------------------------------------
@@ -763,6 +789,4 @@ class UserNotificationService(BaseUserNotificationService):
         self.user_info[user.name] = { 'user_contact' : user.contact, 'notifications' : notifications}
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
-        # update the resource registry
-        self.clients.resource_registry.update(user)
 

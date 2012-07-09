@@ -26,6 +26,12 @@ class NotificationWorker(SimpleProcess):
         self.event_pub = EventPublisher()
         self.user_info = {}
 
+    def test_hook(self, user_info ):
+        '''
+        This method is only to facilitate the testing of the reload of the user_info dictionary
+        '''
+        pass
+
     def on_start(self):
         super(NotificationWorker,self).on_start()
 
@@ -49,14 +55,14 @@ class NotificationWorker(SimpleProcess):
             #------------------------------------------------------------------------------------------
             # reloads the user_info and reverse_user_info dictionaries
             #------------------------------------------------------------------------------------------
-#            gevent.sleep(10)
-
             try:
                 self.user_info = load_user_info()
             except NotFound:
                 log.warning("ElasticSearch has not yet loaded the user_index.")
 
             self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
+
+            self.test_hook(self.user_info, self.reverse_user_info)
 
             log.warning("After reload: ''' user_info: %s" % self.user_info)
             log.warning("After reload: ''' reverse_user_info: %s" % self.reverse_user_info)
