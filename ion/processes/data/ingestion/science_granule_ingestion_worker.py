@@ -9,10 +9,11 @@ from pyon.core.bootstrap import get_sys_name
 from pyon.core.interceptor.encode import encode_ion
 from pyon.core.object import ion_serializer
 from pyon.ion.process import SimpleProcess
+from pyon.ion.granule import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
 from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
-from pyon.util.containers import get_ion_ts
+from pyon.util.containers import get_ion_ts, get_safe
 from pyon.util.file_sys import FileSystem, FS
 from pyon.public import log, PRED
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -21,6 +22,7 @@ from gevent import spawn
 import hashlib
 import msgpack
 import re
+import numpy
 
 
 
@@ -46,9 +48,13 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         if msg == {}:
             return
         validate_is_instance(msg,Granule,'Incoming message is not compatible with this ingestion worker')
-
-
-
+        rdt = RecordDictionaryTool.load_from_granule(msg)
+        time = get_safe(rdt,'time')
+        if time is not None and isinstance(time,numpy.ndarray):
+            time = time[0]
+        else:
+            time = None
+            
         simple_dict = ion_serializer.serialize(msg)
         byte_string = msgpack.packb(simple_dict, default=encode_ion)
 
@@ -63,6 +69,8 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
            'encoding_type'  : encoding_type,
            'ts_create'      : get_ion_ts()
         }
+        if time is not None:
+            dataset_granule['ts_create'] = '%s' % time
         self.persist(dataset_granule)
 
         filename = FileSystem.get_hierarchical_url(FS.CACHE, calculated_sha1, ".%s" % encoding_type)

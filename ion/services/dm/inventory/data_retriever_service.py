@@ -126,7 +126,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.delete(replay_id)
 
-    def start_retrieve(self, dataset_id='', query=None, delivery_format=None):
+    def retrieve(self, dataset_id='', query=None, delivery_format=None):
 
         if query is None:
             query = {}
