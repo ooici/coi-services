@@ -6,6 +6,7 @@
 @author Bill French
 @brief Drive process class that provides a factory for different launch mechanisms
 """
+from pyon.core.exception import ServerError
 
 __author__ = 'Bill French'
 __license__ = 'Apache 2.0'
@@ -211,28 +212,23 @@ class DriverProcess(object):
     def _get_port_from_file(self, filename):
         """
         Read the driver port from a status file.  The driver process writes two status files containing the port
-        number for events and commands.  Currently it reads endlessly until the files is successfully opened, but
-        we may want to raise an exception with a timeout.
+        number for events and commands.
         @param filename path to the port file
         @return port port number read from the file
+        @raise ServerError if file not read w/in 10sec
         """
-        log.debug("read port from file: %s" % filename)
-
-        #TODO: Should this timeout?
-        while True:
+        maxWait=10          # try for up to 10sec
+        waitInterval=0.5    # repeating every 1/2 sec
+        log.debug("about to read port from file %s" % filename)
+        for n in xrange(int(maxWait/waitInterval)):
             try:
-                cmd_port_file = file(filename, 'r')
-                port = int(cmd_port_file.read().strip())
-                cmd_port_file.close()
-                os.remove(filename)
-                break
-
-            except IOError, e:
-                log.debug("failed to read file %s: %s (retry)" % (filename, e))
-                time.sleep(.1)
-                pass
-
-        return port
+                with open(filename, 'r') as f:
+                    port = int(f.read().strip())
+                    log.debug("read port %d from file %s" % (port, filename))
+                    return port
+            except: pass
+            time.sleep(waitInterval)
+        raise ServerError('process PID file was not found: ' + filename)
 
     def _driver_workdir(self):
         """
@@ -332,11 +328,18 @@ class ZMQPyClassDriverProcess(DriverProcess):
 
         return self._driver_client
 
-    def get_packet_factories(self):
+    def get_packet_factories(self, stream_info):
         """
-        Construct packet factories from packet_config member of the driver_config.
-        @retval a list of packet factories defined.
+        Construct packet factories from PACKET_CONFIG member of the driver_config
+        and the given stream_info dict.
+
+        @param stream_info
+
+        @retval a dict indexed by stream name of the packet factories defined.
         """
+
+        print("stream_info = %s" % stream_info)
+
         if not self._packet_factories:
             log.info("generating packet factories")
             self._packet_factories = {}
@@ -355,10 +358,18 @@ class ZMQPyClassDriverProcess(DriverProcess):
                 log.error('PACKET_CONFIG undefined in driver module %s ' % driver_module)
 
             if packet_config:
-                for (name, val) in packet_config.iteritems():
-                    # NOTE ignoring val for the moment
+                # TODO the idea is that the PACKET_CONFIG in the driver will
+                # actually be just list of stream names, for ex,
+                #    PACKET_CONFIG = ['ctd_parsed', 'ctd_raw']
+                # Since it's still a dict, just use the key and ignore the val:
+                for (name, _) in packet_config.iteritems():
+                    if not name in stream_info:
+                        log.error("Name '%s' not found in stream_info" % name)
+                        continue
+
+                    stream_config = stream_info[name]
                     try:
-                        packet_builder = create_packet_builder(name)
+                        packet_builder = create_packet_builder(name, stream_config)
                         self._packet_factories[name] = packet_builder
                         log.info('created packet builder for stream %s' % name)
                     except Exception, e:

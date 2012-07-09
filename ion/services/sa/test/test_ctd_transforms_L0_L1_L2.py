@@ -92,7 +92,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('HARDWARE', group='sa')
-#@unittest.skip("run locally only")
+@unittest.skip("run locally only, timeout issue")
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def setUp(self):
