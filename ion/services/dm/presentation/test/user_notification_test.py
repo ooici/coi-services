@@ -732,28 +732,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # reverse_user_info
 
-
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    def test_search_by_name_index(self):
-        inst_dev = InstrumentDevice(name='test_dev',serial_number='ABC123')
-
-        dev_id, _ = self.rrc.create(inst_dev)
-        search_string = "search 'serial_number' is 'abc*' from 'resources_index'"
-
-        results = self.poll(9, self.discovery.parse,search_string)
-
-        self.assertIsNotNone(results, 'Results not found')
-        self.assertTrue(results[0]['_id'] == dev_id)
-
-#        bank_acc = BankAccount(name='blah', cash_balance=10)
-#        res_id , _ = self.rrc.create(bank_acc)
-#
-#        search_string = "search 'cash_balance' values from 0 to 100 from 'resources_index'"
-#
-#        results = self.poll(9, self.discovery.parse,search_string)
-#        self.assertIsNotNone(results, 'Results not found')
-#        self.assertTrue(results[0]['_id'] == res_id)
-
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -793,10 +771,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         notification_request_1 = NotificationRequest(origin="instrument_1",
             origin_type="type_1",
+            event_subtype='subtype_1',
             event_type='ResourceLifecycleEvent')
 
         notification_request_2 = NotificationRequest(origin="instrument_2",
             origin_type="type_2",
+            event_subtype='subtype_2',
             event_type='DetectionEvent')
 
         #--------------------------------------------------------------------------------------
@@ -805,40 +785,65 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
 
-#        self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
-
-
         #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info got reloaded
         #--------------------------------------------------------------------------------------
         proc1 = self.container.proc_manager.procs_by_name[pids[0]]
 
-        ar = gevent.event.AsyncResult()
+        ar_1 = gevent.event.AsyncResult()
+        ar_2 = gevent.event.AsyncResult()
+
         def received_reload(msg, headers):
-            ar.set(msg)
+            log.warning("msg: %s" % msg)
+            log.warning("headers: %s" % headers)
+            ar_1.set(msg)
+            ar_2.set(headers)
+
 
         proc1.test_hook = received_reload
 
-        log.warning("worked... %s" % ar.get(timeout=10))
+        reloaded_user_info = ar_1.get(timeout=10)
+        reloaded_reverse_user_info = ar_2.get(timeout=10)
 
-        reloaded_user_info = ar.get(timeout=10)
 
-        log.warning("reloaded_user_info: %s" % reloaded_user_info)
-        log.warning("keys: %s" % reloaded_user_info.keys())
 
         self.assertEquals(reloaded_user_info['new_user']['notifications'], [notification_request_1] )
         self.assertEquals(reloaded_user_info['new_user']['user_contact'].email, 'new_user@gmail.com')
+
+        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_1'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_type']['ResourceLifecycleEvent'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], ['new_user'] )
 
         #--------------------------------------------------------------------------------------
         # Create another notification
         #--------------------------------------------------------------------------------------
 
-#        self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+        self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
-        # Check in UNS ------------>
-#        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
-#        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_1, notification_request_2])
+        ar_1 = gevent.event.AsyncResult()
+        ar_2 = gevent.event.AsyncResult()
 
+        reloaded_user_info = ar_1.get(timeout=10)
+        reloaded_reverse_user_info = ar_2.get(timeout=10)
+
+        self.assertEquals(reloaded_user_info['new_user']['notifications'], [notification_request_1, notification_request_2] )
+
+
+        log.warning("reloaded_reverse_user_info: %s" % reloaded_reverse_user_info)
+        log.warning("keys: %s" % reloaded_reverse_user_info.keys())
+
+        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_2'], ['new_user'] )
+
+        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_1'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_2'], ['new_user'] )
+
+        self.assertEquals(reloaded_reverse_user_info['event_type']['ResourceLifecycleEvent'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_type']['DetectionEvent'], ['new_user'] )
+
+        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_2'], ['new_user'] )
 
 
     @attr('LOCOINT')
