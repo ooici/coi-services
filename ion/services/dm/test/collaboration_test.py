@@ -17,6 +17,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition, IngestionQueue, Granule
+from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 import unittest
 import os
 
@@ -39,6 +40,14 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
         self.exchange_space       = 'science_granule_ingestion'
         self.exchange_point       = 'science_data'
         self.process_definitions  = {}
+        self.pids                 = []
+
+    def tearDown(self):
+        for pid in self.pids:
+            self.process_dispatcher.cancel_process(pid)
+        IngestionManagementIntTest.clean_subscriptions()
+
+
 
     def subscriber_action(self, msg, header):
         if msg == {}:
@@ -78,13 +87,15 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
         config.process.datastore_name = 'datasets'
         config.process.queue_name = '%s.%s' %(self.exchange_point, self.exchange_space)
 
-        self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
+        pid = self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
+        self.pids.append(pid)
 
         # Next launch the producer(s)
         config = DotDict()
         config.process.stream_id = stream_id
 
-        self.process_dispatcher.schedule_process(self.process_definitions['data_producer'],configuration=config)
+        pid = self.process_dispatcher.schedule_process(self.process_definitions['data_producer'],configuration=config)
+        self.pids.append(pid)
 
             
     def create_ingestion_config(self):
