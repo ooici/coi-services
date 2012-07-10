@@ -20,6 +20,8 @@ from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from collections import deque
 from ion.services.dm.utility.query_language import QueryLanguage
 
+import dateutil.parser
+import time
 import elasticpy as ep
 import heapq
 
@@ -490,6 +492,51 @@ class DiscoveryService(BaseDiscoveryService):
         IndexManagementService._check_response(response)
 
         return self._results_from_response(response, id_only)
+
+    def query_time(self, source_id='', field='', from_value=None, to_value=None, order=None, limit=0, offset=0, id_only=False):
+        if not self.use_es:
+            raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
+
+        validate_is_instance(from_value,basestring,'"From" is not a valid string')
+        validate_is_instance(to_value,basestring,'"To" is not a valid string')
+
+        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
+
+        source = self.clients.resource_registry.read(source_id)
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        # If source is a view, catalog or collection go through it and recursively call query_range on all the results in the indexes
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        iterate = self._multi(self.query_time, source, field=field, from_value=from_value, to_value=to_value, order=order, limit=limit, offset=offset, id_only=id_only)
+        if iterate is not None:
+            return iterate
+
+        index = source
+        validate_is_instance(index,ElasticSearchIndex,'%s does not refer to a valid index.' % source_id)
+        if order:
+            validate_is_instance(order,dict,'Order is incorrect.')
+            es.sort(**order)
+
+        if limit:
+            es.size(limit)
+
+        if field == '*':
+            field = '_all'
+
+        query = ep.ElasticQuery().range(
+            field      = field,
+            from_value = time.mktime(dateutil.parser.parse(from_value).timetuple()),
+            to_value   = time.mktime(dateutil.parser.parse(to_value).timetuple())
+        )
+
+        response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
+
+        IndexManagementService._check_response(response)
+
+        return self._results_from_response(response, id_only)
+
+
+
 
 
     def query_association(self,resource_id='', depth=0, id_only=False):

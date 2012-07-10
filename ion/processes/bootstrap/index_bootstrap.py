@@ -116,6 +116,8 @@ class IndexBootStrap(ImmediateProcess):
                 mapping.update( ep.ElasticMap(k).type('double'))
             elif ion_type=='float':
                 mapping.update( ep.ElasticMap(k).type('double'))
+            elif re.match(r'^ts_', k):
+                mapping.update( ep.ElasticMap(k).type('double'))
             elif ion_type=='str':
                 mapping.update( ep.ElasticMap(k).type('string'))
             elif ion_type=='GeospatialLocation':

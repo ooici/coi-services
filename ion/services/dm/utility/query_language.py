@@ -8,6 +8,9 @@
 from pyparsing import ParseException, Regex, quotedString, CaselessLiteral, MatchFirst, removeQuotes, Optional
 from pyon.core.exception import BadRequest
 
+import time
+import dateutil.parser
+
 
 class QueryLanguage(object):
     '''
@@ -23,7 +26,7 @@ class QueryLanguage(object):
                 <query> ::= <search-query> | <association-query> | <collection-query>
     <association-query> ::= "BELONGS TO" <resource-id> [<limit-parameter>]
      <collection-query> ::= "IN" <collection-id>
-         <search_query> ::= "SEARCH" <field> (<term-query> | <range-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
+         <search_query> ::= "SEARCH" <field> (<term-query> | <range-query> |<time-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
       <query-parameter> ::= <order-parameter> | <limit-parameter> | <offset-parameter>
      <offset-parameter> ::= "SKIP" <integer>
       <order-parameter> ::= "ORDER BY" <limited-string>
@@ -32,6 +35,7 @@ class QueryLanguage(object):
            <term-query> ::= "IS" <field-query>
           <field-query> ::= <wildcard-string>
           <range-query> ::= "VALUES FROM" <number> "TO" <number>
+           <time-query> ::= "TIME FROM" <date> "TO" <date>
             <geo-query> ::= "GEO" ( <geo-distance> | <geo-bbox> )
          <geo-distance> ::= "DISTANCE" <distance> "FROM" <coords>
              <geo-bbox> ::= "BOX" "TOP-LEFT" <coords> "BOTTOM-RIGHT" <coords>
@@ -84,6 +88,12 @@ class QueryLanguage(object):
         distance.setParseAction( lambda x : self.frame.update({'dist' : float(x[0]), 'units' : x[1]}))
 
         #--------------------------------------------------------------------------------------
+        # Date
+        #--------------------------------------------------------------------------------------
+        
+        date = python_string
+        
+        #--------------------------------------------------------------------------------------
         # <query-filter> ::= "FILTER" <python-string>
         # <index-name>   ::= <python-string>
         # <resource-id>  ::= '"' a..z A..Z 0..9 $ _ -'"' (alpha nums surrounded by double quotes)
@@ -97,6 +107,14 @@ class QueryLanguage(object):
         index_name.setParseAction(lambda x : self.frame.update({'index' : x[0]}))
         resource_id = Regex(r'("(?:[a-zA-Z0-9\$_-])*"|\'(?:[a-zA-Z0-9\$_-]*)\')').setParseAction(removeQuotes)
         collection_id = resource_id
+
+        #--------------------------------------------------------------------------------------
+        # <time-query> ::= "TIME FROM" <date> "TO" <date>
+        #--------------------------------------------------------------------------------------
+        time_query = CaselessLiteral("TIME") + CaselessLiteral("FROM") + date + CaselessLiteral("TO") + date
+        time_query.setParseAction(lambda x : self.frame.update({'time' : {'from' : x[2], 'to' : x[4]}}))
+           # time.mktime(dateutil.parser.parse(x[2])), 'to':time.mktime(dateutil.parser.parse(x[4]))}}))
+
 
         #--------------------------------------------------------------------------------------
         # <range-query>  ::= "VALUES FROM" <number> "TO" <number>
@@ -143,12 +161,12 @@ class QueryLanguage(object):
         query_parameter = limit_parameter | order_parameter | offset_parameter
 
         #--------------------------------------------------------------------------------------
-        # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
+        # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query> | <time-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
         # <collection-query>  ::= "IN <collection-id>"
         # <association-query> ::= "BELONGS TO" <resource-id> [ <depth-parameter> ]
         # <query>             ::= <search-query> | <association-query> | <collection-query>
         #--------------------------------------------------------------------------------------
-        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
+        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | time_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
         # Add the field to the frame object
         search_query.setParseAction(lambda x : self.frame.update({'field' : x[1]}))
         collection_query = CaselessLiteral("IN") + collection_id
