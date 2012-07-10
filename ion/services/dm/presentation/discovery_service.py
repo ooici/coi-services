@@ -322,6 +322,30 @@ class DiscoveryService(BaseDiscoveryService):
             return self.query_range(**kwargs)
         
         #---------------------------------------------
+        # Time Search
+        #---------------------------------------------
+        elif QueryLanguage.query_is_time_search(query):
+            source_id = self._match_query_sources(query['index']) or query['index']
+            kwargs = dict(
+                source_id  = source_id,
+                field      = query['field'],
+                from_value = query['time']['from'],
+                to_value   = query['time']['to'],
+                limit      = limit,
+                id_only    = id_only
+            )
+            
+            if query.get('limit'):
+                kwargs['limit'] = query['limit']
+            if query.get('order'):
+                kwargs['order'] = query['order']
+            if query.get('offset'):
+                kwargs['offset'] = query['offset']
+            
+            return self.query_time(**kwargs)
+        
+        
+        #---------------------------------------------
         # Collection Search
         #---------------------------------------------
         elif QueryLanguage.query_is_collection_search(query):
@@ -505,7 +529,7 @@ class DiscoveryService(BaseDiscoveryService):
         source = self.clients.resource_registry.read(source_id)
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        # If source is a view, catalog or collection go through it and recursively call query_range on all the results in the indexes
+        # If source is a view, catalog or collection go through it and recursively call query_time on all the results in the indexes
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
         iterate = self._multi(self.query_time, source, field=field, from_value=from_value, to_value=to_value, order=order, limit=limit, offset=offset, id_only=id_only)
         if iterate is not None:
@@ -525,9 +549,10 @@ class DiscoveryService(BaseDiscoveryService):
 
         query = ep.ElasticQuery().range(
             field      = field,
-            from_value = time.mktime(dateutil.parser.parse(from_value).timetuple()),
-            to_value   = time.mktime(dateutil.parser.parse(to_value).timetuple())
+            from_value = time.mktime(dateutil.parser.parse(from_value).timetuple()) * 1000,
+            to_value   = time.mktime(dateutil.parser.parse(to_value).timetuple()) * 1000
         )
+        log.critical(query)
 
         response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
 

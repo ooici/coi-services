@@ -52,7 +52,15 @@ EDGE_INDEXES = {
     '%s_resources_index' % get_sys_name().lower() : 'Index containing all resources',
     '%s_events_index'    % get_sys_name().lower() : 'Index containing Pyon Events'
 }
-ELASTICSEARCH_CONTEXT_SCRIPT = 'if(ctx.doc.lcstate == "RETIRED") { ctx.deleted = true; } ctx._id = ctx.doc._id; ctx._type = ctx.doc.type_'
+
+TIME_FIELDS = ['ts_created', 'ts_updated']
+
+ELASTICSEARCH_CONTEXT_SCRIPT = 'if(ctx.doc.lcstate == "RETIRED") { ctx.deleted = true; } ctx._id = ctx.doc._id; ctx._type = ctx.doc.type_;'
+
+for t in TIME_FIELDS:
+    ELASTICSEARCH_CONTEXT_SCRIPT += 'if(ctx.doc.%s) { ctx.doc.%s = Number(ctx.doc.%s) }' %(t,t,t)
+
+
 
 
 def get_events():

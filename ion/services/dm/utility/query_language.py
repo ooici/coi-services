@@ -283,6 +283,16 @@ class QueryLanguage(object):
         return False
 
     @classmethod
+    def query_is_time_search(cls,query=None):
+        if not query:
+            return False
+        if not isinstance(query,dict):
+            return False
+        if query.has_key('time') and isinstance(query['time'], dict) and query['time'].has_key('from') and query['time'].has_key('to') and query.has_key('index') and query.has_key('field'):
+            return True
+        return False
+
+    @classmethod
     def match(cls, event = None, query = None):
 
         field_val = getattr(event,query['field'])
