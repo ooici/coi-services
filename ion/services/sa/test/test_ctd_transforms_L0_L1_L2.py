@@ -94,7 +94,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
-#@unittest.skip("run locally only, timeout issue")
+@unittest.skip("run locally only, timeout issue")
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def setUp(self):
