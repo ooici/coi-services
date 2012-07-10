@@ -40,9 +40,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         
         print 'started services'
 
-    @unittest.skip('this test just for debugging setup')
-    def test_just_the_setup(self):
-        return
+#    @unittest.skip('this test just for debugging setup')
+#    def test_just_the_setup(self):
+#        return
 
     def test_resources_associations(self):
         """

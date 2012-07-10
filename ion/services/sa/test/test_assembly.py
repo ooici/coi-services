@@ -62,9 +62,9 @@ class TestAssembly(IonIntegrationTestCase):
 
         self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
 
-    @unittest.skip('this test just for debugging setup')
-    def test_just_the_setup(self):
-        return
+#    @unittest.skip('this test just for debugging setup')
+#    def test_just_the_setup(self):
+#        return
     
 
     def _low_level_init(self):
