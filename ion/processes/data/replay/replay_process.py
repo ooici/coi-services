@@ -71,9 +71,11 @@ class ReplayProcess(BaseReplayProcess):
         #--------------------------------------------------------------------------------
         # Gather all the dataset granules and compile the FS cache
         #--------------------------------------------------------------------------------
+        log.debug('Getting data from datastore')
         for result in datastore.query_view(view_name,opts=opts):
             doc = result.get('doc')
             if doc is not None:
+                log.debug(doc)
                 sha1 = doc.get('persisted_sha1')
                 encoding = doc.get('encoding_type')
                 # Warning: redundant serialization
@@ -115,6 +117,7 @@ class ReplayProcess(BaseReplayProcess):
         # Gather all the dataset granules and compile the FS cache
         #--------------------------------------------------------------------------------
         for result in datastore.query_view(view_name,opts=opts):
+            log.debug(result)
             doc = result.get('doc')
             if doc is not None:
                 sha1 = doc.get('persisted_sha1')

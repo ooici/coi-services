@@ -7,7 +7,7 @@
 '''
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from pyon.core.exception import Timeout
-from pyon.public import RT
+from pyon.public import RT, log
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
@@ -179,6 +179,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
     def test_replay_by_time(self):
         stream_id = self.pubsub_management.create_stream()
+        log.debug("BUGS! starting")
 
         config_id = self.get_ingestion_config()
 
