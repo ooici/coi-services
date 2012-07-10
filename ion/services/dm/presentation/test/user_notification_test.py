@@ -376,6 +376,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.imc = IdentityManagementServiceClient()
         self.discovery = DiscoveryServiceClient()
 
+        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
+
 #    @staticmethod
 #    def es_cleanup():
 #        es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
@@ -866,12 +868,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # this part of code is in the beginning to allow enough time for the events_index creation
 
         for i in xrange(10):
-            event_publisher.publish_event( ts_created= float(i) ,
+            event_publisher.publish_event( ts_created= i ,
                 origin="instrument_1",
                 origin_type="type_1",
                 event_type='ResourceLifecycleEvent')
 
-            event_publisher.publish_event( ts_created= float(i) ,
+            event_publisher.publish_event( ts_created= i ,
                 origin="instrument_3",
                 origin_type="type_3",
                 event_type='ResourceLifecycleEvent')
@@ -888,12 +890,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # user_2
         user_2 = UserInfo()
         user_2.name = 'user_2'
-        user_2.contact.phone = 'user_2@gmail.com'
+        user_2.contact.email = 'user_2@gmail.com'
 
         # user_3
         user_3 = UserInfo()
         user_3.name = 'user_3'
-        user_3.contact.phone = 'user_3@gmail.com'
+        user_3.contact.email = 'user_3@gmail.com'
 
         # this part of code is in the beginning to allow enough time for the users_index creation
 
@@ -944,15 +946,55 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Do a process_batch() in order to start the batch notifications machinery
         #--------------------------------------------------------------------------------------
 
-        self.unsc.process_batch(start_time=5, end_time= 8)
+        test_start_time = 5
+        test_end_time = 8
+        self.unsc.process_batch(start_time=test_start_time, end_time= test_end_time)
 
         #--------------------------------------------------------------------------------------
         # Check that the emails were sent to the users. This is done using the fake smtp client
         # Make assertions....
         #--------------------------------------------------------------------------------------
 
+        self.assertFalse(proc1.smtp_client.sent_mail.empty())
 
-        #todo: add assertions when batch_notifications is completed
+        email_list = []
+
+        while not proc1.smtp_client.sent_mail.empty():
+            email_tuple = proc1.smtp_client.sent_mail.get()
+            email_list.append(email_tuple)
+
+        self.assertEquals(len(email_list), 3)
+
+        for email_tuple in email_list:
+            msg_sender, msg_recipient, msg = email_tuple
+
+            self.assertEquals(msg_sender, self.ION_NOTIFICATION_EMAIL_ADDRESS )
+            self.assertTrue(msg_recipient in ['user_1@gmail.com', 'user_2@gmail.com', 'user_3@gmail.com'])
+
+            lines = msg.split("\r\n")
+
+            log.warning("lines: %s" % lines)
+
+            maps = []
+
+            for line in lines:
+
+                maps.extend(line.split(','))
+
+            log.warning("maps: %s" % maps)
+
+            event_time = ''
+            for map in maps:
+                fields = map.split(":")
+                if fields[0].find("ts_created") > -1:
+                    event_time = int(fields[1].strip(" "))
+                    break
+            log.warning("event_time: %s" % event_time)
+
+            # Check that the events sent in the email had times within the user specified range
+            self.assertTrue(event_time > test_start_time)
+            self.assertTrue(event_time < test_end_time)
+
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -961,25 +1003,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         Test that the workers process the notification event and send email using the
         fake smtp client
         '''
-
-        #--------------------------------------------------------------------------------------
-        # Create notification workers
-        #--------------------------------------------------------------------------------------
-
-        pids = self.unsc.create_worker(number_of_workers=3)
-        self.assertEquals(len(pids), 3)
-
-        #--------------------------------------------------------------------------------------
-        # Make notification request objects
-        #--------------------------------------------------------------------------------------
-
-        notification_request_1 = NotificationRequest(origin="instrument_1",
-            origin_type="type_1",
-            event_type='ResourceLifecycleEvent')
-
-        notification_request_2 = NotificationRequest(origin="instrument_2",
-            origin_type="type_2",
-            event_type='DetectionEvent')
 
         #-------------------------------------------------------
         # Create users and get the user_ids
@@ -1000,6 +1023,34 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_id_2, _ = self.rrc.create(user_2)
 
         #--------------------------------------------------------------------------------------
+        # Create notification workers
+        #--------------------------------------------------------------------------------------
+
+        pids = self.unsc.create_worker(number_of_workers=1)
+        self.assertEquals(len(pids), 1)
+
+        proc1 = self.container.proc_manager.procs_by_name[pids[0]]
+#        proc2 = self.container.proc_manager.procs_by_name[pids[1]]
+#        proc3 = self.container.proc_manager.procs_by_name[pids[2]]
+
+
+        # allow elastic search to populate the users_index. This gives enough time for the reload of user_info
+        gevent.sleep(2)
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
+
+
+        #--------------------------------------------------------------------------------------
         # Create notifications using UNS.
         #--------------------------------------------------------------------------------------
 
@@ -1008,34 +1059,60 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
 
-
-        # allow elastic search to populate the users_index. This gives enough time for the reload of user_info
-        gevent.sleep(2)
-
         #--------------------------------------------------------------------------------------
         # Publish events
         #--------------------------------------------------------------------------------------
 
         event_publisher = EventPublisher("ResourceLifecycleEvent")
 
-        event_publisher.publish_event( ts_created= float(i) ,
+        event_publisher.publish_event( ts_created= 5,
             origin="instrument_1",
             origin_type="type_1",
             event_type='ResourceLifecycleEvent')
 
-        event_publisher.publish_event( ts_created= float(i) ,
+        event_publisher.publish_event( ts_created= 10,
             origin="instrument_2",
             origin_type="type_2",
             event_type='DetectionEvent')
 
-        #todo check whether we really need to have a sleep here
-        gevent.sleep(2)
 
         #--------------------------------------------------------------------------------------
         # Check that the workers processed the events
         #--------------------------------------------------------------------------------------
 
         # check fake smtp client for emails sent
+        self.assertFalse(proc1.smtp_client.sent_mail.empty())
+
+        email_list = []
+
+        while not proc1.smtp_client.sent_mail.empty():
+            email_tuple = proc1.smtp_client.sent_mail.get()
+            email_list.append(email_tuple)
+
+        # check that two emails were sent for the two users
+        self.assertEquals(len(email_list), 2)
+
+        for email_tuple in email_list:
+            msg_sender, msg_recipient, msg = email_tuple
+
+            self.assertEquals(msg_sender, self.ION_NOTIFICATION_EMAIL_ADDRESS )
+            self.assertTrue(msg_recipient in ['user_1@gmail.com', 'user_2@gmail.com'])
+
+            maps = []
+            maps = msg.split(",")
+            log.warning("maps: %s" % maps)
+
+            event_time = ''
+            for map in maps:
+                fields = map.split(":")
+                if fields[0].find("Time stamp") > -1:
+                    event_time = int(fields[1].strip(" "))
+                    break
+            log.warning("event_time: %s" % event_time)
+
+            # Check that the events sent in the email had times within the user specified range
+            self.assertEquals(event_time, 5)
+            self.assertEquals(event_time, 10)
 
         # check if the correct users were sent email to regarding the correct events
 
