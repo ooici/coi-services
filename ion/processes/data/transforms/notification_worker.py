@@ -39,9 +39,14 @@ class NotificationWorker(SimpleProcess):
         # Start by loading the user info and reverse user info dictionaries
         #------------------------------------------------------------------------------------
 
-        # todo fix the problem of load_user_info
-#        self.user_info = load_user_info()
-#        calculate_reverse_user_info(self.user_info)
+        try:
+            self.user_info = load_user_info()
+            calculate_reverse_user_info(self.user_info)
+        except NotFound as exc:
+            if exc.message.find('users_index') > -1:
+                log.warning("Notification workers found on start up that users_index have not been loaded yet.")
+            else:
+                raise NotFound(exc.message)
 
         #------------------------------------------------------------------------------------
         # Create an event subscriber for Reload User Info events
