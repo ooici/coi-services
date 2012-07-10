@@ -2,6 +2,7 @@ import datetime
 import logging
 
 from pyon.agent.agent import ResourceAgent
+from pyon.core.exception import Unauthorized, NotFound
 from pyon.core import bootstrap
 from pyon.public import IonObject, log
 from pyon.util.containers import get_safe
@@ -14,6 +15,8 @@ try:
     from eeagent.core import EEAgentCore
     from eeagent.beatit import make_beat_msg
     from eeagent.execute import get_exe_factory
+    from eeagent.eeagent_exceptions import EEAgentUnauthorizedException
+    from pidantic.pidantic_exceptions import PIDanticExecutionException
 except ImportError:
     EEAgentCore = None
 
@@ -67,7 +70,12 @@ class ExecutionEngineAgent(ResourceAgent):
         self._factory.terminate()
 
     def rcmd_launch_process(self, u_pid, round, run_type, parameters):
-        self.core.launch_process(u_pid, round, run_type, parameters)
+        try:
+            self.core.launch_process(u_pid, round, run_type, parameters)
+        except EEAgentUnauthorizedException, e:
+            raise Unauthorized(e.message)
+        except PIDanticExecutionException, e:
+            raise NotFound(e.message)
 
     def rcmd_terminate_process(self, u_pid, round):
         self.core.terminate_process(u_pid, round)
