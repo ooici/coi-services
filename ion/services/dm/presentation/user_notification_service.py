@@ -12,6 +12,7 @@ from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
 from pyon.util.containers import DotDict
+from pyon.datastore.datastore import DatastoreManager
 from pyon.event.event import EventPublisher, EventSubscriber
 from ion.services.dm.utility.query_language import QueryLanguage
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
@@ -265,6 +266,7 @@ class UserNotificationService(BaseUserNotificationService):
         # Get the discovery client for batch processing
         self.discovery = DiscoveryServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
+        self.datastore_manager = DatastoreManager()
 
         for originator in self.event_originators:
             try:
@@ -627,7 +629,7 @@ class UserNotificationService(BaseUserNotificationService):
         return pids
 
 
-    def process_batch(self, start_time = 0, end_time = 10.0):
+    def process_batch(self, start_time = 0, end_time = 10):
         '''
         This method is launched when an process_batch event is received. The user info dictionary maintained
         by the User Notification Service is used to query the event repository for all events for a particular
@@ -645,11 +647,7 @@ class UserNotificationService(BaseUserNotificationService):
         #                               'index': 'events_index',
         #                               'range': {'from': 0.0, 'to': 100.0}}}
 
-
         for user_name, value in self.user_info.iteritems():
-
-#            log.warning("value: %s" % value)
-#            log.warning("type of value: %s" % type(value))
 
             notifications = value['notifications']
 
@@ -665,10 +663,14 @@ class UserNotificationService(BaseUserNotificationService):
                 search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (start_time, end_time)
 
                 search_origin = 'search "origin" is "*" from "events_index"'
-#                search_string = search_time + ' and ' + search_origin
 
-                search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and '\
-                                    + search_event_type + ' and ' + search_event_subtype
+
+                search_string = search_time + ' and ' + search_origin
+
+#                search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and '\
+#                                    + search_event_type + ' and ' + search_event_subtype
+
+                log.warning("notification: %s" % notification)
 
                 # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
@@ -676,9 +678,11 @@ class UserNotificationService(BaseUserNotificationService):
 
                 for event_id in ret_vals:
 #                    datastore = cc.datastore_manager.get_datastore('events')
-                    datastore = self.container.datastore_manager.get_datastore('events')
+                    datastore = self.datastore_manager.get_datastore('events')
                     event_obj = datastore.read(event_id)
                     events_for_message.append(event_obj)
+
+            log.warning("events_for_message: %s" % events_for_message)
 
             # send a notification email to each user using a _send_email() method
             self.format_and_send_email(events_for_message, user_name)
@@ -692,23 +696,32 @@ class UserNotificationService(BaseUserNotificationService):
         log.warning("The user, %s, gets the following message in email: %s" % (user_name, message))
 
         msg_body = ''
+        count = 1
         for event in events_for_message:
             # build the email from the event content
-            msg_body = string.join(("Event: %s" %  event,
+            msg_body += string.join(("\r\n",
+                                     "Event %s: %s" %  (count, event),
                                     "",
                                     "Originator: %s" %  event.origin,
                                     "",
                                     "Description: %s" % event.description ,
                                     "",
                                     "Event time stamp: %s" %  event.ts_created,
-                                    "",
-                                    "You received this notification from ION because you asked to be "\
-                                    "notified about this event from this source. ",
-                                    "To modify or remove notifications about this event, "\
-                                    "please access My Notifications Settings in the ION Web UI.",
-                                    "Do not reply to this email.  This email address is not monitored "\
-                                    "and the emails will not be read."),
-                                    "\r\n")
+                                    "\r\n",
+                                    "------------------------"
+                                    "\r\n"))
+            count += 1
+
+        msg_body += "You received this notification from ION because you asked to be " + \
+                    "notified about this event from this source. " + \
+                    "To modify or remove notifications about this event, " + \
+                    "please access My Notifications Settings in the ION Web UI. " + \
+                    "Do not reply to this email.  This email address is not monitored " + \
+                    "and the emails will not be read. \r\n "
+
+
+        log.warning("msg_body: %s" % msg_body)
+
         msg_subject = "(SysName: " + get_sys_name() + ") ION event "
 
         self.send_batch_email(  msg_body = msg_body,
@@ -717,7 +730,8 @@ class UserNotificationService(BaseUserNotificationService):
                                 smtp_client=self.smtp_client )
 
     def send_batch_email(self, msg_body, msg_subject, msg_recipient, smtp_client):
-        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
+
+#        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
 
         # the 'from' email address for notification emails
         msg_sender = self.ION_NOTIFICATION_EMAIL_ADDRESS
@@ -729,9 +743,7 @@ class UserNotificationService(BaseUserNotificationService):
         log.debug("UserEventProcessor.subscription_callback(): sending email to %s"\
         %msg_recipient)
 
-        smtp_sender = CFG.get_safe('server.smtp.sender')
-
-        smtp_client.sendmail(smtp_sender, msg_recipient, msg.as_string())
+        smtp_client.sendmail(msg_sender, msg_recipient, msg.as_string())
 
 
     def _update_user_with_notification(self, user_id, notification):

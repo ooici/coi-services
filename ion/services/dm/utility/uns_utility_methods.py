@@ -17,7 +17,7 @@ class fake_smtplib(object):
 
     def __init__(self,host):
         self.host = host
-        self.sentmail = gevent.queue.Queue()
+        self.sent_mail = gevent.queue.Queue()
 
     @classmethod
     def SMTP(cls,host):
@@ -26,7 +26,8 @@ class fake_smtplib(object):
 
     def sendmail(self, msg_sender, msg_recipient, msg):
         log.info('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipient))
-        self.sentmail.put((msg_sender, msg_recipient, msg))
+        self.sent_mail.put((msg_sender, msg_recipient, msg))
+
 
 def setting_up_smtp_client():
     '''
@@ -57,12 +58,10 @@ def setting_up_smtp_client():
         smtp_client.login(smtp_sender, smtp_password)
 
         log.warning("Using smpt host: %s" % smtp_host)
-
     else:
         # Keep this as a warning
         log.warning('Using a fake SMTP library to simulate email notifications!')
 
-        #@todo - what about port etc??? What is the correct interface to fake?
         smtp_client = fake_smtplib.SMTP(smtp_host)
 
     return smtp_client
@@ -85,13 +84,13 @@ def send_email(message, msg_recipient, smtp_client):
 
 
     # build the email from the event content
-    msg_body = string.join(("Event: %s" %  event,
+    msg_body = string.join(("Event: %s," %  event,
                             "",
-                            "Originator: %s" %  origin,
+                            "Originator: %s," %  origin,
                             "",
-                            "Description: %s" % description ,
+                            "Description: %s," % description ,
                             "",
-                            "Time stamp: %s" %  time_stamp,
+                            "Time stamp: %s," %  time_stamp,
                             "",
                             "You received this notification from ION because you asked to be "\
                             "notified about this event from this source. ",

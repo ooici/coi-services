@@ -35,6 +35,8 @@ class NotificationWorker(SimpleProcess):
     def on_start(self):
         super(NotificationWorker,self).on_start()
 
+        self.smtp_client = setting_up_smtp_client()
+
         #------------------------------------------------------------------------------------
         # Start by loading the user info and reverse user info dictionaries
         #------------------------------------------------------------------------------------
@@ -110,9 +112,8 @@ class NotificationWorker(SimpleProcess):
         message = str(msg)
 
         for user_name in users:
-            smtp_client = setting_up_smtp_client()
             msg_recipient = user_info[user_name]['user_contact'].email
-            send_email(message = message, msg_recipient = msg_recipient, smtp_client = smtp_client )
+            send_email(message = message, msg_recipient = msg_recipient, smtp_client = self.smtp_client )
 
     def on_stop(self):
         # close subscribers safely
