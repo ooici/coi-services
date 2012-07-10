@@ -748,6 +748,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user.name = 'new_user'
         user.contact.email = 'new_user@gmail.com'
 
+        # this part of code is in the beginning to allow enough time for users_index creation
+
         user_id, _ = self.rrc.create(user)
 
         # confirm that users_index got created by discovery
@@ -847,30 +849,32 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
-    @unittest.skip("")
-#    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_batch_notifications(self):
         '''
         Test that batch notifications work
         '''
 
-        proc1 = self.container.proc_manager.procs_by_name['user_notification']
-
         #--------------------------------------------------------------------------------------
-        # Make notification request objects
+        # Publish events corresponding to the notification requests just made
+        # These events will get stored in the event repository allowing UNS to batch process
+        # them later for batch notifications
         #--------------------------------------------------------------------------------------
 
-        notification_request_1 = NotificationRequest(origin="instrument_1",
-                                                    origin_type="type_1",
-                                                    event_type='ResourceLifecycleEvent')
+        event_publisher = EventPublisher("ResourceLifecycleEvent")
 
-        notification_request_2 = NotificationRequest(origin="instrument_2",
-                                                    origin_type="type_2",
-                                                    event_type='DetectionEvent')
+        # this part of code is in the beginning to allow enough time for the events_index creation
 
-        notification_request_3 = NotificationRequest(origin="instrument_3",
-                                                    origin_type="type_3",
-                                                    event_type='ResourceLifecycleEvent')
+        for i in xrange(10):
+            event_publisher.publish_event( ts_created= float(i) ,
+                origin="instrument_1",
+                origin_type="type_1",
+                event_type='ResourceLifecycleEvent')
+
+            event_publisher.publish_event( ts_created= float(i) ,
+                origin="instrument_3",
+                origin_type="type_3",
+                event_type='ResourceLifecycleEvent')
 
         #----------------------------------------------------------------------------------------
         # Create users and get the user_ids
@@ -891,9 +895,34 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_3.name = 'user_3'
         user_3.contact.phone = 'user_3@gmail.com'
 
+        # this part of code is in the beginning to allow enough time for the users_index creation
+
         user_id_1, _ = self.rrc.create(user_1)
         user_id_2, _ = self.rrc.create(user_2)
         user_id_3, _ = self.rrc.create(user_3)
+
+        #--------------------------------------------------------------------------------------
+        # Grab the UNS process
+        #--------------------------------------------------------------------------------------
+
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(origin="instrument_1",
+                                                    origin_type="type_1",
+                                                    event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(origin="instrument_2",
+                                                    origin_type="type_2",
+                                                    event_type='DetectionEvent')
+
+        notification_request_3 = NotificationRequest(origin="instrument_3",
+                                                    origin_type="type_3",
+                                                    event_type='ResourceLifecycleEvent')
+
 
 
         #--------------------------------------------------------------------------------------
@@ -908,34 +937,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id_3)
         self.unsc.create_notification(notification=notification_request_3, user_id=user_id_3)
 
-
-        #--------------------------------------------------------------------------------------
-        # Publish events corresponding to the notification requests just made
-        # These events will get stored in the event repository allowing UNS to batch process
-        # them later for batch notifications
-        #--------------------------------------------------------------------------------------
-
-        event_publisher = EventPublisher("ResourceLifecycleEvent")
-
-        for i in xrange(10):
-            event_publisher.publish_event( ts_created= float(i) ,
-                                            origin="instrument_1",
-                                            origin_type="type_1",
-                                            event_type='ResourceLifecycleEvent')
-
-            event_publisher.publish_event( ts_created= float(i) ,
-                                            origin="instrument_3",
-                                            origin_type="type_3",
-                                            event_type='ResourceLifecycleEvent')
-
         # allow enough time for elastic search to populate the events_index.
-        gevent.sleep(4)
+#        gevent.sleep(4)
 
         #--------------------------------------------------------------------------------------
         # Do a process_batch() in order to start the batch notifications machinery
         #--------------------------------------------------------------------------------------
 
-        self.unsc.process_batch(start_time=5.0, end_time= 8.0)
+        self.unsc.process_batch(start_time=5, end_time= 8)
 
         #--------------------------------------------------------------------------------------
         # Check that the emails were sent to the users. This is done using the fake smtp client
@@ -958,8 +967,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         pids = self.unsc.create_worker(number_of_workers=3)
-
-        log.warning("pids: %s" % pids)
+        self.assertEquals(len(pids), 3)
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects
