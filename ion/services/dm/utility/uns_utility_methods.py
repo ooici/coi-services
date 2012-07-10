@@ -166,12 +166,9 @@ def load_user_info():
     results = []
     user_info = {}
 
-    try:
-        discovery = DiscoveryServiceClient()
-        results = poll(9, discovery.parse,search_string)
-    except NotFound as exc:
-        log.warning("Discovery could not find the index, users_index. Exception message: %s" % exc.message)
-        raise NotFound("Discovery could not find the index, users_index.")
+    discovery = DiscoveryServiceClient()
+    results = poll(9, discovery.parse,search_string)
+
 
     log.warning("results --- %s" % results)
 
