@@ -164,7 +164,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest('Data Product %s must have one stream associated' % str(data_product_id))
 
         #todo: what if there are multiple streams?
-        stream_id = streams[0]
+        stream_id = streams[0]._id
         log.debug("activate_data_product_persistence: stream = %s"  % str(stream_id))
 
         #--------------------------------------------------------------------------------
