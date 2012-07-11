@@ -616,7 +616,7 @@ class UserNotificationService(BaseUserNotificationService):
 
                 search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (start_time, end_time)
 
-                search_origin = 'search "origin" is "*" from "events_index"'
+#                search_origin = 'search "origin" is "*" from "events_index"'
 
 
                 search_string = search_time + ' and ' + search_origin
@@ -646,7 +646,7 @@ class UserNotificationService(BaseUserNotificationService):
         '''
 
         message = str(events_for_message)
-        log.warning("The user, %s, gets the following message in email: %s" % (user_name, message))
+        log.warning("The user, %s, gets the following events in email: %s" % (user_name, message))
 
         msg_body = ''
         count = 1

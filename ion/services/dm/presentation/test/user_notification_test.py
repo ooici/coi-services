@@ -106,100 +106,100 @@ class UserNotificationTest(PyonTestCase):
         #@todo when validation for subscription properties is added test it here...
 
 
-    def test_create_email(self):
-
-        #------------------------------------------------------------------------------------------------------
-        #Setup for the create email test
-        #------------------------------------------------------------------------------------------------------
-
-        cn = Mock()
-
-        notification_id = 'an id'
-        args_list = {}
-        kwargs_list = {}
-
-        def side_effect(*args, **kwargs):
-
-            args_list.update(args)
-            kwargs_list.update(kwargs)
-            return notification_id
-
-        cn.side_effect = side_effect
-        self.user_notification.create_notification = cn
-
-        #------------------------------------------------------------------------------------------------------
-        # Test with complete arguments
-        #------------------------------------------------------------------------------------------------------
-
-        res = self.user_notification.create_email(event_type='event_type',
-            event_subtype='event_subtype',
-            origin='origin',
-            origin_type='origin_type',
-            user_id='user_id',
-            email='email',
-            mode = DeliveryMode.DIGEST,
-            message_header='message_header',
-            parser='parser'
-        )
-
-        #------------------------------------------------------------------------------------------------------
-        # Assert results about complete arguments
-        #------------------------------------------------------------------------------------------------------
-
-        self.assertEquals(res, notification_id)
-
-        notification_request = kwargs_list['notification']
-        user_id = kwargs_list['user_id']
-
-        self.assertEquals(user_id, 'user_id')
-        self.assertEquals(notification_request.delivery_config.delivery['email'], 'email')
-        self.assertEquals(notification_request.delivery_config.delivery['mode'], DeliveryMode.DIGEST)
-
-        self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
-        self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
-
-        self.assertEquals(notification_request.event_type, 'event_type')
-        self.assertEquals(notification_request.event_subtype, 'event_subtype')
-        self.assertEquals(notification_request.origin, 'origin')
-        self.assertEquals(notification_request.origin_type, 'origin_type')
-
-
-
-        #------------------------------------------------------------------------------------------------------
-        # Test with email missing...
-        #------------------------------------------------------------------------------------------------------
-
-        with self.assertRaises(BadRequest):
-            res = self.user_notification.create_email(event_type='event_type',
-                event_subtype='event_subtype',
-                origin='origin',
-                origin_type='origin_type',
-                user_id='user_id',
-                mode = DeliveryMode.DIGEST,
-                message_header='message_header',
-                parser='parser')
-
-        #------------------------------------------------------------------------------------------------------
-        # Test with user id missing - that is caught in the create_notification method
-        #------------------------------------------------------------------------------------------------------
-
-        res = self.user_notification.create_email(event_type='event_type',
-            event_subtype='event_subtype',
-            origin='origin',
-            origin_type='origin_type',
-            email='email',
-            mode = DeliveryMode.DIGEST,
-            message_header='message_header',
-            parser='parser')
-
-        notification_request = kwargs_list['notification']
-        user_id = kwargs_list['user_id']
-
-        self.assertEquals(user_id, '')
-        self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
-        self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
-        self.assertEquals(notification_request.type, NotificationType.EMAIL)
-
+#    def test_create_email(self):
+#
+#        #------------------------------------------------------------------------------------------------------
+#        #Setup for the create email test
+#        #------------------------------------------------------------------------------------------------------
+#
+#        cn = Mock()
+#
+#        notification_id = 'an id'
+#        args_list = {}
+#        kwargs_list = {}
+#
+#        def side_effect(*args, **kwargs):
+#
+#            args_list.update(args)
+#            kwargs_list.update(kwargs)
+#            return notification_id
+#
+#        cn.side_effect = side_effect
+#        self.user_notification.create_notification = cn
+#
+#        #------------------------------------------------------------------------------------------------------
+#        # Test with complete arguments
+#        #------------------------------------------------------------------------------------------------------
+#
+#        res = self.user_notification.create_email(event_type='event_type',
+#            event_subtype='event_subtype',
+#            origin='origin',
+#            origin_type='origin_type',
+#            user_id='user_id',
+#            email='email',
+#            mode = DeliveryMode.DIGEST,
+#            message_header='message_header',
+#            parser='parser'
+#        )
+#
+#        #------------------------------------------------------------------------------------------------------
+#        # Assert results about complete arguments
+#        #------------------------------------------------------------------------------------------------------
+#
+#        self.assertEquals(res, notification_id)
+#
+#        notification_request = kwargs_list['notification']
+#        user_id = kwargs_list['user_id']
+#
+#        self.assertEquals(user_id, 'user_id')
+#        self.assertEquals(notification_request.delivery_config.delivery['email'], 'email')
+#        self.assertEquals(notification_request.delivery_config.delivery['mode'], DeliveryMode.DIGEST)
+#
+#        self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
+#        self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
+#
+#        self.assertEquals(notification_request.event_type, 'event_type')
+#        self.assertEquals(notification_request.event_subtype, 'event_subtype')
+#        self.assertEquals(notification_request.origin, 'origin')
+#        self.assertEquals(notification_request.origin_type, 'origin_type')
+#
+#
+#
+#        #------------------------------------------------------------------------------------------------------
+#        # Test with email missing...
+#        #------------------------------------------------------------------------------------------------------
+#
+#        with self.assertRaises(BadRequest):
+#            res = self.user_notification.create_email(event_type='event_type',
+#                event_subtype='event_subtype',
+#                origin='origin',
+#                origin_type='origin_type',
+#                user_id='user_id',
+#                mode = DeliveryMode.DIGEST,
+#                message_header='message_header',
+#                parser='parser')
+#
+#        #------------------------------------------------------------------------------------------------------
+#        # Test with user id missing - that is caught in the create_notification method
+#        #------------------------------------------------------------------------------------------------------
+#
+#        res = self.user_notification.create_email(event_type='event_type',
+#            event_subtype='event_subtype',
+#            origin='origin',
+#            origin_type='origin_type',
+#            email='email',
+#            mode = DeliveryMode.DIGEST,
+#            message_header='message_header',
+#            parser='parser')
+#
+#        notification_request = kwargs_list['notification']
+#        user_id = kwargs_list['user_id']
+#
+#        self.assertEquals(user_id, '')
+#        self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
+#        self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
+#        self.assertEquals(notification_request.type, NotificationType.EMAIL)
+#
     def test_match(self):
 
         parser = QueryLanguage()

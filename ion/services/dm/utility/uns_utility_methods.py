@@ -26,6 +26,7 @@ class fake_smtplib(object):
 
     def sendmail(self, msg_sender, msg_recipient, msg):
         log.info('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipient))
+        log.warning("Fake message sent: %s" % msg)
         self.sent_mail.put((msg_sender, msg_recipient, msg))
 
 
