@@ -863,7 +863,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # them later for batch notifications
         #--------------------------------------------------------------------------------------
 
-        event_publisher = EventPublisher("ResourceLifecycleEvent")
+        event_publisher = EventPublisher()
 
         # this part of code is in the beginning to allow enough time for the events_index creation
 
@@ -993,7 +993,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
             # Check that the events sent in the email had times within the user specified range
             self.assertTrue(event_time > test_start_time)
-            self.assertTrue(event_time < test_end_time)
+            self.assertTrue(event_time <= test_end_time)
 
 
     @attr('LOCOINT')
@@ -1063,18 +1063,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Publish events
         #--------------------------------------------------------------------------------------
 
-        event_publisher = EventPublisher("ResourceLifecycleEvent")
+        event_publisher = EventPublisher("NotificationEvent")
 
         event_publisher.publish_event( ts_created= 5,
             origin="instrument_1",
-            origin_type="type_1",
-            event_type='ResourceLifecycleEvent')
+            origin_type="type_1")
 
         event_publisher.publish_event( ts_created= 10,
             origin="instrument_2",
-            origin_type="type_2",
-            event_type='DetectionEvent')
-
+            origin_type="type_2")
 
         #--------------------------------------------------------------------------------------
         # Check that the workers processed the events
@@ -1113,8 +1110,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             # Check that the events sent in the email had times within the user specified range
             self.assertEquals(event_time, 5)
             self.assertEquals(event_time, 10)
-
-        # check if the correct users were sent email to regarding the correct events
 
         #todo check if the workers took the events from the queue in round robin
 

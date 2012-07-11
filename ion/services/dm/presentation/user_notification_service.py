@@ -330,6 +330,7 @@ class UserNotificationService(BaseUserNotificationService):
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
         log.warning("Publishing ReloadUserInfoEvent for notification_id, notification origin: (%s, %s)" % (notification_id, notification.origin))
+        log.warning("For the user_id: %s" % user_id)
 
         event_publisher = EventPublisher("ReloadUserInfoEvent")
         event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.", notification_id = notification_id)
@@ -438,8 +439,9 @@ class UserNotificationService(BaseUserNotificationService):
         # todo (contd) user_names as keys and not user_ids
 
 #        notification = self.clients.resource_registry.read(notification_id)
-#        user_ids = check_user_notification_interest(notification, self.reverse_user_info)
 #
+
+
 #        # update
 #        for user_id in user_ids:
 #            self._update_user_with_notification(user_id, notification)
@@ -677,7 +679,6 @@ class UserNotificationService(BaseUserNotificationService):
                 log.warning("ret_vals : %s" % ret_vals)
 
                 for event_id in ret_vals:
-#                    datastore = cc.datastore_manager.get_datastore('events')
                     datastore = self.datastore_manager.get_datastore('events')
                     event_obj = datastore.read(event_id)
                     events_for_message.append(event_obj)
@@ -754,7 +755,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         user = self.clients.resource_registry.read(user_id)
 
-        log.warning("read the user")
         if not user:
             raise BadRequest("No user with the provided user_id: %s" % user_id)
 
@@ -773,16 +773,10 @@ class UserNotificationService(BaseUserNotificationService):
         if not notification_present:
             user.variables= [{'name' : 'notification', 'value' : [notification]}]
 
-        log.warning("In _update_user_with_notification... user: %s" % user)
-        log.warning("user.variables: %s" % user.variables)
-
         # update the resource registry
         self.clients.resource_registry.update(user)
 
-        log.warning("updated the user")
-
         updated_user = self.clients.resource_registry.read(user_id)
-        log.warning("now user is: user.variables: %s" % updated_user.variables)
 
         #------------------------------------------------------------------------------------
         # Update the user_info dictionary maintained by UNS

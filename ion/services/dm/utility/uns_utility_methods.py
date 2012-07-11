@@ -1,9 +1,9 @@
 
 from pyon.public import get_sys_name, CFG
 from pyon.util.log import log
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, BadRequest
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
-from interface.objects import NotificationRequest
+from interface.objects import NotificationRequest, Event
 import smtplib
 import gevent
 from gevent.timeout import Timeout
@@ -42,15 +42,8 @@ def setting_up_smtp_client():
     smtp_sender = CFG.get_safe('server.smtp.sender')
     smtp_password = CFG.get_safe('server.smtp.password')
 
-    log.info('smtp_host: %s' % str(smtp_host))
-    log.info('smtp_port: %s' % str(smtp_port))
-
     if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
         log.warning('Using the real SMTP library to send email notifications!')
-
-        #@todo - for now hard wire for gmail account
-        #msg_sender = 'ooici777@gmail.com'
-        #gmail_pwd = 'ooici777'
 
         smtp_client = smtplib.SMTP(smtp_host)
         smtp_client.ehlo()
@@ -59,7 +52,6 @@ def setting_up_smtp_client():
 
         log.warning("Using smpt host: %s" % smtp_host)
     else:
-        # Keep this as a warning
         log.warning('Using a fake SMTP library to simulate email notifications!')
 
         smtp_client = fake_smtplib.SMTP(smtp_host)
@@ -75,6 +67,8 @@ def send_email(message, msg_recipient, smtp_client):
 
     '''
 
+    if not isinstance(Event, message):
+        raise BadRequest("The input parameter should have been an Event.")
 
     time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
 
@@ -126,15 +120,44 @@ def check_user_notification_interest(event, reverse_user_info):
     The input parameter event can be used interchangeably with notification in this method
     Returns the list of users interested in the notification
 
-    @param event NotificationRequest or Event
+    @param event Event
     @param reverse_user_info    dict
 
     @retval user_names list
     '''
-    user_list_1 = reverse_user_info['event_origin'][event.origin]
-    user_list_2 = reverse_user_info['event_origin_type'][event.origin_type]
-    user_list_3 = reverse_user_info['event_type'][event.event_type]
-    user_list_4 = reverse_user_info['event_subtype'][event.event_subtype]
+
+    user_list_1 = []
+    user_list_2 = []
+    user_list_3 = []
+    user_list_4 = []
+
+    if not isinstance(Event, message):
+        raise BadRequest("The input parameter should have been an Event.")
+
+    if reverse_user_info.has_key('event_origin') and \
+       reverse_user_info.has_key('event_origin_type') and \
+       reverse_user_info.has_key('event_type') and\
+       reverse_user_info.has_key('event_subtype'):
+        pass
+    else:
+        raise BadRequest("Missing keys in reverse_user_info. Reverse_user_info not properly set up.")
+
+
+    if not event or not reverse_user_info:
+        raise BadRequest("Missing input parameters for method, check_user_notification_interest().")
+
+
+    if event.origin and reverse_user_info['event_origin'].has_key[event.origin]:
+        user_list_1 = reverse_user_info['event_origin'][event.origin]
+
+    if event.origin_type and reverse_user_info['event_origin_type'].has_key[event.origin_type]:
+        user_list_2 = reverse_user_info['event_origin_type'][event.origin_type]
+
+    if event.type_ and reverse_user_info['event_type'].has_key[event.type_]:
+        user_list_3 = reverse_user_info['event_type'][event.type_]
+
+    if event.sub_type and reverse_user_info['event_subtype'].has_key[event.sub_type]:
+        user_list_4 = reverse_user_info['event_subtype'][event.sub_type]
 
     users = list( set.intersection(set(user_list_1), set(user_list_2), set(user_list_3), set(user_list_4)))
 
@@ -168,9 +191,6 @@ def load_user_info():
     discovery = DiscoveryServiceClient()
     results = poll(9, discovery.parse,search_string)
 
-
-    log.warning("results --- %s" % results)
-
     if not results:
         return {}
 
@@ -178,15 +198,14 @@ def load_user_info():
         user_name = result['_source'].name
         user_contact = result['_source'].contact
 
-        log.warning("result['_source'].variables : %s" % result['_source'].variables)
-
         notifications = []
         for variable in result['_source'].variables:
             if variable['name'] == 'notification':
                 notifications = variable['value']
 
         user_info[user_name] = { 'user_contact' : user_contact, 'notifications' : notifications}
-        log.warning("user_info: %s" % user_info)
+
+    log.warning("Returned from load_user_info: user_info: %s" % user_info)
 
     return user_info
 
@@ -260,5 +279,7 @@ def calculate_reverse_user_info(user_info = {}):
                 reverse_user_info['event_subtype'] = dict_2
                 reverse_user_info['event_origin'] = dict_3
                 reverse_user_info['event_origin_type'] = dict_4
+
+    log.warning("In reverse user info: %s" % reverse_user_info)
 
     return reverse_user_info

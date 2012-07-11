@@ -26,10 +26,13 @@ class NotificationWorker(SimpleProcess):
         self.event_pub = EventPublisher()
         self.user_info = {}
 
-    def test_hook(self, user_info ):
+    def test_hook(self, user_info, reverse_user_info ):
         '''
         This method is only to facilitate the testing of the reload of the user_info dictionary
         '''
+
+        log.warning(" in test hook: %s" % user_info)
+        log.warning(" in test hook: %s" % reverse_user_info)
         pass
 
     def on_start(self):
@@ -85,8 +88,8 @@ class NotificationWorker(SimpleProcess):
         #------------------------------------------------------------------------------------
 
         self.event_subscriber = EventSubscriber(
-            event_type="Event",
-            queue_name = 'uns_queue', # modify this to point at the right queue
+            event_type="NotificationEvent",
+#            queue_name = 'uns_queue', # modify this to point at the right queue
             callback=self.process_event
         )
         self.event_subscriber.start()
@@ -97,9 +100,12 @@ class NotificationWorker(SimpleProcess):
         Send email to the user
         """
 
+        log.warning("Received event: %s" % msg)
+
         #------------------------------------------------------------------------------------
         # From the reverse user info dict find out which users have subscribed to that event
         #------------------------------------------------------------------------------------
+
         users = []
         if self.reverse_user_info: #todo check why we need this protection
             users = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
