@@ -25,25 +25,6 @@ from pyon.net.transport import NameTrio, TransportError
 ### so for now - the pubsub service will just publish the first message on the stream that is creates with the definition
 
 
-class BindingChannel(SubscriberChannel):
-    """
-    The Pubsub Mgmt Svc should over ride _declare_queue in its BindingChannel object so that a binding a queue that does
-    not exist will fail. Unfortunately tests break in the CEI environment because the queue for a transform is created by
-    a process. That process may not have been spawned yet when activate transform is called.
-
-    For now - as a patch we will allow pubsub to create queues where they do not exist yet. This could be replaced with
-    a call back on a process life cycle event, after which the transform (for the subscription) can be activated.
-    """
-
-    def _declare_queue(self, queue):
-        self._recv_name = NameTrio(self._recv_name.exchange, '.'.join((self._recv_name.exchange, self._recv_name.queue)))
-
-    ### Tried to handle this in a simple way, but there are other possible errors as well. It will have to be a more
-    ### complicated try except at a higher level in pubsub...
-
-
-
-
 class PubsubManagementService(BasePubsubManagementService):
     '''Implementation of IPubsubManagementService. This class uses resource registry client
         to create streams and subscriptions.
@@ -57,7 +38,7 @@ class PubsubManagementService(BasePubsubManagementService):
         xs_dot_xp = CFG.core_xps.science_data
         try:
             self.XS, xp_base = xs_dot_xp.split('.')
-            self.XP = '.'.join([bootstrap.get_sys_name(), xp_base])
+            self.XP = xp_base #'.'.join([bootstrap.get_sys_name(), xp_base])
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
@@ -507,28 +488,24 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
 
-        try:
-            channel = self.container.node.channel(BindingChannel)
-            channel.setup_listener(NameTrio(exchange_point, exchange_name), binding=routing_key)
+        # create an XN
+        xn = self.container.ex_manager.create_xn_queue(exchange_name)
 
-        except TransportError:
-            log.exception('Caught Transport Error while creating a binding. Trying Subscriber Binding to make the queue first')
+        # create an XP
+        xp = self.container.ex_manager.create_xp(exchange_point)
 
-            channel = self.container.node.channel(SubscriberChannel)
-            channel.setup_listener(NameTrio(exchange_point, exchange_name), binding=routing_key)
-
+        # bind it on the XP
+        xn.bind(routing_key, xp)
 
 
     def _unbind_subscription(self, exchange_point, exchange_name, routing_key):
 
-        try:
-            channel = self.container.node.channel(BindingChannel)
-            channel._recv_name = NameTrio(exchange_point, exchange_name)
-            channel._recv_name = NameTrio(channel._recv_name.exchange, '.'.join([exchange_point, exchange_name]))
-            channel._recv_binding = routing_key
-            channel._destroy_binding()
+        # create an XN
+        xn = self.container.ex_manager.create_xn_queue(exchange_name)
 
-        except TransportError, te:
-            log.exception('Raised transport error during deactivate_subscription. Assuming that it is due to deleting a binding that was already deleted and continuing!')
+        # create an XP
+        xp = self.container.ex_manager.create_xp(exchange_point)
 
+        # unbind it on the XP
+        xn.unbind(routing_key, xp)
 
