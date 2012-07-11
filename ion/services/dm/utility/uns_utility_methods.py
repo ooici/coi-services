@@ -26,7 +26,7 @@ class fake_smtplib(object):
 
     def sendmail(self, msg_sender, msg_recipient, msg):
         log.info('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipient))
-        log.warning("Fake message sent: %s" % msg)
+        log.info("Fake message sent: %s" % msg)
         self.sent_mail.put((msg_sender, msg_recipient, msg))
 
 
@@ -51,7 +51,6 @@ def setting_up_smtp_client():
         smtp_client.starttls()
         smtp_client.login(smtp_sender, smtp_password)
 
-        log.warning("Using smpt host: %s" % smtp_host)
     else:
         log.warning('Using a fake SMTP library to simulate email notifications!')
 
@@ -68,9 +67,6 @@ def send_email(message, msg_recipient, smtp_client):
 
     '''
 
-    log.warning("came here to the send mail...")
-
-#    time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
     time_stamp = message.ts_created
 
     event = message.type_
@@ -147,9 +143,6 @@ def check_user_notification_interest(event, reverse_user_info):
     if not event or not reverse_user_info:
         raise BadRequest("Missing input parameters for method, check_user_notification_interest().")
 
-    log.warning("event::: %s" % event)
-    log.warning("reverse_user_info::: %s" % reverse_user_info)
-
     if reverse_user_info['event_origin'].has_key(event.origin):
         user_list_1 = reverse_user_info['event_origin'][event.origin]
 
@@ -162,14 +155,7 @@ def check_user_notification_interest(event, reverse_user_info):
     if reverse_user_info['event_subtype'].has_key(event.sub_type):
         user_list_4 = reverse_user_info['event_subtype'][event.sub_type]
 
-    log.warning("user_list_1::: %s" % user_list_1)
-    log.warning("user_list_2::: %s" % user_list_2)
-    log.warning("user_list_3::: %s" % user_list_3)
-    log.warning("user_list_4::: %s" % user_list_4)
-
     users = list( set.intersection(set(user_list_1), set(user_list_2), set(user_list_3), set(user_list_4)))
-
-    log.warning("users::: %s" % users)
 
     return users
 
@@ -214,8 +200,6 @@ def load_user_info():
                 notifications = variable['value']
 
         user_info[user_name] = { 'user_contact' : user_contact, 'notifications' : notifications}
-
-    log.warning("Returned from load_user_info: user_info: %s" % user_info)
 
     return user_info
 
@@ -289,7 +273,5 @@ def calculate_reverse_user_info(user_info = {}):
                 reverse_user_info['event_subtype'] = dict_2
                 reverse_user_info['event_origin'] = dict_3
                 reverse_user_info['event_origin_type'] = dict_4
-
-    log.warning("In reverse user info: %s" % reverse_user_info)
 
     return reverse_user_info

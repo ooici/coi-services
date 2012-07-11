@@ -662,9 +662,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(proc1.user_info['user_2']['notifications'], [notification_request_2])
 
 
-        # check the reverse user info dictionary
-        log.warning("The reverse user_info: %s" % proc1.reverse_user_info )
-
         self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_1'], ['user_1'])
         self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_2'], ['user_2'])
 
@@ -687,10 +684,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Check in UNS ------------>
         self.assertEquals(proc1.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
         self.assertEquals(proc1.user_info['user_1']['notifications'], [notification_request_1, notification_request_2])
-
-
-        # reverse_user_info
-        log.warning("The reverse user_info: %s" % proc1.reverse_user_info )
 
         self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_1'], ['user_1'])
         self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_2'], ['user_2', 'user_1'])
@@ -758,7 +751,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         search_string = 'search "name" is "*" from "users_index"'
 
         results = self.poll(9, self.discovery.parse,search_string)
-        log.warning("results : %s" % results)
         self.assertIsNotNone(results, 'Results not found')
 
         #--------------------------------------------------------------------------------------
@@ -767,7 +759,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         pids = self.unsc.create_worker(number_of_workers=1)
         self.assertIsNotNone(pids, 'No workers were created')
-        log.warning("pids: %s" % pids)
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects
@@ -798,8 +789,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         ar_2 = gevent.event.AsyncResult()
 
         def received_reload(msg, headers):
-            log.warning("msg: %s" % msg)
-            log.warning("headers: %s" % headers)
             ar_1.set(msg)
             ar_2.set(headers)
 
@@ -832,10 +821,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         reloaded_reverse_user_info = ar_2.get(timeout=10)
 
         self.assertEquals(reloaded_user_info['new_user']['notifications'], [notification_request_1, notification_request_2] )
-
-
-        log.warning("reloaded_reverse_user_info: %s" % reloaded_reverse_user_info)
-        log.warning("keys: %s" % reloaded_reverse_user_info.keys())
 
         self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], ['new_user'] )
         self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_2'], ['new_user'] )
@@ -970,15 +955,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
             lines = msg.split("\r\n")
 
-            log.warning("lines: %s" % lines)
-
             maps = []
 
             for line in lines:
 
                 maps.extend(line.split(','))
-
-            log.warning("maps: %s" % maps)
 
             event_time = ''
             for map in maps:
@@ -986,7 +967,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 if fields[0].find("ts_created") > -1:
                     event_time = int(fields[1].strip(" "))
                     break
-            log.warning("event_time: %s" % event_time)
 
             # Check that the events sent in the email had times within the user specified range
             self.assertTrue(event_time > test_start_time)
@@ -1096,7 +1076,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
             maps = []
             maps = msg.split(",")
-            log.warning("maps: %s" % maps)
 
             event_time = ''
             for map in maps:
@@ -1104,7 +1083,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 if fields[0].find("Time stamp") > -1:
                     event_time = int(fields[1].strip(" "))
                     break
-            log.warning("event_time: %s" % event_time)
 
             # Check that the event sent in the email had time within the user specified range
             self.assertEquals(event_time, 5)

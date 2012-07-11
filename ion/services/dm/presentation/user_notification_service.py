@@ -54,18 +54,9 @@ Each notification object will encapsulate the notification information and a
 list of event subscribers (only one for LCA) that listen for the events in the notification.
 """
 
-"""
-The class, NotificationEventSubscriber, has been replaced by a lower level way of
-activating and deactivating the subscriber
-
-"""
-
-
 class SubscribedNotification(object):
     """
     Encapsulates a notification's info and it's event subscriber
-
-    @David - is this class needed? It does not seem to serve any purpose?
     """
 
     def  __init__(self, notification_request=None, subscriber_callback=None):
@@ -106,10 +97,6 @@ class UserEventProcessor(object):
     Encapsulates the user's info and a list of all the notifications they have.
     It also contains the callback that is passed to all event subscribers for this user's notifications.
     If the callback gets called, then this user had a notification for that event.
-
-    @David - Make this more generic. Make user_id part of the notification request.
-    What does it mean to make a notification on someone else's behalf?
-    Is that what we want? All resources already have an owner association!
     """
 
     def __init__(self, user_id = ''):
@@ -159,9 +146,9 @@ class UserEventProcessor(object):
 
 class EmailEventProcessor(UserEventProcessor):
 
-    def __init__(self, smtp_client):
+    def __init__(self, user_id, smtp_client):
 
-        super(EmailEventProcessor, self).__init__()
+        super(EmailEventProcessor, self).__init__(user_id=user_id)
         self.smtp_client = smtp_client
 
     def subscription_callback(self, message, headers):
@@ -182,20 +169,14 @@ class EmailEventProcessor(UserEventProcessor):
 
         super(EmailEventProcessor, self).remove_notification()
 
-#        if CFG.get_safe('system.smtp',False):
-#            self.smtp_client.close()
-
-#---------------------
-#        provider = notification_request.delivery_config.delivery['provider']
-#
 #        provider_email = sms_providers[provider] # self.notification.delivery_config.delivery['provider']
 #        self.msg_recipient = notification_request.delivery_config.delivery['phone_number'] + provider_email
 
 class DetectionEventProcessor(UserEventProcessor):
 
-    def __init__(self):
+    def __init__(self, user_id):
 
-        super(DetectionEventProcessor, self).__init__(user_id)
+        super(DetectionEventProcessor, self).__init__(user_id=user_id)
 
         parser = QueryLanguage()
 
@@ -231,11 +212,11 @@ class DetectionEventProcessor(UserEventProcessor):
 def create_event_processor(notification_request, user_id, smtp_client):
 
     if notification_request.type == NotificationType.EMAIL:
-        event_processor = EmailEventProcessor(smtp_client = smtp_client)
+        event_processor = EmailEventProcessor(user_id=user_id, smtp_client = smtp_client)
         event_processor.add_notification_for_user(notification_request=notification_request, user_id=user_id)
 
     elif notification_request.type == NotificationType.FILTER:
-        event_processor = DetectionEventProcessor()
+        event_processor = DetectionEventProcessor(user_id=user_id)
         event_processor.add_notification_for_user(notification_request=notification_request, user_id=user_id)
 
     else:
@@ -322,7 +303,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
 
         # todo: This is to allow time for the indexes to be created.
-        # When things are more refined, it will be nice to have an event generated when the
+        # todo: When things are more refined, it will be nice to have an event generated when the
         # indexes are updated so that a subscriber here when it received that event will publish
         # the reload user info event.
         time.sleep(4)
@@ -330,8 +311,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        log.warning("Publishing ReloadUserInfoEvent for notification_id, notification origin: (%s, %s)" % (notification_id, notification.origin))
-        log.warning("For the user_id: %s" % user_id)
+        log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id, notification origin: (%s, %s)" % (notification_id, notification.origin))
 
         event_publisher = EventPublisher("ReloadUserInfoEvent")
         event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.", notification_id = notification_id)
@@ -362,7 +342,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        log.warning("Publishing ReloadUserInfoEvent for updated notification")
+        log.info("(update notification) Publishing ReloadUserInfoEvent for updated notification")
 
         event_publisher = EventPublisher("ReloadUserInfoEvent")
         event_publisher.publish_event(origin="UserNotificationService",
@@ -406,7 +386,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        log.warning("Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
+        log.info("(delete notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
 
         event_publisher = EventPublisher("ReloadUserInfoEvent")
         event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.", notification_id = notification_id)
@@ -462,7 +442,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         # get the list of ids corresponding to the events
         ret_vals = self.discovery.parse(search_string)
-        log.warning("ret_vals : %s" % ret_vals)
+        log.debug("(find_events) Discovery search returned the following event ids: %s" % ret_vals)
 
         events = []
         for event_id in ret_vals:
@@ -470,7 +450,7 @@ class UserNotificationService(BaseUserNotificationService):
             event_obj = datastore.read(event_id)
             events.append(event_obj)
 
-        log.warning("relevant events : %s" % events)
+        log.debug("(find_events) UNS found the following relevant events: %s" % events)
 
         if limit:
             list = []
@@ -568,8 +548,7 @@ class UserNotificationService(BaseUserNotificationService):
             configuration = {}
             configuration['process'] = dict({
                 'name': 'notification_worker_%s' % n,
-                'type':'simple',
-                'listen_name':'uns_queue' #@todo find the appropriate listen_name
+                'type':'simple'
             })
 
             pid  = self.process_dispatcher.schedule_process(
@@ -594,12 +573,6 @@ class UserNotificationService(BaseUserNotificationService):
         # The UNS will use the flat dictionary (with user_ids as keys and notification_ids as values)
         # to query the Event Repository (using code in the event repository module) to see what
         # events corresponding to those notifications have been generated during the day.
-
-        #        query_dict = {'and': [],
-        #                      'or': [],
-        #                      'query': {'field': '',
-        #                               'index': 'events_index',
-        #                               'range': {'from': 0.0, 'to': 100.0}}}
 
         for user_name, value in self.user_info.iteritems():
 
@@ -649,7 +622,7 @@ class UserNotificationService(BaseUserNotificationService):
         '''
 
         message = str(events_for_message)
-        log.warning("The user, %s, gets the following events in email: %s" % (user_name, message))
+        log.info("The user, %s, will get the following events in his batch notification email: %s" % (user_name, message))
 
         msg_body = ''
         count = 1
@@ -676,7 +649,7 @@ class UserNotificationService(BaseUserNotificationService):
                     "and the emails will not be read. \r\n "
 
 
-        log.warning("msg_body: %s" % msg_body)
+        log.debug("The email has the following message body: %s" % msg_body)
 
         msg_subject = "(SysName: " + get_sys_name() + ") ION event "
 
@@ -689,12 +662,9 @@ class UserNotificationService(BaseUserNotificationService):
 
 #        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
 
-        # the 'from' email address for notification emails
-        msg_sender = self.ION_NOTIFICATION_EMAIL_ADDRESS
-
         msg = MIMEText(msg_body)
         msg['Subject'] = msg_subject
-        msg['From'] = msg_sender
+        msg['From'] = self.ION_NOTIFICATION_EMAIL_ADDRESS
         msg['To'] = msg_recipient
         log.debug("UserEventProcessor.subscription_callback(): sending email to %s"\
         %msg_recipient)
@@ -732,8 +702,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         # update the resource registry
         self.clients.resource_registry.update(user)
-
-        updated_user = self.clients.resource_registry.read(user_id)
 
         #------------------------------------------------------------------------------------
         # Update the user_info dictionary maintained by UNS

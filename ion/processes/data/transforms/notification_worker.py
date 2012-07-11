@@ -28,11 +28,8 @@ class NotificationWorker(SimpleProcess):
 
     def test_hook(self, user_info, reverse_user_info ):
         '''
-        This method is only to facilitate the testing of the reload of the user_info dictionary
+        This method exists only to facilitate the testing of the reload of the user_info dictionary
         '''
-
-        log.warning(" in test hook: %s" % user_info)
-        log.warning(" in test hook: %s" % reverse_user_info)
         pass
 
     def on_start(self):
@@ -47,6 +44,10 @@ class NotificationWorker(SimpleProcess):
         try:
             self.user_info = load_user_info()
             self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
+
+            log.info("On start up, notification workers loaded the following user_info dictionary: %s" % self.user_info)
+            log.info("The calculated reverse user info: %s" % self.reverse_user_info )
+
         except NotFound as exc:
             if exc.message.find('users_index') > -1:
                 log.warning("Notification workers found on start up that users_index have not been loaded yet.")
@@ -60,11 +61,8 @@ class NotificationWorker(SimpleProcess):
         def reload_user_info(event_msg, headers):
 
             notification_id =  event_msg.notification_id
-            log.warning("In reload_user_info: Received notification with id: %s" % notification_id)
+            log.info("(Notification worker received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
 
-            #------------------------------------------------------------------------------------------
-            # reloads the user_info and reverse_user_info dictionaries
-            #------------------------------------------------------------------------------------------
             try:
                 self.user_info = load_user_info()
             except NotFound:
@@ -74,9 +72,10 @@ class NotificationWorker(SimpleProcess):
 
             self.test_hook(self.user_info, self.reverse_user_info)
 
-            log.warning("After reload: ''' user_info: %s" % self.user_info)
-            log.warning("After reload: ''' reverse_user_info: %s" % self.reverse_user_info)
+            log.debug("After a reload, the user_info: %s" % self.user_info)
+            log.debug("The recalculated reverse_user_info: %s" % self.reverse_user_info)
 
+        # the subscriber for the ReloadUSerInfoEvent
         self.reload_user_info_subscriber = EventSubscriber(
             event_type="ReloadUserInfoEvent",
             callback=reload_user_info
@@ -98,9 +97,6 @@ class NotificationWorker(SimpleProcess):
         From the user_info dict find out which user has subscribed to that event.
         Send email to the user
         """
-
-        log.warning("Received event: %s" % msg)
-
         #------------------------------------------------------------------------------------
         # From the reverse user info dict find out which users have subscribed to that event
         #------------------------------------------------------------------------------------
@@ -109,7 +105,8 @@ class NotificationWorker(SimpleProcess):
         if self.reverse_user_info: #todo check why we need this protection
             users = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
 
-        log.warning("users returned:::; %s" % users )
+        log.info("Notification worker received the event : %s" % msg)
+        log.info("Notification worker deduced the following users were interested in the event: %s" % users )
         #------------------------------------------------------------------------------------
         # Send email to the users
         #------------------------------------------------------------------------------------
