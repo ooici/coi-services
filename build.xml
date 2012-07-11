@@ -39,6 +39,7 @@
             <fileset dir="scripts" includes="**/*.pyc"/>
             <fileset dir="examples" includes="**/*.pyc"/>
             <fileset dir="extern/marine-integrations" includes="**/*.pyc"/>
+            <fileset dir="extern/coverage-model" includes="**/*.pyc"/>
         </delete>
         <delete dir="interface" failonerror="false"/>
         <delete dir="${build}" failonerror="false"/>
