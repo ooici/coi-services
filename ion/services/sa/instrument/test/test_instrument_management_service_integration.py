@@ -69,7 +69,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         
         #instrument_agent
         self.RR.create_association(instrument_agent_id, PRED.hasModel, instrument_model_id)
-        self.RR.create_association(instrument_agent_id, PRED.hasInstance, instrument_agent_instance_id)
+        self.RR.create_association(instrument_agent_instance_id, PRED.hasAgentDefinition, instrument_agent_id)
 
         #instrument_device
         self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
@@ -82,7 +82,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         
         #platform_agent
         self.RR.create_association(platform_agent_id, PRED.hasModel, platform_model_id)
-        self.RR.create_association(platform_agent_id, PRED.hasInstance, platform_agent_instance_id)
+        self.RR.create_association(platform_agent_instance_id, PRED.hasAgentDefinition, platform_agent_id)
 
         #platform_device
         self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)
@@ -118,7 +118,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #instrument_agent
         self.RR.create_association(instrument_agent_id, PRED.hasModel, instrument_model_id)
-        self.RR.create_association(instrument_agent_id, PRED.hasInstance, instrument_agent_instance_id)
+        self.RR.create_association(instrument_agent_instance_id, PRED.hasAgentDefinition, instrument_agent_id)
 
         #instrument_device
         self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
@@ -131,7 +131,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #platform_agent
         self.RR.create_association(platform_agent_id, PRED.hasModel, platform_model_id)
-        self.RR.create_association(platform_agent_id, PRED.hasInstance, platform_agent_instance_id)
+        self.RR.create_association(platform_agent_instance_id, PRED.hasAgentDefinition, platform_agent_id)
 
         #platform_device
         self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)

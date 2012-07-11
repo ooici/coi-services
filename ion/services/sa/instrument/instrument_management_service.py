@@ -172,8 +172,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
 
-        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasInstance,
-                                                                                instrument_agent_instance_id)
         self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance,
                                                                                 instrument_agent_instance_id)
 
