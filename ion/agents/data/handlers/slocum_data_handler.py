@@ -166,6 +166,7 @@ class SlocumParser(object):
             assert len(sensor_names) == len(units) == len(dtypes)
 
             for i in xrange(len(sensor_names)):
+                sb.seek(0)
                 self.sensor_map[sensor_names[i]]=(units[i],dtypes[i])
                 dat = np.genfromtxt(fname=sb,skip_header=self.header_size,usecols=i,dtype=dtypes[i],missing_values='NaN')#,usemask=True)
                 self.data_map[sensor_names[i]]=dat
