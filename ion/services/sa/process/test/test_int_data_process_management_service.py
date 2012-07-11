@@ -34,7 +34,7 @@ from interface.objects import HdfStorage, CouchStorage
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
-
+from mock import patch
 
 
 class FakeProcess(LocalContextMixin):
@@ -182,6 +182,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
     #@unittest.skip('not working')
+    @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
     def test_createDataProcessUsingSim(self):
         #-------------------------------
         # Create InstrumentModel
