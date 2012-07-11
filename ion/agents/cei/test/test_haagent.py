@@ -79,8 +79,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
             'agent': {'resource_id': self.resource_id},
         }
 
-        procs = self.pd_cli.list_processes()
-        self.assertEqual(procs, [])
+        self._base_procs = self.pd_cli.list_processes()
 
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
@@ -98,10 +97,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.event_sub = None
 
     def tearDown(self):
-        print "PDA TEARDOWN"
         self.container.terminate_process(self._haa_pid)
-        print "PDA TERMINATED HA AGENT"
-
         self._stop_container()
 
     def _event_callback(self, event, *args, **kwargs):
@@ -119,6 +115,16 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.assertEqual(event.state, state)
         return event
 
+    def get_procs(self):
+        """returns a normalized set of procs (removes the ones that were there
+        at setup time)
+        """
+
+        base = self._base_procs
+        current = self.pd_cli.list_processes()
+        normal = [proc for proc in current if proc not in base]
+        return normal
+
     @needs_epu
     def test_features(self):
         status = self.haa_client.status().result
@@ -133,7 +139,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.subscribe_events(None)
         self.await_state_event("test", ProcessStateEnum.SPAWN)
 
-        self.assertEqual(len(self.pd_cli.list_processes()), 1)
+        self.assertEqual(len(self.get_procs()), 1)
 
         status = self.haa_client.status().result
         self.assertEqual(status, 'STEADY')
@@ -143,16 +149,16 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.await_state_event("test", ProcessStateEnum.SPAWN)
 
-        self.assertEqual(len(self.pd_cli.list_processes()), 2)
+        self.assertEqual(len(self.get_procs()), 2)
 
         new_policy = {'preserve_n': 1}
         self.haa_client.reconfigure_policy(new_policy)
 
         self.await_state_event("test", ProcessStateEnum.TERMINATE)
-        self.assertEqual(len(self.pd_cli.list_processes()), 1)
+        self.assertEqual(len(self.get_procs()), 1)
 
         new_policy = {'preserve_n': 0}
         self.haa_client.reconfigure_policy(new_policy)
 
         self.await_state_event("test", ProcessStateEnum.TERMINATE)
-        self.assertEqual(len(self.pd_cli.list_processes()), 0)
+        self.assertEqual(len(self.get_procs()), 0)
