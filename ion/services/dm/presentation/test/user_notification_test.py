@@ -410,7 +410,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
-    @unittest.skip("")
+    @unittest.skip("Changed interface. Create email may get deprecated soon")
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_create_email(self):
         '''
@@ -1337,25 +1337,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(message_dict['Event'].rstrip('\r'), 'DetectionEvent')
         self.assertEquals(message_dict['Originator'].rstrip('\r'), 'DetectionEventProcessor')
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'Event was detected by DetectionEventProcessor')
-
-    @unittest.skip('interface has changed!')
-    def test_find_event_types_for_resource(self):
-        # create a dataset object in the RR to pass into the UNS method
-        dataset_object = IonObject(RT.DataSet, name="dataset1")
-        dataset_id, version = self.rrc.create(dataset_object)
-
-        # get the list of event types for the dataset
-        events = self.unsc.find_event_types_for_resource(dataset_id)
-        log.debug("dataset events = " + str(events))
-        if not events == ['dataset_supplement_added', 'dataset_change']:
-            self.fail("failed to return correct list of event types")
-
-        # try to pass in an id of a resource that doesn't exist (should fail)
-        try:
-            events = self.unsc.find_event_types_for_resource("bogus_id")
-            self.fail("failed to detect non-existant resource")
-        except:
-            pass
 
     def test_create_read_user_notifications(self):
         # create user with email address in RR

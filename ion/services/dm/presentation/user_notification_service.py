@@ -483,60 +483,6 @@ class UserNotificationService(BaseUserNotificationService):
         return events
 
 
-    def create_email(self, name='', description='', event_type='', event_subtype='', origin='', origin_type='', user_id='', email='', mode=None, frequency = Frequency.REAL_TIME, message_header='', parser=''):
-        '''
-         Creates a NotificationRequest object for the specified User Id. Associate the Notification
-         resource with the user. Setup subscription and call back to send email
-        '''
-
-        if not email:
-            raise BadRequest('Email missing.')
-
-        #-------------------------------------------------------------------------------------
-        # Build the delivery config
-        #-------------------------------------------------------------------------------------
-
-        #@todo get the process_definition_id - Find it when the service starts... bootstrap
-        #@todo Define a default for message header and parsing
-
-        #--------------------------------------------------------------------------------------
-        #@todo Decide on where to place this piece
-        # Create an object to hold the delivery configs (which will allow one to specialize
-        # if needed to email or sms)
-        #--------------------------------------------------------------------------------------
-
-        if not message_header:
-            message_header = "Default message header" #@todo this has to be decided
-
-        processing = {'message_header': message_header, 'parsing': parser}
-        delivery = {'email': email, 'mode' : mode, 'frequency' : frequency}
-        delivery_config = DeliveryConfig(processing=processing, delivery=delivery)
-
-        log.info("Delivery config: %s" % str(delivery_config))
-
-        #-------------------------------------------------------------------------------------
-        # Create a notification object
-        #-------------------------------------------------------------------------------------
-        notification_request = NotificationRequest(
-            name=name,
-            description=description,
-            type=NotificationType.EMAIL,
-            origin = origin,
-            origin_type = origin_type,
-            event_type=event_type,
-            event_subtype = event_subtype ,
-            delivery_config= delivery_config)
-
-        log.info("Notification Request: %s" % str(notification_request))
-
-        #-------------------------------------------------------------------------------------
-        # Set up things so that the user gets notified for the particular notification request
-        #-------------------------------------------------------------------------------------
-
-        notification_id =  self.create_notification(notification=notification_request, user_id = user_id)
-
-        return notification_id
-
     def create_detection_filter(self, name='', description='', event_type='', event_subtype='', origin='', origin_type='', user_id='', filter_config=None):
         '''
          Creates a NotificationRequest object for the specified User Id. Associate the Notification
@@ -804,3 +750,44 @@ class UserNotificationService(BaseUserNotificationService):
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
 
+
+#    def create_email(self, name='', description='', event_type='', event_subtype='', origin='', origin_type='', user_id='', email='', mode=None, frequency = Frequency.REAL_TIME, message_header='', parser=''):
+#        '''
+#         Creates a NotificationRequest object for the specified User Id. Associate the Notification
+#         resource with the user. Setup subscription and call back to send email
+#        '''
+#
+#        if not email:
+#            raise BadRequest('Email missing.')
+#
+#        if not message_header:
+#            message_header = "Default message header" #@todo this has to be decided
+#
+#        processing = {'message_header': message_header, 'parsing': parser}
+#        delivery = {'email': email, 'mode' : mode, 'frequency' : frequency}
+#        delivery_config = DeliveryConfig(processing=processing, delivery=delivery)
+#
+#        log.info("Delivery config: %s" % str(delivery_config))
+#
+#        #-------------------------------------------------------------------------------------
+#        # Create a notification object
+#        #-------------------------------------------------------------------------------------
+#        notification_request = NotificationRequest(
+#            name=name,
+#            description=description,
+#            type=NotificationType.EMAIL,
+#            origin = origin,
+#            origin_type = origin_type,
+#            event_type=event_type,
+#            event_subtype = event_subtype ,
+#            delivery_config= delivery_config)
+#
+#        log.info("Notification Request: %s" % str(notification_request))
+#
+#        #-------------------------------------------------------------------------------------
+#        # Set up things so that the user gets notified for the particular notification request
+#        #-------------------------------------------------------------------------------------
+#
+#        notification_id =  self.create_notification(notification=notification_request, user_id = user_id)
+#
+#        return notification_id
