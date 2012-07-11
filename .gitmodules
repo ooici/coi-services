@@ -7,4 +7,4 @@
 	url = https://github.com/ooici/marine-integrations.git
 [submodule "extern/coverage-model"]
 	path = extern/coverage-model
-	url = git@github.com:ooici/coverage-model.git
+	url = https://github.com/ooici/coverage-model.git
