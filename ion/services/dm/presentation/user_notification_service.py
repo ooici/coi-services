@@ -638,7 +638,8 @@ class UserNotificationService(BaseUserNotificationService):
             log.warning("events_for_message: %s" % events_for_message)
 
             # send a notification email to each user using a _send_email() method
-            self.format_and_send_email(events_for_message, user_name)
+            if events_for_message:
+                self.format_and_send_email(events_for_message, user_name)
 
     def format_and_send_email(self, events_for_message, user_name):
         '''

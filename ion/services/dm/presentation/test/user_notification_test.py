@@ -939,9 +939,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id_3)
         self.unsc.create_notification(notification=notification_request_3, user_id=user_id_3)
 
-        # allow enough time for elastic search to populate the events_index.
-#        gevent.sleep(4)
-
         #--------------------------------------------------------------------------------------
         # Do a process_batch() in order to start the batch notifications machinery
         #--------------------------------------------------------------------------------------
@@ -963,7 +960,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             email_tuple = proc1.smtp_client.sent_mail.get()
             email_list.append(email_tuple)
 
-        self.assertEquals(len(email_list), 3)
+        self.assertEquals(len(email_list), 2)
 
         for email_tuple in email_list:
             msg_sender, msg_recipient, msg = email_tuple
@@ -1088,7 +1085,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             email_tuple = proc1.smtp_client.sent_mail.get()
             email_list.append(email_tuple)
 
-        # check that two emails were sent for the two users
+        # check that one user got the email
         self.assertEquals(len(email_list), 1)
 
         for email_tuple in email_list:
