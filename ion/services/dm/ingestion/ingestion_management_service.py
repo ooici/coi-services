@@ -54,6 +54,8 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # Just going to use the first queue for now
 
+        validate_is_instance(stream_id,basestring, 'stream_id %s is not a valid string' % stream_id)
+
         ingestion_config = self.read_ingestion_configuration(ingestion_configuration_id)
 
         ingestion_queue = self._determine_queue(stream_id, ingestion_config.queues)
