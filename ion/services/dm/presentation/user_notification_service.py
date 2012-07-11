@@ -321,7 +321,8 @@ class UserNotificationService(BaseUserNotificationService):
         # notification workers work properly
         #-------------------------------------------------------------------------------------------------------------------
 
-        #todo when things are more refined, it will be nice to have an event generated when the
+        # todo: This is to allow time for the indexes to be created.
+        # When things are more refined, it will be nice to have an event generated when the
         # indexes are updated so that a subscriber here when it received that event will publish
         # the reload user info event.
         time.sleep(4)
@@ -349,10 +350,23 @@ class UserNotificationService(BaseUserNotificationService):
         @throws Conflict    object not based on latest persisted object version
         """
 
-        #todo Not yet possible to implement this without having ids inside the notification objects
-        # todo (contd) How can we get the old notification object to update, if we cant find the id?
+        self.clients.resource_registry.update(notification)
 
-        raise NotImplementedError
+        #-------------------------------------------------------------------------------------------------------------------
+        # Update the UserInfo object and the user_info dictionary maintained by the UNS
+        #-------------------------------------------------------------------------------------------------------------------
+
+        self._update_user_with_notification(user_id, notification)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
+        #-------------------------------------------------------------------------------------------------------------------
+        log.warning("Publishing ReloadUserInfoEvent for updated notification")
+
+        event_publisher = EventPublisher("ReloadUserInfoEvent")
+        event_publisher.publish_event(origin="UserNotificationService",
+                                        description= "A notification has been updated.",
+                                        )
 
 #        # Read existing Notification object and see if it exists
 #
@@ -395,17 +409,7 @@ class UserNotificationService(BaseUserNotificationService):
 #
 #            self._update_user_with_notification(user_id, notification)
 #
-#            #-------------------------------------------------------------------------------------------------------------------
-#            # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
-#            #-------------------------------------------------------------------------------------------------------------------
-#            log.warning("Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
 #
-#            event_publisher = EventPublisher("ReloadUserInfoEvent")
-#            event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been updated.", notification_id = notification_id)
-#
-#
-#            log.debug('Updated notification object with id: %s' % notification_id)
-
     def read_notification(self, notification_id=''):
         """Returns the NotificationRequest object for the specified notification id.
         Throws exception if id does not match any persisted NotificationRequest
@@ -427,24 +431,18 @@ class UserNotificationService(BaseUserNotificationService):
         @param notification_id    str
         @throws NotFound    object with specified id does not exist
         """
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # delete the notification from the user_info and reverse_user_info dictionaries
+        #-------------------------------------------------------------------------------------------------------------------
+
+        self.delete_notification_from_user_info(notification_id)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # delete from the resource registry
+        #-------------------------------------------------------------------------------------------------------------------
+
         self.clients.resource_registry.delete(notification_id)
-
-        #-------------------------------------------------------------------------------------------------------------------
-        # Update the UserInfo object and the user_info dictionary maintained by the UNS
-        #-------------------------------------------------------------------------------------------------------------------
-
-        # find from the reverse_user_info dictionary, the users who are interested in the notification
-
-        #todo Not Implemented yet... resolve the problem of user_info dictionary storing
-        # todo (contd) user_names as keys and not user_ids
-
-#        notification = self.clients.resource_registry.read(notification_id)
-#
-
-
-#        # update
-#        for user_id in user_ids:
-#            self._update_user_with_notification(user_id, notification)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -455,6 +453,17 @@ class UserNotificationService(BaseUserNotificationService):
         event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.", notification_id = notification_id)
 
         #@todo clean up the association?
+
+    def delete_notification_from_user_info(self, notification_id):
+
+        notification = self.clients.resource_registry.read(notification_id)
+
+        for value in self.user_info.itervalues():
+            print "value: ", value
+            if notification in value['notifications']:
+                value['notifications'].remove(notification)
+
+        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
     def find_events(self, origin='', type='', min_datetime='', max_datetime='', limit=0, descending=False):
         """Returns a list of events that match the specified search criteria. Will throw a not NotFound exception

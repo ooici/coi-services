@@ -1398,7 +1398,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(n1.origin_type, notification_request_1.origin_type)
 
     def test_delete_user_notifications(self):
+
+        #--------------------------------------------------------------------------------------
         # create user with email address in RR
+        #--------------------------------------------------------------------------------------
+
         user = UserInfo()
         user.name = 'user_1'
         user.contact.email = 'user_1@gmail.com'
@@ -1430,7 +1434,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             notific2 = self.unsc.read_notification(notification_id2)
 
-    @unittest.skip("Update method for notification service has not been implemented yet")
     def test_update_user_notification(self):
         # create user with email address in RR
         user = UserInfo()
@@ -1452,7 +1455,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # read back the notification and change it
         notification = self.unsc.read_notification(notification_id)
         notification.origin_type = 'new_type'
+
+        #todo
+
+
         self.unsc.update_notification(notification)
+
+
 
         # read back the notification and check that it got changed
         notification = self.unsc.read_notification(notification_id)
@@ -1461,6 +1470,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(notification.event_type, 'ResourceLifecycleEvent')
         self.assertEquals(notification.origin, 'instrument_1')
 
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        self.assertEquals(proc1.user_info['user_1']['notifications'][0].origin_type, 'new_type')
 
     @unittest.skip('interface has changed!')
     def test_find_events(self):
