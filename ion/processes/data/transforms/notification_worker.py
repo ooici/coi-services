@@ -59,6 +59,9 @@ class NotificationWorker(SimpleProcess):
         #------------------------------------------------------------------------------------
 
         def reload_user_info(event_msg, headers):
+            '''
+            Callback method for the subscriber to ReloadUserInfoEvent
+            '''
 
             notification_id =  event_msg.notification_id
             log.info("(Notification worker received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
@@ -87,15 +90,17 @@ class NotificationWorker(SimpleProcess):
         #------------------------------------------------------------------------------------
 
         self.event_subscriber = EventSubscriber(
-#            queue_name = 'uns_queue', # modify this to point at the right queue
+            queue_name = 'uns_queue', # modify this to point at the right queue
             callback=self.process_event
         )
         self.event_subscriber.start()
 
     def process_event(self, msg, headers):
         """
-        From the user_info dict find out which user has subscribed to that event.
-        Send email to the user
+        Callback method for the subscriber listening for all events
+
+        Objective: From the user_info dict find out which users have subscribed to that event and
+        send emails to them
         """
         #------------------------------------------------------------------------------------
         # From the reverse user info dict find out which users have subscribed to that event
@@ -107,6 +112,7 @@ class NotificationWorker(SimpleProcess):
 
         log.info("Notification worker received the event : %s" % msg)
         log.info("Notification worker deduced the following users were interested in the event: %s" % users )
+
         #------------------------------------------------------------------------------------
         # Send email to the users
         #------------------------------------------------------------------------------------

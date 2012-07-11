@@ -1432,3 +1432,4 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
 
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', )
+

@@ -117,7 +117,7 @@ def check_user_notification_interest(event, reverse_user_info):
     The input parameter event can be used interchangeably with notification in this method
     Returns the list of users interested in the notification
 
-    @param event Event
+    @param event                Event
     @param reverse_user_info    dict
 
     @retval user_names list
@@ -176,12 +176,11 @@ def poll(tries, callback, *args, **kwargs):
 def load_user_info():
     '''
     Method to load the user info dictionary... used by notification workers and the UNS
-    '''
-    #todo make this method more efficient and accept different parameters instead of using *
 
+    @retval user_info dict
+    '''
     search_string = 'search "name" is "*" from "users_index"'
 
-    results = []
     user_info = {}
 
     discovery = DiscoveryServiceClient()
@@ -206,6 +205,9 @@ def load_user_info():
 def calculate_reverse_user_info(user_info = {}):
     '''
     Calculate a reverse user info... used by the notification workers and the UNS
+
+    @param user_info            dict
+    @retval reverse_user_info   dict
 
     reverse_user_info = {'event_type' : { <event_type_1> : ['user_1', 'user_2'..],
                                              <event_type_2> : ['user_3'],... },

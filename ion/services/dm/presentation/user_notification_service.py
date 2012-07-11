@@ -95,8 +95,6 @@ class SubscribedNotification(object):
 class UserEventProcessor(object):
     """
     Encapsulates the user's info and a list of all the notifications they have.
-    It also contains the callback that is passed to all event subscribers for this user's notifications.
-    If the callback gets called, then this user had a notification for that event.
     """
 
     def __init__(self, user_id = ''):
@@ -205,7 +203,6 @@ class DetectionEventProcessor(UserEventProcessor):
                 original_type = subscribed_notification._res_obj.origin_type)
 
     def subscription_callback(self, message, headers):
-
         if QueryLanguage.evaluate_condition(message, self.query_dict):
             self.generate_events(message) # pass in the event message so we can put some of the content in the new event.
 
@@ -391,8 +388,6 @@ class UserNotificationService(BaseUserNotificationService):
         event_publisher = EventPublisher("ReloadUserInfoEvent")
         event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.", notification_id = notification_id)
 
-        #@todo clean up the association?
-
     def delete_notification_from_user_info(self, notification_id):
 
         notification = self.clients.resource_registry.read(notification_id)
@@ -470,14 +465,11 @@ class UserNotificationService(BaseUserNotificationService):
          @todo - is the user email automatically selected from the user id?
         '''
 
-        #@todo for now the delivery config is the filter config. Later there may be some smarts here to set up the config for the event processor
         delivery_config = filter_config or {}
 
         #-------------------------------------------------------------------------------------
         # Create a notification object
         #-------------------------------------------------------------------------------------
-        #@todo get the process_definition_id - in this case, should it be added to the interface for this method?
-
         notification_request = NotificationRequest(
             name=name,
             description=description,
@@ -502,8 +494,9 @@ class UserNotificationService(BaseUserNotificationService):
         Publish a general event at a certain time using the UNS
         '''
 
-        #todo - is there a concept of a general time in the system?
-        # todo - when the timer gets integrated into the system, we can publish an event at a particular time
+        #todo - when there is a timer, we can publish events at a particular time
+
+        raise NotImplementedError("Blocker: Timer")
 
         if event:
             type = event.type_
@@ -514,7 +507,6 @@ class UserNotificationService(BaseUserNotificationService):
             origin = "User"
             description = "User defined event"
 
-        #todo: fill this in with particulars as we come to understand the use cases
         event_publisher = EventPublisher(type)
         event_publisher.publish_event(origin=origin, description= description)
 
@@ -566,19 +558,16 @@ class UserNotificationService(BaseUserNotificationService):
         '''
         This method is launched when an process_batch event is received. The user info dictionary maintained
         by the User Notification Service is used to query the event repository for all events for a particular
-        user that have occurred in a certain time interval (right now the past 24 hours), and then an email
-        is sent to the user containing the digest of all the events.
+        user that have occurred in a provided time interval, and then an email is sent to the user containing
+        the digest of all the events.
         '''
-
-        # The UNS will use the flat dictionary (with user_ids as keys and notification_ids as values)
-        # to query the Event Repository (using code in the event repository module) to see what
-        # events corresponding to those notifications have been generated during the day.
-
         for user_name, value in self.user_info.iteritems():
 
             notifications = value['notifications']
 
             events_for_message = []
+
+            search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (start_time, end_time)
 
             for notification in notifications:
 
@@ -597,10 +586,7 @@ class UserNotificationService(BaseUserNotificationService):
                 else:
                     search_event_type = 'search "type_" is "*" from "events_index"'
 
-                search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (start_time, end_time)
-
                 search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
-
 
                 # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
@@ -659,8 +645,6 @@ class UserNotificationService(BaseUserNotificationService):
                                 smtp_client=self.smtp_client )
 
     def send_batch_email(self, msg_body, msg_subject, msg_recipient, smtp_client):
-
-#        time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
 
         msg = MIMEText(msg_body)
         msg['Subject'] = msg_subject
