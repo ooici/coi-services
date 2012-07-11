@@ -1185,7 +1185,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 
     @attr('LOCOINT')
-    @unittest.skip('SMS is being deprecated for now')
+    @unittest.skip('Event Detection is being deprecated')
 #    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_event_detection(self):
 
@@ -1357,145 +1357,110 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         except:
             pass
 
-    @unittest.skip('interface has changed!')
-    def test_create_two_user_notifications(self):
+    def test_create_read_user_notifications(self):
         # create user with email address in RR
-        user_identty_object = IonObject(RT.ActorIdentity, name="user1")
-        user_id = self.imc.create_actor_identity(user_identty_object)
-        user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
-        self.imc.create_user_info(user_id, user_info_object)
+        user = UserInfo()
+        user.name = 'user_1'
+        user.contact.email = 'user_1@gmail.com'
 
-        # create first notification
-        notification_object1 = IonObject(RT.NotificationRequest, {"name":"notification1",
-                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                  "events_list":['ResourceLifecycleEvent']})
-        notification_id1 = self.unsc.create_notification(notification_object1, user_id)
-        # create second notification
-        notification_object2 = IonObject(RT.NotificationRequest, {"name":"notification2",
-                                                                  "origin_list":['Some_Resource_Agent_ID2'],
-                                                                  "events_list":['DataEvent']})
-        notification_id2 = self.unsc.create_notification(notification_object2, user_id)
+        user_id, _ = self.rrc.create(user)
 
-        # read the notifications back and check that they are correct
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
+
+
+        #--------------------------------------------------------------------------------------
+        # Create notifications using UNS.
+        #--------------------------------------------------------------------------------------
+
+        notification_id1 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+        notification_id2 =  self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+
+        #--------------------------------------------------------------------------------------
+        # Make assertions
+        #--------------------------------------------------------------------------------------
+
         n1 = self.unsc.read_notification(notification_id1)
-        if n1.name != notification_object1.name or\
-           n1.origin_list != notification_object1.origin_list or\
-           n1.events_list != notification_object1.events_list:
-            self.fail("notification was not correct")
         n2 = self.unsc.read_notification(notification_id2)
-        if n2.name != notification_object2.name or\
-           n2.origin_list != notification_object2.origin_list or\
-           n2.events_list != notification_object2.events_list:
-            self.fail("notification was not correct")
 
-    @unittest.skip('interface has changed!')
+        self.assertEquals(n1.event_type, notification_request_1.event_type)
+        self.assertEquals(n1.origin, notification_request_1.origin)
+        self.assertEquals(n1.origin_type, notification_request_1.origin_type)
+
     def test_delete_user_notifications(self):
         # create user with email address in RR
-        user_identty_object = IonObject(RT.ActorIdentity, name="user1")
-        user_id = self.imc.create_actor_identity(user_identty_object)
-        user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
-        self.imc.create_user_info(user_id, user_info_object)
+        user = UserInfo()
+        user.name = 'user_1'
+        user.contact.email = 'user_1@gmail.com'
 
-        # create first notification
-        notification_object1 = IonObject(RT.NotificationRequest, {"name":"notification1",
-                                                                  "origin_list":['Some_Resource_Agent_ID1'],
-                                                                  "events_list":['ResourceLifecycleEvent']})
-        notification1_id = self.unsc.create_notification(notification_object1, user_id)
-        # create second notification
-        notification_object2 = IonObject(RT.NotificationRequest, {"name":"notification2",
-                                                                  "origin_list":['Some_Resource_Agent_ID2'],
-                                                                  "events_list":['DataEvent']})
-        notification2_id = self.unsc.create_notification(notification_object2, user_id)
+        user_id, _ = self.rrc.create(user)
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
+
+        notification_id1 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+        notification_id2 =  self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         # delete both notifications
-        self.unsc.delete_notification(notification1_id)
-        self.unsc.delete_notification(notification2_id)
+        self.unsc.delete_notification(notification_id1)
+        self.unsc.delete_notification(notification_id2)
 
         # check that the notifications are not there
-        try:
-            n1 = self.unsc.read_notification(notification1_id)
-        except:
-            try:
-                n2 = self.unsc.read_notification(notification2_id)
-            except:
-                return
-        self.fail("failed to delete notifications")
+        with self.assertRaises(NotFound):
+            notific1 = self.unsc.read_notification(notification_id1)
+        with self.assertRaises(NotFound):
+            notific2 = self.unsc.read_notification(notification_id2)
 
-    @unittest.skip('interface has changed!')
-    def test_find_user_notifications(self):
-        # create user with email address in RR
-        user_identty_object = IonObject(RT.ActorIdentity, name="user1")
-        user_id = self.imc.create_actor_identity(user_identty_object)
-        user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
-        self.imc.create_user_info(user_id, user_info_object)
-
-        # create first notification
-        notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
-                                                                 "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['ResourceLifecycleEvent']})
-
-        self.unsc.create_notification(notification_object, user_id)
-        # create second notification
-        notification_object = IonObject(RT.NotificationRequest, {"name":"notification2",
-                                                                 "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['DataEvent']})
-        self.unsc.create_notification(notification_object, user_id)
-
-        # try to find all notifications for user
-        notifications = self.unsc.find_notifications_by_user(user_id)
-        if len(notifications) != 2:
-            self.fail("failed to find all notifications")
-
-    @unittest.skip('interface has changed!')
+    @unittest.skip("Update method for notification service has not been implemented yet")
     def test_update_user_notification(self):
         # create user with email address in RR
-        user_identty_object = IonObject(RT.ActorIdentity, name="user1")
-        user_id = self.imc.create_actor_identity(user_identty_object)
-        user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'user1_email@someplace.com'}})
-        self.imc.create_user_info(user_id, user_info_object)
+        user = UserInfo()
+        user.name = 'user_1'
+        user.contact.email = 'user_1@gmail.com'
 
-        # create a notification
-        notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
-                                                                 "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['ResourceLifecycleEvent']})
-        notification_id = self.unsc.create_notification(notification_object, user_id)
+        user_id, _ = self.rrc.create(user)
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_id =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
 
         # read back the notification and change it
         notification = self.unsc.read_notification(notification_id)
-        notification.origin_list = ['Some_Resource_Agent_ID5']
+        notification.origin_type = 'new_type'
         self.unsc.update_notification(notification)
 
         # read back the notification and check that it got changed
         notification = self.unsc.read_notification(notification_id)
-        if notification.origin_list != ['Some_Resource_Agent_ID5']:
-            self.fail("failed to change notification")
 
-    @unittest.skip('interface has changed!')
-    def test_send_notification_emails(self):
-        # create user with email address in RR
-        user_identty_object = IonObject(RT.ActorIdentity, name="user1")
-        user_id = self.imc.create_actor_identity(user_identty_object)
-        user_info_object = IonObject(RT.UserInfo, {"name":"user1_info", "contact":{"email":'myooici@gmail.com'}})
-        self.imc.create_user_info(user_id, user_info_object)
+        self.assertEquals(notification.origin_type, 'new_type')
+        self.assertEquals(notification.event_type, 'ResourceLifecycleEvent')
+        self.assertEquals(notification.origin, 'instrument_1')
 
-        # create first notification
-        notification_object = IonObject(RT.NotificationRequest, {"name":"notification1",
-                                                                 "origin_list":['Some_Resource_Agent_ID1'],
-                                                                 "events_list":['ResourceLifecycleEvent']})
-        self.unsc.create_notification(notification_object, user_id)
-        # create second notification
-        notification_object = IonObject(RT.NotificationRequest, {"name":"notification2",
-                                                                 "origin_list":['Some_Resource_Agent_ID2'],
-                                                                 "events_list":['DataEvent']})
-        self.unsc.create_notification(notification_object, user_id)
-
-        # publish an event for each notification to generate the emails
-        # this can't be easily check in SW so need to check for these at the myooici@gmail.com account
-        rle_publisher = EventPublisher("ResourceLifecycleEvent")
-        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
-        de_publisher = EventPublisher("DataEvent")
-        de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event")
-        gevent.sleep(1)
 
     @unittest.skip('interface has changed!')
     def test_find_events(self):

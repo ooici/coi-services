@@ -195,7 +195,7 @@ class DetectionEventProcessor(UserEventProcessor):
 
     def __init__(self):
 
-        super(DetectionEventProcessor, self).__init__(notification_request,user_id)
+        super(DetectionEventProcessor, self).__init__(user_id)
 
         parser = QueryLanguage()
 
