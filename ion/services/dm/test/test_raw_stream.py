@@ -4,6 +4,7 @@
 @file ion/services/dm/test/test_ctd_integration.py
 @description Provides a full fledged integration from ingestion to replay using scidata
 """
+import unittest
 
 from pyon.util.file_sys import FS, FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
@@ -30,6 +31,7 @@ import gevent
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 
 @attr('INT',group='dm')
+@unittest.skip('Deprecated')
 class RawStreamIntegration(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

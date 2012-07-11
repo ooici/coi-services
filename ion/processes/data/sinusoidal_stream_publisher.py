@@ -36,6 +36,23 @@ from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from pyon.ion.granule.taxonomy import TaxyTool
+from pyon.ion.granule.granule import build_granule
+import numpy
+
+
+### Taxonomies are defined before hand out of band... somehow.
+tx = TaxyTool()
+tx.add_taxonomy_set('temp','long name for temp')
+tx.add_taxonomy_set('cond','long name for cond')
+tx.add_taxonomy_set('lat','long name for latitude')
+tx.add_taxonomy_set('lon','long name for longitude')
+tx.add_taxonomy_set('pres','long name for pres')
+tx.add_taxonomy_set('time','long name for time')
+tx.add_taxonomy_set('height','long name for height')
+
+
 
 class SinusoidalCtdPublisher(SimpleCtdPublisher):
     def __init__(self, *args, **kwargs):
@@ -56,21 +73,30 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
             count = time.time() - startTime
             sine_curr_deg = (count % samples) * 360 / samples
 
-            c = [sine_ampl * math.sin(math.radians(sine_curr_deg))]
-            t = [sine_ampl * 2 * math.sin(math.radians(sine_curr_deg + 45))]
-            p = [sine_ampl * 4 * math.sin(math.radians(sine_curr_deg + 60))]
+            c = numpy.array( [sine_ampl * math.sin(math.radians(sine_curr_deg))] )
+            t = numpy.array( [sine_ampl * 2 * math.sin(math.radians(sine_curr_deg + 45))] )
+            p = numpy.array( [sine_ampl * 4 * math.sin(math.radians(sine_curr_deg + 60))] )
 
-            lat = lon = [0.0]
-            tvar = [time.time()]
+            lat = lon = numpy.array([0.0])
+            tvar = numpy.array([time.time()])
 
-            ctd_packet = ctd_stream_packet(stream_id=stream_id,
-                c=c, t=t, p = p, lat = lat, lon = lon, time=tvar)
+#            ctd_packet = ctd_stream_packet(stream_id=stream_id,
+#                c=c, t=t, p = p, lat = lat, lon = lon, time=tvar)
+            rdt = RecordDictionaryTool(taxonomy=tx)
+
+            h = numpy.array([random.uniform(0.0, 360.0)])
+
+            rdt['time'] = tvar
+            rdt['lat'] = lat
+            rdt['lon'] = lon
+            rdt['height'] = h
+            rdt['temp'] = t
+            rdt['cond'] = c
+            rdt['pres'] = p
+
+            g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
 
             log.info('SinusoidalCtdPublisher sending 1 record!')
-            self.publisher.publish(ctd_packet)
+            self.publisher.publish(g)
 
-            time.sleep(2.0)
-
-            #count += 1
-
-
+            time.sleep(1.0)

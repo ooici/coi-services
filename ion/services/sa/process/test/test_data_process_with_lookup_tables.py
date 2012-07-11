@@ -115,7 +115,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         #-------------------------------
 
         driver_config = {
-            'dvr_mod' : 'ion.agents.instrument.drivers.sbe37.sbe37_driver',
+            'dvr_mod' : 'mi.instrument.seabird.sbe37smb.ooicore.driver',
             'dvr_cls' : 'SBE37Driver',
             'workdir' : '/tmp/',
         }

@@ -7,7 +7,7 @@
 
 #from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, LCE
-from ion.services.sa.instrument.policy import ModelPolicy
+from ion.services.sa.instrument.resource_lcs_policy import ModelPolicy
 
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 

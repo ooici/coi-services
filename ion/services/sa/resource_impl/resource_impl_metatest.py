@@ -81,7 +81,7 @@ class ResourceImplMetatest(object):
         self.sample_resource_md5     = sample_resource_md5
 
 
-    def sample_resource_factory(self, impl, resource_params):
+    def sample_resource_factory(self, iontype, resource_params):
         """
         build a sample resource factory from the supplied impl class
          that produces resources populated with the supplied parameters
@@ -89,16 +89,16 @@ class ResourceImplMetatest(object):
          this will give us the ability to use the service that we're testing
          to generate the resource for us.
         
-        @param impl an instance of the impl class
+        @param iontype the ion type to create
         @resource_params a dict of params to add
         """
         
         def fun():
             #ret = Mock()
-            self.log.debug("Creating sample %s" % impl.iontype)
-            ret = IonObject(impl.iontype)
-            ret.name = "sample %s" % impl.iontype
-            ret.description = "description of sample %s" % impl.iontype
+            self.log.debug("Creating sample %s" % iontype)
+            ret = IonObject(iontype)
+            ret.name = "sample %s" % iontype
+            ret.description = "description of sample %s" % iontype
             for k, v in resource_params.iteritems():
                 setattr(ret, k, v)
             return ret
@@ -164,13 +164,15 @@ class ResourceImplMetatest(object):
 
         #this is convoluted but it helps me debug by
         #  being able to inject text into the sample_resource_extras
-        sample_resource = self.sample_resource_factory(impl_instance, resource_params)
+        sample_resource = self.sample_resource_factory(impl_instance.iontype, resource_params)
 
         all_in_one = self.all_in_one
 
         find_cv_func = self.find_class_variable_name
 
         service_type = type(self.service_instance)
+
+        added_methods = {}
 
         def add_new_method(name, docstring, newmethod):
             """
@@ -182,6 +184,7 @@ class ResourceImplMetatest(object):
             newmethod.__name__ = name
             newmethod.__doc__  = docstring
             setattr(self.tester_class, newmethod.__name__, newmethod)
+            added_methods[name] = True
 
         def add_test_method(name, docstring, newmethod):
             """
@@ -206,6 +209,24 @@ class ResourceImplMetatest(object):
             """
             return "%s %s" % (doc, self.sample_resource_extras)
 
+        def gen_svc_cleanup():
+            def fun(instance):
+                for k, _ in added_methods.iteritems():
+                    if hasattr(instance, k):
+                        #raise BadRequest("found/removing %s from %s" % (k, type(instance)))
+                        instance.addCleanup(delattr, instance, k)
+
+            add_new_method("_rim_cleanup_%s%s" % (impl_instance.iontype, self.sample_resource_md5), "Cleanup", fun)
+
+            # add (probably overwrite) the function to process all the cleanups
+            def whole_cleanup(instance):
+                for k in dir(instance):
+                    if -1 < k.find("_rim_cleanup_"):
+                        cleanup_fn = getattr(instance, k)
+                        cleanup_fn()
+
+            #if hasattr(self.tester_class, "resource_impl_cleanup")
+            add_new_method("resource_impl_cleanup", "Global cleanup", whole_cleanup)
 
         def gen_svc_lookup():
             """
@@ -502,8 +523,13 @@ class ResourceImplMetatest(object):
                 svc.clients.resource_registry.create_association.return_value = reply
 
                 #call the impl
-                response = mylink("111", "222")
-                self.assertEqual(reply, response)
+                try:
+                    response = mylink("111", "222")
+                    self.assertEqual(reply, response)
+                except BadRequest:
+                    pass # assumed to be a problem with a precondition check
+                except Exception as e:
+                    raise e
 
                 if all_in_one: svc.clients.resource_registry.reset_mock()
 
@@ -742,3 +768,4 @@ class ResourceImplMetatest(object):
             gen_test_find()
             gen_tests_associations()
             gen_tests_associated_finds()
+        #gen_svc_cleanup()

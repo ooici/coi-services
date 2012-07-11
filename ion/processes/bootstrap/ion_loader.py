@@ -92,6 +92,9 @@ class IONLoader(ImmediateProcess):
                       'DataProcess',
                       'DataProductLink',
                       'Attachment',
+                      'WorkflowDefinition',
+                      'Workflow',
+                      'Deployment',
                       ]
 
         self.path = path
@@ -250,6 +253,7 @@ class IONLoader(ImmediateProcess):
         return res_id
 
     def _resource_advance_lcs(self, row, res_id, restype=None):
+        """ change lifecycle state of object to DEPLOYED_AVAILABLE """
         lcsm = get_restype_lcsm(restype)
         initial_lcstate = lcsm.initial_state if lcsm else "DEPLOYED_AVAILABLE"
 
@@ -500,12 +504,12 @@ class IONLoader(ImmediateProcess):
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
                                             "instrument_management", "create_platform_device")
 
-        oms_client = self._get_service_client("observatory_management")
-        ass_ids = row["deployment_lp_ids"]
-        if ass_ids:
-            ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
-            for ass_id in ass_ids:
-                oms_client.assign_device_to_site(res_id, self.resource_ids[ass_id])
+#        oms_client = self._get_service_client("observatory_management")
+#        ass_ids = row["deployment_lp_ids"]
+#        if ass_ids:
+#            ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
+#            for ass_id in ass_ids:
+#                oms_client.assign_device_to_site(res_id, self.resource_ids[ass_id])
 
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["platform_model_id"]
@@ -514,7 +518,7 @@ class IONLoader(ImmediateProcess):
 
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
-        ass_id = row["primary_deployment_lp_id"]
+#        ass_id = row["primary_deployment_lp_id"]
         #TODO: we no longer have "primary deployment"
         #if ass_id:
         #    oms_client.deploy_as_primary_platform_device_to_platform_site(res_id, self.resource_ids[ass_id])
@@ -523,25 +527,25 @@ class IONLoader(ImmediateProcess):
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
                                             "instrument_management", "create_instrument_device")
 
-        oms_client = self._get_service_client("observatory_management")
-        ass_ids = row["deployment_li_ids"]
-        if ass_ids:
-            ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
-            for ass_id in ass_ids:
-                oms_client.assign_device_to_site(res_id, self.resource_ids[ass_id])
+#        oms_client = self._get_service_client("observatory_management")
+#        ass_ids = row["deployment_li_ids"]
+#        if ass_ids:
+#            ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
+#            for ass_id in ass_ids:
+#                oms_client.assign_device_to_site(res_id, self.resource_ids[ass_id])
 
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
         if ass_id:
             ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
 
-        ass_id = row["platform_device_id"]
-        if ass_id:
-            ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
+#        ass_id = row["platform_device_id"]
+#        if ass_id:
+#            ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
 
         self._resource_advance_lcs(row, res_id, "InstrumentDevice")
 
-        ass_id = row["primary_deployment_li_id"]
+#        ass_id = row["primary_deployment_li_id"]
         #TODO: we no longer have "primary deployment"
         #if ass_id:
         #    oms_client.deploy_as_primary_instrument_device_to_instrument_site(res_id, self.resource_ids[ass_id])
@@ -594,14 +598,17 @@ class IONLoader(ImmediateProcess):
             return
 
         xp = row["exchange_point_id"]
-        couch_cfg = self._create_object_from_row("CouchStorage", row, "couch_storage/")
-        hdf_cfg = self._create_object_from_row("HdfStorage", row, "hdf_storage/")
-        numw = int(row["number_of_workers"])
+        name = row["ic/name"]
+        ingest_queue = self._create_object_from_row("IngestionQueue",row,"ingestion_queue/")
+        #couch_cfg = self._create_object_from_row("CouchStorage", row, "couch_storage/")
+        #hdf_cfg = self._create_object_from_row("HdfStorage", row, "hdf_storage/")
+        #numw = int(row["number_of_workers"])
 
         svc_client = self._get_service_client("ingestion_management")
-        ic_id = svc_client.create_ingestion_configuration(xp, couch_cfg, hdf_cfg, numw)
+        #ic_id = svc_client.create_ingestion_configuration(xp, couch_cfg, hdf_cfg, numw)
+        ic_id = svc_client.create_ingestion_configuration(name=name, exchange_point_id=xp, queues=[ingest_queue])
 
-        ic_id = svc_client.activate_ingestion_configuration(ic_id)
+        #ic_id = svc_client.activate_ingestion_configuration(ic_id)
 
     def _load_DataProduct(self, row):
         strdef = row["stream_def_id"]
@@ -675,7 +682,60 @@ class IONLoader(ImmediateProcess):
         att_id = rr_client.create_attachment(res_id, att_obj, headers=headers)
         self._register_id(row[self.COL_ID], att_id)
 
-    # ---------------------------------------------------------------------------
+
+    # WorkflowDefinition load functions - Added by Raj Singh
+    def _load_WorkflowDefinition(self, row):
+        log.info("Loading WorkflowDefinition")
+
+        workflow_def_obj = self._create_object_from_row("WorkflowDefinition", row, "wfd/")
+        workflow_client = self._get_service_client("workflow_management")
+
+        # Create the workflow steps
+        steps_string = row["steps"]
+        workflow_step_ids = []
+        if steps_string:
+            workflow_step_ids = self._get_typed_value(steps_string, targettype="simplelist")
+        else:
+            log.info("No steps found for workflow definition. Ignoring this entry")
+            return
+
+        # Locate the data process def objects and add them to the workflow def
+        for step_id in workflow_step_ids:
+            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=self.resource_ids[step_id],
+                persist_process_output_data=False)
+            workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+        #Create it in the resource registry
+        workflow_def_id = workflow_client.create_workflow_definition(workflow_def_obj)
+
+        self._register_id(row[self.COL_ID], workflow_def_id)
+
+        return
+
+    # Workflow load functions - Added by Raj Singh
+    def _load_Workflow(self,row):
+        log.info("Loading Workflow")
+
+        workflow_obj = self._create_object_from_row("WorkflowDefinition", row, "wf/")
+        workflow_client = self._get_service_client("workflow_management")
+
+        workflow_def_id = self.resource_ids[row["wfd_id"]]
+        #Create and start the workflow
+        workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_def_id, self.resource_ids[row["in_dp_id"]], timeout=30)
+        #print " >>>>>>> Workflow_id = ", workflow_id , " workflow_product_id = ", workflow_product_id
+
+    def _load_Deployment(self,row):
+        log.info("Loading Deployments")
+        deployment = self._create_object_from_row("Deployment", row, "d/")
+        device_id = self.resource_ids[row['device_id']]
+        site_id = self.resource_ids[row['site_id']]
+
+        oms = self._get_service_client("observatory_management")
+        ims = self._get_service_client("instrument_management")
+
+        deployment_id = oms.create_deployment(deployment)
+        oms.deploy_instrument_site(site_id, deployment_id)
+        ims.deploy_instrument_device(device_id, deployment_id)
 
     def extract_ooi_assets(self, path):
         if not path:

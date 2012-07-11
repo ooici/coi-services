@@ -16,6 +16,7 @@ pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_data_p
 '''
 
 # Inherit some old machinery for this example
+from interface.objects import Granule
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 
 ### For new granule and stream interface
@@ -79,36 +80,32 @@ class ExampleDataProducer(SimpleCtdPublisher):
 
             # This is an example of using groups it is not a normative statement about how to use groups
 
-            rdt0 = RecordDictionaryTool(taxonomy=tx)
 
 
-            rdt0['temp'] = t
-            rdt0['cond'] = c
-            rdt0['pres'] = p
-
-            #add a value sequence of raw bytes - not sure the type below is correct?
-            with open('/dev/urandom','r') as rand:
-                rdt0['raw_fixed'] = numpy.array([rand.read(32) for i in xrange(length)], dtype='a32')
+            rdt['temp'] = t
+            rdt['cond'] = c
+            rdt['pres'] = p
 
             #add a value sequence of raw bytes - not sure the type below is correct?
             with open('/dev/urandom','r') as rand:
-                rdt0['raw_blob'] = numpy.array([rand.read(random.randint(1,40)) for i in xrange(length)], dtype=object)
+                rdt['raw_fixed'] = numpy.array([rand.read(32) for i in xrange(length)], dtype='a32')
+
+            #add a value sequence of raw bytes - not sure the type below is correct?
+            with open('/dev/urandom','r') as rand:
+                rdt['raw_blob'] = numpy.array([rand.read(random.randint(1,40)) for i in xrange(length)], dtype=object)
 
 
-            rdt1 = RecordDictionaryTool(taxonomy=tx)
 
-            rdt1['time'] = tvar
-            rdt1['lat'] = lat
-            rdt1['lon'] = lon
-
-            rdt['group1'] = rdt1
-            rdt['group0'] = rdt0
+            rdt['time'] = tvar
+            rdt['lat'] = lat
+            rdt['lon'] = lon
 
             log.info("logging published Record Dictionary:\n %s", rdt.pretty_print())
 
-            g = build_granule(data_producer_id='Bobs Potatoes', taxonomy=tx, record_dictionary=rdt)
+            g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
 
             log.info('Sending %d values!' % length)
-            self.publisher.publish(g)
+            if(isinstance(g,Granule)):
+                self.publisher.publish(g)
 
             time.sleep(2.0)

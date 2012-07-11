@@ -23,7 +23,7 @@ import logging
 import os
 import uuid
 
-from ion.agents.instrument.daemon_process import DaemonProcess
+from ion.agents.port.daemon_process import DaemonProcess
 from ion.agents.instrument.exceptions import InstrumentConnectionException
 
 mi_logger = logging.getLogger('mi_logger')
@@ -130,7 +130,7 @@ class BaseLoggerProcess(DaemonProcess):
         sock = None
         addr = None
         try:
-            sock, addr = self.driver_server_sock.accept()
+            sock, host_port_tuple = self.driver_server_sock.accept()
 
         except socket.error as e:
             # [Errno 35] Resource temporarily unavailable.
@@ -147,8 +147,8 @@ class BaseLoggerProcess(DaemonProcess):
             self.driver_sock = sock
             self.driver_sock.setblocking(0)            
             self.driver_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)                            
-            self.driver_addr = addr
-            self.statusfile.write('_accept_driver_comms: driver connected at %s, %i.\n' % self.driver_addr)
+            self.driver_addr = host_port_tuple
+            self.statusfile.write('_accept_driver_comms: driver connected at %s:%i.\n' % self.driver_addr)
             self.statusfile.flush()
         
     def _close_driver_comms(self):
@@ -513,7 +513,7 @@ class EthernetDeviceLogger(BaseLoggerProcess):
             #-self.device_sock.shutdown(socket.SHUT_RDWR)
             self.device_sock.close()
             self.device_sock = None
-            time.wait(1)
+            time.sleep(1)
             self.statusfile.write('_close_device_comms: device connection closed.\n')
             self.statusfile.flush()                            
 

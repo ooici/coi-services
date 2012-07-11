@@ -9,6 +9,7 @@ from ion.agents.instrument.exceptions import NotImplementedException
 import time
 import gevent
 import uuid
+import errno
 
 
 class DirectAccessTypes:
@@ -40,6 +41,7 @@ class TcpServer(object):
     close_reason = SessionCloseReasons.client_closed
     activity_seen = False
     already_stopping = False
+    server_ready_to_send = False
 
 
     def __init__(self, input_callback=None, ip_address=None):
@@ -110,7 +112,8 @@ class TcpServer(object):
     def send(self, data):
         # send data from parent to telnet server process to forward to client
         log.debug("TcpServer.send(): data = " + str(data))
-        self._write(data)
+        if self.server_ready_to_send:
+            self._write(data)
         
 
     # private methods
@@ -132,7 +135,7 @@ class TcpServer(object):
     
     def _writeline(self, text):
         """Send a packet with line ending."""
-        self._write(text+chr(10))
+        self._write(text+chr(13)+chr(10))
 
 
     def _authorized(self, token):
@@ -176,8 +179,40 @@ class TelnetServer(TcpServer):
 
     #TELNET_PROMPT = 'ION telnet>'
     TELNET_PROMPT = None
-
-
+    # 'will echo' command sequence to be sent from this telnet server
+    # see RFCs 854 & 857
+    WILL_ECHO_CMD = '\xff\xfd\x03\xff\xfb\x03\xff\xfb\x01'
+    # 'do echo' command sequence to be sent back from telnet client
+    DO_ECHO_CMD   = '\xff\xfb\x03\xff\xfd\x03\xff\xfd\x01'
+    
+    def _setup_session(self):
+        # negotiate with the telnet client to have server echo characters
+        response = input = ''
+        # set socket to non-blocking
+        self.connection_socket.setblocking(0)
+        start_time = time.time()
+        self._write(self.WILL_ECHO_CMD)
+        while True:
+            try:
+                input = self.connection_socket.recv(100)
+            except gevent.socket.error, error:
+                if error[0] == errno.EAGAIN:
+                    pass
+                else:
+                    log.info("TcpServer._setup_session(): exception caught <%s>" %str(error))
+                    self._exit_handler("lost connection")
+                    return False
+            if len(input) > 0:
+                response += input
+            if self.DO_ECHO_CMD in response:
+                # set socket back to blocking
+                self.connection_socket.setblocking(1)
+                return True
+            elif time.time() - start_time > 5:
+                self._exit_handler("session setup timed out")
+                self._writeline("session negotiation with telnet client failed, closing connection")
+                return False            
+            
     def _handler(self):
         "The actual telnet server to which the user has connected."
         log.debug("TelnetServer._handler(): starting")
@@ -185,37 +220,45 @@ class TelnetServer(TcpServer):
         self.fileobj = self.connection_socket.makefile()
         username = None
         token = None
+
         self._write("Username: ")
         username = self.fileobj.readline().rstrip('\n\r')
         if username == '':
             self._exit_handler("lost connection")
             return
         self.activity_seen = True;
+
         self._write("token: ")
         token = self.fileobj.readline().rstrip('\n\r')
         if token == '':
             self._exit_handler("lost connection")
             return
         self.activity_seen = True;
+
         if not self._authorized(token):
             log.debug("login failed")
             self._writeline("login failed")
             self._exit_handler("login failed")
             return
+
+        if not self._setup_session():
+            return       
+
         self._writeline("connected")   # let telnet client user know they are connected
+        self.server_ready_to_send = True
         while True:
             if self.TELNET_PROMPT:
                 self._write(self.TELNET_PROMPT)
-            input_line = self.fileobj.readline()
-            if input_line == '':
+            input = self.connection_socket.recv(1024)
+            if input == '':
                 self._exit_handler("lost connection")
                 break
             self.activity_seen = True;
-            log.debug("rcvd: " + input_line)
-            log.debug("len=" + str(len(input_line)))
-            for i in range(len(input_line)):
-                log.debug("%d - %x", i, ord(input_line[i])) 
-            self.parent_input_callback(input_line)
+            log.debug("rcvd: " + input)
+            log.debug("len=" + str(len(input)))
+            for i in range(len(input)):
+                log.debug("%d - %x", i, ord(input[i])) 
+            self.parent_input_callback(input)
             
 
 class SerialServer(TcpServer):
@@ -226,6 +269,7 @@ class SerialServer(TcpServer):
         log.debug("SerialServer._handler(): starting")
         
         self.fileobj = self.connection_socket.makefile()
+        self.server_ready_to_send = True
         while True:
             input = self.connection_socket.recv(1024)
             if input == '':

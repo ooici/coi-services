@@ -1,0 +1,23 @@
+dbd_label: DBD_ASC(dinkum_binary_data_ascii)file
+encoding_ver: 2
+num_ascii_tags: 14
+all_sensors: 0
+filename: ru03-2003-300-10-1
+the8x3_filename: 00660001
+filename_extension: sbd
+filename_label: ru03-2003-300-10-1-sbd(00660001)
+mission_name: ALINE.MI
+fileopen_time: Tue_Oct_28_17:30:49_2003
+sensors_per_cycle: 3
+num_label_lines: 3
+num_segments: 1
+segment_filename_0: ru03-2003-300-10-1
+m_present_time sci_water_temp sci_water_pressure 
+sec degC bar 
+8 4 4 
+1067362109 15.6408 1.291 
+NaN NaN NaN 
+NaN NaN NaN 
+NaN NaN NaN 
+NaN NaN NaN 
+NaN NaN NaN 

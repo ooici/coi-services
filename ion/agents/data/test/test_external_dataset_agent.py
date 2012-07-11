@@ -32,6 +32,8 @@ import gevent
 from nose.plugins.attrib import attr
 from mock import patch
 import unittest
+import numpy
+import os
 
 # ION imports.
 from interface.objects import StreamQuery, Attachment, AttachmentType, Granule
@@ -41,18 +43,21 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.stream_defs import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
+from interface.objects import AgentCommand, ExternalDatasetAgent, ExternalDatasetAgentInstance
+from interface.objects import ExternalDataProvider, ExternalDataset, DataSource, DataSourceModel, DataProduct
+from interface.objects import ContactInformation, UpdateDescription, DatasetDescription, Institution
 from pyon.util.containers import get_safe
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.event.event import EventSubscriber
+from pyon.ion.resource import PRED, RT
 
 # MI imports
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 from ion.agents.instrument.exceptions import InstrumentParameterException
 
-# todo: rethink this
-from ion.agents.data.handlers.base_data_handler import PACKET_CONFIG
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 
 from pyon.ion.granule.taxonomy import TaxyTool
 
@@ -208,11 +213,11 @@ class ExternalDatasetAgentTestBase(object):
                     log.debug('Called self._async_finished_result.set({0})'.format(len(self._finished_events_received)))
 
         self._finished_event_subscriber = EventSubscriber(event_type='DeviceEvent', callback=consume_event)
-        self._finished_event_subscriber.activate()
+        self._finished_event_subscriber.start()
 
     def _stop_finished_event_subscriber(self):
         if self._finished_event_subscriber:
-            self._finished_event_subscriber.deactivate()
+            self._finished_event_subscriber.stop()
             self._finished_event_subscriber = None
 
 
@@ -804,40 +809,40 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+#@attr('INT', group='eoi')
+#class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
+#    # DataHandler config
+#    DVR_CONFIG = {
+#        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
+#        'dvr_cls' : 'DummyDataHandler',
+#        }
+#
+#    # Constraints dict
+#    HIST_CONSTRAINTS_1 = {
+#        'array_len':15,
+#        }
+#    HIST_CONSTRAINTS_2 = {
+#        'array_len':10,
+#        }
+#
+#    NDC = {
+#    }
+#
+#    def _setup_resources(self):
+#        stream_id = self.create_stream_and_logger(name='dummydata_stream')
+#
+#        tx = TaxyTool()
+#        tx.add_taxonomy_set('dummy', 'external_data')
+#        self.DVR_CONFIG['dh_cfg'] = {
+#            'TESTING':True,
+#            'stream_id':stream_id,#TODO: This should probably be a 'stream_config' dict with stream_name:stream_id members
+#            'data_producer_id':'dummy_data_producer_id',
+#            'taxonomy':tx.dump(),
+#            'max_records':4,
+#            }
+
 @attr('INT', group='eoi')
 class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
-    # DataHandler config
-    DVR_CONFIG = {
-        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
-        'dvr_cls' : 'DummyDataHandler',
-        }
-
-    # Constraints dict
-    HIST_CONSTRAINTS_1 = {
-        'array_len':15,
-        }
-    HIST_CONSTRAINTS_2 = {
-        'array_len':10,
-        }
-
-    NDC = {
-    }
-
-    def _setup_resources(self):
-        stream_id = self.create_stream_and_logger(name='dummydata_stream')
-
-        tx = TaxyTool()
-        tx.add_taxonomy_set('data', 'external_data')
-        self.DVR_CONFIG['dh_cfg'] = {
-            'TESTING':True,
-            'stream_id':stream_id,#TODO: This should probably be a 'stream_config' dict with stream_name:stream_id members
-            'data_producer_id':'dummy_data_producer_id',
-            'taxonomy':tx.dump(),
-            'max_records':4,
-            }
-
-@attr('INT_LONG', group='eoi')
-class TestExternalDatasetAgent_Fibonacci(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
         'dvr_cls' : 'FibonacciDataHandler',
@@ -867,3 +872,371 @@ class TestExternalDatasetAgent_Fibonacci(ExternalDatasetAgentTestBase, IonIntegr
             'max_records':4,
             }
 
+@attr('INT_EXPERIMENTAL', group='eoi')
+class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
+    # DataHandler config
+    DVR_CONFIG = {
+        'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',
+        'dvr_cls' : 'DummyDataHandler',
+        }
+
+    NDC = {
+    }
+
+    def _setup_resources(self):
+        # TODO: some or all of this (or some variation) should move to DAMS'
+
+        # Build the test resources for the dataset
+        dams_cli = DataAcquisitionManagementServiceClient()
+        dpms_cli = DataProductManagementServiceClient()
+        rr_cli = ResourceRegistryServiceClient()
+
+        eda = ExternalDatasetAgent()
+        eda_id = dams_cli.create_external_dataset_agent(eda)
+
+        eda_inst = ExternalDatasetAgentInstance()
+        eda_inst_id = dams_cli.create_external_dataset_agent_instance(eda_inst, external_dataset_agent_id=eda_id)
+
+        # Create and register the necessary resources/objects
+
+        # Create DataProvider
+        dprov = ExternalDataProvider(institution=Institution(), contact=ContactInformation())
+        dprov.contact.name = 'Christopher Mueller'
+        dprov.contact.email = 'cmueller@asascience.com'
+
+        # Create DataSource
+        dsrc = DataSource(protocol_type='DAP', institution=Institution(), contact=ContactInformation())
+        dsrc.connection_params['base_data_url'] = ''
+        dsrc.contact.name='Tim Giguere'
+        dsrc.contact.email = 'tgiguere@asascience.com'
+
+        # Create ExternalDataset
+        ds_name = 'dummy_dataset'
+        dset = ExternalDataset(name=ds_name, dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
+
+        # The usgs.nc test dataset is a download of the R1 dataset found here:
+        # http://thredds-test.oceanobservatories.org/thredds/dodsC/ooiciData/E66B1A74-A684-454A-9ADE-8388C2C634E5.ncml
+        dset.dataset_description.parameters['base_url'] = 'test_data/dummy'
+        dset.dataset_description.parameters['list_pattern'] = 'test*.dum'
+        dset.dataset_description.parameters['date_pattern'] = '%Y %m %d %H'
+        dset.dataset_description.parameters['date_extraction_pattern'] = 'test([\d]{4})-([\d]{2})-([\d]{2})-([\d]{2}).dum'
+        dset.dataset_description.parameters['temporal_dimension'] = 'time'
+        dset.dataset_description.parameters['zonal_dimension'] = 'lon'
+        dset.dataset_description.parameters['meridional_dimension'] = 'lat'
+        dset.dataset_description.parameters['variables'] = [
+            'dummy',
+            ]
+
+        # Create DataSourceModel
+        dsrc_model = DataSourceModel(name='dap_model')
+        dsrc_model.model = 'DAP'
+        dsrc_model.data_handler_module = 'N/A'
+        dsrc_model.data_handler_class = 'N/A'
+
+        ## Run everything through DAMS
+        ds_id = dams_cli.create_external_dataset(external_dataset=dset)
+        ext_dprov_id = dams_cli.create_external_data_provider(external_data_provider=dprov)
+        ext_dsrc_id = dams_cli.create_data_source(data_source=dsrc)
+        ext_dsrc_model_id = dams_cli.create_data_source_model(dsrc_model)
+
+        # Register the ExternalDataset
+        dproducer_id = dams_cli.register_external_data_set(external_dataset_id=ds_id)
+
+        # Or using each method
+        dams_cli.assign_data_source_to_external_data_provider(data_source_id=ext_dsrc_id, external_data_provider_id=ext_dprov_id)
+        dams_cli.assign_data_source_to_data_model(data_source_id=ext_dsrc_id, data_source_model_id=ext_dsrc_model_id)
+        dams_cli.assign_external_dataset_to_data_source(external_dataset_id=ds_id, data_source_id=ext_dsrc_id)
+        dams_cli.assign_external_dataset_to_agent_instance(external_dataset_id=ds_id, agent_instance_id=eda_inst_id)
+
+        # Generate the data product and associate it to the ExternalDataset
+        dprod = DataProduct(name='dummy_dataset', description='dummy data product')
+        dproduct_id = dpms_cli.create_data_product(data_product=dprod)
+
+        dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id, create_stream=True)
+
+        stream_id, assn = rr_cli.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        stream_id = stream_id[0]
+
+        log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id, 'Stream':stream_id}))
+
+        #CBM: Use CF standard_names
+
+        ttool = TaxyTool()
+        ttool.add_taxonomy_set('time','time')
+        ttool.add_taxonomy_set('lon','longitude')
+        ttool.add_taxonomy_set('lat','latitude')
+        ttool.add_taxonomy_set('dummy', 'dummy')
+
+        # Create the logger for receiving publications
+        self.create_stream_and_logger(name='dummy',stream_id=stream_id)
+
+        self.EDA_RESOURCE_ID = ds_id
+        self.EDA_NAME = ds_name
+        self.DVR_CONFIG['dh_cfg'] = {
+            'TESTING':True,
+            'stream_id':stream_id,
+            'taxonomy':ttool.dump(),
+            'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
+            'max_records':4,
+            }
+
+        folder = 'test_data/dummy'
+        for the_file in os.listdir(folder):
+            file_path = os.path.join(folder, the_file)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+            except Exception, e:
+                log.debug('_setup_resources error: {0}'.format(e))
+
+        self.add_dummy_file('test_data/dummy/test2012-02-01-12.dum')
+        self.add_dummy_file('test_data/dummy/test2012-02-01-13.dum')
+        self.add_dummy_file('test_data/dummy/test2012-02-01-14.dum')
+        self.add_dummy_file('test_data/dummy/test2012-02-01-15.dum')
+
+    def add_dummy_file(self, file_name):
+        with open(file_name, 'w') as f:
+            f.write(numpy.arange(100))
+
+    def test_new_data_available_at_end(self):
+        cmd=AgentCommand(command='initialize')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='go_active')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='run')
+        _ = self._ia_client.execute_agent(cmd)
+
+        self._finished_count = 1
+
+        config_mods={}
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
+        self._ia_client.execute(cmd)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
+
+        self.add_dummy_file('test_data/dummy/test2012-02-01-16.dum')
+        self.add_dummy_file('test_data/dummy/test2012-02-01-17.dum')
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        #config_mods['constraints']=self.HIST_CONSTRAINTS_1
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
+        self._ia_client.execute(cmd)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+    def test_new_data_available_at_beginning(self):
+        cmd=AgentCommand(command='initialize')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='go_active')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='run')
+        _ = self._ia_client.execute_agent(cmd)
+
+        self._finished_count = 1
+
+        config_mods={}
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        #config_mods['constraints']=self.HIST_CONSTRAINTS_1
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
+        self._ia_client.execute(cmd)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
+
+        self.add_dummy_file('test_data/dummy/test2012-02-01-10.dum')
+        self.add_dummy_file('test_data/dummy/test2012-02-01-11.dum')
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
+        self._ia_client.execute(cmd)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+    def test_new_data_available_at_beginning_and_end(self):
+        cmd=AgentCommand(command='initialize')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='go_active')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='run')
+        _ = self._ia_client.execute_agent(cmd)
+
+        self._finished_count = 1
+
+        config_mods={}
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        #config_mods['constraints']=self.HIST_CONSTRAINTS_1
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
+        self._ia_client.execute(cmd)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
+
+        self.add_dummy_file('test_data/dummy/test2012-02-01-10.dum')
+        self.add_dummy_file('test_data/dummy/test2012-02-01-11.dum')
+        self.add_dummy_file('test_data/dummy/test2012-02-01-16.dum')
+        self.add_dummy_file('test_data/dummy/test2012-02-01-17.dum')
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
+        self._ia_client.execute(cmd)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+    def test_data_removed_from_beginning(self):
+        cmd=AgentCommand(command='initialize')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='go_active')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='run')
+        _ = self._ia_client.execute_agent(cmd)
+
+        self._finished_count = 1
+
+        config_mods={}
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        #config_mods['constraints']=self.HIST_CONSTRAINTS_1
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
+        self._ia_client.execute(cmd)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
+
+        os.remove('test_data/dummy/test2012-02-01-12.dum')
+        os.remove('test_data/dummy/test2012-02-01-13.dum')
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
+        self._ia_client.execute(cmd)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+    def test_data_removed_from_end(self):
+        cmd=AgentCommand(command='initialize')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='go_active')
+        _ = self._ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='run')
+        _ = self._ia_client.execute_agent(cmd)
+
+        self._finished_count = 1
+
+        config_mods={}
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        #config_mods['constraints']=self.HIST_CONSTRAINTS_1
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
+        self._ia_client.execute(cmd)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
+
+        os.remove('test_data/dummy/test2012-02-01-14.dum')
+        os.remove('test_data/dummy/test2012-02-01-15.dum')
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        cmd = AgentCommand(command='acquire_data', args=[config_mods])
+        self._ia_client.execute(cmd)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished,self._finished_count)
+
+        cmd = AgentCommand(command='reset')
+        _ = self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command='get_current_state')
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+    @unittest.skip('')
+    def test_acquire_data(self):
+        pass
+
+    @unittest.skip('')
+    def test_acquire_data_while_streaming(self):
+        pass
+
+    @unittest.skip('')
+    def test_streaming(self):
+        pass
+
+    @unittest.skip('')
+    def test_observatory(self):
+        pass
+
+    @unittest.skip('')
+    def test_get_set_param(self):
+        pass
+
+    @unittest.skip('')
+    def test_initialize(self):
+        pass
+
+    @unittest.skip('')
+    def test_states(self):
+        pass
+
+    @unittest.skip('')
+    def test_capabilities(self):
+        pass
+
+    @unittest.skip('')
+    def test_errors(self):
+        pass

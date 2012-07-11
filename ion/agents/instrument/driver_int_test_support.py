@@ -13,8 +13,6 @@ import gevent
 import os
 import logging
 from ion.agents.port.logger_process import EthernetDeviceLogger
-from ion.agents.instrument.zmq_driver_client import ZmqDriverClient
-from ion.agents.instrument.zmq_driver_process import ZmqDriverProcess
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -90,56 +88,3 @@ class DriverIntegrationTestSupport(object):
             else:
                 mi_logger.info('No port agent running.')
 
-    def start_driver(self):
-        """
-        Start the driver process.
-        """
-
-        # Launch driver process based on test config.
-        this_pid = os.getpid()
-        (dvr_proc, cmd_port, evt_port) = ZmqDriverProcess.launch_process(self.driver_module,
-                                                                         self.driver_class,
-                                                                         self.work_dir,
-                                                                         this_pid)
-        self._dvr_proc = dvr_proc
-        mi_logger.info('Started driver process for %d %d %s %s', cmd_port,
-            evt_port, self.driver_module, self.driver_class)
-        mi_logger.info('Driver process pid %d', self._dvr_proc.pid)
-
-        # Create driver client.
-        self._dvr_client = ZmqDriverClient('localhost', cmd_port,
-            evt_port)
-        mi_logger.info('Created driver client for %d %d %s %s', cmd_port,
-            evt_port, self.driver_module, self.driver_class)
-
-        # Start client messaging.
-        self._dvr_client.start_messaging(self.evt_recd)
-        mi_logger.info('Driver messaging started.')
-        gevent.sleep(.5)
-
-    def stop_driver(self):
-        """
-        Method to shut down the driver process. Attempt normal shutdown,
-        and kill the process if unsuccessful.
-        """
-
-        if self._dvr_proc:
-            mi_logger.info('Stopping driver process pid %d', self._dvr_proc.pid)
-            if self._dvr_client:
-                self._dvr_client.done()
-                self._dvr_proc.wait()
-                self._dvr_client = None
-
-            else:
-                try:
-                    mi_logger.info('Killing driver process.')
-                    self._dvr_proc.kill()
-                except OSError:
-                    pass
-            self._dvr_proc = None
-
-    def evt_recd(self, evt):
-        """
-        Simple callback to catch events from the driver for verification.
-        """
-        self._events.append(evt)

@@ -9,7 +9,7 @@
 from pyon.public import RT, LCE
 
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
-from ion.services.sa.instrument.policy import ModelPolicy
+from ion.services.sa.instrument.resource_lcs_policy import ModelPolicy
 
 class PlatformModelImpl(ResourceSimpleImpl):
     """

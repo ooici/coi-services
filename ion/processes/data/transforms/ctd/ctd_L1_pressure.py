@@ -15,6 +15,13 @@ from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L0_pre
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
+### For new granule and stream interface
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from pyon.ion.granule.taxonomy import TaxyTool
+from pyon.ion.granule.granule import build_granule
+from pyon.util.containers import get_safe
+
+
 class CTDL1PressureTransform(TransformFunction):
     ''' A basic transform that receives input through a subscription,
     parses the input from a CTD, extracts the pressure vaule and scales it accroding to
@@ -28,22 +35,33 @@ class CTDL1PressureTransform(TransformFunction):
     incoming_stream_def = L0_pressure_stream_definition()
     outgoing_stream_def = L1_pressure_stream_definition()
 
+    ### Taxonomies are defined before hand out of band... somehow.
+    tx = TaxyTool()
+    tx.add_taxonomy_set('pres','long name for pressure')
+    tx.add_taxonomy_set('lat','long name for latitude')
+    tx.add_taxonomy_set('lon','long name for longitude')
+    tx.add_taxonomy_set('height','long name for height')
+    tx.add_taxonomy_set('time','long name for time')
+    # This is an example of using groups it is not a normative statement about how to use groups
+    tx.add_taxonomy_set('coordinates','This group contains coordinates...')
+    tx.add_taxonomy_set('data','This group contains data...')
 
 
     def execute(self, granule):
         """Processes incoming data!!!!
         """
 
-        # Use the deconstructor to pull data from a granule
-        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        #todo: use only flat dicts for now, may change later...
+#        rdt0 = rdt['coordinates']
+#        rdt1 = rdt['data']
 
+        pressure = get_safe(rdt, 'pres') #psd.get_values('conductivity')
 
-        pressure = psd.get_values('pressure')
-
-        longitude = psd.get_values('longitude')
-        latitude = psd.get_values('latitude')
-        height = psd.get_values('height')
-        time = psd.get_values('time')
+        longitude = get_safe(rdt, 'lon') # psd.get_values('longitude')
+        latitude = get_safe(rdt, 'lat')  #psd.get_values('latitude')
+        time = get_safe(rdt, 'time') # psd.get_values('time')
+        height = get_safe(rdt, 'height') # psd.get_values('time')
 
         log.warn('Got pressure: %s' % str(pressure))
 
@@ -64,11 +82,28 @@ class CTDL1PressureTransform(TransformFunction):
         ### the stream id is part of the metadata which much go in each stream granule - this is awkward to do at the
         ### application level like this!
 
+        scaled_pressure = pressure
+
         for i in xrange(len(pressure)):
             #todo: get pressure range from metadata (if present) and include in calc
-            scaled_pressure = ( pressure[i])
-            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],height[i]))
-            psc.add_scalar_point_coverage(point_id=point_id, coverage_id='pressure', value=scaled_pressure)
+            scaled_pressure[i] = ( pressure[i])
+
+        root_rdt = RecordDictionaryTool(taxonomy=self.tx)
+
+        #todo: use only flat dicts for now, may change later...
+#        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
+#        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
+
+        root_rdt['pres'] = scaled_pressure
+        root_rdt['time'] = time
+        root_rdt['lat'] = latitude
+        root_rdt['lon'] = longitude
+        root_rdt['height'] = height
+
+#        root_rdt['coordinates'] = coord_rdt
+#        root_rdt['data'] = data_rdt
+
+        return build_granule(data_producer_id='ctd_L1_pressure', taxonomy=self.tx, record_dictionary=root_rdt)
 
         return psc.close_stream_granule()
 

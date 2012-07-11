@@ -9,6 +9,8 @@ from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
 from prototype.sci_data.constructor_apis import DefinitionTree, StreamDefinitionConstructor
 from pyon.core.exception import BadRequest, NotFound
+from pyon.util.arg_check import validate_is_instance, validate_true
+from ion.processes.data.replay.replay_process import ReplayProcess
 from pyon.public import PRED, RT
 
 
@@ -20,7 +22,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         self.process_definition_id = None
 
 
-    def on_start(self):
+    def on_start(self): #pragma no cover
         super(DataRetrieverService,self).on_start()
 
         res_list, _ = self.clients.resource_registry.find_resources(
@@ -32,23 +34,15 @@ class DataRetrieverService(BaseDataRetrieverService):
             self.process_definition_id = res_list[0]
 
 
-    def on_quit(self):
+    def on_quit(self): #pragma no cover
         #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
         super(DataRetrieverService,self).on_quit()
 
 
-
-
-
     def define_replay(self, dataset_id='', query=None, delivery_format=None):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
-
         '''
-        # Get the datastore name from the dataset object, use dm_datastore by default.
-        """
-        delivery_format
-            - fields
-        """
+
         if not dataset_id:
             raise BadRequest('(Data Retriever Service %s): No dataset provided.' % self.name)
 
@@ -60,38 +54,16 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
         datastore_name = dataset.datastore_name
-        datastore = self.container.datastore_manager.get_datastore(datastore_name)
         delivery_format = delivery_format or {}
 
         view_name = dataset.view_name
         key_id = dataset.primary_view_key
         # Make a new definition container
 
+        replay_stream_id = self.clients.pubsub_management.create_stream()
 
-
-        # Make a definition
-        try:
-            definition = datastore.query_view('datasets/dataset_by_id',opts={'key':[dataset.primary_view_key,0],'include_docs':True})[0]['doc']
-        except IndexError:
-            raise NotFound('The requested document was not located.')
-        definition_container = definition
-
-
-
-
-
-        # Tell pubsub about our definition that we want to use and setup the association so clients can figure out
-        # What belongs on the stream
-        definition_id = self.clients.pubsub_management.create_stream_definition(container=definition_container)
-        # Make a stream
-        replay_stream_id = self.clients.pubsub_management.create_stream(stream_definition_id=definition_id)
         replay = Replay()
         replay.delivery_format = delivery_format
-
-        definition_container.stream_resource_id = replay_stream_id
-
-
-
 
         replay.process_id = 0
 
@@ -101,9 +73,10 @@ class DataRetrieverService(BaseDataRetrieverService):
         config = {'process':{
             'query':query,
             'datastore_name':datastore_name,
+            'dataset_id':dataset_id,
             'view_name':view_name,
             'key_id':key_id,
-            'delivery_format':dict({'definition_id':definition_id}, **delivery_format),
+            'delivery_format':delivery_format,
             'publish_streams':{'output':replay_stream_id}
             }
         }
@@ -118,7 +91,15 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.update(replay)
         self.clients.resource_registry.create_association(replay_id, PRED.hasStream, replay_stream_id)
-        return (replay_id, replay_stream_id)
+        return replay_id, replay_stream_id
+
+    def delete_replay(self,replay_id=''):
+        assocs = self.clients.resource_registry.find_associations(subject=replay_id,predicate=PRED.hasStream)
+
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+        self.clients.resource_registry.delete(replay_id)
 
 
 
@@ -144,4 +125,27 @@ class DataRetrieverService(BaseDataRetrieverService):
                 self.clients.resource_registry.delete_association(assoc)
 
         self.clients.resource_registry.delete(replay_id)
+
+    def retrieve(self, dataset_id='', query=None, delivery_format=None):
+
+        if query is None:
+            query = {}
+        if delivery_format is None:
+            delivery_format = {}
+
+        validate_is_instance(query,dict,'Query was improperly formatted.')
+        validate_true(dataset_id, 'No dataset provided')
+        
+
+        replay_instance = ReplayProcess()
+
+        replay_instance.dataset = self.clients.dataset_management.read_dataset(dataset_id)
+        replay_instance.start_time = query.get('start_time', None)
+        replay_instance.end_time = query.get('end_time', None)
+        replay_instance.container = self.container
+
+        retrieve_data = replay_instance.execute_retrieve()
+
+        return retrieve_data
+
 

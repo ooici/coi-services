@@ -50,8 +50,9 @@ from pyon.core.exception import InstParameterError
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 from ion.agents.port.logger_process import EthernetDeviceLogger
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
-from ion.agents.instrument.drivers.sbe37.sbe37_driver import SBE37Parameter
-from ion.agents.instrument.drivers.sbe37.sbe37_driver import PACKET_CONFIG
+from ion.agents.instrument.driver_process import DriverProcessType
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
+from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 
 # bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
@@ -70,7 +71,7 @@ DEV_PORT = CFG.device.sbe37.port
 #DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
-DRV_MOD = 'ion.agents.instrument.drivers.sbe37.sbe37_driver'
+DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
 # Work dir and logger delimiter.
@@ -83,6 +84,7 @@ DVR_CONFIG = {
     'dvr_mod' : DRV_MOD,
     'dvr_cls' : DRV_CLS,
     'workdir' : WORK_DIR,
+    'process_type' : ('ZMQPyClassDriverLauncher',)
 }
 
 # Agent parameters.
@@ -205,7 +207,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._start_container()
         
         # Bring up services in a deploy file (no need to message)
-        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.
@@ -334,7 +336,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 self._async_event_result.set()
                 
         event_sub = EventSubscriber(event_type="DeviceEvent", callback=consume_event)
-        event_sub.activate()
+        event_sub.start()
         self._event_subscribers.append(event_sub)
         
     def _stop_event_subscribers(self):
@@ -342,7 +344,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Stop event subscribers on cleanup.
         """
         for sub in self._event_subscribers:
-            sub.deactivate()
+            sub.stop()
         
     def assertSampleDict(self, val):
         """

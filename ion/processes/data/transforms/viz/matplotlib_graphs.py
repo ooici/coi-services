@@ -5,9 +5,11 @@ from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
 
 import time
+import numpy
 from pyon.ion.granule.granule import build_granule
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from pyon.util.containers import get_safe
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
@@ -50,25 +52,38 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         log.debug('Matplotlib transform: Received Viz Data Packet')
 
         # parse the incoming data
-        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
+#        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
+#
+#        # re-arrange incoming data into an easy to parse dictionary
+#        vardict = {}
+#        arrLen = None
+#        for varname in psd.list_field_names():
+#            vardict[varname] = psd.get_values(varname)
+#            arrLen = len(vardict[varname])
 
-        # re-arrange incoming data into an easy to parse dictionary
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+
         vardict = {}
-        arrLen = None
-        for varname in psd.list_field_names():
-            vardict[varname] = psd.get_values(varname)
-            arrLen = len(vardict[varname])
+        vardict['conductivity'] = get_safe(rdt, 'cond')
+        vardict['pressure'] = get_safe(rdt, 'pres')
+        vardict['temperature'] = get_safe(rdt, 'temp')
+
+        vardict['longitude'] = get_safe(rdt, 'lon')
+        vardict['latitude'] = get_safe(rdt, 'lat')
+        vardict['time'] = get_safe(rdt, 'time')
+        vardict['height'] = get_safe(rdt, 'height')
+        arrLen = len(vardict['time'])
 
         if self.initDataFlag:
             # look at the incoming packet and store
-            for varname in psd.list_field_names():
+            for varname in vardict.keys():    #psd.list_field_names():
                 self.graph_data[varname] = []
 
             self.initDataFlag = False
 
         # If code reached here, the graph data storage has been initialized. Just add values
         # to the list
-        for varname in psd.list_field_names():
+        for varname in vardict.keys():  # psd.list_field_names():
             self.graph_data[varname].extend(vardict[varname])
 
         if (time.time() - self.lastRenderTime) > self.renderTimeThreshold:
@@ -91,7 +106,8 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         xAxisVar = 'time'
         xAxisFloatData = self.graph_data[xAxisVar]
         rdt = RecordDictionaryTool(taxonomy=tx)
-        rdt['matplotlib_graphs'] = array([])
+        #rdt['matplotlib_graphs'] = numpy.array([])
+        msgs = []
 
         for varName, varData in self.graph_data.iteritems():
             if varName == 'time' or varName == 'height' or varName == 'longitude' or varName == 'latitude':
@@ -115,15 +131,15 @@ class VizTransformMatplotlibGraphs(TransformFunction):
 
             # submit resulting table back using the out stream publisher
             msg = {"viz_product_type": "matplotlib_graphs",
-                   "data_product_id": "FAKE_DATAPRODUCT_ID_0001",
                    "image_obj": imgInMem.getvalue(),
                    "image_name": fileName}
 
-            append(rdt['matplotlib_graphs'], msg)
+            msgs.append(msg)
 
             #clear the canvas for the next image
             ax.clear()
 
+        rdt['matplotlib_graphs'] = numpy.array(msgs)
         #Generate a list of the graph objects generated
         self.out_granule = build_granule(data_producer_id='matplotlib_graphs_transform', taxonomy=tx, record_dictionary=rdt)
 

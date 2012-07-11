@@ -65,7 +65,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
 
         #this is convoluted but it helps me debug by 
         #  being able to inject text into the sample_resource_extras
-        sample_resource = self.sample_resource_factory(impl_instance, resource_params)
+        sample_resource = self.sample_resource_factory(impl_instance.iontype, resource_params)
 
         all_in_one = self.all_in_one
 

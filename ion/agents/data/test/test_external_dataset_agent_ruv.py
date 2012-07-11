@@ -61,7 +61,10 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
         ds_name = 'ruv_test_dataset'
         dset = ExternalDataset(name=ds_name, dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
 
-        dset.dataset_description.parameters['dataset_path'] = 'test_data/RDLi_SEAB_2011_08_24_1600.ruv'
+        dset.dataset_description.parameters['base_url'] = 'test_data/ruv/'
+        dset.dataset_description.parameters['list_pattern'] = 'RDLi_SEAB_2011_08_24_1600.ruv'
+        dset.dataset_description.parameters['date_pattern'] = '%Y %m %d %H %M'
+        dset.dataset_description.parameters['date_extraction_pattern'] = 'RDLi_SEAB_([\d]{4})_([\d]{2})_([\d]{2})_([\d]{2})([\d]{2}).ruv'
         dset.dataset_description.parameters['temporal_dimension'] = None
         dset.dataset_description.parameters['zonal_dimension'] = None
         dset.dataset_description.parameters['meridional_dimension'] = None

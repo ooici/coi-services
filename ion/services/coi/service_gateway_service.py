@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
@@ -47,67 +46,45 @@ DEFAULT_EXPIRY = '0'
 RETURN_FORMAT_PARAM = 'return_format'
 RETURN_FORMAT_RAW_JSON = 'raw_json'
 
+
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
 class ServiceGatewayService(BaseServiceGatewayService):
-
     """
-	The Service Gateway Service is the service that uses a gevent web server and Flask to bridge HTTP requests to AMQP RPC ION process service calls.
-	
+	The Service Gateway Service is the service that uses a gevent web server and Flask
+	to bridge HTTP requests to AMQP RPC ION process service calls.
     """
 
     def on_init(self):
-
         #defaults
         self.http_server = None
-        self.server_hostname = DEFAULT_WEB_SERVER_HOSTNAME
-        self.server_port = DEFAULT_WEB_SERVER_PORT
-        self.web_server_enabled = True
-        self.logging = None
-        self.user_cache_size = DEFAULT_USER_CACHE_SIZE
 
         #retain a pointer to this object for use in ProcessRPC calls
         global service_gateway_instance
         service_gateway_instance = self
 
-        try:
-            self.web_server_cfg = self.CFG['container']['service_gateway']['web_server']
-        except Exception, e:
-            self.web_server_cfg = None
+        self.server_hostname = self.CFG.get_safe('container.service_gateway.web_server.hostname', DEFAULT_WEB_SERVER_HOSTNAME)
+        self.server_port = self.CFG.get_safe('container.service_gateway.web_server.port', DEFAULT_WEB_SERVER_PORT)
+        self.web_server_enabled = self.CFG.get_safe('container.service_gateway.web_server.enabled', True)
+        self.logging = self.CFG.get_safe('container.service_gateway.web_server.log')
 
-        if self.web_server_cfg is not None:
-            if 'hostname' in self.web_server_cfg:
-                self.server_hostname = self.web_server_cfg['hostname']
-            if 'port' in self.web_server_cfg:
-                self.server_port = self.web_server_cfg['port']
-            if 'enabled' in self.web_server_cfg:
-                self.web_server_enabled = self.web_server_cfg['enabled']
-            if 'log' in self.web_server_cfg:
-                self.logging = self.web_server_cfg['log']
-
-        try:
-            #Optional list of trusted originators can be specified in config.
-            self.trusted_originators = self.CFG['container']['service_gateway']['trusted_originators']
-            if len(self.trusted_originators) == 0:
-                self.trusted_originators = None
-        except Exception, e:
+        #Optional list of trusted originators can be specified in config.
+        self.trusted_originators = self.CFG.get_safe('container.service_gateway.trusted_originators')
+        if not self.trusted_originators:
             self.trusted_originators = None
-
-        if self.trusted_originators is None:
             log.info("Service Gateway will not check requests against trusted originators since none are configured.")
 
-        try:
-            #Get the user_cache_size
-            self.user_cache_size = self.CFG['container']['service_gateway']['user_cache_size']
-        except Exception, e:
-            self.user_cache_size = DEFAULT_USER_CACHE_SIZE
+        #Get the user_cache_size
+        self.user_cache_size = self.CFG.get_safe('container.service_gateway.user_cache_size', DEFAULT_USER_CACHE_SIZE)
 
 
         #Start the gevent web server unless disabled
         if self.web_server_enabled:
-            self.start_service(self.server_hostname,self.server_port)
+            log.info("Starting service gateway on %s:%s", self.server_hostname, self.server_port)
+            self.start_service(self.server_hostname, self.server_port)
 
-        self.user_role_event_subscriber = EventSubscriber(event_type="UserRoleModifiedEvent", origin_type="Org", callback=self.user_role_event_callback)
-        self.user_role_event_subscriber.activate()
+        self.user_role_event_subscriber = EventSubscriber(event_type="UserRoleModifiedEvent", origin_type="Org",
+            callback=self.user_role_event_callback)
+        self.user_role_event_subscriber.start()
 
         #Initialize an LRU Cache to keep user roles cached for performance reasons
         #maxSize = maximum number of elements to keep in cache
@@ -118,9 +95,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         self.stop_service()
 
         if self.user_role_event_subscriber is not None:
-            self.user_role_event_subscriber.deactivate()
-
-
+            self.user_role_event_subscriber.stop()
 
 
     def start_service(self, hostname=DEFAULT_WEB_SERVER_HOSTNAME, port=DEFAULT_WEB_SERVER_PORT):
@@ -499,7 +474,7 @@ def create_ion_object(object_params):
 
 #Use this function internally to recursively set sub object field values
 def set_object_field(obj, field, field_val):
-    if isinstance(field_val,dict):
+    if isinstance(field_val,dict) and field != 'kwargs':
         sub_obj = getattr(obj,field)
         for sub_field in field_val:
             set_object_field(sub_obj, sub_field, field_val.get(sub_field))
@@ -537,11 +512,7 @@ def convert_unicode(data):
 #
 @app.route('/ion-service/list_resource_types', methods=['GET','POST'])
 def list_resource_types():
-
-
     try:
-
-
         #Validate requesting user and expiry and add governance headers
         ion_actor_id, expiry = get_governance_info_from_request()
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
@@ -557,22 +528,16 @@ def list_resource_types():
         for res in sorted(resultSet):
             ret_list.append(res)
 
-
         return gateway_json_response(ret_list)
-
 
     except Exception, e:
         return build_error_response(e)
 
 
-
 #Returns a json object for a specified resource type with all default values.
 @app.route('/ion-service/resource_type_schema/<resource_type>')
 def get_resource_schema(resource_type):
-
-
     try:
-
         #Validate requesting user and expiry and add governance headers
         ion_actor_id, expiry = get_governance_info_from_request()
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
@@ -595,12 +560,10 @@ def get_resource_schema(resource_type):
                         value = None
                     setattr(ret_obj, field, value)
 
-
         return gateway_json_response(ret_obj)
 
     except Exception, e:
         return build_error_response(e)
-
 
 
 #More RESTfull examples...should probably not use but here for example reference
@@ -609,9 +572,7 @@ def get_resource_schema(resource_type):
 #http://hostname:port/ion-service/resource/c1b6fa6aadbd4eb696a9407a39adbdc8
 @app.route('/ion-service/rest/resource/<resource_id>')
 def get_resource(resource_id):
-
         try:
-
             client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
             #Validate requesting user and expiry and add governance headers
@@ -629,15 +590,11 @@ def get_resource(resource_id):
             return build_error_response(e)
 
 
-
-
 #Example operation to return a list of resources of a specific type like
 #http://hostname:port/ion-service/find_resources/BankAccount
 @app.route('/ion-service/rest/find_resources/<resource_type>')
 def list_resources_by_type(resource_type):
-
     try:
-
         client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
         #Validate requesting user and expiry and add governance headers
@@ -664,7 +621,6 @@ def get_viz_image(data_product_id, img_name):
     return app.response_class(vs_cli.get_image(data_product_id, img_name),mimetype='image/png')
 
 
-
 #Below are example restful calls to stuff for testing... all should be removed at some point
 
 #http://hostname:port/ion-service/run_bank_client
@@ -674,20 +630,17 @@ def create_accounts():
     run_client(Container.instance, process=service_gateway_instance)
     return json_response("")
 
-
 @app.route('/ion-service/seed_gov')
 def seed_gov():
     from examples.gov_client import seed_gov
     seed_gov(Container.instance)
     return json_response("")
 
-
 @app.route('/ion-service/test_policy')
 def test_policy():
     from examples.gov_client import test_policy
     test_policy(Container.instance)
     return json_response("")
-
 
 @app.route('/ion-service/test_requests')
 def test_requests():
@@ -700,7 +653,3 @@ def instrument_test_driver():
     from examples.agent.instrument_driver import instrument_test_driver
     instrument_test_driver(Container.instance)
     return json_response("")
-
-
-
-

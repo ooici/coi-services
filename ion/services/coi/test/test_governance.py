@@ -247,18 +247,17 @@ class TestGovernanceInt(IonIntegrationTestCase):
         users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.sa_user_header)
         self.assertEqual(len(users),2)
 
-
         ## test_org_roles and policies
 
         roles = self.org_client.find_org_roles(self.ion_org._id)
         self.assertEqual(len(roles),3)
         self.assertItemsEqual([r.name for r in roles], [MANAGER_ROLE, MEMBER_ROLE, ION_MANAGER])
 
-        roles = self.org_client.find_roles_by_user(self.ion_org._id, self.system_actor._id, headers=self.sa_user_header)
+        roles = self.org_client.find_org_roles_by_user(self.ion_org._id, self.system_actor._id, headers=self.sa_user_header)
         self.assertEqual(len(roles),3)
         self.assertItemsEqual([r.name for r in roles], [MEMBER_ROLE, MANAGER_ROLE, ION_MANAGER])
 
-        roles = self.org_client.find_roles_by_user(self.ion_org._id, user_id, headers=self.sa_user_header)
+        roles = self.org_client.find_org_roles_by_user(self.ion_org._id, user_id, headers=self.sa_user_header)
         self.assertEqual(len(roles),1)
         self.assertItemsEqual([r.name for r in roles], [MEMBER_ROLE])
 

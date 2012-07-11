@@ -27,6 +27,7 @@ from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 from ion.services.sa.instrument.flag import KeywordFlag
 
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 # some stuff for logging info to the console
 # import sys
@@ -95,6 +96,9 @@ class TestAssembly(IonIntegrationTestCase):
 
     #@unittest.skip('refactoring')
     def test_observatory_structure(self):
+        """
+
+        """
         c = self.client
 
         c2 = DotDict()
@@ -357,7 +361,6 @@ class TestAssembly(IonIntegrationTestCase):
         add_keyworded_attachment(self.client.RR, instrument_agent_id, [KeywordFlag.CERTIFICATION])
         self.generic_lcs_pass(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.DEPLOY, LCS.DEPLOYED)
 
-        #platform instrument DELETEME just for find/replace
 
         #----------------------------------------------
         #
@@ -383,20 +386,7 @@ class TestAssembly(IonIntegrationTestCase):
                                         instrument_device_id,
                                         instrument_model_id)
 
-        log.info("Associate platform device with platform site")
-        self.generic_association_script(c.OMS.assign_device_to_site,
-            platform_site_impl.find_having_device,
-            platform_site_impl.find_stemming_device,
-            platform_site_id,
-            platform_device_id)
 
-        log.info("Associate instrument device with instrument site")
-        self.generic_association_script(c.OMS.assign_device_to_site,
-                                        instrument_site_impl.find_having_device,
-                                        instrument_site_impl.find_stemming_device,
-                                        instrument_site_id,
-                                        instrument_device_id)
-        
         log.info("Associate instrument device with platform device")
         self.generic_association_script(c.IMS.assign_instrument_device_to_platform_device,
                                         c.IMS.find_platform_device_by_instrument_device,
@@ -427,16 +417,81 @@ class TestAssembly(IonIntegrationTestCase):
         # instances
         #
         #----------------------------------------------
-        
 
 
 
 
 
 
+        #----------------------------------------------
+        #
+        # data production chain and swapping
+        #
+        #----------------------------------------------
+
+        #set up stream (this would be preload)
+        ctd_stream_def = SBE37_CDM_stream_definition()
+        ctd_stream_def_id = c.PSMS.create_stream_definition(container=ctd_stream_def)
+
+        #create data products for instrument data
+        inst_data_product_id = c.DPMS.create_data_product(any_old(RT.DataProduct), ctd_stream_def_id)
+        log_data_product_id = c.DPMS.create_data_product(any_old(RT.DataProduct), ctd_stream_def_id)
+
+        #assign data products appropriately
+        c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
+                                   data_product_id=inst_data_product_id,
+                                   create_stream=True)
+        c.OMS.create_site_data_product(instrument_site_id, log_data_product_id)
+
+        deployment_id = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, False)
+
+        c.OMS.deploy_instrument_site(instrument_site_id, deployment_id)
+        c.IMS.deploy_instrument_device(instrument_device_id, deployment_id)
+
+        c.OMS.activate_deployment(deployment_id, True)
 
 
-        #generic find ops for whatever
+        #now along comes a new device
+        log.info("Create instrument device 2")
+        instrument_device_id2 = self.generic_fcruf_script(RT.InstrumentDevice,
+                                                         "instrument_device",
+                                                         self.client.IMS,
+                                                         False)
+        log.info("Associate instrument model with instrument device 2")
+        self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_device,
+                                        c.IMS.find_instrument_device_by_instrument_model,
+                                        c.IMS.find_instrument_model_by_instrument_device,
+                                        instrument_device_id2,
+                                        instrument_model_id)
+        log.info("Associate instrument device with platform device 2")
+        self.generic_association_script(c.IMS.assign_instrument_device_to_platform_device,
+                                    c.IMS.find_platform_device_by_instrument_device,
+                                    c.IMS.find_instrument_device_by_platform_device,
+                                    platform_device_id,
+                                    instrument_device_id2)
+        inst_data_product_id2 = c.DPMS.create_data_product(any_old(RT.DataProduct), ctd_stream_def_id)
+        c.DAMS.assign_data_product(input_resource_id=instrument_device_id2,
+                                   data_product_id=inst_data_product_id2,
+                                   create_stream=True)
+
+        # create a new deployment for the new device
+        deployment_id2 = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, False)
+        c.OMS.deploy_instrument_site(instrument_site_id, deployment_id2)
+        c.IMS.deploy_instrument_device(instrument_device_id2, deployment_id2)
+
+        # activate the new deployment -- changing the primary device -- but don't switch subscription
+        c.OMS.activate_deployment(deployment_id2, False)
+        #todo: assert site hasDevice instrument_device_id2
+
+        c.OMS.transfer_site_subscription(instrument_site_id)
+
+    #----------------------------------------------
+        #
+        # generic find ops
+        #
+        #----------------------------------------------
+
+
 
         log.info("Find an instrument site by observatory")
 

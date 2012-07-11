@@ -12,7 +12,7 @@ from pyon.core.bootstrap import get_sys_name
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
-from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess 
+from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess, UserInfo
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.dm.iindex_management_service import IndexManagementServiceClient
 from interface.services.dm.icatalog_management_service import CatalogManagementServiceClient
@@ -25,6 +25,8 @@ from mock import Mock, patch
 
 import elasticpy as ep
 import time
+import os
+import unittest
 
 
 
@@ -385,35 +387,22 @@ class DiscoveryUnitTest(PyonTestCase):
 
         
 @attr('INT', group='dm')
+@attr('LOCOINT')
+@unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 class DiscoveryIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(DiscoveryIntTest, self).setUp()
+        config = DotDict()
+        config.bootstrap.use_es = True
 
         self._start_container()
         self.addCleanup(DiscoveryIntTest.es_cleanup)
-        self.container.start_rel_from_url('res/deploy/r2dm.yml')
+        self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
 
         self.discovery = DiscoveryServiceClient()
         self.catalog   = CatalogManagementServiceClient()
         self.ims       = IndexManagementServiceClient()
         self.rr        = ResourceRegistryServiceClient()
-
-        if use_es:
-            self.es_host   = CFG.get_safe('server.elasticsearch.host', 'localhost')
-            self.es_port   = CFG.get_safe('server.elasticsearch.port', '9200')
-            CFG.server.elasticsearch.shards         = 1
-            CFG.server.elasticsearch.replicas       = 0
-            CFG.server.elasticsearch.river_shards   = 1
-            CFG.server.elasticsearch.river_replicas = 0
-            self.es = ep.ElasticSearch(
-                host=self.es_host,
-                port=self.es_port,
-                timeout=10,
-                verbose=True
-            )
-            op = DotDict(CFG)
-            op.op = 'clean_bootstrap'
-            self.container.spawn_process('index_bootstrap','ion.processes.bootstrap.index_bootstrap','IndexBootStrap', op)
 
     @staticmethod
     def es_cleanup():
@@ -741,3 +730,27 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == pd_id)
         self.assertTrue(results[0]['_source'].name == 'test_dev')
         
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_user_search(self):
+        user = UserInfo()
+        user.name = 'test'
+        user.contact.phone = '5551212'
+
+        user_id, _ = self.rr.create(user)
+
+        search_string = 'search "name" is "test" from "users_index"'
+
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertTrue(results[0]['_id'] == user_id)
+        self.assertTrue(results[0]['_source'].name == 'test')
+
+        search_string = 'search "contact.phone" is "5551212" from "users_index"'
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertTrue(results[0]['_id'] == user_id)
+        self.assertTrue(results[0]['_source'].name == 'test')

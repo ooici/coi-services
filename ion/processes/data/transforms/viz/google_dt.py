@@ -21,6 +21,11 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RA
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor, RawSupplementConstructor
 
+### For new granule and stream interface
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from pyon.ion.granule.taxonomy import TaxyTool
+from pyon.ion.granule.granule import build_granule
+from pyon.util.containers import get_safe
 
 tx = TaxyTool()
 tx.add_taxonomy_set('google_dt_components','Google DT components for part or entire datatable')
@@ -77,22 +82,32 @@ class VizTransformGoogleDT(TransformFunction):
         #       calculate the number of expected records and set the self.realtime_window_size bigger or equal to this
         #       number.
 
+#        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
+#        vardict = {}
+#        arrLen = None
+#        for varname in psd.list_field_names():
+#            vardict[varname] = psd.get_values(varname)
+#            arrLen = len(vardict[varname])
 
+        rdt = RecordDictionaryTool.load_from_granule(granule)
 
-        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
         vardict = {}
-        arrLen = None
-        for varname in psd.list_field_names():
-            vardict[varname] = psd.get_values(varname)
-            arrLen = len(vardict[varname])
+        vardict['conductivity'] = get_safe(rdt, 'cond')
+        vardict['pressure'] = get_safe(rdt, 'pres')
+        vardict['temperature'] = get_safe(rdt, 'temp')
 
+        vardict['longitude'] = get_safe(rdt, 'lon')
+        vardict['latitude'] = get_safe(rdt, 'lat')
+        vardict['time'] = get_safe(rdt, 'time')
+        vardict['height'] = get_safe(rdt, 'height')
+        arrLen = len(vardict['time'])  # Figure out how many values are present in the granule
 
         #iinit the dataTable
         # create data description from the variables in the message
         self.dataDescription = [('time', 'datetime', 'time')]
 
         # split the data string to extract variable names
-        for varname in psd.list_field_names():
+        for varname in  vardict.keys():   #psd.list_field_names():
             if varname == 'time':
                 continue
 
@@ -139,19 +154,24 @@ class VizTransformGoogleDT(TransformFunction):
 
 
         # submit the partial datatable to the viz service
-        rdt = RecordDictionaryTool(taxonomy=tx)
+        out_rdt = RecordDictionaryTool(taxonomy=tx)
 
         # submit resulting table back using the out stream publisher. The data_product_id is the input dp_id
         # responsible for the incoming data
         msg = {"viz_product_type": "google_realtime_dt",
-               "data_product_id": "FAKE_DATAPRODUCT_ID_0000",
                "data_table_description": self.dataDescription,
                "data_table_content": self.dataTableContent}
 
-        rdt['google_dt_components'] = numpy.array([msg])
+        out_rdt['google_dt_components'] = numpy.array([msg])
+
+        #out_rdt["data_table_description"] = self.dataDescription
+        #out_rdt["data_table_content"] = self.dataTableContent
+        #out_rdt['viz_product_type'] = numpy.array(["google_realtime_dt"])
+        #out_rdt["data_product_id"] = numpy.array(["FAKE_DATAPRODUCT_ID_0000"])
+
 
         log.debug('Google DT transform: Sending a granule')
-        out_granule = build_granule(data_producer_id='google_dt_transform', taxonomy=tx, record_dictionary=rdt)
+        out_granule = build_granule(data_producer_id='google_dt_transform', taxonomy=tx, record_dictionary=out_rdt)
 
         #self.publish(out_granule)
 

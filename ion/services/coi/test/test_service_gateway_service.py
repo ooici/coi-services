@@ -151,6 +151,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         return response
 
 
+    @attr('SMOKE')
     def test_resource_registry_operations_through_gateway(self):
 
 
