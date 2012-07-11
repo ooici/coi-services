@@ -609,33 +609,35 @@ class UserNotificationService(BaseUserNotificationService):
 
             for notification in notifications:
 
-                search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
-                search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
-                search_event_type = 'search "event_type" is "%s" from "events_index"' % notification.event_type
-                search_event_subtype='search "event_subtype" is "%s" from "events_index"' % notification.event_subtype
+                if notification.origin:
+                    search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
+                else:
+                    search_origin = 'search "origin" is "*" from "events_index"'
+
+                if notification.origin_type:
+                    search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
+                else:
+                    search_origin_type= 'search "origin_type" is "*" from "events_index"'
+
+                if notification.event_type:
+                    search_event_type = 'search "type_" is "%s" from "events_index"' % notification.event_type
+                else:
+                    search_event_type = 'search "type_" is "*" from "events_index"'
 
                 search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (start_time, end_time)
 
-#                search_origin = 'search "origin" is "*" from "events_index"'
+                search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
 
-
-                search_string = search_time + ' and ' + search_origin
-
-#                search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and '\
-#                                    + search_event_type + ' and ' + search_event_subtype
-
-                log.warning("notification: %s" % notification)
 
                 # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
-                log.warning("ret_vals : %s" % ret_vals)
 
                 for event_id in ret_vals:
                     datastore = self.datastore_manager.get_datastore('events')
                     event_obj = datastore.read(event_id)
                     events_for_message.append(event_obj)
 
-            log.warning("events_for_message: %s" % events_for_message)
+            log.debug("Found following events of interest to user, %s: %s" % (user_name, events_for_message))
 
             # send a notification email to each user using a _send_email() method
             if events_for_message:
