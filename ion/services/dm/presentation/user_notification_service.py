@@ -744,7 +744,9 @@ class UserNotificationService(BaseUserNotificationService):
         log.debug("UserEventProcessor.subscription_callback(): sending email to %s"\
         %msg_recipient)
 
-        smtp_client.sendmail(msg_sender, msg_recipient, msg.as_string())
+        smtp_sender = CFG.get_safe('server.smtp.sender')
+
+        smtp_client.sendmail(smtp_sender, msg_recipient, msg.as_string())
 
 
     def _update_user_with_notification(self, user_id, notification):

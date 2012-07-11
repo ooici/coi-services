@@ -46,7 +46,7 @@ class NotificationWorker(SimpleProcess):
 
         try:
             self.user_info = load_user_info()
-            calculate_reverse_user_info(self.user_info)
+            self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
         except NotFound as exc:
             if exc.message.find('users_index') > -1:
                 log.warning("Notification workers found on start up that users_index have not been loaded yet.")
@@ -88,7 +88,6 @@ class NotificationWorker(SimpleProcess):
         #------------------------------------------------------------------------------------
 
         self.event_subscriber = EventSubscriber(
-            event_type="NotificationEvent",
 #            queue_name = 'uns_queue', # modify this to point at the right queue
             callback=self.process_event
         )
@@ -110,16 +109,14 @@ class NotificationWorker(SimpleProcess):
         if self.reverse_user_info: #todo check why we need this protection
             users = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
 
+        log.warning("users returned:::; %s" % users )
         #------------------------------------------------------------------------------------
         # Send email to the users
         #------------------------------------------------------------------------------------
 
-        #todo format the message better instead of just converting the event_msg to a string
-        message = str(msg)
-
         for user_name in users:
-            msg_recipient = user_info[user_name]['user_contact'].email
-            send_email(message = message, msg_recipient = msg_recipient, smtp_client = self.smtp_client )
+            msg_recipient = self.user_info[user_name]['user_contact'].email
+            send_email(message = msg, msg_recipient = msg_recipient, smtp_client = self.smtp_client )
 
     def on_stop(self):
         # close subscribers safely

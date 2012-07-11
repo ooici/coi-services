@@ -67,10 +67,10 @@ def send_email(message, msg_recipient, smtp_client):
 
     '''
 
-    if not isinstance(Event, message):
-        raise BadRequest("The input parameter should have been an Event.")
+    log.warning("came here to the send mail...")
 
-    time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
+#    time_stamp = str( datetime.fromtimestamp(time.mktime(time.gmtime(float(message.ts_created)/1000))))
+    time_stamp = message.ts_created
 
     event = message.type_
     origin = message.origin
@@ -131,7 +131,7 @@ def check_user_notification_interest(event, reverse_user_info):
     user_list_3 = []
     user_list_4 = []
 
-    if not isinstance(Event, message):
+    if not isinstance(event, Event):
         raise BadRequest("The input parameter should have been an Event.")
 
     if reverse_user_info.has_key('event_origin') and \
@@ -146,20 +146,29 @@ def check_user_notification_interest(event, reverse_user_info):
     if not event or not reverse_user_info:
         raise BadRequest("Missing input parameters for method, check_user_notification_interest().")
 
+    log.warning("event::: %s" % event)
+    log.warning("reverse_user_info::: %s" % reverse_user_info)
 
-    if event.origin and reverse_user_info['event_origin'].has_key[event.origin]:
+    if reverse_user_info['event_origin'].has_key(event.origin):
         user_list_1 = reverse_user_info['event_origin'][event.origin]
 
-    if event.origin_type and reverse_user_info['event_origin_type'].has_key[event.origin_type]:
+    if reverse_user_info['event_origin_type'].has_key(event.origin_type):
         user_list_2 = reverse_user_info['event_origin_type'][event.origin_type]
 
-    if event.type_ and reverse_user_info['event_type'].has_key[event.type_]:
+    if reverse_user_info['event_type'].has_key(event.type_):
         user_list_3 = reverse_user_info['event_type'][event.type_]
 
-    if event.sub_type and reverse_user_info['event_subtype'].has_key[event.sub_type]:
+    if reverse_user_info['event_subtype'].has_key(event.sub_type):
         user_list_4 = reverse_user_info['event_subtype'][event.sub_type]
 
+    log.warning("user_list_1::: %s" % user_list_1)
+    log.warning("user_list_2::: %s" % user_list_2)
+    log.warning("user_list_3::: %s" % user_list_3)
+    log.warning("user_list_4::: %s" % user_list_4)
+
     users = list( set.intersection(set(user_list_1), set(user_list_2), set(user_list_3), set(user_list_4)))
+
+    log.warning("users::: %s" % users)
 
     return users
 

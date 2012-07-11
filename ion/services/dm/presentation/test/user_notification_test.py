@@ -968,7 +968,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         for email_tuple in email_list:
             msg_sender, msg_recipient, msg = email_tuple
 
-            self.assertEquals(msg_sender, self.ION_NOTIFICATION_EMAIL_ADDRESS )
+            self.assertEquals(msg_sender, CFG.get_safe('server.smtp.sender') )
             self.assertTrue(msg_recipient in ['user_1@gmail.com', 'user_2@gmail.com', 'user_3@gmail.com'])
 
             lines = msg.split("\r\n")
@@ -1063,13 +1063,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Publish events
         #--------------------------------------------------------------------------------------
 
-        event_publisher = EventPublisher("NotificationEvent")
+        event_publisher = EventPublisher()
 
         event_publisher.publish_event( ts_created= 5,
+            event_type = "ResourceLifecycleEvent",
             origin="instrument_1",
             origin_type="type_1")
 
         event_publisher.publish_event( ts_created= 10,
+            event_type = "DetectionEvent",
             origin="instrument_2",
             origin_type="type_2")
 
@@ -1087,12 +1089,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             email_list.append(email_tuple)
 
         # check that two emails were sent for the two users
-        self.assertEquals(len(email_list), 2)
+        self.assertEquals(len(email_list), 1)
 
         for email_tuple in email_list:
             msg_sender, msg_recipient, msg = email_tuple
 
-            self.assertEquals(msg_sender, self.ION_NOTIFICATION_EMAIL_ADDRESS )
+            self.assertEquals(msg_sender, CFG.get_safe('server.smtp.sender') )
             self.assertTrue(msg_recipient in ['user_1@gmail.com', 'user_2@gmail.com'])
 
             maps = []
@@ -1107,13 +1109,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                     break
             log.warning("event_time: %s" % event_time)
 
-            # Check that the events sent in the email had times within the user specified range
+            # Check that the event sent in the email had time within the user specified range
             self.assertEquals(event_time, 5)
-            self.assertEquals(event_time, 10)
-
-        #todo check if the workers took the events from the queue in round robin
-
-
 
     @attr('LOCOINT')
     @unittest.skip('SMS is being deprecated')
