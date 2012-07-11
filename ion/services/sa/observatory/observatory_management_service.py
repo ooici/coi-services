@@ -15,7 +15,6 @@ from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS, LCE
 
 #from pyon.util.log import log
-from ion.services.sa.observatory.org_impl import OrgImpl
 from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
 from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
@@ -73,7 +72,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #farm everything out to the impls
 
-        self.org              = OrgImpl(self.clients)
         self.observatory      = ObservatoryImpl(self.clients)
         self.subsite          = SubsiteImpl(self.clients)
         self.platform_site    = PlatformSiteImpl(self.clients)
@@ -159,7 +157,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return observatory_id
 
-
     def read_observatory(self, observatory_id=''):
         """Read a Observatory resource
 
@@ -169,7 +166,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
         return self.observatory.read_one(observatory_id)
 
-
     def update_observatory(self, observatory=None):
         """Update a Observatory resource
 
@@ -178,29 +174,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
         return self.observatory.update_one(observatory)
 
-
     def delete_observatory(self, observatory_id=''):
         """Delete a Observatory resource
 
         @param observatory_id    str
         @throws NotFound    object with specified id does not exist
         """
-        
-        # find the org for this MF
-        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, observatory_id, id_only=True)
-        if len(org_ids) == 0:
-            log.warn("ObservatoryManagementService.delete_observatory(): no org for MF " + observatory_id)
-        else:
-            if len(org_ids) > 1:
-                log.warn("ObservatoryManagementService.delete_observatory(): more than 1 org for MF " + observatory_id)
-                # TODO: delete the others and/or raise exception???
-            # delete the set of User Roles for this marine facility that this service created
-            self.clients.org_management.remove_user_role(org_ids[0], INSTRUMENT_OPERATOR_ROLE)
-            self.clients.org_management.remove_user_role(org_ids[0], OBSERVATORY_OPERATOR_ROLE)
-            self.clients.org_management.remove_user_role(org_ids[0], DATA_OPERATOR_ROLE)
-            # delete the org
-            self.clients.org_management.delete_org(org_ids[0])
-
         return self.observatory.delete_one(observatory_id)
 
 
@@ -333,7 +312,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
         # todo: give InstrumentSite a lifecycle in COI so that we can remove the "True" argument here
-        self.instrument_site.delete_one(instrument_site_id, True)
+        self.instrument_site.delete_one(instrument_site_id)
 
 
 

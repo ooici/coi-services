@@ -87,7 +87,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #platform_device
         self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)
         self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
-        self.RR.create_association(platform_device_id, PRED.hasInstrument, instrument_device_id)
+        self.RR.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
 
         platform_model_id #is only a target
 
@@ -136,7 +136,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #platform_device
         self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)
         self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
-        self.RR.create_association(platform_device_id, PRED.hasInstrument, instrument_device_id)
+        self.RR.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
 
 
         #Testing multiple instrument owners
