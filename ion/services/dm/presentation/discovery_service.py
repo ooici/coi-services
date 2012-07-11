@@ -521,7 +521,7 @@ class DiscoveryService(BaseDiscoveryService):
         if not self.use_es:
             raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
 
-        validate_is_instance(from_value,basestring,'"From" is not a valid string')
+        validate_is_instance(from_value,basestring,'"From" is not a valid string (%s)' % from_value)
         validate_is_instance(to_value,basestring,'"To" is not a valid string')
 
         es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
