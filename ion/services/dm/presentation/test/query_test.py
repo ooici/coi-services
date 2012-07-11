@@ -137,6 +137,10 @@ class QueryLanguageUnitTest(PyonTestCase):
         retval = self.parser.parse(test_string)
         self.assertTrue(retval == {'and':[], 'or':[], 'query':{'field':'location', 'top_left':[0.0, 40.0], 'bottom_right': [40.0, 0.0], 'index':'index'}})
 
+    def  test_time_search(self):
+        test_string = "search 'ts_timestamp' time from '2012-01-01' to '2012-02-01' from 'index'"
+        retval = self.parser.parse(test_string)
+        self.assertTrue(retval == {'and':[], 'or':[], 'query':{'field':'ts_timestamp', 'time':{'from':'2012-01-01', 'to':'2012-02-01'}, 'index':'index'}})
 
     def test_extensive(self):
 
