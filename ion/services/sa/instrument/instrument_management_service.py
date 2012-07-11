@@ -172,8 +172,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
 
-        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasInstance, instrument_agent_instance_id)
-        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance, instrument_agent_instance_id)
+        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasInstance,
+                                                                                instrument_agent_instance_id)
+        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance,
+                                                                                instrument_agent_instance_id)
 
         self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCE.RETIRE)
         #self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
@@ -192,41 +194,45 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #if there is a agent pid then assume that a drive is already started
         if instrument_agent_instance_obj.agent_process_id:
-            raise BadRequest("Instrument Agent Instance already running for this device pid: %s" + str(instrument_agent_instance_obj.agent_process_id))
+            raise BadRequest("Instrument Agent Instance already running for this device pid: %s" %
+                             str(instrument_agent_instance_obj.agent_process_id))
 
         #retrieve the associated instrument device
-        inst_device_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasAgentInstance, instrument_agent_instance_id, True)
-        if not inst_device_ids:
-            raise NotFound("No Instrument Device attached to this Instrument Agent Instance " + str(instrument_agent_instance_id))
-        if len(inst_device_ids) > 1:
-            raise BadRequest("Instrument Agent Instance should only have ONE Instrument Device" + str(instrument_agent_instance_id))
-        instrument_device_id = inst_device_ids[0]
+        inst_device_objs = self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)
+        if 1 != len(inst_device_objs):
+            raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
+                             (str(instrument_agent_instance_id), len(inst_device_objs)))
+        instrument_device_id = inst_device_objs[0]._id
         log.debug("start_instrument_agent_instance: device is %s connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
 
         #retrieve the instrument model
-        model_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
-        if not model_ids:
-            raise NotFound("No Instrument Model  attached to this Instrument Device " + str(instrument_device_id))
-
-        instrument_model_id = model_ids[0]
-        log.debug("activate_instrument:instrument_model %s"  +  str(instrument_model_id))
+        model_objs = self.instrument_device.find_stemming_model(instrument_device_id)
+        if 1 != len(model_objs):
+            raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
+                             (str(instrument_device_id), len(model_objs)))
+        instrument_model_id = model_objs[0]
+        log.debug("activate_instrument:instrument_model %s" % str(instrument_model_id))
 
 
         #retrieve the associated instrument agent
-        agent_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentAgent, PRED.hasModel, instrument_model_id, True)
-        if not agent_ids:
-            raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
-
-        instrument_agent_id = agent_ids[0]
+        agent_objs = self.instrument_agent.find_having_model(instrument_model_id)
+        if 1 != len(agent_objs):
+            raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentModel '%s', got %d" %
+                           (str(instrument_model_id), len(agent_objs)))
+        instrument_agent_id = agent_objs[0]._id
         log.debug("Got instrument agent '%s'" % instrument_agent_id)
 
 
         #retrieve the associated process definition
-        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
-        if not process_def_ids:
-            raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
-        if len(process_def_ids) > 1:
-            raise BadRequest("Instrument Agent should only have ONE Process Definition" + str(instrument_agent_id))
+        #todo: this association is not in the diagram... is it ok?
+        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id,
+                                                                         PRED.hasProcessDefinition,
+                                                                         RT.ProcessDefinition,
+                                                                         True)
+        if 1 != len(process_def_ids):
+            raise BadRequest("Expected 1 ProcessDefinition attached to InstrumentAgent '%s', got %d" %
+                           (str(instrument_agent_id), len(process_def_ids)))
+
 
         process_definition_id = process_def_ids[0]
         log.debug("activate_instrument: agent process definition %s"  +  str(process_definition_id))
@@ -239,7 +245,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         out_streams = {}
         #retrieve the output products
-        data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
+        data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id,
+                                                                          PRED.hasOutputProduct,
+                                                                          RT.DataProduct,
+                                                                          True)
         if not data_product_ids:
             raise NotFound("No output Data Products attached to this Instrument Device " + str(instrument_device_id))
 
@@ -274,6 +283,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise NotFound("Stream %s is not CTD raw or parsed" % stream_obj.name)
         log.debug("activate_instrument:output stream config: %s"  +  str(out_streams))
 
+#        for necessary_field in ["ctd_raw", "ctd_parsed"]:
+#            if not necessary_field in out_streams:
+#                raise BadRequest("Failed to find output stream '%s'" % necessary_field)
 
         #todo: move this up and out
         # Create taxonomies for both parsed and raw
@@ -294,9 +306,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         RawTax.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
 
 
-        stream_info = { 'parsed' : { id: out_streams['ctd_parsed'], 'taxonomy': ParsedTax.dump() },
-                         'raw' : { id: out_streams['ctd_raw'], 'taxonomy': RawTax.dump() }
-        }
+        stream_info = {}
+        if "ctd_parsed" in out_streams:
+            stream_info['parsed'] = { id: out_streams['ctd_parsed'], 'taxonomy': ParsedTax.dump() }
+        if "ctd_raw" in out_streams:
+            stream_info['raw'] = { id: out_streams['ctd_raw'], 'taxonomy': RawTax.dump() }
 
 
         self._start_pagent(instrument_agent_instance_id)

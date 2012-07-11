@@ -28,6 +28,7 @@ from pyon.core.exception import BadRequest, NotFound, Conflict
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
+from interface.objects import IngestionQueue
 
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
@@ -37,6 +38,7 @@ import os
 import signal
 
 from pyon.util.context import LocalContextMixin
+from mock import patch
 
 
 class FakeProcess(LocalContextMixin):
@@ -50,6 +52,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('HARDWARE', group='foome')
 @unittest.skip("run locally only")
+#@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
     def setUp(self):
@@ -91,7 +94,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
        stm = os.popen('rm /tmp/*.pid.txt')
 
 
-    @unittest.skip ("Deprecated by IngestionManagement refactor, timeout on start inst agent?")
+    #@unittest.skip ("Deprecated by IngestionManagement refactor, timeout on start inst agent?")
     def test_reassignPrimaryDevice(self):
 
         # ensure no processes or pids are left around by agents or Sims
@@ -100,26 +103,22 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Set up the preconditions
         # Set up the preconditions
         # ingestion configuration parameters
-        self.exchange_point_id = 'science_data'
-        self.number_of_workers = 2
-        self.hdf_storage = HdfStorage(relative_path='ingest')
-        self.couch_storage = CouchStorage(datastore_name='test_datastore')
-        self.XP = 'science_data'
-        self.exchange_name = 'ingestion_queue'
+        exchange_point_id = 'science_data'
+        exchange_name = 'ingestion_queue'
 
         #-------------------------------
         # Create ingestion configuration and activate it
         #-------------------------------
-        ingestion_configuration_id =  self.ingestclient.create_ingestion_configuration(
-            exchange_point_id=self.exchange_point_id,
-            couch_storage=self.couch_storage,
-            hdf_storage=self.hdf_storage,
-            number_of_workers=self.number_of_workers
-        )
+        q = IngestionQueue()
+        ingestion_configuration_id = self.ingestclient.create_ingestion_configuration(
+            name=exchange_name,
+            exchange_point_id=exchange_point_id,
+            queues=[q])
+
         print 'test_deployAsPrimaryDevice: ingestion_configuration_id', ingestion_configuration_id
 
         # activate an ingestion configuration
-        ret = self.ingestclient.activate_ingestion_configuration(ingestion_configuration_id)
+        # = self.ingestclient.activate_ingestion_configuration(ingestion_configuration_id)
 
         #-------------------------------
         # Create InstrumentModel
@@ -159,10 +158,32 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         self.omsclient.assign_instrument_model_to_instrument_site(instModel_id, instrumentSite_id)
 
 
+
+        #-------------------------------
+        # Logical Transform: Output Data Products
+        #-------------------------------
+        # create a stream definition for the data from the ctd simulator
+        ctd_stream_def = SBE37_CDM_stream_definition()
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
+
+        log.debug("test_deployAsPrimaryDevice: create output parsed data product for Logical Instrument")
+        ctd_logical_output_dp_obj = IonObject(RT.DataProduct,
+                                              name='ctd_parsed_logical',
+                                              description='ctd parsed from the logical instrument')
+        instrument_site_output_dp_id = self.dataproductclient.create_data_product(ctd_logical_output_dp_obj,
+                                                                                  ctd_stream_def_id)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=instrument_site_output_dp_id,
+                                                                 persist_data=True,
+                                                                 persist_metadata=True)
+
+        self.omsclient.create_site_data_product(instrumentSite_id, instrument_site_output_dp_id)
+
         #-------------------------------
         # Create Old InstrumentDevice
         #-------------------------------
-        instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDeviceYear1', description="SBE37IMDevice for the FIRST year of deployment", serial_number="12345" )
+        instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDeviceYear1',
+                                   description="SBE37IMDevice for the FIRST year of deployment",
+                                   serial_number="12345" )
         try:
             oldInstDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
             self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, oldInstDevice_id)
@@ -171,33 +192,50 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         print 'test_deployAsPrimaryDevice: new Year 1 InstrumentDevice id = ', oldInstDevice_id
 
-        # deploy this device to the logical slot
-        self.omsclient.deploy_instrument_device_to_instrument_site(oldInstDevice_id, instrumentSite_id)
-
         self.rrclient.execute_lifecycle_transition(oldInstDevice_id, LCE.DEPLOY)
         self.rrclient.execute_lifecycle_transition(oldInstDevice_id, LCE.ENABLE)
 
-        # set this device as the current primary device
-        self.omsclient.deploy_as_primary_instrument_device_to_instrument_site(oldInstDevice_id, instrumentSite_id)
+
+        #-------------------------------
+        # Create Old Deployment
+        #-------------------------------
+        deployment_obj = IonObject(RT.Deployment, name='first deployment')
+
+        oldDeployment_id = self.omsclient.create_deployment(deployment_obj)
+
+        # deploy this device to the logical slot
+        self.imsclient.deploy_instrument_device(oldInstDevice_id, oldDeployment_id)
+        self.omsclient.deploy_instrument_site(instrumentSite_id, oldDeployment_id)
+
+
 
         #-------------------------------
         # Create InstrumentAgentInstance for OldInstrumentDevice to hold configuration information
         # cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
         #-------------------------------
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1', description="SBE37IMAgentInstance Year 1", svr_addr="localhost",
-                                          driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver",
-                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="localhost", comms_device_port=4001,
-                                          comms_server_address="localhost", comms_server_port=8888)
-        oldInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, oldInstDevice_id)
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance,
+                                          name='SBE37IMAgentInstanceYear1',
+                                          description="SBE37IMAgentInstance Year 1",
+                                          svr_addr="localhost",
+                                          driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
+                                          driver_class="SBE37Driver",
+                                          cmd_port=5556,
+                                          evt_port=5557,
+                                          comms_method="ethernet",
+                                          comms_device_address="localhost",
+                                          comms_device_port=4001,
+                                          comms_server_address="localhost",
+                                          comms_server_port=8888)
+        oldInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
+                                                                                  instAgent_id,
+                                                                                  oldInstDevice_id)
 
 
 
         #-------------------------------
-        # Create CTD Parsed as the Year 1 data product
+        # Create CTD Parsed as the Year 1 data product and attach to instrument
         #-------------------------------
-        # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
+
 
         print 'test_deployAsPrimaryDevice: new Stream Definition id = ', ctd_stream_def_id
 
@@ -209,7 +247,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             self.fail("failed to create new data product: %s" %ex)
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product_year1
 
-        self.damsclient.assign_data_product(input_resource_id=oldInstDevice_id, data_product_id=ctd_parsed_data_product_year1)
+        self.damsclient.assign_data_product(input_resource_id=oldInstDevice_id,
+                                            data_product_id=ctd_parsed_data_product_year1)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_year1, PRED.hasStream, None, True)
@@ -220,7 +259,10 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         # Create New InstrumentDevice
         #-------------------------------
-        instDevice_obj_2 = IonObject(RT.InstrumentDevice, name='SBE37IMDeviceYear2', description="SBE37IMDevice for the SECOND year of deployment", serial_number="67890" )
+        instDevice_obj_2 = IonObject(RT.InstrumentDevice,
+                                     name='SBE37IMDeviceYear2',
+                                     description="SBE37IMDevice for the SECOND year of deployment",
+                                     serial_number="67890" )
         try:
             newInstDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj_2)
             self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, newInstDevice_id)
@@ -229,27 +271,47 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         print 'test_deployAsPrimaryDevice: new  Year 2 InstrumentDevice id = ', newInstDevice_id
 
-        # deploy this device to the logical slot
-        self.omsclient.deploy_instrument_device_to_instrument_site(newInstDevice_id, instrumentSite_id)
-
         #set the LCSTATE
         self.rrclient.execute_lifecycle_transition(newInstDevice_id, LCE.DEPLOY)
         self.rrclient.execute_lifecycle_transition(newInstDevice_id, LCE.ENABLE)
 
-
         instDevice_obj_2 = self.rrclient.read(newInstDevice_id)
-        log.debug("test_deployAsPrimaryDevice: Create New InstrumentDevice LCSTATE: %s ", str(instDevice_obj_2.lcstate))
+        log.debug("test_deployAsPrimaryDevice: Create New InstrumentDevice LCSTATE: %s ",
+                  str(instDevice_obj_2.lcstate))
 
+
+
+
+        #-------------------------------
+        # Create Old Deployment
+        #-------------------------------
+        deployment_obj = IonObject(RT.Deployment, name='second deployment')
+
+        newDeployment_id = self.omsclient.create_deployment(deployment_obj)
+
+        # deploy this device to the logical slot
+        self.imsclient.deploy_instrument_device(newInstDevice_id, newDeployment_id)
+        self.omsclient.deploy_instrument_site(instrumentSite_id, newDeployment_id)
 
 
         #-------------------------------
         # Create InstrumentAgentInstance for NewInstrumentDevice to hold configuration information
         #-------------------------------
-        instAgentInstance_new__obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2', description="SBE37IMAgentInstance Year 2", svr_addr="localhost",
-                                          driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver",
-                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address="localhost", comms_device_port=4002,
-                                          comms_server_address="localhost", comms_server_port=8888)
-        newInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_new__obj, instAgent_id, newInstDevice_id)
+        instAgentInstance_new__obj = IonObject(RT.InstrumentAgentInstance,
+                                               name='SBE37IMAgentInstanceYear2',
+                                               description="SBE37IMAgentInstance Year 2",
+                                               svr_addr="localhost",
+                                               driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
+                                               driver_class="SBE37Driver",
+                                               cmd_port=5556, evt_port=5557,
+                                               comms_method="ethernet",
+                                               comms_device_address="localhost",
+                                               comms_device_port=4002,
+                                               comms_server_address="localhost",
+                                               comms_server_port=8888)
+        newInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_new__obj,
+                                                                                  instAgent_id,
+                                                                                  newInstDevice_id)
 
 
         #-------------------------------
@@ -269,28 +331,12 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             self.fail("failed to create new data product: %s" %ex)
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product_year2
 
-        self.damsclient.assign_data_product(input_resource_id=newInstDevice_id, data_product_id=ctd_parsed_data_product_year2)
+        self.damsclient.assign_data_product(input_resource_id=newInstDevice_id,
+                                            data_product_id=ctd_parsed_data_product_year2)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_year2, PRED.hasStream, None, True)
         print 'test_deployAsPrimaryDevice: Data product streams2 = ', stream_ids
-
-
-
-        #-------------------------------
-        # Logical Data Product: Data Process Definition
-        #-------------------------------
-#        log.debug(" test_deployAsPrimaryDevice: create data process definition logical_transform")
-#        dpd_obj = IonObject(RT.DataProcessDefinition,
-#                            name='logical_transform',
-#                            description='send the packet from the in stream to the out stream unchanged',
-#                            module='ion.processes.data.transforms.logical_transform',
-#                            class_name='logical_transform',
-#                            process_source='some_source_reference')
-#        try:
-#            logical_transform_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-#        except BadRequest as ex:
-#            self.fail("failed to create new ctd_L0_all data process definition: %s" %ex)
 
 
         #-------------------------------
@@ -308,18 +354,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new ctd_L0_all data process definition: %s" %ex)
 
-
-        #-------------------------------
-        # Logical Transform: Output Data Products
-        #-------------------------------
-#        outgoing_logical_stream_def = SBE37_CDM_stream_definition()
-#        outgoing_logical_stream_def_id = self.pubsubclient.create_stream_definition(container=outgoing_logical_stream_def)
-#        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_logical_stream_def_id, logical_transform_dprocdef_id )
-#
-#        log.debug("test_deployAsPrimaryDevice: create output parsed data product for Logical Instrument")
-#        ctd_logical_output_dp_obj = IonObject(RT.DataProduct, name='ctd_parsed_logical',description='ctd parsed from the logical instrument')
-#        instrument_site_output_dp_id = self.dataproductclient.create_data_product(ctd_logical_output_dp_obj, outgoing_logical_stream_def_id)
-#        self.dataproductclient.activate_data_product_persistence(data_product_id=instrument_site_output_dp_id, persist_data=True, persist_metadata=True)
 
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Output Data Products
@@ -359,16 +393,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
 
 
-        #-------------------------------
-        # CTD Logical: Create the data process
-        #-------------------------------
-#        log.debug("test_deployAsPrimaryDevice: create ctd_parsed logical  data_process start")
-#        try:
-#            ctd_parsed_logical_data_process_id = self.dataprocessclient.create_data_process(logical_transform_dprocdef_id, ctd_parsed_data_product_year1, {'output':instrument_site_output_dp_id})
-#            self.dataprocessclient.activate_data_process(ctd_parsed_logical_data_process_id)
-#        except BadRequest as ex:
-#            self.fail("failed to create new data process: %s" %ex)
-#        log.debug("test_deployAsPrimaryDevice: create L0 all data_process return")
 
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process, listening to  Sim1   (later: logical instrument output product)
@@ -380,6 +404,11 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
         log.debug("test_deployAsPrimaryDevice: create L0 all data_process return")
+
+        #--------------------------------
+        # Activate the deployment
+        #--------------------------------
+        self.omsclient.activate_deployment(oldDeployment_id)
 
 
         #-------------------------------
