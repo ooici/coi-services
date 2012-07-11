@@ -356,6 +356,7 @@ class UserNotificationService(BaseUserNotificationService):
         # Update the UserInfo object and the user_info dictionary maintained by the UNS
         #-------------------------------------------------------------------------------------------------------------------
 
+        #todo refine this so that the old notification gets removed from the user info dictionary
         self._update_user_with_notification(user_id, notification)
 
         #-------------------------------------------------------------------------------------------------------------------
@@ -368,48 +369,6 @@ class UserNotificationService(BaseUserNotificationService):
                                         description= "A notification has been updated.",
                                         )
 
-#        # Read existing Notification object and see if it exists
-#
-#        if notification is None:
-#            raise BadRequest("NotificationRequest object not present")
-#        elif not hasattr(notification, "_id") or not hasattr(notification, "_rev"):
-#            raise BadRequest("NotificationRequest object does not have required '_id' or '_rev' attribute")
-#            # Do an check whether LCS has been modified
-#        elif notification._id == '':
-#            raise BadRequest("NotificationRequest object does not have a set id")
-#
-#        notification_id = notification._id
-#
-#        old_notification = self.clients.resource_registry.read(notification_id)
-#
-#        if not old_notification:
-#            raise NotFound("UserNotificationService.update_notification(): Notification %s does not exist" % notification._id)
-#
-#        # check to see if the new notification is different than the old notification only in the delivery config fields
-#        if notification.origin != old_notification.origin or\
-#           notification.origin_type != old_notification.origin_type or\
-#           notification.event_type != old_notification.event_type or\
-#           notification.event_subtype != old_notification.event_subtype:
-#
-#            log.info('Update unsuccessful. Only the delivery config is allowed to be modified!')
-#            raise BadRequest('Can not update the subscription for an event notification')
-#
-#        else:
-#
-#            #-------------------------------------------------------------------------------------------------------------------
-#            # only the delivery_config is being modified, so we can go ahead with the update...
-#            # update the notification in the RR
-#            #-------------------------------------------------------------------------------------------------------------------
-#
-#            self.clients.resource_registry.update(notification)
-#
-#            #-------------------------------------------------------------------------------------------------------------------
-#            # Update the UserInfo object and the user_info dictionary maintained by the UNS
-#            #-------------------------------------------------------------------------------------------------------------------
-#
-#            self._update_user_with_notification(user_id, notification)
-#
-#
     def read_notification(self, notification_id=''):
         """Returns the NotificationRequest object for the specified notification id.
         Throws exception if id does not match any persisted NotificationRequest

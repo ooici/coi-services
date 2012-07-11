@@ -1456,12 +1456,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification = self.unsc.read_notification(notification_id)
         notification.origin_type = 'new_type'
 
-        #todo
-
-
-        self.unsc.update_notification(notification)
-
-
+        self.unsc.update_notification(notification, user_id)
 
         # read back the notification and check that it got changed
         notification = self.unsc.read_notification(notification_id)
@@ -1469,10 +1464,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(notification.origin_type, 'new_type')
         self.assertEquals(notification.event_type, 'ResourceLifecycleEvent')
         self.assertEquals(notification.origin, 'instrument_1')
-
-        proc1 = self.container.proc_manager.procs_by_name['user_notification']
-
-        self.assertEquals(proc1.user_info['user_1']['notifications'][0].origin_type, 'new_type')
 
     @unittest.skip('interface has changed!')
     def test_find_events(self):
