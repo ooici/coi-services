@@ -470,12 +470,50 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         @throws NotFound    object with specified parameters does not exist
         """
-        return self.event_repo.find_events(event_type=type,
-            origin=origin,
-            start_ts=min_datetime,
-            end_ts=max_datetime,
-            descending=descending,
-            limit=limit)
+
+        search_time = ''
+        search_origin = ''
+        search_type = ''
+
+        if min_datetime and max_datetime:
+            search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (min_datetime, max_datetime)
+        else:
+            search_time = 'search "ts_created" is "*" from "events_index"'
+
+        if origin:
+            search_origin = 'search "origin" is "%s" from "events_index"' % origin
+        else:
+            search_origin = 'search "origin" is "*" from "events_index"'
+
+        if type:
+            search_type = 'search "event_type" is "%s" from "events_index"' % type
+        else:
+            search_type = 'search "event_type" is "*" from "events_index"'
+
+        search_string = search_time + ' and ' + search_origin + ' and ' + search_type
+
+        # get the list of ids corresponding to the events
+        ret_vals = self.discovery.parse(search_string)
+        log.warning("ret_vals : %s" % ret_vals)
+
+        events = []
+        for event_id in ret_vals:
+            datastore = self.datastore_manager.get_datastore('events')
+            event_obj = datastore.read(event_id)
+            events.append(event_obj)
+
+        log.warning("relevant events : %s" % events)
+
+        if limit:
+            list = []
+            for i in xrange(limit):
+                list.append(events[i])
+            return list
+
+        #todo implement time ordering: ascending or descending
+
+        return events
+
 
     def create_email(self, name='', description='', event_type='', event_subtype='', origin='', origin_type='', user_id='', email='', mode=None, frequency = Frequency.REAL_TIME, message_header='', parser=''):
         '''

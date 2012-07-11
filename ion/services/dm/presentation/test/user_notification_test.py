@@ -1465,47 +1465,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @unittest.skip('interface has changed!')
     def test_find_events(self):
         # publish some events for the event repository
-        rle_publisher = EventPublisher("ResourceLifecycleEvent")
-        de_publisher = EventPublisher("DataEvent")
-        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event1")
-        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event2")
-        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event3")
-        de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event1")
-        de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event2")
-        de_publisher.publish_event(origin='Some_Resource_Agent_ID2', description="DE test event3")
+        event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
+        event_publisher_2 = EventPublisher("DataEvent")
 
-        # find all events for the originator 'Some_Resource_Agent_ID1'
-        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1')
-        if len(events) != 3:
-            self.fail("failed to find all events")
-        for event in events:
-            log.debug("event=" + str(event))
-            if event[1][0] != 'Some_Resource_Agent_ID1':
-                self.fail("failed to find correct events")
+        for i in xrange(10):
+            event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
+            event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
 
-        # find all events for the originator 'DataEvent'
-        events = self.unsc.find_events(type='DataEvent')
-        if len(events) != 3:
-            self.fail("failed to find all events")
-        for event in events:
-            log.debug("event=" + str(event))
-            if event[1][0] != 'DataEvent':
-                self.fail("failed to find correct events")
-
-                # find 2 events for the originator 'Some_Resource_Agent_ID1'
-        events = self.unsc.find_events(origin='Some_Resource_Agent_ID2', limit=2)
-        if len(events) != 2:
-            self.fail("failed to find all events")
-        for event in events:
-            log.debug("event=" + str(event))
-            if event[1][0] != 'Some_Resource_Agent_ID2':
-                self.fail("failed to find correct events")
-
-        # find all events for the originator 'Some_Resource_Agent_ID1' in reverse time order
-        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', descending=True)
-        if len(events) != 3:
-            self.fail("failed to find all events")
-        for event in events:
-            log.debug("event=" + str(event))
-            if event[1][0] != 'Some_Resource_Agent_ID1':
-                self.fail("failed to find correct events")
+        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', )
