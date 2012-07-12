@@ -922,12 +922,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(pids), 1)
 
         proc1 = self.container.proc_manager.procs_by_name[pids[0]]
-#        proc2 = self.container.proc_manager.procs_by_name[pids[1]]
-#        proc3 = self.container.proc_manager.procs_by_name[pids[2]]
-
-
-        # allow elastic search to populate the users_index. This gives enough time for the reload of user_info
-        gevent.sleep(2)
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects
@@ -1345,7 +1339,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
             event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
 
-        gevent.sleep(4)
+        # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
+        gevent.sleep(2)
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime=4, max_datetime=7)
 
         self.assertEquals(len(events), 3)

@@ -22,12 +22,11 @@ class NotificationWorker(SimpleProcess):
     """
     Instances of this class acts as a Notification Worker.
     """
-#    discovery = DiscoveryServiceClient()
+    discovery = DiscoveryServiceClient()
 
     def on_init(self):
         self.event_pub = EventPublisher()
         self.user_info = {}
-        self.discovery = DiscoveryServiceClient()
 
     def test_hook(self, user_info, reverse_user_info ):
         '''
@@ -157,7 +156,7 @@ class NotificationWorker(SimpleProcess):
 
         user_info = {}
 
-        results = self.poll(9, self.discovery.parse,search_string)
+        results = self.poll(9, NotificationWorker.discovery.parse,search_string)
 
         if not results:
             return {}
