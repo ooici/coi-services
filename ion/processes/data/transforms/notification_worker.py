@@ -7,7 +7,7 @@
 @brief NotificationWorker Class. An instance of this class acts as an notification worker.
 '''
 
-from pyon.public import log
+from pyon.public import log, RT
 from pyon.ion.transform import TransformDataProcess
 from pyon.util.async import spawn
 from pyon.core.exception import BadRequest, NotFound
@@ -15,18 +15,18 @@ from pyon.ion.process import SimpleProcess
 from pyon.event.event import EventSubscriber, EventPublisher
 from ion.services.dm.utility.uns_utility_methods import send_email, calculate_reverse_user_info
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, check_user_notification_interest
-from interface.services.dm.idiscovery_service import DiscoveryServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+
 import gevent, time
 
 class NotificationWorker(SimpleProcess):
     """
     Instances of this class acts as a Notification Worker.
     """
-    discovery = DiscoveryServiceClient()
-
     def on_init(self):
         self.event_pub = EventPublisher()
         self.user_info = {}
+        self.resource_registry = ResourceRegistryServiceClient()
 
     def test_hook(self, user_info, reverse_user_info ):
         '''
@@ -108,7 +108,7 @@ class NotificationWorker(SimpleProcess):
         #------------------------------------------------------------------------------------
 
         users = []
-        if self.reverse_user_info: #todo check why we need this protection
+        if self.reverse_user_info:
             users = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
 
         log.info("Notification worker received the event : %s" % msg)
@@ -152,21 +152,20 @@ class NotificationWorker(SimpleProcess):
 
         @retval user_info dict
         '''
-        search_string = 'search "name" is "*" from "users_index"'
+
+        users, _ = self.resource_registry.find_resources(restype= RT.UserInfo)
 
         user_info = {}
 
-        results = self.poll(9, NotificationWorker.discovery.parse,search_string)
-
-        if not results:
+        if not users:
             return {}
 
-        for result in results:
-            user_name = result['_source'].name
-            user_contact = result['_source'].contact
+        for user in users:
+            user_name = user.name
+            user_contact = user.contact
 
             notifications = []
-            for variable in result['_source'].variables:
+            for variable in user.variables:
                 if variable['name'] == 'notification':
                     notifications = variable['value']
 
