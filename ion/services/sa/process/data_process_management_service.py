@@ -205,7 +205,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 raise NotFound("Output Data Product %s does not exist" % out_data_product_id)
             # Associate with DataProcess: register as an output product for this process
             log.debug("DataProcessManagementService:create_data_process link data process %s and output out data product: %s    (L4-CI-SA-RQ-260)", str(data_process_id), str(out_data_product_id))
-            self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id, create_stream=False)
+            self.clients.data_acquisition_management.assign_data_product(data_process_id, out_data_product_id)
 
             # Retrieve the id of the OUTPUT stream from the out Data Product
             stream_ids, _ = self.clients.resource_registry.find_objects(out_data_product_id, PRED.hasStream, RT.Stream, True)
@@ -253,6 +253,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # create a subscription to the input stream
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
+
         query = StreamQuery(stream_ids=in_stream_ids)
         input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=data_process_name)
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(input_subscription_id))
@@ -402,12 +403,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
         # DEBUG DEBUG DEBUG
-        objs, obj_assns = self.clients.resource_registry.find_objects(subject=data_process_id)
-        for obj, obj_assn  in zip(objs, obj_assns):
-            log.debug("DPrcsMS:delete_data_process data_process object DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
-        objs, obj_assns = self.clients.resource_registry.find_subjects(object=data_process_id)
-        for obj, obj_assn  in zip(objs, obj_assns):
-            log.debug("DPrcsMS:delete_data_process data_process subject DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
+#        objs, obj_assns = self.clients.resource_registry.find_objects(subject=data_process_id)
+#        for obj, obj_assn  in zip(objs, obj_assns):
+#            log.debug("DPrcsMS:delete_data_process data_process object DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
+#        objs, obj_assns = self.clients.resource_registry.find_subjects(object=data_process_id)
+#        for obj, obj_assn  in zip(objs, obj_assns):
+#            log.debug("DPrcsMS:delete_data_process data_process subject DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
 
 
         self.clients.resource_registry.delete(data_process_id)

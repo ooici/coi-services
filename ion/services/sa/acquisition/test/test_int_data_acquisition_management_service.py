@@ -146,7 +146,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
         # test assigning a data product to an instrument, creating the stream for the product
         try:
-            self.client.assign_data_product(instrument_id, dataproduct_id, True)
+            self.client.assign_data_product(instrument_id, dataproduct_id)
         except BadRequest as ex:
             self.fail("failed to assign data product to data producer: %s" %ex)
         except NotFound as ex:
@@ -154,7 +154,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
         # test UNassigning a data product from instrument, deleting the stream for the product
         try:
-            self.client.unassign_data_product(instrument_id, dataproduct_id, True)
+            self.client.unassign_data_product(instrument_id, dataproduct_id)
         except BadRequest as ex:
             self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
         except NotFound as ex:
@@ -188,7 +188,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
         # test assigning a data product to an ext_dataset_id, creating the stream for the product
         try:
-            self.client.assign_data_product(ext_dataset_id, dataproduct_id, True)
+            self.client.assign_data_product(ext_dataset_id, dataproduct_id)
         except BadRequest as ex:
             self.fail("failed to assign data product to data producer: %s" %ex)
         except NotFound as ex:
@@ -196,7 +196,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
         # test UNassigning a data product from ext_dataset_id, deleting the stream for the product
         try:
-            self.client.unassign_data_product(ext_dataset_id, dataproduct_id, True)
+            self.client.unassign_data_product(ext_dataset_id, dataproduct_id)
         except BadRequest as ex:
             self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
         except NotFound as ex:
@@ -231,7 +231,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
         # test assigning a data product to a process, no stream create
         try:
-            self.client.assign_data_product(process_id, dataproduct_id, False)
+            self.client.assign_data_product(process_id, dataproduct_id)
         except BadRequest as ex:
             self.fail("failed to create new data producer: %s" %ex)
         except NotFound as ex:
@@ -240,7 +240,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
         # test UNassigning a data product from the data process, deleting the stream for the product
         try:
-            self.client.unassign_data_product(process_id, dataproduct_id, False)
+            self.client.unassign_data_product(process_id, dataproduct_id)
         except BadRequest as ex:
             self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
         except NotFound as ex:

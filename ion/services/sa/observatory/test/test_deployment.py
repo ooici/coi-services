@@ -138,8 +138,7 @@ class TestDeployment(IonIntegrationTestCase):
 
         #assign data products appropriately
         self.damsclient.assign_data_product(input_resource_id=instrument_device_id,
-                                            data_product_id=inst_data_product_id,
-                                            create_stream=True)
+                                            data_product_id=inst_data_product_id)
 
 
         instrument_model_obj = IonObject(RT.InstrumentModel,

@@ -100,12 +100,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
             # DEBUG DEBUG DEBUG
 
-            objs, obj_assns = self.clients.resource_registry.find_objects(subject=producer)
-            for obj, obj_assn  in zip(objs, obj_assns):
-                log.debug("DAMS:unregister_process producer object DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
-            objs, obj_assns = self.clients.resource_registry.find_subjects(object=producer)
-            for obj, obj_assn  in zip(objs, obj_assns):
-                log.debug("DAMS:unregister_process producer subject DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
+#            objs, obj_assns = self.clients.resource_registry.find_objects(subject=producer)
+#            for obj, obj_assn  in zip(objs, obj_assns):
+#                log.debug("DAMS:unregister_process producer object DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
+#            objs, obj_assns = self.clients.resource_registry.find_subjects(object=producer)
+#            for obj, obj_assn  in zip(objs, obj_assns):
+#                log.debug("DAMS:unregister_process producer subject DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
 
             log.debug("DAMS:unregister_process delete producer: %s ", str(producer) )
             self.clients.resource_registry.delete(producer)
@@ -140,22 +140,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             log.debug("DataAcquisitionManagementService:unregister_instrument  delete association %s", str(producer_assn))
             self.clients.resource_registry.delete_association(producer_assn)
             log.debug("DataAcquisitionManagementService:unregister_instrument  delete producer %s", str(producer))
-
-
-            # DEBUG DEBUG DEBUG
-            objs, obj_assns = self.clients.resource_registry.find_objects(subject=producer)
-            for obj, obj_assn  in zip(objs, obj_assns):
-                log.debug("DPrcsMS:delete_data_process data_process object DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
-            objs, obj_assns = self.clients.resource_registry.find_subjects(object=producer)
-            for obj, obj_assn  in zip(objs, obj_assns):
-                log.debug("DPrcsMS:delete_data_process data_process subject DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
-
-
             self.clients.resource_registry.delete(producer)
         return
 
 
-    def assign_data_product(self, input_resource_id='', data_product_id='', create_stream=False):
+    def assign_data_product(self, input_resource_id='', data_product_id=''):
         #Connect the producer for an existing input resource with a data product
 
         # Verify that both ids are valid
@@ -180,18 +169,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Associate the input resource with the child data Producer
         self.clients.resource_registry.create_association(input_resource_id,  PRED.hasDataProducer, data_producer_id)
 
-        #Create the stream if requested
-        log.debug("assign_data_product: create_stream %s" % create_stream)
-        stream_id = None
-        if create_stream:
-            stream_id = self.clients.pubsub_management.create_stream(name=data_product_obj.name,  description=data_product_obj.description)
-            log.debug("assign_data_product: create stream stream_id %s" % stream_id)
-            # Associate the Stream with the main Data Product
-            self.clients.resource_registry.create_association(data_product_id,  PRED.hasStream, stream_id)
+        return
 
-        return stream_id
-
-    def unassign_data_product(self, input_resource_id='', data_product_id='', delete_stream=False):
+    def unassign_data_product(self, input_resource_id='', data_product_id=''):
         """
         Disconnect the Data Product from the Data Producer
 
@@ -229,30 +209,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             for association in associations:
                 self.clients.resource_registry.delete_association(association)
 
-            # DEBUG DEBUG DEBUG
-            objs, obj_assns = self.clients.resource_registry.find_objects(subject=producer)
-            for obj, obj_assn  in zip(objs, obj_assns):
-                log.debug("DAMS:unassign_data_product producer object DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
-            objs, obj_assns = self.clients.resource_registry.find_subjects(object=producer)
-            for obj, obj_assn  in zip(objs, obj_assns):
-                log.debug("DAMS:unassign_data_product producer subject DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
-
             log.debug("DAMS:unassign_data_product delete producer: %s ", str(producer) )
             self.clients.resource_registry.delete(producer)
-
-
-        #Delete  the stream if requested
-        log.debug("assign_data_product: delete_stream %s" % delete_stream)
-        if delete_stream:
-            #find the data producer resource associated with the source resource that is creating the data product
-            stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
-            if stream_ids is None or len(stream_ids) > 1:
-                raise NotFound("Invalid Streams associated with data product ID " + str(data_product_id))
-            # List all association ids with given subject, predicate, object triples
-            associations = self.clients.resource_registry.find_associations(data_product_id, PRED.hasStream, stream_ids[0], id_only=True)
-            for association in associations:
-                self.clients.resource_registry.delete_association(association)
-            self.clients.pubsub_management.delete_stream(stream_ids[0])
 
         return
 
@@ -319,8 +277,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         #Unregister the data producer with PubSub
         self.clients.pubsub_management.unregister_producer(data_producer_obj.name, data_producer_obj.stream_id)
-
-        #TODO tell PubSub to delete the stream??
 
         return self.clients.resource_registry.delete(data_producer_obj)
 

@@ -100,7 +100,9 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         for producer_id in producer_ids:
             log.debug("DataProductManagementService:delete_data_product unassigning data producers: %s")
-            self.clients.data_acquisition_management.unassign_data_product(producer_id, data_product_id, True)
+            self.clients.data_acquisition_management.unassign_data_product(producer_id, data_product_id)
+
+        #todo: remove stream?
 
 #        # find any stream links
 #        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
