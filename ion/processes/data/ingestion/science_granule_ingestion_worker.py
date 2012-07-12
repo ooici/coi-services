@@ -80,6 +80,10 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
 
 
     def persist(self, dataset_granule):
+        #--------------------------------------------------------------------------------
+        # Theres a potential that the datastore could have been deleted while ingestion
+        # is still running.  Essentially this refreshes the state
+        #--------------------------------------------------------------------------------
         try:
             self.db.create_doc(dataset_granule)
             return
