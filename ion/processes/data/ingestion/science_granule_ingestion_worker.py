@@ -81,14 +81,15 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
     def persist(self, dataset_granule):
         try:
             self.db.create_doc(dataset_granule)
+            return
         except ResourceNotFound as e:
             log.error('The datastore was removed while ingesting.')
             self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
-            log.error('Trying to ingest once more')
-            try:
-                self.db.create_doc(dataset_granule)
-            except ResourceNotFound as e:
-                log.error(e.message) # Oh well I tried
+        log.error('Trying to ingest once more')
+        try:
+            self.db.create_doc(dataset_granule)
+        except ResourceNotFound as e:
+            log.error(e.message) # Oh well I tried
 
 
 
