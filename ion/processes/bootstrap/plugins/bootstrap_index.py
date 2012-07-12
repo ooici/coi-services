@@ -7,7 +7,7 @@ from pyon.public import log
 from pyon.util.containers import DotDict
 
 
-class BootstrapPolicy(BootstrapPlugin):
+class BootstrapIndex(BootstrapPlugin):
     """
     Bootstrap plugin for indexes and search
     """

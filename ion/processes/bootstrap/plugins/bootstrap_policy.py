@@ -14,4 +14,5 @@ class BootstrapPolicy(BootstrapPlugin):
     """
 
     def on_initial_bootstrap(self, process, config, **kwargs):
-        LoadSystemPolicy.op_load_system_policies(self)
+        if config.get_safe("system.load_policy", False):
+            LoadSystemPolicy.op_load_system_policies(process)

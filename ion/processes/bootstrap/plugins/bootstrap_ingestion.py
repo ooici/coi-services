@@ -17,7 +17,7 @@ class BootstrapIngestion(BootstrapPlugin):
 
         Creating transform workers happens here...
         """
-        ing_ms_client = IngestionManagementServiceProcessClient(process=self)
+        ing_ms_client = IngestionManagementServiceProcessClient(process=process)
 
         exchange_point = config.get_safe('ingestion.exchange_point','science_data')
         queues = config.get_safe('ingestion.queues',None)

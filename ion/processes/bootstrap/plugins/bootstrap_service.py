@@ -13,7 +13,7 @@ from interface.services.coi.iorg_management_service import OrgManagementServiceP
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
 
 
-class BootstrapOrg(BootstrapPlugin):
+class BootstrapService(BootstrapPlugin):
     """
     Bootstrap process for Org and related resources
     """

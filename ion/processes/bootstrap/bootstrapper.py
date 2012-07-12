@@ -32,8 +32,7 @@ class Bootstrapper(BootstrapProcess):
             try:
                 log.info("Bootstrapping plugin %s.%s ...", plugin_mod, plugin_cls)
                 plugin = for_name(plugin_mod, plugin_cls)
-                plugin_obj = plugin()
-                plugin_func = getattr(plugin_obj, method)
+                plugin_func = getattr(plugin, method)
                 plugin_func(process, plugin_cfg, **kwargs)
             except AbortBootstrap as abort:
                 raise

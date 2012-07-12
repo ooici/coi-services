@@ -7,13 +7,13 @@ from interface.objects import ProcessDefinition
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceProcessClient
 
 
-class BootstrapCore(BootstrapPlugin):
+class BootstrapProcessDispatcher(BootstrapPlugin):
     """
     Bootstrap process for process dispatcher.
     """
 
     def on_initial_bootstrap(self, process, config, **kwargs):
-        pds_client = ProcessDispatcherServiceProcessClient(process=self)
+        pds_client = ProcessDispatcherServiceProcessClient(process=process)
 
         ingestion_module    = config.get_safe('bootstrap.processes.ingestion.module','ion.processes.data.ingestion.science_granule_ingestion_worker')
         ingestion_class     = config.get_safe('bootstrap.processes.ingestion.class' ,'ScienceGranuleIngestionWorker')

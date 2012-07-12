@@ -17,8 +17,8 @@ class BootstrapCore(BootstrapPlugin):
 
     def on_initial_bootstrap(self, process, config, **kwargs):
         # Detect if system has been started before by the presence of the ION system actor
-        system_actor, _ = process.container.resource_registry.find_resource(
-            restype=RT.ActorIdentity, id_only=True, limit=1)
+        system_actor, _ = process.container.resource_registry.find_resources(
+            restype=RT.ActorIdentity, id_only=True)
         if system_actor:
             raise AbortBootstrap("System already initialized. Start with bootmode=restart or force_clean!")
 

@@ -12,7 +12,7 @@ class BootstrapTransform(BootstrapPlugin):
     """
 
     def on_restart(self, process, config, **kwargs):
-        pds_client = ProcessDispatcherServiceProcessClient(process=self)
+        pds_client = ProcessDispatcherServiceProcessClient(process=process)
 
         def restart_transform(transform_id):
             transform = process.container.resource_registry.read(transform_id)
