@@ -33,6 +33,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
 
         self.subscriber = Subscriber(name=(get_sys_name(), self.queue_name), callback=self.consume)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
+        log.debug('Created datastore %s', self.datastore_name)
         self.greenlet = spawn(self.subscriber.listen)
 
     def on_quit(self): #pragma no cover

@@ -17,6 +17,8 @@ from pyon.core.object import IonObjectDeserializer
 from pyon.core.bootstrap import get_obj_registry
 from gevent.event import Event
 from pyon.public import log
+from pyon.util.arg_check import validate_true
+from pyon.datastore.datastore import DataStore
 import msgpack
 import gevent
 
@@ -55,6 +57,13 @@ class ReplayProcess(BaseReplayProcess):
 
     def execute_retrieve(self):
         datastore = self.container.datastore_manager.get_datastore(self.dataset.datastore_name)
+        #--------------------------------------------------------------------------------
+        # This handles the case where a datastore may not have been created by ingestion
+        # or there was an issue with it being delete, in any case the client should
+        # be duly notified.
+        #--------------------------------------------------------------------------------
+        validate_true(datastore.profile == DataStore.DS_PROFILE.SCIDATA, 'The datastore, %s, did not exist for this dataset.' % self.dataset.datastore_name) 
+        
         view_name = 'manifest/by_dataset'
 
         opts = dict(
@@ -83,6 +92,7 @@ class ReplayProcess(BaseReplayProcess):
                 obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
                 ion_obj = self.deserializer.deserialize(obj) # Problem here is that nested objects get deserialized
                 granules.append(ion_obj)
+        log.debug('Received %d granules.', len(granules))
 
         while len(granules) > 1:
             granule = combine_granules(granules.pop(0),granules.pop(0))
