@@ -9,7 +9,7 @@
 
 from interface.services.dm.ireplay_process import BaseReplayProcess
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from pyon.core.exception import BadRequest, IonException
+from pyon.core.exception import BadRequest, IonException, NotFound
 from pyon.util.file_sys import FileSystem,FS
 from pyon.core.interceptor.encode import decode_ion
 from pyon.ion.granule import combine_granules
@@ -55,6 +55,17 @@ class ReplayProcess(BaseReplayProcess):
         self.dataset = dsm_cli.read_dataset(self.dataset_id)
 
 
+    def granule_from_doc(self,doc):
+        sha1 = doc.get('persisted_sha1')
+        encoding = doc.get('encoding_type')
+        # Warning: redundant serialization
+        byte_string = self.read_persisted_cache(sha1,encoding)
+        obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
+        ion_obj = self.deserializer.deserialize(obj) # Problem here is that nested objects get deserialized
+        return ion_obj
+        
+
+
     def execute_retrieve(self):
         datastore = self.container.datastore_manager.get_datastore(self.dataset.datastore_name)
         #--------------------------------------------------------------------------------
@@ -84,13 +95,7 @@ class ReplayProcess(BaseReplayProcess):
         for result in datastore.query_view(view_name,opts=opts):
             doc = result.get('doc')
             if doc is not None:
-                log.debug(doc)
-                sha1 = doc.get('persisted_sha1')
-                encoding = doc.get('encoding_type')
-                # Warning: redundant serialization
-                byte_string = self.read_persisted_cache(sha1,encoding)
-                obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
-                ion_obj = self.deserializer.deserialize(obj) # Problem here is that nested objects get deserialized
+                ion_obj = self.granule_from_doc(doc)
                 granules.append(ion_obj)
         log.debug('Received %d granules.', len(granules))
 
@@ -130,13 +135,7 @@ class ReplayProcess(BaseReplayProcess):
             log.debug(result)
             doc = result.get('doc')
             if doc is not None:
-                sha1 = doc.get('persisted_sha1')
-                encoding = doc.get('encoding_type')
-                # Warning: redundant serialization
-                byte_string = self.read_persisted_cache(sha1,encoding)
-                obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
-                ion_obj = self.deserializer.deserialize(obj)
-
+                ion_obj = self.granule_from_doc(doc)
                 self.output.publish(ion_obj)
 
         # Need to terminate the stream, null granule = {}
@@ -144,8 +143,47 @@ class ReplayProcess(BaseReplayProcess):
         self.publishing.clear()
         return True
 
+    @classmethod
+    def get_last_granule(cls, container, dataset_id):
+        deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
+        dsm_cli = DatasetManagementServiceClient()
+        dataset = dsm_cli.read_dataset(dataset_id)
+        cc = container
 
-    def read_persisted_cache(self, sha1, encoding):
+        datastore = cc.datastore_manager.get_datastore(dataset.datastore_name)
+        view_name = 'manifest/by_dataset'
+
+        opts = dict(
+            start_key = [dataset.primary_view_key, {}],
+            end_key   = [dataset.primary_view_key, 0], 
+            descending = True,
+            limit = 1,
+            include_docs = True
+        )
+
+        results = datastore.query_view(view_name,opts=opts)
+        if not results:
+            raise NotFound('A granule could not be located.')
+        if results[0] is None:
+            raise NotFound('A granule could not be located.')
+        doc = results[0].get('doc')
+        if doc is None:
+            return None
+
+
+        sha1 = doc.get('persisted_sha1')
+        encoding = doc.get('encoding_type')
+        # Warning: redundant serialization
+        byte_string = cls.read_persisted_cache(sha1,encoding)
+        obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
+        ion_obj = deserializer.deserialize(obj) # Problem here is that nested objects get deserialized
+        return ion_obj
+
+
+        
+
+    @classmethod
+    def read_persisted_cache(cls, sha1, encoding):
         byte_string = None
         path = FileSystem.get_hierarchical_url(FS.CACHE,sha1,'.%s' % encoding)
         try:

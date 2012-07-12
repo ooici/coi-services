@@ -197,5 +197,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.assertTrue(comp.all())
 
-
+    def test_last_granule(self):
+        pass
 
