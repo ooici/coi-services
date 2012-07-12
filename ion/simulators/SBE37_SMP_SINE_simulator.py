@@ -98,6 +98,7 @@ class sbe37(asyncore.dispatcher_with_send):
     knock_count = 0
 
     months = ['BAD PROGRAMMER MONTH', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    save = ""
 
     def __init__(self, socket, thread):
         self.socket = socket
@@ -127,7 +128,8 @@ class sbe37(asyncore.dispatcher_with_send):
                 self.buf = self.buf[1:]
             else:
                 self.buf = self.recv(8192)
-
+                for x in self.buf:
+                    self.socket.send(x + '\0')
             return c
 
     def get_data(self):
@@ -137,14 +139,12 @@ class sbe37(asyncore.dispatcher_with_send):
 
             while True:
                 c = self.read_a_char()
-                #print "GOT " + str(c)
                 if c == None:
                     break
                 if c == '\n' or c == '':
                     self.save = ""
                     ret += c
                     data = ret
-                    #print "DATA = " + str(data)
                     break
                 else:
                     ret += c
@@ -162,10 +162,6 @@ class sbe37(asyncore.dispatcher_with_send):
         if data:
             data = data.lower()
             print "IN  [" + repr(data) + "]"
-            cop = data.rstrip('\n').rstrip('\r')
-            print "OUTR  [" + repr(cop + "]\r\n") + "]"
-            self.socket.send(cop)
-            #self.socket.send("[" + data.rstrip('\n').rstrip('\r') + "]\r\n")
             if log_file.closed == False:
                 log_file.write("IN  [" + repr(data) + "]\n")
         return data

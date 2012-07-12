@@ -109,8 +109,8 @@ class sbe37(asyncore.dispatcher_with_send):
                 self.buf = self.buf[1:]
             else:
                 self.buf = self.recv(8192)
-                if self.buf != "":
-                    print "READ " + self.buf
+                for x in self.buf:
+                    self.socket.send(x + '\0')
 
             return c
 
@@ -121,14 +121,12 @@ class sbe37(asyncore.dispatcher_with_send):
 
             while True:
                 c = self.read_a_char()
-                #print "GOT " + str(c)
                 if c == None:
                     break
                 if c == '\n' or c == '':
                     self.save = ""
                     ret += c
                     data = ret
-                    #print "DATA = " + str(data)
                     break
                 else:
                     ret += c
@@ -139,17 +137,12 @@ class sbe37(asyncore.dispatcher_with_send):
             self.socket.close()
             self.thread.exit()
         except:
-            #print "saving ret = " + str(ret)
             self.save = ret
             data = ""
 
         if data:
             data = data.lower()
             print "IN  [" + repr(data) + "]"
-            cop = data.rstrip('\n').rstrip('\r')
-            print "OUTR  [" + repr(cop + "]\r\n") + "]"
-            self.socket.send(cop)
-            #self.socket.send("[" + data.rstrip('\n').rstrip('\r') + "]\r\n")
             if log_file.closed == False:
                 log_file.write("IN  [" + repr(data) + "]\n")
         return data
