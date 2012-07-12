@@ -266,6 +266,46 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=data_product_obj.dataset_configuration_id)
 
         log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
+        
+
+    def create_data_product_version(self, data_product_id='', data_product_version=None):
+        """Define a new version of an existing set of information that represent an inprovement in the quality or
+        understanding of the information. Only creates the second and higher versions of a DataProduct.
+        The first version is implicit in the crate_data_product() operation.
+
+        @param data_product_id    str
+        @param data_product_version    DataProductVersion
+        @retval data_product_version_id    str
+        @throws BadRequest    if object does not have _id or _rev attribute
+        @throws NotFound    object with specified id does not exist
+        """
+        pass
+
+    def update_data_product_version(self, data_product=None):
+        """@todo document this interface!!!
+
+        @param data_product    DataProductVersion
+        @throws NotFound    object with specified id does not exist
+        """
+        pass
+
+    def read_data_product_version(self, data_product_version_id=''):
+        """Retrieve data product information
+
+        @param data_product_version_id    str
+        @retval data_product    DataProductVersion
+        """
+        pass
+
+    def delete_data_product_version(self, data_product_version_id=''):
+        """Remove a version of an data product.
+
+        @param data_product_version_id    str
+        @throws BadRequest    if object does not have _id or _rev attribute
+        @throws NotFound    object with specified id does not exist
+        """
+        pass
+
 
     def execute_data_product_lifecycle(self, data_product_id="", lifecycle_event=""):
        """
