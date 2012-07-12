@@ -188,7 +188,7 @@ class sbe37(asyncore.dispatcher_with_send):
 
                         self.knock_count += 1
 
-                        if self.knock_count == 5:
+                        if self.knock_count >= 5:
                             self.send_data('\r\nS>\r\n', 'NEW')
 
                         if self.knock_count == 4:

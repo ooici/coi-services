@@ -186,8 +186,9 @@ class sbe37(asyncore.dispatcher_with_send):
                         locked = False
 
                         self.knock_count += 1
+                        print "KNOCK COUNT = " + str(self.knock_count)
 
-                        if self.knock_count == 5:
+                        if self.knock_count >= 5:
                             self.send_data('\r\nS>\r\n', 'NEW')
 
                         if self.knock_count == 4:
