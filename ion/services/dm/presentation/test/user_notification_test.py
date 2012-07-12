@@ -1340,12 +1340,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
 
         # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
-        gevent.sleep(2)
+        gevent.sleep(4)
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime=4, max_datetime=7)
 
         self.assertEquals(len(events), 3)
 
-    @unittest.skip('Discovery cannot run parallel searches yet')
     def test_create_several_workers(self):
         '''
         Create more than one worker. Test that they process events in round robin
