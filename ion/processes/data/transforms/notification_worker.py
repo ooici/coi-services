@@ -22,7 +22,7 @@ class NotificationWorker(SimpleProcess):
     """
     Instances of this class acts as a Notification Worker.
     """
-    discovery = DiscoveryServiceClient()
+#    discovery = DiscoveryServiceClient()
 
     def on_init(self):
         self.event_pub = EventPublisher()
