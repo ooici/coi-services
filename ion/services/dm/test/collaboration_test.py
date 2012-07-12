@@ -85,7 +85,7 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
         # First launch the ingestors
         config = DotDict()
         config.process.datastore_name = 'datasets'
-        config.process.queue_name = '%s.%s' %(self.exchange_point, self.exchange_space)
+        config.process.queue_name = self.exchange_space #'%s.%s' %(self.exchange_point, self.exchange_space)
 
         pid = self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
         self.pids.append(pid)
@@ -148,7 +148,11 @@ class DMCollaborationIntTest(IonIntegrationTestCase):
         
         replay_id, replay_stream_id = self.data_retriever.define_replay(dataset_id = dataset_id)
 
-        subscriber = Subscriber(name=('%s.science_data' % sysname, 'test_queue'), callback=self.subscriber_action, binding='%s.data' % replay_stream_id)
+        xn = self.container.ex_manager.create_xn_queue('test_queue')
+        xp = self.container.ex_manager.create_xp(self.exchange_point)
+        xn.bind('%s.data' % replay_stream_id, xp)
+
+        subscriber = Subscriber(from_name=xn, callback=self.subscriber_action)
         gevent.spawn(subscriber.listen)
 
         done = False

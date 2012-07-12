@@ -103,7 +103,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         granule = build_granule('test',tt,rdt)
 
-        pub.publish(granule,to_name=('%s.science_data' % get_sys_name(), '%s.data'%stream_id))
+        xp = self.container.ex_manager.create_xp('science_data')
+        xpr = xp.create_route('%s.data' % stream_id)
+
+        pub.publish(granule,to_name=xpr)
 
         rdt = RecordDictionaryTool(tt)
         rdt['pres'] = np.array([1,2,3,4,5])
@@ -117,7 +120,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         granule = build_granule(data_producer_id='tool', taxonomy=tt, record_dictionary=rdt)
 
-        pub.publish(granule,to_name=('%s.science_data' % get_sys_name(), '%s.data' % stream_id))
+        pub.publish(granule,to_name=xpr)
         
 
 
