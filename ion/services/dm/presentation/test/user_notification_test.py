@@ -616,7 +616,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Update notification and check that the user_info and reverse_user_info in UNS got reloaded
         #--------------------------------------------------------------------------------------
 
-        #todo The update method for UNS is not yet implementable without ids inside notification workers
+        #todo The update method for UNS
 
 #        notification_request_1 = notification_request_2
 #        self.unsc.update_notification(notification=notification_request_1, user_id=user_id)
@@ -634,7 +634,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Delete notification and check that the user_info and reverse_user_info in UNS got reloaded
         #--------------------------------------------------------------------------------------
 
-        #todo whether the user_info contains the user_ids or the user_names need to be sorted
+        #todo The delete method for UNS
 
         # Check for UNS ------->
 
@@ -1350,14 +1350,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(len(events), 3)
 
-    @unittest.skip('Test needs to be fixed')
+    @unittest.skip('Discovery cannot run parallel searches yet')
     def test_create_several_workers(self):
         '''
         Create more than one worker. Test that they process events in round robin
         '''
-        pids = self.unsc.create_worker(number_of_workers=3)
+        pids = self.unsc.create_worker(number_of_workers=2)
 
-        self.assertEquals(len(pids), 3)
+        self.assertEquals(len(pids), 2)
 
 #    @attr('LOCOINT')
 #    @unittest.skip("Changed interface. Create email may get deprecated soon")

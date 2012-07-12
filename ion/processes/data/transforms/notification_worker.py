@@ -13,18 +13,21 @@ from pyon.util.async import spawn
 from pyon.core.exception import BadRequest, NotFound
 from pyon.ion.process import SimpleProcess
 from pyon.event.event import EventSubscriber, EventPublisher
-from ion.services.dm.utility.uns_utility_methods import send_email, load_user_info, calculate_reverse_user_info
+from ion.services.dm.utility.uns_utility_methods import send_email, calculate_reverse_user_info
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, check_user_notification_interest
-import gevent
+from interface.services.dm.idiscovery_service import DiscoveryServiceClient
+import gevent, time
 
 class NotificationWorker(SimpleProcess):
     """
     Instances of this class acts as a Notification Worker.
     """
+    discovery = DiscoveryServiceClient()
 
     def on_init(self):
         self.event_pub = EventPublisher()
         self.user_info = {}
+        self.discovery = DiscoveryServiceClient()
 
     def test_hook(self, user_info, reverse_user_info ):
         '''
@@ -42,7 +45,7 @@ class NotificationWorker(SimpleProcess):
         #------------------------------------------------------------------------------------
 
         try:
-            self.user_info = load_user_info()
+            self.user_info = self.load_user_info()
             self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
 
             log.info("On start up, notification workers loaded the following user_info dictionary: %s" % self.user_info)
@@ -67,7 +70,7 @@ class NotificationWorker(SimpleProcess):
             log.info("(Notification worker received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
 
             try:
-                self.user_info = load_user_info()
+                self.user_info = self.load_user_info()
             except NotFound:
                 log.warning("ElasticSearch has not yet loaded the user_index.")
 
@@ -130,3 +133,44 @@ class NotificationWorker(SimpleProcess):
         self.event_subscriber.stop()
         self.reload_user_info_subscriber.stop()
 
+    def poll(self, tries, callback, *args, **kwargs):
+        '''
+        Polling wrapper for queries
+        Elasticsearch may not index and cache the changes right away so we may need
+        a couple of tries and a little time to go by before the results show.
+        '''
+        for i in xrange(tries):
+            retval = callback(*args, **kwargs)
+            if retval:
+                return retval
+            time.sleep(0.2)
+        return None
+
+
+    def load_user_info(self):
+        '''
+        Method to load the user info dictionary... used by notification workers and the UNS
+
+        @retval user_info dict
+        '''
+        search_string = 'search "name" is "*" from "users_index"'
+
+        user_info = {}
+
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        if not results:
+            return {}
+
+        for result in results:
+            user_name = result['_source'].name
+            user_contact = result['_source'].contact
+
+            notifications = []
+            for variable in result['_source'].variables:
+                if variable['name'] == 'notification':
+                    notifications = variable['value']
+
+            user_info[user_name] = { 'user_contact' : user_contact, 'notifications' : notifications}
+
+        return user_info

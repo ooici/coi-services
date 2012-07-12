@@ -392,7 +392,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
-    def find_events(self, origin='', type='', min_datetime='', max_datetime='', limit=0, descending=False):
+    def find_events(self, origin='', type='', min_datetime='', max_datetime='', limit=-1, descending=False):
         """Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
         if no events exist for the given parameters.
 
@@ -440,7 +440,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         log.debug("(find_events) UNS found the following relevant events: %s" % events)
 
-        if limit > 0:
+        if limit > -1:
             list = []
             for i in xrange(limit):
                 list.append(events[i])
@@ -517,17 +517,24 @@ class UserNotificationService(BaseUserNotificationService):
         for n in xrange(number_of_workers):
 
             process_definition = ProcessDefinition( name='notification_worker_%s' % n)
+
+            log.warning("process_definition: %s" % process_definition)
+
             process_definition.executable = {
                 'module': 'ion.processes.data.transforms.notification_worker',
                 'class':'NotificationWorker'
             }
             process_definition_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
 
+            log.warning("process_definition_id: %s" % process_definition_id)
+
             # ------------------------------------------------------------------------------------
             # Process Spawning
             # ------------------------------------------------------------------------------------
 
             pid2 = self.process_dispatcher.create_process(process_definition_id)
+
+            log.warning("pid2: %s" % pid2)
 
             #@todo put in a configuration
             configuration = {}
@@ -536,6 +543,8 @@ class UserNotificationService(BaseUserNotificationService):
                 'type':'simple'
             })
 
+            log.warning("configuration: %s" % configuration)
+
             pid  = self.process_dispatcher.schedule_process(
                 process_definition_id,
                 configuration = configuration,
@@ -543,6 +552,8 @@ class UserNotificationService(BaseUserNotificationService):
             )
 
             pids.append(pid)
+
+            log.warning("pids: %s" % pids)
 
         return pids
 

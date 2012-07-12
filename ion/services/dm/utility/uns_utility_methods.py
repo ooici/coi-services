@@ -2,14 +2,11 @@
 from pyon.public import get_sys_name, CFG
 from pyon.util.log import log
 from pyon.core.exception import NotFound, BadRequest
-from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.objects import NotificationRequest, Event
 import smtplib
 import gevent
 from gevent.timeout import Timeout
-from datetime import datetime
 import string
-import time
 from email.mime.text import MIMEText
 from gevent import Greenlet
 
@@ -158,49 +155,6 @@ def check_user_notification_interest(event, reverse_user_info):
     users = list( set.intersection(set(user_list_1), set(user_list_2), set(user_list_3), set(user_list_4)))
 
     return users
-
-def poll(tries, callback, *args, **kwargs):
-    '''
-    Polling wrapper for queries
-    Elasticsearch may not index and cache the changes right away so we may need
-    a couple of tries and a little time to go by before the results show.
-    '''
-    for i in xrange(tries):
-        retval = callback(*args, **kwargs)
-        if retval:
-            return retval
-        time.sleep(0.2)
-    return None
-
-
-def load_user_info():
-    '''
-    Method to load the user info dictionary... used by notification workers and the UNS
-
-    @retval user_info dict
-    '''
-    search_string = 'search "name" is "*" from "users_index"'
-
-    user_info = {}
-
-    discovery = DiscoveryServiceClient()
-    results = poll(9, discovery.parse,search_string)
-
-    if not results:
-        return {}
-
-    for result in results:
-        user_name = result['_source'].name
-        user_contact = result['_source'].contact
-
-        notifications = []
-        for variable in result['_source'].variables:
-            if variable['name'] == 'notification':
-                notifications = variable['value']
-
-        user_info[user_name] = { 'user_contact' : user_contact, 'notifications' : notifications}
-
-    return user_info
 
 def calculate_reverse_user_info(user_info = {}):
     '''
