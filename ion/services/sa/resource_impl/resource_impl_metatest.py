@@ -12,6 +12,7 @@ from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest #, NotFound
 #from pyon.public import LCS
 from unittest import SkipTest
+from pyon.ion.resource import LCE
 
 class ResourceImplMetatest(object):
     """
@@ -436,6 +437,38 @@ class ResourceImplMetatest(object):
             except Exception as e:
                 raise e
 
+            svc.clients.resource_registry.read.assert_called_with("111", "")
+            svc.clients.resource_registry.execute_lifecycle_transition.assert_called_once_with("111", LCE.RETIRE)
+
+            if all_in_one: svc.clients.resource_registry.delete.reset_mock()
+
+        def test_delete_destroy_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rim_getservice()
+            myimpl = getattr(svc, impl_attr)
+            myret = sample_resource()
+
+            #configure Mock
+            svc.clients.resource_registry.read.return_value = myret
+            svc.clients.resource_registry.delete.return_value = None
+
+            try:
+                myimpl.delete_one("111", True)
+            except TypeError as te:
+                # for logic tests that run into mock trouble
+                if "'Mock' object is not iterable" != te.message:
+                    raise te
+                elif all_in_one:
+                    svc.clients.resource_registry.reset_mock()
+                    return
+                else:
+                    raise SkipTest("Must test this with INT test")
+            except Exception as e:
+                raise e
+
 
             svc.clients.resource_registry.read.assert_called_with("111", "")
             svc.clients.resource_registry.delete.assert_called_once_with("111")
@@ -616,9 +649,17 @@ class ResourceImplMetatest(object):
             """
 
             name = make_name("resource_impl_delete")
-            doc  = make_doc("Deleting a %s resource" % impl_instance.iontype)
+            doc  = make_doc("Deleting (retiring) a %s resource" % impl_instance.iontype)
             add_test_method(name, doc, test_delete_fun)
 
+        def gen_test_delete_destroy():
+            """
+            generate the function to test the delete
+            """
+
+            name = make_name("resource_impl_delete_destroy")
+            doc  = make_doc("Deleting -- destructively -- a %s resource" % impl_instance.iontype)
+            add_test_method(name, doc, test_delete_destroy_fun)
 
 
         def gen_test_find():
@@ -729,6 +770,7 @@ class ResourceImplMetatest(object):
                 test_update_fun(self)
                 test_update_bad_dupname_fun(self)
                 test_delete_fun(self)
+                test_delete_destroy_fun(self)
                 test_find_fun(self)
 
                 for k in dir(impl_instance):
@@ -765,6 +807,7 @@ class ResourceImplMetatest(object):
             gen_test_update()
             gen_test_update_bad_dupname()
             gen_test_delete()
+            gen_test_delete_destroy()
             gen_test_find()
             gen_tests_associations()
             gen_tests_associated_finds()

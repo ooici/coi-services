@@ -73,6 +73,7 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
         log.warn('test__constraints_for_new_request: {0}'.format(ret['new_files']))
         self.assertEqual(ret['new_files'], list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern']))
 
+    @unittest.skip('Needs to be fixed by Chris')
     def test__get_data(self):
         config = {
             'constraints':{

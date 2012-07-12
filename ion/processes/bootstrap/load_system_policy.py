@@ -115,7 +115,7 @@ class LoadSystemPolicy(ImmediateProcess):
             </Target>
 
             <Condition>
-                <Apply FunctionId="urn:oasis:names:tc:xacml:ooi:function:not">
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
 
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
@@ -512,7 +512,7 @@ class LoadSystemPolicy(ImmediateProcess):
             </Target>
 
             <Condition>
-                <Apply FunctionId="urn:oasis:names:tc:xacml:ooi:function:not">
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
@@ -577,7 +577,7 @@ class LoadSystemPolicy(ImmediateProcess):
             </Target>
 
             <Condition>
-                <Apply FunctionId="urn:oasis:names:tc:xacml:ooi:function:not">
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>

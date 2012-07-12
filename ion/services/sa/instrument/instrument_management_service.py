@@ -172,8 +172,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
 
-        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasInstance, instrument_agent_instance_id)
-        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance, instrument_agent_instance_id)
+        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasInstance,
+                                                                                instrument_agent_instance_id)
+        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance,
+                                                                                instrument_agent_instance_id)
 
         self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCE.RETIRE)
         #self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
@@ -192,41 +194,45 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #if there is a agent pid then assume that a drive is already started
         if instrument_agent_instance_obj.agent_process_id:
-            raise BadRequest("Instrument Agent Instance already running for this device pid: %s" + str(instrument_agent_instance_obj.agent_process_id))
+            raise BadRequest("Instrument Agent Instance already running for this device pid: %s" %
+                             str(instrument_agent_instance_obj.agent_process_id))
 
         #retrieve the associated instrument device
-        inst_device_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasAgentInstance, instrument_agent_instance_id, True)
-        if not inst_device_ids:
-            raise NotFound("No Instrument Device attached to this Instrument Agent Instance " + str(instrument_agent_instance_id))
-        if len(inst_device_ids) > 1:
-            raise BadRequest("Instrument Agent Instance should only have ONE Instrument Device" + str(instrument_agent_instance_id))
-        instrument_device_id = inst_device_ids[0]
+        inst_device_objs = self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)
+        if 1 != len(inst_device_objs):
+            raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
+                             (str(instrument_agent_instance_id), len(inst_device_objs)))
+        instrument_device_id = inst_device_objs[0]._id
         log.debug("start_instrument_agent_instance: device is %s connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
 
         #retrieve the instrument model
-        model_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
-        if not model_ids:
-            raise NotFound("No Instrument Model  attached to this Instrument Device " + str(instrument_device_id))
-
-        instrument_model_id = model_ids[0]
-        log.debug("activate_instrument:instrument_model %s"  +  str(instrument_model_id))
+        model_objs = self.instrument_device.find_stemming_model(instrument_device_id)
+        if 1 != len(model_objs):
+            raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
+                             (str(instrument_device_id), len(model_objs)))
+        instrument_model_id = model_objs[0]
+        log.debug("activate_instrument:instrument_model %s" % str(instrument_model_id))
 
 
         #retrieve the associated instrument agent
-        agent_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentAgent, PRED.hasModel, instrument_model_id, True)
-        if not agent_ids:
-            raise NotFound("No Instrument Agent  attached to this Instrument Model " + str(instrument_model_id))
-
-        instrument_agent_id = agent_ids[0]
+        agent_objs = self.instrument_agent.find_having_model(instrument_model_id)
+        if 1 != len(agent_objs):
+            raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentModel '%s', got %d" %
+                           (str(instrument_model_id), len(agent_objs)))
+        instrument_agent_id = agent_objs[0]._id
         log.debug("Got instrument agent '%s'" % instrument_agent_id)
 
 
         #retrieve the associated process definition
-        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
-        if not process_def_ids:
-            raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
-        if len(process_def_ids) > 1:
-            raise BadRequest("Instrument Agent should only have ONE Process Definition" + str(instrument_agent_id))
+        #todo: this association is not in the diagram... is it ok?
+        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id,
+                                                                         PRED.hasProcessDefinition,
+                                                                         RT.ProcessDefinition,
+                                                                         True)
+        if 1 != len(process_def_ids):
+            raise BadRequest("Expected 1 ProcessDefinition attached to InstrumentAgent '%s', got %d" %
+                           (str(instrument_agent_id), len(process_def_ids)))
+
 
         process_definition_id = process_def_ids[0]
         log.debug("activate_instrument: agent process definition %s"  +  str(process_definition_id))
@@ -239,7 +245,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         out_streams = {}
         #retrieve the output products
-        data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
+        data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id,
+                                                                          PRED.hasOutputProduct,
+                                                                          RT.DataProduct,
+                                                                          True)
         if not data_product_ids:
             raise NotFound("No output Data Products attached to this Instrument Device " + str(instrument_device_id))
 
@@ -274,6 +283,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise NotFound("Stream %s is not CTD raw or parsed" % stream_obj.name)
         log.debug("activate_instrument:output stream config: %s"  +  str(out_streams))
 
+#        for necessary_field in ["ctd_raw", "ctd_parsed"]:
+#            if not necessary_field in out_streams:
+#                raise BadRequest("Failed to find output stream '%s'" % necessary_field)
 
         #todo: move this up and out
         # Create taxonomies for both parsed and raw
@@ -294,9 +306,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         RawTax.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
 
 
-        stream_info = { 'parsed' : { id: out_streams['ctd_parsed'], 'taxonomy': ParsedTax.dump() },
-                         'raw' : { id: out_streams['ctd_raw'], 'taxonomy': RawTax.dump() }
-        }
+        stream_info = {}
+        if "ctd_parsed" in out_streams:
+            stream_info['parsed'] = { id: out_streams['ctd_parsed'], 'taxonomy': ParsedTax.dump() }
+        if "ctd_raw" in out_streams:
+            stream_info['raw'] = { id: out_streams['ctd_raw'], 'taxonomy': RawTax.dump() }
 
 
         self._start_pagent(instrument_agent_instance_id)
@@ -1350,212 +1364,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-   #####################################################
-   #
-   # Code to handle primary instrument / platform
-   #
-   #####################################################
-
-    def transfer_site_subscription(self, instrument_device_id_old, instrument_device_id_new):
-        pass
-   
-    # Maurice - activate deployment is for hardware
-    #           this function is "transfer site subscription"
-    def assign_primary_deployment(self, instrument_device_id='', instrument_site_id=''):
-        """
-        associate a logical instrument with a physical one.
-        """
-
-        log.debug("assign_primary_deployment: instrument_device_obj  %s", str(instrument_device_obj))
-
-        log.debug("assign_primary_deployment: instrument_device_obj  lcstate %s", str(instrument_device_obj.lcstate))
-
-        # TODO: Check that the InstrumentDevice is in DEPLOYED_* lifecycle state
-        #todo: check if there are other valid states
-
-        # Check that the InstrumentDevice has association hasDeployment to this LogicalInstrument
-        # Note: the device may also be deployed to other logical instruments, this is valid
-        lgl_platform_assocs = self.clients.resource_registry.get_association(instrument_device_id, PRED.hasDeployment, logical_instrument_id)
-        if not lgl_platform_assocs:
-            raise BadRequest("This Instrument Device is not deployed to the specified Logical Instrument  %s" %instrument_device_obj.name)
-
-        # Make sure InstrumentDevice and LogicalInstrument associations to InstrumentModel match (same type)
-        dev_model_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasModel, RT.InstrumentModel, True)
-        if not dev_model_ids or len(dev_model_ids) > 1:
-            raise BadRequest("This Instrument Device has invalid assignment to an Instrument Model  %s" %instrument_device_obj.name)
-
-        lgl_inst__model_ids, _ = self.clients.resource_registry.find_objects(logical_instrument_id, PRED.hasModel, RT.InstrumentModel, True)
-        if not lgl_inst__model_ids or len(lgl_inst__model_ids) > 1:
-            raise BadRequest("This Logical Instrument  has invalid assignment to an Instrument Model  %s" % logical_instrument_obj.name)
-
-        if  dev_model_ids[0] != lgl_inst__model_ids[0]:
-            raise BadRequest("The Instrument Device does not match the model type of the intended Logical Instrument  %s" %instrument_device_obj.name)
-
-        # Remove potential previous device hasPrimaryDeployment
-        primary_dev__ids, assocs = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasPrimaryDeployment, logical_instrument_id, True)
-        if primary_dev__ids:
-            if len(primary_dev__ids) > 1:
-                raise Inconsistent("The Logical Instrument has multiple primary devices assigned  %s" %logical_instrument_obj.name)
-            #check that the new device is not already linked as the primary device to this logical instrument
-            if primary_dev__ids[0] == instrument_device_id :
-                raise BadRequest("The Instrument Device is already the primary deployment to this Logical Instrument  %s" %instrument_device_obj.name)
-
-            self.clients.resource_registry.delete_association(assocs[0])
-
-            old_product_stream_def_id = ""
-            old_product_stream_id = ""
-            stream_def_map = {}
-            old_hasInputProduct_assoc = ""
-            # for each data product from this instrument, find any data processes that are using it as input
-            data_product_ids, prod_assocs = self.clients.resource_registry.find_objects(primary_dev__ids[0], PRED.hasOutputProduct, RT.DataProduct, True)
-            if data_product_ids:
-                stream_def_map = self.find_stream_defs_for_output_products(instrument_device_id)
-
-                for data_product_id in data_product_ids:
-
-                    # look for data processes that use this product as input
-                    data_process_ids, assocs = self.clients.resource_registry.find_subjects( RT.DataProcess, PRED.hasInputProduct, data_product_id, True)
-                    log.debug("assign_primary_deployment: data_process_ids using the data product for input %s ", str(data_process_ids) )
-                    if data_process_ids:
-                        #get the stream def of the data product
-                        stream_ids, _ = self.clients.resource_registry.find_objects( data_product_id, PRED.hasStream, RT.Stream, True)
-                        #Assume one stream-to-one product for now
-                        if stream_ids:
-                            old_product_stream_id = stream_ids[0]
-                            stream_def_ids, _ = self.clients.resource_registry.find_objects( stream_ids[0], PRED.hasStreamDefinition, RT.StreamDefinition, True)
-                            #Assume one streamdef-to-one stream for now
-                            if stream_def_ids:
-                                old_product_stream_def_id = stream_def_ids[0]
-
-                    if not old_product_stream_def_id:
-                        continue
-
-                    #get the corresponding data product on the new device
-                    replacement_data_product = stream_def_map[old_product_stream_def_id]
-                    log.debug("assign_primary_deployment: replacement_data_product %s ", str(replacement_data_product) )
-                    new_stream_ids, _ = self.clients.resource_registry.find_objects( replacement_data_product, PRED.hasStream, RT.Stream, True)
-                    #Assume one stream-to-one product for now
-                    new_product_stream_id = new_stream_ids[0]
-
-                    for data_process_id in data_process_ids:
-                        log.debug("assign_primary_deployment: data_process_id  %s ", str(data_process_id) )
-                        transform_ids, _ = self.clients.resource_registry.find_objects( data_process_id, PRED.hasTransform, RT.Transform, True)
-                        log.debug("assign_primary_deployment: transform_ids  %s ", str(transform_ids) )
-
-                        if transform_ids:
-                            #Assume one transform per data process for now
-                            subscription_ids, _ = self.clients.resource_registry.find_objects( transform_ids[0], PRED.hasSubscription, RT.Subscription, True)
-                            log.debug("assign_primary_deployment: subscription_ids  %s ", str(subscription_ids) )
-                            if subscription_ids:
-                                #assume one subscription per transform for now
-                                #read the subscription object
-                                subscription_obj = self.clients.pubsub_management.read_subscription(subscription_ids[0])
-                                log.debug("assign_primary_deployment: subscription_obj %s ", str(subscription_obj))
-                                #remove the old stream that is no longer primary
-                                subscription_obj.query.stream_ids.remove(old_product_stream_id)
-                                #add the new stream from the new primary device that has THE SAME stream def
-                                subscription_obj.query.stream_ids = [new_product_stream_id]
-                                self.clients.pubsub_management.update_subscription(subscription_obj)
-                                log.debug("assign_primary_deployment: updated subscription_obj %s ", str(subscription_obj))
-
-                                #change the hasInputProduct association for this DataProcess
-                                log.debug("assign_primary_deployment: switch hasInputProd data_process_id %s ", str(data_process_id))
-                                log.debug("assign_primary_deployment: switch hasInputProd data_product_id %s ", str(data_product_id))
-
-                                old_assoc = self.clients.resource_registry.get_association( data_process_id, PRED.hasInputProduct, data_product_id)
-                                self.clients.resource_registry.delete_association(old_assoc)
-                                log.debug("assign_primary_deployment: switch hasInputProd replacement_data_product %s ", str(replacement_data_product))
-                                self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, replacement_data_product)
-
-        # Create association hasPrimaryDeployment
-        self._link_resources(instrument_device_id, PRED.hasPrimaryDeployment, logical_instrument_id)
-
-        # todo: If no prior deployment existed for this LI, create a "logical merge transform" (see below)
-
-
-        # todo: Create a subscription to the parsed stream of the instrument device for the logical merge transform
-
-
-        # todo: If a prior device existed, remove the subscription to this device from the transform
-
-
-
-
-    def unassign_primary_deployment(self, instrument_device_id='', logical_instrument_id=''):
-
-        #verify that resources ids are valid, if not found RR will raise the error
-        instrument_device_obj = self.clients.resource_registry.read(instrument_device_id)
-        logical_instrument_obj = self.clients.resource_registry.read(logical_instrument_id)
-
-        # Check that the InstrumentDevice has association hasDeployment to this LogicalInstrument
-        # Note: the device may also be deployed to other logical instruments, this is valid
-        lgl_platform_assocs = self.clients.resource_registry.get_association(instrument_device_id, PRED.hasDeployment, logical_instrument_id)
-        if not lgl_platform_assocs:
-            raise BadRequest("This Instrument Device is not deployed to the specified Logical Instrument  %s" %instrument_device_obj.name)
-
-        # Check that the InstrumentDevice has association hasDeployment to this LogicalInstrument
-        # Note: the device may also be deployed to other logical instruments, this is valid
-        lgl_platform_assoc = self.clients.resource_registry.get_association(instrument_device_id, PRED.hasPrimaryDeployment, logical_instrument_id)
-        if not lgl_platform_assoc:
-            raise BadRequest("This Instrument Device is not deployed as primary to the specified Logical Instrument  %s" %instrument_device_obj.name)
-
-        # remove the association
-        self.clients.resource_registry.delete_association(lgl_platform_assoc)
-
-        # remove the L0 subscription (keep the transform alive)
-        # for each data product from this instrument, find any data processes that are using it as input
-        data_product_ids, prod_assocs = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        log.debug("unassign_primary_deployment: data_product_ids for this instrument %s ", str(data_product_ids) )
-
-        product_stream_id = ''
-        for data_product_id in data_product_ids:
-            # look for data processes that use this product as input
-            data_process_ids, assocs = self.clients.resource_registry.find_subjects( RT.DataProcess, PRED.hasInputProduct, data_product_id, True)
-            log.debug("unassign_primary_deployment: data_process_ids using the data product for input %s ", str(data_process_ids) )
-            if data_process_ids:
-                #get the stream def of the data product
-                stream_ids, _ = self.clients.resource_registry.find_objects( data_product_id, PRED.hasStream, RT.Stream, True)
-                # assume one stream per data product for now
-                product_stream_id = stream_ids[0]
-            for data_process_id in data_process_ids:
-                log.debug("unassign_primary_deployment: data_process_id  %s ", str(data_process_id) )
-                transform_ids, _ = self.clients.resource_registry.find_objects( data_process_id, PRED.hasTransform, RT.Transform, True)
-                log.debug("unassign_primary_deployment: transform_ids  %s ", str(transform_ids) )
-
-                if transform_ids:
-                    #Assume one transform per data process for now
-                    subscription_ids, _ = self.clients.resource_registry.find_objects( transform_ids[0], PRED.hasSubscription, RT.Subscription, True)
-                    log.debug("unassign_primary_deployment: subscription_ids  %s ", str(subscription_ids) )
-                    if subscription_ids:
-                        #assume one subscription per transform for now
-                        #read the subscription object
-                        subscription_obj = self.clients.pubsub_management.read_subscription(subscription_ids[0])
-                        log.debug("unassign_primary_deployment: subscription_obj %s ", str(subscription_obj))
-                        #remove the old stream that is no longer primary
-                        subscription_obj.query.stream_ids.remove(product_stream_id)
-                        self.clients.pubsub_management.update_subscription(subscription_obj)
-                        log.debug("unassign_primary_deployment: updated subscription_obj %s ", str(subscription_obj))
-
-        return
-
-
-    def find_stream_defs_for_output_products(self, instrument_device_id=''):
-
-        stream_def_map = {}
-        # for each data product from this instrument, find the streamdefs
-        data_product_ids, prod_assocs = self.clients.resource_registry.find_objects(instrument_device_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        for data_product_id in data_product_ids:
-            # get the streams from the data product
-            stream_ids, _ = self.clients.resource_registry.find_objects( data_product_id, PRED.hasStream, RT.Stream, True)
-            #Assume one stream-to-one product for now
-            if stream_ids:
-                stream_def_ids, _ = self.clients.resource_registry.find_objects( stream_ids[0], PRED.hasStreamDefinition, RT.StreamDefinition, True)
-                #Assume one streamdef-to-one streamfor now
-                if stream_def_ids:
-                    stream_def_map[stream_def_ids[0]] = data_product_id
-
-        log.debug("mfms:reassign_instrument_device_to_logical_instrument:   stream_def_map: %s ", str(stream_def_map))
-        return stream_def_map
 
     def get_instrument_device_extension(self, instrument_device_id='', ext_associations=None, ext_exclude=None):
         """Returns an InstrumentDeviceExtension object containing additional related information

@@ -78,10 +78,10 @@ class DataProcessImpl(ResourceImpl):
     ### finds
 
     def find_having_transform(self, transform_id):
-        return self._find_having(PRED.hasSensor, transform_id)
+        return self._find_having(PRED.hasTransform, transform_id)
 
     def find_stemming_transform(self, data_process_id):
-        return self._find_stemming(data_process_id, PRED.hasSensor, RT.SensorDevice)
+        return self._find_stemming(data_process_id, PRED.hasTransform, RT.Transform)
 
     def find_having_input_product(self, data_product_id):
         return self._find_having(PRED.hasInputProduct, data_product_id)

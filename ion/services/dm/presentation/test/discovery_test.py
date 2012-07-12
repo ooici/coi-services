@@ -22,8 +22,10 @@ from ion.services.dm.inventory.index_management_service import IndexManagementSe
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
 from mock import Mock, patch
+from datetime import date, timedelta
 
 import elasticpy as ep
+import dateutil.parser
 import time
 import os
 import unittest
@@ -240,6 +242,30 @@ class DiscoveryUnitTest(PyonTestCase):
         self.assertTrue(retval==hits, '%s' % retval)
         
         retval = self.discovery.query_range('index_id','field',0,100,id_only=True)
+        retval.sort()
+        self.assertTrue(retval==['a','b'])
+
+    @patch('ion.services.dm.presentation.discovery_service.ep.ElasticSearch')
+    def test_query_time(self, mock_es):
+        mock_index = ElasticSearchIndex(name='index', index_name='index')
+        self.discovery.elasticsearch_host = 'fakehost'
+        self.discovery.elasticsearch_port = 'fakeport'
+        self.rr_read.return_value = mock_index
+        hits = [{'_id':'a'},{'_id':'b'}]
+        mock_es().search_index_advanced.return_value = {'hits':{'hits':hits}}
+
+        date1 = '2012-01-01'
+        ts1 = time.mktime( dateutil.parser.parse(date1).timetuple()) * 1000
+        date2 = '2012-02-01'
+        ts2 = time.mktime( dateutil.parser.parse(date2).timetuple()) * 1000
+
+        retval = self.discovery.query_time('index_id','field',date1,date2,id_only=False)
+
+        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery().range(field='field', from_value=ts1, to_value=ts2))
+        retval.sort()
+        self.assertTrue(retval==hits, '%s' % retval)
+        
+        retval = self.discovery.query_time('index_id','field',date1,date2,id_only=True)
         retval.sort()
         self.assertTrue(retval==['a','b'])
 
@@ -729,6 +755,25 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         self.assertTrue(results[0]['_id'] == pd_id)
         self.assertTrue(results[0]['_source'].name == 'test_dev')
+
+
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_time_search(self):
+        today     = date.today()
+        yesterday = today - timedelta(days=1)
+        tomorrow  = today + timedelta(days=1)
+
+        data_product = DataProduct()
+        dp_id, _ = self.rr.create(data_product)
+        
+        search_string = "search 'ts_created' time from '%s' to '%s' from 'data_products_index'" % (yesterday, tomorrow)
+
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        self.assertIsNotNone(results,'Results not found')
+
+        self.assertTrue(results[0]['_id'] == dp_id)
+
         
     @skipIf(not use_es, 'No ElasticSearch')
     def test_user_search(self):

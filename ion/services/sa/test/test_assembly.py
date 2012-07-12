@@ -62,9 +62,9 @@ class TestAssembly(IonIntegrationTestCase):
 
         self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
 
-    @unittest.skip('this test just for debugging setup')
-    def test_just_the_setup(self):
-        return
+#    @unittest.skip('this test just for debugging setup')
+#    def test_just_the_setup(self):
+#        return
     
 
     def _low_level_init(self):
@@ -439,8 +439,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         #assign data products appropriately
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
-                                   data_product_id=inst_data_product_id,
-                                   create_stream=True)
+                                   data_product_id=inst_data_product_id)
         c.OMS.create_site_data_product(instrument_site_id, log_data_product_id)
 
         deployment_id = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, False)
@@ -471,8 +470,7 @@ class TestAssembly(IonIntegrationTestCase):
                                     instrument_device_id2)
         inst_data_product_id2 = c.DPMS.create_data_product(any_old(RT.DataProduct), ctd_stream_def_id)
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id2,
-                                   data_product_id=inst_data_product_id2,
-                                   create_stream=True)
+                                   data_product_id=inst_data_product_id2)
 
         # create a new deployment for the new device
         deployment_id2 = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, False)
@@ -485,7 +483,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         c.OMS.transfer_site_subscription(instrument_site_id)
 
-    #----------------------------------------------
+        #----------------------------------------------
         #
         # generic find ops
         #

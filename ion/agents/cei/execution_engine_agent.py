@@ -74,7 +74,7 @@ class ExecutionEngineAgent(ResourceAgent):
         self.core.cleanup(u_pid, round)
 
     def rcmd_dump_state(self):
-        return make_beat_msg(self.core._process_managers_map)
+        return make_beat_msg(self.core._process_managers_map, self.CFG)
 
 
 class HeartBeater(object):

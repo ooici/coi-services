@@ -64,28 +64,18 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
-    def validate_messages(self, results):
+    def validate_messages(self, msgs):
 
         cc = self.container
         assertions = self.assertTrue
 
-        first_salinity_values = None
+        rdt = RecordDictionaryTool.load_from_granule(msgs.body)
 
-        for message in results:
-            rdt = RecordDictionaryTool.load_from_granule(message)
-            try:
-                temp = get_safe(rdt, 'temp')
-                #                psd = PointSupplementStreamParser(stream_definition=self.ctd_stream_def, stream_granule=message)
-                #                temp = psd.get_values('temperature')
-                #                log.info(psd.list_field_names())
-            except KeyError as ke:
-                temp = None
-
-            if temp is not None:
-                assertions(isinstance(temp, numpy.ndarray))
-
-                log.info( 'temperature=' + str(numpy.nanmin(temp)))
-
+        vardict = {}
+        vardict['temp'] = get_safe(rdt, 'temp')
+        vardict['time'] = get_safe(rdt, 'time')
+        print vardict['time']
+        print vardict['temp']
 
 
 
@@ -121,13 +111,14 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         )
 
 
-        subscriber_registrar = StreamSubscriberRegistrar(node=self.container.node)
+        subscriber_registrar = StreamSubscriberRegistrar(process=self, node=self.container.node)
 
-        #subscriber = subscriber_registrar.create_subscriber(exchange_name=user_queue_name, callback=cb)
+        subscriber = subscriber_registrar.create_subscriber(exchange_name=user_queue_name, callback=cb)
         #subscriber.start()
 
         #Using endpoint Subscriber directly; but should be a Stream-based subscriber that does nto require a process
-        subscriber = Subscriber(from_name=(subscriber_registrar.XP, user_queue_name), callback=cb)
+        #subscriber = Subscriber(from_name=(subscriber_registrar.XP, user_queue_name), callback=cb)
+        #subscriber = Subscriber(from_name=xq, callback=cb)
         subscriber.initialize()
 
 
@@ -146,7 +137,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
 
         msg_count,_ = subscriber._chan.get_stats()
-        print 'Messages in user queue: ' + str(msg_count)
+        print 'Messages in user queue 1: ' + str(msg_count)
 
         #Validate the data from each of the messages along the way
         #self.validate_messages(results)
@@ -161,31 +152,38 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         msgs = subscriber.get_n_msgs(msg_count, timeout=2)
         for x in range(len(msgs)):
-            print msgs[x].body
+            msgs[x].ack()
+            self.validate_messages(msgs[x])
+           # print msgs[x].body
+
+
 
         #Should be zero after pulling all of the messages.
         msg_count,_ = subscriber._chan.get_stats()
-        print 'Messages in user queue: ' + str(msg_count)
+        print 'Messages in user queue 2: ' + str(msg_count)
 
 
         #Trying to continue to receive messages in the queue
         gevent.sleep(5.0)  # Send some messages - don't care how many
 
-        #Should see more messages in the queue
-        msg_count,_ = subscriber._chan.get_stats()
-        print 'Messages in user queue: ' + str(msg_count)
-
-        msgs = subscriber.get_n_msgs(msg_count, timeout=2)
-        for x in range(len(msgs)):
-            print msgs[x].body
-
-        #Should be zero after pulling all of the messages.
-        msg_count,_ = subscriber._chan.get_stats()
-        print 'Messages in user queue: ' + str(msg_count)
-
-
-        subscriber.close()
 
         #Turning off after everything - since it is more representative of an always on stream of data!
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
+
+
+        #Should see more messages in the queue
+        msg_count,_ = subscriber._chan.get_stats()
+        print 'Messages in user queue 3: ' + str(msg_count)
+
+        msgs = subscriber.get_n_msgs(msg_count, timeout=2)
+        for x in range(len(msgs)):
+            msgs[x].ack()
+            self.validate_messages(msgs[x])
+
+        #Should be zero after pulling all of the messages.
+        msg_count,_ = subscriber._chan.get_stats()
+        print 'Messages in user queue 4: ' + str(msg_count)
+
+
+        subscriber.close()

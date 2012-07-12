@@ -40,9 +40,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         
         print 'started services'
 
-    @unittest.skip('this test just for debugging setup')
-    def test_just_the_setup(self):
-        return
+#    @unittest.skip('this test just for debugging setup')
+#    def test_just_the_setup(self):
+#        return
 
     def test_resources_associations(self):
         """
@@ -74,7 +74,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #instrument_device
         self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
         self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
-        #self.RR.create_association(instrument_device_id, PRED.hasSensor, sensor_device_id)
         self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
 
         instrument_model_id #is only a target
@@ -124,7 +123,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #instrument_device
         self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
         self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
-        #self.RR.create_association(instrument_device_id, PRED.hasSensor, sensor_device_id)
         self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
 
         instrument_model_id #is only a target

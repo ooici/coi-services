@@ -42,4 +42,5 @@ cc-pid*
 .coverage
 coverage_results
 .noseids
-*/*.cdl
+*.cdl
+*.cov
