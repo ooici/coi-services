@@ -13,6 +13,7 @@ import thread
 import getopt
 import select
 import os
+import time, math
 
 port = 4001  # Default port to run on.
 connection_count = 0
@@ -78,6 +79,7 @@ class sbe37(asyncore.dispatcher_with_send):
     knock_count = 0
 
     months = ['BAD PROGRAMMER MONTH', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    save = ""
 
     def __init__(self, socket, thread):
         self.socket = socket
@@ -107,31 +109,35 @@ class sbe37(asyncore.dispatcher_with_send):
                 self.buf = self.buf[1:]
             else:
                 self.buf = self.recv(8192)
+                for x in self.buf:
+                    self.socket.send(x + '\0')
 
             return c
+
     def get_data(self):
         data = ""
+        ret = self.save
         try:
-            ret = ""
 
             while True:
                 c = self.read_a_char()
-                #print "GOT " + str(c)
                 if c == None:
                     break
                 if c == '\n' or c == '':
+                    self.save = ""
                     ret += c
+                    data = ret
                     break
                 else:
                     ret += c
 
-            data = ret
         except AttributeError:
             print "CLOSING"
             log_file.close()
             self.socket.close()
             self.thread.exit()
         except:
+            self.save = ret
             data = ""
 
         if data:
@@ -145,15 +151,15 @@ class sbe37(asyncore.dispatcher_with_send):
 
         try:
             print "OUT [" + repr(data) + "]"
+            self.socket.send(data)
             if log_file.closed == False:
                 log_file.write("OUT  [" + repr(data) + "]\n")
-            self.socket.send(data)
         except:
             print "*** send_data FAILED [" + debug + "] had an exception sending [" + data + "]"
 
     def handle_read(self):
         while True:
-            time.sleep(0.1)
+            time.sleep(0.01)
             start_time = datetime.datetime.strptime(self.start_mmddyy + " " + self.start_time, "%m%d%y %H%M%S")
             current_time = datetime.datetime.strptime(self.date + " " + self.time, "%m%d%y %H%M%S") + \
                            datetime.timedelta( seconds=( int(time.time()) - self.time_set_at) )
@@ -182,7 +188,7 @@ class sbe37(asyncore.dispatcher_with_send):
 
                         self.knock_count += 1
 
-                        if self.knock_count == 5:
+                        if self.knock_count >= 5:
                             self.send_data('\r\nS>\r\n', 'NEW')
 
                         if self.knock_count == 4:
@@ -206,7 +212,9 @@ class sbe37(asyncore.dispatcher_with_send):
                 handled = True
                 if data.rstrip('\r').rstrip('\n') != "":
                     if (data.replace('\r','').replace('\n','') != ""):
-                        self.send_data(data.replace('\r','').replace('\n','') + "\r\n", 'ECHO COMMAND BACK TO SENDER')
+                        '''
+                        self.send_data("[" + data.replace('\r','').replace('\n','') + "\r\n]", 'ECHO COMMAND BACK TO SENDER')
+                        '''
                 command_args = string.splitfields(data.rstrip('\r\n'), "=")
 
                 if command_args[0] == 'baud':
@@ -395,7 +403,7 @@ class sbe37(asyncore.dispatcher_with_send):
                         self.send_data('\r\nS>', '\\ r line 1')
                     self.locked = False
                     data = ""
-                elif data[1] == '\r\n':
+                elif data[:1] == '\r\n':
                     #self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
                     handled = False
                     self.send_data('S>  ', '\\ r \\ n line 1')
