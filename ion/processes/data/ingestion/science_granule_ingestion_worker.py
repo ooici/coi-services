@@ -15,10 +15,10 @@ from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
 from pyon.util.containers import get_ion_ts, get_safe
 from pyon.util.file_sys import FileSystem, FS
-from pyon.public import log, PRED
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.public import log 
 from interface.objects import Granule
 from gevent import spawn
+from couchdb import ResourceNotFound
 import hashlib
 import msgpack
 import re
@@ -80,7 +80,19 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
 
 
     def persist(self, dataset_granule):
-        self.db.create_doc(dataset_granule)
+        try:
+            self.db.create_doc(dataset_granule)
+            return
+        except ResourceNotFound as e:
+            log.error('The datastore was removed while ingesting.')
+            self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
+        log.error('Trying to ingest once more')
+        try:
+            self.db.create_doc(dataset_granule)
+        except ResourceNotFound as e:
+            log.error(e.message) # Oh well I tried
+
+
 
     def write(self,filename, data): #pragma no cover
         try:
