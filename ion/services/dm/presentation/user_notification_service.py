@@ -20,7 +20,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 import string
-import time
+import time, datetime
 import gevent
 from gevent.timeout import Timeout
 from email.mime.text import MIMEText
@@ -32,7 +32,8 @@ from interface.objects import NotificationRequest, NotificationType, ProcessDefi
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
-from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
+from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, FakeScheduler
+
 
 """
 For every user that has existing notification requests (who has called
@@ -227,7 +228,6 @@ class UserNotificationService(BaseUserNotificationService):
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
         # load event originators, types, and table
-        self.event_originators = CFG.event.originators
         self.event_types = CFG.event.types
         self.event_table = {}
 
@@ -238,12 +238,6 @@ class UserNotificationService(BaseUserNotificationService):
         self.discovery = DiscoveryServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
         self.datastore_manager = DatastoreManager()
-
-        for originator in self.event_originators:
-            try:
-                self.event_table[originator] = CFG.event[originator]
-            except NotFound:
-                log.info("UserNotificationService.on_start(): event originator <%s> not found in configuration" %originator)
 
     def on_quit(self):
 
@@ -482,26 +476,58 @@ class UserNotificationService(BaseUserNotificationService):
 
         return notification_id
 
-    def publish_event(self, event=None, time=None):
+    def publish_event(self, event=None, publish_time= None):
         '''
         Publish a general event at a certain time using the UNS
+
+        @param event Event
+        @param time tuple Example: (2012, 7, 12, 10, 4, 20) = year 2012, month 7, day 12, hour 10, min 4,
+                                                                    sec 20
         '''
 
-        #todo - when there is a timer, we can publish events at a particular time
+        # get the current time. Ex: datetime.datetime(2012, 7, 12, 14, 30, 6, 769776)
+        current_time = datetime.datetime.today()
 
-        raise NotImplementedError("Blocker: Scheduler")
+        log.warning("time: %s" % publish_time)
+        log.warning("len(time): %s" % len(publish_time))
+        log.warning(isinstance(publish_time, list))
 
-        if event:
-            type = event.type_
-            origin = event.origin
-            description = event.description
-        else:
-            type = "Event"
-            origin = "User"
-            description = "User defined event"
+        if len(publish_time) != 6:
+            raise AssertionError("The time should be a tuple of six integers. Ex: time = (2012, 7, 12, 10, 4, 20), which \
+                                 corresponds to the year 2012, month 7, day 12, hour 10, min 4, sec 20")
 
-        event_publisher = EventPublisher(type)
-        event_publisher.publish_event(origin=origin, description= description)
+        type = event.type_
+        origin_type = event.origin_type
+        description = event.description
+
+
+        def publish_immediately(message, headers):
+
+            log.warning("got an event in UNS")
+            event_publisher = EventPublisher(type)
+            event_publisher.publish_event(  ts_created = event.ts_created,
+                origin="User Notification Service",
+                origin_type = origin_type,
+                description= description)
+
+
+        # Set up a subscriber to get the nod from the scheduler to publish the event
+        event_subscriber = EventSubscriber( event_type = "SchedulerEvent",
+            origin="Scheduler",
+            callback=publish_immediately)
+
+        event_subscriber.start()
+
+
+        d = datetime.datetime( publish_time[0], publish_time[1], publish_time[2], publish_time[3],
+                                            publish_time[4], publish_time[5])
+
+        #todo - When there is a real scheduler, we can publish events using that
+        #todo - For now, creating a proxy for the scheduler
+
+        fake_scheduler = FakeScheduler()
+        fake_scheduler.set_task(d, "Schedule UserNotificationService.publish_event")
+
 
     def create_worker(self, number_of_workers=1):
         '''

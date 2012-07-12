@@ -10,9 +10,9 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
-from ion.services.dm.inventory.index_management_service import IndexManagementService
 from interface.objects import DeliveryMode, UserInfo, DeliveryConfig, DetectionFilterConfig
-from interface.objects import NotificationRequest, InstrumentDevice
+from interface.objects import Event
+from ion.services.dm.utility.uns_utility_methods import FakeScheduler
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
@@ -26,7 +26,7 @@ import gevent
 from mock import Mock, mocksignature
 from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent, Frequency
 from ion.services.dm.utility.query_language import QueryLanguage
-import os, time
+import os, time, datetime
 from gevent import event, queue
 from gevent.timeout import Timeout
 import elasticpy as ep
@@ -55,8 +55,13 @@ class UserNotificationTest(PyonTestCase):
         objects = [Mock()]
         user_id = 'user_id'
 
+        self.mock_rr_client.create = mocksignature(self.mock_rr_client.create)
         self.mock_rr_client.create.return_value = ('notification_id','rev')
+
+        self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
         self.mock_rr_client.read.return_value = user
+
+        self.mock_rr_client.find_objects = mocksignature(self.mock_rr_client.find_objects)
         self.mock_rr_client.find_objects.return_value = objects, None
 
         delivery_config = DeliveryConfig()
@@ -200,8 +205,56 @@ class UserNotificationTest(PyonTestCase):
 #        self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
 #        self.assertEquals(notification_request.type, NotificationType.EMAIL)
 #
-    def test_match(self):
 
+    def test_find_events(self):
+        '''
+        Test the find_events() method in UNS
+        '''
+        self.user_notification.create_notification = mocksignature(self.user_notification.create_notification)
+
+        notification_id = 'an id'
+
+        self.user_notification.create_notification.return_value = notification_id
+
+        res = self.user_notification.create_detection_filter(
+            event_type='event_type',
+            event_subtype='event_subtype',
+            origin='origin',
+            origin_type='origin_type',
+            user_id='user_id',
+            filter_config = 'filter_config')
+
+        self.assertEquals(res, notification_id)
+
+    def test_publish_event(self):
+        '''
+        Test the publish_event() method in UNS
+        '''
+        pass
+
+    def test_create_worker(self):
+        '''
+        Test the creation of a notification worker
+        '''
+
+        pass
+
+    def test_process_batch(self):
+        '''
+        Test the processing of batch notifications by UNS
+        '''
+
+        pass
+
+
+
+    def test_match(self):
+        '''
+        Tests the query language parser.
+
+        Swarbhanu - I think these tests dont belong here but belong in query_test.py
+        They are here because they were put here in the past.
+        '''
         parser = QueryLanguage()
 
         #------------------------------------------------------------------------------------------------------
@@ -252,6 +305,12 @@ class UserNotificationTest(PyonTestCase):
         self.assertFalse(QueryLanguage.match(event, query['query']))
 
     def test_evaluate_condition(self):
+        '''
+        Tests the query language parser.
+
+        Swarbhanu - I think these tests dont belong here but belong in query_test.py
+        They are here because they were put here in the past.
+        '''
 
         parser = QueryLanguage()
 
@@ -1352,6 +1411,34 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         pids = self.unsc.create_worker(number_of_workers=2)
 
         self.assertEquals(len(pids), 2)
+
+    def test_publish_event_on_time(self):
+        '''
+        Test the publish_event method of UNS
+        '''
+
+        # Create an event object
+        event = Event(origin_type= "origin_type_1")
+
+        # Set up a subscriber to listen for that event
+
+        ar = gevent.event.AsyncResult()
+        def received_event(event, headers):
+            log.warning("got an event in test")
+
+            ar.set(event)
+
+        event_subscriber = EventSubscriber( origin="User Notification Service", callback=received_event)
+        event_subscriber.start()
+
+        # Use the UNS publish_event
+        publish_time = [2012, 7, 12, 14, 30, 20]
+        self.unsc.publish_event(event=event, publish_time=publish_time)
+
+        # check that the event was published
+        self.assertEquals(ar.get(timeout=10).origin, "User Notification Service" )
+        self.assertEquals(ar.get(timeout=10).origin_type, "origin_type_1" )
+
 
 #    @attr('LOCOINT')
 #    @unittest.skip("Changed interface. Create email may get deprecated soon")

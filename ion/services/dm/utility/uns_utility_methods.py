@@ -6,6 +6,7 @@
 from pyon.public import get_sys_name, CFG
 from pyon.util.log import log
 from pyon.core.exception import NotFound, BadRequest
+from pyon.event.event import EventPublisher
 from interface.objects import NotificationRequest, Event
 import smtplib
 import gevent
@@ -13,6 +14,28 @@ from gevent.timeout import Timeout
 import string
 from email.mime.text import MIMEText
 from gevent import Greenlet
+import datetime, time
+
+class FakeScheduler(object):
+
+    def __init__(self):
+        self.event_publisher = EventPublisher("SchedulerEvent")
+
+    def set_task(self, task_time, message):
+        # get the current time. Ex: datetime.datetime(2012, 7, 12, 14, 30, 6, 769776)
+        current_time = datetime.datetime.today()
+        task_time = task_time
+
+#        wait_time = datetime.timedelta(task_time - current_time)
+        wait_time = 0
+
+        time.sleep(wait_time)
+
+        self.event_publisher.publish_event(origin='Scheduler', description = message)
+
+        log.warning("fake scheduler published an event")
+
+
 
 class fake_smtplib(object):
 
