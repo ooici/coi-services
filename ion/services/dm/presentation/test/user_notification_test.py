@@ -1345,9 +1345,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
             event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
 
+        gevent.sleep(4)
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime=4, max_datetime=7)
 
-        self.assertEquals(len(events), 4)
+        self.assertEquals(len(events), 3)
 
     @unittest.skip('Test needs to be fixed')
     def test_create_several_workers(self):

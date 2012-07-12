@@ -422,9 +422,9 @@ class UserNotificationService(BaseUserNotificationService):
             search_origin = 'search "origin" is "*" from "events_index"'
 
         if type:
-            search_type = 'search "event_type" is "%s" from "events_index"' % type
+            search_type = 'search "type_" is "%s" from "events_index"' % type
         else:
-            search_type = 'search "event_type" is "*" from "events_index"'
+            search_type = 'search "type_" is "*" from "events_index"'
 
         search_string = search_time + ' and ' + search_origin + ' and ' + search_type
 
