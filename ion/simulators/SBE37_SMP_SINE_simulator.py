@@ -129,10 +129,11 @@ class sbe37(asyncore.dispatcher_with_send):
                 self.buf = self.recv(8192)
 
             return c
+
     def get_data(self):
         data = ""
+        ret = self.save
         try:
-            ret = ""
 
             while True:
                 c = self.read_a_char()
@@ -140,23 +141,31 @@ class sbe37(asyncore.dispatcher_with_send):
                 if c == None:
                     break
                 if c == '\n' or c == '':
+                    self.save = ""
                     ret += c
+                    data = ret
+                    #print "DATA = " + str(data)
                     break
                 else:
                     ret += c
 
-            data = ret
         except AttributeError:
             print "CLOSING"
             log_file.close()
             self.socket.close()
             self.thread.exit()
         except:
+            #print "saving ret = " + str(ret)
+            self.save = ret
             data = ""
 
         if data:
             data = data.lower()
             print "IN  [" + repr(data) + "]"
+            cop = data.rstrip('\n').rstrip('\r')
+            print "OUTR  [" + repr(cop + "]\r\n") + "]"
+            self.socket.send(cop)
+            #self.socket.send("[" + data.rstrip('\n').rstrip('\r') + "]\r\n")
             if log_file.closed == False:
                 log_file.write("IN  [" + repr(data) + "]\n")
         return data
@@ -165,9 +174,9 @@ class sbe37(asyncore.dispatcher_with_send):
 
         try:
             print "OUT [" + repr(data) + "]"
+            self.socket.send(data)
             if log_file.closed == False:
                 log_file.write("OUT  [" + repr(data) + "]\n")
-            self.socket.send(data)
         except:
             print "*** send_data FAILED [" + debug + "] had an exception sending [" + data + "]"
 
@@ -226,7 +235,9 @@ class sbe37(asyncore.dispatcher_with_send):
                 handled = True
                 if data.rstrip('\r').rstrip('\n') != "":
                     if (data.replace('\r','').replace('\n','') != ""):
-                        self.send_data(data.replace('\r','').replace('\n','') + "\r\n", 'ECHO COMMAND BACK TO SENDER')
+                        '''
+                        self.send_data("[" + data.replace('\r','').replace('\n','') + "\r\n]", 'ECHO COMMAND BACK TO SENDER')
+                        '''
                 command_args = string.splitfields(data.rstrip('\r\n'), "=")
 
                 if command_args[0] == 'baud':
