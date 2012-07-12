@@ -162,3 +162,11 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         ret = self.org_management_service.unaffiliate_org(root_org._id, org_id)
         self.assertTrue(ret)
 
+    def test_find_org_containers(self):
+
+        root_org = None
+        root_org = self.org_management_service.find_org()
+        self.assertNotEqual(root_org, None)
+
+        containers = self.org_management_service.find_org_containers(root_org._id)
+        self.assertEqual(len(containers),1)
