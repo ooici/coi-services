@@ -209,6 +209,8 @@ def calculate_reverse_user_info(user_info = {}):
     @param user_info            dict
     @retval reverse_user_info   dict
 
+    The reverse_user_info dictionary has the following form:
+    
     reverse_user_info = {'event_type' : { <event_type_1> : ['user_1', 'user_2'..],
                                              <event_type_2> : ['user_3'],... },
 

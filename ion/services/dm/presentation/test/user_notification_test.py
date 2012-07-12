@@ -408,89 +408,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             time.sleep(0.2)
         return None
 
-
-    @attr('LOCOINT')
-    @unittest.skip("Changed interface. Create email may get deprecated soon")
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_create_email(self):
-        '''
-        Test the functionality of the create_email method of the User Notification Service
-
-        '''
-
-        proc1 = self.container.proc_manager.procs_by_name['user_notification']
-
-        #--------------------------------------------------------------------------------------
-        # Create a user and get the user_id
-        #--------------------------------------------------------------------------------------
-
-        user = UserInfo(name = 'new_user')
-        user_id, _ = self.rrc.create(user)
-
-        #--------------------------------------------------------------------------------------
-        # set up....
-        #--------------------------------------------------------------------------------------
-
-        notification_id = self.unsc.create_email(event_type='ResourceLifecycleEvent',
-            event_subtype=None,
-            origin='Some_Resource_Agent_ID1',
-            origin_type=None,
-            user_id=user_id,
-            email='email@email.com',
-            mode = DeliveryMode.DIGEST,
-            frequency= Frequency.REAL_TIME,
-            message_header='message_header',
-            parser='parser')
-
-        #------------------------------------------------------------------------------------------------------
-        # Setup so as to be able to get the message and headers going into the
-        # subscription callback method of the EmailEventProcessor
-        #------------------------------------------------------------------------------------------------------
-
-        # publish an event for each notification to generate the emails
-        rle_publisher = EventPublisher("ResourceLifecycleEvent")
-        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
-
-        msg_tuple = proc1.event_processors[notification_id].smtp_client.sentmail.get(timeout=4)
-
-        self.assertTrue(proc1.event_processors[notification_id].smtp_client.sentmail.empty())
-
-        message = msg_tuple[2]
-        list_lines = message.split("\n")
-
-        #-------------------------------------------------------
-        # parse the message body
-        #-------------------------------------------------------
-
-        message_dict = {}
-        for line in list_lines:
-            key_item = line.split(": ")
-            if key_item[0] == 'Subject':
-                message_dict['Subject'] = key_item[1] + key_item[2]
-            else:
-                try:
-                    message_dict[key_item[0]] = key_item[1]
-                except IndexError as exc:
-                    # these IndexError exceptions happen only because the message sometimes
-                    # has successive /r/n (i.e. new lines) and therefore,
-                    # the indexing goes out of range. These new lines
-                    # can just be ignored. So we ignore the exceptions here.
-                    pass
-
-        #-------------------------------------------------------
-        # make assertions
-        #-------------------------------------------------------
-
-        self.assertEquals(msg_tuple[1], 'email@email.com' )
-        #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
-
-        #self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
-        self.assertEquals(message_dict['To'], 'email@email.com')
-        self.assertEquals(message_dict['Event'].rstrip('\r'), 'ResourceLifecycleEvent')
-        self.assertEquals(message_dict['Originator'].rstrip('\r'), 'Some_Resource_Agent_ID1')
-        self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
-
-
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_pub_reload_user_info_event(self):
@@ -555,8 +472,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notifications_received = set([received_event_1.notification_id, received_event_2.notification_id])
 
         self.assertEquals(notifications, notifications_received)
-
-        #todo Do the same thing for update and delete notifications
 
         #--------------------------------------------------------------------------------------
         # Update notification
@@ -1421,7 +1336,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(notification.event_type, 'ResourceLifecycleEvent')
         self.assertEquals(notification.origin, 'instrument_1')
 
-    @unittest.skip('interface has changed!')
     def test_find_events(self):
         # publish some events for the event repository
         event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
@@ -1431,5 +1345,97 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
             event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
 
-        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', )
+        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime=4, max_datetime=7)
+
+        self.assertEquals(len(events), 4)
+
+    @unittest.skip('Test needs to be fixed')
+    def test_create_several_workers(self):
+        '''
+        Create more than one worker. Test that they process events in round robin
+        '''
+        pids = self.unsc.create_worker(number_of_workers=3)
+
+        self.assertEquals(len(pids), 3)
+
+#    @attr('LOCOINT')
+#    @unittest.skip("Changed interface. Create email may get deprecated soon")
+#    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+#    def test_create_email(self):
+#        '''
+#        Test the functionality of the create_email method of the User Notification Service
+#
+#        '''
+#
+#        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+#
+#        #--------------------------------------------------------------------------------------
+#        # Create a user and get the user_id
+#        #--------------------------------------------------------------------------------------
+#
+#        user = UserInfo(name = 'new_user')
+#        user_id, _ = self.rrc.create(user)
+#
+#        #--------------------------------------------------------------------------------------
+#        # set up....
+#        #--------------------------------------------------------------------------------------
+#
+#        notification_id = self.unsc.create_email(event_type='ResourceLifecycleEvent',
+#            event_subtype=None,
+#            origin='Some_Resource_Agent_ID1',
+#            origin_type=None,
+#            user_id=user_id,
+#            email='email@email.com',
+#            mode = DeliveryMode.DIGEST,
+#            frequency= Frequency.REAL_TIME,
+#            message_header='message_header',
+#            parser='parser')
+#
+#        #------------------------------------------------------------------------------------------------------
+#        # Setup so as to be able to get the message and headers going into the
+#        # subscription callback method of the EmailEventProcessor
+#        #------------------------------------------------------------------------------------------------------
+#
+#        # publish an event for each notification to generate the emails
+#        rle_publisher = EventPublisher("ResourceLifecycleEvent")
+#        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
+#
+#        msg_tuple = proc1.event_processors[notification_id].smtp_client.sentmail.get(timeout=4)
+#
+#        self.assertTrue(proc1.event_processors[notification_id].smtp_client.sentmail.empty())
+#
+#        message = msg_tuple[2]
+#        list_lines = message.split("\n")
+#
+#        #-------------------------------------------------------
+#        # parse the message body
+#        #-------------------------------------------------------
+#
+#        message_dict = {}
+#        for line in list_lines:
+#            key_item = line.split(": ")
+#            if key_item[0] == 'Subject':
+#                message_dict['Subject'] = key_item[1] + key_item[2]
+#            else:
+#                try:
+#                    message_dict[key_item[0]] = key_item[1]
+#                except IndexError as exc:
+#                    # these IndexError exceptions happen only because the message sometimes
+#                    # has successive /r/n (i.e. new lines) and therefore,
+#                    # the indexing goes out of range. These new lines
+#                    # can just be ignored. So we ignore the exceptions here.
+#                    pass
+#
+#        #-------------------------------------------------------
+#        # make assertions
+#        #-------------------------------------------------------
+#
+#        self.assertEquals(msg_tuple[1], 'email@email.com' )
+#        #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
+#
+#        #self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
+#        self.assertEquals(message_dict['To'], 'email@email.com')
+#        self.assertEquals(message_dict['Event'].rstrip('\r'), 'ResourceLifecycleEvent')
+#        self.assertEquals(message_dict['Originator'].rstrip('\r'), 'Some_Resource_Agent_ID1')
+#        self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 

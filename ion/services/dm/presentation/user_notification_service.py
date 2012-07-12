@@ -23,17 +23,16 @@ import string
 import time
 import gevent
 from gevent.timeout import Timeout
-from datetime import datetime
 from email.mime.text import MIMEText
 from gevent import Greenlet
 import elasticpy as ep
 
 from ion.services.dm.presentation.sms_providers import sms_providers
-from interface.objects import NotificationRequest, DeliveryConfig, NotificationType, Frequency, ProcessDefinition
+from interface.objects import NotificationRequest, NotificationType, ProcessDefinition
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
-from ion.services.dm.utility.uns_utility_methods import send_email, load_user_info, setting_up_smtp_client
-from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, fake_smtplib, check_user_notification_interest
+from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
+from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
 
 """
 For every user that has existing notification requests (who has called
@@ -61,11 +60,6 @@ class SubscribedNotification(object):
 
     def  __init__(self, notification_request=None, subscriber_callback=None):
         self._res_obj = notification_request  # The notification Request Resource Object
-        # setup subscription using subscription_callback()
-        # msg_recipientDO: make this walk the lists and set up a subscriber for every pair of
-        # origin/event.  This will require a list to hold all the subscribers so they can
-        # be started and killed
-
         self.subscriber = EventSubscriber(origin=notification_request.origin,
                                             origin_type = notification_request.origin_type,
                                             event_type=notification_request.event_type,
@@ -130,9 +124,6 @@ class UserEventProcessor(object):
     def remove_notification(self):
         """
         Removes a notification subscribed to by the user
-
-        @param notification_id
-        @retval the number of notifications subscribed to by the user
         """
         for subscribed_notification in self.subscribed_notifications:
             subscribed_notification.deactivate()
@@ -167,8 +158,11 @@ class EmailEventProcessor(UserEventProcessor):
 
         super(EmailEventProcessor, self).remove_notification()
 
+#----------------------------------------------------------------------------------------------------------------
+# Keep this note for the time when we need to also include sms delivery via email to sms providers
 #        provider_email = sms_providers[provider] # self.notification.delivery_config.delivery['provider']
 #        self.msg_recipient = notification_request.delivery_config.delivery['phone_number'] + provider_email
+#----------------------------------------------------------------------------------------------------------------
 
 class DetectionEventProcessor(UserEventProcessor):
 
@@ -194,17 +188,16 @@ class DetectionEventProcessor(UserEventProcessor):
 
             message = str(subscribed_notification._res_obj.delivery_config.processing['search_string'])
 
-            #@David What should the origin and origin type be for Detection Events
             event_publisher.publish_event(origin='DetectionEventProcessor',
                 message=msg,
                 description="Event was detected by DetectionEventProcessor",
-                condition = message, # Concatenate the filter and make it a message
+                condition = message,
                 original_origin = subscribed_notification._res_obj.origin,
                 original_type = subscribed_notification._res_obj.origin_type)
 
     def subscription_callback(self, message, headers):
         if QueryLanguage.evaluate_condition(message, self.query_dict):
-            self.generate_events(message) # pass in the event message so we can put some of the content in the new event.
+            self.generate_events(message)
 
 def create_event_processor(notification_request, user_id, smtp_client):
 
@@ -299,7 +292,7 @@ class UserNotificationService(BaseUserNotificationService):
         # notification workers work properly
         #-------------------------------------------------------------------------------------------------------------------
 
-        # todo: This is to allow time for the indexes to be created.
+        # todo: This is to allow time for the indexes to be created before punlishing ReloadUserInfoEvent for notification workers.
         # todo: When things are more refined, it will be nice to have an event generated when the
         # indexes are updated so that a subscriber here when it received that event will publish
         # the reload user info event.
@@ -321,10 +314,10 @@ class UserNotificationService(BaseUserNotificationService):
         the provided NotificationRequest object is not based on the latest persisted
         version of the object.
 
-        @param notification    NotificationRequest
-        @throws BadRequest    if object does not have _id or _rev attribute
-        @throws NotFound    object with specified id does not exist
-        @throws Conflict    object not based on latest persisted object version
+        @param notification     NotificationRequest
+        @throws BadRequest      if object does not have _id or _rev attribute
+        @throws NotFound        object with specified id does not exist
+        @throws Conflict        object not based on latest persisted object version
         """
 
         self.clients.resource_registry.update(notification)
@@ -447,7 +440,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         log.debug("(find_events) UNS found the following relevant events: %s" % events)
 
-        if limit:
+        if limit > 0:
             list = []
             for i in xrange(limit):
                 list.append(events[i])
@@ -496,7 +489,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         #todo - when there is a timer, we can publish events at a particular time
 
-        raise NotImplementedError("Blocker: Timer")
+        raise NotImplementedError("Blocker: Scheduler")
 
         if event:
             type = event.type_

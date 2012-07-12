@@ -72,7 +72,6 @@ class NotificationWorker(SimpleProcess):
                 log.warning("ElasticSearch has not yet loaded the user_index.")
 
             self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
-
             self.test_hook(self.user_info, self.reverse_user_info)
 
             log.debug("After a reload, the user_info: %s" % self.user_info)
