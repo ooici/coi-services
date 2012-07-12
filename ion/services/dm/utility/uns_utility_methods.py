@@ -1,4 +1,8 @@
-
+'''
+@author Swarbhanu Chatterjee
+@file ion/services/dm/utility/uns_utility_methods.py
+@description A module containing common utility methods used by UNS and the notification workers.
+'''
 from pyon.public import get_sys_name, CFG
 from pyon.util.log import log
 from pyon.core.exception import NotFound, BadRequest
