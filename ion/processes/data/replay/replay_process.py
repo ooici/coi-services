@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 '''
 @author Luke Campbell <LCampbell@ASAScience.com>
-@file replay_process_a
+@file ion/processes/data/replay/replay_process.py
 @date 06/14/12 13:31
-@description DESCRIPTION
+@description Implementation for a replay process.
 '''
 
 
@@ -33,6 +33,20 @@ class ReplayProcessException(IonException):
 
 
 class ReplayProcess(BaseReplayProcess):
+    '''
+    ReplayProcess - A process spawned for the purpose of replaying data
+    --------------------------------------------------------------------------------
+    Configurations
+    ==============
+    process:
+      dataset_id:      ""     # Dataset to be replayed
+      delivery_format: {}     # Delivery format to be replayed back (unused for now)
+      query:
+        start_time: 0         # Start time (index value) to be replayed
+        end_time:   0         # End time (index value) to be replayed
+      
+
+    '''
     process_type = 'standalone'
 
     def __init__(self, *args, **kwargs):
@@ -40,6 +54,9 @@ class ReplayProcess(BaseReplayProcess):
         self.deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
 
     def on_start(self):
+        '''
+        Starts the process
+        '''
         super(ReplayProcess,self).on_start()
         dsm_cli = DatasetManagementServiceClient()
 
@@ -56,6 +73,9 @@ class ReplayProcess(BaseReplayProcess):
 
 
     def granule_from_doc(self,doc):
+        '''
+        granule_from_doc Helper method to obtain a granule from a CouchDB document
+        '''
         sha1 = doc.get('persisted_sha1')
         encoding = doc.get('encoding_type')
         # Warning: redundant serialization
@@ -67,6 +87,10 @@ class ReplayProcess(BaseReplayProcess):
 
 
     def execute_retrieve(self):
+        '''
+        execute_retrieve Executes a retrieval and returns the result 
+        as a value in lieu of publishing it on a stream
+        '''
         datastore = self.container.datastore_manager.get_datastore(self.dataset.datastore_name)
         #--------------------------------------------------------------------------------
         # This handles the case where a datastore may not have been created by ingestion
@@ -107,6 +131,9 @@ class ReplayProcess(BaseReplayProcess):
         return None
 
     def execute_replay(self):
+        '''
+        execute_replay Performs a replay and publishes the results on a stream. 
+        '''
         if self.publishing.is_set():
             return False
         gevent.spawn(self.replay)
