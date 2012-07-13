@@ -1426,7 +1426,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                            current_time.hour, current_time.minute, 4]
 
         # Create an event object
-        event = ResourceEvent(origin= "origin_1")
+        event = ResourceEvent(  origin= "origin_1",
+                                origin_type='origin_type_1',
+                                sub_type= 'sub_type_1',
+                                ts_created = 2)
 
         # Set up a subscriber to listen for that event
 
@@ -1444,12 +1447,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # check that the event was published
         self.assertEquals(event_in.origin, "origin_1")
+        self.assertEquals(event_in.type_, 'ResourceEvent')
+        self.assertEquals(event_in.origin_type, 'origin_type_1')
+        self.assertEquals(event_in.ts_created, 2)
+        self.assertEquals(event_in.sub_type, 'sub_type_1')
 
-        print ("event = %s" % event_in)
-
-
-#        self.assertEquals(event_in.description, "Event published at time = (%s:%s:%s)" %
-#                            (future_time.hour, future_time.minute, future_time.second) )
 
 
 #    @attr('LOCOINT')
