@@ -61,9 +61,9 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         arrLen = len(vardict['time'])
 
         # init the graph_data structure for storing values
-        graph_data = {}
+        self.graph_data = {}
         for varname in vardict.keys():    #psd.list_field_names():
-            graph_data[varname] = []
+            self.graph_data[varname] = []
 
 
         # If code reached here, the graph data storage has been initialized. Just add values
@@ -71,9 +71,9 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         for varname in vardict.keys():  # psd.list_field_names():
             if vardict[varname] == None:
                 # create an array of zeros to compensate for missing values
-                graph_data[varname].extend([0.0]*arrLen)
+                self.graph_data[varname].extend([0.0]*arrLen)
             else:
-                graph_data[varname].extend(vardict[varname])
+                self.graph_data[varname].extend(vardict[varname])
 
         self.render_graphs()
         return self.out_granule
@@ -90,16 +90,16 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         # If there's no data, wait
         # For the simple case of testing, lets plot all time variant variables one at a time
         xAxisVar = 'time'
-        xAxisFloatData = graph_data[xAxisVar]
+        xAxisFloatData = self.graph_data[xAxisVar]
         rdt = RecordDictionaryTool(taxonomy=tx)
         msgs = []
 
-        for varName, varData in graph_data.iteritems():
+        for varName, varData in self.graph_data.iteritems():
             if varName == 'time' or varName == 'height' or varName == 'longitude' or varName == 'latitude':
                 continue
 
             yAxisVar = varName
-            yAxisFloatData = graph_data[varName]
+            yAxisFloatData = self.graph_data[varName]
 
             # Generate the plot
             ax.plot(xAxisFloatData, yAxisFloatData, 'ro')
