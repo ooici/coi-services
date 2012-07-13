@@ -376,7 +376,11 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
 
         notification = self.clients.resource_registry.read(notification_id)
-        self.notification_map.pop(notification)
+        if self.notification_map.has_key(notification):
+            self.notification_map.pop(notification)
+        else:
+            log.warning("notification=%s, was not in the dictionary, notification_map=%s" % \
+                            (notification, self.notification_map))
 
         #-------------------------------------------------------------------------------------------------------------------
         # delete from the resource registry
