@@ -285,7 +285,7 @@ class InstrumentAgent(ResourceAgent):
                 
         # The registrar to create publishers.
         self._stream_registrar = StreamPublisherRegistrar(process=self,
-                                                    node=self.container.node)
+                                                    container=self.container)
         
         # Set the driver config from the agent config if present.
         self._dvr_config = self.CFG.get('driver_config', None)

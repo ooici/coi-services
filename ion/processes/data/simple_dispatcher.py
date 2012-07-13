@@ -85,7 +85,7 @@ class SimpleDispatcher(StandaloneProcess):
             description = "Sample Subscription Description")
 
 
-        stream_subscriber = StreamSubscriberRegistrar(process=self, node=self.container.node)
+        stream_subscriber = StreamSubscriberRegistrar(process=self, container=self.container)
 
         
         stream_defs = {}

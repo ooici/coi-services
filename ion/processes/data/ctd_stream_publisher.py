@@ -86,7 +86,7 @@ class SimpleCtdPublisher(StandaloneProcess):
                 original=True,
                 encoding='ION R2')
 
-        self.stream_publisher_registrar = StreamPublisherRegistrar(process=self,node=self.container.node)
+        self.stream_publisher_registrar = StreamPublisherRegistrar(process=self, container=self.container)
         # Needed to get the originator's stream_id
         self.stream_id= stream_id
 

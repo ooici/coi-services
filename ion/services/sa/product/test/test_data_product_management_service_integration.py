@@ -100,7 +100,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.exchange_point       = 'science_data'
         config = DotDict()
         config.process.datastore_name = 'datasets'
-        config.process.queue_name = '%s.%s' %(self.exchange_point, self.exchange_space)
+        config.process.queue_name = self.exchange_space
 
         self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
 
