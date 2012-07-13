@@ -7,7 +7,7 @@
 '''
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from pyon.core.exception import Timeout
-from pyon.public import RT
+from pyon.public import RT, log
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
@@ -120,12 +120,18 @@ class TestDMEnd2End(IonIntegrationTestCase):
         pub.publish(granule,to_name=('%s.science_data' % get_sys_name(), '%s.data' % stream_id))
         
 
-
-        
-    def wait_until_we_have_enough_granules(self, dataset_id='',granules=4):
+    def get_datastore(self, dataset_id):
         dataset = self.dataset_management.read_dataset(dataset_id)
         datastore_name = dataset.datastore_name
         datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
+        return datastore
+
+
+
+        
+    def wait_until_we_have_enough_granules(self, dataset_id='',granules=4):
+        datastore = self.get_datastore(dataset_id)
+        dataset = self.dataset_management.read_dataset(dataset_id)
         
 
         now = time.time()
@@ -178,11 +184,18 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertIsInstance(replay_data, Granule)
 
     def test_replay_by_time(self):
+
+
+        #--------------------------------------------------------------------------------
+        # Create the datastore first,
+        #--------------------------------------------------------------------------------
         stream_id = self.pubsub_management.create_stream()
+        log.debug("BUGS! starting")
 
         config_id = self.get_ingestion_config()
 
         dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
+        self.get_datastore(dataset_id)
 
         self.publish_fake_data(stream_id)
 
@@ -196,5 +209,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.assertTrue(comp.all())
 
-
+    def test_last_granule(self):
+        pass
 
