@@ -142,6 +142,7 @@ class ReplayProcess(BaseReplayProcess):
     def replay(self):
         self.publishing.set() # Minimal state, supposed to prevent two instances of the same process from replaying on the same stream
         datastore = self.container.datastore_manager.get_datastore(self.dataset.datastore_name)
+        validate_true(datastore.profile == DataStore.DS_PROFILE.SCIDATA, 'The datastore, %s, did not exist for this dataset.' % self.dataset.datastore_name) 
         view_name = 'manifest/by_dataset'
 
         opts = dict(
