@@ -710,14 +710,19 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         #todo The update method for UNS
 
-#        notification_request_1 = notification_request_2
-#        self.unsc.update_notification(notification=notification_request_1, user_id=user_id)
-#
-#        # Check for UNS ------->
-#
-#        # user_info
-#        self.assertEquals(proc1.user_info['new_user']['user_contact'].email, 'new_user@gmail.com' )
-#        self.assertEquals(proc1.user_info['new_user']['notifications'], [notification_request_2])
+        # register the notification
+        notific_id_1, _ = self.rrc.create(notification_request_1)
+
+        notification_request_1 = self.rrc.read(notific_id_1)
+        notification_request_1.origin = "changed instrument"
+
+        self.unsc.update_notification(notification=notification_request_1, user_id=user_id_1)
+
+        # Check for UNS ------->
+
+        # user_info
+        self.assertTrue(notification_request_1 in proc1.user_info['user_1']['notifications'] )
+
 
         # reverse_user_info
 
