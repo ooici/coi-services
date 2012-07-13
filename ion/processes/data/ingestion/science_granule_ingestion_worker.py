@@ -84,7 +84,6 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         # Theres a potential that the datastore could have been deleted while ingestion
         # is still running.  Essentially this refreshes the state
         #--------------------------------------------------------------------------------
-        original = dict(dataset_granule)
         if '_id' in dataset_granule:
             log.critical('The dataset granule has been mutated between internal calls?!?\n%s', dataset_granule)
         try:
@@ -94,8 +93,18 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
             log.error('The datastore was removed while ingesting.')
             self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         log.error('Trying to ingest once more')
+
+        #--------------------------------------------------------------------------------
+        # The first call to create_doc attached an _id to the dictionary which causes an
+        # error to be raised, to make this more resilient, we investigate to ensure
+        # the dictionary does not have any of these excess keys
+        #--------------------------------------------------------------------------------
         try:
-            self.db.create_doc(original)
+            if '_id' in dataset_granule:
+                del dataset_granule['_id']
+            if '_rev' in dataset_granule:
+                del dataset_granule['_rev']
+            self.db.create_doc(dataset_granule)
         except ResourceNotFound as e:
             log.error(e.message) # Oh well I tried
 
