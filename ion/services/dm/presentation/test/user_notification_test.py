@@ -91,8 +91,6 @@ class UserNotificationTest(PyonTestCase):
 
         notification_id = self.user_notification.create_notification(notification_request, user_id)
 
-        #todo fix the greenlet issue caused by publisher inside create method, with no node
-
         #-------------------------------------------------------------------------------------------------------------------
         # assertions
         #-------------------------------------------------------------------------------------------------------------------
@@ -155,8 +153,6 @@ class UserNotificationTest(PyonTestCase):
 
         self.user_notification.update_notification(notification_request, user_id)
 
-        #todo fix the greenlet issue caused by publisher inside create method, with no node
-
         #-------------------------------------------------------------------------------------------------------------------
         # assertions
         #-------------------------------------------------------------------------------------------------------------------
@@ -191,8 +187,6 @@ class UserNotificationTest(PyonTestCase):
         #-------------------------------------------------------------------------------------------------------------------
 
         self.user_notification.delete_notification(notification_id=notification_id)
-
-        #todo fix the greenlet issue caused by publisher inside create method, with no node
 
         #-------------------------------------------------------------------------------------------------------------------
         # assertions
