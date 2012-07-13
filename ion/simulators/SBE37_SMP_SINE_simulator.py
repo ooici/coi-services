@@ -98,6 +98,7 @@ class sbe37(asyncore.dispatcher_with_send):
     knock_count = 0
 
     months = ['BAD PROGRAMMER MONTH', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    save = ""
 
     def __init__(self, socket, thread):
         self.socket = socket
@@ -127,31 +128,35 @@ class sbe37(asyncore.dispatcher_with_send):
                 self.buf = self.buf[1:]
             else:
                 self.buf = self.recv(8192)
-
+                for x in self.buf:
+                    self.socket.send(x + '\0')
             return c
+
     def get_data(self):
         data = ""
+        ret = self.save
         try:
-            ret = ""
 
             while True:
                 c = self.read_a_char()
-                #print "GOT " + str(c)
                 if c == None:
                     break
                 if c == '\n' or c == '':
+                    self.save = ""
                     ret += c
+                    data = ret
                     break
                 else:
                     ret += c
 
-            data = ret
         except AttributeError:
             print "CLOSING"
             log_file.close()
             self.socket.close()
             self.thread.exit()
         except:
+            #print "saving ret = " + str(ret)
+            self.save = ret
             data = ""
 
         if data:
@@ -165,9 +170,9 @@ class sbe37(asyncore.dispatcher_with_send):
 
         try:
             print "OUT [" + repr(data) + "]"
+            self.socket.send(data)
             if log_file.closed == False:
                 log_file.write("OUT  [" + repr(data) + "]\n")
-            self.socket.send(data)
         except:
             print "*** send_data FAILED [" + debug + "] had an exception sending [" + data + "]"
 
@@ -202,7 +207,7 @@ class sbe37(asyncore.dispatcher_with_send):
 
                         self.knock_count += 1
 
-                        if self.knock_count == 5:
+                        if self.knock_count >= 5:
                             self.send_data('\r\nS>\r\n', 'NEW')
 
                         if self.knock_count == 4:
@@ -226,7 +231,9 @@ class sbe37(asyncore.dispatcher_with_send):
                 handled = True
                 if data.rstrip('\r').rstrip('\n') != "":
                     if (data.replace('\r','').replace('\n','') != ""):
-                        self.send_data(data.replace('\r','').replace('\n','') + "\r\n", 'ECHO COMMAND BACK TO SENDER')
+                        '''
+                        self.send_data("[" + data.replace('\r','').replace('\n','') + "\r\n]", 'ECHO COMMAND BACK TO SENDER')
+                        '''
                 command_args = string.splitfields(data.rstrip('\r\n'), "=")
 
                 if command_args[0] == 'baud':

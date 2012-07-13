@@ -6,10 +6,12 @@ __license__ = 'Apache 2.0'
 from pyon.util.log import log
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from ion.services.sa.product.data_product_impl import DataProductImpl
-from interface.objects import IngestionQueue
+from interface.objects import IngestionQueue, DataProductVersion
 
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, PRED, LCS
+
+
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -33,31 +35,31 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
         @retval     data_product_id
-        """ 
-        #   1. Verify that a data product with same name does not already exist 
-        #   2. Validate that the data product IonObject does not contain an id_ element     
-        #   3. Create a new data product
-        #       - User must supply the name in the data product
+        """
         
         # Create will validate and register a new data product within the system
-
-        # Validate - TBD by the work that Karen Stocks is driving with John Graybeal
 
         # Register - create and store a new DataProduct resource using provided metadata
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
         data_product_id = self.data_product.create_one(data_product)
 
+        #create the initial/default data product version
+        data_product_version = DataProductVersion()
+        data_product_version.name = "default"
+        data_product_version.description = "initial version"
+        dpv_id, rev = self.clients.resource_registry.create(data_product_version)
+        self.clients.resource_registry.create_association( subject=data_product_id, predicate=PRED.hasVersion, object=dpv_id)
 
         #Create the stream if a stream definition is provided
         log.debug("DataProductManagementService:create_data_product: stream definition id = %s" % stream_definition_id)
 
         if stream_definition_id:
             stream_id = self.clients.pubsub_management.create_stream(name=data_product.name,  description=data_product.description, stream_definition_id=stream_definition_id)
-            log.debug("create_data_product: create stream stream_id %s" % stream_id)
-            # Associate the Stream with the main Data Product
+            # Associate the Stream with the main Data Product and with the default version
             self.data_product.link_stream(data_product_id, stream_id)
+            self.clients.resource_registry.create_association( subject=dpv_id, predicate=PRED.hasStream, object=stream_id)
 
-        # Return a resource ref to the new data product
+        # Return the id of the new data product
         return data_product_id
 
 
@@ -187,53 +189,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_configuration_id)
         log.debug("activate_data_product_persistence: dataset_id = %s"  % str(dataset_id))
-
-#        if data_product_obj.dataset_id:
-#            objs,_ = self.clients.resource_registry.find_objects(data_product_obj.dataset_id,
-#                    PRED.hasIngestionConfiguration, RT.DatasetIngestionConfiguration, id_only=False)
-#            if not objs:
-#                log.debug('activate_data_product_persistence: Calling create_dataset_configuration for EXISTING Dataset', )
-#                dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration(
-#                    dataset_id=data_product_obj.dataset_id, archive_data=persist_data,
-#                    archive_metadata=persist_metadata, ingestion_configuration_id=ingestion_configuration_obj._id)
-#                log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
-#            else:
-#                dataset_configuration_obj = objs[0]
-#
-#                dataset_configuration_obj.configuration.archive_data = persist_data
-#                dataset_configuration_obj.configuration.archive_metadata = persist_metadata
-#
-#                # call ingestion management to update a dataset configuration
-#                log.debug('activate_data_product_persistence: Calling update_dataset_config', )
-#                dataset_configuration_id = self.clients.ingestion_management.update_dataset_config(dataset_configuration_obj)
-#                log.debug("activate_data_product_persistence: update_dataset_config = %s"  % str(dataset_configuration_id))
-#        else:
-#            # create the dataset for the data
-#            # !!!!!!!! (Currently) The Datastore name MUST MATCH the ingestion configuration name!!!
-#            data_product_obj.dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream,
-#                    datastore_name=ingestion_configuration_obj.couch_storage.datastore_name, description=data_product_obj.description)
-#            log.debug("activate_data_product_persistence: create_dataset = %s"  % str(data_product_obj.dataset_id))
-#
-#            self.update_data_product(data_product_obj)
-#
-#            # Need to read again, because the _rev has changed. Otherwise error on update later.
-#            data_product_obj = self.clients.resource_registry.read(data_product_id)
-#
-#            # call ingestion management to create a dataset configuration
-#            log.debug('activate_data_product_persistence: Calling create_dataset_configuration', )
-#            dataset_configuration_id = self.clients.ingestion_management.create_dataset_configuration(
-#                        dataset_id=data_product_obj.dataset_id, archive_data=persist_data,
-#                        archive_metadata=persist_metadata, ingestion_configuration_id=ingestion_configuration_obj._id)
-#            log.debug("activate_data_product_persistence: create_dataset_configuration = %s"  % str(dataset_configuration_id))
-
-
-        # save the dataset_configuration_id in the product resource? Can this be found via the stream id?
-        #todo: remove the dataset_id from the data product resource
-        data_product_obj.dataset_id = dataset_id
-        # Create association
-
-        if dataset_id:
-         self.data_product.link_data_set(data_product_id, dataset_id)
+        self.data_product.link_data_set(data_product_id, dataset_id)
 
         # todo: dataset_configuration_obj contains the ingest config for now...
         data_product_obj.dataset_configuration_id = ingestion_configuration_id
@@ -268,6 +224,11 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=data_product_obj.dataset_configuration_id)
 
         log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
+
+        #detach the dataset from this data product
+        dataset_ids,other = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+        for dataset_id in dataset_ids:
+         self.data_product.unlink_data_set(data_product_id, dataset_id)
         
 
     def create_data_product_version(self, data_product_id='', data_product_version=None):
@@ -281,7 +242,25 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        data_product_obj = self.read_data_product(data_product_id)
+
+        data_product_version_id, version = self.clients.resource_registry.create(data_product_version)
+        self.clients.resource_registry.create_association( subject=data_product_id, predicate=PRED.hasVersion, object=data_product_version_id)
+
+        #remove the data product link to the stream of the current version
+        prev_ver_stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        for prev_ver_stream_id in prev_ver_stream_ids:
+            self.data_product.link_stream(data_product_id, prev_ver_stream_id)
+
+        streamdef_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition, id_only=True)
+        if streamdef_ids:
+            stream_id = self.clients.pubsub_management.create_stream(name=data_product_obj.name,  description=data_product_obj.description, stream_definition_id=streamdef_ids[0])
+            log.debug("create_data_product_version: create stream stream_id %s" % stream_id)
+            # Associate the Stream with the main Data Product and with the default version
+            self.clients.resource_registry.create_association( subject=data_product_version_id, predicate=PRED.hasStream, object=stream_id)
+            self.data_product.link_stream(data_product_id, stream_id)
+
+        return data_product_version_id
 
     def update_data_product_version(self, data_product=None):
         """@todo document this interface!!!
@@ -289,7 +268,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product    DataProductVersion
         @throws NotFound    object with specified id does not exist
         """
-        pass
+        log.debug("DataProductManagementService:update_data_product_version: %s" % str(data_product))
+
+        self.clients.resource_registry.update(data_product)
+
+        #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
+
+        return
 
     def read_data_product_version(self, data_product_version_id=''):
         """Retrieve data product information
@@ -297,7 +282,11 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product_version_id    str
         @retval data_product    DataProductVersion
         """
-        pass
+        log.debug("DataProductManagementService:read_data_product_version: %s" % str(data_product_version_id))
+
+        result = self.clients.resource_registry.read(data_product_version_id)
+
+        return result
 
     def delete_data_product_version(self, data_product_version_id=''):
         """Remove a version of an data product.
