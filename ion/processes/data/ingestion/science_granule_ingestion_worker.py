@@ -84,8 +84,6 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         # Theres a potential that the datastore could have been deleted while ingestion
         # is still running.  Essentially this refreshes the state
         #--------------------------------------------------------------------------------
-        if '_id' in dataset_granule:
-            log.critical('The dataset granule has been mutated between internal calls?!?\n%s', dataset_granule)
         try:
             self.db.create_doc(dataset_granule)
             return
