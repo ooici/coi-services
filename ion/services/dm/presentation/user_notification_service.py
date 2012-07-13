@@ -481,35 +481,23 @@ class UserNotificationService(BaseUserNotificationService):
         Publish a general event at a certain time using the UNS
 
         @param event Event
-        @param time tuple Example: (2012, 7, 12, 10, 4, 20) = year 2012, month 7, day 12, hour 10, min 4,
-                                                                    sec 20
+        @param publish_time list Ex: [year, month, day, hour, minute, second]
         '''
 
-        # get the current time. Ex: datetime.datetime(2012, 7, 12, 14, 30, 6, 769776)
-        current_time = datetime.datetime.today()
-
-        log.warning("time: %s" % publish_time)
-        log.warning("len(time): %s" % len(publish_time))
-        log.warning(isinstance(publish_time, list))
-
-        if len(publish_time) != 6:
-            raise AssertionError("The time should be a tuple of six integers. Ex: time = (2012, 7, 12, 10, 4, 20), which \
-                                 corresponds to the year 2012, month 7, day 12, hour 10, min 4, sec 20")
-
-        type = event.type_
-        origin_type = event.origin_type
-        description = event.description
-
+        if not isinstance(publish_time, list) or not len(publish_time) == 6:
+            raise AssertionError("Publish time must be a list of integers of length 6. \
+                                    Ex: [year, month, day, hour, minute, second]")
 
         def publish_immediately(message, headers):
+            log.info("UNS received a SchedulerEvent")
 
-            log.warning("got an event in UNS")
-            event_publisher = EventPublisher(type)
+            current_time = datetime.datetime.today()
+
+            event_publisher = EventPublisher(event.type_)
             event_publisher.publish_event(  ts_created = event.ts_created,
                 origin="User Notification Service",
-                origin_type = origin_type,
-                description= description)
-
+                origin_type = event.origin_type,
+                description= event.description)
 
         # Set up a subscriber to get the nod from the scheduler to publish the event
         event_subscriber = EventSubscriber( event_type = "SchedulerEvent",
@@ -519,14 +507,16 @@ class UserNotificationService(BaseUserNotificationService):
         event_subscriber.start()
 
 
-        d = datetime.datetime( publish_time[0], publish_time[1], publish_time[2], publish_time[3],
+        publish_time_object = datetime.datetime( publish_time[0], publish_time[1], publish_time[2], publish_time[3],
                                             publish_time[4], publish_time[5])
 
         #todo - When there is a real scheduler, we can publish events using that
         #todo - For now, creating a proxy for the scheduler
 
+        log.info("UNS providing the scheduler the following time = %s" % publish_time_object)
+
         fake_scheduler = FakeScheduler()
-        fake_scheduler.set_task(d, "Schedule UserNotificationService.publish_event")
+        fake_scheduler.set_task(publish_time_object, "Schedule UserNotificationService.publish_event")
 
 
     def create_worker(self, number_of_workers=1):
@@ -544,23 +534,17 @@ class UserNotificationService(BaseUserNotificationService):
 
             process_definition = ProcessDefinition( name='notification_worker_%s' % n)
 
-            log.warning("process_definition: %s" % process_definition)
-
             process_definition.executable = {
                 'module': 'ion.processes.data.transforms.notification_worker',
                 'class':'NotificationWorker'
             }
             process_definition_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
 
-            log.warning("process_definition_id: %s" % process_definition_id)
-
             # ------------------------------------------------------------------------------------
             # Process Spawning
             # ------------------------------------------------------------------------------------
 
             pid2 = self.process_dispatcher.create_process(process_definition_id)
-
-            log.warning("pid2: %s" % pid2)
 
             #@todo put in a configuration
             configuration = {}
@@ -569,8 +553,6 @@ class UserNotificationService(BaseUserNotificationService):
                 'type':'simple'
             })
 
-            log.warning("configuration: %s" % configuration)
-
             pid  = self.process_dispatcher.schedule_process(
                 process_definition_id,
                 configuration = configuration,
@@ -578,8 +560,6 @@ class UserNotificationService(BaseUserNotificationService):
             )
 
             pids.append(pid)
-
-            log.warning("pids: %s" % pids)
 
         return pids
 

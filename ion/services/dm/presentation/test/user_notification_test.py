@@ -1417,6 +1417,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         Test the publish_event method of UNS
         '''
 
+        current_time = datetime.datetime.today()
+
+        if current_time.second < 50:
+            future_time = [current_time.year, current_time.month, current_time.day,\
+                           current_time.hour, current_time.minute, current_time.second + 4]
+        else:
+            future_time = [current_time.year, current_time.month, current_time.day,\
+                           current_time.hour, current_time.minute, 4]
+
         # Create an event object
         event = Event(origin_type= "origin_type_1")
 
@@ -1424,20 +1433,25 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         ar = gevent.event.AsyncResult()
         def received_event(event, headers):
-            log.warning("got an event in test")
-
             ar.set(event)
 
         event_subscriber = EventSubscriber( origin="User Notification Service", callback=received_event)
         event_subscriber.start()
 
         # Use the UNS publish_event
-        publish_time = [2012, 7, 12, 14, 30, 20]
-        self.unsc.publish_event(event=event, publish_time=publish_time)
+        self.unsc.publish_event(event=event, publish_time=future_time)
+
+        event_in = ar.get(timeout=20)
 
         # check that the event was published
-        self.assertEquals(ar.get(timeout=10).origin, "User Notification Service" )
-        self.assertEquals(ar.get(timeout=10).origin_type, "origin_type_1" )
+        self.assertEquals(event_in.origin, "User Notification Service" )
+        self.assertEquals(event_in.origin_type, "origin_type_1" )
+
+        print ("description = %s" % event_in.description)
+
+
+#        self.assertEquals(event_in.description, "Event published at time = (%s:%s:%s)" %
+#                            (future_time.hour, future_time.minute, future_time.second) )
 
 
 #    @attr('LOCOINT')

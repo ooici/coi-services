@@ -24,17 +24,25 @@ class FakeScheduler(object):
     def set_task(self, task_time, message):
         # get the current time. Ex: datetime.datetime(2012, 7, 12, 14, 30, 6, 769776)
         current_time = datetime.datetime.today()
-        task_time = task_time
 
-#        wait_time = datetime.timedelta(task_time - current_time)
-        wait_time = 0
+        wait_time = datetime.timedelta( days = task_time.day - current_time.day,
+                                        hours = task_time.hour - current_time.hour,
+                                        minutes = task_time.minute - current_time.minute,
+                                        seconds = task_time.second - current_time.second)
 
-        time.sleep(wait_time)
+        log.info("Fake scheduler calculated wait_time = %s" % wait_time)
+
+        seconds = wait_time.total_seconds()
+
+        if seconds < 0:
+            raise AssertionError("The time to publish must be in the future.")
+
+        log.info("Total seconds of wait time = %s" % seconds)
+
+        time.sleep(seconds)
 
         self.event_publisher.publish_event(origin='Scheduler', description = message)
-
-        log.warning("fake scheduler published an event")
-
+        log.info("Fake scheduler published a SchedulerEvent")
 
 
 class fake_smtplib(object):
@@ -49,7 +57,7 @@ class fake_smtplib(object):
         return cls(host)
 
     def sendmail(self, msg_sender, msg_recipient, msg):
-        log.info('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipient))
+        log.warning('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipient))
         log.info("Fake message sent: %s" % msg)
         self.sent_mail.put((msg_sender, msg_recipient, msg))
 
@@ -68,7 +76,7 @@ def setting_up_smtp_client():
     smtp_password = CFG.get_safe('server.smtp.password')
 
     if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
-        log.warning('Using the real SMTP library to send email notifications!')
+        log.debug('Using the real SMTP library to send email notifications!')
 
         smtp_client = smtplib.SMTP(smtp_host)
         smtp_client.ehlo()
@@ -76,7 +84,7 @@ def setting_up_smtp_client():
         smtp_client.login(smtp_sender, smtp_password)
 
     else:
-        log.warning('Using a fake SMTP library to simulate email notifications!')
+        log.debug('Using a fake SMTP library to simulate email notifications!')
 
         smtp_client = fake_smtplib.SMTP(smtp_host)
 
