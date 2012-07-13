@@ -63,8 +63,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
         xs_dot_xp = CFG.core_xps.science_data
         try:
-            self.XS, xp_base = xs_dot_xp.split('.')
-            self.XP = '.'.join([bootstrap.get_sys_name(), xp_base])
+            self.XS, self.XP = xs_dot_xp.split('.')
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
@@ -79,7 +78,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
         # Keep the import it's used in the vector comparison below even though pycharm says its unused.
 
         cc = self.container
-        XP = self.XP
+        xp = self.container.ex_manager.create_xp(self.XP)
         assertions = self.assertTrue
 
         ### Every thing below here can be run as a script:
@@ -92,10 +91,10 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         datastore_name = 'dm_test_replay_integration'
 
-        producer = Publisher(name=(XP,'stream producer'))
+        producer = Publisher()
 
         ingestion_configuration_id = ingestion_management_service.create_ingestion_configuration(
-            exchange_point_id=XP,
+            exchange_point_id=self.XP,
             couch_storage=CouchStorage(datastore_name=datastore_name,datastore_profile='SCIDATA'),
             hdf_storage=HdfStorage(),
             number_of_workers=1
@@ -148,7 +147,7 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
 
         input_vectors = acquire_data([input_file_path],fields , 2).next()
 
-        producer.publish(msg=packet, to_name=(XP,'%s.data' % stream_id))
+        producer.publish(msg=packet, to_name=xp.create_route('%s.data' % stream_id))
 
         replay_id, replay_stream_id = data_retriever_service.define_replay(dataset_id)
         ar = gevent.event.AsyncResult()
@@ -171,10 +170,12 @@ class ReplayIntegrationTest(IonIntegrationTestCase):
             FileSystem.unlink(output_file_path)
             ar.set(True)
 
-        subscriber = Subscriber(name=(XP,'replay listener'),callback=sub_listen)
+        xn = self.container.ex_manager.create_xn_queue('replay listener')
+        xn.bind('%s.data' % replay_stream_id, xp)
 
-        g = gevent.Greenlet(subscriber.listen, binding='%s.data' % replay_stream_id)
-        g.start()
+        subscriber = Subscriber(from_name=xn, callback=sub_listen)
+
+        g = gevent.spawn(subscriber.listen)
 
         data_retriever_service.start_replay(replay_id)
 

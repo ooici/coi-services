@@ -235,7 +235,7 @@ class BootstrapService(BaseBootstrapService):
         ingestion_module    = config.get_safe('bootstrap.processes.ingestion.module','ion.processes.data.ingestion.science_granule_ingestion_worker')
         ingestion_class     = config.get_safe('bootstrap.processes.ingestion.class' ,'ScienceGranuleIngestionWorker')
         ingestion_datastore = config.get_safe('bootstrap.processes.ingestion.datastore_name', 'datasets')
-        ingestion_queue     = config.get_safe('bootstrap.processes.ingestion.queue' , 'science_data.science_granule_ingestion')
+        ingestion_queue     = config.get_safe('bootstrap.processes.ingestion.queue' , 'science_granule_ingestion')
 
         replay_module       = config.get_safe('bootstrap.processes.replay.module', 'ion.processes.data.replay.replay_process')
         replay_class        = config.get_safe('bootstrap.processes.replay.class' , 'ReplayProcess')

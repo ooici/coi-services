@@ -35,8 +35,7 @@ class LastUpdateCacheTest(IonIntegrationTestCase):
         self.rr_cli = ResourceRegistryServiceClient()
         xs_dot_xp = CFG.core_xps.science_data
         try:
-            self.XS, xp_base = xs_dot_xp.split('.')
-            self.XP = '.'.join([bootstrap.get_sys_name(), xp_base])
+            self.XS, self.XP = xs_dot_xp.split('.')
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
@@ -124,9 +123,12 @@ class LastUpdateCacheTest(IonIntegrationTestCase):
 
         time = float(0.0)
 
+        xp = self.container.ex_manager.create_xp(self.XP)
+        xpr = xp.create_route(stream_id + '.data')
+
         for granule in self.make_points(definition=definition, stream_id=stream_id, N=10):
 
-            publisher.publish(granule, to_name=(self.XP, stream_id+'.data'))
+            publisher.publish(granule, to_name=xpr)
             # Determinism sucks
             try:
                 queue.get(timeout=5)

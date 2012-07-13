@@ -31,7 +31,10 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         self.queue_name = self.CFG.get_safe('process.queue_name','ingestion_queue')
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
 
-        self.subscriber = Subscriber(name=(get_sys_name(), self.queue_name), callback=self.consume)
+        # @TODO: queue_name is really exchange_name, rename
+        xn = self.container.ex_manager.create_xn_queue(self.queue_name)
+
+        self.subscriber = Subscriber(name=xn, callback=self.consume)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         log.debug('Created datastore %s', self.datastore_name)
         self.greenlet = spawn(self.subscriber.listen)

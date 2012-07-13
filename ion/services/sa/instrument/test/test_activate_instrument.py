@@ -426,7 +426,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 #            log.debug("test_activateInstrumentStream: granule received: %s", input)
 #
 #
-#        subscriber_registrar = StreamSubscriberRegistrar(process=self.container, node=self.container.node)
+#        subscriber_registrar = StreamSubscriberRegistrar(process=self.container, container=self.container)
 #        simdata_subscriber = subscriber_registrar.create_subscriber(exchange_name='Sim_data_queue', callback=simdata_message_received)
 #
 #        # Start subscribers

@@ -151,7 +151,7 @@ class RawStreamIntegration(IonIntegrationTestCase):
             config={})
         dummy_process = cc.proc_manager.procs[pid]
 
-        subscriber_registrar = StreamSubscriberRegistrar(process=dummy_process, node=cc.node)
+        subscriber_registrar = StreamSubscriberRegistrar(process=dummy_process, container=cc)
 
         result = gevent.event.AsyncResult()
         results = []

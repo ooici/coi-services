@@ -18,7 +18,7 @@ import unittest
 from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum, StreamDefinition, StreamDefinitionContainer, Subscription
 from pyon.util.containers import DotDict
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
-
+import logging
 
 @attr('UNIT', group='dm1')
 class PubSubTest(PyonTestCase):
@@ -29,6 +29,7 @@ class PubSubTest(PyonTestCase):
         self.pubsub_service.clients = mock_clients
         self.pubsub_service.container = DotDict()
         self.pubsub_service.container.node = Mock()
+        self.pubsub_service.container.ex_manager = Mock()
 
         # save some typing
         self.mock_create = mock_clients.resource_registry.create
@@ -523,8 +524,10 @@ class PubSubTest(PyonTestCase):
 class PubSubIntTest(IonIntegrationTestCase):
 
     def setUp(self):
+        logging.disable(logging.ERROR)
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
+        logging.disable(logging.NOTSET)
 
         self.pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
 
@@ -562,7 +565,7 @@ class PubSubIntTest(IonIntegrationTestCase):
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
-        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, container=self.container)
 
         self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.ctd_stream1_id)
 
@@ -570,7 +573,7 @@ class PubSubIntTest(IonIntegrationTestCase):
 
 
         # Cheat and use the cc as the process - I don't think it is used for anything...
-        self.stream_subscriber = StreamSubscriberRegistrar(process=dummy_process, node=self.container.node)
+        self.stream_subscriber = StreamSubscriberRegistrar(process=dummy_process, container=self.container)
 
 
 
