@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
@@ -13,6 +14,7 @@ from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 from pyon.public import PRED, RT, IonObject
 from ion.services.coi.org_management_service import OrgManagementService
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 @attr('UNIT', group='coi')
 class TestOrgManagementService(PyonTestCase):
@@ -106,6 +108,7 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
+        self.resource_registry = ResourceRegistryServiceClient(node=self.container.node)
         self.org_management_service = OrgManagementServiceClient(node=self.container.node)
 
 
@@ -169,4 +172,7 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         self.assertNotEqual(root_org, None)
 
         containers = self.org_management_service.find_org_containers(root_org._id)
-        self.assertEqual(len(containers),1)
+
+        all_containers,_ = self.resource_registry.find_resources(restype=RT.CapabilityContainer, id_only=True)
+
+        self.assertEqual(len(containers),len(all_containers))

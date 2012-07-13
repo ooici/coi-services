@@ -27,10 +27,10 @@ class ScienceGranuleIngestionIntTest(IonIntegrationTestCase):
         self.datastore_name = 'datasets'
         self.exchange_point = 'science_data'
         self.exchange_space = 'science_granule_ingestion'
-        self.queue_name     = '%s.%s' % (self.exchange_point,self.exchange_space)
+        self.queue_name     = self.exchange_space
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
-        
+
         self.ingestion_management = IngestionManagementServiceClient()
         self.pubsub               = PubsubManagementServiceClient()
 
@@ -90,7 +90,10 @@ class ScienceGranuleIngestionIntTest(IonIntegrationTestCase):
         granule = self.build_granule()
 
         # Publish the granule
-        publisher.publish(granule,to_name=('%s.science_data' % get_sys_name(),'%s.data' % stream_id))
+        xp = self.container.ex_manager.create_xp(self.exchange_point)
+        xpr = xp.create_route('%s.data' % stream_id)
+
+        publisher.publish(granule,to_name=xpr)
 
         # Check the persistence
         datastore = self.container.datastore_manager.get_datastore(self.datastore_name)

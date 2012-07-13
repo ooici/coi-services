@@ -24,10 +24,9 @@ import gevent
 from gevent.greenlet import Greenlet
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
-from pyon.event.event import EventSubscriber
-from pyon.util.async import spawn
-#from interface.objects import ResourceModificationType
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
+from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
+from pyon.ion.granule.taxonomy import TaxyTool
+from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 
 
 # Matplotlib related imports
@@ -51,6 +50,7 @@ class VisualizationService(BaseVisualizationService):
         self.pubsubclient =  self.clients.pubsub_management
         self.workflowclient = self.clients.workflow_management
         self.tmsclient = self.clients.transform_management
+        self.data_retriever = self.clients.data_retriever
 
         return
 
@@ -85,6 +85,51 @@ class VisualizationService(BaseVisualizationService):
         datatable = None
 
 
+        return datatable
+
+    def init_google_dt(self, data_product_id='', query=''):
+        """Retrieves the data for the specified DP and sends a token back which can be checked in
+            a non-blocking fashion till data is ready
+
+        @param data_product_id    str
+        @param query    str
+        @retval query_token  str
+        @throws NotFound    object with specified id, query does not exist
+        """
+
+        #try:
+        # get the dataset_id associated with the data_product. Need it to do the data retrieval
+        ds_ids,_ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+
+        if ds_ids == None or len(ds_ids) == 0:
+            print ">>>>>> COULD NOT LOCATE DATASET ID"
+            return []
+
+        # Ideally just need the latest granule to figure out the list of images
+        #replay_granule = self.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
+        retrieve_granule = self.data_retriever.retrieve(ds_ids[0])
+
+        print ">>>>>>>>>>>> REPLAY_GRANULE = ", retrieve_granule
+
+        # send the granule through the transform to get the google datatable
+        gt_transform = VizTransformGoogleDT()
+        #gt_transform.on_start()
+        gt_data_granule = gt_transform.execute(retrieve_granule)
+
+        gt_tx = TaxyTool.load_from_granule(gt_data_granule)
+        gt_rdt = RecordDictionaryTool.load_from_granule(gt_data_granule)
+        print " >>>>>>>>>  GT_DATA_GRANULE = ", gt_data_granule
+
+        #except:
+        #    return []
+
+
+        return query_token
+
+    def get_google_dt(self, query_token=''):
+
+        datatable = None
+
 
         return datatable
 
@@ -94,17 +139,30 @@ class VisualizationService(BaseVisualizationService):
 
         return image_obj
 
-    def get_image_list(self, data_product_id='', query=''):
+    def get_list_of_mpl_images(self, data_product_id='', query=''):
 
-        # Discover the existing data_product_ids active in the system
-        sys_prod_ids, _ = self.rr_cli.find_resources(RT.DataProduct, None, None, True)
+        # return a json version of the array stored in the data_dict
+        try:
+            # get the dataset_id associated with the data_product. Need it to do the data retrieval
+            #ds_ids, = self.rrclient.find_resources(data_product_id, PRED.hasDataset, None, True)
+            ds_ids,_ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
 
-        # get the dataset_id associated with the data_product. Need it to do the data retrieval
-        for dp in sys_prod_ids:
-            ds_ids, = self.rr_cli.find_resources(RT.DataProduct, PRED.hasDataset, RT.Dataset, True)
-            print ">>>>>>>>>>>>>>> DATASET IDS = ", ds_ids
+            if ds_ids == None or len(ds_ids) == 0:
+                print ">>>>>> COULD NOT LOCATE DATASET ID"
+                return []
 
+            # Ideally just need the latest granule to figure out the list of images
+            #replay_granule = self.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
+            retrieve_granule = self.data_retriever.retrieve(ds_ids[0])
 
-        image_list = None
+            print ">>>>>>>>>>>> REPLAY_GRANULE = ", retrieve_granule
 
-        return image_list
+            # iterate over the granule
+
+            image_list = []
+
+            # return Json list
+            return image_list
+
+        except:
+            return []

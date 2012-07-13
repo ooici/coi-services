@@ -119,7 +119,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             config={})
         dummy_process = cc.proc_manager.procs[pid]
 
-        subscriber_registrar = StreamSubscriberRegistrar(process=dummy_process, node=cc.node)
+        subscriber_registrar = StreamSubscriberRegistrar(process=dummy_process, container=cc)
 
         result = gevent.event.AsyncResult()
         results = []
@@ -333,6 +333,10 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         cc = self.container
         assertions = self.assertTrue
 
+        # if its just one granule, wrap it up in a list so we can use the following for loop for a couple of cases
+        if isinstance(results,Granule):
+            results =[results]
+
         for g in results:
 
             if isinstance(g,Granule):
@@ -340,9 +344,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 tx = TaxyTool.load_from_granule(g)
                 rdt = RecordDictionaryTool.load_from_granule(g)
 
-                #log.warn(rdt.pretty_print())
-
-                #gdt_component = rdt['google_dt_components'][0]
                 gdt_components = get_safe(rdt, 'google_dt_components')
 
                 # IF this granule does not contains google dt, skip
@@ -399,14 +400,15 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         cc = self.container
         assertions = self.assertTrue
 
+        # if its just one granule, wrap it up in a list so we can use the following for loop for a couple of cases
+        if isinstance(results,Granule):
+            results =[results]
 
         for g in results:
             if isinstance(g,Granule):
 
                 tx = TaxyTool.load_from_granule(g)
                 rdt = RecordDictionaryTool.load_from_granule(g)
-
-                #print ">>>>>>> RDT " , rdt.pretty_print()
 
                 graphs = get_safe(rdt, 'matplotlib_graphs')
 
