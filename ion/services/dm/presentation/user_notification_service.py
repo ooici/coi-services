@@ -183,13 +183,13 @@ class DetectionEventProcessor(UserEventProcessor):
         '''
 
         log.info('Detected an event')
-        event_publisher = EventPublisher("DetectionEvent")
+        self.event_publisher = EventPublisher("DetectionEvent")
 
         for subscribed_notification in self.subscribed_notifications:
 
             message = str(subscribed_notification._res_obj.delivery_config.processing['search_string'])
 
-            event_publisher.publish_event(origin='DetectionEventProcessor',
+            self.event_publisher.publish_event(origin='DetectionEventProcessor',
                 message=msg,
                 description="Event was detected by DetectionEventProcessor",
                 condition = message,
@@ -200,18 +200,6 @@ class DetectionEventProcessor(UserEventProcessor):
         if QueryLanguage.evaluate_condition(message, self.query_dict):
             self.generate_events(message)
 
-def create_event_processor(notification_request, user_id, smtp_client):
-
-    if notification_request.type == NotificationType.EMAIL:
-        event_processor = EmailEventProcessor(user_id=user_id, smtp_client = smtp_client)
-        event_processor.add_notification_for_user(notification_request=notification_request, user_id=user_id)
-
-    elif notification_request.type == NotificationType.FILTER:
-        event_processor = DetectionEventProcessor(user_id=user_id)
-        event_processor.add_notification_for_user(notification_request=notification_request, user_id=user_id)
-
-    else:
-        raise BadRequest('Invalid Notification Request Type!')
 
 class UserNotificationService(BaseUserNotificationService):
     """
@@ -239,9 +227,25 @@ class UserNotificationService(BaseUserNotificationService):
         self.process_dispatcher = ProcessDispatcherServiceClient()
         self.datastore_manager = DatastoreManager()
 
+        self.event_publisher = EventPublisher()
+
     def on_quit(self):
 
         pass
+
+    def create_event_processor(self, notification_request, user_id, smtp_client):
+
+        if notification_request.type == NotificationType.EMAIL:
+            event_processor = EmailEventProcessor(user_id=user_id, smtp_client = smtp_client)
+            event_processor.add_notification_for_user(notification_request=notification_request, user_id=user_id)
+
+        elif notification_request.type == NotificationType.FILTER:
+            event_processor = DetectionEventProcessor(user_id=user_id)
+            event_processor.add_notification_for_user(notification_request=notification_request, user_id=user_id)
+
+        else:
+            raise BadRequest('Invalid Notification Request Type!')
+
 
     def create_notification(self, notification=None, user_id=''):
         """
@@ -278,7 +282,7 @@ class UserNotificationService(BaseUserNotificationService):
         # create event processor for user
         #---------------------------------------------------------------------------------------------------
 
-        create_event_processor(notification_request=notification,user_id=user_id, smtp_client = self.smtp_client)
+        self.create_event_processor(notification_request=notification,user_id=user_id, smtp_client = self.smtp_client)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Allow the indexes to be updated for ElasticSearch
@@ -297,8 +301,10 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id, notification origin: (%s, %s)" % (notification_id, notification.origin))
 
-        event_publisher = EventPublisher("ReloadUserInfoEvent")
-        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been created.", notification_id = notification_id)
+        self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
+                                            origin="UserNotificationService",
+                                            description= "A notification has been created.",
+                                            notification_id = notification_id)
 
         return notification_id
 
@@ -328,10 +334,10 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         log.info("(update notification) Publishing ReloadUserInfoEvent for updated notification")
 
-        event_publisher = EventPublisher("ReloadUserInfoEvent")
-        event_publisher.publish_event(origin="UserNotificationService",
-                                        description= "A notification has been updated.",
-                                        )
+        self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
+                                            origin="UserNotificationService",
+                                            description= "A notification has been updated."
+                                            )
 
     def read_notification(self, notification_id=''):
         """Returns the NotificationRequest object for the specified notification id.
@@ -372,8 +378,10 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         log.info("(delete notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
 
-        event_publisher = EventPublisher("ReloadUserInfoEvent")
-        event_publisher.publish_event(origin="UserNotificationService", description= "A notification has been deleted.", notification_id = notification_id)
+        self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
+                                            origin="UserNotificationService",
+                                            description= "A notification has been deleted.",
+                                            notification_id = notification_id)
 
     def delete_notification_from_user_info(self, notification_id):
 
@@ -496,8 +504,7 @@ class UserNotificationService(BaseUserNotificationService):
 
             current_time = datetime.datetime.today()
 
-            event_publisher = EventPublisher()
-            event_publisher._publish_event( event_msg = event,
+            self.event_publisher._publish_event( event_msg = event,
                                             origin=event.origin,
                                             event_type = event.type_)
 

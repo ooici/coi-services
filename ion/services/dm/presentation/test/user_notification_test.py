@@ -39,48 +39,68 @@ class UserNotificationTest(PyonTestCase):
 
         mock_clients = self._create_service_mock('user_notification')
         self.user_notification = UserNotificationService()
-
-        self.user_notification.event_processors = {}
-
-        self.user_notification.smtp_server = 'smtp_server'
         self.user_notification.clients = mock_clients
+        self.user_notification.container = DotDict()
+        self.user_notification.container.node = Mock()
+
+        self.user_notification.container['spawn_process'] = Mock()
+        self.user_notification.container['id'] = 'mock_container_id'
+        self.user_notification.container['proc_manager'] = DotDict()
+        self.user_notification.container.proc_manager['terminate_process'] = Mock()
+        self.user_notification.container.proc_manager['procs'] = {}
+
+        self.mock_cc_spawn = self.user_notification.container.spawn_process
+        self.mock_cc_terminate = self.user_notification.container.proc_manager.terminate_process
+        self.mock_cc_procs = self.user_notification.container.proc_manager.procs
 
         self.mock_rr_client = self.user_notification.clients.resource_registry
 
-    @unittest.skip('Bad test - figure out how to patch out the greenlet start...')
-    def test_create_one_user_notification(self):
-        # mocks
-        user = Mock()
-        objects = [Mock()]
-        user_id = 'user_id'
+        self.user_notification.smtp_server = 'smtp_server'
+        self.user_notification.smtp_client = 'smtp_client'
+        self.user_notification.event_publisher = EventPublisher()
+
+
+#    @unittest.skip('Bad test - figure out how to patch out the greenlet start...')
+    def test_create_notification(self):
+
+        user_id = 'user_id_1'
 
         self.mock_rr_client.create = mocksignature(self.mock_rr_client.create)
-        self.mock_rr_client.create.return_value = ('notification_id','rev')
+        self.mock_rr_client.create.return_value = ('notification_id_1','rev_1')
 
-        self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
-        self.mock_rr_client.read.return_value = user
+        self.user_notification._update_user_with_notification = mocksignature(self.user_notification._update_user_with_notification)
+        self.user_notification._update_user_with_notification.return_value = ''
 
-        self.mock_rr_client.find_objects = mocksignature(self.mock_rr_client.find_objects)
-        self.mock_rr_client.find_objects.return_value = objects, None
+        self.user_notification.create_event_processor = mocksignature(self.user_notification.create_event_processor)
 
-        delivery_config = DeliveryConfig()
+        self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
 
+        #-------------------------------------------------------------------------------------------------------------------
         # Create a notification object
-        notification_request = NotificationRequest(name='Setting_email',
-            origin = 'origin',
-            origin_type = 'origin_type',
-            event_type= 'event_type',
-            event_subtype = 'event_subtype' ,
-            delivery_config= delivery_config)
+        #-------------------------------------------------------------------------------------------------------------------
 
+        notification_request = NotificationRequest(name='a name',
+            origin = 'origin_1',
+            origin_type = 'origin_type_1',
+            event_type= 'event_type_1',
+            event_subtype = 'event_subtype_1' )
+
+        #-------------------------------------------------------------------------------------------------------------------
         # execution
+        #-------------------------------------------------------------------------------------------------------------------
+
         notification_id = self.user_notification.create_notification(notification_request, user_id)
 
+        #todo fix the greenlet issue caused by publisher inside create method, with no node
+
+        #-------------------------------------------------------------------------------------------------------------------
         # assertions
-        #@todo - change to asserting called with!
-        self.assertEquals('notification_id', notification_id)
-        self.assertTrue(self.mock_rr_client.create.called)
-        self.assertTrue(self.mock_rr_client.find_objects.return_value)
+        #-------------------------------------------------------------------------------------------------------------------
+
+        self.assertEquals('notification_id_1', notification_id)
+        self.mock_rr_client.create.assert_called_once_with(notification_request)
+        self.user_notification._update_user_with_notification.assert_called_once_with(user_id, notification_request)
+        self.user_notification.create_event_processor.assert_called_once_with(notification_request, user_id, 'smtp_client')
 
 
     def test_create_notification_validation(self):
@@ -107,7 +127,240 @@ class UserNotificationTest(PyonTestCase):
             '''User id not provided.'''
         )
 
-        #@todo when validation for subscription properties is added test it here...
+    def test_update_notification(self):
+
+        user_id = 'user_id_1'
+
+        self.mock_rr_client.update = mocksignature(self.mock_rr_client.update())
+        self.mock_rr_client.update.return_value = ('notification_id_1','rev_1')
+
+        self.user_notification._update_user_with_notification = mocksignature(self.user_notification._update_user_with_notification)
+        self.user_notification._update_user_with_notification.return_value = ''
+
+        self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Create a notification object
+        #-------------------------------------------------------------------------------------------------------------------
+
+        notification_request = NotificationRequest(name='a name',
+            origin = 'origin_1',
+            origin_type = 'origin_type_1',
+            event_type= 'event_type_1',
+            event_subtype = 'event_subtype_1' )
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # execution
+        #-------------------------------------------------------------------------------------------------------------------
+
+        self.user_notification.update_notification(notification_request, user_id)
+
+        #todo fix the greenlet issue caused by publisher inside create method, with no node
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # assertions
+        #-------------------------------------------------------------------------------------------------------------------
+
+        self.mock_rr_client.update.assert_called_once_with(notification_request)
+        self.user_notification._update_user_with_notification.assert_called_once_with(user_id, notification_request)
+
+    def test_delete_user_notification(self):
+
+        notification_id = 'notification_id_1'
+
+        self.mock_rr_client.delete = mocksignature(self.mock_rr_client.update())
+        self.mock_rr_client.delete.return_value = (notification_id,'rev_1')
+
+        self.user_notification.delete_notification_from_user_info = mocksignature(self.user_notification.delete_notification_from_user_info)
+        self.user_notification.delete_notification_from_user_info.return_value = ''
+
+        self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Create a notification object
+        #-------------------------------------------------------------------------------------------------------------------
+
+        notification_request = NotificationRequest(name='a name',
+            origin = 'origin_1',
+            origin_type = 'origin_type_1',
+            event_type= 'event_type_1',
+            event_subtype = 'event_subtype_1' )
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # execution
+        #-------------------------------------------------------------------------------------------------------------------
+
+        self.user_notification.delete_notification(notification_id=notification_id)
+
+        #todo fix the greenlet issue caused by publisher inside create method, with no node
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # assertions
+        #-------------------------------------------------------------------------------------------------------------------
+
+        self.mock_rr_client.delete.assert_called_once_with(notification_id)
+        self.user_notification.delete_notification_from_user_info.assert_called_once_with(notification_id)
+
+    def test_match(self):
+        '''
+        Tests the query language parser.
+
+        #todo - I think these tests dont belong here but belong in query_test.py
+        '''
+        parser = QueryLanguage()
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is outside range (less than lower bound), match() returns false
+        #------------------------------------------------------------------------------------------------------
+
+        field = 'voltage'
+        lower_bound = 5
+        upper_bound = 10
+        instrument = 'instrument_1'
+        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+        query = parser.parse(search_string1)
+
+        event = ExampleDetectableEvent('TestEvent', voltage=4)
+        self.assertFalse(QueryLanguage.match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is outside range (is higher than upper bound), match() returns false
+        #------------------------------------------------------------------------------------------------------
+
+        event = ExampleDetectableEvent('TestEvent', voltage=11)
+        self.assertFalse(QueryLanguage.match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is inside range, match() returns true
+        #------------------------------------------------------------------------------------------------------
+
+        event = ExampleDetectableEvent('TestEvent', voltage=6)
+        self.assertTrue(QueryLanguage.match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when field is exactly of the value mentioned in a query, match() returns true
+        #------------------------------------------------------------------------------------------------------
+
+        value = 15
+        search_string2 = "search '%s' is '%s' from '%s'" % (field, value, instrument)
+        query = parser.parse(search_string2)
+
+        event = ExampleDetectableEvent('TestEvent', voltage=15)
+        self.assertTrue(QueryLanguage.match(event, query['query']))
+
+        #------------------------------------------------------------------------------------------------------
+        # Check that when value is not exactly what is mentioned in a query, match() returns false
+        #------------------------------------------------------------------------------------------------------
+
+        event = ExampleDetectableEvent('TestEvent', voltage=14)
+        self.assertFalse(QueryLanguage.match(event, query['query']))
+
+    def test_evaluate_condition(self):
+        '''
+        Tests the query language parser.
+
+        #todo - I think these tests dont belong here but belong in query_test.py
+        '''
+
+        parser = QueryLanguage()
+
+        #------------------------------------------------------------------------------------------------------
+        # Set up the search strings for different queries:
+        # These include main query, a list of or queries and a list of and queries
+        #------------------------------------------------------------------------------------------------------
+
+        field = 'voltage'
+        instrument = 'instrument'
+
+        #------------------------------------------------------------------------------------------------------
+        # main query
+        #------------------------------------------------------------------------------------------------------
+
+        lower_bound = 5
+        upper_bound = 10
+        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        #------------------------------------------------------------------------------------------------------
+        # or queries
+        #------------------------------------------------------------------------------------------------------
+
+        value = 15
+        search_string2 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
+
+        value = 17
+        search_string3 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
+
+        lower_bound = 20
+        upper_bound = 30
+        search_string4 = "or SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        #------------------------------------------------------------------------------------------------------
+        # and queries
+        #------------------------------------------------------------------------------------------------------
+
+        lower_bound = 5
+        upper_bound = 6
+        search_string5 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        lower_bound = 6
+        upper_bound = 7
+        search_string6 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
+        % (field, lower_bound, upper_bound, instrument)
+
+        #------------------------------------------------------------------------------------------------------
+        # Construct queries by parsing different search strings and test the evaluate_condition()
+        # for each such complex query
+        #------------------------------------------------------------------------------------------------------
+        search_string = search_string1+search_string2+search_string3+search_string4+search_string5+search_string6
+        query = parser.parse(search_string)
+
+        # the main query as well as the 'and' queries pass for this case
+        event = ExampleDetectableEvent('TestEvent', voltage=6)
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
+
+        # check true conditions. If any one of the 'or' conditions passes, evaluate_condition()
+        # will return True
+        event = ExampleDetectableEvent('TestEvent', voltage=15)
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=17)
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=25)
+        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
+
+        # check fail conditions arising from the 'and' condition (happens if any one of the 'and' conditions fail)
+        # note: the 'and' queries are attached to the main query
+        event = ExampleDetectableEvent('TestEvent', voltage=5)
+        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=7)
+        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
+
+        event = ExampleDetectableEvent('TestEvent', voltage=9)
+        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
+
+    def test_create_detection_filter(self):
+        notification_id = 'an id'
+
+        self.user_notification.create_notification = mocksignature(self.user_notification.create_notification)
+        self.user_notification.create_notification.return_value = notification_id
+
+
+        res = self.user_notification.create_detection_filter(
+            event_type='event_type',
+            event_subtype='event_subtype',
+            origin='origin',
+            origin_type='origin_type',
+            user_id='user_id',
+            filter_config = 'filter_config')
+
+        self.assertEquals(res, notification_id)
+        self.assertTrue(self.user_notification.create_notification.called)
 
 
 #    def test_create_email(self):
@@ -204,219 +457,6 @@ class UserNotificationTest(PyonTestCase):
 #        self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
 #        self.assertEquals(notification_request.type, NotificationType.EMAIL)
 #
-
-    def test_find_events(self):
-        '''
-        Test the find_events() method in UNS
-        '''
-        self.user_notification.create_notification = mocksignature(self.user_notification.create_notification)
-
-        notification_id = 'an id'
-
-        self.user_notification.create_notification.return_value = notification_id
-
-        res = self.user_notification.create_detection_filter(
-            event_type='event_type',
-            event_subtype='event_subtype',
-            origin='origin',
-            origin_type='origin_type',
-            user_id='user_id',
-            filter_config = 'filter_config')
-
-        self.assertEquals(res, notification_id)
-
-    def test_publish_event(self):
-        '''
-        Test the publish_event() method in UNS
-        '''
-        pass
-
-    def test_create_worker(self):
-        '''
-        Test the creation of a notification worker
-        '''
-
-        pass
-
-    def test_process_batch(self):
-        '''
-        Test the processing of batch notifications by UNS
-        '''
-
-        pass
-
-
-
-    def test_match(self):
-        '''
-        Tests the query language parser.
-
-        Swarbhanu - I think these tests dont belong here but belong in query_test.py
-        They are here because they were put here in the past.
-        '''
-        parser = QueryLanguage()
-
-        #------------------------------------------------------------------------------------------------------
-        # Check that when field is outside range (less than lower bound), match() returns false
-        #------------------------------------------------------------------------------------------------------
-
-        field = 'voltage'
-        lower_bound = 5
-        upper_bound = 10
-        instrument = 'instrument_1'
-        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
-        % (field, lower_bound, upper_bound, instrument)
-        query = parser.parse(search_string1)
-
-        event = ExampleDetectableEvent('TestEvent', voltage=4)
-        self.assertFalse(QueryLanguage.match(event, query['query']))
-
-        #------------------------------------------------------------------------------------------------------
-        # Check that when field is outside range (is higher than upper bound), match() returns false
-        #------------------------------------------------------------------------------------------------------
-
-        event = ExampleDetectableEvent('TestEvent', voltage=11)
-        self.assertFalse(QueryLanguage.match(event, query['query']))
-
-        #------------------------------------------------------------------------------------------------------
-        # Check that when field is inside range, match() returns true
-        #------------------------------------------------------------------------------------------------------
-
-        event = ExampleDetectableEvent('TestEvent', voltage=6)
-        self.assertTrue(QueryLanguage.match(event, query['query']))
-
-        #------------------------------------------------------------------------------------------------------
-        # Check that when field is exactly of the value mentioned in a query, match() returns true
-        #------------------------------------------------------------------------------------------------------
-
-        value = 15
-        search_string2 = "search '%s' is '%s' from '%s'" % (field, value, instrument)
-        query = parser.parse(search_string2)
-
-        event = ExampleDetectableEvent('TestEvent', voltage=15)
-        self.assertTrue(QueryLanguage.match(event, query['query']))
-
-        #------------------------------------------------------------------------------------------------------
-        # Check that when value is not exactly what is mentioned in a query, match() returns false
-        #------------------------------------------------------------------------------------------------------
-
-        event = ExampleDetectableEvent('TestEvent', voltage=14)
-        self.assertFalse(QueryLanguage.match(event, query['query']))
-
-    def test_evaluate_condition(self):
-        '''
-        Tests the query language parser.
-
-        Swarbhanu - I think these tests dont belong here but belong in query_test.py
-        They are here because they were put here in the past.
-        '''
-
-        parser = QueryLanguage()
-
-        #------------------------------------------------------------------------------------------------------
-        # Set up the search strings for different queries:
-        # These include main query, a list of or queries and a list of and queries
-        #------------------------------------------------------------------------------------------------------
-
-        field = 'voltage'
-        instrument = 'instrument'
-
-        #------------------------------------------------------------------------------------------------------
-        # main query
-        #------------------------------------------------------------------------------------------------------
-
-        lower_bound = 5
-        upper_bound = 10
-        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
-        % (field, lower_bound, upper_bound, instrument)
-
-        #------------------------------------------------------------------------------------------------------
-        # or queries
-        #------------------------------------------------------------------------------------------------------
-
-        value = 15
-        search_string2 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
-
-        value = 17
-        search_string3 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
-
-        lower_bound = 20
-        upper_bound = 30
-        search_string4 = "or SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
-        % (field, lower_bound, upper_bound, instrument)
-
-        #------------------------------------------------------------------------------------------------------
-        # and queries
-        #------------------------------------------------------------------------------------------------------
-
-        lower_bound = 5
-        upper_bound = 6
-        search_string5 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
-        % (field, lower_bound, upper_bound, instrument)
-
-        lower_bound = 6
-        upper_bound = 7
-        search_string6 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
-        % (field, lower_bound, upper_bound, instrument)
-
-        #------------------------------------------------------------------------------------------------------
-        # Construct queries by parsing different search strings and test the evaluate_condition()
-        # for each such complex query
-        #------------------------------------------------------------------------------------------------------
-        search_string = search_string1+search_string2+search_string3+search_string4+search_string5+search_string6
-        query = parser.parse(search_string)
-
-        # the main query as well as the 'and' queries pass for this case
-        event = ExampleDetectableEvent('TestEvent', voltage=6)
-        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
-
-        # check true conditions. If any one of the 'or' conditions passes, evaluate_condition()
-        # will return True
-        event = ExampleDetectableEvent('TestEvent', voltage=15)
-        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
-
-        event = ExampleDetectableEvent('TestEvent', voltage=17)
-        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
-
-        event = ExampleDetectableEvent('TestEvent', voltage=25)
-        self.assertTrue(QueryLanguage.evaluate_condition(event, query))
-
-        # check fail conditions arising from the 'and' condition (happens if any one of the 'and' conditions fail)
-        # note: the 'and' queries are attached to the main query
-        event = ExampleDetectableEvent('TestEvent', voltage=5)
-        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
-
-        event = ExampleDetectableEvent('TestEvent', voltage=7)
-        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
-
-        event = ExampleDetectableEvent('TestEvent', voltage=9)
-        self.assertFalse(QueryLanguage.evaluate_condition(event, query))
-
-
-    def test_create_detection_filter(self):
-        self.user_notification.create_notification = mocksignature(self.user_notification.create_notification)
-
-        notification_id = 'an id'
-
-        self.user_notification.create_notification.return_value = notification_id
-
-        res = self.user_notification.create_detection_filter(
-            event_type='event_type',
-            event_subtype='event_subtype',
-            origin='origin',
-            origin_type='origin_type',
-            user_id='user_id',
-            filter_config = 'filter_config')
-
-        self.assertEquals(res, notification_id)
-
-    def test_update_user_notification(self):
-        pass
-        #@todo implement test for update
-
-    def test_delete_user_notification(self):
-        pass
-        #@todo implement test for delete
 
 
 @attr('INT', group='dm')
