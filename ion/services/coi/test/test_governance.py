@@ -134,10 +134,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.sa_user_header = {'ion-actor-id': self.system_actor._id, 'ion-actor-roles': sa_header_roles }
 
     def tearDown(self):
-        policy_list_ids, _ = self.rr_client.find_resources(restype=RT.Policy, id_only=True)
+        policy_list, _ = self.rr_client.find_resources(restype=RT.Policy)
 
-        for polid in policy_list_ids:
-            self.pol_client.disable_policy(polid, headers=self.sa_user_header)
+        #Must remove the policies in the reverse order they were added
+        for policy in sorted(policy_list,key=lambda p: p.ts_created, reverse=True):
+            self.pol_client.delete_policy(policy._id, headers=self.sa_user_header)
 
         gevent.sleep(2)  # Wait for events to be fired and policy updated
 

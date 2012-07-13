@@ -92,6 +92,11 @@ class PolicyManagementService(BasePolicyManagementService):
         policy = self.clients.resource_registry.read(policy_id)
         if not policy:
             raise NotFound("Policy %s does not exist" % policy_id)
+
+        res_list = self._find_resources_for_policy(policy_id)
+        for res in res_list:
+            self._remove_resource_policy(res, policy)
+
         self.clients.resource_registry.delete(policy_id)
 
 
@@ -194,6 +199,12 @@ class PolicyManagementService(BasePolicyManagementService):
         if not policy:
             raise NotFound("Policy %s does not exist" % policy_id)
 
+        self._remove_resource_policy(resource, policy)
+
+        return True
+
+    #Internal helper function for removing a policy resource association and publish event for containers to update
+    def _remove_resource_policy(self, resource, policy):
         aid = self.clients.resource_registry.get_association(resource, PRED.hasPolicy, policy)
         if not aid:
             raise NotFound("The association between the specified Resource %s and Policy %s was not found" % (resource_id, policy_id))
@@ -204,7 +215,6 @@ class PolicyManagementService(BasePolicyManagementService):
         self._publish_resource_policy_event(policy, resource)
 
 
-        return True
 
     def _publish_resource_policy_event(self, policy, resource):
         #Sent ResourcePolicyEvent event
