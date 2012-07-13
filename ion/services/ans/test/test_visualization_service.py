@@ -84,9 +84,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
 
     @attr('LOCOINT')
-    @patch.dict('pyon.ion.exchange.CFG', {'container':{'exchange':{'auto_register': False}}})
+    #@patch.dict('pyon.ion.exchange.CFG', {'container':{'exchange':{'auto_register': False}}})
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip('zippy')
+    @unittest.skip("in progress")
     def test_visualization_queue(self):
 
         assertions = self.assertTrue
@@ -101,7 +101,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         user_queue_name = 'user_queue'
 
         xq = self.container.ex_manager.create_xn_queue(user_queue_name)
-        self.addCleanup(xq.delete)
 
         salinity_subscription_id = self.pubsubclient.create_subscription(
             query=StreamQuery(data_product_stream_ids),
@@ -112,16 +111,13 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         subscriber_registrar = StreamSubscriberRegistrar(container=self.container)
 
-        subscriber = subscriber_registrar.create_subscriber(exchange_name=user_queue_name, callback=cb)
+        #subscriber = subscriber_registrar.create_subscriber(exchange_name=user_queue_name)
         #subscriber.start()
 
         #Using endpoint Subscriber directly; but should be a Stream-based subscriber that does nto require a process
         #subscriber = Subscriber(from_name=(subscriber_registrar.XP, user_queue_name), callback=cb)
-        #subscriber = Subscriber(from_name=xq, callback=cb)
+        subscriber = Subscriber(from_name=xq)
         subscriber.initialize()
-
-        # TEST ONLY: turn off channel's notion of queue auto delete
-        #subscriber._chan._queue_auto_delete = False
 
         # after the queue has been created it is safe to activate the subscription
         self.pubsubclient.activate_subscription(subscription_id=salinity_subscription_id)
