@@ -221,6 +221,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.user_info = {}
         self.reverse_user_info = {}
+        self.notification_map = {}
 
         # Get the discovery client for batch processing
         self.discovery = DiscoveryServiceClient()
@@ -264,13 +265,17 @@ class UserNotificationService(BaseUserNotificationService):
         if not user_id:
             raise BadRequest("User id not provided.")
 
-        #@todo Write business logic to validate the subscription fields of the notification request object
-
         #---------------------------------------------------------------------------------------------------
-        # Persist Notification object as a resource
+        # Persist Notification object as a resource if it has already not been persisted
         #---------------------------------------------------------------------------------------------------
+        notifs, _ = self.clients.resource_registry.find_resources(restype = RT.NotificationRequest)
 
-        notification_id, _ = self.clients.resource_registry.create(notification)
+        if notification in notifs:
+            log.warning("Notification object has already been created in resource registry before. No new id to be generated.")
+            notification_id = self.notification_map[notification]
+        else:
+            notification_id, _ = self.clients.resource_registry.create(notification)
+            self.notification_map[notification] = notification_id
 
         #-------------------------------------------------------------------------------------------------------------------
         # Update the UserInfo object and the user_info dictionary maintained by the UNS
@@ -326,7 +331,6 @@ class UserNotificationService(BaseUserNotificationService):
         # Update the UserInfo object and the user_info dictionary maintained by the UNS
         #-------------------------------------------------------------------------------------------------------------------
 
-        #todo refine this so that the old notification gets removed from the user info dictionary
         self._update_user_with_notification(user_id, notification)
 
         #-------------------------------------------------------------------------------------------------------------------
@@ -368,6 +372,13 @@ class UserNotificationService(BaseUserNotificationService):
         self.delete_notification_from_user_info(notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
+        # delete the notification from the notification_map dictionary
+        #-------------------------------------------------------------------------------------------------------------------
+
+        notification = self.clients.resource_registry.read(notification_id)
+        self.notification_map.pop(notification)
+
+        #-------------------------------------------------------------------------------------------------------------------
         # delete from the resource registry
         #-------------------------------------------------------------------------------------------------------------------
 
@@ -387,10 +398,16 @@ class UserNotificationService(BaseUserNotificationService):
 
         notification = self.clients.resource_registry.read(notification_id)
 
-        for value in self.user_info.itervalues():
-            print "value: ", value
+        log.warning(" in delete_notification... notification: %s" % notification)
+
+        for user, value in self.user_info.iteritems():
+            log.warning("came here~~~~ user: %s, value: %s" % (user, value))
+
             if notification in value['notifications']:
+                log.warning("notifications= %s, held by user =%s" % (value['notifications'], user))
                 value['notifications'].remove(notification)
+                log.warning("notifications held by user after remove: %s" % value['notifications'])
+
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 

@@ -23,7 +23,7 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher, EventSubscriber
 import gevent
 from mock import Mock, mocksignature
-from interface.objects import NotificationRequest, NotificationType, ExampleDetectableEvent, Frequency
+from interface.objects import NotificationRequest, NotificationType, Frequency
 from ion.services.dm.utility.query_language import QueryLanguage
 import os, time, datetime
 from gevent import event, queue
@@ -195,6 +195,7 @@ class UserNotificationTest(PyonTestCase):
         self.mock_rr_client.delete.assert_called_once_with(notification_id)
         self.user_notification.delete_notification_from_user_info.assert_called_once_with(notification_id)
 
+    @unittest.skip("Doesnt belong here. Also using an outdated event type, ExampleDetectableEvent")
     def test_match(self):
         '''
         Tests the query language parser.
@@ -250,6 +251,7 @@ class UserNotificationTest(PyonTestCase):
         event = ExampleDetectableEvent('TestEvent', voltage=14)
         self.assertFalse(QueryLanguage.match(event, query['query']))
 
+    @unittest.skip("Doesnt belong here. Also using an outdated event type, ExampleDetectableEvent")
     def test_evaluate_condition(self):
         '''
         Tests the query language parser.
@@ -652,8 +654,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create a notification
         #--------------------------------------------------------------------------------------
 
-        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
-        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
+        notification_id_1 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
+        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
 
         #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info got reloaded
@@ -708,13 +710,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Update notification and check that the user_info and reverse_user_info in UNS got reloaded
         #--------------------------------------------------------------------------------------
 
-        #todo The update method for UNS
-
-        # register the notification
-        notific_id_1, _ = self.rrc.create(notification_request_1)
-
-        notification_request_1 = self.rrc.read(notific_id_1)
-        notification_request_1.origin = "changed instrument"
+        notification_request_1 = self.rrc.read(notification_id_1)
+        notification_request_1.origin = "newly_changed_instrument"
 
         self.unsc.update_notification(notification=notification_request_1, user_id=user_id_1)
 
@@ -723,21 +720,31 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # user_info
         self.assertTrue(notification_request_1 in proc1.user_info['user_1']['notifications'] )
 
+        update_worked = False
+        for notification in proc1.user_info['user_1']['notifications']:
+            if notification.origin == "newly_changed_instrument":
+                update_worked = True
+                break
+
+        self.assertTrue(update_worked)
+
 
         # reverse_user_info
-
+        self.assertTrue('user_1' in proc1.reverse_user_info['event_origin']["newly_changed_instrument"])
 
         #--------------------------------------------------------------------------------------
         # Delete notification and check that the user_info and reverse_user_info in UNS got reloaded
         #--------------------------------------------------------------------------------------
 
         #todo The delete method for UNS
-
-        # Check for UNS ------->
-
-        # user_info
-
-        # reverse_user_info
+#        self.unsc.delete_notification(notification_id_2)
+#
+#        # Check for UNS ------->
+#
+#        with self.assertRaises(NotFound):
+#            notification = self.rrc.read(notification_id_2)
+#
+#        self.assertFalse(notification_request_2 in proc1.user_info['user_2']['notifications'])
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -1166,7 +1173,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 
     @attr('LOCOINT')
-    @unittest.skip('Event Detection is being deprecated')
+    @unittest.skip('Event Detection is being deprecated. Also using an outdated event type, ExampleDetectableEvent')
 #    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_event_detection(self):
 
