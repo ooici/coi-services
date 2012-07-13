@@ -29,6 +29,7 @@ class PubSubTest(PyonTestCase):
         self.pubsub_service.clients = mock_clients
         self.pubsub_service.container = DotDict()
         self.pubsub_service.container.node = Mock()
+        self.pubsub_service.container.ex_manager = Mock()
 
         # save some typing
         self.mock_create = mock_clients.resource_registry.create
