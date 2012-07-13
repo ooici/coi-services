@@ -488,16 +488,18 @@ class UserNotificationService(BaseUserNotificationService):
             raise AssertionError("Publish time must be a list of integers of length 6. \
                                     Ex: [year, month, day, hour, minute, second]")
 
+        log.warning("event.origin: %s" % event.origin)
+        log.warning("event.event_type: %s" % event.type_)
+
         def publish_immediately(message, headers):
             log.info("UNS received a SchedulerEvent")
 
             current_time = datetime.datetime.today()
 
-            event_publisher = EventPublisher(event.type_)
-            event_publisher.publish_event(  ts_created = event.ts_created,
-                origin="User Notification Service",
-                origin_type = event.origin_type,
-                description= event.description)
+            event_publisher = EventPublisher()
+            event_publisher._publish_event( event_msg = event,
+                                            origin=event.origin,
+                                            event_type = event.type_)
 
         # Set up a subscriber to get the nod from the scheduler to publish the event
         event_subscriber = EventSubscriber( event_type = "SchedulerEvent",

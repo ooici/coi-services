@@ -11,8 +11,7 @@ from interface.services.dm.iuser_notification_service import UserNotificationSer
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from interface.objects import DeliveryMode, UserInfo, DeliveryConfig, DetectionFilterConfig
-from interface.objects import Event
-from ion.services.dm.utility.uns_utility_methods import FakeScheduler
+from interface.objects import ResourceEvent
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
@@ -1427,7 +1426,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                            current_time.hour, current_time.minute, 4]
 
         # Create an event object
-        event = Event(origin_type= "origin_type_1")
+        event = ResourceEvent(origin= "origin_1")
 
         # Set up a subscriber to listen for that event
 
@@ -1435,7 +1434,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         def received_event(event, headers):
             ar.set(event)
 
-        event_subscriber = EventSubscriber( origin="User Notification Service", callback=received_event)
+        event_subscriber = EventSubscriber( origin="origin_1", callback=received_event)
         event_subscriber.start()
 
         # Use the UNS publish_event
@@ -1444,10 +1443,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_in = ar.get(timeout=20)
 
         # check that the event was published
-        self.assertEquals(event_in.origin, "User Notification Service" )
-        self.assertEquals(event_in.origin_type, "origin_type_1" )
+        self.assertEquals(event_in.origin, "origin_1")
 
-        print ("description = %s" % event_in.description)
+        print ("event = %s" % event_in)
 
 
 #        self.assertEquals(event_in.description, "Event published at time = (%s:%s:%s)" %
