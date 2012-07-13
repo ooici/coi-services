@@ -39,57 +39,43 @@ class VizTransformMatplotlibGraphs(TransformFunction):
     def on_start(self):
         super(VizTransformMatplotlibGraphs,self).on_start()
 
-        self.initDataFlag = True
-        self.out_granule = None
-        self.graph_data = {} # Stores a dictionary of variables : [List of values]
-        self.lastRenderTime = 0
-        self.renderTimeThreshold = 10 # if two consecutive calls to renderGraphs() was done within this time
-                                    # interval, it would be ignored (in seconds)
-
-
 
     def execute(self, granule):
         log.debug('Matplotlib transform: Received Viz Data Packet')
 
-        # parse the incoming data
-#        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
-#
-#        # re-arrange incoming data into an easy to parse dictionary
-#        vardict = {}
-#        arrLen = None
-#        for varname in psd.list_field_names():
-#            vardict[varname] = psd.get_values(varname)
-#            arrLen = len(vardict[varname])
+        #init stuff
+        self.out_granule = None
 
+        # parse the incoming data
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
         vardict = {}
-        vardict['conductivity'] = get_safe(rdt, 'cond')
-        vardict['pressure'] = get_safe(rdt, 'pres')
-        vardict['temperature'] = get_safe(rdt, 'temp')
-
-        vardict['longitude'] = get_safe(rdt, 'lon')
-        vardict['latitude'] = get_safe(rdt, 'lat')
         vardict['time'] = get_safe(rdt, 'time')
+        vardict['conductivity'] = get_safe(rdt, 'conductivity')
+        vardict['pressure'] = get_safe(rdt, 'pressure')
+        vardict['temperature'] = get_safe(rdt, 'temperature')
+
+        vardict['longitude'] = get_safe(rdt, 'longitude')
+        vardict['latitude'] = get_safe(rdt, 'latitude')
         vardict['height'] = get_safe(rdt, 'height')
         arrLen = len(vardict['time'])
 
-        if self.initDataFlag:
-            # look at the incoming packet and store
-            for varname in vardict.keys():    #psd.list_field_names():
-                self.graph_data[varname] = []
+        # init the graph_data structure for storing values
+        graph_data = {}
+        for varname in vardict.keys():    #psd.list_field_names():
+            graph_data[varname] = []
 
-            self.initDataFlag = False
 
         # If code reached here, the graph data storage has been initialized. Just add values
         # to the list
         for varname in vardict.keys():  # psd.list_field_names():
-            self.graph_data[varname].extend(vardict[varname])
+            if vardict[varname] == None:
+                # create an array of zeros to compensate for missing values
+                graph_data[varname].extend([0.0]*arrLen)
+            else:
+                graph_data[varname].extend(vardict[varname])
 
-        if (time.time() - self.lastRenderTime) > self.renderTimeThreshold:
-            self.lastRenderTime = time.time()
-            self.render_graphs()
-
+        self.render_graphs()
         return self.out_granule
 
 
@@ -104,17 +90,16 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         # If there's no data, wait
         # For the simple case of testing, lets plot all time variant variables one at a time
         xAxisVar = 'time'
-        xAxisFloatData = self.graph_data[xAxisVar]
+        xAxisFloatData = graph_data[xAxisVar]
         rdt = RecordDictionaryTool(taxonomy=tx)
-        #rdt['matplotlib_graphs'] = numpy.array([])
         msgs = []
 
-        for varName, varData in self.graph_data.iteritems():
+        for varName, varData in graph_data.iteritems():
             if varName == 'time' or varName == 'height' or varName == 'longitude' or varName == 'latitude':
                 continue
 
             yAxisVar = varName
-            yAxisFloatData = self.graph_data[varName]
+            yAxisFloatData = graph_data[varName]
 
             # Generate the plot
             ax.plot(xAxisFloatData, yAxisFloatData, 'ro')
