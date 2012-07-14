@@ -20,6 +20,11 @@ ION_MANAGER = 'ION_MANAGER'   # Can act upon resources across all Orgs - like a 
 
 class PolicyManagementService(BasePolicyManagementService):
 
+    def __init__(self, *args, **kwargs):
+        BasePolicyManagementService.__init__(self,*args,**kwargs)
+
+        self.event_pub = None  # For unit tests
+
 
     def on_start(self):
         self.event_pub = EventPublisher()
@@ -219,14 +224,15 @@ class PolicyManagementService(BasePolicyManagementService):
     def _publish_resource_policy_event(self, policy, resource):
         #Sent ResourcePolicyEvent event
 
-        event_data = dict()
-        event_data['origin_type'] = 'Policy'
-        event_data['description'] = 'Resource Policy Modified'
-        event_data['resource_id'] = resource._id
-        event_data['resource_type'] = resource.type_
-        event_data['resource_name'] = resource.name
+        if self.event_pub:
+            event_data = dict()
+            event_data['origin_type'] = 'Policy'
+            event_data['description'] = 'Resource Policy Modified'
+            event_data['resource_id'] = resource._id
+            event_data['resource_type'] = resource.type_
+            event_data['resource_name'] = resource.name
 
-        self.event_pub.publish_event(event_type='ResourcePolicyEvent', origin=policy._id, **event_data)
+            self.event_pub.publish_event(event_type='ResourcePolicyEvent', origin=policy._id, **event_data)
 
 
     def find_resource_policies(self, resource_id=''):
