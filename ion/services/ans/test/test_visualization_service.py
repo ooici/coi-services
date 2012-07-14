@@ -1,3 +1,4 @@
+
 from pyon.ion.stream import StreamSubscriberRegistrar
 from pyon.net.endpoint import Subscriber
 from interface.objects import StreamQuery
@@ -12,6 +13,7 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
+from interface.services.ans.ivisualization_service import VisualizationServiceClient
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
@@ -64,6 +66,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
         self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
+        self.vis_client = VisualizationServiceClient(node=self.container.node)
 
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
@@ -105,7 +108,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         salinity_subscription_id = self.pubsubclient.create_subscription(
             query=StreamQuery(data_product_stream_ids),
             exchange_name = user_queue_name,
-            name = "user visualization queue",
+            name = "user visualization queue"
         )
 
 
@@ -183,4 +186,32 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
     @unittest.skip("in progress")
     def test_realtime_chart(self):
-        pass
+        assertions = self.assertTrue
+
+        #Create the input data product
+        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
+
+        ctd_sim_pid = self.start_simple_input_stream_process(ctd_stream_id)
+
+        vis_token = self.vis_client.initiate_realtime_visualization(ctd_parsed_data_product_id)
+
+        #Trying to continue to receive messages in the queue
+        gevent.sleep(10.0)  # Send some messages - don't care how many
+
+
+        vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
+
+        print vis_data
+
+        #Trying to continue to receive messages in the queue
+        gevent.sleep(5.0)  # Send some messages - don't care how many
+
+
+        #Turning off after everything - since it is more representative of an always on stream of data!
+        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
+        vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
+
+        print vis_data
+
+        self.vis_client.terminate_realtime_visualization_data(vis_token)
