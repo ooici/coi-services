@@ -221,7 +221,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.user_info = {}
         self.reverse_user_info = {}
-        self.notification_map = {}
 
         # Get the discovery client for batch processing
         self.discovery = DiscoveryServiceClient()
@@ -272,10 +271,9 @@ class UserNotificationService(BaseUserNotificationService):
 
         if notification in notifs:
             log.warning("Notification object has already been created in resource registry before for another user. No new id to be generated.")
-            notification_id = self.notification_map[notification]
+            notification_id = notification._id
         else:
             notification_id, _ = self.clients.resource_registry.create(notification)
-            self.notification_map[notification] = notification_id
 
         #-------------------------------------------------------------------------------------------------------------------
         # Update the UserInfo object and the user_info dictionary maintained by the UNS
@@ -370,17 +368,6 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
 
         self.delete_notification_from_user_info(notification_id)
-
-        #-------------------------------------------------------------------------------------------------------------------
-        # delete the notification from the notification_map dictionary
-        #-------------------------------------------------------------------------------------------------------------------
-
-        notification = self.clients.resource_registry.read(notification_id)
-        if self.notification_map.has_key(notification):
-            self.notification_map.pop(notification)
-        else:
-            log.warning("notification=%s, was not in notification_map=%s" % \
-                            (notification, self.notification_map))
 
         #-------------------------------------------------------------------------------------------------------------------
         # delete from the resource registry
@@ -738,7 +725,8 @@ class UserNotificationService(BaseUserNotificationService):
             notifications = self.user_info[user.name]['notifications']
 
         # append the new notification to the list of notifications for the user
-        notifications.append(notification)
+        if notification not in notifications:
+            notifications.append(notification)
 
         # update the user info
         self.user_info[user.name] = { 'user_contact' : user.contact, 'notifications' : notifications}
