@@ -181,3 +181,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         subscriber.close()
 
+    @unittest.skip("in progress")
+    def test_realtime_chart(self):
+        pass

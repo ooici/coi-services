@@ -137,7 +137,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         log.debug("User Role modified: %s %s %s" % (org_id, user_id, role_name))
 
         #Evict the user and their roles from the cache so that it gets updated with the next call.
-        if service_gateway_instance.user_data_cache.has_key(user_id):
+        if service_gateway_instance.user_data_cache and service_gateway_instance.user_data_cache.has_key(user_id):
             log.debug('Evicting user from the user_data_cache: %s' % user_id)
             service_gateway_instance.user_data_cache.evict(user_id)
 
