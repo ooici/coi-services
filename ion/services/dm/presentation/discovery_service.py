@@ -20,6 +20,8 @@ from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from collections import deque
 from ion.services.dm.utility.query_language import QueryLanguage
 
+import dateutil.parser
+import time
 import elasticpy as ep
 import heapq
 
@@ -320,6 +322,30 @@ class DiscoveryService(BaseDiscoveryService):
             return self.query_range(**kwargs)
         
         #---------------------------------------------
+        # Time Search
+        #---------------------------------------------
+        elif QueryLanguage.query_is_time_search(query):
+            source_id = self._match_query_sources(query['index']) or query['index']
+            kwargs = dict(
+                source_id  = source_id,
+                field      = query['field'],
+                from_value = query['time']['from'],
+                to_value   = query['time']['to'],
+                limit      = limit,
+                id_only    = id_only
+            )
+            
+            if query.get('limit'):
+                kwargs['limit'] = query['limit']
+            if query.get('order'):
+                kwargs['order'] = query['order']
+            if query.get('offset'):
+                kwargs['offset'] = query['offset']
+            
+            return self.query_time(**kwargs)
+        
+        
+        #---------------------------------------------
         # Collection Search
         #---------------------------------------------
         elif QueryLanguage.query_is_collection_search(query):
@@ -490,6 +516,52 @@ class DiscoveryService(BaseDiscoveryService):
         IndexManagementService._check_response(response)
 
         return self._results_from_response(response, id_only)
+
+    def query_time(self, source_id='', field='', from_value=None, to_value=None, order=None, limit=0, offset=0, id_only=False):
+        if not self.use_es:
+            raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
+
+        validate_is_instance(from_value,basestring,'"From" is not a valid string (%s)' % from_value)
+        validate_is_instance(to_value,basestring,'"To" is not a valid string')
+
+        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
+
+        source = self.clients.resource_registry.read(source_id)
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        # If source is a view, catalog or collection go through it and recursively call query_time on all the results in the indexes
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        iterate = self._multi(self.query_time, source, field=field, from_value=from_value, to_value=to_value, order=order, limit=limit, offset=offset, id_only=id_only)
+        if iterate is not None:
+            return iterate
+
+        index = source
+        validate_is_instance(index,ElasticSearchIndex,'%s does not refer to a valid index.' % source_id)
+        if order:
+            validate_is_instance(order,dict,'Order is incorrect.')
+            es.sort(**order)
+
+        if limit:
+            es.size(limit)
+
+        if field == '*':
+            field = '_all'
+
+        query = ep.ElasticQuery().range(
+            field      = field,
+            from_value = time.mktime(dateutil.parser.parse(from_value).timetuple()) * 1000,
+            to_value   = time.mktime(dateutil.parser.parse(to_value).timetuple()) * 1000
+        )
+        log.critical(query)
+
+        response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
+
+        IndexManagementService._check_response(response)
+
+        return self._results_from_response(response, id_only)
+
+
+
 
 
     def query_association(self,resource_id='', depth=0, id_only=False):

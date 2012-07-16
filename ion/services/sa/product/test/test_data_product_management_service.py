@@ -67,7 +67,6 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.assertEqual(dp_id, 'SOME_RR_ID1')
         self.clients.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, dpt_obj.name, True)
         self.clients.pubsub_management.create_stream.assert_called_once_with('', True, 'stream_def_id', 'DPT_Y', 'some new data product', '')
-        self.clients.resource_registry.create.assert_called_once_with(dpt_obj)
 
 
     @unittest.skip('not working')

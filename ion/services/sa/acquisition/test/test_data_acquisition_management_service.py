@@ -141,17 +141,3 @@ class TestDataAcquisitionManagement(PyonTestCase):
 
         self.data_acquisition_mgmt_service.register_instrument('111')
 
-#        self.mock_read.assert_called_once_with('111', '')
-#        self.mock_create_association.assert_called_once_with('111', PRED.hasDataProducer, '222', None)
-
-
-    def test_register_instrument_not_found(self):
-        self.mock_read.return_value = None
-
-        # TEST: Execute the service operation call
-        with self.assertRaises(NotFound) as cm:
-            self.data_acquisition_mgmt_service.register_instrument('bad')
-
-        ex = cm.exception
-        self.assertEqual(ex.message, 'Instrument bad does not exist')
-        self.mock_read.assert_called_once_with('bad', '')

@@ -36,6 +36,7 @@ from interface.objects import ProcessDefinition
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
+from mock import patch
 import time
 
 
@@ -92,7 +93,8 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('HARDWARE', group='sa')
-#@unittest.skip("run locally only")
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
+#@unittest.skip("run locally only, timeout issue")
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def setUp(self):

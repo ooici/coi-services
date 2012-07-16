@@ -900,6 +900,34 @@ class OrgManagementService(BaseOrgManagementService):
 
         return True
 
+    def is_in_org(self, container):
+
+        container_list,_ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasResource, container)
+        if container_list:
+            return True
+
+        return False
+
+    def find_org_containers(self, org_id=''):
+        """Returns a list of containers associated with an Org. Will throw a not NotFound exception
+        if the specified id does not exist.
+
+        @param org_id    str
+        @retval container_list    list
+        @throws NotFound    object with specified id does not exist
+        """
+        param_objects = self._validate_parameters(org_id=org_id)
+        org = param_objects['org']
+
+        #Containers in the Root ION Org are implied
+        if org.name == self._get_root_org_name():
+            container_list,_ = self.clients.resource_registry.find_resources(RT.CapabilityContainer)
+            container_list[:] = [container for container in container_list if not self.is_in_org(container)]
+        else:
+            container_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasResource, RT.CapabilityContainer)
+
+        return container_list
+
     def affiliate_org(self, org_id='', affiliate_org_id=''):
         """Creates an association between multiple Orgs as an affiliation
         so that they may coordinate activities between them.

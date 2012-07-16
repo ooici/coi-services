@@ -19,3 +19,9 @@ th {
     font-size:120%;
 }
 
+#map_canvas {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+

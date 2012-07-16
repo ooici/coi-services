@@ -126,7 +126,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.delete(replay_id)
 
-    def start_retrieve(self, dataset_id='', query=None, delivery_format=None):
+    def retrieve(self, dataset_id='', query=None, delivery_format=None):
 
         if query is None:
             query = {}
@@ -148,4 +148,6 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         return retrieve_data
 
+    def retrieve_last_granule(self, dataset_id=''):
 
+        return ReplayProcess.get_last_granule(self.container,dataset_id)

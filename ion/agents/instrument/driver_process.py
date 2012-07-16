@@ -6,6 +6,7 @@
 @author Bill French
 @brief Drive process class that provides a factory for different launch mechanisms
 """
+from pyon.core.exception import ServerError
 
 __author__ = 'Bill French'
 __license__ = 'Apache 2.0'
@@ -211,28 +212,23 @@ class DriverProcess(object):
     def _get_port_from_file(self, filename):
         """
         Read the driver port from a status file.  The driver process writes two status files containing the port
-        number for events and commands.  Currently it reads endlessly until the files is successfully opened, but
-        we may want to raise an exception with a timeout.
+        number for events and commands.
         @param filename path to the port file
         @return port port number read from the file
+        @raise ServerError if file not read w/in 10sec
         """
-        log.debug("read port from file: %s" % filename)
-
-        #TODO: Should this timeout?
-        while True:
+        maxWait=10          # try for up to 10sec
+        waitInterval=0.5    # repeating every 1/2 sec
+        log.debug("about to read port from file %s" % filename)
+        for n in xrange(int(maxWait/waitInterval)):
             try:
-                cmd_port_file = file(filename, 'r')
-                port = int(cmd_port_file.read().strip())
-                cmd_port_file.close()
-                os.remove(filename)
-                break
-
-            except IOError, e:
-                log.debug("failed to read file %s: %s (retry)" % (filename, e))
-                time.sleep(.1)
-                pass
-
-        return port
+                with open(filename, 'r') as f:
+                    port = int(f.read().strip())
+                    log.debug("read port %d from file %s" % (port, filename))
+                    return port
+            except: pass
+            time.sleep(waitInterval)
+        raise ServerError('process PID file was not found: ' + filename)
 
     def _driver_workdir(self):
         """

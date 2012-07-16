@@ -6,12 +6,12 @@
 """
 
 #from pyon.core.exception import BadRequest, NotFound
+from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 from pyon.public import PRED, RT, LCE
 
-from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from ion.services.sa.instrument.resource_lcs_policy import DevicePolicy
 
-class SensorDeviceImpl(ResourceImpl):
+class SensorDeviceImpl(ResourceSimpleImpl):
     """
     @brief resource management for SensorDevice resources
     """

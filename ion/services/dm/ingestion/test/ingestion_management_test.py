@@ -143,6 +143,24 @@ class IngestionManagementIntTest(IonIntegrationTestCase):
         self.ingest_name = 'basic'
         self.exchange    = 'testdata'
 
+    @staticmethod
+    def clean_subscriptions():
+        ingestion_management = IngestionManagementServiceClient()
+        pubsub = PubsubManagementServiceClient()
+        rr     = ResourceRegistryServiceClient()
+        ingestion_config_ids = ingestion_management.list_ingestion_configurations(id_only=True)
+        for ic in ingestion_config_ids:
+
+            assocs = rr.find_associations(subject=ic, predicate=PRED.hasSubscription, id_only=False)
+            for assoc in assocs:
+                rr.delete_association(assoc)
+                try:
+                    pubsub.deactivate_subscription(assoc.o)
+                except:
+                    pass
+                pubsub.delete_subscription(assoc.o)
+
+
     def create_ingest_config(self):
         self.queue = IngestionQueue(name='test', type='testdata')
 

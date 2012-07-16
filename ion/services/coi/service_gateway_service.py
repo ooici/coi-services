@@ -137,7 +137,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         log.debug("User Role modified: %s %s %s" % (org_id, user_id, role_name))
 
         #Evict the user and their roles from the cache so that it gets updated with the next call.
-        if service_gateway_instance.user_data_cache.has_key(user_id):
+        if service_gateway_instance.user_data_cache and service_gateway_instance.user_data_cache.has_key(user_id):
             log.debug('Evicting user from the user_data_cache: %s' % user_id)
             service_gateway_instance.user_data_cache.evict(user_id)
 
@@ -474,7 +474,7 @@ def create_ion_object(object_params):
 
 #Use this function internally to recursively set sub object field values
 def set_object_field(obj, field, field_val):
-    if isinstance(field_val,dict):
+    if isinstance(field_val,dict) and field != 'kwargs':
         sub_obj = getattr(obj,field)
         for sub_field in field_val:
             set_object_field(sub_obj, sub_field, field_val.get(sub_field))

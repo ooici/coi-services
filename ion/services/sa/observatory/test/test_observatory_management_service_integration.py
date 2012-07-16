@@ -42,9 +42,9 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS = ObservatoryManagementServiceClient(node=self.container.node)
         #print 'TestObservatoryManagementServiceIntegration: started services'
 
-    @unittest.skip('this exists only for debugging the launch process')
-    def test_just_the_setup(self):
-        return
+#    @unittest.skip('this exists only for debugging the launch process')
+#    def test_just_the_setup(self):
+#        return
 
     #@unittest.skip('targeting')
     def test_resources_associations(self):
