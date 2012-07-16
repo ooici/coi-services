@@ -35,7 +35,7 @@ class FakeScheduler(object):
         seconds = wait_time.total_seconds()
 
         if seconds < 0:
-            raise AssertionError("The time to publish must be in the future.")
+            log.warning("Calculated wait time: %s seconds. Publishing immediately.")
 
         log.info("Total seconds of wait time = %s" % seconds)
 
@@ -53,7 +53,7 @@ class fake_smtplib(object):
 
     @classmethod
     def SMTP(cls,host):
-        log.info("In fake_smptplib.SMTP method call. class: %s, host: %s" % (str(cls), str(host)))
+        log.info("In fake_smtplib.SMTP method call. class: %s, host: %s" % (str(cls), str(host)))
         return cls(host)
 
     def sendmail(self, msg_sender, msg_recipient, msg):

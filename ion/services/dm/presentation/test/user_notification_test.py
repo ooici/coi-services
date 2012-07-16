@@ -5,6 +5,12 @@
 @file ion/services/dm/presentation/test/user_notification_test.py
 @description Unit and Integration test implementations for the user notification service class.
 '''
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.unit_test import PyonTestCase
+from pyon.util.containers import DotDict
+from pyon.public import IonObject, RT, PRED, Container, CFG
+from pyon.core.exception import NotFound, BadRequest
+from pyon.core.bootstrap import get_sys_name
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
@@ -12,11 +18,6 @@ from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from interface.objects import DeliveryMode, UserInfo, DeliveryConfig, DetectionFilterConfig
 from interface.objects import ResourceEvent
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.unit_test import PyonTestCase
-from pyon.util.containers import DotDict
-from pyon.public import IonObject, RT, PRED, Container, CFG
-from pyon.core.exception import NotFound, BadRequest
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
@@ -25,6 +26,8 @@ import gevent
 from mock import Mock, mocksignature
 from interface.objects import NotificationRequest
 from ion.services.dm.utility.query_language import QueryLanguage
+from ion.services.dm.inventory.index_management_service import IndexManagementService
+from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 import os, time, datetime
 from gevent import event, queue
 from gevent.timeout import Timeout
@@ -62,7 +65,9 @@ class UserNotificationTest(PyonTestCase):
 
 #    @unittest.skip('Bad test - figure out how to patch out the greenlet start...')
     def test_create_notification(self):
-
+        '''
+        Test creating a notification
+        '''
         user_id = 'user_id_1'
 
         self.mock_rr_client.create = mocksignature(self.mock_rr_client.create)
@@ -105,6 +110,9 @@ class UserNotificationTest(PyonTestCase):
 
 
     def test_create_notification_validation(self):
+        '''
+        Test that creating a notification without a providing a user_id results in an error
+        '''
 
         #------------------------------------------------------------------------------------------------------
         # Test with no user provided
@@ -129,6 +137,9 @@ class UserNotificationTest(PyonTestCase):
         )
 
     def test_update_notification(self):
+        '''
+        Test updating a notification
+        '''
 
         user_id = 'user_id_1'
 
@@ -164,6 +175,9 @@ class UserNotificationTest(PyonTestCase):
         self.user_notification._update_user_with_notification.assert_called_once_with(user_id, notification_request)
 
     def test_delete_user_notification(self):
+        '''
+        Test deleting a notification
+        '''
 
         notification_id = 'notification_id_1'
 
@@ -344,6 +358,9 @@ class UserNotificationTest(PyonTestCase):
         self.assertFalse(QueryLanguage.evaluate_condition(event, query))
 
     def test_create_detection_filter(self):
+        '''
+        Test creating a detection filter
+        '''
         notification_id = 'an id'
 
         self.user_notification.create_notification = mocksignature(self.user_notification.create_notification)
@@ -466,6 +483,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         config.bootstrap.use_es = True
 
         self._start_container()
+        self.addCleanup(UserNotificationIntTest.es_cleanup)
         self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
 
         self.unsc = UserNotificationServiceClient()
@@ -475,22 +493,22 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
-#    @staticmethod
-#    def es_cleanup():
-#        es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
-#        es_port = CFG.get_safe('server.elasticsearch.port', '9200')
-#        es = ep.ElasticSearch(
-#            host=es_host,
-#            port=es_port,
-#            timeout=10
-#        )
-#        indexes = STD_INDEXES.keys()
-#        indexes.append('%s_resources_index' % get_sys_name().lower())
-#        indexes.append('%s_events_index' % get_sys_name().lower())
-#
-#        for index in indexes:
-#            IndexManagementService._es_call(es.river_couchdb_delete,index)
-#            IndexManagementService._es_call(es.index_delete,index)
+    @staticmethod
+    def es_cleanup():
+        es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
+        es_port = CFG.get_safe('server.elasticsearch.port', '9200')
+        es = ep.ElasticSearch(
+            host=es_host,
+            port=es_port,
+            timeout=10
+        )
+        indexes = STD_INDEXES.keys()
+        indexes.append('%s_resources_index' % get_sys_name().lower())
+        indexes.append('%s_events_index' % get_sys_name().lower())
+
+        for index in indexes:
+            IndexManagementService._es_call(es.river_couchdb_delete,index)
+            IndexManagementService._es_call(es.index_delete,index)
 
     def poll(self, tries, callback, *args, **kwargs):
         '''
@@ -1004,7 +1022,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                     break
 
             # Check that the events sent in the email had times within the user specified range
-            self.assertTrue(event_time > test_start_time)
+            self.assertTrue(event_time >= test_start_time)
             self.assertTrue(event_time <= test_end_time)
 
 
@@ -1122,6 +1140,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @unittest.skip('SMS is being deprecated')
     #    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_sms(self):
+        '''
+        Test sms functionality
+        '''
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
@@ -1194,6 +1215,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @unittest.skip('Event Detection is being deprecated. Also using an outdated event type, ExampleDetectableEvent')
 #    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_event_detection(self):
+        '''
+        Test the detection filter functionality
+        '''
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
@@ -1345,7 +1369,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'Event was detected by DetectionEventProcessor')
 
     def test_create_read_user_notifications(self):
+        '''
+        Test the create and read notification methods
+        '''
+
+        #--------------------------------------------------------------------------------------
         # create user with email address in RR
+        #--------------------------------------------------------------------------------------
+
         user = UserInfo()
         user.name = 'user_1'
         user.contact.email = 'user_1@gmail.com'
@@ -1387,6 +1418,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(n1.origin_type, notification_request_1.origin_type)
 
     def test_delete_user_notifications(self):
+        '''
+        Test deleting a notification
+        '''
 
         #--------------------------------------------------------------------------------------
         # create user with email address in RR
@@ -1426,7 +1460,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             notific2 = self.unsc.read_notification(notification_id2)
 
     def test_update_user_notification(self):
+        '''
+        Test updating a user notification
+        '''
+
+        #--------------------------------------------------------------------------------------
         # create user with email address in RR
+        #--------------------------------------------------------------------------------------
+
         user = UserInfo()
         user.name = 'user_1'
         user.contact.email = 'user_1@gmail.com'
@@ -1462,6 +1503,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(notification.origin, 'instrument_1')
 
     def test_find_events(self):
+        '''
+        Test the find events functionality of UNS
+        '''
+
         # publish some events for the event repository
         event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
         event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
@@ -1474,7 +1519,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         gevent.sleep(4)
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime=4, max_datetime=7)
 
-        self.assertEquals(len(events), 3)
+        self.assertEquals(len(events), 4)
 
     def test_create_several_workers(self):
         '''
