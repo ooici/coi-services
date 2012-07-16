@@ -23,7 +23,7 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher, EventSubscriber
 import gevent
 from mock import Mock, mocksignature
-from interface.objects import NotificationRequest, NotificationType, Frequency
+from interface.objects import NotificationRequest
 from ion.services.dm.utility.query_language import QueryLanguage
 import os, time, datetime
 from gevent import event, queue
@@ -1464,7 +1464,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     def test_find_events(self):
         # publish some events for the event repository
         event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
-        event_publisher_2 = EventPublisher("DataEvent")
+        event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
 
         for i in xrange(10):
             event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
