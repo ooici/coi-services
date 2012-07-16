@@ -5,10 +5,11 @@
 @date 06/29/12 13:58
 @description DESCRIPTION
 '''
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from pyon.core.exception import Timeout
 from pyon.public import RT
+from pyon.net.endpoint import Subscriber
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -20,8 +21,10 @@ from ion.services.dm.ingestion.test.ingestion_management_test import IngestionMa
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.net.endpoint import Publisher
 from pyon.ion.granule import RecordDictionaryTool, TaxyTool, build_granule
-from pyon.core.bootstrap import get_sys_name
+from gevent.event import Event
 from nose.plugins.attrib import attr
+
+import gevent
 
 import time
 import numpy as np
@@ -40,12 +43,16 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.ingestion_management = IngestionManagementServiceClient()
         self.data_retriever       = DataRetrieverServiceClient()
         self.pids                 = []
+        self.event                = Event()
+        self.exchange_space_name  = 'test_granules'
+        self.exchange_point_name  = 'science_data'       
         
 
     def tearDown(self):
         for pid in self.pids:
             self.process_dispatcher.cancel_process(pid)
         IngestionManagementIntTest.clean_subscriptions()
+
         
 
     def launch_producer(self, stream_id=''):
@@ -103,7 +110,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         granule = build_granule('test',tt,rdt)
 
-        pub.publish(granule,to_name=('%s.science_data' % get_sys_name(), '%s.data'%stream_id))
+        xp = self.container.ex_manager.create_xp('science_data')
+        xpr = xp.create_route('%s.data' % stream_id)
+
+        pub.publish(granule,to_name=xpr)
 
         rdt = RecordDictionaryTool(tt)
         rdt['pres'] = np.array([1,2,3,4,5])
@@ -117,15 +127,26 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         granule = build_granule(data_producer_id='tool', taxonomy=tt, record_dictionary=rdt)
 
-        pub.publish(granule,to_name=('%s.science_data' % get_sys_name(), '%s.data' % stream_id))
+        pub.publish(granule,to_name=xpr)
         
+
+    def get_datastore(self, dataset_id):
+        dataset = self.dataset_management.read_dataset(dataset_id)
+        datastore_name = dataset.datastore_name
+        datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
+        return datastore
+
+    def validate_granule_subscription(self, msg, header):
+        if msg == {}:
+            return
+        self.assertIsInstance(msg,Granule,'Message is improperly formatted.')
+        self.event.set()
 
 
         
     def wait_until_we_have_enough_granules(self, dataset_id='',granules=4):
+        datastore = self.get_datastore(dataset_id)
         dataset = self.dataset_management.read_dataset(dataset_id)
-        datastore_name = dataset.datastore_name
-        datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
         
 
         now = time.time()
@@ -136,7 +157,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 raise Timeout('Granules are not populating in time.')
             if len(datastore.query_view(dataset.view_name)) >= granules:
                 done = True
-
 
             now = time.time()
 
@@ -174,18 +194,56 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         
         replay_data = self.data_retriever.retrieve(dataset_id)
-
         self.assertIsInstance(replay_data, Granule)
+        
+        #--------------------------------------------------------------------------------
+        # Now to try the streamed approach
+        #--------------------------------------------------------------------------------
+
+        replay_id, stream_id = self.data_retriever.define_replay(dataset_id)
+    
+        #--------------------------------------------------------------------------------
+        # Create the listening endpoint for the the retriever to talk to 
+        #--------------------------------------------------------------------------------
+        xp = self.container.ex_manager.create_xp(self.exchange_point_name)
+        xn = self.container.ex_manager.create_xn_queue(self.exchange_space_name)
+        xn.bind('%s.data' % stream_id, xp)
+        subscriber = Subscriber(name=xn, callback=self.validate_granule_subscription)
+        greenlet = gevent.spawn(subscriber.listen)
+        
+        self.data_retriever.start_replay(replay_id)
+
+
+        
+        fail = False
+        try:
+            self.event.wait(10)
+        except gevent.Timeout:
+            fail = True
+
+
+        subscriber.close()
+        greenlet.join()
+
+        self.assertTrue(not fail, 'Failed to validate the data.')
+        
+
+
 
     def test_replay_by_time(self):
-        stream_id = self.pubsub_management.create_stream()
 
-        config_id = self.get_ingestion_config()
-
+        #--------------------------------------------------------------------------------
+        # Create the necessary configurations for the test
+        #--------------------------------------------------------------------------------
+        stream_id  = self.pubsub_management.create_stream()
+        config_id  = self.get_ingestion_config()
         dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
+        #--------------------------------------------------------------------------------
+        # Create the datastore first,
+        #--------------------------------------------------------------------------------
+        self.get_datastore(dataset_id)
 
         self.publish_fake_data(stream_id)
-
         self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
 
         replay_granule = self.data_retriever.retrieve(dataset_id,{'start_time':0,'end_time':2})
@@ -196,5 +254,29 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.assertTrue(comp.all())
 
+    def test_last_granule(self):
+        #--------------------------------------------------------------------------------
+        # Create the necessary configurations for the test
+        #--------------------------------------------------------------------------------
+        stream_id  = self.pubsub_management.create_stream()
+        config_id  = self.get_ingestion_config()
+        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
+        #--------------------------------------------------------------------------------
+        # Create the datastore first,
+        #--------------------------------------------------------------------------------
+        self.get_datastore(dataset_id)
+
+        self.get_datastore(dataset_id)
+
+        self.publish_fake_data(stream_id)
+        self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
+
+        replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
+
+        rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        comp = rdt['time'] == np.array([6,7,8,9,10])
+
+        self.assertTrue(comp.all())
 
 

@@ -19,6 +19,9 @@ from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance
 from ion.agents.data.test.test_external_dataset_agent import ExternalDatasetAgentTestBase, IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
+#temp until stream defs are completed
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+
 @attr('INT_LONG', group='eoi')
 class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
@@ -37,6 +40,7 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         dams_cli = DataAcquisitionManagementServiceClient()
         dpms_cli = DataProductManagementServiceClient()
         rr_cli = ResourceRegistryServiceClient()
+        pubsub_cli = PubsubManagementServiceClient()
 
         eda = ExternalDatasetAgent()
         eda_id = dams_cli.create_external_dataset_agent(eda)
@@ -148,11 +152,14 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         dams_cli.assign_external_dataset_to_agent_instance(external_dataset_id=ds_id, agent_instance_id=eda_inst_id)
         #        dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
 
+        #create temp streamdef so the data product can create the stream
+        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
+
         # Generate the data product and associate it to the ExternalDataset
         dprod = DataProduct(name='slocum_parsed_product', description='parsed slocum product')
-        dproduct_id = dpms_cli.create_data_product(data_product=dprod)
+        dproduct_id = dpms_cli.create_data_product(data_product=dprod, stream_definition_id=streamdef_id)
 
-        dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id, create_stream=True)
+        dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
 
         stream_id, assn = rr_cli.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
         stream_id = stream_id[0]

@@ -148,4 +148,6 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         return retrieve_data
 
+    def retrieve_last_granule(self, dataset_id=''):
 
+        return ReplayProcess.get_last_granule(self.container,dataset_id)
