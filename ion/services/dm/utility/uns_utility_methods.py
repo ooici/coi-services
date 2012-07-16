@@ -36,6 +36,7 @@ class FakeScheduler(object):
 
         if seconds < 0:
             log.warning("Calculated wait time: %s seconds. Publishing immediately.")
+            seconds = 0
 
         log.info("Total seconds of wait time = %s" % seconds)
 
