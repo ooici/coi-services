@@ -6,6 +6,8 @@
 @test ion.services.dm.distribution.pubsub_management_service Unit test suite to cover all pub sub mgmt service code
 '''
 from pyon.public import PRED, RT, StreamSubscriberRegistrar, StreamPublisherRegistrar
+from pyon.net.endpoint import Subscriber,Publisher
+from pyon.ion.stream import SimpleStreamSubscriber, SimpleStreamPublisher
 import gevent
 from mock import Mock
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -77,6 +79,7 @@ class PubSubTest(PyonTestCase):
         self.subscription_exchange_query.exchange_name = "ExchangeName"
         self.subscription_exchange_query.subscription_type = SubscriptionTypeEnum.EXCHANGE_QUERY
         self.subscription_exchange_query.is_active = False
+        self.subscription_exchange_point = 'test_exchange_point'
 
         #Subscription Has Stream Association
         self.association_id = "association_id"
@@ -251,7 +254,9 @@ class PubSubTest(PyonTestCase):
         id = self.pubsub_service.create_subscription(name=self.subscription_stream_query.name,
                                                      description=self.subscription_stream_query.description,
                                                      query=self.subscription_stream_query.query,
-                                                     exchange_name=self.subscription_stream_query.exchange_name)
+                                                     exchange_name=self.subscription_stream_query.exchange_name,
+                                                     exchange_point=self.subscription_exchange_point
+                                                     )
 
         self.assertTrue(self.mock_create.called)
         self.mock_create_association.assert_called_once_with(self.subscription_id, PRED.hasStream, self.stream_id, None)
@@ -263,7 +268,9 @@ class PubSubTest(PyonTestCase):
         id = self.pubsub_service.create_subscription(name=self.subscription_exchange_query.name,
                                                      description=self.subscription_exchange_query.description,
                                                      query=self.subscription_exchange_query.query,
-                                                     exchange_name=self.subscription_exchange_query.exchange_name)
+                                                     exchange_name=self.subscription_exchange_query.exchange_name,
+                                                     exchange_point=self.subscription_exchange_point
+                                                     )
 
         self.assertTrue(self.mock_create.called)
         self.assertEqual(id, self.subscription_id)
@@ -278,7 +285,8 @@ class PubSubTest(PyonTestCase):
             id = self.pubsub_service.create_subscription(name="InvalidSubscription",
                                                          description="Invalid Subscription Description",
                                                          query=query,
-                                                         exchange_name=exchange_name)
+                                                         exchange_name=exchange_name,
+                                                         exchange_point=self.subscription_exchange_point)
 
         ex = cm.exception
         self.assertEqual(ex.message, 'Query type does not exist')
@@ -538,43 +546,31 @@ class PubSubIntTest(IonIntegrationTestCase):
                                                             description="Sample Stream 2 Description")
 
         # Make a subscription to two input streams
-        exchange_name = "a_queue"
+        self.exchange_name = "a_queue"
+        self.exchange_point = 'an_exchange'
         query = StreamQuery([self.ctd_stream1_id, self.ctd_stream2_id])
 
-        self.ctd_subscription_id = self.pubsub_cli.create_subscription(query,
-                                                                       exchange_name,
-                                                                       "SampleSubscription",
-                                                                       "Sample Subscription Description")
+        self.ctd_subscription_id = self.pubsub_cli.create_subscription(query=query,
+                                                                       exchange_name=self.exchange_name,
+                                                                       exchange_point=self.exchange_point,
+                                                                       name="SampleSubscription",
+                                                                       description="Sample Subscription Description")
 
         # Make a subscription to all streams on an exchange point
-        exchange_name = "another_queue"
+        self.exchange2_name = "another_queue"
         query = ExchangeQuery()
 
-        self.exchange_subscription_id = self.pubsub_cli.create_subscription(query,
-            exchange_name,
-            "SampleExchangeSubscription",
-            "Sample Exchange Subscription Description")
-
-
-        pid = self.container.spawn_process(name='dummy_process_for_test',
-            module='pyon.ion.process',
-            cls='SimpleProcess',
-            config={})
-        dummy_process = self.container.proc_manager.procs[pid]
+        self.exchange_subscription_id = self.pubsub_cli.create_subscription(query=query,
+            exchange_name=self.exchange2_name,
+            exchange_point=self.exchange_point,
+            name="SampleExchangeSubscription",
+            description="Sample Exchange Subscription Description")
 
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
-        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, container=self.container)
-
-        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.ctd_stream1_id)
-
-        self.ctd_stream2_publisher = publisher_registrar.create_publisher(stream_id=self.ctd_stream2_id)
-
-
-        # Cheat and use the cc as the process - I don't think it is used for anything...
-        self.stream_subscriber = StreamSubscriberRegistrar(process=dummy_process, container=self.container)
-
+        self.ctd_stream1_publisher = SimpleStreamPublisher.new_publisher(self.container, self.exchange_point, stream_id=self.ctd_stream1_id)
+        self.ctd_stream2_publisher = SimpleStreamPublisher.new_publisher(self.container, self.exchange_point, stream_id=self.ctd_stream2_id)
 
 
     def tearDown(self):
@@ -582,7 +578,7 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.pubsub_cli.delete_subscription(self.exchange_subscription_id)
         self.pubsub_cli.delete_stream(self.ctd_stream1_id)
         self.pubsub_cli.delete_stream(self.ctd_stream2_id)
-        self._stop_container()
+        super(PubSubIntTest,self).tearDown()
 
     def test_bind_stream_subscription(self):
 
@@ -591,8 +587,7 @@ class PubSubIntTest(IonIntegrationTestCase):
         def message_received(message, headers):
             q.put(message)
 
-
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='a_queue', callback=message_received)
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,self.exchange_name,callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
@@ -616,7 +611,7 @@ class PubSubIntTest(IonIntegrationTestCase):
             q.put(message)
 
 
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='another_queue', callback=message_received)
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,'another_queue',callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
@@ -640,7 +635,7 @@ class PubSubIntTest(IonIntegrationTestCase):
         def message_received(message, headers):
             q.put(message)
 
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='a_queue', callback=message_received)
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,self.exchange_name,callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
@@ -671,7 +666,7 @@ class PubSubIntTest(IonIntegrationTestCase):
             q.put(message)
 
 
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='another_queue', callback=message_received)
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,'another_queue',callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
@@ -701,12 +696,12 @@ class PubSubIntTest(IonIntegrationTestCase):
         def message_received(message, headers):
             q.put(message)
 
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='a_queue', callback=message_received)
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,self.exchange_name,callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
-        # Both publishers are received by the subscriber
+
         self.ctd_stream1_publisher.publish('message1')
         self.assertEqual(q.get(timeout=5), 'message1')
         self.assertTrue(q.empty())
@@ -728,6 +723,7 @@ class PubSubIntTest(IonIntegrationTestCase):
 
         # Stream 2 is no longer received
         self.ctd_stream2_publisher.publish('message2')
+
         p = None
         with self.assertRaises(gevent.queue.Empty) as cm:
             p = q.get(timeout=1)
