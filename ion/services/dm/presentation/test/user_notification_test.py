@@ -71,6 +71,9 @@ class UserNotificationTest(PyonTestCase):
         self.user_notification._update_user_with_notification = mocksignature(self.user_notification._update_user_with_notification)
         self.user_notification._update_user_with_notification.return_value = ''
 
+        self.mock_rr_client.find_resources = mocksignature(self.mock_rr_client.find_resources)
+        self.mock_rr_client.find_resources.return_value = [],[]
+
         self.user_notification.create_event_processor = mocksignature(self.user_notification.create_event_processor)
 
         self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
