@@ -271,7 +271,7 @@ class UserNotificationService(BaseUserNotificationService):
         notifs, _ = self.clients.resource_registry.find_resources(restype = RT.NotificationRequest)
 
         if notification in notifs:
-            log.warning("Notification object has already been created in resource registry before. No new id to be generated.")
+            log.warning("Notification object has already been created in resource registry before for another user. No new id to be generated.")
             notification_id = self.notification_map[notification]
         else:
             notification_id, _ = self.clients.resource_registry.create(notification)
@@ -379,7 +379,7 @@ class UserNotificationService(BaseUserNotificationService):
         if self.notification_map.has_key(notification):
             self.notification_map.pop(notification)
         else:
-            log.warning("notification=%s, was not in the dictionary, notification_map=%s" % \
+            log.warning("notification=%s, was not in notification_map=%s" % \
                             (notification, self.notification_map))
 
         #-------------------------------------------------------------------------------------------------------------------
