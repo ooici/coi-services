@@ -27,8 +27,11 @@ from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
 from pyon.util.containers import get_safe
 
+# Google viz library for google charts
+import ion.services.ans.gviz_api as gviz_api
+
 tx = TaxyTool()
-tx.add_taxonomy_set('google_dt_components','Google DT components for part or entire datatable')
+tx.add_taxonomy_set('google_dt','Google datatable')
 
 
 class VizTransformGoogleDT(TransformFunction):
@@ -65,7 +68,7 @@ class VizTransformGoogleDT(TransformFunction):
 
         #init stuff
         # Need to move it to YAML or something
-        self.realtime_window_size = 100
+        #self.realtime_window_size = 100
         self.max_google_dt_len = 1024 # Remove this once the decimation has been moved in to the incoming dp
 
         self.varTuple = []
@@ -106,41 +109,33 @@ class VizTransformGoogleDT(TransformFunction):
                 if vardict[varname] == None:
                     val = 0.0
                 else:
-                    val = float(vardict[varname][i])
+                    if varname == 'time':
+                        val = datetime.fromtimestamp(vardict[varname][i])
+                    else:
+                        val = float(vardict[varname][i])
 
                 varTuple.append(val)
 
             # Append the tuples to the data table
             self.dataTableContent.append (varTuple)
 
-            # Maintain a sliding window for realtime transform processes
-            if len(self.dataTableContent) > self.realtime_window_size:
-                # always pop the first element till window size is what we want
-                while len(self.dataTableContent) > realtime_window_size:
-                    self.dataTableContent.pop(0)
-
 
         # submit the partial datatable to the viz service
         out_rdt = RecordDictionaryTool(taxonomy=tx)
 
+        # Use the components to create the actual google datatable
+        gdt = gviz_api.DataTable(self.dataDescription)
+        gdt.LoadData(self.dataTableContent)
+
         # submit resulting table back using the out stream publisher. The data_product_id is the input dp_id
         # responsible for the incoming data
-        msg = {"viz_product_type": "google_realtime_dt",
-               "data_table_description": self.dataDescription,
-               "data_table_content": self.dataTableContent}
+        msg = {"viz_product_type": "google_dt",
+               "data_table": gdt.ToJSonResponse()}
 
-        out_rdt['google_dt_components'] = numpy.array([msg])
-
-        #out_rdt["data_table_description"] = self.dataDescription
-        #out_rdt["data_table_content"] = self.dataTableContent
-        #out_rdt['viz_product_type'] = numpy.array(["google_realtime_dt"])
-        #out_rdt["data_product_id"] = numpy.array(["FAKE_DATAPRODUCT_ID_0000"])
-
+        out_rdt['google_dt'] = numpy.array([msg])
 
         log.debug('Google DT transform: Sending a granule')
         out_granule = build_granule(data_producer_id='google_dt_transform', taxonomy=tx, record_dictionary=out_rdt)
-
-        #self.publish(out_granule)
 
         # clear the tuple for future use
         self.varTuple[:] = []
