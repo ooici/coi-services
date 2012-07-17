@@ -13,7 +13,7 @@ class BootstrapIndex(BootstrapPlugin):
     """
 
     def on_initial_bootstrap(self, process, config, **kwargs):
-        if config.get_safe('system.elasticsearch'):
+        if config.get_safe('system.elasticsearch') and config.get_safe('bootstrap.use_es'):
             #---------------------------------------------
             # Spawn the index bootstrap
             #---------------------------------------------
