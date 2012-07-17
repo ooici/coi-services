@@ -1,4 +1,4 @@
-name: resource_agent_refactor
+name: resource_agent
 
 docstring: Behaviors for any resource agent
 
