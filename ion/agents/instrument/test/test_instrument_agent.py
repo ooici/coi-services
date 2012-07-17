@@ -54,12 +54,12 @@ from ion.agents.instrument.driver_process import DriverProcessType
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
 
 DEV_ADDR = CFG.device.sbe37.host
 DEV_PORT = CFG.device.sbe37.port
