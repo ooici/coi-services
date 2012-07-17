@@ -444,21 +444,10 @@ class UserNotificationService(BaseUserNotificationService):
         Helper method to delete the notification from the user_info dictionary
         '''
 
-        log.warning(" in delete_notification... notification: %s" % notification_id)
-
         for user, value in self.user_info.iteritems():
-
-            log.warning("came here~~~~ user: %s, value: %s" % (user, value))
-
             for notif in value['notifications']:
                 if notification_id == notif._id:
-
-                    log.warning("notifications= %s, held by user =%s" % (value['notifications'], user))
-
                     value['notifications'].remove(notif)
-
-                    log.warning("notifications held by user after remove: %s" % value['notifications'])
-
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 

@@ -775,7 +775,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Delete notification and check that the user_info and reverse_user_info in UNS got reloaded
         #--------------------------------------------------------------------------------------
 
-        log.warning("notification_id_2: %s" % notification_id_2)
         self.unsc.delete_notification(notification_id_2)
 
         # Check for UNS ------->
