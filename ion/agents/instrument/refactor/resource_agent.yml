@@ -1,0 +1,176 @@
+name: resource_agent_refactor
+
+docstring: Behaviors for any resource agent
+
+spec: https://confluence.oceanobservatories.org/display/syseng/CIAD+CEI+OV+Resource+Agent
+
+dependencies: [directory, resource_registry]
+
+
+methods:
+  # -----------------
+  # Governance interface
+
+  negotiate:
+    docstring: |
+      Initiate a negotiation with this agent. The subject of this negotiation is the given
+      ServiceAgreementProposal. The response is either a new ServiceAgreementProposal as counter-offer,
+      or the same ServiceAgreementProposal indicating the offer has been accepted.
+      NEEDS REFINEMENT.
+    in:
+      resource_id: ""
+      sap_in: !ServiceAgreementProposal
+    out:
+      sap_out: !ServiceAgreementProposal
+
+  # -----------------
+  # Capabilities interface
+
+  get_capabilities:
+    docstring: |
+      Introspect for agent capabilities.
+      @param resource_id The id of the resource agent.
+      @param current_state Flag indicating to return capabilities for current
+      state only (default True).
+      @retval List of AgentCapabilities objects.
+    in:
+      resource_id: ""
+      current_state: True
+    out:
+      capability_list: []
+    throws:
+      
+  # -----------------
+  # Resource control interface
+
+  execute_resource:
+    docstring: |
+      Execute command on the resource represented by agent.
+      @param resource_id The id of the resource agennt.
+      @param command An AgentCommand containing the command.
+      @retval result An AgentCommandResult containing the result.
+      @throws BadRequest if the command was malformed.
+      @throws NotFound if the command is not available in current state.
+      @throws ResourceError if the resource produced an error during execution.
+    in:
+      resource_id: ""
+      command: !AgentCommand
+    out:
+      result: !AgentCommandResult
+    throws:
+      BadRequest: if the command was malformed.
+      NotFound: if the command is not implemented in the agent.
+      ResourceError: if the resource produced an error.
+
+  get_resource:
+    docstring: |
+      Return the value of the given resource parameter.
+      @param resource_id The id of the resource agennt.
+      @param params A list of parameters names to query.
+      @retval A dict of parameter name-value pairs.
+      @throws BadRequest if the command was malformed.
+      @throws NotFound if the resource does not support the parameter.
+    in:
+      resource_id: ""
+      params: []
+    out:
+      result: {}
+    throws:
+      NotFound: if the parameter does not exist.
+
+  set_resource:
+    docstring: |
+      Set the value of the given resource parameters.
+      @param resource_id The id of the resource agennt.
+      @param params A dict of resource parameter name-value pairs.
+      @throws BadRequest if the command was malformed.
+      @throws NotFound if a parameter is not supported by the resource.
+      @throws ResourceError if the resource encountered an error while setting
+      the parameters.
+    in:
+      resource_id: ""
+      params: {}
+    out:
+    throws:
+      BadRequest: if the command was malformed.
+      NotFound: if the parameter does not exist.
+      ResourceError: if the resource failed while trying to set the parameter.
+      
+  get_resource_state:
+    docstring: |
+      Return the current resource specific state, if available.
+      @param resource_id The id of the resource agennt.
+      @retval A str containing the current resource specific state.
+    in:
+      resource_id: ""
+    out:
+      result: str
+    throws:
+      NotFount: if the resource does not utilize a specific state machine.
+      ResourceError: if the resource failed while trying to get the state.
+      
+  # -----------------
+  # Resource monitor interface
+
+  # -----------------
+  # Agent control interface
+
+  execute_agent:
+    docstring: |
+      Execute command on the agent.
+      @param resource_id The id of the resource agennt.
+      @param command An AgentCommand containing the command.
+      @retval result An AgentCommandResult containing the result.
+      @throws BadRequest if the command was malformed.
+      @throws NotFound if the command is not available in current state.      
+    in:
+      resource_id: ""
+      command: !AgentCommand
+    out:
+      result: !AgentCommandResult
+    throws:
+      BadRequest: if the command was malformed.
+      NotFound: if the command is not implemented in the agent.      
+
+  get_agent:
+    docstring: |
+      Return the value of the given agent parameters.
+      @param resource_id The id of the resource agennt.
+      @param params A list of parameters names to query.
+      @retval A dict of parameter name-value pairs.
+      @throws BadRequest if the command was malformed.
+      @throws NotFound if the agent does not support the parameter.
+    in:
+      resource_id: ""
+      params: []
+    out:
+      result: {}
+    throws:
+      BadRequest: if the command was malformed.
+      NotFound: if the parameter does not exist.
+
+  set_agent:
+    docstring: |
+      Set the value of the given agent parameters.
+      @param resource_id The id of the resource agennt.
+      @param params A dict of resource parameter name-value pairs.
+      @throws BadRequest if the command was malformed.
+      @throws NotFound if a parameter is not supported by the resource.
+    in:
+      resource_id: ""
+      params: {}
+    out:
+    throws:
+      BadRequest: if the command was malformed.
+      NotFound: if the parameter does not exist.
+
+  get_agent_state:
+    docstring: |
+      Return the current resource agent common state.
+      @param resource_id The id of the resource agennt.
+      @retval A str containing the current agent state.
+    in:
+      resource_id: ""
+    out:
+      result: str
+    throws:
