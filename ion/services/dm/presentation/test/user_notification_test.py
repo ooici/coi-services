@@ -694,6 +694,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # Check in UNS ------------>
 
+        # read back the registered notification request objects
+        notification_request_1 = self.rrc.read(notification_id_1)
+        notification_request_2 = self.rrc.read(notification_id_2)
+
         # check user_info dictionary
         self.assertEquals(proc1.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
         self.assertEquals(proc1.user_info['user_1']['notifications'], [notification_request_1])
@@ -741,7 +745,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Update notification and check that the user_info and reverse_user_info in UNS got reloaded
         #--------------------------------------------------------------------------------------
 
-        notification_request_1 = self.rrc.read(notification_id_1)
         notification_request_1.origin = "newly_changed_instrument"
 
         self.unsc.update_notification(notification=notification_request_1, user_id=user_id_1)
@@ -749,6 +752,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Check for UNS ------->
 
         # user_info
+        notification_request_1 = self.rrc.read(notification_id_1)
+
         self.assertTrue(notification_request_1 in proc1.user_info['user_1']['notifications'] )
 
         update_worked = False
@@ -769,7 +774,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         #todo The delete method for UNS
 
-        log.warning("notification_id_2: %s" % notification_id_2)
+#        log.warning("notification_id_2: %s" % notification_id_2)
 #        self.unsc.delete_notification(notification_id_2)
 #
 #        # Check for UNS ------->
@@ -833,7 +838,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create a notification
         #--------------------------------------------------------------------------------------
 
-        self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+        notification_id_1 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
 
         #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info got reloaded
@@ -853,7 +858,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         reloaded_user_info = ar_1.get(timeout=10)
         reloaded_reverse_user_info = ar_2.get(timeout=10)
 
-
+        # read back the registered notification request objects
+        notification_request_1 = self.rrc.read(notification_id_1)
 
         self.assertEquals(reloaded_user_info['new_user']['notifications'], [notification_request_1] )
         self.assertEquals(reloaded_user_info['new_user']['user_contact'].email, 'new_user@gmail.com')
@@ -867,13 +873,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create another notification
         #--------------------------------------------------------------------------------------
 
-        self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         ar_1 = gevent.event.AsyncResult()
         ar_2 = gevent.event.AsyncResult()
 
         reloaded_user_info = ar_1.get(timeout=10)
         reloaded_reverse_user_info = ar_2.get(timeout=10)
+
+        notification_request_2 = self.rrc.read(notification_id_2)
+
 
         self.assertEquals(reloaded_user_info['new_user']['notifications'], [notification_request_1, notification_request_2] )
 

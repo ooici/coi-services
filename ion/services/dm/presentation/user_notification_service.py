@@ -307,6 +307,12 @@ class UserNotificationService(BaseUserNotificationService):
             notification_id, _ = self.clients.resource_registry.create(notification)
 
         #-------------------------------------------------------------------------------------------------------------------
+        # read the registered notification request object because this has an _id and is more useful
+        #-------------------------------------------------------------------------------------------------------------------
+
+        notification = self.clients.resource_registry.read(notification_id)
+
+        #-------------------------------------------------------------------------------------------------------------------
         # Update the UserInfo object and the user_info dictionary maintained by the UNS
         #-------------------------------------------------------------------------------------------------------------------
 
@@ -365,6 +371,13 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
 
         self.clients.resource_registry.update(notification)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # reading up the notification object to make sure we have the newly registered notification request object
+        #-------------------------------------------------------------------------------------------------------------------
+
+        notification_id = notification._id
+        notification = self.clients.resource_registry.read(notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Update the UserInfo object and the user_info dictionary maintained by the UNS
@@ -438,10 +451,14 @@ class UserNotificationService(BaseUserNotificationService):
         for user, value in self.user_info.iteritems():
             log.warning("came here~~~~ user: %s, value: %s" % (user, value))
 
-            if notification in value['notifications']:
-                log.warning("notifications= %s, held by user =%s" % (value['notifications'], user))
-                value['notifications'].remove(notification)
-                log.warning("notifications held by user after remove: %s" % value['notifications'])
+            for notif in value['notifications']:
+                if notification_id == notif._id:
+
+                    log.warning("notifications= %s, held by user =%s" % (value['notifications'], user))
+
+                    value['notifications'].remove(notif)
+
+                    log.warning("notifications held by user after remove: %s" % value['notifications'])
 
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
