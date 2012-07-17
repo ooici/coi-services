@@ -217,7 +217,7 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         raise NotImplementedError("find_streams_by_consumer not implemented.")
 
-    def create_subscription(self, query=None, exchange_name='', name='', description=''):
+    def create_subscription(self, query=None, exchange_name='', name='', description='', exchange_point = ''):
         '''
         @brief Create a new subscription. The id string returned is the ID of the new subscription
         in the resource registry.
