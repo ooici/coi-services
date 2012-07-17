@@ -173,7 +173,8 @@ class CatalogManagementIntTest(IonIntegrationTestCase):
 
         names_catalog_id = self.cms_cli.create_catalog('names_catalog', ['name'])
         names_list = self.cms_cli.list_indexes(names_catalog_id)
-        self.assertTrue(set(index_ids) == set(names_list), 'The catalog did\'nt match the correct index.')
+        for i in index_ids:
+            self.assertIn(i,names_list)
 
     def test_catalog_field_exclusion(self):
         half_match = Index(name='half_match', options=SearchOptions(attribute_match=['one']))
