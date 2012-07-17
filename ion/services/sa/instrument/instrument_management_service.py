@@ -274,11 +274,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             #todo  - Replace this hack: look in the data product name for 'raw' or 'parsed'
 
             if stream_obj.name.lower().find('parsed') > -1 :
-                out_streams['ctd_parsed'] = stream_ids[0]
-                log.debug("activate_instrument:ctd_parsed %s ", str(stream_ids[0]) )
+                out_streams['parsed'] = stream_ids[0]
+                log.debug("activate_instrument:parsed %s ", str(stream_ids[0]) )
             elif stream_obj.name.lower().find('raw') > -1:
-                out_streams['ctd_raw'] = stream_ids[0]
-                log.debug("activate_instrument:ctd_raw %s ", str(stream_ids[0]) )
+                out_streams['raw'] = stream_ids[0]
+                log.debug("activate_instrument:raw %s ", str(stream_ids[0]) )
             else:
                 raise NotFound("Stream %s is not CTD raw or parsed" % stream_obj.name)
         log.debug("activate_instrument:output stream config: %s"  +  str(out_streams))
@@ -290,27 +290,32 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #todo: move this up and out
         # Create taxonomies for both parsed and raw
         ParsedTax = TaxyTool()
-        ParsedTax.add_taxonomy_set('temp','long name for temp')
-        ParsedTax.add_taxonomy_set('cond','long name for cond')
+        ParsedTax.add_taxonomy_set('temp', 't', 'long name for temp')
+        ParsedTax.add_taxonomy_set('cond', 'c', 'long name for cond')
+        ParsedTax.add_taxonomy_set('pres', 'p', 'long name for pres')
         ParsedTax.add_taxonomy_set('lat','long name for latitude')
         ParsedTax.add_taxonomy_set('lon','long name for longitude')
-        ParsedTax.add_taxonomy_set('pres','long name for pres')
         ParsedTax.add_taxonomy_set('time','long name for time')
+        ParsedTax.add_taxonomy_set('height','long name for height')
         # This is an example of using groups it is not a normative statement about how to use groups
         ParsedTax.add_taxonomy_set('coordinates','This group contains coordinates...')
         ParsedTax.add_taxonomy_set('data','This group contains data...')
 
 
         RawTax = TaxyTool()
-        RawTax.add_taxonomy_set('raw_fixed','Fixed length bytes in an array of records')
-        RawTax.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
+        RawTax.add_taxonomy_set('blob','bytes in an array')
+        RawTax.add_taxonomy_set('lat','long name for latitude')
+        RawTax.add_taxonomy_set('lon','long name for longitude')
+        RawTax.add_taxonomy_set('time','long name for time')
+        RawTax.add_taxonomy_set('height','long name for height')
+        RawTax.add_taxonomy_set('coordinates','This group contains coordinates...')
+        RawTax.add_taxonomy_set('data','This group contains data...')
 
 
-        stream_info = {}
-        if "ctd_parsed" in out_streams:
-            stream_info['parsed'] = { id: out_streams['ctd_parsed'], 'taxonomy': ParsedTax.dump() }
-        if "ctd_raw" in out_streams:
-            stream_info['raw'] = { id: out_streams['ctd_raw'], 'taxonomy': RawTax.dump() }
+        stream_info = {
+            'parsed' : { 'id': out_streams['parsed'], 'taxonomy': ParsedTax.dump() },
+            'raw' : { 'id': out_streams['raw'], 'taxonomy': RawTax.dump()}
+        }
 
 
         self._start_pagent(instrument_agent_instance_id)
@@ -330,7 +335,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Create agent config.
         instrument_agent_instance_obj.agent_config = {
             'driver_config' : instrument_agent_instance_obj.driver_config,
-            'stream_config' : out_streams,
+            'stream_config' : stream_info,
             'agent'         : {'resource_id': instrument_device_id}
         }
 
