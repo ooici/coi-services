@@ -219,26 +219,37 @@ class UserNotificationService(BaseUserNotificationService):
 
     def on_start(self):
 
+        #---------------------------------------------------------------------------------------------------
         # Get the event Repository
+        #---------------------------------------------------------------------------------------------------
+
         self.event_repo = self.container.instance.event_repository
 
         self.smtp_client = setting_up_smtp_client()
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
+        #---------------------------------------------------------------------------------------------------
         # load event originators, types, and table
+        #---------------------------------------------------------------------------------------------------
+
         self.event_types = CFG.event.types
         self.event_table = {}
 
+        #---------------------------------------------------------------------------------------------------
         # Dictionaries that maintain information about users and their subscribed notifications
         # The user_info dictionary is loaded from the User Info Base (stored in couchdb)
         # The reverse_user_info is calculated from the user_info dictionary
+        #---------------------------------------------------------------------------------------------------
 
         # user_info = {'user_name' : [list of notifications]}
         self.user_info = {}
         self.reverse_user_info = {}
 
-        # Get the discovery client for batch processing
+        #---------------------------------------------------------------------------------------------------
+        # Get the clients
+        #---------------------------------------------------------------------------------------------------
+
         self.discovery = DiscoveryServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
         self.datastore_manager = DatastoreManager()
@@ -313,7 +324,7 @@ class UserNotificationService(BaseUserNotificationService):
         # notification workers work properly
         #-------------------------------------------------------------------------------------------------------------------
 
-        # todo: This is to allow time for the indexes to be created before punlishing ReloadUserInfoEvent for notification workers.
+        # todo: This is to allow time for the indexes to be created before publishing ReloadUserInfoEvent for notification workers.
         # todo: When things are more refined, it will be nice to have an event generated when the
         # indexes are updated so that a subscriber here when it received that event will publish
         # the reload user info event.

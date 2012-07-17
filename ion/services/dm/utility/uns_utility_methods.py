@@ -14,7 +14,7 @@ from gevent.timeout import Timeout
 import string
 from email.mime.text import MIMEText
 from gevent import Greenlet
-import datetime, time
+import datetime
 
 class FakeScheduler(object):
 
@@ -22,9 +22,16 @@ class FakeScheduler(object):
         self.event_publisher = EventPublisher("SchedulerEvent")
 
     def set_task(self, task_time, message):
+
+        #------------------------------------------------------------------------------------
         # get the current time. Ex: datetime.datetime(2012, 7, 12, 14, 30, 6, 769776)
+        #------------------------------------------------------------------------------------
+
         current_time = datetime.datetime.today()
 
+        #------------------------------------------------------------------------------------
+        # Calculate the time to wait
+        #------------------------------------------------------------------------------------
         wait_time = datetime.timedelta( days = task_time.day - current_time.day,
                                         hours = task_time.hour - current_time.hour,
                                         minutes = task_time.minute - current_time.minute,
@@ -40,7 +47,8 @@ class FakeScheduler(object):
 
         log.info("Total seconds of wait time = %s" % seconds)
 
-        time.sleep(seconds)
+        # this has to be replaced by something better
+        gevent.sleep(seconds)
 
         self.event_publisher.publish_event(origin='Scheduler', description = message)
         log.info("Fake scheduler published a SchedulerEvent")
@@ -68,7 +76,10 @@ def setting_up_smtp_client():
     Sets up the smtp client
     '''
 
+    #------------------------------------------------------------------------------------
     # the default smtp server
+    #------------------------------------------------------------------------------------
+
     ION_SMTP_SERVER = 'mail.oceanobservatories.org'
 
     smtp_host = CFG.get_safe('server.smtp.host', ION_SMTP_SERVER)
@@ -101,13 +112,15 @@ def send_email(message, msg_recipient, smtp_client):
     '''
 
     time_stamp = message.ts_created
-
     event = message.type_
     origin = message.origin
     description = message.description
 
 
+    #------------------------------------------------------------------------------------
     # build the email from the event content
+    #------------------------------------------------------------------------------------
+
     msg_body = string.join(("Event: %s," %  event,
                             "",
                             "Originator: %s," %  origin,
@@ -125,7 +138,10 @@ def send_email(message, msg_recipient, smtp_client):
         "\r\n")
     msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
 
+    #------------------------------------------------------------------------------------
     # the 'from' email address for notification emails
+    #------------------------------------------------------------------------------------
+
     ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
     msg_sender = ION_NOTIFICATION_EMAIL_ADDRESS
