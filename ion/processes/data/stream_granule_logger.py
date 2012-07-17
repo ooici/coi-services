@@ -48,6 +48,7 @@ class StreamGranuleLogger(StandaloneProcess):
         subscription_id = pubsub_cli.create_subscription(
             query = query,
             exchange_name = exchange_name,
+            exchange_point = 'science_data',
             name = "SampleSubscription",
             description = "Sample Subscription Description")
 
