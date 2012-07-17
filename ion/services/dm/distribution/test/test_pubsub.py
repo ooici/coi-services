@@ -585,9 +585,9 @@ class PubSubIntTest(IonIntegrationTestCase):
 
     def purge_queues(self):
         xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
-        xn.purge(None,xn.queue)
+        xn.purge()
         xn = self.container.ex_manager.create_xn_queue(self.exchange2_name)
-        xn.purge(None,xn.queue)
+        xn.purge()
         
 
 
