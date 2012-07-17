@@ -108,6 +108,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         salinity_subscription_id = self.pubsubclient.create_subscription(
             query=StreamQuery(data_product_stream_ids),
             exchange_name = user_queue_name,
+            exchange_point = 'science_data',
             name = "user visualization queue"
         )
 

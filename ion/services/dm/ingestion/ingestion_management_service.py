@@ -62,7 +62,8 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         subscription_id = self.clients.pubsub_management.create_subscription(
             query=StreamQuery(stream_ids=[stream_id]),
-            exchange_name=ingestion_queue.name
+            exchange_name=ingestion_queue.name,
+            exchange_point=ingestion_config.exchange_point
         )
 
         self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)

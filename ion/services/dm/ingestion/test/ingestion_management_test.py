@@ -79,6 +79,7 @@ class IngestionManagementUnitTest(PyonTestCase):
     def test_persist_data_stream(self):
         ingestval = DotDict()
         ingestval.queues = None
+        ingestval.exchange_point = 'test'
 
         queueval = DotDict()
         queueval.name = 'test'

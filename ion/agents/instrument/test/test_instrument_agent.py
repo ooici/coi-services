@@ -302,8 +302,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             self._listen(sub)
             self._data_subscribers.append(sub)
             query = StreamQuery(stream_ids=[stream_id])
-            sub_id = pubsub_client.create_subscription(\
-                                query=query, exchange_name=exchange_name)
+            sub_id = pubsub_client.create_subscription(
+                                query=query, exchange_name=exchange_name, exchange_point='science_data')
             pubsub_client.activate_subscription(sub_id)
             
     def _listen(self, sub):
