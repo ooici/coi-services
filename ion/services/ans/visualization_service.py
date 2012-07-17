@@ -31,6 +31,8 @@ from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
+from interface.objects import Granule
+from pyon.util.containers import get_safe
 
 # Matplotlib related imports
 import matplotlib as mpl
@@ -89,38 +91,63 @@ class VisualizationService(BaseVisualizationService):
 
         data_product_stream_id = stream_ids
 
-        # Create a queue to collect the stream granules
-
-        #TODO - figure out how to determine if a queue already exists for this user - maybe a session ID?
-
+        # Create a queue to collect the stream granules - idempotency saves the day!
         query_token = create_unique_identifier('user_queue')
 
-        xq = Container.instance.ex_manager.create_xn_queue(query_token)
+        xq = self.container.ex_manager.create_xn_queue(query_token)
 
-        #TODO - figure out how to make this instance specific
-        self.subscription_id = self.pubsubclient.create_subscription(
+        subscription_id = self.pubsubclient.create_subscription(
             query=StreamQuery(data_product_stream_id),
             exchange_name = query_token,
             exchange_point = 'science_data',
-            name = "user visualization queue",
+            name = query_token,
         )
 
         # after the queue has been created it is safe to activate the subscription
-        self.clients.pubsub_management.activate_subscription(self.subscription_id)
+        self.clients.pubsub_management.activate_subscription(subscription_id)
 
         return query_token
 
-    def _process_messages(self, msgs):
+    def _process_visualization_message(self, message):
 
-        rdt = RecordDictionaryTool.load_from_granule(msgs.body)
+        message_data = message.body
 
-        vardict = {}
-        vardict['temp'] = get_safe(rdt, 'temp')
-        vardict['time'] = get_safe(rdt, 'time')
-        print vardict['time']
-        print vardict['temp']
+        if isinstance(message_data ,Granule):
+            message_data =[message_data]
 
-        return (vardict['time'], vardict['temp'])
+        #TODO - can there really be more than 1?
+        for g in message_data:
+
+            if isinstance(g,Granule):
+
+                tx = TaxyTool.load_from_granule(g)
+                rdt = RecordDictionaryTool.load_from_granule(g)
+
+                gdt_components = get_safe(rdt, 'google_dt_components')
+
+                # IF this granule does not contains google dt, skip
+                if gdt_components is None:
+                    continue
+
+                gdt_component = gdt_components[0]
+                if gdt_component['viz_product_type'] == 'google_realtime_dt':
+                    gdt_description = gdt_component['data_table_description']
+                    gdt_content = gdt_component['data_table_content']
+
+                #assertions(gdt_description[0][0] == 'time')
+                #assertions(len(gdt_description) > 1)
+                #assertions(len(gdt_content) >= 0)
+
+                    #TODO replace with actual GDT conversion if need be.
+                    print gdt_content
+                    return gdt_content
+
+
+                #TODO - what to do if this is not a valid visualization message?
+
+
+        return None
+
 
     def get_realtime_visualization_data(self, query_token=''):
         """This operation returns a block of visualization data for displaying data product in real time. This operation requires a
@@ -134,28 +161,37 @@ class VisualizationService(BaseVisualizationService):
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
 
-        #TODO -should I keep doing this? DOes it matter since it is idempotent
-        xq = Container.instance.ex_manager.create_xn_queue(query_token)
+        try:
 
+            #Taking advantage of idempotency
+            xq = self.container.ex_manager.create_xn_queue(query_token)
 
-        subscriber = Subscriber(from_name=xq)
-        subscriber.initialize()
+            subscriber = Subscriber(from_name=xq)
+            subscriber.initialize()
 
-        msg_count,_ = subscriber._chan.get_stats()
-        print 'Messages in user queue 1: ' + str(msg_count)
+            msg_count,_ = subscriber._chan.get_stats()
+            log.info('Messages in user queue 1: ' + str(msg_count))
 
-        ret_val = []
-        msgs = subscriber.get_n_msgs(msg_count, timeout=2)
-        for x in range(len(msgs)):
-            msgs[x].ack()
-            ret_val.append(self._process_messages(msgs[x]))
+            ret_val = []
+            msgs = subscriber.get_n_msgs(msg_count, timeout=2)
+            for x in range(len(msgs)):
+                msgs[x].ack()
 
-        msg_count,_ = subscriber._chan.get_stats()
-        print 'Messages in user queue 2: ' + str(msg_count)
+                ret = self._process_visualization_message(msgs[x])
+                if ret is not None:
+                    ret_val.append(ret)
 
-        subscriber.close()
+            msg_count,_ = subscriber._chan.get_stats()
+            log.info('Messages in user queue 2: ' + str(msg_count))
 
-        return str(ret_val)
+        except Exception, e:
+            raise e
+
+        finally:
+            subscriber.close()
+
+        #TODO - replace as need be to return valid GDT data
+        return {'viz_data': ret_val}
 
 
     def terminate_realtime_visualization_data(self, query_token=''):
@@ -169,60 +205,28 @@ class VisualizationService(BaseVisualizationService):
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
 
-        self.clients.pubsub_management.deactivate_subscription(self.subscription_id)
 
-        self.clients.pubsub_management.delete_subscription(self.subscription_id)
+        subscription_ids = self.clients.resource_registry.find_resources(restype=RT.Subscription, name=query_token, id_only=True)
 
-        #TODO -should I keep doing this? DOes it matter since it is idempotent
-        xq = Container.instance.ex_manager.create_xn_queue(query_token)
+        if not subscription_ids:
+            raise BadRequest("A Subscription object for the query_token parameter %s is not found" % query_token)
+            return
+
+        if len(subscription_ids[0]) > 1:
+            log.warn("An inconsistent number of Subscription resources associated with the name: %s - using the first one in the list",query_token )
+
+        subscription_id = subscription_ids[0][0]
+
+        self.clients.pubsub_management.deactivate_subscription(subscription_id)
+
+        self.clients.pubsub_management.delete_subscription(subscription_id)
+
+        #Taking advantage of idempotency
+        xq = self.container.ex_manager.create_xn_queue(query_token)
 
         self.container.ex_manager.delete_xn(xq)
 
-    def init_google_dt(self, data_product_id='', query=''):
-        """Retrieves the data for the specified DP and sends a token back which can be checked in
-            a non-blocking fashion till data is ready
 
-        @param data_product_id    str
-        @param query    str
-        @retval query_token  str
-        @throws NotFound    object with specified id, query does not exist
-        """
-
-        #try:
-        # get the dataset_id associated with the data_product. Need it to do the data retrieval
-        ds_ids,_ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
-
-        if ds_ids == None or len(ds_ids) == 0:
-            print ">>>>>> COULD NOT LOCATE DATASET ID"
-            return []
-
-        # Ideally just need the latest granule to figure out the list of images
-        #replay_granule = self.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-        retrieve_granule = self.data_retriever.retrieve(ds_ids[0])
-
-        print ">>>>>>>>>>>> REPLAY_GRANULE = ", retrieve_granule
-
-        # send the granule through the transform to get the google datatable
-        gt_transform = VizTransformGoogleDT()
-        #gt_transform.on_start()
-        gt_data_granule = gt_transform.execute(retrieve_granule)
-
-        gt_tx = TaxyTool.load_from_granule(gt_data_granule)
-        gt_rdt = RecordDictionaryTool.load_from_granule(gt_data_granule)
-        print " >>>>>>>>>  GT_DATA_GRANULE = ", gt_data_granule
-
-        #except:
-        #    return []
-
-
-        return query_token
-
-    def get_google_dt(self, query_token=''):
-
-        datatable = None
-
-
-        return datatable
 
     def get_image(self, data_product_id='', image_id=''):
 
@@ -230,6 +234,8 @@ class VisualizationService(BaseVisualizationService):
 
         return image_obj
 
+
+    #TODO - DO not think we need this!!
     def get_list_of_mpl_images(self, data_product_id='', query=''):
 
         # return a json version of the array stored in the data_dict

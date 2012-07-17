@@ -3,6 +3,7 @@
 __author__ = 'Thomas Lennan'
 
 from nose.plugins.attrib import attr
+import unittest
 
 from pyon.core.bootstrap import get_sys_name
 from pyon.core.exception import BadRequest
@@ -23,6 +24,7 @@ class TestDatastore(IonIntegrationTestCase):
         # Now create client to bank service
         self.datastore_service = DatastoreServiceClient(node=self.container.node)
 
+    @unittest.skip("Datastore service not in r2deploy")
     def test_manage_datastore(self):
         db_name_prefix = get_sys_name().lower()
         self.datastore_service.delete_datastore(db_name_prefix + "_foo")
@@ -41,6 +43,7 @@ class TestDatastore(IonIntegrationTestCase):
         self.assertTrue(self.datastore_service.datastore_exists(db_name_prefix + "_foo"))
         self.assertFalse(self.datastore_service.datastore_exists(db_name_prefix + "_bar"))
 
+    @unittest.skip("Datastore service not in r2deploy")
     def test_create_delete(self):
         # Persist IonObject
         user_info_obj = IonObject(RT.UserInfo, name="John Smith")

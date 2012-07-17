@@ -18,7 +18,7 @@ from interface.services.ans.ivisualization_service import VisualizationServiceCl
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 
-from pyon.public import log
+from pyon.public import log, IonObject, RT
 
 
 from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
@@ -185,21 +185,41 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         subscriber.close()
 
-    @unittest.skip("in progress")
-    def test_realtime_chart(self):
+    #@unittest.skip("in progress")
+    def test_realtime_visualization(self):
         assertions = self.assertTrue
+
+
+        # Build the workflow definition
+        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
+
+        #Add a transformation process definition
+        google_dt_procdef_id = self.create_google_dt_data_process_definition()
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_process_output_data=True)
+        workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+        #Create it in the resource registry
+        workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
+
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
 
-        ctd_sim_pid = self.start_simple_input_stream_process(ctd_stream_id)
+        #Create and start the workflow
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
 
-        vis_token = self.vis_client.initiate_realtime_visualization(ctd_parsed_data_product_id)
+
+        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
+
+
+        #TODO - Need to add workflow creation for google data table
+
+        vis_token = self.vis_client.initiate_realtime_visualization(workflow_product_id)
 
         #Trying to continue to receive messages in the queue
         gevent.sleep(10.0)  # Send some messages - don't care how many
 
-
+        #TODO - find out what the actual return data type should be
         vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
 
         print vis_data
@@ -216,3 +236,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         print vis_data
 
         self.vis_client.terminate_realtime_visualization_data(vis_token)
+
+        #Stop the workflow processes
+        self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
+
+        #Cleanup to make sure delete is correct.
+        self.workflowclient.delete_workflow_definition(workflow_def_id)
