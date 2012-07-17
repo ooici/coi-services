@@ -99,6 +99,7 @@ class VisualizationService(BaseVisualizationService):
         subscription_id = self.pubsubclient.create_subscription(
             query=StreamQuery(data_product_stream_id),
             exchange_name = query_token,
+            exchange_point = 'science_data',
             name = query_token,
         )
 
