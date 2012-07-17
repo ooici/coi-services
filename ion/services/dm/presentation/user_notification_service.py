@@ -339,7 +339,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id, notification origin: (%s, %s)" % (notification_id, notification.origin))
+        log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
 
         self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
                                             origin="UserNotificationService",
@@ -444,11 +444,10 @@ class UserNotificationService(BaseUserNotificationService):
         Helper method to delete the notification from the user_info dictionary
         '''
 
-        notification = self.clients.resource_registry.read(notification_id)
-
-        log.warning(" in delete_notification... notification: %s" % notification)
+        log.warning(" in delete_notification... notification: %s" % notification_id)
 
         for user, value in self.user_info.iteritems():
+
             log.warning("came here~~~~ user: %s, value: %s" % (user, value))
 
             for notif in value['notifications']:
@@ -565,8 +564,8 @@ class UserNotificationService(BaseUserNotificationService):
             raise AssertionError("Publish time must be a list of integers of length 6. \
                                     Ex: [year, month, day, hour, minute, second]")
 
-        log.warning("event.origin: %s" % event.origin)
-        log.warning("event.event_type: %s" % event.type_)
+        log.info("Publishing event: event.origin = %s" % event.origin)
+        log.info("Publishing event: event.event_type = %s" % event.type_)
 
         def publish_immediately(message, headers):
             log.info("UNS received a SchedulerEvent")

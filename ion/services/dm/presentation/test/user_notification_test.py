@@ -79,6 +79,9 @@ class UserNotificationTest(PyonTestCase):
         self.mock_rr_client.find_resources = mocksignature(self.mock_rr_client.find_resources)
         self.mock_rr_client.find_resources.return_value = [],[]
 
+        self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
+        self.mock_rr_client.read.return_value = 'notification'
+
         self.user_notification.create_event_processor = mocksignature(self.user_notification.create_event_processor)
 
         self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
@@ -105,8 +108,8 @@ class UserNotificationTest(PyonTestCase):
 
         self.assertEquals('notification_id_1', notification_id)
         self.mock_rr_client.create.assert_called_once_with(notification_request)
-        self.user_notification._update_users_notification.assert_called_once_with(user_id, notification_request, None)
-        self.user_notification.create_event_processor.assert_called_once_with(notification_request, user_id, 'smtp_client')
+        self.user_notification._update_users_notification.assert_called_once_with(user_id, 'notification', None)
+        self.user_notification.create_event_processor.assert_called_once_with('notification', user_id, 'smtp_client')
 
 
     def test_create_notification_validation(self):
@@ -141,14 +144,14 @@ class UserNotificationTest(PyonTestCase):
         Test updating a notification
         '''
 
-        old_notification = 'old_notification'
+        notification = 'notification'
         user_id = 'user_id_1'
 
         self.mock_rr_client.update = mocksignature(self.mock_rr_client.update)
         self.mock_rr_client.update.return_value = ''
 
         self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
-        self.mock_rr_client.read.return_value = old_notification
+        self.mock_rr_client.read.return_value = notification
 
         self.user_notification._update_users_notification = mocksignature(self.user_notification._update_users_notification)
         self.user_notification._update_users_notification.return_value = ''
@@ -178,7 +181,7 @@ class UserNotificationTest(PyonTestCase):
         #-------------------------------------------------------------------------------------------------------------------
 
         self.mock_rr_client.update.assert_called_once_with(notification_request)
-        self.user_notification._update_users_notification.assert_called_once_with(user_id, notification_request, old_notification)
+        self.user_notification._update_users_notification.assert_called_once_with(user_id, notification, notification)
 
     def test_delete_user_notification(self):
         '''
@@ -774,15 +777,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         #todo The delete method for UNS
 
-#        log.warning("notification_id_2: %s" % notification_id_2)
-#        self.unsc.delete_notification(notification_id_2)
-#
-#        # Check for UNS ------->
-#
-#        with self.assertRaises(NotFound):
-#            notification = self.rrc.read(notification_id_2)
-#
-#        self.assertFalse(notification_request_2 in proc1.user_info['user_2']['notifications'])
+        log.warning("notification_id_2: %s" % notification_id_2)
+        self.unsc.delete_notification(notification_id_2)
+
+        # Check for UNS ------->
+
+        with self.assertRaises(NotFound):
+            notification = self.rrc.read(notification_id_2)
+
+        self.assertFalse(notification_request_2 in proc1.user_info['user_2']['notifications'])
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
