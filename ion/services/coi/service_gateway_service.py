@@ -76,6 +76,10 @@ class ServiceGatewayService(BaseServiceGatewayService):
         #Get the user_cache_size
         self.user_cache_size = self.CFG.get_safe('container.service_gateway.user_cache_size', DEFAULT_USER_CACHE_SIZE)
 
+        #Initialize an LRU Cache to keep user roles cached for performance reasons
+        #maxSize = maximum number of elements to keep in cache
+        #maxAgeMs = oldest entry to keep
+        self.user_data_cache = LRUCache(self.user_cache_size,0,0)
 
         #Start the gevent web server unless disabled
         if self.web_server_enabled:
@@ -86,10 +90,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
             callback=self.user_role_event_callback)
         self.user_role_event_subscriber.start()
 
-        #Initialize an LRU Cache to keep user roles cached for performance reasons
-        #maxSize = maximum number of elements to keep in cache
-        #maxAgeMs = oldest entry to keep
-        self.user_data_cache = LRUCache(self.user_cache_size,0,0)
+
 
     def on_quit(self):
         self.stop_service()
@@ -137,7 +138,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         log.debug("User Role modified: %s %s %s" % (org_id, user_id, role_name))
 
         #Evict the user and their roles from the cache so that it gets updated with the next call.
-        if service_gateway_instance.user_data_cache.has_key(user_id):
+        if service_gateway_instance.user_data_cache and service_gateway_instance.user_data_cache.has_key(user_id):
             log.debug('Evicting user from the user_data_cache: %s' % user_id)
             service_gateway_instance.user_data_cache.evict(user_id)
 

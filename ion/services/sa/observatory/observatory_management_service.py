@@ -764,7 +764,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 self.transfer_site_subscription(site_id)
 
 
+    def deactivate_deployment(self, deployment_id=''):
+        """Remove the primary device designation for the deployed devices at the sites
 
+        @param deployment_id    str
+        @throws NotFound    object with specified id does not exist
+        @throws BadRequest    if devices can not be undeployed
+        """
+        pass
 
 
     def transfer_site_subscription(self, site_id=""):

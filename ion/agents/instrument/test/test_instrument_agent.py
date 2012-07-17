@@ -54,12 +54,12 @@ from ion.agents.instrument.driver_process import DriverProcessType
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
 
 DEV_ADDR = CFG.device.sbe37.host
 DEV_PORT = CFG.device.sbe37.port
@@ -302,8 +302,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             self._listen(sub)
             self._data_subscribers.append(sub)
             query = StreamQuery(stream_ids=[stream_id])
-            sub_id = pubsub_client.create_subscription(\
-                                query=query, exchange_name=exchange_name)
+            sub_id = pubsub_client.create_subscription(
+                                query=query, exchange_name=exchange_name, exchange_point='science_data')
             pubsub_client.activate_subscription(sub_id)
             
     def _listen(self, sub):

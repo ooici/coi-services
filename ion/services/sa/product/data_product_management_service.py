@@ -247,18 +247,16 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_version_id, version = self.clients.resource_registry.create(data_product_version)
         self.clients.resource_registry.create_association( subject=data_product_id, predicate=PRED.hasVersion, object=data_product_version_id)
 
-        #remove the data product link to the stream of the current version
-        prev_ver_stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
-        for prev_ver_stream_id in prev_ver_stream_ids:
-            self.data_product.link_stream(data_product_id, prev_ver_stream_id)
-
-        streamdef_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition, id_only=True)
-        if streamdef_ids:
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        if stream_ids:
+            #use the first steam, but this should be validated
+            streamdef_ids, _ = self.clients.resource_registry.find_objects(subject=stream_ids[0], predicate=PRED.hasStreamDefinition, id_only=True)
             stream_id = self.clients.pubsub_management.create_stream(name=data_product_obj.name,  description=data_product_obj.description, stream_definition_id=streamdef_ids[0])
             log.debug("create_data_product_version: create stream stream_id %s" % stream_id)
-            # Associate the Stream with the main Data Product and with the default version
+            # Associate the Stream with  this version
             self.clients.resource_registry.create_association( subject=data_product_version_id, predicate=PRED.hasStream, object=stream_id)
-            self.data_product.link_stream(data_product_id, stream_id)
+        else:
+            raise NotFound("Data Product %s does not have a connected StreamDefinition" % data_product_id)
 
         return data_product_version_id
 
