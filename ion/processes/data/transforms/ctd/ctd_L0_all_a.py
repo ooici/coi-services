@@ -29,9 +29,6 @@ class ctd_L0_all(TransformDataProcess):
         log.warn('ctd_L0_all.recv_packet: {0}'.format(msg))
         stream_id = headers['routing_key']
         stream_id = re.sub(r'\.data', '', stream_id)
-
-        log.warn('ctd_L0_all:{0}'.format(msg))
-
         self.receive_msg(msg, stream_id)
 
     def publish(self, msg, stream_id):
