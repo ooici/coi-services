@@ -26,8 +26,9 @@ from interface.services.iresource_agent import BaseResourceAgent
 from interface.services.iresource_agent import ResourceAgentProcessClient
 
 # ION imports.
-from ion.agents.instrument.instrument_fsm import InstrumentFSM  # TODO move this to a common location and rename ResourceFSM.
-from ion.agents.instrument.common import BaseEnum   # TODO move this to a common location and rename BaseResourceEnum.
+# TODO rename these to reflect base resource use.
+from ion.agents.instrument.instrument_fsm import InstrumentFSM 
+from ion.agents.instrument.common import BaseEnum 
 
 class ResourceAgentState(BaseEnum):
     """
@@ -69,7 +70,7 @@ class ResourceAgentEvent(BaseEnum):
     GET_RESOURCE_STATE = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_STATE'
     GET_RESOURCE_CAPABILITIES = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_CAPABILITIES'
     
-class ResourceAgentRefactor(BaseResourceAgent):
+class ResourceAgent(BaseResourceAgent):
     """
     A resource agent is an ION process of type "agent" that exposes the standard
     resource agent service interface. This base class captures the mechanisms

@@ -12,6 +12,12 @@ __license__ = 'Apache 2.0'
 
 # Import pyon first for monkey patching.
 from pyon.public import log
+from pyon.public import CFG
+from pyon.public import StreamSubscriberRegistrar
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.context import LocalContextMixin
+from pyon.event.event import EventSubscriber, EventPublisher
+from pyon.core.exception import InstParameterError
 
 # Standard imports.
 import time
@@ -20,41 +26,40 @@ import signal
 import time
 import unittest
 from datetime import datetime
-
-# 3rd party imports.
-from gevent import spawn
-from gevent.event import AsyncResult
-import gevent
-from nose.plugins.attrib import attr
-from mock import patch
 import uuid
 
-# ION imports.
+# 3rd party imports.
+import gevent
+from gevent import spawn
+from gevent.event import AsyncResult
+from nose.plugins.attrib import attr
+from mock import patch
+
+# Agent imports.
+from pyon.agent.agent import ResourceAgentClient
+from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentEvent
+from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
+from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
+from ion.agents.port.logger_process import EthernetDeviceLogger
+from ion.agents.instrument.driver_process import DriverProcessType
+
+# Objects and clients.
+from interface.objects import AgentCommand
 from interface.objects import StreamQuery
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from pyon.public import StreamSubscriberRegistrar
+
+# Stream defs.
 from prototype.sci_data.stream_defs import ctd_stream_definition
-#from pyon.agent.agent import ResourceAgentClient
-from ion.agents.instrument.agent_refactor import ResourceAgentRefactorClient
-from interface.objects import AgentCommand
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.context import LocalContextMixin
-from pyon.public import CFG
-from pyon.event.event import EventSubscriber, EventPublisher
-from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
-from pyon.core.exception import InstParameterError
 
 # MI imports.
-from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
-from ion.agents.port.logger_process import EthernetDeviceLogger
-from ion.agents.instrument.instrument_agent import InstrumentAgentState
-from ion.agents.instrument.driver_process import DriverProcessType
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 
+# TODO chagne the path following the refactor.
 # bin/nosetests -s -v ion/agents/instrument/refactor/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/agents/instrument/refactor/test_instrument_agent.py:TestInstrumentAgent.test_states
 # bin/nosetests -s -v ion/agents/instrument/refactor/test_instrument_agent.py:TestInstrumentAgent.test_get_set
@@ -67,9 +72,9 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 # Global constants.
 ###############################################################################
 
+# Real and simulated devcies we test against.
 DEV_ADDR = CFG.device.sbe37.host
 DEV_PORT = CFG.device.sbe37.port
-# Device ethernet address and port
 #DEV_ADDR = 'localhost' 
 #DEV_ADDR = '67.58.49.220' 
 #DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
@@ -77,6 +82,7 @@ DEV_PORT = CFG.device.sbe37.port
 #DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
+# A seabird driver.
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
@@ -96,8 +102,8 @@ DVR_CONFIG = {
 # Agent parameters.
 IA_RESOURCE_ID = '123xyz'
 IA_NAME = 'Agent007'
-IA_MOD = 'ion.agents.instrument.instrument_agent_refactor'
-IA_CLS = 'InstrumentAgentRefactor'
+IA_MOD = 'ion.agents.instrument.refactor.instrument_agent'
+IA_CLS = 'InstrumentAgent'
 
 # Used to validate param config retrieved from driver.
 PARAMS = {
@@ -260,7 +266,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
-        self._ia_client = ResourceAgentRefactorClient(IA_RESOURCE_ID, process=FakeProcess(), name=IA_NAME)
+        self._ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
         log.info('Got ia client %s.', str(self._ia_client))        
         
     def _start_pagent(self):
@@ -423,8 +429,30 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Test agent initialize command. This causes creation of
         driver process and transition to inactive.
         """
-        pass
-    
+        
+        state = self._ia_client.get_agent_state()
+        log.info('Agent in state: %s', state)
+
+        
+        retval = self._ia_client.get_agent()
+        for item in retval:
+            print str(item)
+        #print str(retval)
+        #cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        #retval = self._ia_client.execute_agent(cmd)
+        
+        
+        """
+        state = self._ia_client.get_agent_state()
+        log.info('Agent in state: %s', state)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+
+        state = self._ia_client.get_agent_state()
+        log.info('Agent in state: %s', state)
+        """
+        
     def test_states(self):
         """
         Test agent state transitions.

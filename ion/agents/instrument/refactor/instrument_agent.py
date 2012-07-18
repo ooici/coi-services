@@ -11,18 +11,11 @@ This resource fronts instruments and instrument drivers one-to-one in ION.
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-
 # Pyon imports
 from pyon.public import IonObject, log
-
-# The following imports will move to pyon
-from ion.agents.instrument.agent import ResourceAgent
-from ion.agents.instrument.agent import ResourceAgentEvent
-from ion.agents.instrument.agent import ResourceAgentState
-
-# Standard imports.
-
-
+from pyon.agent.agent import ResourceAgent
+from pyon.agent.agent import ResourceAgentEvent
+from pyon.agent.agent import ResourceAgentState
 
 class InstrumentAgent(ResourceAgent):
     """
@@ -127,7 +120,12 @@ class InstrumentAgent(ResourceAgent):
     def _handler_uninitialized_initialize(self, *args, **kwargs):
         """
         """
-        pass
+        result = None
+        next_state = None
+        
+        log.debug('GOT INITIALIZE EVENT')
+        return (next_state, result)
+
 
     ##############################################################
     # INACTIVE event handlers.
