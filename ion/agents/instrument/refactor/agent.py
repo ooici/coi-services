@@ -24,11 +24,13 @@ from pyon.util.containers import get_ion_ts
 # Interface imports.
 from interface.services.iresource_agent import BaseResourceAgent
 from interface.services.iresource_agent import ResourceAgentProcessClient
+from interface.objects import CapabilityType
 
 # ION imports.
 # TODO rename these to reflect base resource use.
 from ion.agents.instrument.instrument_fsm import InstrumentFSM 
 from ion.agents.instrument.common import BaseEnum
+from ion.agents.instrument.exceptions import InstrumentStateException
 
 class ResourceAgentState(BaseEnum):
     """
@@ -165,18 +167,36 @@ class ResourceAgent(BaseResourceAgent):
     def get_capabilities(self, resource_id="", current_state=True):
         """
         """
-        """
+        
+        caps = []
+        agent_caps= []
+        
+        agent_cmds = self._fsm.get_events(current_state)
+        for item in agent_cmds:
+            cap = IonObject('AgentCapability',
+                            name=item,
+                            cap_type=CapabilityType.AGT_CMD)
+            agent_caps.append(cap)
+
+        agent_params = []
+        for item in agent_params:
+            cap = IonObject('AgentCapability',
+                            name=item,
+                            cap_type=CapabilityType.AGT_PAR)
+            agent_caps.append(cap)
+        
         try:
-            caps = self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, current_state)
-            
+            resource_caps = self._fsm.on_event(
+                ResourceAgentEvent.GET_RESOURCE_CAPABILITIES,
+                current_state=current_state)
+        
         except InstrumentStateException:
-            caps = []
-        
-        caps.extend(self._get_agent_capabilities(current_state))
-        
+            resource_caps = []
+            
+        caps.extend(agent_caps)
+        caps.extend(resource_caps)
+
         return caps
-        """
-        pass
     
     ##############################################################
     # Agent interface.
@@ -230,9 +250,15 @@ class ResourceAgent(BaseResourceAgent):
         
         except Exception as e:
             # If an exception is raised, return that in the result object.
-            cmd_result.status = -1
+            if hasattr(e,'status_code'):
+                cmd_result.status = e.status_code
+            elif hasattr(e, 'error_code'):
+                cmd_result.status = e.error_code
+            else:
+                cmd_result.status = -1
             cmd_result.result = e
-
+            log.warning("Agent command %s failed with trace=%s" % (command.command, traceback.format_exc()))
+            
         return cmd_result
         
     ##############################################################

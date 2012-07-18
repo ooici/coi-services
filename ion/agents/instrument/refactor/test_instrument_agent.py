@@ -215,10 +215,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                                                      DEV_PORT,
                                                      DELIM,
                                                      WORK_DIR)
+        """
         # Start port agent, add stop to cleanup.
         self._pagent = None        
         self._start_pagent()
         self.addCleanup(self._support.stop_pagent)    
+        """
         
         # Start container.
         self._start_container()
@@ -226,6 +228,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Bring up services in a deploy file (no need to message)
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        """
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.
         self._no_samples = None
@@ -244,7 +247,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._event_subscribers = []
         self._start_event_subscribers()
         self.addCleanup(self._stop_event_subscribers)
-                
+        """
+        
+        """        
         # Create agent config.
         agent_config = {
             'driver_config' : DVR_CONFIG,
@@ -252,7 +257,16 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'agent'         : {'resource_id': IA_RESOURCE_ID},
             'test_mode' : True
         }
+        """
         
+        # Create agent config.
+        agent_config = {
+            'driver_config' : DVR_CONFIG,
+            'stream_config' : None,
+            'agent'         : {'resource_id': IA_RESOURCE_ID},
+            'test_mode' : True
+        }
+
         # Start instrument agent.
         self._ia_pid = None
         log.debug("TestInstrumentAgent.setup(): starting IA.")
@@ -432,26 +446,18 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         state = self._ia_client.get_agent_state()
         log.info('Agent in state: %s', state)
-
         
-        retval = self._ia_client.get_agent()
-        for item in retval:
-            print str(item)
-        #print str(retval)
-        #cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-        #retval = self._ia_client.execute_agent(cmd)
-        
-        
-        """
-        state = self._ia_client.get_agent_state()
-        log.info('Agent in state: %s', state)
-
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
 
         state = self._ia_client.get_agent_state()
         log.info('Agent in state: %s', state)
-        """
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        
+        state = self._ia_client.get_agent_state()
+        log.info('Agent in state: %s', state)
         
     def test_states(self):
         """
