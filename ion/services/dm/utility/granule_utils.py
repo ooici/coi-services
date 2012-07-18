@@ -6,10 +6,6 @@
 @description Utilities for crafting granules into a coverage
 '''
 
-'''
-Required Taxonomy:
-
-'''
 from pyon.core.exception import BadRequest
 from pyon.ion.granule import TaxyTool, RecordDictionaryTool, build_granule 
 from pyon.util.arg_check import validate_equal
@@ -44,9 +40,26 @@ class CoverageCraft(object):
         validate_equal(tt,self.tx, "The taxonomies don't match up.")
         rdt = RecordDictionaryTool.load_from_granule(granule)
         self.rdt = rdt
+        return rdt
 
-    def add_granule(self, coverage, granule):
-        pass
+    def add_granule(self, granule=None):
+        if granule is not None:
+            self.from_granule(granule)
+        start_index = self.coverage.num_timestemps 
+        elements = self.rdt._shp[0]
+        if self.coverage.num_timestemps == 1:
+            self.coverage.insert_timesteps(elements - 1)
+        else:
+            self.coverage.insert_timesteps(elements)
+
+#        for k,v in self.rdt.iteritems():
+#            slice_ = slice(start_index,None)
+            
+
+
+        
+
+
 
     def to_granule(self):
         return build_granule('coverage_craft', self.tx, self.rdt)
