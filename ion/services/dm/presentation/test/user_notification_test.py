@@ -388,102 +388,6 @@ class UserNotificationTest(PyonTestCase):
         self.assertTrue(self.user_notification.create_notification.called)
 
 
-#    def test_create_email(self):
-#
-#        #------------------------------------------------------------------------------------------------------
-#        #Setup for the create email test
-#        #------------------------------------------------------------------------------------------------------
-#
-#        cn = Mock()
-#
-#        notification_id = 'an id'
-#        args_list = {}
-#        kwargs_list = {}
-#
-#        def side_effect(*args, **kwargs):
-#
-#            args_list.update(args)
-#            kwargs_list.update(kwargs)
-#            return notification_id
-#
-#        cn.side_effect = side_effect
-#        self.user_notification.create_notification = cn
-#
-#        #------------------------------------------------------------------------------------------------------
-#        # Test with complete arguments
-#        #------------------------------------------------------------------------------------------------------
-#
-#        res = self.user_notification.create_email(event_type='event_type',
-#            event_subtype='event_subtype',
-#            origin='origin',
-#            origin_type='origin_type',
-#            user_id='user_id',
-#            email='email',
-#            mode = DeliveryMode.DIGEST,
-#            message_header='message_header',
-#            parser='parser'
-#        )
-#
-#        #------------------------------------------------------------------------------------------------------
-#        # Assert results about complete arguments
-#        #------------------------------------------------------------------------------------------------------
-#
-#        self.assertEquals(res, notification_id)
-#
-#        notification_request = kwargs_list['notification']
-#        user_id = kwargs_list['user_id']
-#
-#        self.assertEquals(user_id, 'user_id')
-#        self.assertEquals(notification_request.delivery_config.delivery['email'], 'email')
-#        self.assertEquals(notification_request.delivery_config.delivery['mode'], DeliveryMode.DIGEST)
-#
-#        self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
-#        self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
-#
-#        self.assertEquals(notification_request.event_type, 'event_type')
-#        self.assertEquals(notification_request.event_subtype, 'event_subtype')
-#        self.assertEquals(notification_request.origin, 'origin')
-#        self.assertEquals(notification_request.origin_type, 'origin_type')
-#
-#
-#
-#        #------------------------------------------------------------------------------------------------------
-#        # Test with email missing...
-#        #------------------------------------------------------------------------------------------------------
-#
-#        with self.assertRaises(BadRequest):
-#            res = self.user_notification.create_email(event_type='event_type',
-#                event_subtype='event_subtype',
-#                origin='origin',
-#                origin_type='origin_type',
-#                user_id='user_id',
-#                mode = DeliveryMode.DIGEST,
-#                message_header='message_header',
-#                parser='parser')
-#
-#        #------------------------------------------------------------------------------------------------------
-#        # Test with user id missing - that is caught in the create_notification method
-#        #------------------------------------------------------------------------------------------------------
-#
-#        res = self.user_notification.create_email(event_type='event_type',
-#            event_subtype='event_subtype',
-#            origin='origin',
-#            origin_type='origin_type',
-#            email='email',
-#            mode = DeliveryMode.DIGEST,
-#            message_header='message_header',
-#            parser='parser')
-#
-#        notification_request = kwargs_list['notification']
-#        user_id = kwargs_list['user_id']
-#
-#        self.assertEquals(user_id, '')
-#        self.assertEquals(notification_request.delivery_config.processing['message_header'], 'message_header')
-#        self.assertEquals(notification_request.delivery_config.processing['parsing'], 'parser')
-#        self.assertEquals(notification_request.type, NotificationType.EMAIL)
-#
-
-
 @attr('INT', group='dm')
 class UserNotificationIntTest(IonIntegrationTestCase):
     def setUp(self):
@@ -701,25 +605,29 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification_request_1 = self.rrc.read(notification_id_1)
         notification_request_2 = self.rrc.read(notification_id_2)
 
+        log.warning( "in test: ")
+        log.warning(" the user info dict: %s" % proc1.event_processor.user_info['user_1']['notifications'])
+
         # check user_info dictionary
-        self.assertEquals(proc1.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
-        self.assertEquals(proc1.user_info['user_1']['notifications'], [notification_request_1])
+        self.assertEquals(proc1.event_processor.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
+        self.assertEquals(proc1.event_processor.user_info['user_1']['notifications'], [notification_request_1])
 
-        self.assertEquals(proc1.user_info['user_2']['user_contact'].email, 'user_2@gmail.com' )
-        self.assertEquals(proc1.user_info['user_2']['notifications'], [notification_request_2])
+        self.assertEquals(proc1.event_processor.user_info['user_2']['user_contact'].email, 'user_2@gmail.com' )
+        self.assertEquals(proc1.event_processor.user_info['user_2']['notifications'], [notification_request_2])
 
+        log.warning("in test: the reverse user info dictionary: %s" %  proc1.event_processor.reverse_user_info)
 
-        self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_1'], ['user_1'])
-        self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_2'], ['user_2'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_1'], ['user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_2'], ['user_2'])
 
-        self.assertEquals(proc1.reverse_user_info['event_type']['ResourceLifecycleEvent'], ['user_1'])
-        self.assertEquals(proc1.reverse_user_info['event_type']['DetectionEvent'], ['user_2'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['ResourceLifecycleEvent'], ['user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['DetectionEvent'], ['user_2'])
 
-        self.assertEquals(proc1.reverse_user_info['event_subtype']['subtype_1'], ['user_1'])
-        self.assertEquals(proc1.reverse_user_info['event_subtype']['subtype_2'], ['user_2'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_1'], ['user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_2'], ['user_2'])
 
-        self.assertEquals(proc1.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
-        self.assertEquals(proc1.reverse_user_info['event_origin_type']['type_2'], ['user_2'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_2'], ['user_2'])
 
 
         #--------------------------------------------------------------------------------------
@@ -729,20 +637,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id_1)
 
         # Check in UNS ------------>
-        self.assertEquals(proc1.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
-        self.assertEquals(proc1.user_info['user_1']['notifications'], [notification_request_1, notification_request_2])
+        self.assertEquals(proc1.event_processor.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
 
-        self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_1'], ['user_1'])
-        self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_2'], ['user_2', 'user_1'])
+        self.assertEquals(proc1.event_processor.user_info['user_1']['notifications'], [notification_request_1, notification_request_2])
 
-        self.assertEquals(proc1.reverse_user_info['event_type']['ResourceLifecycleEvent'], ['user_1'])
-        self.assertEquals(proc1.reverse_user_info['event_type']['DetectionEvent'], ['user_2', 'user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_1'], ['user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_2'], ['user_2', 'user_1'])
 
-        self.assertEquals(proc1.reverse_user_info['event_subtype']['subtype_1'], ['user_1'])
-        self.assertEquals(proc1.reverse_user_info['event_subtype']['subtype_2'], ['user_2', 'user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['ResourceLifecycleEvent'], ['user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['DetectionEvent'], ['user_2', 'user_1'])
 
-        self.assertEquals(proc1.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
-        self.assertEquals(proc1.reverse_user_info['event_origin_type']['type_2'], ['user_2', 'user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_1'], ['user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_2'], ['user_2', 'user_1'])
+
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_2'], ['user_2', 'user_1'])
 
         #--------------------------------------------------------------------------------------
         # Update notification and check that the user_info and reverse_user_info in UNS got reloaded
@@ -757,19 +666,20 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # user_info
         notification_request_1 = self.rrc.read(notification_id_1)
 
-        self.assertTrue(notification_request_1 in proc1.user_info['user_1']['notifications'] )
+        # check that the updated notification is in the user info dictionary
+        self.assertTrue(notification_request_1 in proc1.event_processor.user_info['user_1']['notifications'] )
 
+        # check that the notifications in the user info dictionary got updated
         update_worked = False
-        for notification in proc1.user_info['user_1']['notifications']:
+        for notification in proc1.event_processor.user_info['user_1']['notifications']:
             if notification.origin == "newly_changed_instrument":
                 update_worked = True
                 break
 
         self.assertTrue(update_worked)
 
-
         # reverse_user_info
-        self.assertTrue('user_1' in proc1.reverse_user_info['event_origin']["newly_changed_instrument"])
+        self.assertTrue('user_1' in proc1.event_processor.reverse_user_info['event_origin']["newly_changed_instrument"])
 
         #--------------------------------------------------------------------------------------
         # Delete notification and check that the user_info and reverse_user_info in UNS got reloaded
@@ -779,10 +689,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # Check for UNS ------->
 
+        # check that the notification is not there anymore in the resource registry
         with self.assertRaises(NotFound):
             notification = self.rrc.read(notification_id_2)
 
-        self.assertFalse(notification_request_2 in proc1.user_info['user_2']['notifications'])
+        # check that the user_info dictionary for the user is not holding the notification anymore
+        self.assertFalse(notification_request_2 in proc1.event_processor.user_info['user_1']['notifications'])
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -1226,163 +1138,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
         self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 
+
     @attr('LOCOINT')
-    @unittest.skip('Event Detection is being deprecated. Also using an outdated event type, ExampleDetectableEvent')
-#    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_event_detection(self):
-        '''
-        Test the detection filter functionality
-        '''
-
-        proc1 = self.container.proc_manager.procs_by_name['user_notification']
-
-        #--------------------------------------------------------------------------------------
-        # Create a user and get the user_id
-        #--------------------------------------------------------------------------------------
-
-        user = UserInfo(name = 'new_user')
-        user_id, _ = self.rrc.create(user)
-
-        #--------------------------------------------------------------------------------------
-        # Create detection notification
-        #--------------------------------------------------------------------------------------
-
-        dfilt = DetectionFilterConfig()
-
-        field = 'voltage'
-        lower_bound = 5
-        upper_bound = 10
-        instrument = 'instrument_1'
-        search_string1 = "SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
-        % (field, lower_bound, upper_bound, instrument)
-
-        field = 'voltage'
-        value = 15
-        instrument = 'instrument_2'
-        search_string2 = "or search '%s' is '%s' from '%s'" % (field, value, instrument)
-
-        field = 'voltage'
-        lower_bound = 8
-        upper_bound = 14
-        instrument = 'instrument_3'
-        search_string3 = "and SEARCH '%s' VALUES FROM %s TO %s FROM '%s'"\
-        % (field, lower_bound, upper_bound, instrument)
-
-
-        dfilt.processing['search_string'] = search_string1 + search_string2 + search_string3
-
-        dfilt.delivery['message'] = 'I got my detection event!'
-
-        notification_id = self.unsc.create_detection_filter(event_type='ExampleDetectableEvent',
-            event_subtype=None,
-            origin='Some_Resource_Agent_ID1',
-            origin_type=None,
-            user_id=user_id,
-            filter_config=dfilt
-        )
-
-        #---------------------------------------------------------------------------------
-        # Create event subscription for resulting detection event
-        #---------------------------------------------------------------------------------
-
-        # Create an email notification so that when the DetectionEventProcessor
-        # detects an event and fires its own output event, this will caught by an
-        # EmailEventProcessor and an email will be sent to the user
-
-        notification_id_2 = self.unsc.create_email(event_type='DetectionEvent',
-            event_subtype=None,
-            origin='DetectionEventProcessor',
-            origin_type=None,
-            user_id=user_id,
-            email='email@email.com',
-            mode = DeliveryMode.UNFILTERED,
-            message_header='Detection event',
-            parser='parser'
-        )
-
-
-        rle_publisher = EventPublisher("ExampleDetectableEvent")
-
-        #------------------------------------------------------------------------------------------------
-        # this event will not be detected because the 'and query' will fail the match condition,
-        #------------------------------------------------------------------------------------------------
-
-        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
-            description="RLE test event",
-            voltage = 5)
-
-        # The smtp_client's sentmail queue should now empty
-        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
-
-        #----------------------------------------------------------------------
-        # This event will generate an event because it will pass the OR query
-        #----------------------------------------------------------------------
-
-        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
-            description="RLE test event",
-            voltage = 15)
-
-        msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
-        # check that a non empty message was generated for email
-        self.assertEquals(msg_tuple[1], 'email@email.com' )
-        # check that the sentmail queue is empty again after having extracted the message
-        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
-
-        #----------------------------------------------------------------------
-        # This event WILL not be detected because it will fail all the queries
-        #----------------------------------------------------------------------
-
-        rle_publisher = EventPublisher("ExampleDetectableEvent")
-        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
-            description="RLE test event",
-            voltage = 4)
-
-        # The smtp_client's sentmail queue should now empty
-        self.assertTrue(proc1.event_processors[notification_id_2].smtp_client.sentmail.empty())
-
-        #------------------------------------------------------------------------------
-        # this event WILL be detected. It will pass the main query and the AND query
-        #------------------------------------------------------------------------------
-
-        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1',
-            description="RLE test event",
-            voltage = 8)
-
-        msg_tuple = proc1.event_processors[notification_id_2].smtp_client.sentmail.get(timeout=4)
-
-        #----------------------------------------------------------------------
-        # Make assertions regarding the message generated for email
-        #----------------------------------------------------------------------
-
-        self.assertEquals(msg_tuple[1], 'email@email.com' )
-        #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
-
-        # parse the message body
-        message = msg_tuple[2]
-        list_lines = message.split("\n")
-
-        message_dict = {}
-        for line in list_lines:
-            key_item = line.split(": ")
-            if key_item[0] == 'Subject':
-                message_dict['Subject'] = key_item[1] + key_item[2]
-            else:
-                try:
-                    message_dict[key_item[0]] = key_item[1]
-                except IndexError as exc:
-                    # these IndexError exceptions happen only because the message sometimes
-                    # has successive /r/n (i.e. new lines) and therefore,
-                    # the indexing goes out of range. These new lines
-                    # can just be ignored. So we ignore the exceptions here.
-                    pass
-
-
-        #self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
-        self.assertEquals(message_dict['To'], 'email@email.com')
-        self.assertEquals(message_dict['Event'].rstrip('\r'), 'DetectionEvent')
-        self.assertEquals(message_dict['Originator'].rstrip('\r'), 'DetectionEventProcessor')
-        self.assertEquals(message_dict['Description'].rstrip('\r'), 'Event was detected by DetectionEventProcessor')
-
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_create_read_user_notifications(self):
         '''
         Test the create and read notification methods
@@ -1432,6 +1190,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(n1.origin, notification_request_1.origin)
         self.assertEquals(n1.origin_type, notification_request_1.origin_type)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_delete_user_notifications(self):
         '''
         Test deleting a notification
@@ -1474,6 +1234,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             notific2 = self.unsc.read_notification(notification_id2)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_update_user_notification(self):
         '''
         Test updating a user notification
@@ -1517,6 +1279,19 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(notification.event_type, 'ResourceLifecycleEvent')
         self.assertEquals(notification.origin, 'instrument_1')
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_remove_notification(self):
+        '''
+        Test the removal of notification for a user
+        '''
+        #todo: Complete this test
+
+        pass
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_find_events(self):
         '''
         Test the find events functionality of UNS
@@ -1536,6 +1311,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(len(events), 4)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_create_several_workers(self):
         '''
         Create more than one worker. Test that they process events in round robin
@@ -1544,6 +1321,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(len(pids), 2)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_publish_event_on_time(self):
         '''
         Test the publish_event method of UNS
@@ -1584,87 +1363,4 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(event_in.origin_type, 'origin_type_1')
         self.assertEquals(event_in.ts_created, 2)
         self.assertEquals(event_in.sub_type, 'sub_type_1')
-
-
-
-#    @attr('LOCOINT')
-#    @unittest.skip("Changed interface. Create email may get deprecated soon")
-#    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-#    def test_create_email(self):
-#        '''
-#        Test the functionality of the create_email method of the User Notification Service
-#
-#        '''
-#
-#        proc1 = self.container.proc_manager.procs_by_name['user_notification']
-#
-#        #--------------------------------------------------------------------------------------
-#        # Create a user and get the user_id
-#        #--------------------------------------------------------------------------------------
-#
-#        user = UserInfo(name = 'new_user')
-#        user_id, _ = self.rrc.create(user)
-#
-#        #--------------------------------------------------------------------------------------
-#        # set up....
-#        #--------------------------------------------------------------------------------------
-#
-#        notification_id = self.unsc.create_email(event_type='ResourceLifecycleEvent',
-#            event_subtype=None,
-#            origin='Some_Resource_Agent_ID1',
-#            origin_type=None,
-#            user_id=user_id,
-#            email='email@email.com',
-#            mode = DeliveryMode.DIGEST,
-#            frequency= Frequency.REAL_TIME,
-#            message_header='message_header',
-#            parser='parser')
-#
-#        #------------------------------------------------------------------------------------------------------
-#        # Setup so as to be able to get the message and headers going into the
-#        # subscription callback method of the EmailEventProcessor
-#        #------------------------------------------------------------------------------------------------------
-#
-#        # publish an event for each notification to generate the emails
-#        rle_publisher = EventPublisher("ResourceLifecycleEvent")
-#        rle_publisher.publish_event(origin='Some_Resource_Agent_ID1', description="RLE test event")
-#
-#        msg_tuple = proc1.event_processors[notification_id].smtp_client.sentmail.get(timeout=4)
-#
-#        self.assertTrue(proc1.event_processors[notification_id].smtp_client.sentmail.empty())
-#
-#        message = msg_tuple[2]
-#        list_lines = message.split("\n")
-#
-#        #-------------------------------------------------------
-#        # parse the message body
-#        #-------------------------------------------------------
-#
-#        message_dict = {}
-#        for line in list_lines:
-#            key_item = line.split(": ")
-#            if key_item[0] == 'Subject':
-#                message_dict['Subject'] = key_item[1] + key_item[2]
-#            else:
-#                try:
-#                    message_dict[key_item[0]] = key_item[1]
-#                except IndexError as exc:
-#                    # these IndexError exceptions happen only because the message sometimes
-#                    # has successive /r/n (i.e. new lines) and therefore,
-#                    # the indexing goes out of range. These new lines
-#                    # can just be ignored. So we ignore the exceptions here.
-#                    pass
-#
-#        #-------------------------------------------------------
-#        # make assertions
-#        #-------------------------------------------------------
-#
-#        self.assertEquals(msg_tuple[1], 'email@email.com' )
-#        #self.assertEquals(msg_tuple[0], ION_NOTIFICATION_EMAIL_ADDRESS)
-#
-#        #self.assertEquals(message_dict['From'], ION_NOTIFICATION_EMAIL_ADDRESS)
-#        self.assertEquals(message_dict['To'], 'email@email.com')
-#        self.assertEquals(message_dict['Event'].rstrip('\r'), 'ResourceLifecycleEvent')
-#        self.assertEquals(message_dict['Originator'].rstrip('\r'), 'Some_Resource_Agent_ID1')
-#        self.assertEquals(message_dict['Description'].rstrip('\r'), 'RLE test event')
 

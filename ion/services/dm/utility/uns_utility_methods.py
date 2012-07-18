@@ -233,6 +233,8 @@ def calculate_reverse_user_info(user_info = {}):
     if not user_info:
         return {}
 
+    log.warning("came here in calculate")
+
     reverse_user_info = {}
 
     dict_1 = {}
@@ -243,6 +245,8 @@ def calculate_reverse_user_info(user_info = {}):
     for user_name, value in user_info.iteritems():
 
         notifications = value['notifications']
+
+        log.warning("in calculate: notifications: %s" % notifications)
 
         if notifications:
 

@@ -161,14 +161,11 @@ class NotificationWorker(SimpleProcess):
             return {}
 
         for user in users:
-            user_name = user.name
-            user_contact = user.contact
-
             notifications = []
             for variable in user.variables:
                 if variable['name'] == 'notification':
                     notifications = variable['value']
 
-            user_info[user_name] = { 'user_contact' : user_contact, 'notifications' : notifications}
+            user_info[user.name] = { 'user_contact' : user.contact, 'notifications' : notifications}
 
         return user_info
