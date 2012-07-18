@@ -45,20 +45,22 @@ class CoverageCraft(object):
     def add_granule(self, granule=None):
         if granule is not None:
             self.from_granule(granule)
-        start_index = self.coverage.num_timestemps 
+        start_index = self.coverage.num_timesteps 
         elements = self.rdt._shp[0]
-        if self.coverage.num_timestemps == 1:
+        if self.coverage.num_timesteps == 1:
+            start_index = 0
             self.coverage.insert_timesteps(elements - 1)
         else:
             self.coverage.insert_timesteps(elements)
 
-#        for k,v in self.rdt.iteritems():
-#            slice_ = slice(start_index,None)
+        for k,v in self.rdt.iteritems():
+            print "key: %s" % k
+            print "value: %s" % v
+            slice_ = slice(start_index,None)
+            print "slice: %s" % slice_
+            self.coverage.set_parameter_values(k,tdoa=slice_, value=v)
+
             
-
-
-        
-
 
 
     def to_granule(self):
@@ -76,7 +78,7 @@ class CoverageCraft(object):
         scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT, AxisTypeEnum.HEIGHT])
 
         tdom = GridDomain(GridShape('temporal'), tcrs, MutabilityEnum.EXTENSIBLE)
-        sdom = GridDomain(GridShape('spatial', [1, 1, 1]), scrs, MutabilityEnum.IMMUTABLE) # Dimensionality is excluded for now
+        sdom = GridDomain(GridShape('spatial', [1]), scrs, MutabilityEnum.IMMUTABLE) # Dimensionality is excluded for now
     
         scov = SimplexCoverage('sample grid coverage_model', rdict, sdom, tdom)
 
