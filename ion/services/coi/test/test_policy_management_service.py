@@ -218,7 +218,7 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
         self.assertNotEqual(user_role, None)
 
         user_role.name = 'Test_User_Role_2'
-        self.policy_management_service.update_policy(user_role)
+        self.policy_management_service.update_role(user_role)
 
         user_role = None
         user_role = self.policy_management_service.read_role(user_role_id)
