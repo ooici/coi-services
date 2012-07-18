@@ -16,7 +16,7 @@ from pyon.ion.transform import TransformDataProcess
 from pyon.public import IonObject, RT, log, PRED, StreamSubscriberRegistrar, StreamPublisherRegistrar, Container
 from pyon.util.containers import create_unique_identifier, get_safe
 from interface.objects import StreamQuery
-from pyon.core.exception import Inconsistent
+from pyon.core.exception import Inconsistent, BadRequest
 from datetime import datetime
 import string
 import random
@@ -123,25 +123,16 @@ class VisualizationService(BaseVisualizationService):
                 tx = TaxyTool.load_from_granule(g)
                 rdt = RecordDictionaryTool.load_from_granule(g)
 
-                gdt_components = get_safe(rdt, 'google_dt_components')
+                gdt_data = get_safe(rdt, 'google_dt')
 
                 # IF this granule does not contains google dt, skip
-                if gdt_components is None:
+                if gdt_data == None:
                     continue
 
-                gdt_component = gdt_components[0]
-                if gdt_component['viz_product_type'] == 'google_realtime_dt':
-                    gdt_description = gdt_component['data_table_description']
-                    gdt_content = gdt_component['data_table_content']
-
-                #assertions(gdt_description[0][0] == 'time')
-                #assertions(len(gdt_description) > 1)
-                #assertions(len(gdt_content) >= 0)
-
-                    #TODO replace with actual GDT conversion if need be.
-                    print gdt_content
-                    return gdt_content
-
+                gdt = gdt_data[0]
+                if gdt['viz_product_type'] == 'google_dt':
+                    print gdt['data_table']
+                    return gdt['data_table']
 
                 #TODO - what to do if this is not a valid visualization message?
 
