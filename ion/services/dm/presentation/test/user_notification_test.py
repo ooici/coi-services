@@ -65,7 +65,7 @@ class UserNotificationTest(PyonTestCase):
         self.user_notification.event_processor = EmailEventProcessor('an_smtp_client')
 
 
-#    @unittest.skip('Bad test - figure out how to patch out the greenlet start...')
+    #    @unittest.skip('Bad test - figure out how to patch out the greenlet start...')
     def test_create_notification(self):
         '''
         Test creating a notification
@@ -235,7 +235,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self._start_container()
         self.addCleanup(UserNotificationIntTest.es_cleanup)
-        self.container.start_rel_from_url('res/deploy/r2deploy.yml', config)
+        self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
 
         self.unsc = UserNotificationServiceClient()
         self.rrc = ResourceRegistryServiceClient()
@@ -294,8 +294,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             queue.put(message)
 
         reload_event_subscriber = EventSubscriber(origin="UserNotificationService",
-                                                    event_type="ReloadUserInfoEvent",
-                                                    callback=reload_event_received)
+            event_type="ReloadUserInfoEvent",
+            callback=reload_event_received)
         reload_event_subscriber.start()
 
         #--------------------------------------------------------------------------------------
@@ -303,14 +303,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_request_1 = NotificationRequest(   name= 'notification_1',
-                                                        origin="instrument_1",
-                                                        origin_type="type_1",
-                                                        event_type='ResourceLifecycleEvent')
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
 
         notification_request_2 = NotificationRequest(   name='notification_2',
-                                                        origin="instrument_2",
-                                                        origin_type="type_2",
-                                                        event_type='DetectionEvent')
+            origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
 
         #--------------------------------------------------------------------------------------
         # Create a user and get the user_id
@@ -399,16 +399,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_request_1 = NotificationRequest(   name = 'notification_1',
-                                                        origin="instrument_1",
-                                                        origin_type="type_1",
-                                                        event_type='ResourceLifecycleEvent',
-                                                        event_subtype = 'subtype_1')
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent',
+            event_subtype = 'subtype_1')
 
         notification_request_2 = NotificationRequest(   name = 'notification_2',
-                                                        origin="instrument_2",
-                                                        origin_type="type_2",
-                                                        event_type='DetectionEvent',
-                                                        event_subtype = 'subtype_2')
+            origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent',
+            event_subtype = 'subtype_2')
 
 
         #--------------------------------------------------------------------------------------
@@ -464,7 +464,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
         self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_2'], ['user_2'])
 
-
+        log.debug("The event processor received the notification topics after a create_notification() for two users")
+        log.debug("Verified that the event processor correctly updated its user info dictionaries")
         #--------------------------------------------------------------------------------------
         # Create another notification for the first user
         #--------------------------------------------------------------------------------------
@@ -487,6 +488,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
         self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_2'], ['user_2', 'user_1'])
+
+        log.debug("The event processor received the notification topics after another create_notification() for the first user")
+        log.debug("Verified that the event processor correctly updated its user info dictionaries")
 
         #--------------------------------------------------------------------------------------
         # Update notification and check that the user_info and reverse_user_info in UNS got reloaded
@@ -516,6 +520,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # reverse_user_info
         self.assertTrue('user_1' in proc1.event_processor.reverse_user_info['event_origin']["newly_changed_instrument"])
 
+        log.debug("Verified that the event processor correctly updated its user info dictionaries after an update_notification()")
+
         #--------------------------------------------------------------------------------------
         # Delete notification and check that the user_info and reverse_user_info in UNS got reloaded
         #--------------------------------------------------------------------------------------
@@ -530,6 +536,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # check that the user_info dictionary for the user is not holding the notification anymore
         self.assertFalse(notification_request_2 in proc1.event_processor.user_info['user_1']['notifications'])
+
+        log.debug("Verified that the event processor correctly updated its user info dictionaries after an delete_notification()")
+
+        log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -569,16 +579,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_request_1 = NotificationRequest(   name = "notification_1",
-                                                        origin="instrument_1",
-                                                        origin_type="type_1",
-                                                        event_type='ResourceLifecycleEvent',
-                                                        event_subtype = 'subtype_1')
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent',
+            event_subtype = 'subtype_1')
 
         notification_request_2 = NotificationRequest(   name = "notification_2",
-                                                        origin="instrument_2",
-                                                        origin_type="type_2",
-                                                        event_type='DetectionEvent',
-                                                        event_subtype = 'subtype_2')
+            origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent',
+            event_subtype = 'subtype_2')
 
 
         #--------------------------------------------------------------------------------------
@@ -616,6 +626,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(reloaded_reverse_user_info['event_type']['ResourceLifecycleEvent'], ['new_user'] )
         self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], ['new_user'] )
 
+        log.debug("Verified that the notification worker correctly updated its user info dictionaries after a create_notification()")
+
         #--------------------------------------------------------------------------------------
         # Create another notification
         #--------------------------------------------------------------------------------------
@@ -644,6 +656,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], ['new_user'] )
         self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_2'], ['new_user'] )
+
+        log.debug("Verified that the notification worker correctly updated its user info dictionaries after another create_notification()")
 
 
     @attr('LOCOINT')
@@ -711,20 +725,20 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_request_1 = NotificationRequest(   name = "notification_1",
-                                                        origin="instrument_1",
-                                                        origin_type="type_1",
-                                                        event_type='ResourceLifecycleEvent')
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
 
         notification_request_2 = NotificationRequest(   name = "notification_2",
-                                                        origin="instrument_2",
-                                                        origin_type="type_2",
-                                                        event_type='DetectionEvent')
+            origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
 
 
         notification_request_3 = NotificationRequest(   name = "notification_3",
-                                                        origin="instrument_3",
-                                                        origin_type="type_3",
-                                                        event_type='ResourceLifecycleEvent')
+            origin="instrument_3",
+            origin_type="type_3",
+            event_type='ResourceLifecycleEvent')
 
 
 
@@ -830,14 +844,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_request_1 = NotificationRequest(   name = "notification_1",
-                                                        origin="instrument_1",
-                                                        origin_type="type_1",
-                                                        event_type='ResourceLifecycleEvent')
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
 
         notification_request_2 = NotificationRequest(   name = "notification_2",
-                                                        origin="instrument_2",
-                                                        origin_type="type_2",
-                                                        event_type='DetectionEvent')
+            origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
 
 
         #--------------------------------------------------------------------------------------
@@ -856,14 +870,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_publisher = EventPublisher()
 
         event_publisher.publish_event(  ts_created= 5,
-                                        event_type = "ResourceLifecycleEvent",
-                                        origin="instrument_1",
-                                        origin_type="type_1")
+            event_type = "ResourceLifecycleEvent",
+            origin="instrument_1",
+            origin_type="type_1")
 
         event_publisher.publish_event(  ts_created= 10,
-                                        event_type = "DetectionEvent",
-                                        origin="instrument_2",
-                                        origin_type="type_2")
+            event_type = "DetectionEvent",
+            origin="instrument_2",
+            origin_type="type_2")
 
         #--------------------------------------------------------------------------------------
         # Check that the workers processed the events
@@ -924,14 +938,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_request_1 = NotificationRequest(   name = "notification_1",
-                                                        origin="instrument_1",
-                                                        origin_type="type_1",
-                                                        event_type='ResourceLifecycleEvent')
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
 
         notification_request_2 = NotificationRequest(   name = "notification_2",
-                                                        origin="instrument_2",
-                                                        origin_type="type_2",
-                                                        event_type='DetectionEvent')
+            origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
 
 
         #--------------------------------------------------------------------------------------
@@ -975,14 +989,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_request_1 = NotificationRequest(   name = "notification_1",
-                                                        origin="instrument_1",
-                                                        origin_type="type_1",
-                                                        event_type='ResourceLifecycleEvent')
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
 
         notification_request_2 = NotificationRequest(   name = "notification_2",
-                                                        origin="instrument_2",
-                                                        origin_type="type_2",
-                                                        event_type='DetectionEvent')
+            origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
 
         notification_id1 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
         notification_id2 =  self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
@@ -1024,9 +1038,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_request_1 = NotificationRequest(   name = "notification_1",
-                                                        origin="instrument_1",
-                                                        origin_type="type_1",
-                                                        event_type='ResourceLifecycleEvent')
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
 
         notification_id =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
 
@@ -1096,9 +1110,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # Create an event object
         event = ResourceEvent(  origin= "origin_1",
-                                origin_type='origin_type_1',
-                                sub_type= 'sub_type_1',
-                                ts_created = 2)
+            origin_type='origin_type_1',
+            sub_type= 'sub_type_1',
+            ts_created = 2)
 
         # Set up a subscriber to listen for that event
 
