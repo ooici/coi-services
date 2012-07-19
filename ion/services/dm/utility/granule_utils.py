@@ -99,7 +99,7 @@ class CoverageCraft(object):
         # Coordinate parameters
         #--------------------------------------------------------------------------------
         if parameter is "time":
-            pcontext.uom = 'urn:ogc:def:uom:UCUM::s'
+            pcontext.uom = 'seconds since 1970-01-01'
             pcontext.description = 'time'
             pcontext.fill_value = np.float64(0e0)
             pcontext.axis = AxisTypeEnum.TIME
@@ -137,6 +137,60 @@ class CoverageCraft(object):
             raise BadRequest('The parameter is not explicitly defined and therefore not accepted')
 
         coverage.append_parameter(pcontext)
+        
+    @classmethod
+    def get_relative_time(cls, coverage, time):
+        '''
+        Determines the relative time in the coverage model based on a given time
+        The time must match the coverage's time units
+        '''
+        pc = coverage.get_parameter_context('time')
+        units = pc.uom
+        if 'iso' in units:
+            return None # Not sure how to implement this....  How do you compare iso strings effectively?
+        values = coverage.get_parameter_values('time')
+        return cls.binary_search(values,time)
+        
+
+    @classmethod
+    def binary_search(cls, array, value, imin=None, imax=None):
+        '''
+        Binary search against an array, identifies the best index
+        Best index is one that meets the following:
+          If the value lies between two elements in the array it picks the first element
+          If the value is greater than the last value in the array it chooses the last element
+          If the value is less than the first value in the array it chooses the first element
+        '''
+        if imin is None:
+            imin = 0
+        if imax is None:
+            imax = len(array) - 1
+        if imin == imax or imax == imin+1:
+            return imin
+        mid = (imax - imin) / 2 + imin
+
+        # Short circuit entire section
+        if array[imin] > value:
+            return imin
+
+        if array[imax] < value:
+            return imax
+
+
+        if array[mid] == value:
+            return mid
+        elif array[mid] < value:
+            return cls.binary_search(array,value,mid,imax)
+        elif array[mid] > value:
+            return cls.binary_search(array, value, imin, mid)
+        else:
+            return mid
+
+
+            
+
+
+
 
     @staticmethod
     def ts_to_units(units, val):
@@ -155,9 +209,6 @@ class CoverageCraft(object):
             return val
 
 
-
-
-         
     @staticmethod
     def units_to_ts(units, val):
         '''
