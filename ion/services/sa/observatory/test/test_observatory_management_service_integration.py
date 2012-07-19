@@ -237,7 +237,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
                                         description='some new mf')
         self.OMS.create_observatory(observatory_obj)
 
-    #@unittest.skip('targeting')
+    @unittest.skip('deletes are broken, skipped until new pyon is released')
     def test_find_observatory_org(self):
         org_obj = IonObject(RT.Org,
                             name='TestOrg',
