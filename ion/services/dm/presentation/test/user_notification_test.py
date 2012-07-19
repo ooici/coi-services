@@ -275,6 +275,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         return None
 
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_pub_reload_user_info_event(self):
         '''
@@ -383,6 +384,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_user_info_UNS(self):
         '''
@@ -645,6 +647,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_batch_notifications(self):
         '''
@@ -787,6 +790,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_worker_send_email(self):
         '''
@@ -897,6 +901,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertEquals(event_time, 5)
 
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_create_read_user_notifications(self):
         '''
@@ -948,6 +953,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(n1.origin_type, notification_request_1.origin_type)
 
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_delete_user_notifications(self):
         '''
@@ -992,6 +998,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             notific2 = self.unsc.read_notification(notification_id2)
 
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_update_user_notification(self):
         '''
@@ -1038,6 +1045,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_find_events(self):
         '''
@@ -1059,6 +1067,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(events), 4)
 
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_create_several_workers(self):
         '''
@@ -1069,6 +1078,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(pids), 2)
 
     @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_publish_event_on_time(self):
         '''
