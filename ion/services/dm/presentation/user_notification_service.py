@@ -160,24 +160,6 @@ class EmailEventProcessor(EventProcessor):
 
         user = self.put_notification_in_user_object(user, notification_request)
 
-#        #------ CHECK IN
-#
-#        u = self.rr.read(user_id)
-#
-#        log.warning("UPDATED:::: user.variables: %s" % user.variables)
-#        log.warning("u variables ~~~ %s" % u.variables)
-#
-#        users, _ = self.rr.find_resources(restype= RT.UserInfo)
-#
-#        count = 0
-#        for user in users:
-#            count += 1
-#            log.warning("count: %s" % count)
-#            log.warning("user: %s" % user)
-#            log.warning("user.variables: here %s" % user.variables)
-#
-#        #------ CHECK OUT
-
         #---------------------------------------------------------------------------------------------------
         # Add a notification to the list of subscribed notifications for the user
         #---------------------------------------------------------------------------------------------------
@@ -198,19 +180,15 @@ class EmailEventProcessor(EventProcessor):
         Add the notification into the user info object.
         '''
 
-        user_variable_has_notifications = False
+        user_variables_has_notifications = False
 
         for item in user.variables:
             if item.has_key('name') and item['name']=='notifications':
-                log.warning("came inside here")
                 item['value'].append(notification_request)
-                log.warning("item['value']: %s" % item['value'])
+                user_variables_has_notifications = True
 
-                user_variable_has_notifications = True
-
-        if not user_variable_has_notifications:
+        if not user_variables_has_notifications:
             user.variables.append({'name' : 'notifications', 'value' : [notification_request]})
-            log.warning("came inside there")
 
         self.rr.update(user)
 
@@ -243,10 +221,6 @@ class EmailEventProcessor(EventProcessor):
                                                                              notification_subscription}}
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
-        log.warning("for user: %s" % user)
-        log.warning("the updated user info dictionary: %s" % self.user_info)
-
-
     def _add_callback_to_notification(self, notification_request=None, callback = None):
         """
         Adds a notification that this user then subscribes to.
@@ -255,10 +229,16 @@ class EmailEventProcessor(EventProcessor):
         @retval notification object
         """
 
+        #---------------------------------------------------------------------------------------------------
         # create and save notification in notifications list
+        #---------------------------------------------------------------------------------------------------
+
         notification_subscription = NotificationSubscription(notification_request, callback)
 
+        #---------------------------------------------------------------------------------------------------
         # start the event subscriber listening
+        #---------------------------------------------------------------------------------------------------
+
         notification_subscription.activate()
 
         log.debug("EventProcessor.add_notification(): added notification " + str(notification_request))
@@ -430,10 +410,6 @@ class UserNotificationService(BaseUserNotificationService):
         # Update the user_info dictionary maintained by UNS
         #------------------------------------------------------------------------------------
 
-        log.warning("inside the method: user: %s" % user)
-        log.warning("inside the method: notification: %s" % notification)
-        log.warning("insidet the method: old notification: %s" % old_notification)
-
         self.update_user_info_dictionary(user, notification, old_notification)
 
         #-------------------------------------------------------------------------------------------------------------------
@@ -455,7 +431,6 @@ class UserNotificationService(BaseUserNotificationService):
         @retval notification    NotificationRequest
         @throws NotFound    object with specified id does not exist
         """
-        # Read UserNotification object with _id matching passed notification_id
         notification = self.clients.resource_registry.read(notification_id)
 
         return notification
@@ -520,10 +495,6 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         """
 
-        search_time = ''
-        search_origin = ''
-        search_type = ''
-
         if min_datetime and max_datetime:
             search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (min_datetime, max_datetime)
         else:
@@ -580,9 +551,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         def publish_immediately(message, headers):
             log.info("UNS received a SchedulerEvent")
-
-            current_time = datetime.datetime.today()
-
             self.event_publisher._publish_event( event_msg = event,
                                             origin=event.origin,
                                             event_type = event.type_)
@@ -772,8 +740,6 @@ class UserNotificationService(BaseUserNotificationService):
         if not user:
             raise BadRequest("No user with the provided user_id: %s" % user_id)
 
-        log.warning(" came here in this method")
-
         notifications = []
         for item in user.variables:
             if item['name'] == 'notifications':
@@ -786,13 +752,9 @@ class UserNotificationService(BaseUserNotificationService):
                 # put in the new notification
                 notifications.append(new_notification)
 
-                log.warning("notifications in this method: %s" % notifications)
-
                 item['value'] = notifications
 
                 break
-
-        log.warning("user.variables: %s" % user.variables)
 
         #------------------------------------------------------------------------------------
         # update the resource registry
@@ -803,10 +765,6 @@ class UserNotificationService(BaseUserNotificationService):
         return user
 
     def update_user_info_dictionary(self, user, new_notification, old_notification):
-
-        notifications = []
-
-        log.warning("user_info at the top: %s" % self.event_processor.user_info)
 
         #------------------------------------------------------------------------------------
         # Remove the old notifications
@@ -837,17 +795,12 @@ class UserNotificationService(BaseUserNotificationService):
         notifications = self.event_processor.user_info[user.name]['notifications']
         notifications.append(new_notification)
 
-        log.warning("HERE: notifications: %s" % notifications)
-        log.warning("new_notification: %s" % new_notification)
-
         #------------------------------------------------------------------------------------
         # update the user info - contact information, notifications
         #------------------------------------------------------------------------------------
 
         self.event_processor.user_info[user.name]['user_contact'] = user.contact
         self.event_processor.user_info[user.name]['notifications'] = notifications
-
-        log.warning("user_info ~~~: %s" %  self.event_processor.user_info)
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 

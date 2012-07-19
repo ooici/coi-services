@@ -111,8 +111,8 @@ class NotificationWorker(SimpleProcess):
         if self.reverse_user_info:
             users = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
 
-        log.warning("Type of event received by notification worker: %s" % msg.type_)
-        log.warning("Notification worker deduced the following users were interested in the event: %s" % users )
+        log.info("Type of event received by notification worker: %s" % msg.type_)
+        log.info("Notification worker deduced the following users were interested in the event: %s" % users )
 
         #------------------------------------------------------------------------------------
         # Send email to the users
@@ -155,18 +155,6 @@ class NotificationWorker(SimpleProcess):
 
         users, _ = self.resource_registry.find_resources(restype= RT.UserInfo)
 
-        # -- CHECK
-
-        count = 0
-        for user in users:
-            count +=1
-            log.warning("count: %s" % count)
-            log.warning("user.variables: %s" % user.variables)
-
-        # --- CHECK OUT
-
-        log.warning("in load_user_info... user: %s" % users[0])
-
         user_info = {}
 
         if not users:
@@ -179,7 +167,5 @@ class NotificationWorker(SimpleProcess):
                     notifications = variable['value']
 
             user_info[user.name] = { 'user_contact' : user.contact, 'notifications' : notifications}
-
-        log.warning("user_info: %s" % user_info)
 
         return user_info

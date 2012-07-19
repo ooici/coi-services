@@ -75,9 +75,6 @@ class UserNotificationTest(PyonTestCase):
         self.mock_rr_client.create = mocksignature(self.mock_rr_client.create)
         self.mock_rr_client.create.return_value = ('notification_id_1','rev_1')
 
-        self.user_notification.update_user_info_object = mocksignature(self.user_notification.update_user_info_object)
-        self.user_notification.update_user_info_object.return_value = ''
-
         self.mock_rr_client.find_resources = mocksignature(self.mock_rr_client.find_resources)
         self.mock_rr_client.find_resources.return_value = [],[]
 
@@ -110,7 +107,6 @@ class UserNotificationTest(PyonTestCase):
 
         self.assertEquals('notification_id_1', notification_id)
         self.mock_rr_client.create.assert_called_once_with(notification_request)
-        self.user_notification.update_user_info_object.assert_called_once_with(user_id, 'notification', None)
         self.user_notification.event_processor.add_notification_for_user.assert_called_once_with('notification', user_id)
 
 
@@ -446,10 +442,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # read back the registered notification request objects
         notification_request_1 = self.rrc.read(notification_id_1)
         notification_request_2 = self.rrc.read(notification_id_2)
-
-        for notification in proc1.event_processor.user_info['user_1']['notifications']:
-            log.warning("in test: notification: %s" % notification)
-        log.warning("in test: notificaiton_request_1: %s" % notification_request_1)
 
         # check user_info dictionary
         self.assertEquals(proc1.event_processor.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
