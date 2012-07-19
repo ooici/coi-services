@@ -149,46 +149,15 @@ class CoverageCraft(object):
         if 'iso' in units:
             return None # Not sure how to implement this....  How do you compare iso strings effectively?
         values = coverage.get_parameter_values('time')
-        return cls.binary_search(values,time)
-        
-
+        return cls.find_nearest(values,time)
+       
     @classmethod
-    def binary_search(cls, array, value, imin=None, imax=None):
+    def find_nearest(cls, arr, val):
         '''
-        Binary search against an array, identifies the best index
-        Best index is one that meets the following:
-          If the value lies between two elements in the array it picks the first element
-          If the value is greater than the last value in the array it chooses the last element
-          If the value is less than the first value in the array it chooses the first element
+        The sexiest algorithm for finding the best matching value for a numpy array
         '''
-        if imin is None:
-            imin = 0
-        if imax is None:
-            imax = len(array) - 1
-        if imin == imax or imax == imin+1:
-            return imin
-        mid = (imax - imin) / 2 + imin
-
-        # Short circuit entire section
-        if array[imin] > value:
-            return imin
-
-        if array[imax] < value:
-            return imax
-
-
-        if array[mid] == value:
-            return mid
-        elif array[mid] < value:
-            return cls.binary_search(array,value,mid,imax)
-        elif array[mid] > value:
-            return cls.binary_search(array, value, imin, mid)
-        else:
-            return mid
-
-
-            
-
+        idx = np.abs(arr-val).argmin()
+        return idx
 
 
 
