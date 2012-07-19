@@ -746,8 +746,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #Verify that the deployment exists
         deployment_obj = self.clients.resource_registry.read(deployment_id)
 
-        if LCS.DEPLOYED == deployment_obj.lcstate:
-            raise BadRequest("This deploment is already active")
+#        if LCS.DEPLOYED == deployment_obj.lcstate:
+#            raise BadRequest("This deploment is already active")
 
         device_models, site_models = self.collect_deployment_components(deployment_id)
 
@@ -801,8 +801,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             if activate_subscriptions:
                 log.info("Activating subscription too")
                 self.transfer_site_subscription(site_id)
-
-        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
+#
+#        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
 
 
     def deactivate_deployment(self, deployment_id=''):
@@ -816,8 +816,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #Verify that the deployment exists
         deployment_obj = self.clients.resource_registry.read(deployment_id)
 
-        if LCS.DEPLOYED != deployment_obj.lcstate:
-            raise BadRequest("This deploment is not active")
+#        if LCS.DEPLOYED != deployment_obj.lcstate:
+#            raise BadRequest("This deploment is not active")
 
         # get all associated components
         device_models, site_models = self.collect_deployment_components(deployment_id)
@@ -847,9 +847,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 if d in device_ids:
                     a = self.RR.get_association(s, PRED.hasDevice, d)
                     self.RR.delete_association(a)
-
-        # mark deployment as not deployed (developed seems appropriate)
-        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
+#
+#        # mark deployment as not deployed (developed seems appropriate)
+#        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
 
 
 
