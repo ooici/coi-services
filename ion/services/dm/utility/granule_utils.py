@@ -10,6 +10,10 @@ from pyon.core.exception import BadRequest
 from pyon.ion.granule import TaxyTool, RecordDictionaryTool, build_granule 
 from pyon.util.arg_check import validate_equal
 from coverage_model.coverage import GridDomain, CRS, AxisTypeEnum, MutabilityEnum, GridShape, SimplexCoverage, RangeDictionary, ParameterContext
+import dateutil.parser
+import netCDF4
+import time
+import datetime
 import numpy as np
 '''
 Assuming all values are np.float64 except data which is int8
@@ -59,8 +63,6 @@ class CoverageCraft(object):
             slice_ = slice(start_index,None)
             print "slice: %s" % slice_
             self.coverage.set_parameter_values(k,tdoa=slice_, value=v)
-
-            
 
 
     def to_granule(self):
@@ -135,7 +137,44 @@ class CoverageCraft(object):
             raise BadRequest('The parameter is not explicitly defined and therefore not accepted')
 
         coverage.append_parameter(pcontext)
+
+    @staticmethod
+    def ts_to_units(units, val):
+        '''
+        Converts a unix timestamp into various formats
+        Example:
+        ts = time.time()
+        CoverageCraft.ts_to_units('days since 2000-01-01', ts)
+        '''
+        if 'iso' in units:
+            return time.strftime('%Y-%d-%mT%H:%M:%S', time.gmtime(val))
+        elif 'since' in units:
+            t = netCDF4.netcdftime.utime(units)
+            return t.date2num(datetime.datetime.fromtimestamp(val))
+        else:
+            return val
+
+
+
+
          
+    @staticmethod
+    def units_to_ts(units, val):
+        '''
+        Converts known time formats into a unix timestamp
+        Example:
+        ts = CoverageCraft.units_to_ts('days since 2000-01-01', 1200)
+        '''
+        if 'since' in units:
+            t = netCDF4.netcdftime.utime(units)
+            dtg = t.num2date(val)
+            return time.mktime(dtg.timetuple())
+        elif 'iso' in units:
+            t = dateutil.parser.parse(val)
+            return time.mktime(t.timetuple())
+        else:
+            return val
+        
 
 
     def build_coverage(self):
