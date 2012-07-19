@@ -671,15 +671,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("No matching streamdefs between %s '%s' and %s '%s'" %
                              (site_type, site_id, device_type, device_id))
 
-    def activate_deployment(self, deployment_id='', activate_subscriptions=False):
+    def collect_deployment_components(self, deployment_id):
         """
-        Make the devices on this deployment the primary devices for the sites
+        get all devices and sites associated with this deployment and use their ID as a key to list of models
         """
-        #Verify that the deployment exists
-        deployment_obj = self.clients.resource_registry.read(deployment_id)
-
-        if LCS.DEPLOYED == deployment_obj.lcstate:
-            raise BadRequest("This deploment is already active")
 
         device_models = {}
         site_models = {}
@@ -699,7 +694,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             for d in device_ids:
                 model = self.check_device_for_deployment(d, device_type, model_type)
                 if d in device_models:
-                    log.warn("Site '%s' was already collected in deployment '%s'" % (s, deployment_id))
+                    log.warn("Device '%s' was already collected in deployment '%s'" % (d, deployment_id))
                 device_models[d] = model
 
 
@@ -728,7 +723,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             # add devices and sites that are children of platform device / site
             child_device_ids = self.platform_device.find_stemming_device(device_models.keys()[0])
             child_site_ids = self.find_related_frames_of_reference(site_models.keys()[0],
-                                                                   [RT.PlatformSite, RT.InstrumentSite])
+                [RT.PlatformSite, RT.InstrumentSite])
             #  verify that platform site has no sub-platform-sites
             if 0 < len(child_site_ids[RT.PlatformSite]):
                 raise BadRequest("Deploying a platform with its own child platform is not allowed")
@@ -740,6 +735,22 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         collect_specific_resources(RT.InstrumentSite, RT.InstrumentDevice, RT.InstrumentModel)
 
+        return device_models, site_models
+
+
+
+    def activate_deployment(self, deployment_id='', activate_subscriptions=False):
+        """
+        Make the devices on this deployment the primary devices for the sites
+        """
+        #Verify that the deployment exists
+        deployment_obj = self.clients.resource_registry.read(deployment_id)
+
+        if LCS.DEPLOYED == deployment_obj.lcstate:
+            raise BadRequest("This deploment is already active")
+
+        device_models, site_models = self.collect_deployment_components(deployment_id)
+
         # create a CSP so we can solve it
         problem = constraint.Problem()
 
@@ -747,8 +758,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         for device_id in device_models.keys():
             device_model = device_models[device_id]
             possible_sites = [s for s in site_models.keys()
-                              if device_model in site_models[s]
-                                    and self.streamdef_of_site(s) in self.streamdefs_of_device(device_id)]
+                              if device_model in site_models[s]]
+                                    #and self.streamdef_of_site(s) in self.streamdefs_of_device(device_id)]
             problem.addVariable("device_%s" % device_id, possible_sites)
 
         # add the constraint that all the variables have to pick their own site
@@ -808,8 +819,37 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if LCS.DEPLOYED != deployment_obj.lcstate:
             raise BadRequest("This deploment is not active")
 
-        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
+        # get all associated components
+        device_models, site_models = self.collect_deployment_components(deployment_id)
 
+        #must only remove from sites that are not deployed under a different active deployment
+        # must only remove devices that are not deployed under a different active deployment
+        def filter_alternate_deployments(resource_list):
+            # return the list of ids for devices or sites not connected to an alternate lcs.deployed deployment
+            ret = []
+            for r in resource_list:
+                depls, _ = self.RR.find_objects(r, PRED.hasDeployment, RT.Deployment)
+                keep = True
+                for d in depls:
+                    if d._id != deployment_id and LCS.DEPLOYED == d.lcstate:
+                        keep = False
+                if keep:
+                    ret.append(r)
+            return ret
+
+        device_ids = filter_alternate_deployments(device_models.keys())
+        site_ids   = filter_alternate_deployments(site_models.keys())
+
+        # delete only associations where both site and device have passed the filter
+        for s in site_ids:
+            ds, _ = self.RR.find_objects(s, PRED.hasDevice, id_only=True)
+            for d in ds:
+                if d in device_ids:
+                    a = self.RR.get_association(s, PRED.hasDevice, d)
+                    self.RR.delete_association(a)
+
+        # mark deployment as not deployed (developed seems appropriate)
+        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
 
 
 
@@ -875,6 +915,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #look up stream defs
         ss = self.streamdef_of_site(site_id)
         ds = self.streamdefs_of_device(device_id)
+
+        if not ss in ds:
+            raise BadRequest("Data product(s) of site does not have any matching streamdef for data product of device")
 
         data_process_id = process_ids[0]
         log.info("Changing subscription")
