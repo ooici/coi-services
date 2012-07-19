@@ -25,12 +25,9 @@ class ResourceImpl(object):
         if hasattr(clients, "resource_registry"):
             self.RR = self.clients.resource_registry
 
+        # table of key -> validation function
+        #   validation functions take a resource_id and return "" for OK and "some helpful message" for failure
         self.lce_precondition = {}
-
-        # by default allow everything
-        # args s, r are "self" and "resource"; retval = ok ? "" : "err msg"
-        for l in LCE:
-            self.add_lce_precondition(l, (lambda r: ""))
 
         # do implementation-specific stuff
         self.on_impl_init()
@@ -136,8 +133,8 @@ class ResourceImpl(object):
         # check that precondition function exists
         if not transition_event in self.lce_precondition:
             raise BadRequest(
-                "%s lifecycle precondition method for event '%s' not defined!"
-                % (self.iontype, transition_event))
+                "%s lifecycle precondition method for event '%s' not defined! Choices: %s"
+                % (self.iontype, transition_event, str(self.lce_precondition.keys())))
 
         precondition_fn = self.lce_precondition[transition_event]
 
@@ -353,7 +350,7 @@ class ResourceImpl(object):
         """
         return self._return_read(primary_object_id)
 
-    def delete_one(self, primary_object_id=''):
+    def delete_one(self, primary_object_id='', destroy=False):
         """
         delete a single object of the predefined type AND its history
         (i.e., NOT retiring!)
@@ -363,8 +360,11 @@ class ResourceImpl(object):
         primary_object_obj = self.RR.read(primary_object_id)
 
         self.on_pre_delete(primary_object_id, primary_object_obj)
-        
-        self.RR.delete(primary_object_id)
+
+        if destroy:
+            self.RR.delete(primary_object_id)
+        else:
+            self.advance_lcs(primary_object_id, LCE.RETIRE)
 
         self.on_post_delete(primary_object_id, primary_object_obj)
 

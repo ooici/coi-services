@@ -201,7 +201,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             # delete the org
             self.clients.org_management.delete_org(org_ids[0])
 
-        #todo: self.observatory.advance_lcs(observatory_id, LCE.RETIRE)
         return self.observatory.delete_one(observatory_id)
 
 
@@ -245,7 +244,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite_id    str
         @throws NotFound    object with specified id does not exist
         """
-        # todo self.subsite.advance_lcs(subsite_id, LCE.RETIRE)
         self.subsite.delete_one(subsite_id)
 
 
@@ -290,7 +288,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        # todo self.platform_site.advance_lcs(platform_site_id, LCE.RETIRE)
         self.platform_site.delete_one(platform_site_id)
 
 
@@ -335,8 +332,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param instrument_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        # todo: self.instrument_site.advance_lcs(instrument_site_id, LCE.RETIRE)
-        self.instrument_site.delete_one(instrument_site_id)
+        # todo: give InstrumentSite a lifecycle in COI so that we can remove the "True" argument here
+        self.instrument_site.delete_one(instrument_site_id, True)
 
 
 
@@ -767,7 +764,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 self.transfer_site_subscription(site_id)
 
 
+    def deactivate_deployment(self, deployment_id=''):
+        """Remove the primary device designation for the deployed devices at the sites
 
+        @param deployment_id    str
+        @throws NotFound    object with specified id does not exist
+        @throws BadRequest    if devices can not be undeployed
+        """
+        pass
 
 
     def transfer_site_subscription(self, site_id=""):

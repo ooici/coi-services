@@ -603,7 +603,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
             assertions(not (input % 2)) # Assert it is even
             msgs.put(True)
 
-        subscriber_registrar = StreamSubscriberRegistrar(process=cc, node=cc.node)
+        subscriber_registrar = StreamSubscriberRegistrar(process=cc, container=cc)
         even_subscriber = subscriber_registrar.create_subscriber(exchange_name='evenplus1_queue', callback=even1_message_received)
         odd_subscriber = subscriber_registrar.create_subscriber(exchange_name='oddplus1_queue', callback=odd1_message_received)
 
@@ -627,7 +627,7 @@ class TransformManagementServiceIntTest(IonIntegrationTestCase):
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
-        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=cc.node)
+        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, container=cc)
         stream_publisher = publisher_registrar.create_publisher(stream_id=streams[0])
 
         #-------------------------------

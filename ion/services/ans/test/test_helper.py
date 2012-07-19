@@ -110,6 +110,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         salinity_subscription_id = self.pubsubclient.create_subscription(
             query=StreamQuery(data_product_stream_ids),
             exchange_name = 'workflow_test',
+            exchange_point = 'science_data',
             name = "test workflow transformations",
         )
 
@@ -119,7 +120,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             config={})
         dummy_process = cc.proc_manager.procs[pid]
 
-        subscriber_registrar = StreamSubscriberRegistrar(process=dummy_process, node=cc.node)
+        subscriber_registrar = StreamSubscriberRegistrar(process=dummy_process, container=cc)
 
         result = gevent.event.AsyncResult()
         results = []
@@ -333,6 +334,10 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         cc = self.container
         assertions = self.assertTrue
 
+        # if its just one granule, wrap it up in a list so we can use the following for loop for a couple of cases
+        if isinstance(results,Granule):
+            results =[results]
+
         for g in results:
 
             if isinstance(g,Granule):
@@ -340,29 +345,16 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 tx = TaxyTool.load_from_granule(g)
                 rdt = RecordDictionaryTool.load_from_granule(g)
 
-                #log.warn(rdt.pretty_print())
-
-                #gdt_component = rdt['google_dt_components'][0]
-                gdt_components = get_safe(rdt, 'google_dt_components')
+                gdt_data = get_safe(rdt, 'google_dt')
 
                 # IF this granule does not contains google dt, skip
-                if gdt_components == None:
+                if gdt_data == None:
                     continue
 
-                gdt_component = gdt_components[0]
-                #print ">>>>>>>>>> gdt_component = ", gdt_component
+                gdt = gdt_data[0]
 
-                #assertions((get_safe(rdt['viz_product_type'])) == 'google_realtime_dt' )
-                #gdt_description = get_safe(rdt['data_table_description'])
-                #gdt_content = get_safe(gdt_component['data_table_content'])
-
-                assertions(gdt_component['viz_product_type'] == 'google_realtime_dt' )
-                gdt_description = gdt_component['data_table_description']
-                gdt_content = gdt_component['data_table_content']
-
-                assertions(gdt_description[0][0] == 'time')
-                assertions(len(gdt_description) > 1)
-                assertions(len(gdt_content) >= 0)
+                assertions(gdt['viz_product_type'] == 'google_dt' )
+                assertions(len(gdt['data_table']) >= 0) # Need to come up with a better check
 
 
 
@@ -399,14 +391,15 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         cc = self.container
         assertions = self.assertTrue
 
+        # if its just one granule, wrap it up in a list so we can use the following for loop for a couple of cases
+        if isinstance(results,Granule):
+            results =[results]
 
         for g in results:
             if isinstance(g,Granule):
 
                 tx = TaxyTool.load_from_granule(g)
                 rdt = RecordDictionaryTool.load_from_granule(g)
-
-                #print ">>>>>>> RDT " , rdt.pretty_print()
 
                 graphs = get_safe(rdt, 'matplotlib_graphs')
 

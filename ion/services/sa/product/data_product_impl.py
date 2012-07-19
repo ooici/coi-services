@@ -6,12 +6,12 @@
 """
 
 #from pyon.core.exception import BadRequest, NotFound
+from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 from pyon.public import PRED, RT
 
 
-from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 
-class DataProductImpl(ResourceImpl):
+class DataProductImpl(ResourceSimpleImpl):
     """
     @brief Resource management for DataProduct resources
     """

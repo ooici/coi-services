@@ -54,13 +54,16 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         # Just going to use the first queue for now
 
+        validate_is_instance(stream_id,basestring, 'stream_id %s is not a valid string' % stream_id)
+
         ingestion_config = self.read_ingestion_configuration(ingestion_configuration_id)
 
         ingestion_queue = self._determine_queue(stream_id, ingestion_config.queues)
 
         subscription_id = self.clients.pubsub_management.create_subscription(
             query=StreamQuery(stream_ids=[stream_id]),
-            exchange_name=ingestion_queue.name
+            exchange_name=ingestion_queue.name,
+            exchange_point=ingestion_config.exchange_point
         )
 
         self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)

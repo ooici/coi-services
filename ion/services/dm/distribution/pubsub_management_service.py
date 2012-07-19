@@ -13,35 +13,12 @@ from interface.services.dm.ipubsub_management_service import\
     BasePubsubManagementService
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import RT, PRED, log
-from pyon.net.channel import SubscriberChannel
 from pyon.public import CFG
 from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute, StreamDefinition
 from interface.objects import Subscription, SubscriptionTypeEnum
-from interface import objects
-from pyon.core import bootstrap # Is the sysname imported correctly in pyon.public? Late binding???
-from pyon.net.transport import NameTrio, TransportError
 
 # Can't make a couchdb data store here...
 ### so for now - the pubsub service will just publish the first message on the stream that is creates with the definition
-
-
-class BindingChannel(SubscriberChannel):
-    """
-    The Pubsub Mgmt Svc should over ride _declare_queue in its BindingChannel object so that a binding a queue that does
-    not exist will fail. Unfortunately tests break in the CEI environment because the queue for a transform is created by
-    a process. That process may not have been spawned yet when activate transform is called.
-
-    For now - as a patch we will allow pubsub to create queues where they do not exist yet. This could be replaced with
-    a call back on a process life cycle event, after which the transform (for the subscription) can be activated.
-    """
-
-    def _declare_queue(self, queue):
-        self._recv_name = NameTrio(self._recv_name.exchange, '.'.join((self._recv_name.exchange, self._recv_name.queue)))
-
-    ### Tried to handle this in a simple way, but there are other possible errors as well. It will have to be a more
-    ### complicated try except at a higher level in pubsub...
-
-
 
 
 class PubsubManagementService(BasePubsubManagementService):
@@ -57,7 +34,7 @@ class PubsubManagementService(BasePubsubManagementService):
         xs_dot_xp = CFG.core_xps.science_data
         try:
             self.XS, xp_base = xs_dot_xp.split('.')
-            self.XP = '.'.join([bootstrap.get_sys_name(), xp_base])
+            self.XP = xp_base #'.'.join([bootstrap.get_sys_name(), xp_base])
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
@@ -236,7 +213,7 @@ class PubsubManagementService(BasePubsubManagementService):
         '''
         raise NotImplementedError("find_streams_by_consumer not implemented.")
 
-    def create_subscription(self, query=None, exchange_name='', name='', description=''):
+    def create_subscription(self, query=None, exchange_name='', name='', description='', exchange_point=''):
         '''
         @brief Create a new subscription. The id string returned is the ID of the new subscription
         in the resource registry.
@@ -255,6 +232,7 @@ class PubsubManagementService(BasePubsubManagementService):
         log.debug("Creating subscription object")
         subscription = Subscription(name, description=description)
         subscription.exchange_name = exchange_name
+        subscription.exchange_point = exchange_point or 'science_data'
         subscription.query = query
         if isinstance(query, StreamQuery):
             subscription.subscription_type = SubscriptionTypeEnum.STREAM_QUERY
@@ -311,7 +289,7 @@ class PubsubManagementService(BasePubsubManagementService):
             for stream_id in removed_streams:
                 self.clients.resource_registry.delete_association(book[stream_id])
                 if subscription.is_active:
-                    self._unbind_subscription(self.XP,subscription.exchange_name, '%s.data' % stream_id)
+                    self._unbind_subscription(subscription.exchange_point,subscription.exchange_name, '%s.data' % stream_id)
 
             for stream_id in added_streams:
                 self.clients.resource_registry.create_association(
@@ -320,7 +298,7 @@ class PubsubManagementService(BasePubsubManagementService):
                     object=stream_id
                 )
                 if subscription.is_active:
-                    self._bind_subscription(self.XP,subscription.exchange_name, '%s.data' % stream_id)
+                    self._bind_subscription(subscription.exchange_point,subscription.exchange_name, '%s.data' % stream_id)
 
             subscription.query.stream_ids = current_streams
             id, rev = self.clients.resource_registry.update(subscription)
@@ -390,9 +368,9 @@ class PubsubManagementService(BasePubsubManagementService):
 
         if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
             for stream_id in ids:
-                self._bind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
+                self._bind_subscription(subscription_obj.exchange_point, subscription_obj.exchange_name, stream_id + '.data')
         elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
-            self._bind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+            self._bind_subscription(subscription_obj.exchange_point, subscription_obj.exchange_name, '*.data')
 
         subscription_obj.is_active = True
 
@@ -420,10 +398,10 @@ class PubsubManagementService(BasePubsubManagementService):
 
         if subscription_obj.subscription_type == SubscriptionTypeEnum.STREAM_QUERY:
             for stream_id in ids:
-                self._unbind_subscription(self.XP, subscription_obj.exchange_name, stream_id + '.data')
+                self._unbind_subscription(subscription_obj.exchange_point, subscription_obj.exchange_name, stream_id + '.data')
 
         elif subscription_obj.subscription_type == SubscriptionTypeEnum.EXCHANGE_QUERY:
-            self._unbind_subscription(self.XP, subscription_obj.exchange_name, '*.data')
+            self._unbind_subscription(subscription_obj.exchange_point, subscription_obj.exchange_name, '*.data')
 
         subscription_obj.is_active = False
 
@@ -507,28 +485,24 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def _bind_subscription(self, exchange_point, exchange_name, routing_key):
 
-        try:
-            channel = self.container.node.channel(BindingChannel)
-            channel.setup_listener(NameTrio(exchange_point, exchange_name), binding=routing_key)
+        # create an XN
+        xn = self.container.ex_manager.create_xn_queue(exchange_name)
 
-        except TransportError:
-            log.exception('Caught Transport Error while creating a binding. Trying Subscriber Binding to make the queue first')
+        # create an XP
+        xp = self.container.ex_manager.create_xp(exchange_point)
 
-            channel = self.container.node.channel(SubscriberChannel)
-            channel.setup_listener(NameTrio(exchange_point, exchange_name), binding=routing_key)
-
+        # bind it on the XP
+        xn.bind(routing_key, xp)
 
 
     def _unbind_subscription(self, exchange_point, exchange_name, routing_key):
 
-        try:
-            channel = self.container.node.channel(BindingChannel)
-            channel._recv_name = NameTrio(exchange_point, exchange_name)
-            channel._recv_name = NameTrio(channel._recv_name.exchange, '.'.join([exchange_point, exchange_name]))
-            channel._recv_binding = routing_key
-            channel._destroy_binding()
+        # create an XN
+        xn = self.container.ex_manager.create_xn_queue(exchange_name)
 
-        except TransportError, te:
-            log.exception('Raised transport error during deactivate_subscription. Assuming that it is due to deleting a binding that was already deleted and continuing!')
+        # create an XP
+        xp = self.container.ex_manager.create_xp(exchange_point)
 
+        # unbind it on the XP
+        xn.unbind(routing_key, xp)
 

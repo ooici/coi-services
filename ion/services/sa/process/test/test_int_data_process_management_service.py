@@ -34,7 +34,7 @@ from interface.objects import HdfStorage, CouchStorage
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
-
+from mock import patch
 
 
 class FakeProcess(LocalContextMixin):
@@ -182,6 +182,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
     #@unittest.skip('not working')
+    @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
     def test_createDataProcessUsingSim(self):
         #-------------------------------
         # Create InstrumentModel
@@ -364,7 +365,10 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
         log.debug("test_createDataProcessUsingSim: call CEI interface to monitor  ")
 
-
+        self.dataproductclient.suspend_data_product_persistence(data_product_id=ctd_raw_data_product)
+        self.dataproductclient.suspend_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
+        self.dataproductclient.suspend_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
+        self.dataproductclient.suspend_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
         log.debug("test_createDataProcessUsingSim: deactivate_data_process ")
         self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)

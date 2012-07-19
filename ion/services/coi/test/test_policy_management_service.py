@@ -44,6 +44,19 @@ class TestPolicyManagementService(PyonTestCase):
         self.user_role = Mock()
         self.user_role.name = 'COI_Test_Administrator'
 
+        # Resource
+        self.resource = Mock()
+        self.resource._id = '123'
+        self.resource.name = "Foo"
+
+        # Policy to Resource association
+        self.policy_to_resource_association = Mock()
+        self.policy_to_resource_association._id = '555'
+        self.policy_to_resource_association.s = "123"
+        self.policy_to_resource_association.st = RT.Resource
+        self.policy_to_resource_association.p = PRED.hasPolicy
+        self.policy_to_resource_association.o = "111"
+        self.policy_to_resource_association.ot = RT.Policy
 
     def test_create_policy(self):
         self.mock_create.return_value = ['111', 1]
@@ -71,6 +84,8 @@ class TestPolicyManagementService(PyonTestCase):
 
     def test_delete_policy(self):
         self.mock_read.return_value = self.policy
+
+        self.mock_find_subjects.return_value = ([self.resource], [self.policy_to_resource_association])
 
         self.policy_management_service.delete_policy('111')
 
@@ -203,7 +218,7 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
         self.assertNotEqual(user_role, None)
 
         user_role.name = 'Test_User_Role_2'
-        self.policy_management_service.update_policy(user_role)
+        self.policy_management_service.update_role(user_role)
 
         user_role = None
         user_role = self.policy_management_service.read_role(user_role_id)

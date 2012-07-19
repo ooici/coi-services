@@ -660,7 +660,7 @@ class IONLoader(ImmediateProcess):
         create_stream = self._get_typed_value(row["create_stream"], targettype="bool")
 
         svc_client = self._get_service_client("data_acquisition_management")
-        svc_client.assign_data_product(res_id, dp_id, create_stream)
+        svc_client.assign_data_product(res_id, dp_id)
 
     def _load_Attachment(self, row):
         log.info("Loading Attachment")
@@ -701,8 +701,7 @@ class IONLoader(ImmediateProcess):
 
         # Locate the data process def objects and add them to the workflow def
         for step_id in workflow_step_ids:
-            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=self.resource_ids[step_id],
-                persist_process_output_data=False)
+            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=self.resource_ids[step_id])
             workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -722,7 +721,7 @@ class IONLoader(ImmediateProcess):
         workflow_def_id = self.resource_ids[row["wfd_id"]]
         #Create and start the workflow
         workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_def_id, self.resource_ids[row["in_dp_id"]], timeout=30)
-        #print " >>>>>>> Workflow_id = ", workflow_id , " workflow_product_id = ", workflow_product_id
+
 
     def _load_Deployment(self,row):
         log.info("Loading Deployments")

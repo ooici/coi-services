@@ -15,68 +15,68 @@ __license__ = 'Apache 2.0'
 
 from pyon.util.log import log
 
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.granule import build_granule
-
 from ion.agents.instrument.packet_factory import PacketFactory, PacketFactoryType
 
 
-# the following builders are hard-code here.
-# TODO read in some of the parameters from some external resource
+def _create_builder(taxonomy, data_producer_id, packet_factory_type):
+    """
+    Creates a builder function corresponding to the given parameters.
+    """
 
-def _builder_for_ctd_parsed(data_producer_id, packet_factory_type):
-    
-    # taxonomy:
-    tx = TaxyTool()
-    tx.add_taxonomy_set('temp','long name for temp', 't')
-    tx.add_taxonomy_set('cond','long name for cond', 'c')
-    tx.add_taxonomy_set('pres','long name for pres', 'd', 'p')
-    tx.add_taxonomy_set('lat','long name for latitude', 'lt')
-    tx.add_taxonomy_set('lon','long name for longitude', 'ln')
-    tx.add_taxonomy_set('time','long name for time', 'tm')
-    tx.add_taxonomy_set('height','long name for height', 'h')
-
-    # This is an example of using groups it is not a normative statement about how to use groups
-    tx.add_taxonomy_set('coordinates','This group contains coordinates')
-    tx.add_taxonomy_set('data','This group contains data')
-
-    # packet factory:
     packet_factory = PacketFactory.get_packet_factory(packet_factory_type)
     
     def builder(**sample_data):
         granule = packet_factory.build_packet(data_producer_id=data_producer_id,
-                                              taxonomy=tx,
+                                              taxonomy=taxonomy,
                                               data=sample_data)
 
         log.debug("Granule created %s" % granule)
         return granule
 
-    log.debug("packet builder for ctd_parsed created.")
     return builder
 
 
-_builders = {
-    'ctd_parsed' : _builder_for_ctd_parsed('lca_parsed_granule', PacketFactoryType.R2LCAFormat),
-
-    # TODO other builders here
-
-    }
+# _cache: A cache of created builders indexed by the stream ID.
+# NOTE this assumes that the stream identified by its ID will always be
+# associated with exactly the same configuration (taxonomy, etc.).
+_cache = {}
 
 
-def create_packet_builder(stream_name):
+def create_packet_builder(stream_name, stream_config):
     """
     Gets the granule builder for the given stream.
-    The driving idea here is that all necessary parameters for the builder
-    can be retrieved from some appropriate configuration resource,
-    by just looking up the given stream ID.
 
-    @param stream_name Stream ID
+    @param stream_name Stream name. Only used for logging.
+    @param stream_config stream configuration
 
-    @retval a function b to be invoked as b.build(**value), which simply
-            follows the way it is used in InstrumentAgent.evt_recv. But all
-            of this can be adjusted if needed, of course.
+    @retval a function b to be invoked as b.build(**value), which at the moment
+            simply follows the way it is used in InstrumentAgent.evt_recv.
     """
 
-    builder = _builders[stream_name]
+    assert isinstance(stream_config, dict)
+    assert 'id' in stream_config
+    assert 'taxonomy' in stream_config
+#    assert 'data_producer_id' in stream_config
+
+    stream_id = stream_config['id']
+    if stream_id in _cache:
+        log.debug("packet builder for stream_name=%s (stream_id=%s) found in cache" %
+                  (stream_name, stream_id))
+        return _cache[stream_id]
+
+    taxonomy = stream_config['taxonomy']
+
+#    data_producer_id = stream_config['data_producer_id']
+    # TODO determine correct data_producer_id; for now using stream_id
+    data_producer_id = stream_id
+
+    # TODO get packet_factory_type in an appropriate wayl for now, hard-coded.
+    packet_factory_type = PacketFactoryType.R2LCAFormat
+
+    builder = _create_builder(taxonomy, data_producer_id, packet_factory_type)
+    _cache[stream_id] = builder
+
+    log.debug("packet builder created for stream_name=%s (stream_id=%s)" %
+              (stream_name, stream_id))
+
     return builder

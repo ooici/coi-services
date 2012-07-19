@@ -1,3 +1,4 @@
+
 from pyon.ion.stream import StreamSubscriberRegistrar
 from pyon.net.endpoint import Subscriber
 from interface.objects import StreamQuery
@@ -12,11 +13,12 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
+from interface.services.ans.ivisualization_service import VisualizationServiceClient
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 
-from pyon.public import log
+from pyon.public import log, IonObject, RT
 
 
 from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
@@ -30,6 +32,7 @@ from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
 
 from pyon.util.context import LocalContextMixin
+import logging
 
 
 class FakeProcess(LocalContextMixin):
@@ -47,8 +50,10 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
     def setUp(self):
         # Start container
 
+        logging.disable(logging.ERROR)
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+        logging.disable(logging.NOTSET)
 
         # Now create client to DataProductManagementService
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
@@ -61,6 +66,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
         self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
+        self.vis_client = VisualizationServiceClient(node=self.container.node)
 
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
@@ -81,9 +87,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
 
     @attr('LOCOINT')
-    @patch.dict('pyon.ion.exchange.CFG', {'container':{'exchange':{'auto_register': False}}})
+    #@patch.dict('pyon.ion.exchange.CFG', {'container':{'exchange':{'auto_register': False}}})
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("Skipping for debugging ")
+    @unittest.skip("in progress")
     def test_visualization_queue(self):
 
         assertions = self.assertTrue
@@ -98,29 +104,24 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         user_queue_name = 'user_queue'
 
         xq = self.container.ex_manager.create_xn_queue(user_queue_name)
-        self.addCleanup(xq.delete)
-
-        #This is so not needed.
-        def cb(m, h):
-            raise StandardError("Subscriber callback never gets called back!")
 
         salinity_subscription_id = self.pubsubclient.create_subscription(
             query=StreamQuery(data_product_stream_ids),
             exchange_name = user_queue_name,
-            name = "user visualization queue",
+            exchange_point = 'science_data',
+            name = "user visualization queue"
         )
 
 
-        subscriber_registrar = StreamSubscriberRegistrar(process=self, node=self.container.node)
+        subscriber_registrar = StreamSubscriberRegistrar(container=self.container)
 
-        subscriber = subscriber_registrar.create_subscriber(exchange_name=user_queue_name, callback=cb)
+        #subscriber = subscriber_registrar.create_subscriber(exchange_name=user_queue_name)
         #subscriber.start()
 
         #Using endpoint Subscriber directly; but should be a Stream-based subscriber that does nto require a process
         #subscriber = Subscriber(from_name=(subscriber_registrar.XP, user_queue_name), callback=cb)
-        #subscriber = Subscriber(from_name=xq, callback=cb)
+        subscriber = Subscriber(from_name=xq)
         subscriber.initialize()
-
 
         # after the queue has been created it is safe to activate the subscription
         self.pubsubclient.activate_subscription(subscription_id=salinity_subscription_id)
@@ -141,9 +142,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Validate the data from each of the messages along the way
         #self.validate_messages(results)
-
-        #Not sure why this is needed - but it is
-        #subscriber._chan.start_consume()
 
 #        for x in range(msg_count):
 #            mo = subscriber.get_one_msg(timeout=1)
@@ -185,5 +183,62 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         msg_count,_ = subscriber._chan.get_stats()
         print 'Messages in user queue 4: ' + str(msg_count)
 
-
         subscriber.close()
+
+    #@unittest.skip("in progress")
+    def test_realtime_visualization(self):
+        assertions = self.assertTrue
+
+
+        # Build the workflow definition
+        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
+
+        #Add a transformation process definition
+        google_dt_procdef_id = self.create_google_dt_data_process_definition()
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_process_output_data=True)
+        workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+        #Create it in the resource registry
+        workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
+
+
+        #Create the input data product
+        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
+
+        #Create and start the workflow
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
+
+
+        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
+
+
+        #TODO - Need to add workflow creation for google data table
+
+        vis_token = self.vis_client.initiate_realtime_visualization(workflow_product_id)
+
+        #Trying to continue to receive messages in the queue
+        gevent.sleep(10.0)  # Send some messages - don't care how many
+
+        #TODO - find out what the actual return data type should be
+        vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
+
+        print vis_data
+
+        #Trying to continue to receive messages in the queue
+        gevent.sleep(5.0)  # Send some messages - don't care how many
+
+
+        #Turning off after everything - since it is more representative of an always on stream of data!
+        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
+        vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
+
+        print vis_data
+
+        self.vis_client.terminate_realtime_visualization_data(vis_token)
+
+        #Stop the workflow processes
+        self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
+
+        #Cleanup to make sure delete is correct.
+        self.workflowclient.delete_workflow_definition(workflow_def_id)

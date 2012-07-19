@@ -6,6 +6,8 @@
 @test ion.services.dm.distribution.pubsub_management_service Unit test suite to cover all pub sub mgmt service code
 '''
 from pyon.public import PRED, RT, StreamSubscriberRegistrar, StreamPublisherRegistrar
+from pyon.net.endpoint import Subscriber,Publisher
+from pyon.ion.stream import SimpleStreamSubscriber, SimpleStreamPublisher
 import gevent
 from mock import Mock
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -18,7 +20,7 @@ import unittest
 from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum, StreamDefinition, StreamDefinitionContainer, Subscription
 from pyon.util.containers import DotDict
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
-
+import logging
 
 @attr('UNIT', group='dm1')
 class PubSubTest(PyonTestCase):
@@ -29,6 +31,7 @@ class PubSubTest(PyonTestCase):
         self.pubsub_service.clients = mock_clients
         self.pubsub_service.container = DotDict()
         self.pubsub_service.container.node = Mock()
+        self.pubsub_service.container.ex_manager = Mock()
 
         # save some typing
         self.mock_create = mock_clients.resource_registry.create
@@ -76,6 +79,7 @@ class PubSubTest(PyonTestCase):
         self.subscription_exchange_query.exchange_name = "ExchangeName"
         self.subscription_exchange_query.subscription_type = SubscriptionTypeEnum.EXCHANGE_QUERY
         self.subscription_exchange_query.is_active = False
+        self.subscription_exchange_point = 'test_exchange_point'
 
         #Subscription Has Stream Association
         self.association_id = "association_id"
@@ -250,7 +254,9 @@ class PubSubTest(PyonTestCase):
         id = self.pubsub_service.create_subscription(name=self.subscription_stream_query.name,
                                                      description=self.subscription_stream_query.description,
                                                      query=self.subscription_stream_query.query,
-                                                     exchange_name=self.subscription_stream_query.exchange_name)
+                                                     exchange_name=self.subscription_stream_query.exchange_name,
+                                                     exchange_point=self.subscription_exchange_point
+                                                     )
 
         self.assertTrue(self.mock_create.called)
         self.mock_create_association.assert_called_once_with(self.subscription_id, PRED.hasStream, self.stream_id, None)
@@ -262,7 +268,9 @@ class PubSubTest(PyonTestCase):
         id = self.pubsub_service.create_subscription(name=self.subscription_exchange_query.name,
                                                      description=self.subscription_exchange_query.description,
                                                      query=self.subscription_exchange_query.query,
-                                                     exchange_name=self.subscription_exchange_query.exchange_name)
+                                                     exchange_name=self.subscription_exchange_query.exchange_name,
+                                                     exchange_point=self.subscription_exchange_point
+                                                     )
 
         self.assertTrue(self.mock_create.called)
         self.assertEqual(id, self.subscription_id)
@@ -277,7 +285,8 @@ class PubSubTest(PyonTestCase):
             id = self.pubsub_service.create_subscription(name="InvalidSubscription",
                                                          description="Invalid Subscription Description",
                                                          query=query,
-                                                         exchange_name=exchange_name)
+                                                         exchange_name=exchange_name,
+                                                         exchange_point=self.subscription_exchange_point)
 
         ex = cm.exception
         self.assertEqual(ex.message, 'Query type does not exist')
@@ -523,8 +532,10 @@ class PubSubTest(PyonTestCase):
 class PubSubIntTest(IonIntegrationTestCase):
 
     def setUp(self):
+        logging.disable(logging.ERROR)
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2dm.yml')
+        logging.disable(logging.NOTSET)
 
         self.pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
 
@@ -535,43 +546,34 @@ class PubSubIntTest(IonIntegrationTestCase):
                                                             description="Sample Stream 2 Description")
 
         # Make a subscription to two input streams
-        exchange_name = "a_queue"
+        self.exchange_name = "a_queue"
+        self.exchange_point = 'an_exchange'
         query = StreamQuery([self.ctd_stream1_id, self.ctd_stream2_id])
 
-        self.ctd_subscription_id = self.pubsub_cli.create_subscription(query,
-                                                                       exchange_name,
-                                                                       "SampleSubscription",
-                                                                       "Sample Subscription Description")
+        self.ctd_subscription_id = self.pubsub_cli.create_subscription(query=query,
+                                                                       exchange_name=self.exchange_name,
+                                                                       exchange_point=self.exchange_point,
+                                                                       name="SampleSubscription",
+                                                                       description="Sample Subscription Description")
 
         # Make a subscription to all streams on an exchange point
-        exchange_name = "another_queue"
+        self.exchange2_name = "another_queue"
         query = ExchangeQuery()
 
-        self.exchange_subscription_id = self.pubsub_cli.create_subscription(query,
-            exchange_name,
-            "SampleExchangeSubscription",
-            "Sample Exchange Subscription Description")
-
-
-        pid = self.container.spawn_process(name='dummy_process_for_test',
-            module='pyon.ion.process',
-            cls='SimpleProcess',
-            config={})
-        dummy_process = self.container.proc_manager.procs[pid]
+        self.exchange_subscription_id = self.pubsub_cli.create_subscription(query=query,
+            exchange_name=self.exchange2_name,
+            exchange_point=self.exchange_point,
+            name="SampleExchangeSubscription",
+            description="Sample Exchange Subscription Description")
 
 
         # Normally the user does not see or create the publisher, this is part of the containers business.
         # For the test we need to set it up explicitly
-        publisher_registrar = StreamPublisherRegistrar(process=dummy_process, node=self.container.node)
-
-        self.ctd_stream1_publisher = publisher_registrar.create_publisher(stream_id=self.ctd_stream1_id)
-
-        self.ctd_stream2_publisher = publisher_registrar.create_publisher(stream_id=self.ctd_stream2_id)
+        self.ctd_stream1_publisher = SimpleStreamPublisher.new_publisher(self.container, self.exchange_point, stream_id=self.ctd_stream1_id)
+        self.ctd_stream2_publisher = SimpleStreamPublisher.new_publisher(self.container, self.exchange_point, stream_id=self.ctd_stream2_id)
 
 
-        # Cheat and use the cc as the process - I don't think it is used for anything...
-        self.stream_subscriber = StreamSubscriberRegistrar(process=dummy_process, node=self.container.node)
-
+        self.purge_queues()
 
 
     def tearDown(self):
@@ -579,138 +581,148 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.pubsub_cli.delete_subscription(self.exchange_subscription_id)
         self.pubsub_cli.delete_stream(self.ctd_stream1_id)
         self.pubsub_cli.delete_stream(self.ctd_stream2_id)
-        self._stop_container()
+        super(PubSubIntTest,self).tearDown()
+
+    def purge_queues(self):
+        xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
+        xn.purge(None,xn.queue)
+        xn = self.container.ex_manager.create_xn_queue(self.exchange2_name)
+        xn.purge(None,xn.queue)
+        
+
 
     def test_bind_stream_subscription(self):
 
-        q = gevent.queue.Queue()
+        event = gevent.event.Event()
 
         def message_received(message, headers):
-            q.put(message)
+            self.assertIn('test_bind_stream_subscription',message)
+            self.assertFalse(event.is_set())
+            event.set()
 
 
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='a_queue', callback=message_received)
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,self.exchange_name,callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
-        self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(q.get(timeout=5), 'message1')
-        self.assertTrue(q.empty())
+        self.ctd_stream1_publisher.publish('test_bind_stream_subscription')
+        self.assertTrue(event.wait(2))
+        event.clear()
 
-        self.ctd_stream2_publisher.publish('message2')
-        self.assertEqual(q.get(timeout=5), 'message2')
-        self.assertTrue(q.empty())
+        self.ctd_stream2_publisher.publish('test_bind_stream_subscription')
+        self.assertTrue(event.wait(2))
+        event.clear()
 
         subscriber.stop()
 
 
     def test_bind_exchange_subscription(self):
 
-        q = gevent.queue.Queue()
+        event = gevent.event.Event()
 
         def message_received(message, headers):
-            q.put(message)
+            self.assertIn('test_bind_exchange_subscription',message)
+            self.assertFalse(event.is_set())
+            event.set()
 
 
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='another_queue', callback=message_received)
+
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,self.exchange2_name,callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
 
-        self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(q.get(timeout=5), 'message1')
-        self.assertTrue(q.empty())
+        self.ctd_stream1_publisher.publish('test_bind_exchange_subscription')
+        self.assertTrue(event.wait(10))
+        event.clear()
 
-
-        self.ctd_stream2_publisher.publish('message2')
-        self.assertEqual(q.get(timeout=5), 'message2')
-        self.assertTrue(q.empty())
+        self.ctd_stream2_publisher.publish('test_bind_exchange_subscription')
+        self.assertTrue(event.wait(10))
+        event.clear()
 
         subscriber.stop()
 
 
     def test_unbind_stream_subscription(self):
 
-        q = gevent.queue.Queue()
+        event = gevent.event.Event()
 
         def message_received(message, headers):
-            q.put(message)
+            self.assertIn('test_unbind_stream_subscription',message)
+            self.assertFalse(event.is_set())
+            event.set()
 
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='a_queue', callback=message_received)
+
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,self.exchange_name,callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
-        self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(q.get(timeout=5), 'message1')
-        self.assertTrue(q.empty())
+        self.ctd_stream1_publisher.publish('test_unbind_stream_subscription')
+        self.assertTrue(event.wait(2))
+        event.clear()
 
         self.pubsub_cli.deactivate_subscription(self.ctd_subscription_id)
 
 
-        self.ctd_stream2_publisher.publish('message2')
-        p = None
-        with self.assertRaises(gevent.queue.Empty) as cm:
-            p = q.get(timeout=1)
+        self.ctd_stream2_publisher.publish('test_unbind_stream_subscription')
+        self.assertFalse(event.wait(1))
 
         subscriber.stop()
-        ex = cm.exception
-        self.assertEqual(str(ex), '')
-        self.assertEqual(p, None)
 
 
     def test_unbind_exchange_subscription(self):
 
-        q = gevent.queue.Queue()
+        event = gevent.event.Event()
 
         def message_received(message, headers):
-            q.put(message)
+            self.assertIn('test_unbind_exchange_subscription',message)
+            self.assertFalse(event.is_set())
+            event.set()
 
 
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='another_queue', callback=message_received)
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,'another_queue',callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.exchange_subscription_id)
 
-        self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(q.get(timeout=5), 'message1')
-        self.assertTrue(q.empty())
+        self.ctd_stream1_publisher.publish('test_unbind_exchange_subscription')
+        self.assertTrue(event.wait(10))
+        event.clear()
 
 
         self.pubsub_cli.deactivate_subscription(self.exchange_subscription_id)
 
 
-        self.ctd_stream2_publisher.publish('message2')
-        p = None
-        with self.assertRaises(gevent.queue.Empty) as cm:
-            p = q.get(timeout=1)
+        self.ctd_stream2_publisher.publish('test_unbind_exchange_subscription')
+        self.assertFalse(event.wait(2))
 
         subscriber.stop()
-        ex = cm.exception
-        self.assertEqual(str(ex), '')
-        self.assertEqual(p, None)
 
     def test_update_stream_subscription(self):
 
-        q = gevent.queue.Queue()
+        event = gevent.event.Event()
 
         def message_received(message, headers):
-            q.put(message)
+            self.assertIn('test_update_stream_subscription',message)
+            self.assertFalse(event.is_set())
+            event.set()
 
-        subscriber = self.stream_subscriber.create_subscriber(exchange_name='a_queue', callback=message_received)
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,self.exchange_name,callback=message_received)
         subscriber.start()
 
         self.pubsub_cli.activate_subscription(self.ctd_subscription_id)
 
-        # Both publishers are received by the subscriber
-        self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(q.get(timeout=5), 'message1')
-        self.assertTrue(q.empty())
 
-        self.ctd_stream2_publisher.publish('message2')
-        self.assertEqual(q.get(timeout=5), 'message2')
-        self.assertTrue(q.empty())
+        self.ctd_stream1_publisher.publish('test_update_stream_subscription')
+        self.assertTrue(event.wait(2))
+        event.clear()
+
+        self.ctd_stream2_publisher.publish('test_update_stream_subscription')
+        self.assertTrue(event.wait(2))
+        event.clear()
+
 
 
         # Update the subscription by removing a stream...
@@ -724,19 +736,15 @@ class PubSubIntTest(IonIntegrationTestCase):
 
 
         # Stream 2 is no longer received
-        self.ctd_stream2_publisher.publish('message2')
-        p = None
-        with self.assertRaises(gevent.queue.Empty) as cm:
-            p = q.get(timeout=1)
+        self.ctd_stream2_publisher.publish('test_update_stream_subscription')
 
-        ex = cm.exception
-        self.assertEqual(str(ex), '')
-        self.assertEqual(p, None)
+        self.assertFalse(event.wait(0.5))
+
 
         # Stream 1 is as before
-        self.ctd_stream1_publisher.publish('message1')
-        self.assertEqual(q.get(timeout=5), 'message1')
-        self.assertTrue(q.empty())
+        self.ctd_stream1_publisher.publish('test_update_stream_subscription')
+        self.assertTrue(event.wait(2))
+        event.clear()
 
 
         # Now swith the active streams...
@@ -749,19 +757,14 @@ class PubSubIntTest(IonIntegrationTestCase):
 
 
         # Stream 1 is no longer received
-        self.ctd_stream1_publisher.publish('message1')
-        p = None
-        with self.assertRaises(gevent.queue.Empty) as cm:
-            p = q.get(timeout=1)
+        self.ctd_stream1_publisher.publish('test_update_stream_subscription')
+        self.assertFalse(event.wait(1))
 
-        ex = cm.exception
-        self.assertEqual(str(ex), '')
-        self.assertEqual(p, None)
 
         # Stream 2 is received
-        self.ctd_stream2_publisher.publish('message2')
-        self.assertEqual(q.get(timeout=5), 'message2')
-        self.assertTrue(q.empty())
+        self.ctd_stream2_publisher.publish('test_update_stream_subscription')
+        self.assertTrue(event.wait(2))
+        event.clear()
 
 
 

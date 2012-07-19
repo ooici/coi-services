@@ -27,8 +27,11 @@ from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
 from pyon.util.containers import get_safe
 
+# Google viz library for google charts
+import ion.services.ans.gviz_api as gviz_api
+
 tx = TaxyTool()
-tx.add_taxonomy_set('google_dt_components','Google DT components for part or entire datatable')
+tx.add_taxonomy_set('google_dt','Google datatable')
 
 
 class VizTransformGoogleDT(TransformFunction):
@@ -58,47 +61,31 @@ class VizTransformGoogleDT(TransformFunction):
     def on_start(self):
         super(VizTransformGoogleDT,self).on_start()
 
-        # init variables
-        self.varTuple = []
-        self.total_num_of_records_recvd = 0
-
-        # init config. Need to move it to YAML or something
-        self.realtime_window_size = 100
-        self.max_google_dt_len = 1024 # Remove this once the decimation has been moved in to the incoming dp
-
-        # Note some transform parameters
-
 
     def execute(self, granule):
 
         log.debug('(Google DT transform): Received Viz Data Packet' )
 
+        #init stuff
+        # Need to move it to YAML or something
+        #self.realtime_window_size = 100
+        self.max_google_dt_len = 1024 # Remove this once the decimation has been moved in to the incoming dp
+
+        self.varTuple = []
+        self.total_num_of_records_recvd = 0
         self.dataDescription = []
         self.dataTableContent = []
-        element_count_id = 0
-        expected_range = []
-
-        # NOTE : Detect somehow that this is a replay stream with a set number of expected granules. Based on this
-        #       calculate the number of expected records and set the self.realtime_window_size bigger or equal to this
-        #       number.
-
-#        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
-#        vardict = {}
-#        arrLen = None
-#        for varname in psd.list_field_names():
-#            vardict[varname] = psd.get_values(varname)
-#            arrLen = len(vardict[varname])
 
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
         vardict = {}
-        vardict['conductivity'] = get_safe(rdt, 'cond')
-        vardict['pressure'] = get_safe(rdt, 'pres')
-        vardict['temperature'] = get_safe(rdt, 'temp')
-
-        vardict['longitude'] = get_safe(rdt, 'lon')
-        vardict['latitude'] = get_safe(rdt, 'lat')
         vardict['time'] = get_safe(rdt, 'time')
+        vardict['conductivity'] = get_safe(rdt, 'conductivity')
+        vardict['pressure'] = get_safe(rdt, 'pressure')
+        vardict['temperature'] = get_safe(rdt, 'temperature')
+
+        vardict['longitude'] = get_safe(rdt, 'longitude')
+        vardict['latitude'] = get_safe(rdt, 'latitude')
         vardict['height'] = get_safe(rdt, 'height')
         arrLen = len(vardict['time'])  # Figure out how many values are present in the granule
 
@@ -113,67 +100,42 @@ class VizTransformGoogleDT(TransformFunction):
 
             self.dataDescription.append((varname, 'number', varname))
 
-
         # Add the records to the datatable
         for i in xrange(arrLen):
             varTuple = []
 
             for varname,_,_ in self.dataDescription:
-                val = float(vardict[varname][i])
-                if varname == 'time':
-                    #varTuple.append(datetime.fromtimestamp(val))
-                    varTuple.append(val)
+
+                if vardict[varname] == None:
+                    val = 0.0
                 else:
-                    varTuple.append(val)
+                    if varname == 'time':
+                        val = datetime.fromtimestamp(vardict[varname][i])
+                    else:
+                        val = float(vardict[varname][i])
+
+                varTuple.append(val)
 
             # Append the tuples to the data table
             self.dataTableContent.append (varTuple)
-
-            # Maintain a sliding window for realtime transform processes
-            if len(self.dataTableContent) > self.realtime_window_size:
-                # always pop the first element till window size is what we want
-                while len(self.dataTableContent) > realtime_window_size:
-                    self.dataTableContent.pop(0)
-
-
-        """ To Do : Do we need to figure out the how many granules have been received for a replay stream ??
-
-        if not self.realtime_flag:
-            # This is the historical view part. Make a note of how many records were received
-            in_data_stream_id = self.incoming_stream_def.data_stream_id
-            element_count_id = self.incoming_stream_def.identifiables[in_data_stream_id].element_count_id
-            # From each granule you can check the constraint on the number of records
-            expected_range = granule.identifiables[element_count_id].constraint.intervals[0]
-
-            # The number of records in a given packet is:
-            self.total_num_of_records_recvd += packet.identifiables[element_count_id].value
-
-        """
-
-        # define an output container of data
 
 
         # submit the partial datatable to the viz service
         out_rdt = RecordDictionaryTool(taxonomy=tx)
 
+        # Use the components to create the actual google datatable
+        gdt = gviz_api.DataTable(self.dataDescription)
+        gdt.LoadData(self.dataTableContent)
+
         # submit resulting table back using the out stream publisher. The data_product_id is the input dp_id
         # responsible for the incoming data
-        msg = {"viz_product_type": "google_realtime_dt",
-               "data_table_description": self.dataDescription,
-               "data_table_content": self.dataTableContent}
+        msg = {"viz_product_type": "google_dt",
+               "data_table": gdt.ToJSonResponse()}
 
-        out_rdt['google_dt_components'] = numpy.array([msg])
-
-        #out_rdt["data_table_description"] = self.dataDescription
-        #out_rdt["data_table_content"] = self.dataTableContent
-        #out_rdt['viz_product_type'] = numpy.array(["google_realtime_dt"])
-        #out_rdt["data_product_id"] = numpy.array(["FAKE_DATAPRODUCT_ID_0000"])
-
+        out_rdt['google_dt'] = numpy.array([msg])
 
         log.debug('Google DT transform: Sending a granule')
         out_granule = build_granule(data_producer_id='google_dt_transform', taxonomy=tx, record_dictionary=out_rdt)
-
-        #self.publish(out_granule)
 
         # clear the tuple for future use
         self.varTuple[:] = []

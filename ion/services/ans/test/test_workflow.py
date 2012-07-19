@@ -17,6 +17,7 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
@@ -56,6 +57,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
         self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
+        self.data_retriever = DataRetrieverServiceClient(node=self.container.node)
 
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
@@ -204,7 +206,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         #Add a transformation process definition
         google_dt_procdef_id = self.create_google_dt_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id)
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_process_output_data=True)
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -241,6 +243,14 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         #Validate the data from each of the messages along the way
         self.validate_google_dt_results(results)
 
+        # Check to see if ingestion worked. Extract the granules from data_retrieval.
+        # First find the dataset associated with the output dp product
+        ds_ids,_ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasDataset, RT.DataSet, True)
+        retrieve_granule = self.data_retriever.retrieve(ds_ids[0])
+
+        #Validate the data from each of the messages along the way
+        self.validate_google_dt_results(retrieve_granule)
+
         #Cleanup to make sure delete is correct.
         self.workflowclient.delete_workflow_definition(workflow_def_id)
 
@@ -261,7 +271,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         #Add a transformation process definition
         mpl_graphs_procdef_id = self.create_mpl_graphs_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=mpl_graphs_procdef_id)
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=mpl_graphs_procdef_id, persist_process_output_data=True)
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -297,6 +307,15 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         #Validate the data from each of the messages along the way
         self.validate_mpl_graphs_results(results)
+
+        # Check to see if ingestion worked. Extract the granules from data_retrieval.
+        # First find the dataset associated with the output dp product
+        ds_ids,_ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasDataset, RT.DataSet, True)
+
+        retrieve_granule = self.data_retriever.retrieve(ds_ids[0])
+
+        #Validate the data from each of the messages along the way
+        self.validate_mpl_graphs_results(retrieve_granule)
 
         #Cleanup to make sure delete is correct.
         self.workflowclient.delete_workflow_definition(workflow_def_id)
