@@ -110,6 +110,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         salinity_subscription_id = self.pubsubclient.create_subscription(
             query=StreamQuery(data_product_stream_ids),
             exchange_name = 'workflow_test',
+            exchange_point = 'science_data',
             name = "test workflow transformations",
         )
 
@@ -344,26 +345,16 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 tx = TaxyTool.load_from_granule(g)
                 rdt = RecordDictionaryTool.load_from_granule(g)
 
-                gdt_components = get_safe(rdt, 'google_dt_components')
+                gdt_data = get_safe(rdt, 'google_dt')
 
                 # IF this granule does not contains google dt, skip
-                if gdt_components == None:
+                if gdt_data == None:
                     continue
 
-                gdt_component = gdt_components[0]
-                #print ">>>>>>>>>> gdt_component = ", gdt_component
+                gdt = gdt_data[0]
 
-                #assertions((get_safe(rdt['viz_product_type'])) == 'google_realtime_dt' )
-                #gdt_description = get_safe(rdt['data_table_description'])
-                #gdt_content = get_safe(gdt_component['data_table_content'])
-
-                assertions(gdt_component['viz_product_type'] == 'google_realtime_dt' )
-                gdt_description = gdt_component['data_table_description']
-                gdt_content = gdt_component['data_table_content']
-
-                assertions(gdt_description[0][0] == 'time')
-                assertions(len(gdt_description) > 1)
-                assertions(len(gdt_content) >= 0)
+                assertions(gdt['viz_product_type'] == 'google_dt' )
+                assertions(len(gdt['data_table']) >= 0) # Need to come up with a better check
 
 
 

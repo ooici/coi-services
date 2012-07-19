@@ -348,7 +348,9 @@ class InstrumentAgent(ResourceAgent):
                 value['stream_id'] = self._data_streams[stream_name]
                 packet = self._packet_factories[stream_name](**value)
                 self._data_publishers[stream_name].publish(packet)
-                log.info('Instrument agent %s published data packet.', self._proc_name)
+                log.info('Instrument agent %s published data packet. '
+                         'stream_name=%s (stream_id=%s)', self._proc_name,
+                         stream_name, value['stream_id'])
 
             elif type == DriverAsyncEvent.CONFIG_CHANGE:
                 # Needs a specific event type.
@@ -1467,22 +1469,24 @@ class InstrumentAgent(ResourceAgent):
         config variable.
         @retval None
         """
-        stream_config = self.CFG.stream_config
+        stream_info = self.CFG.stream_config
+        log.info("stream_info = %s" % stream_info)
 
-        for (name, stream_id) in stream_config.iteritems():
+        for (name, stream_config) in stream_info.iteritems():
+            stream_id = stream_config['id']
             self._data_streams[name] = stream_id
             publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
             self._data_publishers[name] = publisher
-            log.info('Instrumen agent %s created publisher for stream %s',
-                     self._proc_name, name)        
+            log.info("Instrument agent '%s' created publisher for stream_name "
+                     "%s (stream_id=%s)" % (self._proc_name, name, stream_id))
         
     def _construct_packet_factories(self):
         """
         Construct packet factories from packet_config member of the
-        driver_config.
+        driver_config and self.CFG.stream_config.
         @retval None
         """
-        self._packet_factories = self._dvr_proc.get_packet_factories()
+        self._packet_factories = self._dvr_proc.get_packet_factories(self.CFG.stream_config)
 
 
                                 

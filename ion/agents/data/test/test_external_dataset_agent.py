@@ -367,11 +367,11 @@ class ExternalDatasetAgentTestBase(object):
 
         # Make sure the polling interval is appropriate for a test
         params = {
-            'POLLING_INTERVAL':5
+            'POLLING_INTERVAL':3
         }
         self._ia_client.set_param(params)
 
-        self._finished_count = 2
+        self._finished_count = 3
 
         # Begin streaming.
         cmd = AgentCommand(command='go_streaming')
@@ -390,7 +390,9 @@ class ExternalDatasetAgentTestBase(object):
         reply = self._ia_client.execute(cmd)
         self.assertNotEqual(reply.status, 660)
 
-        gevent.sleep(12)
+        # Assert that data was received
+        self._async_finished_result.get(timeout=15)
+        self.assertTrue(len(self._finished_events_received) >= 3)
 
         # Halt streaming.
         cmd = AgentCommand(command='go_observatory')
@@ -399,10 +401,6 @@ class ExternalDatasetAgentTestBase(object):
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
-
-        # Assert that data was received
-        self._async_finished_result.get(timeout=10)
-        self.assertTrue(len(self._finished_events_received) >= 3)
 
         cmd = AgentCommand(command='reset')
         _ = self._ia_client.execute_agent(cmd)
@@ -441,7 +439,7 @@ class ExternalDatasetAgentTestBase(object):
 
         # Make sure the polling interval is appropriate for a test
         params = {
-            'POLLING_INTERVAL':5
+            'POLLING_INTERVAL': 3
         }
         self._ia_client.set_param(params)
 
@@ -455,8 +453,9 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.STREAMING)
 
-        # Wait for some samples to roll in.
-        gevent.sleep(12)
+        # Assert that data was received
+        self._async_finished_result.get(timeout=15)
+        self.assertTrue(len(self._finished_events_received) >= 3)
 
         # Halt streaming.
         cmd = AgentCommand(command='go_observatory')
@@ -465,10 +464,6 @@ class ExternalDatasetAgentTestBase(object):
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
-
-        # Assert that data was received
-        self._async_finished_result.get(timeout=10)
-        self.assertTrue(len(self._finished_events_received) >= 3)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)

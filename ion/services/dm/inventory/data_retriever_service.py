@@ -65,7 +65,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay = Replay()
         replay.delivery_format = delivery_format
 
-        replay.process_id = 0
+        replay.process_id = 'null'
 
         replay_id, rev = self.clients.resource_registry.create(replay)
         replay._id = replay_id
