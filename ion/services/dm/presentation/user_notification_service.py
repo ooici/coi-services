@@ -160,44 +160,43 @@ class EmailEventProcessor(EventProcessor):
 
         user = self.put_notification_in_user_object(user, notification_request)
 
-        #------ CHECK IN
-
-        u = self.rr.read(user_id)
-
-        log.warning("UPDATED:::: user.variables: %s" % user.variables)
-        log.warning("u variables ~~~ %s" % u.variables)
-
-        users, _ = self.rr.find_resources(restype= RT.UserInfo)
-
-        count = 0
-        for user in users:
-            count += 1
-            log.warning("count: %s" % count)
-            log.warning("user: %s" % user)
-            log.warning("user.variables: here %s" % user.variables)
-
-        #------ CHECK OUT
+#        #------ CHECK IN
+#
+#        u = self.rr.read(user_id)
+#
+#        log.warning("UPDATED:::: user.variables: %s" % user.variables)
+#        log.warning("u variables ~~~ %s" % u.variables)
+#
+#        users, _ = self.rr.find_resources(restype= RT.UserInfo)
+#
+#        count = 0
+#        for user in users:
+#            count += 1
+#            log.warning("count: %s" % count)
+#            log.warning("user: %s" % user)
+#            log.warning("user.variables: here %s" % user.variables)
+#
+#        #------ CHECK OUT
 
         #---------------------------------------------------------------------------------------------------
         # Add a notification to the list of subscribed notifications for the user
         #---------------------------------------------------------------------------------------------------
 
-        self.add_notification_to_list_of_subscribed_users(user, notification_request, callback)
+        notification_subscription = self.add_notification_to_list_of_subscribed_users(notification_request, callback)
 
         #---------------------------------------------------------------------------------------------------
         # Update the user_info dictionary and also calculate the reverse user info dictionary
         #---------------------------------------------------------------------------------------------------
 
-        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
+        self.update_user_info_dictionary(user, notification_subscription)
 
+        # return the updated user object
         return user
 
     def put_notification_in_user_object(self, user, notification_request):
         '''
-        Add the notification into the user info object
+        Add the notification into the user info object.
         '''
-
-        log.warning("OLD:::: user.variables: %s" % user.variables)
 
         user_variable_has_notifications = False
 
@@ -218,32 +217,39 @@ class EmailEventProcessor(EventProcessor):
         return user
 
 
-    def add_notification_to_list_of_subscribed_users(self, user, notification_request, callback):
+    def add_notification_to_list_of_subscribed_users(self, notification_request, callback):
         '''
-        Add a notification to the list of subscribed notifications for the user
+        Add a notification to the list of subscribed notifications for the user. Also updates the user_info.
         '''
-        if self.user_info.has_key(user.name): # if the user is already known by the EventProcessor
 
-            notification_subscription = self._add_callback_to_notification(notification_request, callback)
+        notification_subscription = self._add_callback_to_notification(notification_request, callback)
 
+        return notification_subscription
+
+    def update_user_info_dictionary(self, user, notification_subscription):
+        '''
+        Update the user info and reverse user info dictionaries.
+        '''
+
+        if self.user_info.has_key(user.name):
+            # the user is already known by the EventProcessor
             self.user_info[user.name]['notifications'].append(notification_subscription._res_obj)
-
-            self.user_info[user.name]['notification_subscriptions'][notification_request._id] = notification_subscription
-
-
-        else:                                 # if it is a new user
-
-            notification_subscription = self._add_callback_to_notification(notification_request, callback)
-
+            self.user_info[user.name]['notification_subscriptions'][notification_subscription._res_obj._id] = notification_subscription
+        else:
+            # it is a new user
             self.user_info[user.name] = {   'user_contact' : user.contact,
                                             'notifications' : [notification_subscription._res_obj],
-                                            'notification_subscriptions' : { notification_request._id :
+                                            'notification_subscriptions' : { notification_subscription._res_obj._id :
                                                                              notification_subscription}}
+        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
+
+        log.warning("for user: %s" % user)
+        log.warning("the updated user info dictionary: %s" % self.user_info)
 
 
     def _add_callback_to_notification(self, notification_request=None, callback = None):
         """
-        Adds a notification that this user then subscribes to
+        Adds a notification that this user then subscribes to.
 
         @param notification_request
         @retval notification object
@@ -352,9 +358,10 @@ class UserNotificationService(BaseUserNotificationService):
 
         notification = self.clients.resource_registry.read(notification_id)
 
-        #---------------------------------------------------------------------------------------------------
+        #-----------------------------------------------------------------------------------------------------------
         # Create an event processor for user. This sets up callbacks etc.
-        #---------------------------------------------------------------------------------------------------
+        # As a side effect this updates the UserInfo object and also the user info and reverse user info dictionaries.
+        #-----------------------------------------------------------------------------------------------------------
 
         user = self.event_processor.add_notification_for_user(notification_request=notification, user_id=user_id)
 
@@ -834,7 +841,7 @@ class UserNotificationService(BaseUserNotificationService):
         log.warning("new_notification: %s" % new_notification)
 
         #------------------------------------------------------------------------------------
-        # update the user info
+        # update the user info - contact information, notifications
         #------------------------------------------------------------------------------------
 
         self.event_processor.user_info[user.name]['user_contact'] = user.contact

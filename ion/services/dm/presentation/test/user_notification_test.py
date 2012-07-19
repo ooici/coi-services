@@ -447,6 +447,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification_request_1 = self.rrc.read(notification_id_1)
         notification_request_2 = self.rrc.read(notification_id_2)
 
+        for notification in proc1.event_processor.user_info['user_1']['notifications']:
+            log.warning("in test: notification: %s" % notification)
+        log.warning("in test: notificaiton_request_1: %s" % notification_request_1)
+
         # check user_info dictionary
         self.assertEquals(proc1.event_processor.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
         self.assertEquals(proc1.event_processor.user_info['user_1']['notifications'], [notification_request_1])
