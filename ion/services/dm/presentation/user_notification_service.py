@@ -55,7 +55,7 @@ list of event subscribers (only one for LCA) that listen for the events in the n
 
 class NotificationSubscription(object):
     """
-    Encapsulates a notification's info and it's event subscriber
+    Ties a notification's info to it's event subscriber
     """
 
     def  __init__(self, notification_request=None, callback=None):
@@ -88,7 +88,8 @@ class NotificationSubscription(object):
 
 class EventProcessor(object):
     """
-    Encapsulates the user's info and a list of all the notifications they have.
+    The Event Processor is the object that knows all about the user's subscriptions. There will be one event
+    processor in the system.
     """
 
     def __init__(self):
@@ -110,8 +111,13 @@ class EventProcessor(object):
         """
         Stops the subscriber of a notification
         """
-        notification_subscription = self.user_info['notification_subscriptions'][notification_request._id]
-        notification_subscription.deactivate()
+
+        for val in self.user_info.itervalues():
+            if notification_request in val['notifications']:
+                notification_subscription = val['notification_subscriptions'][notification_request._id]
+                notification_subscription.deactivate()
+                # once the subscription is deactivated, exit, so as not to try deactivating an already deactivated subscription
+                return
 
     def __str__(self):
         return str(self.__dict__)
@@ -164,7 +170,7 @@ class EmailEventProcessor(EventProcessor):
         # Add a notification to the list of subscribed notifications for the user
         #---------------------------------------------------------------------------------------------------
 
-        notification_subscription = self.add_notification_to_list_of_subscribed_users(notification_request, callback)
+        notification_subscription = self._add_callback_to_notification(notification_request, callback)
 
         #---------------------------------------------------------------------------------------------------
         # Update the user_info dictionary and also calculate the reverse user info dictionary
@@ -194,15 +200,6 @@ class EmailEventProcessor(EventProcessor):
 
         return user
 
-
-    def add_notification_to_list_of_subscribed_users(self, notification_request, callback):
-        '''
-        Add a notification to the list of subscribed notifications for the user. Also updates the user_info.
-        '''
-
-        notification_subscription = self._add_callback_to_notification(notification_request, callback)
-
-        return notification_subscription
 
     def update_user_info_dictionary(self, user, notification_subscription):
         '''
@@ -442,6 +439,13 @@ class UserNotificationService(BaseUserNotificationService):
         @param notification_id    str
         @throws NotFound    object with specified id does not exist
         """
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Stop the event subscriber for the notification
+        #-------------------------------------------------------------------------------------------------------------------
+        notification_request = self.clients.resource_registry.read(notification_id)
+
+        self.event_processor.stop_notification_subscriber(notification_request=notification_request)
 
         #-------------------------------------------------------------------------------------------------------------------
         # delete the notification from the user_info and reverse_user_info dictionaries

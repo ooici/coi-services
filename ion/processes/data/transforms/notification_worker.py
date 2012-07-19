@@ -91,7 +91,7 @@ class NotificationWorker(SimpleProcess):
         #------------------------------------------------------------------------------------
 
         self.event_subscriber = EventSubscriber(
-            queue_name = 'uns_queue', # modify this to point at the right queue
+            queue_name = 'uns_queue',
             callback=self.process_event
         )
         self.event_subscriber.start()
@@ -99,9 +99,6 @@ class NotificationWorker(SimpleProcess):
     def process_event(self, msg, headers):
         """
         Callback method for the subscriber listening for all events
-
-        Objective: From the user_info dict find out which users have subscribed to that event and
-        send emails to them
         """
         #------------------------------------------------------------------------------------
         # From the reverse user info dict find out which users have subscribed to that event
@@ -148,7 +145,7 @@ class NotificationWorker(SimpleProcess):
 
     def load_user_info(self):
         '''
-        Method to load the user info dictionary... used by notification workers and the UNS
+        Method to load the user info dictionary used by the notification workers and the UNS
 
         @retval user_info dict
         '''
