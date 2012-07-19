@@ -678,6 +678,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #Verify that the deployment exists
         deployment_obj = self.clients.resource_registry.read(deployment_id)
 
+        if LCS.DEPLOYED == deployment_obj.lcstate:
+            raise BadRequest("This deploment is already active")
 
         device_models = {}
         site_models = {}
@@ -789,6 +791,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 log.info("Activating subscription too")
                 self.transfer_site_subscription(site_id)
 
+        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
+
 
     def deactivate_deployment(self, deployment_id=''):
         """Remove the primary device designation for the deployed devices at the sites
@@ -797,7 +801,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         @throws BadRequest    if devices can not be undeployed
         """
-        pass
+
+        #Verify that the deployment exists
+        deployment_obj = self.clients.resource_registry.read(deployment_id)
+
+        if LCS.DEPLOYED != deployment_obj.lcstate:
+            raise BadRequest("This deploment is not active")
+
+        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
+
+
 
 
     def transfer_site_subscription(self, site_id=""):
