@@ -464,7 +464,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
         self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_2'], ['user_2'])
 
-
+        log.debug("The event processor received the notification topics after a create_notification() for two users")
+        log.debug("Verified that the event processor correctly updated its user info dictionaries")
         #--------------------------------------------------------------------------------------
         # Create another notification for the first user
         #--------------------------------------------------------------------------------------
@@ -487,6 +488,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
         self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_2'], ['user_2', 'user_1'])
+
+        log.debug("The event processor received the notification topics after another create_notification() for the first user")
+        log.debug("Verified that the event processor correctly updated its user info dictionaries")
 
         #--------------------------------------------------------------------------------------
         # Update notification and check that the user_info and reverse_user_info in UNS got reloaded
@@ -516,6 +520,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # reverse_user_info
         self.assertTrue('user_1' in proc1.event_processor.reverse_user_info['event_origin']["newly_changed_instrument"])
 
+        log.debug("Verified that the event processor correctly updated its user info dictionaries after an update_notification()")
+
         #--------------------------------------------------------------------------------------
         # Delete notification and check that the user_info and reverse_user_info in UNS got reloaded
         #--------------------------------------------------------------------------------------
@@ -530,6 +536,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # check that the user_info dictionary for the user is not holding the notification anymore
         self.assertFalse(notification_request_2 in proc1.event_processor.user_info['user_1']['notifications'])
+
+        log.debug("Verified that the event processor correctly updated its user info dictionaries after an delete_notification()")
+
+        log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -616,6 +626,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(reloaded_reverse_user_info['event_type']['ResourceLifecycleEvent'], ['new_user'] )
         self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], ['new_user'] )
 
+        log.debug("Verified that the notification worker correctly updated its user info dictionaries after a create_notification()")
+
         #--------------------------------------------------------------------------------------
         # Create another notification
         #--------------------------------------------------------------------------------------
@@ -644,6 +656,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], ['new_user'] )
         self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_2'], ['new_user'] )
+
+        log.debug("Verified that the notification worker correctly updated its user info dictionaries after another create_notification()")
 
 
     @attr('LOCOINT')

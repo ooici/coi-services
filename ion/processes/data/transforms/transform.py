@@ -24,7 +24,10 @@ class TransformStreamProcess(TransformBase):
     pass
 
 class TransformEventProcess(TransformBase):
-    pass
+    def on_start(self):
+        log.warn('TransformDataProcess.on_start()')
+        TransformStreamListener.on_start(self)
+        TransformStreamPublisher.on_start(self)
 
 class TransformStreamListener(TransformStreamProcess):
 
@@ -56,13 +59,20 @@ class TransformStreamPublisher(TransformStreamProcess):
 
 class TransformEventListener(TransformEventProcess):
 
-    def on_start(self):
-        event_type = self.CFG.get_safe('process.event_type', '')
-
-        self.listener = EventSubscriber(event_type=event_type, callback=self.process_event)
+    def on_start(self, event_type = None, event_origin = None, event_origin_type = None,  event_subtype = None, algorithm = None):
+        self.listener = EventSubscriber(  origin=event_origin,
+            origin_type = event_origin_type,
+            event_type=event_type,
+            sub_type=event_subtype,
+            callback=self.process_event   )
         self.listener.start()
 
+        self.algorithm = algorithm
+
     def process_event(self, msg, headers):
+
+        # do something with the event and the algorithm which is a TransformAlgorithm object
+
         raise NotImplementedError('Method process_event not implemented')
 
     def on_quit(self):
@@ -70,13 +80,12 @@ class TransformEventListener(TransformEventProcess):
 
 class TransformEventPublisher(TransformEventProcess):
 
-    def on_start(self):
-        event_type = self.CFG.get_safe('process.event_type', '')
-
+    def on_start(self, event_type):
         self.publisher = EventPublisher(event_type=event_type)
 
     def publish_event(self, *args, **kwargs):
-        raise NotImplementedError('Method publish_event not implemented')
+
+        self.publisher.publish_event(**kwargs)
 
     def on_quit(self):
         self.publisher.close()
