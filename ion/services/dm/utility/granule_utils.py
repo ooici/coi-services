@@ -65,8 +65,40 @@ class CoverageCraft(object):
             self.coverage.set_parameter_values(k,tdoa=slice_, value=v)
 
 
-    def to_granule(self):
-        return build_granule('coverage_craft', self.tx, self.rdt)
+    def to_granule(self, coverage=None, start_time=None, end_time=None):
+        '''
+        Builds a granule based on the coverage
+        '''
+        if coverage is None:
+            coverage = self.coverage
+
+        slice_ = slice(None) # Defaults to all values
+
+        if not (start_time is None or end_time is None):
+            uom = coverage.get_parameter_context('time').uom
+            if start_time is not None:
+                start_units = self.ts_to_units(uom,start_time)
+                print start_units
+                start_idx = self.get_relative_time(coverage,start_units)
+                print start_idx
+                start_time = start_idx
+            if end_time is not None:
+                end_units   = self.ts_to_units(uom,end_time)
+                print end_units
+                end_idx   = self.get_relative_time(coverage,end_units)
+                print end_idx
+                end_time = end_idx
+            slice_ = slice(start_time,end_time)
+            print slice_
+
+
+
+        rdt = RecordDictionaryTool(self.tx)
+        fields = self.coverage.list_parameters()
+        for d in fields:
+            rdt[d] = self.coverage.get_parameter_values(d,tdoa=slice_)
+        self.rdt = rdt # Sync
+        return build_granule('from coverage', self.tx, rdt)
 
     @classmethod
     def create_coverage(cls):
@@ -173,7 +205,7 @@ class CoverageCraft(object):
             return time.strftime('%Y-%d-%mT%H:%M:%S', time.gmtime(val))
         elif 'since' in units:
             t = netCDF4.netcdftime.utime(units)
-            return t.date2num(datetime.datetime.fromtimestamp(val))
+            return t.date2num(datetime.datetime.utcfromtimestamp(val))
         else:
             return val
 
