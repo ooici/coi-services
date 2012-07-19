@@ -10,7 +10,7 @@ from pyon.core.interceptor.encode import encode_ion
 from pyon.core.object import ion_serializer
 from pyon.ion.process import SimpleProcess
 from pyon.ion.granule import RecordDictionaryTool
-from pyon.net.endpoint import Subscriber
+from pyon.ion.stream import SimpleStreamSubscriber
 from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
 from pyon.util.containers import get_ion_ts, get_safe
@@ -31,17 +31,14 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         self.queue_name = self.CFG.get_safe('process.queue_name','ingestion_queue')
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
 
-        # @TODO: queue_name is really exchange_name, rename
-        xn = self.container.ex_manager.create_xn_queue(self.queue_name)
 
-        self.subscriber = Subscriber(name=xn, callback=self.consume)
+        self.subscriber = SimpleStreamSubscriber(self.container,self.queue_name,self.consume)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         log.debug('Created datastore %s', self.datastore_name)
-        self.greenlet = spawn(self.subscriber.listen)
+        self.subscriber.start()
 
     def on_quit(self): #pragma no cover
-        self.subscriber.close()
-        self.greenlet.join(timeout=10)
+        self.subscriber.stop()
 
     def consume(self, msg, headers):
         stream_id = headers['routing_key']

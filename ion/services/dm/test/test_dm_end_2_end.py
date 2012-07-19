@@ -119,7 +119,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
     def publish_fake_data(self,stream_id):
 
-        pub = Publisher()
+        pub = SimpleStreamPublisher.new_publisher(self.container,'science_data',stream_id)
         tt = TaxyTool()
         tt.add_taxonomy_set('pres','long name for pres')
         tt.add_taxonomy_set('lat','long name for latitude')
@@ -141,10 +141,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         granule = build_granule('test',tt,rdt)
 
-        xp = self.container.ex_manager.create_xp('science_data')
-        xpr = xp.create_route('%s.data' % stream_id)
 
-        pub.publish(granule,to_name=xpr)
+        pub.publish(granule)
 
         rdt = RecordDictionaryTool(tt)
         rdt['pres'] = np.array([1,2,3,4,5])
@@ -158,7 +156,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         granule = build_granule(data_producer_id='tool', taxonomy=tt, record_dictionary=rdt)
 
-        pub.publish(granule,to_name=xpr)
+        pub.publish(granule)
         
 
     def get_datastore(self, dataset_id):
