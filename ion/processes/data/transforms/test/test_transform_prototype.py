@@ -49,38 +49,37 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Create an event alert transform
         #-------------------------------------------------------------------------------------
-
         # Create an algorithm object
         query_statement = ''
-        algorithm_1 = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = None)
-        algorithm_2 = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = ['+','-'])
+        algorithm = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = None)
 
-
-        # construct event types etc to listen to for this test
-        event_type = 'type_1'
-        event_origin = 'origin_1'
-        event_origin_type = 'origin_type_1'
-        event_subtype = 'subtype_1'
-
+        #-------------------------------------------------------------------------------------
         # The configuration for the Event Alert Transform... set up the event types to listen to
+        #-------------------------------------------------------------------------------------
         configuration = {
                             'process':{
                                 'algorithm': algorithm,
-                                'event_type': event_type,
-                                'event_origin': event_origin,
-                                'event_origin_type': event_origin_type,
-                                'event_subtype': event_subtype
+                                'event_type': 'type_1',
+                                'event_origin': 'origin_1',
+                                'event_origin_type': 'origin_type_1',
+                                'event_subtype': 'subtype_1'
                             }
                         }
 
+        #-------------------------------------------------------------------------------------
         # Create the process
-        pid = create_process(  name= 'event_alert_transform',
+        #-------------------------------------------------------------------------------------
+        pid = TransformPrototypeIntTest.create_process(  name= 'event_alert_transform',
                                     module='ion.processes.data.transforms.event_alert_transform',
                                     class_name='EventAlertTransform',
                                     configuration= configuration)
 
         self.assertIsNotNone(pid)
 
+        #-------------------------------------------------------------------------------------
+        # Publish events and make assertions about alerts
+        #-------------------------------------------------------------------------------------
+        #todo
 
     def test_stream_processing(self):
         '''
@@ -88,8 +87,38 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         '''
 
 
+        #-------------------------------------------------------------------------------------
+        # Create an algorithm object
+        #-------------------------------------------------------------------------------------
+        query_statement = ''
+        algorithm = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = ['+','-'])
 
-        pass
+
+        #-------------------------------------------------------------------------------------
+        # The configuration for the Event Alert Transform... set up the event types to listen to
+        #-------------------------------------------------------------------------------------
+        configuration = {
+            'process':{
+                'algorithm': algorithm,
+                'event_type' : ''
+            }
+        }
+
+        #-------------------------------------------------------------------------------------
+        # Create the process
+        #-------------------------------------------------------------------------------------
+        pid = TransformPrototypeIntTest.create_process(   name= 'transform_data_process',
+                                module='ion.processes.data.transforms.transform',
+                                class_name='TransformDataProcess',
+                                configuration= configuration)
+
+        self.assertIsNotNone(pid)
+
+        #-------------------------------------------------------------------------------------
+        # Publish streams and make assertions about alerts
+        #-------------------------------------------------------------------------------------
+        #todo
+
 
     @staticmethod
     def create_process(name= '', module = '', class_name = '', configuration = None):

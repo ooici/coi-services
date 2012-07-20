@@ -28,7 +28,7 @@ class EventAlertTransform(TransformEventListener):
         # config to the listener (event types etc and the algorithm)
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        algorithm = self.CFG.get_safe('process.algorithm')
+        algorithm = self.CFG.get_safe('process.algorithm', None)
         event_type = self.CFG.get_safe('process.event_type', '')
         event_origin = self.CFG.get_safe('process.event_origin', '')
         event_origin_type = self.CFG.get_safe('process.event_origin_type', '')
@@ -51,7 +51,7 @@ class EventAlertTransform(TransformEventListener):
                                         }
                                 }
         # Create the process
-        pid = create_process(  name= 'transform_event_listener',
+        pid = EventAlertTransform.create_process(  name= 'transform_event_listener',
                                     module='ion.processes.data.transforms.transform',
                                     class_name='TransformEventListener',
                                     configuration= configuration_listener)
