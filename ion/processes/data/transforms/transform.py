@@ -12,6 +12,7 @@ from pyon.core.bootstrap import get_sys_name
 from pyon.ion.process import SimpleProcess
 from pyon.net.endpoint import Subscriber, Publisher
 from pyon.event.event import EventSubscriber, EventPublisher
+from ion.services.dm.utility.query_language import QueryLanguage
 
 from pyon.util.log import log
 from pyon.ion.stream import SimpleStreamPublisher, SimpleStreamSubscriber
@@ -59,15 +60,22 @@ class TransformStreamPublisher(TransformStreamProcess):
 
 class TransformEventListener(TransformEventProcess):
 
-    def on_start(self, event_type = None, event_origin = None, event_origin_type = None,  event_subtype = None, algorithm = None):
+    def on_start(self):
+
+        event_type = self.CFG.get_safe('process.event_type', '')
+        event_origin = self.CFG.get_safe('process.event_origin', '')
+        event_origin_type = self.CFG.get_safe('process.event_origin_type', '')
+        event_subtype = self.CFG.get_safe('process.event_subtype', '')
+
+        self.algorithm = self.CFG.get_safe('process.algorithm')
+
         self.listener = EventSubscriber(  origin=event_origin,
             origin_type = event_origin_type,
             event_type=event_type,
             sub_type=event_subtype,
             callback=self.process_event   )
-        self.listener.start()
 
-        self.algorithm = algorithm
+        self.listener.start()
 
     def process_event(self, msg, headers):
 
@@ -80,7 +88,9 @@ class TransformEventListener(TransformEventProcess):
 
 class TransformEventPublisher(TransformEventProcess):
 
-    def on_start(self, event_type):
+    def on_start(self):
+
+        event_type = self.CFG.get_safe('process.event_type', '')
         self.publisher = EventPublisher(event_type=event_type)
 
     def publish_event(self, *args, **kwargs):
@@ -97,11 +107,38 @@ class TransformDataProcess(TransformStreamListener, TransformStreamPublisher):
 
     def on_start(self):
         log.warn('TransformDataProcess.on_start()')
-        TransformStreamListener.on_start(self)
-        TransformStreamPublisher.on_start(self)
+        self.algorithm = self.CFG.get_safe('process.algorithm')
+
+        # pass in the configs to the listener
+
+        # config to the listener (event types etc and the algorithm)
+
+        self.transform_event_listener = TransformEventListener()
+        self.transform_event_publisher = TransformEventPublisher()
+
+
+
+
+
 
 class TransformAlgorithm(object):
+    '''
+    An algorithm object. One can make any number of algorithm objects and pass them to
+    transforms. They can act on parameters to determine if a particular condition
+    is satisfied.
+    '''
 
-    @staticmethod
-    def execute(*args, **kwargs):
-        raise NotImplementedError('Method execute not implemented')#!/usr/bin/env python
+    def __init__(self, statement = ''):
+        self.ql = QueryLanguage()
+        self.statement = statement
+
+    def execute(self, *args, **kwargs):
+
+        cond = False
+
+        query_dict = self.ql.parse(self.statement)
+
+
+
+
+        return cond

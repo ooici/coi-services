@@ -235,7 +235,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self._start_container()
         self.addCleanup(UserNotificationIntTest.es_cleanup)
-        self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml', config)
 
         self.unsc = UserNotificationServiceClient()
         self.rrc = ResourceRegistryServiceClient()
