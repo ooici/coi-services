@@ -49,7 +49,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
     # --- 
 
-    def persist_data_stream(self, stream_id='', ingestion_configuration_id=''):
+    def persist_data_stream(self, stream_id='', ingestion_configuration_id='', dataset_id=''):
         # Figure out which MIME or xpath in the stream definition belongs where
 
         # Just going to use the first queue for now
@@ -73,14 +73,16 @@ class IngestionManagementService(BaseIngestionManagementService):
             predicate=PRED.hasSubscription,
             object=subscription_id
         )
-
-        # Create dataset stuff here
-        dataset_id = self._new_dataset(stream_id, ingestion_queue.datastore_name)
+        if dataset_id:
+            self._existing_dataset(stream_id,dataset_id)
+        else:
+            dataset_id = self._new_dataset(stream_id, ingestion_queue.datastore_name)
 
         return dataset_id
 
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
         subscriptions, assocs = self.clients.resource_registry.find_objects(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
+
         for i in xrange(len(subscriptions)):
             subscription = subscriptions[i]
             assoc = assocs[i]
@@ -90,6 +92,10 @@ class IngestionManagementService(BaseIngestionManagementService):
                 self.clients.pubsub_management.deactivate_subscription(subscription_id=subscription)
                 self.clients.resource_registry.delete_association(assoc)
                 self.clients.pubsub_management.delete_subscription(subscription)
+
+        datasets, _ = self.clients.resource_registry.find_subjects(subject_type=RT.DataSet,predicate=PRED.hasDataset,object=stream_id,id_only=True)
+        for dataset_id in datasets:
+            self.clients.dataset_management.remove_stream(stream_id)
 
 
 
@@ -104,5 +110,9 @@ class IngestionManagementService(BaseIngestionManagementService):
         '''
         dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream_id,datastore_name=datastore_name)
         return dataset_id
+
+    def _existing_dataset(self,stream_id='', dataset_id=''):
+        self.clients.dataset_management.add_stream(dataset_id,stream_id)
+
 
 

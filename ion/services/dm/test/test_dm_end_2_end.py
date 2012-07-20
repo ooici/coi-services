@@ -88,7 +88,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         return ingest_configs[0]
 
 
-    def publish_hifi(self,stream_id):
+    def publish_hifi(self,stream_id, offset=0):
         pub = SimpleStreamPublisher.new_publisher(self.container,'science_data',stream_id)
 
         tt = TaxyTool()
@@ -98,7 +98,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         rdt = RecordDictionaryTool(tt)
 
-        t = np.arange(0,10)
+        t = np.arange(10) + offset
 
         rdt['t'] = t
         rdt['f'] = t + 2
@@ -109,7 +109,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         rdt = RecordDictionaryTool(tt)
 
-        t = np.arange(10,20)
+        t = np.arange(10,20) + offset
 
         rdt['t'] = t
         rdt['f'] = t + 2
@@ -328,3 +328,23 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         comp = rdt['f'] == np.arange(2,22)
         self.assertTrue(comp.all())
+
+
+    def test_repersist_data(self):
+        stream_id = self.pubsub_management.create_stream()
+        config_id = self.get_ingestion_config()
+        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
+
+        self.get_datastore(dataset_id)
+        self.publish_hifi(stream_id)
+        self.wait_until_we_have_enough_granules(dataset_id,2)
+        self.ingestion_management.unpersist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
+        self.ingestion_management.persist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
+        self.publish_hifi(stream_id,20)
+        self.wait_until_we_have_enough_granules(dataset_id,4)
+        retrieved_granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
+        comp = rdt['t'] == np.arange(0,40)
+        self.assertTrue(comp.all())
+
+

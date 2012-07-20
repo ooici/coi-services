@@ -13,9 +13,10 @@ from pyon.ion.granule import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
 from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.util.containers import get_ion_ts, get_safe
 from pyon.util.file_sys import FileSystem, FS
-from pyon.public import log 
+from pyon.public import log, RT, PRED
 from interface.objects import Granule
 from gevent import spawn
 from couchdb import ResourceNotFound
@@ -39,9 +40,27 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         log.debug('Created datastore %s', self.datastore_name)
         self.greenlet = spawn(self.subscriber.listen)
 
+        self.datasets = {}
+
     def on_quit(self): #pragma no cover
         self.subscriber.close()
         self.greenlet.join(timeout=10)
+
+    def _new_dataset(self, stream_id):
+        rr_client = ResourceRegistryServiceClient()
+        datasets, _ = rr_client.find_subjects(subject_type=RT.DataSet,predicate=PRED.hasStream,object=stream_id,id_only=True)
+        if datasets:
+            return datasets[0]
+        return None
+
+    def get_dataset(self,stream_id):
+        #@todo: add support for a limited size of known datasets
+        if not stream_id in self.datasets:
+            val = self._new_dataset(stream_id)
+            if val:
+                self.datasets[stream_id] = self._new_dataset(stream_id)
+            else: return None
+        return self.datasets[stream_id]
 
     def consume(self, msg, headers):
         stream_id = headers['routing_key']
@@ -68,7 +87,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
 
         dataset_granule = {
            'stream_id'      : stream_id,
-           'dataset_id'     : stream_id,
+           'dataset_id'     : self.get_dataset(stream_id),
            'persisted_sha1' : calculated_sha1,
            'encoding_type'  : encoding_type,
            'ts_create'      : get_ion_ts()
