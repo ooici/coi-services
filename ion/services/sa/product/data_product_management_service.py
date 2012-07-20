@@ -127,7 +127,11 @@ class DataProductManagementService(BaseDataProductManagementService):
 #            self.clients.resource_registry.delete_association(dp_assoc)
 
         # Delete the data product
-        self.clients.resource_registry.delete(data_product_id)
+        data_product_obj = self.read_data_product(data_product_id)
+
+        if data_product_obj.lcstate != LCS.RETIRED:
+            self.data_product.delete_one(data_product_id)
+        #self.clients.resource_registry.delete(data_product_id)
         #self.clients.resource_registry.set_lifecycle_state(data_product_id, LCS.RETIRED)
         return
 
@@ -170,6 +174,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #todo: what if there are multiple streams?
         stream_id = streams[0]._id
         log.debug("activate_data_product_persistence: stream = %s"  % str(stream_id))
+
 
         #--------------------------------------------------------------------------------
         # Create the ingestion config for this exchange
