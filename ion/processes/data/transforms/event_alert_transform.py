@@ -30,16 +30,17 @@ class EventAlertTransform(TransformEventListener, TransformEventPublisher):
         event_subtype = self.CFG.get_safe('process.event_subtype', '')
 
 
-        # pass in the configs to the listener
-
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # config to the listener (event types etc and the algorithm)
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 
         #-------------------------------------------------------------------------------------
         # Create a transform event listener
         #-------------------------------------------------------------------------------------
 
-        # Create an algorithm object
 
+        # Create an algorithm object
         algorithm = TransformAlgorithm(statement=query_statement)
 
         # The configuration for the listener
@@ -115,22 +116,87 @@ class AlgorithmA(object):
 
     def execute(self, fields = None):
 
+        #-------------------------------------------------------------------------------------
+        # Construct the query dictionary after parsing the string statement
+        #-------------------------------------------------------------------------------------
+
         query_dict = self.ql.parse(self.statement)
 
+        #-------------------------------------------------------------------------------------
+        # Execute the operation on the fields and get the result out
+        #-------------------------------------------------------------------------------------
+
         result = self.operation.execute(self.fields)
+
+        #-------------------------------------------------------------------------------------
+        # Check if the result satisfies the query dictionary
+        #-------------------------------------------------------------------------------------
 
         match = self.evaluate_condition(result, query_dict)
 
         return match
 
-    def evaluate_condition(self, result = '', query_dict = None):
+    def evaluate_condition(self, result = None, query_dict = None):
+        '''
+        If result matches the query dict return True, else return False
+        '''
 
-        # if result matches the query dict return True
+        main_query = query_dict['query']
+        or_queries= query_dict['or']
+        and_queries = query_dict['and']
 
-        # else return False
+        #-------------------------------------------------------------------------------------
+        # if any of the queries in the list of 'or queries' gives a match, publish an event
+        #-------------------------------------------------------------------------------------
+        if or_queries:
+            for or_query in or_queries:
+                if AlgorithmA.match(result, or_query):
+                    return True
 
-        pass
+        #-------------------------------------------------------------------------------------
+        # if an 'and query' or a list of 'and queries' is provided, return if the match returns false for any one of them
+        #-------------------------------------------------------------------------------------
+        if and_queries:
+            for and_query in and_queries:
+                if not AlgorithmA.match(result, and_query):
+                    return False
 
+        #-------------------------------------------------------------------------------------
+        # The main query
+        #-------------------------------------------------------------------------------------
+        return AlgorithmA.match(result, main_query)
+
+
+    @classmethod
+    def match(cls, result = None, query = None):
+        '''
+        Checks whether it is an "equals" matching or a "range" matching
+        '''
+
+        if QueryLanguage.query_is_term_search(query):
+            # This is a term search - always a string
+            if str(result) == query['value']:
+                return True
+
+        elif QueryLanguage.query_is_range_search(query):
+            # always a numeric value - float or int
+            if (result >=  query['range']['from']) and (result <= query['range']['to']):
+                return True
+            else:
+                return False
+
+            pass
+        else:
+            raise BadRequest("Missing parameters value and range for query: %s" % query)
+
+
+#    ss = "search 'result' is '5' from 'dummy_index' and SEARCH 'result' VALUES FROM 10 TO 20 FROM 'dummy_index' "
+#
+#    query_dict = {       'and': [{'field': 'result',
+#                                          'index': 'dummy_index',
+#                                          'range': {'from': 10.0, 'to': 20.0}}],
+#                                 'or': [],
+#                                 'query': {'field': 'result', 'index': 'dummy_index', 'value': '5'}}
 
 
 
