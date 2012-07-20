@@ -49,7 +49,7 @@ class Test_Bank(IonIntegrationTestCase):
         acctList = self.client.list_accounts('kurt')
         self.assertTrue(len(acctList) == 2)
 
-    @unittest.skipIf(ValidateInterceptor.enabled == False, 'Skip test if validate interceptor not enabled')
+    @unittest.skip
     def test_bank_op_decorators(self):
         # Test decorator validation on account creation
         with self.assertRaises(BadRequest):
