@@ -318,15 +318,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-    def create_deployment(self, deployment=None):
+    def create_deployment(self, deployment=None, site_id="", device_id=""):
         """
         Create a Deployment resource. Represents a (possibly open-ended) time interval
         grouping one or more resources within a given context, such as an instrument
         deployment on a platform at an observatory site.
         """
-
-        #todo: move to function args when signature changes
-        device_id = site_id = ""
 
         deployment_id, version = self.clients.resource_registry.create(deployment)
 
