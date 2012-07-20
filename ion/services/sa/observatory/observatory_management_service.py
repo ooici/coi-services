@@ -318,26 +318,25 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-    def create_deployment(self, deployment=None):
+    def create_deployment(self, deployment=None, site_id="", device_id=""):
         """
         Create a Deployment resource. Represents a (possibly open-ended) time interval
         grouping one or more resources within a given context, such as an instrument
         deployment on a platform at an observatory site.
         """
-#
-#        #Verify that site and device exist
-#        site_obj = self.clients.resource_registry.read(site_id)
-#        if not site_obj:
-#            raise NotFound("Deployment site %s does not exist" % site_id)
-#        device_obj = self.clients.resource_registry.read(device_id)
-#        if not device_obj:
-#            raise NotFound("Deployment device %s does not exist" % device_id)
 
         deployment_id, version = self.clients.resource_registry.create(deployment)
 
-#        # Create the links
-#        self.clients.resource_registry.create_association(site_id, PRED.hasDeployment, deployment_id)
-#        self.clients.resource_registry.create_association(device_id, PRED.hasDeployment, deployment_id)
+        #Verify that site and device exist, add links if they do
+        if site_id:
+            site_obj = self.clients.resource_registry.read(site_id)
+            if site_obj:
+                self.clients.resource_registry.create_association(site_id, PRED.hasDeployment, deployment_id)
+
+        if device_id:
+            device_obj = self.clients.resource_registry.read(device_id)
+            if device_obj:
+                self.clients.resource_registry.create_association(device_id, PRED.hasDeployment, deployment_id)
 
         return deployment_id
 
@@ -724,9 +723,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             child_device_ids = self.platform_device.find_stemming_device(device_models.keys()[0])
             child_site_ids = self.find_related_frames_of_reference(site_models.keys()[0],
                 [RT.PlatformSite, RT.InstrumentSite])
+
+            # IGNORE child platforms
             #  verify that platform site has no sub-platform-sites
-            if 0 < len(child_site_ids[RT.PlatformSite]):
-                raise BadRequest("Deploying a platform with its own child platform is not allowed")
+            #if 0 < len(child_site_ids[RT.PlatformSite]):
+            #    raise BadRequest("Deploying a platform with its own child platform is not allowed")
 
             #  gather a list of all instrument sites on platform site
             #  gather a list of all instrument devices on platform device
