@@ -94,7 +94,9 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.clients.resource_registry.create_association(subject=dataset_id, predicate=PRED.hasStream,object=stream_id)
 
     def remove_stream(self,dataset_id='', stream_id=''):
-        self.clients.resource_registry.delete_association(subject=dataset_id, predicate=PRED.hasStream,object=stream_id)
+        assocs = self.clients.resource_registry.find_associations(subject=dataset_id, predicate=PRED.hasStream,object=stream_id)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
 
     def get_dataset_bounds(self, dataset_id=''):
         raise NotImplementedError('This function is deprecated and does not exist')

@@ -102,9 +102,9 @@ class IngestionManagementService(BaseIngestionManagementService):
                 self.clients.resource_registry.delete_association(assoc)
                 self.clients.pubsub_management.delete_subscription(subscription)
 
-        datasets, _ = self.clients.resource_registry.find_subjects(subject_type=RT.DataSet,predicate=PRED.hasDataset,object=stream_id,id_only=True)
+        datasets, _ = self.clients.resource_registry.find_subjects(subject_type=RT.DataSet,predicate=PRED.hasStream,object=stream_id,id_only=True)
         for dataset_id in datasets:
-            self.clients.dataset_management.remove_stream(stream_id)
+            self.clients.dataset_management.remove_stream(dataset_id, stream_id)
 
     def is_persisted(self, stream_id=''):
         stream = self.clients.pubsub_management.read_stream(stream_id)
