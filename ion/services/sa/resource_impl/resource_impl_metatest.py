@@ -769,8 +769,8 @@ class ResourceImplMetatest(object):
                 test_read_fun(self)
                 test_update_fun(self)
                 test_update_bad_dupname_fun(self)
-                test_delete_fun(self)
-                test_delete_destroy_fun(self)
+                #test_delete_fun(self)
+                #test_delete_destroy_fun(self)
                 test_find_fun(self)
 
                 for k in dir(impl_instance):
@@ -806,8 +806,8 @@ class ResourceImplMetatest(object):
             gen_test_read()
             gen_test_update()
             gen_test_update_bad_dupname()
-            gen_test_delete()
-            gen_test_delete_destroy()
+            #gen_test_delete()
+            #gen_test_delete_destroy()
             gen_test_find()
             gen_tests_associations()
             gen_tests_associated_finds()
