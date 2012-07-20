@@ -324,20 +324,22 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         grouping one or more resources within a given context, such as an instrument
         deployment on a platform at an observatory site.
         """
-#
-#        #Verify that site and device exist
-#        site_obj = self.clients.resource_registry.read(site_id)
-#        if not site_obj:
-#            raise NotFound("Deployment site %s does not exist" % site_id)
-#        device_obj = self.clients.resource_registry.read(device_id)
-#        if not device_obj:
-#            raise NotFound("Deployment device %s does not exist" % device_id)
+
+        #todo: move to function args when signature changes
+        device_id = site_id = ""
 
         deployment_id, version = self.clients.resource_registry.create(deployment)
 
-#        # Create the links
-#        self.clients.resource_registry.create_association(site_id, PRED.hasDeployment, deployment_id)
-#        self.clients.resource_registry.create_association(device_id, PRED.hasDeployment, deployment_id)
+        #Verify that site and device exist, add links if they do
+        if site_id:
+            site_obj = self.clients.resource_registry.read(site_id)
+            if site_obj:
+                self.clients.resource_registry.create_association(site_id, PRED.hasDeployment, deployment_id)
+
+        if device_id:
+            device_obj = self.clients.resource_registry.read(device_id)
+            if device_obj:
+                self.clients.resource_registry.create_association(device_id, PRED.hasDeployment, deployment_id)
 
         return deployment_id
 
