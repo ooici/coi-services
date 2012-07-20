@@ -723,9 +723,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             child_device_ids = self.platform_device.find_stemming_device(device_models.keys()[0])
             child_site_ids = self.find_related_frames_of_reference(site_models.keys()[0],
                 [RT.PlatformSite, RT.InstrumentSite])
+
+            # IGNORE child platforms
             #  verify that platform site has no sub-platform-sites
-            if 0 < len(child_site_ids[RT.PlatformSite]):
-                raise BadRequest("Deploying a platform with its own child platform is not allowed")
+            #if 0 < len(child_site_ids[RT.PlatformSite]):
+            #    raise BadRequest("Deploying a platform with its own child platform is not allowed")
 
             #  gather a list of all instrument sites on platform site
             #  gather a list of all instrument devices on platform device
