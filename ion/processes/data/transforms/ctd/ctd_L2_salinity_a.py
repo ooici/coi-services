@@ -14,14 +14,37 @@ from pyon.public import log
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
+#from pyon.util.containers import DotDict
 #from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 #pmsc = PubsubManagementServiceClient(node=cc.node)
-
-#stream_id = pmsc.create_stream(name='pfoo')
-#pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_data_producer',cls='ExampleDataProducer',config={'process':{'stream_id':stream_id}})
-
+#
 #s_stream_id = pmsc.create_stream(name='salinity')
-#cc.spawn_process('l2_transform', 'ion.processes.data.transforms.ctd.ctd_L2_salinity_a','ctd_L2_salinity', config={'process':{'publish_streams':{'density':s_stream_id}, 'subscriber_streams':{'stream_id':stream_id} } })
+#
+#out_stream_id = pmsc.create_stream(name='out_stream')
+#
+#config = DotDict()
+#config.process.exchange_point = 'test_xp'
+#config.process.out_stream_id = out_stream_id
+#pid = cc.spawn_process(name='test', module='ion.processes.data.example_data_producer_a', cls='ExampleDataProducer', config=config)
+#
+#config = DotDict()
+#config.process.queue_name = 'test_queue'
+#config.process.exchange_point = 'output_xp'
+#config.process.publish_streams.salinity = s_stream_id
+#pid2 = cc.spawn_process(name='ctd_test', module='ion.processes.data.transforms.ctd.ctd_L2_salinity_a', cls='ctd_L2_salinity', config=config)
+#
+#xn = cc.ex_manager.create_xn_queue('test_queue')
+#xp = cc.ex_manager.create_xp('test_xp')
+#xn.bind(out_stream_id + '.data', xp)
+#
+#config = DotDict()
+#config.process.queue_name = 'output_queue'
+#pid3 = cc.spawn_process(name='receiver_test', module='ion.processes.data.example_data_receiver_a', cls='ExampleDataReceiver', config=config)
+#
+#xn2 = cc.ex_manager.create_xn_queue('output_queue')
+#xp2 = cc.ex_manager.create_xp('output_xp')
+#xn2.bind(s_stream_id + '.data', xp2)
+
 
 class ctd_L2_salinity(TransformDataProcess):
 
@@ -31,6 +54,10 @@ class ctd_L2_salinity(TransformDataProcess):
         self._tx.add_taxonomy_set('lat','long name for latitude')
         self._tx.add_taxonomy_set('lon','long name for longitude')
         self._tx.add_taxonomy_set('time','long name for time')
+
+    def on_start(self):
+        self.sal_stream = self.CFG.process.publish_streams.salinity
+        super(ctd_L2_salinity, self).on_start()
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L2_salinity.recv_packet: {0}'.format(msg))
@@ -61,8 +88,8 @@ class ctd_L2_salinity(TransformDataProcess):
         rdt2['lon'] = longitude
         rdt2['time'] = time
 
-        g = build_granule(data_producer_id='ctd_L2_salinity', record_dictionary=rdt2, taxonomy=-rdt2._tx)
-        self.publish(msg=g, stream_id=self.salinity)
+        g = build_granule(data_producer_id='ctd_L2_salinity', record_dictionary=rdt2, taxonomy=rdt2._tx)
+        self.publish(msg=g, stream_id=self.sal_stream)
 
 class ctd_L2_salinity_algorithm(TransformAlgorithm):
 

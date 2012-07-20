@@ -2,19 +2,23 @@
 
 '''
 
-from pyon.util.containers import DotDict
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+pmsc = PubsubManagementServiceClient(node=cc.node)
+
+#create the stream to publish the data on
+out_stream_id = pmsc.create_stream(name='out_stream')
+
 config = DotDict()
-config.process.exchange_point = 'test'
-config.process.out_stream_id = 'out_stream_id'
-pid = cc.spawn_process('test','ion.processes.data.example_data_producer_a', 'ExampleDataProducer', config)
+config.process.exchange_point = 'test_xp'
+config.process.out_stream_id = out_stream_id
+#spawn the producer process. This will create the exchange point given in the config, and publish to out_stream
+pid = cc.spawn_process(name='test', module='ion.processes.data.example_data_producer_a', cls='ExampleDataProducer', config=config)
 
 '''
 
-# Inherit some old machinery for this example
 from interface.objects import Granule
 from pyon.ion.transforma import TransformStreamPublisher, TransformAlgorithm
 
-### For new granule and stream interface
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
@@ -100,12 +104,13 @@ class ExampleDataProducer(TransformStreamPublisher):
 
             g = build_granule(data_producer_id=stream_id, taxonomy=self._tx, record_dictionary=rdt)
 
-            log.warn('Sending %d values!' % length)
+            log.info('Sending %d values!' % length)
             if(isinstance(g, Granule)):
                 self.publish(g, stream_id)
 
             time.sleep(2.0)
 
+#Don't really need to use this hear, but if you want to perform a function on your data, use this class to do it.
 class ExampleDataProducer_algorithm(TransformAlgorithm):
 
     @staticmethod
