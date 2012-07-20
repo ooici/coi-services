@@ -12,7 +12,6 @@ from interface.objects import ProcessDefinition
 from ion.services.dm.utility.query_language import QueryLanguage
 from pyon.core.exception import BadRequest
 
-
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 import operator
@@ -24,17 +23,15 @@ class EventAlertTransform(TransformEventListener, TransformEventPublisher):
 
         self.process_dispatcher = ProcessDispatcherServiceClient()
 
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # config to the listener (event types etc and the algorithm)
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
         algorithm = self.CFG.get_safe('process.algorithm')
         event_type = self.CFG.get_safe('process.event_type', '')
         event_origin = self.CFG.get_safe('process.event_origin', '')
         event_origin_type = self.CFG.get_safe('process.event_origin_type', '')
         event_subtype = self.CFG.get_safe('process.event_subtype', '')
-
-
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        # config to the listener (event types etc and the algorithm)
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
 
         #-------------------------------------------------------------------------------------
         # Create a transform event listener
@@ -168,6 +165,7 @@ class Operation(object):
 
         return result
 
+
 class AlgorithmA(object):
     '''
     This is meant to be flexible, accept a query statement and return True/False.
@@ -186,6 +184,7 @@ class AlgorithmA(object):
 
 
     '''
+
     def __init__(self, statement = '', fields = None, _operator = '+', _operator_list = None):
         self.ql = QueryLanguage()
         self.statement = statement
