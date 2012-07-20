@@ -51,10 +51,10 @@ class EventAlertTransform(TransformEventListener):
                                         }
                                 }
         # Create the process
-        pid = EventAlertTransform.create_process(  name= 'transform_event_listener',
-                                    module='ion.processes.data.transforms.transform',
-                                    class_name='TransformEventListener',
-                                    configuration= configuration_listener)
+        pid = EventAlertTransform.create_process(   name= 'transform_event_listener',
+                                                    module='ion.processes.data.transforms.transform',
+                                                    class_name='TransformEventListener',
+                                                    configuration= configuration_listener)
 
         #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
@@ -113,12 +113,6 @@ class Operation(object):
 
         self._operator_list = _operator_list
 
-        #-------------------------------------------------------------------------------------
-        # get the python operator object
-        #-------------------------------------------------------------------------------------
-
-        self.operator =  Operation.operators[self._operator]
-
     def define_subtraction_constant(self, const):
         '''
         If we want to do a successive subtraction operation, it may be relevant to have a starting point unequal to 0.
@@ -160,6 +154,8 @@ class Operation(object):
 
         if not self._operator_list: # if operator list is not provided, apply the simple SINGLE operator
             for field in fields:
+                # get the Python operator
+                self.operator =  Operation.operators[self._operator]
                 result = self.operator(result, field)
         else: # apply operator list
             count = 0
