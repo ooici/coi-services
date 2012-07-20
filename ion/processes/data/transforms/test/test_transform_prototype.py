@@ -19,7 +19,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition
 from ion.processes.data.transforms.transform import TransformEventListener, TransformEventPublisher, TransformAlgorithm
-from ion.processes.data.transforms.event_alert_transform import EventAlertTransform
+from ion.processes.data.transforms.event_alert_transform import EventAlertTransform, AlgorithmA
 
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.processes.data.transforms.ctd.ctd_L0_all import ctd_L0_all
@@ -52,7 +52,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         # Create an algorithm object
         query_statement = ''
-        algorithm = TransformAlgorithm(statement=query_statement)
+        algorithm_1 = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = None)
+        algorithm_2 = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = ['+','-'])
+
 
         # construct event types etc to listen to for this test
         event_type = 'type_1'

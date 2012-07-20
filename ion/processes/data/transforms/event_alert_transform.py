@@ -24,7 +24,7 @@ class EventAlertTransform(TransformEventListener, TransformEventPublisher):
 
         self.process_dispatcher = ProcessDispatcherServiceClient()
 
-        query_statement = self.CFG.get_safe('process.query_statement', '')
+        algorithm = self.CFG.get_safe('process.algorithm')
         event_type = self.CFG.get_safe('process.event_type', '')
         event_origin = self.CFG.get_safe('process.event_origin', '')
         event_origin_type = self.CFG.get_safe('process.event_origin_type', '')
@@ -41,14 +41,10 @@ class EventAlertTransform(TransformEventListener, TransformEventPublisher):
         #-------------------------------------------------------------------------------------
 
 
-        # Create algorithm object
-        algorithm_1 = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = None)
-        algorithm_2 = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = ['+','-'])
-
         # The configuration for the listener
         configuration_listener = {
                                     'process':{
-                                                'algorithm': algorithm_1,
+                                                'algorithm': algorithm,
                                                 'event_type': event_type,
                                                 'event_origin': event_origin,
                                                 'event_origin_type': event_origin_type,
