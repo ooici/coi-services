@@ -1384,8 +1384,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         extended_resource_handler = ExtendedResourceContainer(self)
 
-        extended_instrument = extended_resource_handler.create_extended_resource_container(OT.InstrumentDeviceExtension,
-            instrument_device_id, OT.InstrumentDeviceComputedAttributes, ext_associations, ext_exclude)
+        extended_instrument = extended_resource_handler.create_extended_resource_container(
+            OT.InstrumentDeviceExtension,
+            instrument_device_id,
+            OT.InstrumentDeviceComputedAttributes,
+            ext_associations,
+            ext_exclude)
 
         return extended_instrument
 
@@ -1397,8 +1401,53 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_location(self, instrument_device_id):
         return IonObject(OT.GeospatialBounds)
 
-    def get_attached_sensors(self, instrument_device_id):
-        return ['abc','123']
-
     def get_data_url(self, instrument_device_id):
         return "http://iontest/data/" + instrument_device_id
+
+    def get_data_producer_count(self, instrument_device_id):
+        prods, _ = self.RR.find_objects(instrument_device_id, PRED.hasDataProducer, RT.DataProducer, True)
+        return len(prods)
+
+
+    def get_last_data_received_time(self, instrument_device_id):
+        return "42"
+
+    def get_photo(self, instrument_device_id): # !!binary
+        return "todo"
+
+    def get_operational_state(self, instrument_device_id):   # from Device
+        return "23"
+
+    def get_last_command_status(self, instrument_device_id):
+        return "34"
+
+    def get_last_command_date(self, instrument_device_id):
+        return "45"
+
+    def get_last_command(self, instrument_device_id):
+        return "56"
+
+    def get_last_commanded_by(self, instrument_device_id):
+        return "67"
+
+    def get_power_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        return "78"
+
+    def get_communications_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        return "89"
+
+    def get_data_status_roll_up(self, instrument_device_id): # BLACK, RED, GREEN, YELLOW
+        return "98"
+
+    def get_location_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        return "87"
+
+    def get_port_used(self, instrument_device_id):
+        return "76"
+
+    def get_agent(self, instrument_device_id): # Messaging address of the agent
+        return "65"
+
+    def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
+        return ['mon', 'tue', 'wed']
+
