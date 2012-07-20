@@ -422,6 +422,7 @@ class ResourceImplMetatest(object):
             #configure Mock
             svc.clients.resource_registry.read.return_value = myret
             svc.clients.resource_registry.delete.return_value = None
+            svc.clients.resource_registry.retire.return_value = None
 
             try:
                 myimpl.delete_one("111")
@@ -438,9 +439,9 @@ class ResourceImplMetatest(object):
                 raise e
 
             svc.clients.resource_registry.read.assert_called_with("111", "")
-            svc.clients.resource_registry.execute_lifecycle_transition.assert_called_once_with("111", LCE.RETIRE)
+            svc.clients.resource_registry.retire.assert_called_once_with("111")
 
-            if all_in_one: svc.clients.resource_registry.delete.reset_mock()
+            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
 
         def test_delete_destroy_fun(self):
             """
@@ -769,8 +770,8 @@ class ResourceImplMetatest(object):
                 test_read_fun(self)
                 test_update_fun(self)
                 test_update_bad_dupname_fun(self)
-                #test_delete_fun(self)
-                #test_delete_destroy_fun(self)
+                test_delete_fun(self)
+                test_delete_destroy_fun(self)
                 test_find_fun(self)
 
                 for k in dir(impl_instance):
@@ -806,8 +807,8 @@ class ResourceImplMetatest(object):
             gen_test_read()
             gen_test_update()
             gen_test_update_bad_dupname()
-            #gen_test_delete()
-            #gen_test_delete_destroy()
+            gen_test_delete()
+            gen_test_delete_destroy()
             gen_test_find()
             gen_tests_associations()
             gen_tests_associated_finds()
