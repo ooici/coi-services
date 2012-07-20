@@ -47,9 +47,15 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.event                = Event()
         self.exchange_space_name  = 'test_granules'
         self.exchange_point_name  = 'science_data'       
+
+
+    def purge_queues(self):
+        xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
+        xn.purge()
         
 
     def tearDown(self):
+        self.purge_queues()
         for pid in self.pids:
             self.process_dispatcher.cancel_process(pid)
         IngestionManagementIntTest.clean_subscriptions()

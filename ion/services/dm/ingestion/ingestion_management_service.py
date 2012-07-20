@@ -57,6 +57,11 @@ class IngestionManagementService(BaseIngestionManagementService):
         validate_is_instance(stream_id,basestring, 'stream_id %s is not a valid string' % stream_id)
 
         ingestion_config = self.read_ingestion_configuration(ingestion_configuration_id)
+        if self.is_persisted(stream_id):
+            raise BadRequest('This stream is already being persisted')
+        stream = self.clients.pubsub_management.read_stream(stream_id)
+        stream.persisted = True
+        self.clients.pubsub_management.update_stream(stream)
 
         ingestion_queue = self._determine_queue(stream_id, ingestion_config.queues)
 
@@ -83,6 +88,10 @@ class IngestionManagementService(BaseIngestionManagementService):
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
         subscriptions, assocs = self.clients.resource_registry.find_objects(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
 
+        stream = self.clients.pubsub_management.read_stream(stream_id)
+        stream.persisted = False
+        self.clients.pubsub_management.update_stream(stream)
+
         for i in xrange(len(subscriptions)):
             subscription = subscriptions[i]
             assoc = assocs[i]
@@ -97,7 +106,9 @@ class IngestionManagementService(BaseIngestionManagementService):
         for dataset_id in datasets:
             self.clients.dataset_management.remove_stream(stream_id)
 
-
+    def is_persisted(self, stream_id=''):
+        stream = self.clients.pubsub_management.read_stream(stream_id)
+        return stream.persisted
 
     def _determine_queue(self,stream_id='', queues=[]):
         # For now just return the first queue until stream definition is defined
