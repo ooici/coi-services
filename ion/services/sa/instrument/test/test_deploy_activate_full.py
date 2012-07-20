@@ -95,7 +95,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
 
     #@unittest.skip ("Deprecated by IngestionManagement refactor, timeout on start inst agent?")
-    def test_reassignPrimaryDevice(self):
+    def test_deploy_activate_full(self):
 
         # ensure no processes or pids are left around by agents or Sims
         self.cleanupprocs()

@@ -44,7 +44,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 #    def test_just_the_setup(self):
 #        return
 
-    def test_resources_associations(self):
+    def test_resources_associations_extensions(self):
         """
         create one of each resource and association used by IMS
         to guard against problems in ion-definitions
@@ -75,6 +75,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
         self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
         self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
+        self.RR.create_association(instrument_device_id, PRED.hasDevice, sensor_device_id)
 
         instrument_model_id #is only a target
 
@@ -97,71 +98,66 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         sensor_model_id #is only a target
 
 
-    def test_get_extended_instrument_device(self):
 
-        #stuff we control
-        instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
-        instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
-        instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
-        instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel))
-        platform_agent_instance_id, _ =    self.RR.create(any_old(RT.PlatformAgentInstance))
-        platform_agent_id, _ =             self.RR.create(any_old(RT.PlatformAgent))
-        platform_device_id, _ =            self.RR.create(any_old(RT.PlatformDevice))
-        platform_model_id, _ =             self.RR.create(any_old(RT.PlatformModel))
-        sensor_device_id, _ =              self.RR.create(any_old(RT.SensorDevice))
-        sensor_model_id, _ =               self.RR.create(any_old(RT.SensorModel))
+        def addInstOwner(inst_id, subject):
 
-        #stuff we associate to
-        data_producer_id, _      = self.RR.create(any_old(RT.DataProducer))
+            actor_identity_obj = any_old(RT.ActorIdentity, {"name": subject})
+            user_id = self.IDS.create_actor_identity(actor_identity_obj)
+            user_info_obj = any_old(RT.UserInfo)
+            user_info_id = self.IDS.create_user_info(user_id, user_info_obj)
 
-        instrument_agent_instance_id #is only a target
-
-        #instrument_agent
-        self.RR.create_association(instrument_agent_id, PRED.hasModel, instrument_model_id)
-        self.RR.create_association(instrument_agent_instance_id, PRED.hasAgentDefinition, instrument_agent_id)
-
-        #instrument_device
-        self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
-        self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
-        self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
-
-        instrument_model_id #is only a target
-
-        platform_agent_instance_id #is only a target
-
-        #platform_agent
-        self.RR.create_association(platform_agent_id, PRED.hasModel, platform_model_id)
-        self.RR.create_association(platform_agent_instance_id, PRED.hasAgentDefinition, platform_agent_id)
-
-        #platform_device
-        self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)
-        self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
-        self.RR.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
+            self.RR.create_association(inst_id, PRED.hasOwner, user_id)
 
 
         #Testing multiple instrument owners
-        subject1 = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254"
+        addInstOwner(instrument_device_id, "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254")
+        addInstOwner(instrument_device_id, "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Bob Cumbers A256")
 
-        actor_identity_obj1 = IonObject("ActorIdentity", {"name": subject1})
-        user_id1 = self.IDS.create_actor_identity(actor_identity_obj1)
-
-        user_info_obj1 = IonObject("UserInfo", {"name": "Foo"})
-        user_info_id1 = self.IDS.create_user_info(user_id1, user_info_obj1)
-
-        self.RR.create_association(instrument_device_id, PRED.hasOwner, user_id1)
-
-        subject2 = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Bob Cumbers A256"
-
-        actor_identity_obj2 = IonObject("ActorIdentity", {"name": subject2})
-        user_id2 = self.IDS.create_actor_identity(actor_identity_obj2)
-
-        user_info_obj2 = IonObject("UserInfo", {"name": "Foo2"})
-        user_info_id2 = self.IDS.create_user_info(user_id2, user_info_obj2)
-
-        self.RR.create_association(instrument_device_id, PRED.hasOwner, user_id2)
+        #testing data products
+        dp_id, _ = self.RR.create(any_old(RT.DataProduct))
+        self.RR.create_association(instrument_device_id, PRED.hasOutputProduct, dp_id)
 
         extended_instrument = self.IMS.get_instrument_device_extension(instrument_device_id)
-        self.assertEqual(instrument_device_id,extended_instrument._id)
-        self.assertEqual(len(extended_instrument.owners),2)
+        self.assertEqual(instrument_device_id, extended_instrument._id)
+        self.assertEqual(len(extended_instrument.owners), 2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
-        self.assertEqual(extended_instrument.computed.data_producer_count,1)
+        self.assertEqual(extended_instrument.computed.data_producer_count, 1)
+
+
+        #check data products
+        self.assertEqual(1, len(extended_instrument.data_products))
+
+        #check model
+        inst_model_obj = self.RR.read(instrument_model_id)
+        self.assertEqual(inst_model_obj.name, extended_instrument.instrument_model.name)
+
+#        #check agent
+#        inst_agent_obj = self.RR.read(instrument_agent_id)
+#        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent.name)
+
+#        #check platform device
+#        plat_device_obj = self.RR.read(platform_device_id)
+#        self.assertEqual(plat_device_obj.name, extended_instrument.platform_device.name)
+
+        #check sensor devices
+        self.assertEqual(1, len(extended_instrument.sensor_device))
+
+
+        self.assertEqual("1.1", extended_instrument.computed.software_version)
+        self.assertEqual("http://iontest/data/%s" % instrument_device_id, extended_instrument.computed.data_produced)
+        self.assertEqual(1, extended_instrument.computed.data_producer_count)
+        self.assertEqual("42", extended_instrument.computed.last_data_received_time)
+        #self.assertEqual(, extended_instrument.computed.photo)
+        self.assertEqual("23", extended_instrument.computed.operational_state)
+        self.assertEqual("34", extended_instrument.computed.last_command_status)
+        self.assertEqual("45", extended_instrument.computed.last_command_date)
+        self.assertEqual("56", extended_instrument.computed.last_command)
+        self.assertEqual("67", extended_instrument.computed.last_commanded_by)
+        self.assertEqual("78", extended_instrument.computed.power_status_roll_up)
+        self.assertEqual("89", extended_instrument.computed.communications_status_roll_up)
+        self.assertEqual("98", extended_instrument.computed.data_status_roll_up)
+        self.assertEqual("87", extended_instrument.computed.location_status_roll_up)
+        self.assertEqual("76", extended_instrument.computed.port_used)
+        self.assertEqual("65", extended_instrument.computed.agent)
+        self.assertEqual(['mon', 'tue', 'wed'], extended_instrument.computed.recent_events)
+
