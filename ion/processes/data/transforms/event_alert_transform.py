@@ -11,12 +11,13 @@ from ion.processes.data.transforms.transform import TransformEventListener, Tran
 from interface.objects import ProcessDefinition
 from ion.services.dm.utility.query_language import QueryLanguage
 from pyon.core.exception import BadRequest
+from pyon.event.event import EventPublisher
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 import operator
 
-class EventAlertTransform(TransformEventListener, TransformEventPublisher):
+class EventAlertTransform(TransformEventListener):
 
     def on_start(self):
         log.warn('TransformDataProcess.on_start()')
@@ -45,27 +46,30 @@ class EventAlertTransform(TransformEventListener, TransformEventPublisher):
                                                 'event_type': event_type,
                                                 'event_origin': event_origin,
                                                 'event_origin_type': event_origin_type,
-                                                'event_subtype': event_subtype
+                                                'event_subtype': event_subtype,
+                                                'callback' : self.publish
                                         }
                                 }
         # Create the process
-        pid = self.create_process(  name= 'transform_event_listener',
+        pid = create_process(  name= 'transform_event_listener',
                                     module='ion.processes.data.transforms.transform',
                                     class_name='TransformEventListener',
                                     configuration= configuration_listener)
 
-
         #-------------------------------------------------------------------------------------
-        # Create a transform event publisher
+        # Create the publisher that will publish the Alert message
         #-------------------------------------------------------------------------------------
 
-        pid = self.create_process(  name= 'transform_event_publisher',
-                                    module='ion.processes.data.transforms.transform',
-                                    class_name='TransformEventPublisher')
+        self.event_publisher = EventPublisher(event_type=event_type)
 
+    def publish(self):
 
+        self.event_publisher.publish_event( event_type= "DeviceEvent",
+                                            origin="EventAlertTransform",
+                                            description= "An alert event being published.")
 
-    def create_process(self, name= '', module = '', class_name = '', configuration = None):
+    @staticmethod
+    def create_process(name= '', module = '', class_name = '', configuration = None):
         '''
         A helper method to create a process
         '''
@@ -216,9 +220,9 @@ class AlgorithmA(object):
         # Check if the result satisfies the query dictionary
         #-------------------------------------------------------------------------------------
 
-        match = self.evaluate_condition(result, query_dict)
+        evaluation = self.evaluate_condition(result, query_dict)
 
-        return match
+        return evaluation
 
     def evaluate_condition(self, result = None, query_dict = None):
         '''

@@ -68,12 +68,16 @@ class TransformEventListener(TransformEventProcess):
         event_subtype = self.CFG.get_safe('process.event_subtype', '')
 
         self.algorithm = self.CFG.get_safe('process.algorithm')
+        self.callback = self.CFG.get_safe('process.callback')
+
+        if not self.callback:
+            self.callback = self.process_event
 
         self.listener = EventSubscriber(  origin=event_origin,
             origin_type = event_origin_type,
             event_type=event_type,
             sub_type=event_subtype,
-            callback=self.process_event   )
+            callback=self.callback)
 
         self.listener.start()
 

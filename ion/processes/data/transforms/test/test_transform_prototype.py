@@ -62,7 +62,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         event_origin_type = 'origin_type_1'
         event_subtype = 'subtype_1'
 
-        # The configuration for the listener... set up the event types to listen to
+        # The configuration for the Event Alert Transform... set up the event types to listen to
         configuration = {
                             'process':{
                                 'algorithm': algorithm,
@@ -74,7 +74,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                         }
 
         # Create the process
-        pid = self.create_process(  name= 'event_alert_transform',
+        pid = create_process(  name= 'event_alert_transform',
                                     module='ion.processes.data.transforms.event_alert_transform',
                                     class_name='EventAlertTransform',
                                     configuration= configuration)
@@ -91,7 +91,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         pass
 
-    def create_process(self, name= '', module = '', class_name = '', configuration = None):
+    @staticmethod
+    def create_process(name= '', module = '', class_name = '', configuration = None):
         '''
         A helper method to create a process
         '''
