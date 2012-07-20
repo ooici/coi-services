@@ -8,13 +8,14 @@
 
 from pyon.util.log import log
 from ion.processes.data.transforms.transform import TransformEventListener, TransformEventPublisher
-from ion.processes.data.transforms.transform import TransformAlgorithm
 from interface.objects import ProcessDefinition
 from ion.services.dm.utility.query_language import QueryLanguage
+from pyon.core.exception import BadRequest
+
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
-
+import operator
 
 class EventAlertTransform(TransformEventListener, TransformEventPublisher):
 
@@ -40,13 +41,14 @@ class EventAlertTransform(TransformEventListener, TransformEventPublisher):
         #-------------------------------------------------------------------------------------
 
 
-        # Create an algorithm object
-        algorithm = TransformAlgorithm(statement=query_statement)
+        # Create algorithm object
+        algorithm_1 = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = None)
+        algorithm_2 = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = ['+','-'])
 
         # The configuration for the listener
         configuration_listener = {
                                     'process':{
-                                                'algorithm': algorithm,
+                                                'algorithm': algorithm_1,
                                                 'event_type': event_type,
                                                 'event_origin': event_origin,
                                                 'event_origin_type': event_origin_type,
@@ -93,28 +95,115 @@ class Operation(object):
     check whether the result is consistent with its own query dict obtained by parsing a query statement.
     '''
 
-    def __init__(self, operator = ''):
-        self.operator = operator
+    operators = {   "+"  :  operator.add,
+                    "-"  :  operator.sub,
+                    "*"  :  operator.mul,
+                    "/"  :  operator.div
+                }
+
+
+    def __init__(self, _operator = '+', _operator_list = None):
+
+        #-------------------------------------------------------------------------------------
+        # A simple operator
+        #-------------------------------------------------------------------------------------
+        self._operator = _operator
+
+        #-------------------------------------------------------------------------------------
+        # instead of a simple single operator, one could provide a list of operators,
+        # Ex: ['+', '-', '+', '*'] ==> a + b - c + d * e
+        #-------------------------------------------------------------------------------------
+
+        self._operator_list = _operator_list
+
+        #-------------------------------------------------------------------------------------
+        # get the python operator object
+        #-------------------------------------------------------------------------------------
+
+        self.operator =  Operation.operators[self._operator]
+
+    def define_subtraction_constant(self, const):
+        '''
+        If we want to do a successive subtraction operation, it may be relevant to have a starting point unequal to 0.
+        For example, subtract all field values from, let's say, 100.
+        '''
+        self.const = const
+
+    def _initialize_the_result(self):
+
+        # apply the operator on the fields
+        if self._operator_list:
+            result = 0
+        elif self._operator == '+':
+            result = 0
+        elif  self._operator == '-':
+            if self.const:
+                result = self.const
+            else: result = 0
+        elif self._operator == '*' or '/':
+            result = 1
+        else:
+            raise NotImplementedError("Unimplemented operator: %s" % self._operator)
+
+        return result
 
     def execute(self, fields = None):
 
-        # apply the operator on the fields
-        result = ''
+        #todo this method is most useful for additions
+
+        #-------------------------------------------------------------------------------------
+        # Initialize the result
+        #-------------------------------------------------------------------------------------
+
+        result = self._initialize_the_result()
+
+        #-------------------------------------------------------------------------------------
+        # Apply the operation
+        #-------------------------------------------------------------------------------------
+
+        if not self._operator_list: # if operator list is not provided, apply the simple SINGLE operator
+            for field in fields:
+                result = self.operator(result, field)
+        else: # apply operator list
+            count = 0
+            for field in fields:
+                operator = Operation.operators[self._operator_list][count]
+                result = operator(result, field)
 
         return result
 
 class AlgorithmA(object):
     '''
     This is meant to be flexible, accept a query statement and return True/False.
+
+    To use this object:
+
+        algorithm = AlgorithmA( statement = "search 'result' is '5' from 'dummy_index' and SEARCH 'result' VALUES FROM 10 TO 20 FROM 'dummy_index",
+                                fields = [1,20,3,10],
+                                _operator = '+',
+                                _operator_list = ['+','-','*'])
+
+        algorithm.execute()
+
+        This going to check for (1 + 20 -3 * 10 is equal to 5 OR 1 + 20 -3 * 10 has a value between 10 and 20)
+
+
+
     '''
-    def __init__(self, statement = '', fields = None, operator = ''):
+    def __init__(self, statement = '', fields = None, _operator = '+', _operator_list = None):
         self.ql = QueryLanguage()
         self.statement = statement
         self.fields = fields
 
-        self.operation = Operation(operator=operator)
+        # the number of operations have to be one less than the number of fields
+        if _operator_list and len(_operator_list) != len(fields) - 1:
+            raise AssertionError("An operator list has been provided but does not correspond correctly with number of " \
+                                 "field values to operate on" )
 
-    def execute(self, fields = None):
+
+        self.operation = Operation(_operator= _operator, _operator_list = _operator_list)
+
+    def execute(self):
 
         #-------------------------------------------------------------------------------------
         # Construct the query dictionary after parsing the string statement
@@ -150,7 +239,7 @@ class AlgorithmA(object):
         #-------------------------------------------------------------------------------------
         if or_queries:
             for or_query in or_queries:
-                if AlgorithmA.match(result, or_query):
+                if self.match(result, or_query):
                     return True
 
         #-------------------------------------------------------------------------------------
@@ -158,17 +247,16 @@ class AlgorithmA(object):
         #-------------------------------------------------------------------------------------
         if and_queries:
             for and_query in and_queries:
-                if not AlgorithmA.match(result, and_query):
+                if not self.match(result, and_query):
                     return False
 
         #-------------------------------------------------------------------------------------
         # The main query
         #-------------------------------------------------------------------------------------
-        return AlgorithmA.match(result, main_query)
+        return self.match(result, main_query)
 
 
-    @classmethod
-    def match(cls, result = None, query = None):
+    def match(self, result = None, query = None):
         '''
         Checks whether it is an "equals" matching or a "range" matching
         '''
@@ -197,6 +285,7 @@ class AlgorithmA(object):
 #                                          'range': {'from': 10.0, 'to': 20.0}}],
 #                                 'or': [],
 #                                 'query': {'field': 'result', 'index': 'dummy_index', 'value': '5'}}
+
 
 
 
