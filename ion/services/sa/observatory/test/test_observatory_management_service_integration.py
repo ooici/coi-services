@@ -237,7 +237,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
                                         description='some new mf')
         self.OMS.create_observatory(observatory_obj)
 
-    #@unittest.skip('targeting')
+    @unittest.skip('deletes are broken, skipped until new pyon is released')
     def test_find_observatory_org(self):
         org_obj = IonObject(RT.Org,
                             name='TestOrg',
@@ -331,7 +331,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         # remove the InstrumentSite
         self.OMS.delete_instrument_site(instrument_site_id)
-        assocs, _ = self.RR.find_objects(platform_site_id, PRED.hasInstrument, RT.InstrumentSite, id_only=True )
+        assocs, _ = self.RR.find_objects(platform_site_id, PRED.hasSite, RT.InstrumentSite, id_only=True )
         self.assertEqual(len(assocs), 0)
 
 

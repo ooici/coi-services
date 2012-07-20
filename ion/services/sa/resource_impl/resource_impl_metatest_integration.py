@@ -440,7 +440,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                       sample_resource_id)
 
             #delete
-            myimpl.delete_one(sample_resource_id)
+            myimpl.delete_one(sample_resource_id, True)
 
             # verify delete
             self.assertRaises(NotFound, myimpl.delete_one, sample_resource_id)

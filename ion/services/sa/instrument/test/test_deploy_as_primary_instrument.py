@@ -558,20 +558,3 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=newInstAgentInstance_id)
 
-
-#        self.omsclient.deploy_as_primary_instrument_device_to_instrument_site(newInstDevice_id, instrumentSite_id)
-#
-#        log.debug("test_deployAsPrimaryDevice: deploy_as_primary_instrument_device_to_instrument_site return")
-#        # Make sure InstrumentDevice now has the primary assignment
-#        assoc = self.rrclient.get_association(newInstDevice_id, PRED.hasPrimaryDeployment, instrumentSite_id)
-#        if not assoc:
-#            self.fail("Failed to reassign")
-#
-#
-#        self.imsclient.undeploy_primary_instrument_device_from_instrument_site(newInstDevice_id, instrumentSite_id)
-#
-#        log.debug("test_deployAsPrimaryDevice: UNdeploy_as_primary_instrument_device_to_instrument_site return")
-#        # Make sure InstrumentDevice now has the primary assignment
-#        assoc = self.rrclient.find_associations(newInstDevice_id, PRED.hasPrimaryDeployment, instrumentSite_id)
-#        if  assoc:
-#            self.fail("Failed to undeploy as primary")
