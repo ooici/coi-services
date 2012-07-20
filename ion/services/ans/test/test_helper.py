@@ -209,6 +209,23 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                         assertions(first_salinity_values[idx]*2.0 == second_salinity_values[idx])
 
 
+    def validate_data_ingest_retrieve(self, dataset_id):
+
+        assertions = self.assertTrue
+        
+        #validate that data was ingested
+        replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+        salinity = get_safe(rdt, 'salinity')
+        assertions(salinity != None)
+
+        #retrieve all the granules from the database and check the values
+        replay_granule_all = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(replay_granule_all)
+        for k, v in rdt.iteritems():
+            if k == 'salinity':
+                for val in numpy.nditer(v):
+                    assertions(val > 0)
 
     def create_salinity_data_process_definition(self):
 
