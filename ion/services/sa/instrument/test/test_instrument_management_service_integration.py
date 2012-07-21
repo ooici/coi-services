@@ -44,6 +44,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 #    def test_just_the_setup(self):
 #        return
 
+    @attr('EXT')
     def test_resources_associations_extensions(self):
         """
         create one of each resource and association used by IMS
@@ -94,6 +95,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #sensor_device
         self.RR.create_association(sensor_device_id, PRED.hasModel, sensor_model_id)
+        self.RR.create_association(sensor_device_id, PRED.hasDevice, instrument_device_id)
 
         sensor_model_id #is only a target
 
