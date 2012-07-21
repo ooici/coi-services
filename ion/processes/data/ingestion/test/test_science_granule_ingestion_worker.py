@@ -52,10 +52,12 @@ class ScienceGranuleIngestionWorkerUnitTest(PyonTestCase):
 
         self.worker.write   = Mock()
         self.worker.persist = Mock()
+        self.worker.get_dataset = Mock()
+        self.worker.get_dataset.return_value = 'dataset_id'
 
         def check_persist(dataset_granule):
             self.assertTrue(dataset_granule['stream_id'] == 'stream_id')
-            self.assertTrue(dataset_granule['dataset_id'] == 'stream_id')
+            self.assertTrue(dataset_granule['dataset_id'] == 'dataset_id')
         self.worker.persist.side_effect = check_persist
 
         self.worker.ingest(granule,'stream_id')
