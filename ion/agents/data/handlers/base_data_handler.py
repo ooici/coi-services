@@ -21,6 +21,8 @@ from interface.objects import Granule, Attachment, AttachmentType
 from mi.core.instrument.instrument_driver import DriverAsyncEvent, DriverParameter
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException, InstrumentException
 
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+
 ### For new granule and stream interface
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.granule.granule import build_granule
@@ -47,13 +49,11 @@ class BaseDataHandler(object):
     _polling = False
     _polling_glet = None
     _dh_config = {}
-    _rr_cli = None
     _terminate_polling = None
 
-    def __init__(self, rr_cli, stream_registrar, dh_config):
+    def __init__(self, stream_registrar, dh_config):
         self._dh_config=dh_config
         self._stream_registrar = stream_registrar
-        self._rr_cli = rr_cli
 
     def set_event_callback(self, evt_callback):
         self._event_callback = evt_callback
@@ -367,8 +367,9 @@ class BaseDataHandler(object):
         self._semaphore.release()
 
     def _find_new_data_check_attachment(self, res_id):
+        rr_cli = ResourceRegistryServiceClient()
         try:
-            attachment_objs = self._rr_cli.find_attachments(resource_id=res_id, include_content=False, id_only=False)
+            attachment_objs = rr_cli.find_attachments(resource_id=res_id, include_content=False, id_only=False)
             for attachment_obj in attachment_objs:
                 kwds = set(attachment_obj.keywords)
                 if 'NewDataCheck' in kwds:
@@ -379,21 +380,23 @@ class BaseDataHandler(object):
         except NotFound:
             raise InstrumentException('ExternalDsysatasetResource \'{0}\' not found'.format(res_id))
 
-    def _update_new_data_check_attachment(self, res_id, new_content):
+    @classmethod
+    def _update_new_data_check_attachment(cls, res_id, new_content):
+        rr_cli = ResourceRegistryServiceClient()
         try:
             # Delete any attachments with the "NewDataCheck" keyword
-            attachment_objs = self._rr_cli.find_attachments(resource_id=res_id, include_content=False, id_only=False)
+            attachment_objs = rr_cli.find_attachments(resource_id=res_id, include_content=False, id_only=False)
             for attachment_obj in attachment_objs:
                 kwds = set(attachment_obj.keywords)
                 if 'NewDataCheck' in kwds:
                     log.debug('Delete NewDataCheck attachment: {0}'.format(attachment_obj._id))
-                    self._rr_cli.delete_attachment(attachment_obj._id)
+                    rr_cli.delete_attachment(attachment_obj._id)
                 else:
                     log.debug('Found attachment: {0}'.format(attachment_obj))
 
             # Create the new attachment
             att = Attachment(name='new_data_check', attachment_type=AttachmentType.OBJECT, keywords=['NewDataCheck',], content_type='text/plain', content=new_content)
-            att_id = self._rr_cli.create_attachment(resource_id=res_id, attachment=att)
+            att_id = rr_cli.create_attachment(resource_id=res_id, attachment=att)
 
         except NotFound:
             raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(res_id))
