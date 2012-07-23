@@ -5,7 +5,8 @@
         satisfy a condition. Its uses an algorithm to check the latter
 @author Swarbhanu Chatterjee
 '''
-from pyon.ion.transforma import TransformEventListener, TransformEventPublisher, TransformAlgorithm
+from pyon.ion.transforma import TransformEventListener, TransformAlgorithm
+from pyon.ion.transforma import TransformStreamListener
 from pyon.util.log import log
 from interface.objects import ProcessDefinition
 from ion.services.dm.utility.query_language import QueryLanguage
@@ -18,70 +19,71 @@ import operator
 class EventAlertTransform(TransformEventListener):
 
     def on_start(self):
-        log.warn('TransformDataProcess.on_start()')
+        log.warn('EventAlertTransform.on_start()')
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        # config to the listener (event types etc and the algorithm)
+        # get the algorithm to use
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        algorithm = self.CFG.get_safe('process.algorithm', None)
-        event_type = self.CFG.get_safe('process.event_type', '')
-        event_origin = self.CFG.get_safe('process.event_origin', '')
-        event_origin_type = self.CFG.get_safe('process.event_origin_type', '')
-        event_subtype = self.CFG.get_safe('process.event_subtype', '')
-
+        self.algorithm = self.CFG.get_safe('process.algorithm', None)
+        
         #-------------------------------------------------------------------------------------
-        # Create a transform event listener
+        # Create the publisher that will publish the Alert message
         #-------------------------------------------------------------------------------------
 
+        self.event_publisher = EventPublisher()
 
-        # The configuration for the listener
-        configuration_listener = {
-                                    'process':{
-                                                'algorithm': algorithm,
-                                                'event_type': event_type,
-                                                'event_origin': event_origin,
-                                                'event_origin_type': event_origin_type,
-                                                'event_subtype': event_subtype,
-                                                'callback' : self.publish
-                                        }
-                                }
-        # Create the process
-        pid = EventAlertTransform.create_process(   name= 'transform_event_listener',
-                                                    module='ion.processes.data.transforms.transform',
-                                                    class_name='TransformEventListener',
-                                                    configuration= configuration_listener)
+    def process_event(self, msg, headers):
+        '''
+        The callback method.
+        If the events satisfy the criteria supplied through the algorithm object, publish an alert event.
+        '''
+
+        if self.algorithm.process():
+            self.publish()
+
+    def publish(self):
+
+        # publish an alert event
+        self.event_publisher.publish_event( event_type= "DeviceEvent",
+                                            origin="EventAlertTransform",
+                                            description= "An alert event being published.")
+
+
+class StreamAlertTransform(TransformStreamListener):
+
+    def on_start(self):
+        log.warn('StreamAlertTransform.on_start()')
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # get the algorithm to use
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        self.algorithm = self.CFG.get_safe('process.algorithm', None)
 
         #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
         #-------------------------------------------------------------------------------------
 
-        self.event_publisher = EventPublisher(event_type=event_type)
+        self.event_publisher = EventPublisher()
+
+    def recv_packet(self, msg, headers):
+        '''
+        The callback method.
+        If the events satisfy the criteria supplied through the algorithm object, publish an alert event.
+        '''
+
+        if self.algorithm.process():
+            self.publish()
 
     def publish(self):
 
+        # publish an alert event
         self.event_publisher.publish_event( event_type= "DeviceEvent",
-                                            origin="EventAlertTransform",
+                                            origin="StreamAlertTransform",
                                             description= "An alert event being published.")
 
-    @staticmethod
-    def create_process(name= '', module = '', class_name = '', configuration = None):
-        '''
-        A helper method to create a process
-        '''
 
-        process_dispatcher = ProcessDispatcherServiceClient()
-
-        producer_definition = ProcessDefinition(name=name)
-        producer_definition.executable = {
-            'module':module,
-            'class': class_name
-        }
-
-        procdef_id = process_dispatcher.create_process_definition(process_definition=producer_definition)
-        pid = process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=configuration)
-
-        return pid
 
 class Operation(object):
     '''
@@ -136,7 +138,7 @@ class Operation(object):
 
         return result
 
-    def execute(self, fields = None):
+    def operate(self, fields = None):
 
         #todo this method is most useful for additions
 
@@ -196,7 +198,13 @@ class AlgorithmA(TransformAlgorithm):
 
         self.operation = Operation(_operator= _operator, _operator_list = _operator_list)
 
-    def execute(self):
+    def process(self):
+        '''
+        The method that parses the supplied statement (related to the query), operates on fields, checks the result against the
+        query and returns a True/False depending on whether the result is within the query bounds
+
+        ret_val evaluation True/False
+        '''
 
         #-------------------------------------------------------------------------------------
         # Construct the query dictionary after parsing the string statement
@@ -208,17 +216,17 @@ class AlgorithmA(TransformAlgorithm):
         # Execute the operation on the fields and get the result out
         #-------------------------------------------------------------------------------------
 
-        result = self.operation.execute(self.fields)
+        result = self.operation.operate(self.fields)
 
         #-------------------------------------------------------------------------------------
         # Check if the result satisfies the query dictionary
         #-------------------------------------------------------------------------------------
 
-        evaluation = self.evaluate_condition(result, query_dict)
+        evaluation = self._evaluate_condition(result, query_dict)
 
         return evaluation
 
-    def evaluate_condition(self, result = None, query_dict = None):
+    def _evaluate_condition(self, result = None, query_dict = None):
         '''
         If result matches the query dict return True, else return False
         '''
@@ -232,7 +240,7 @@ class AlgorithmA(TransformAlgorithm):
         #-------------------------------------------------------------------------------------
         if or_queries:
             for or_query in or_queries:
-                if self.match(result, or_query):
+                if self._match(result, or_query):
                     return True
 
         #-------------------------------------------------------------------------------------
@@ -240,16 +248,16 @@ class AlgorithmA(TransformAlgorithm):
         #-------------------------------------------------------------------------------------
         if and_queries:
             for and_query in and_queries:
-                if not self.match(result, and_query):
+                if not self._match(result, and_query):
                     return False
 
         #-------------------------------------------------------------------------------------
         # The main query
         #-------------------------------------------------------------------------------------
-        return self.match(result, main_query)
+        return self._match(result, main_query)
 
 
-    def match(self, result = None, query = None):
+    def _match(self, result = None, query = None):
         '''
         Checks whether it is an "equals" matching or a "range" matching
         '''
