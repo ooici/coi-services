@@ -82,6 +82,10 @@ class ReplayProcess(BaseReplayProcess):
         byte_string = self.read_persisted_cache(sha1,encoding)
         obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
         ion_obj = self.deserializer.deserialize(obj) # Problem here is that nested objects get deserialized
+        try: 
+            log.info('Granule taxonomy: %s', ion_obj.taxonomy.__dict__)
+        except:
+            pass
         return ion_obj
         
 
@@ -115,13 +119,13 @@ class ReplayProcess(BaseReplayProcess):
         #--------------------------------------------------------------------------------
         # Gather all the dataset granules and compile the FS cache
         #--------------------------------------------------------------------------------
-        log.debug('Getting data from datastore')
+        log.info('Getting data from datastore')
         for result in datastore.query_view(view_name,opts=opts):
             doc = result.get('doc')
             if doc is not None:
                 ion_obj = self.granule_from_doc(doc)
                 granules.append(ion_obj)
-        log.debug('Received %d granules.', len(granules))
+        log.info('Received %d granules.', len(granules))
 
         while len(granules) > 1:
             granule = combine_granules(granules.pop(0),granules.pop(0))
@@ -160,7 +164,7 @@ class ReplayProcess(BaseReplayProcess):
         # Gather all the dataset granules and compile the FS cache
         #--------------------------------------------------------------------------------
         for result in datastore.query_view(view_name,opts=opts):
-            log.debug(result)
+            log.info(result)
             doc = result.get('doc')
             if doc is not None:
                 ion_obj = self.granule_from_doc(doc)
