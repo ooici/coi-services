@@ -52,7 +52,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         """
         
         #stuff we control
-        instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
+#        instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
         instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
         instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
         instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel))
@@ -66,15 +66,15 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #stuff we associate to
         data_producer_id, _      = self.RR.create(any_old(RT.DataProducer))
 
-        instrument_agent_instance_id #is only a target
+        #instrument_agent_instance_id #is only a target
         
         #instrument_agent
         self.RR.create_association(instrument_agent_id, PRED.hasModel, instrument_model_id)
-        self.RR.create_association(instrument_agent_instance_id, PRED.hasAgentDefinition, instrument_agent_id)
+#        self.RR.create_association(instrument_agent_instance_id, PRED.hasAgentDefinition, instrument_agent_id)
 
         #instrument_device
         self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
-        self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
+#        self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
         self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
         self.RR.create_association(instrument_device_id, PRED.hasDevice, sensor_device_id)
 
@@ -123,7 +123,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_device_id, extended_instrument._id)
         self.assertEqual(len(extended_instrument.owners), 2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
-        self.assertEqual(extended_instrument.computed.data_producer_count, 1)
 
 
         #check data products
@@ -133,23 +132,19 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         inst_model_obj = self.RR.read(instrument_model_id)
         self.assertEqual(inst_model_obj.name, extended_instrument.instrument_model.name)
 
-#        #check agent
-#        inst_agent_obj = self.RR.read(instrument_agent_id)
-#        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent.name)
+        #check agent
+        inst_agent_obj = self.RR.read(instrument_agent_id)
+        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent.name)
 
-#        #check platform device
-#        plat_device_obj = self.RR.read(platform_device_id)
-#        self.assertEqual(plat_device_obj.name, extended_instrument.platform_device.name)
+        #check platform device
+        plat_device_obj = self.RR.read(platform_device_id)
+        self.assertEqual(plat_device_obj.name, extended_instrument.platform_device.name)
 
         #check sensor devices
-        self.assertEqual(1, len(extended_instrument.sensor_device))
+        self.assertEqual(1, len(extended_instrument.sensor_devices))
 
-
-        self.assertEqual("1.1", extended_instrument.computed.software_version)
-        self.assertEqual("http://iontest/data/%s" % instrument_device_id, extended_instrument.computed.data_produced)
-        self.assertEqual(1, extended_instrument.computed.data_producer_count)
+        self.assertEqual("1.1", extended_instrument.computed.firmware_version)
         self.assertEqual("42", extended_instrument.computed.last_data_received_time)
-        #self.assertEqual(, extended_instrument.computed.photo)
         self.assertEqual("23", extended_instrument.computed.operational_state)
         self.assertEqual("34", extended_instrument.computed.last_command_status)
         self.assertEqual("45", extended_instrument.computed.last_command_date)
@@ -159,7 +154,5 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual("89", extended_instrument.computed.communications_status_roll_up)
         self.assertEqual("98", extended_instrument.computed.data_status_roll_up)
         self.assertEqual("87", extended_instrument.computed.location_status_roll_up)
-        self.assertEqual("76", extended_instrument.computed.port_used)
-        self.assertEqual("65", extended_instrument.computed.agent)
         self.assertEqual(['mon', 'tue', 'wed'], extended_instrument.computed.recent_events)
 
