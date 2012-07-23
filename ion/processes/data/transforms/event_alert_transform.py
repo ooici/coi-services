@@ -14,15 +14,13 @@ from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-
+from ion.processes.data.transforms.transform import TransformAlgorithm
 import operator
 
 class EventAlertTransform(TransformEventListener):
 
     def on_start(self):
         log.warn('TransformDataProcess.on_start()')
-
-        self.process_dispatcher = ProcessDispatcherServiceClient()
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # config to the listener (event types etc and the algorithm)
@@ -74,14 +72,16 @@ class EventAlertTransform(TransformEventListener):
         A helper method to create a process
         '''
 
+        process_dispatcher = ProcessDispatcherServiceClient()
+
         producer_definition = ProcessDefinition(name=name)
         producer_definition.executable = {
             'module':module,
             'class': class_name
         }
 
-        procdef_id = self.process_dispatcher.create_process_definition(process_definition=producer_definition)
-        pid = self.process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=configuration)
+        procdef_id = process_dispatcher.create_process_definition(process_definition=producer_definition)
+        pid = process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=configuration)
 
         return pid
 
@@ -166,7 +166,7 @@ class Operation(object):
         return result
 
 
-class AlgorithmA(object):
+class AlgorithmA(TransformAlgorithm):
     '''
     This is meant to be flexible, accept a query statement and return True/False.
 
