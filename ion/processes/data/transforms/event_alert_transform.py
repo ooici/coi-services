@@ -8,12 +8,10 @@
 from pyon.ion.transforma import TransformEventListener, TransformAlgorithm
 from pyon.ion.transforma import TransformStreamListener
 from pyon.util.log import log
-from interface.objects import ProcessDefinition
 from ion.services.dm.utility.query_language import QueryLanguage
 from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
 
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 import operator
 
 class EventAlertTransform(TransformEventListener):
@@ -39,7 +37,21 @@ class EventAlertTransform(TransformEventListener):
         If the events satisfy the criteria supplied through the algorithm object, publish an alert event.
         '''
 
-        if self.algorithm.process():
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # Get the list of relevant field values of the event
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        fields = []
+        for field_name in self.algorithm.field_names:
+            fields.append(getattr(msg, field_name))
+
+        log.warning("in process_event, got the following fields: %s" % fields)
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # Apply the algorithm and if criteria check out, publish an alert event
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        if self.algorithm.process(fields):
             self.publish()
 
     def publish(self):
@@ -73,7 +85,17 @@ class StreamAlertTransform(TransformStreamListener):
         If the events satisfy the criteria supplied through the algorithm object, publish an alert event.
         '''
 
-        if self.algorithm.process():
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # Get the list of relevant field values of the event
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        fields = self._extract_parameters_from_stream(self.algorithm.field_names)
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # Apply the algorithm and if criteria check out, publish an alert event
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        if self.algorithm.process(fields):
             self.publish()
 
     def publish(self):
@@ -83,7 +105,18 @@ class StreamAlertTransform(TransformStreamListener):
                                             origin="StreamAlertTransform",
                                             description= "An alert event being published.")
 
+    def _extract_parameters_from_stream(self, field_names ):
 
+        fields = []
+
+        #todo implement this method according to use cases
+
+#        for field_name in field_names:
+#            fields.append(  )
+
+        log.warning("in stream alert recv_packet method, got the following fields: %s" % fields)
+
+        return fields
 
 class Operation(object):
     '''
@@ -185,10 +218,10 @@ class AlgorithmA(TransformAlgorithm):
 
     '''
 
-    def __init__(self, statement = '', fields = None, _operator = '+', _operator_list = None):
+    def __init__(self, statement = '', field_names = None, _operator = '+', _operator_list = None):
         self.ql = QueryLanguage()
         self.statement = statement
-        self.fields = fields
+        self.field_names = field_names
 
         # the number of operations have to be one less than the number of fields
         if _operator_list and len(_operator_list) != len(fields) - 1:
@@ -198,12 +231,13 @@ class AlgorithmA(TransformAlgorithm):
 
         self.operation = Operation(_operator= _operator, _operator_list = _operator_list)
 
-    def process(self):
+    def process(self, fields):
         '''
         The method that parses the supplied statement (related to the query), operates on fields, checks the result against the
         query and returns a True/False depending on whether the result is within the query bounds
 
-        ret_val evaluation True/False
+        @param fields [] A list of field values of type int or float
+        @ret_val evaluation True/False
         '''
 
         #-------------------------------------------------------------------------------------
@@ -216,7 +250,7 @@ class AlgorithmA(TransformAlgorithm):
         # Execute the operation on the fields and get the result out
         #-------------------------------------------------------------------------------------
 
-        result = self.operation.operate(self.fields)
+        result = self.operation.operate(fields)
 
         #-------------------------------------------------------------------------------------
         # Check if the result satisfies the query dictionary

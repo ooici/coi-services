@@ -16,7 +16,7 @@ from nose.plugins.attrib import attr
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition
-from ion.processes.data.transforms.event_alert_transform import EventAlertTransform, AlgorithmA
+from ion.processes.data.transforms.event_alert_transform import AlgorithmA
 
 
 from mock import Mock, sentinel, patch
@@ -38,7 +38,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.rrc = ResourceRegistryServiceClient()
-        self.process_dispatcher = ProcessDispatcherServiceClient()
 
 
     def test_event_processing(self):
@@ -51,18 +50,17 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Create an algorithm object
         query_statement = ''
-        algorithm = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = None)
+        field_names = ['voltage', 'telemetry', 'transmission_length']
+
+        algorithm = AlgorithmA(statement=query_statement, field_names = field_names, _operator = '+', _operator_list = None)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Event Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         configuration = {
                             'process':{
-                                'algorithm': algorithm,
-                                'event_type': 'type_1',
-                                'event_origin': 'origin_1',
-                                'event_origin_type': 'origin_type_1',
-                                'event_subtype': 'subtype_1'
+                                'algorithm': 'algorithm',
+                                'event_type': 'type_1'
                             }
                         }
 
@@ -91,7 +89,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # Create an algorithm object
         #-------------------------------------------------------------------------------------
         query_statement = ''
-        algorithm = AlgorithmA(statement=query_statement, fields = [1,4,20], _operator = '+', _operator_list = ['+','-'])
+        field_names = []
+
+        algorithm = AlgorithmA(statement=query_statement, field_names = field_names, _operator = '+', _operator_list = ['+','-'])
 
 
         #-------------------------------------------------------------------------------------
@@ -99,8 +99,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         configuration = {
             'process':{
-                'algorithm': algorithm,
-                'event_type' : ''
+                'algorithm': algorithm
             }
         }
 
@@ -108,8 +107,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # Create the process
         #-------------------------------------------------------------------------------------
         pid = TransformPrototypeIntTest.create_process(   name= 'transform_data_process',
-                                module='ion.processes.data.transforms.transform',
-                                class_name='TransformDataProcess',
+                                module='ion.processes.data.transforms.event_alert_transform',
+                                class_name='StreamAlertTransform',
                                 configuration= configuration)
 
         self.assertIsNotNone(pid)
@@ -132,7 +131,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             'class': class_name
         }
 
-        procdef_id = self.process_dispatcher.create_process_definition(process_definition=producer_definition)
-        pid = self.process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=configuration)
+        process_dispatcher = ProcessDispatcherServiceClient()
+
+        procdef_id = process_dispatcher.create_process_definition(process_definition=producer_definition)
+        pid = process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=configuration)
 
         return pid
