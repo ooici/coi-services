@@ -37,7 +37,6 @@ res
 control_cc
 obj
 pycc
-pyon
 cc-pid*
 .coverage
 coverage_results
