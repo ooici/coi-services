@@ -22,7 +22,6 @@ try:
     from epu.processdispatcher.engines import EngineRegistry
     from epu.processdispatcher.matchmaker import PDMatchmaker
     from epu.dashiproc.epumanagement import EPUManagementClient
-    from epu.states import ProcessState as CoreProcessState
 except ImportError:
     pass
 
@@ -324,13 +323,13 @@ class PDLocalBackend(object):
 _PD_IGNORED_STATE = object()
 
 _PD_PROCESS_STATE_MAP = {
-    CoreProcessState.PENDING: _PD_IGNORED_STATE,
-    CoreProcessState.RUNNING: ProcessStateEnum.SPAWN,
-    CoreProcessState.TERMINATING: ProcessStateEnum.TERMINATE,
-    CoreProcessState.TERMINATED: ProcessStateEnum.TERMINATE,
-    CoreProcessState.EXITED: ProcessStateEnum.TERMINATE,
-    CoreProcessState.FAILED: ProcessStateEnum.ERROR,
-    CoreProcessState.REJECTED: ProcessStateEnum.ERROR
+    "400-PENDING": _PD_IGNORED_STATE,
+    "500-RUNNING": ProcessStateEnum.SPAWN,
+    "600-TERMINATING": ProcessStateEnum.TERMINATE,
+    "700-TERMINATED": ProcessStateEnum.TERMINATE,
+    "800-EXITED": ProcessStateEnum.TERMINATE,
+    "850-FAILED": ProcessStateEnum.ERROR,
+    "900-REJECTED": ProcessStateEnum.ERROR
 }
 
 class Notifier(object):
