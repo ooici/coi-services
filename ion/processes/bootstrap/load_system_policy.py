@@ -68,7 +68,7 @@ class LoadSystemPolicy(ImmediateProcess):
         """
 
         policy_text = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
+        <Rule RuleId="%s" Effect="Permit">
             <Description>
                 %s
             </Description>
@@ -144,7 +144,7 @@ class LoadSystemPolicy(ImmediateProcess):
 ##############
 
         policy_text = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
+        <Rule RuleId="%s" Effect="Deny">
             <Description>
                 %s
             </Description>
@@ -178,7 +178,7 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
 
         policy_text = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
+        <Rule RuleId="%s:" Effect="Permit">
             <Description>
                 %s
             </Description>
@@ -210,76 +210,12 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header, timeout=timeout)
         log.debug('Policy created: ' + policy_obj.name)
 
-        ##############
 
 
 ##############
 
         policy_text = '''
-            <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
-            <Description>
-                %s
-            </Description>
-
-            <Target>
-
-                <Subjects>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
-                            <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                </Subjects>
-
-                <Resources>
-                    <Resource>
-                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">datastore</AttributeValue>
-                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ResourceMatch>
-                    </Resource>
-                </Resources>
-
-                <Actions>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_doc</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                </Actions>
-
-            </Target>
-
-            <Condition>
-
-                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
-                        <SubjectAttributeDesignator
-                                AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-sender-id"
-                                DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </Apply>
-                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">bootstrap</AttributeValue>
-                </Apply>
-
-            </Condition>
-
-        </Rule>
-        '''
-
-        policy_obj = IonObject(RT.Policy, name='DataStore_Anonymous_Bootstrap', definition_type="Service", rule=policy_text,
-            description='Permit anonymous access to these operations in the Datastore Service if called from the Bootstrap Service')
-
-        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_service_policy('datastore', policy_id, headers=sa_user_header, timeout=timeout)
-        log.debug('Policy created: ' + policy_obj.name)
-
-
-##############
-
-        policy_text = '''
-           <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
+           <Rule RuleId="%s" Effect="Permit">
             <Description>
                 %s
 
@@ -354,7 +290,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
 
         policy_text = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
+        <Rule RuleId="%s" Effect="Permit">
             <Description>
                 %s
 
@@ -417,7 +353,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
 
         policy_text = '''
-            <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
+            <Rule RuleId="%s" Effect="Deny">
             <Description>
                 %s
             </Description>
@@ -537,7 +473,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
 
         policy_text = '''
-            <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
+            <Rule RuleId="%s" Effect="Deny">
             <Description>
                 %s
             </Description>

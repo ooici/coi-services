@@ -140,6 +140,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay_instance = ReplayProcess()
 
         replay_instance.dataset = self.clients.dataset_management.read_dataset(dataset_id)
+        replay_instance.dataset_id = dataset_id
         replay_instance.start_time = query.get('start_time', None)
         replay_instance.end_time = query.get('end_time', None)
         replay_instance.container = self.container

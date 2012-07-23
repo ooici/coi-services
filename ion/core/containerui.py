@@ -430,10 +430,6 @@ def build_commands(resource_id, restype):
 #            options = [(res.name, res._id) for res in res_list]
 #            args = [('select','deploy_prim',options)]
 #            fragments.append(build_command("Deploy Primary", "/cmd/deploy_prim?rid=%s" % resource_id, args))
-#
-#        res_list,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasPrimaryDeployment, RT.InstrumentSite, id_only=True)
-#        if res_list:
-#            fragments.append(build_command("Undeploy Primary", "/cmd/undeploy_prim?rid=%s&undeploy_prim=%s" % (resource_id, res_list[0])))
 
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
         fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))

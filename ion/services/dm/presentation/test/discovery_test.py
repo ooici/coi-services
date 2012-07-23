@@ -550,21 +550,21 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         #- - - - - - - - - - - - - - - - - 
 
         instrument_pool = [
-            InstrumentDevice(name='sonobuoy1', hardware_version='1'),
-            InstrumentDevice(name='sonobuoy2', hardware_version='2'),
-            InstrumentDevice(name='sonobuoy3', hardware_version='3')
+            InstrumentDevice(name='sonobuoy1', firmware_version='1'),
+            InstrumentDevice(name='sonobuoy2', firmware_version='2'),
+            InstrumentDevice(name='sonobuoy3', firmware_version='3')
         ]
         for instrument in instrument_pool:
             self.rr.create(instrument)
 
-        view_id = self.discovery.create_view('devices', fields=['hardware_version'])
+        view_id = self.discovery.create_view('devices', fields=['firmware_version'])
 
-        search_string = "search 'hardware_version' is '2' from '%s'"%view_id
+        search_string = "search 'firmware_version' is '2' from '%s'"%view_id
         results = self.poll(5, self.discovery.parse,search_string)
         result  = results[0]['_source']
         self.assertIsInstance(result, InstrumentDevice)
         self.assertTrue(result.name == 'sonobuoy2')
-        self.assertTrue(result.hardware_version == '2')
+        self.assertTrue(result.firmware_version == '2')
 
 
     @skipIf(not use_es, 'No ElasticSearch')

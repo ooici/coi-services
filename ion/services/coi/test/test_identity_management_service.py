@@ -575,7 +575,7 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         self.assertTrue(id == id3)
         self.assertTrue(valid_until == valid_until3)
 
-
+    @attr('EXT')
     def test_get_extended_user_identity(self):
 
         actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})
