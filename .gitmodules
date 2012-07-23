@@ -8,3 +8,6 @@
 [submodule "extern/coverage-model"]
 	path = extern/coverage-model
 	url = https://github.com/ooici/coverage-model.git
+[submodule "extern/pyon"]
+	path = extern/pyon
+	url = https://github.com/ooici/pyon.git
