@@ -29,6 +29,7 @@ from ion.agents.data.handlers.handler_utils import calculate_iteration_count, li
 
 import gevent
 from gevent.coros import Semaphore
+from gevent.event import Event
 import time
 
 class DataHandlerParameter(DriverParameter):
@@ -47,6 +48,7 @@ class BaseDataHandler(object):
     _polling_glet = None
     _dh_config = {}
     _rr_cli = None
+    _terminate_polling = None
 
     def __init__(self, rr_cli, stream_registrar, dh_config):
         self._dh_config=dh_config
@@ -70,11 +72,12 @@ class BaseDataHandler(object):
         The polling interval (in seconds) is retrieved from the POLLING_INTERVAL parameter
         """
         self._polling = True
+        self._terminate_polling = Event()
         interval = get_safe(self._params, 'POLLING_INTERVAL', 3600)
         log.debug('Polling interval: {0}'.format(interval))
-        while self._polling:
+
+        while not self._terminate_polling.wait(timeout=interval):
             self.execute_acquire_data()
-            time.sleep(interval)
 
     def cmd_dvr(self, cmd, *args, **kwargs):
         """
@@ -261,7 +264,10 @@ class BaseDataHandler(object):
         """
         log.debug('Entered execute_stop_autosample with args={0} & kwargs={1}'.format(args, kwargs))
         if self._polling and not self._polling_glet is None:
-            self._polling_glet.kill()
+            log.debug("Terminating polling")
+            self._terminate_polling.set()
+            self._polling_glet.join(timeout=30)
+            log.debug("Polling terminated")
             self._polling = False
             self._polling_glet = None
 
