@@ -5,16 +5,14 @@
         satisfy a condition. Its uses an algorithm to check the latter
 @author Swarbhanu Chatterjee
 '''
-
+from pyon.ion.transforma import TransformEventListener, TransformEventPublisher, TransformAlgorithm
 from pyon.util.log import log
-from ion.processes.data.transforms.transform import TransformEventListener, TransformEventPublisher
 from interface.objects import ProcessDefinition
 from ion.services.dm.utility.query_language import QueryLanguage
 from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from ion.processes.data.transforms.transform import TransformAlgorithm
 import operator
 
 class EventAlertTransform(TransformEventListener):
