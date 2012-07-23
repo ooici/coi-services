@@ -66,7 +66,6 @@ class TransformManagementServiceTest(PyonTestCase):
 
         self.mock_pd_create = self.transform_service.clients.process_dispatcher.create_process_definition
         self.mock_pd_read = self.transform_service.clients.process_dispatcher.read_process_definition
-        self.mock_pd_update = self.transform_service.clients.process_dispatcher.update_process_definition
         self.mock_pd_delete = self.transform_service.clients.process_dispatcher.delete_process_definition
         self.mock_pd_schedule = self.transform_service.clients.process_dispatcher.schedule_process
         self.mock_pd_cancel = self.transform_service.clients.process_dispatcher.cancel_process
