@@ -30,4 +30,7 @@ class BootstrapIngestion(BootstrapPlugin):
         ing_ms_client.create_ingestion_configuration(name='standard ingestion config',
             exchange_point_id=exchange_point,
             queues=queues)
-
+        
+        for i in queues:
+            xn = self.container.ex_manager.create_xn_queue(i['name'])
+            xn.purge()

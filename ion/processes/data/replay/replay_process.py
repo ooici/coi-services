@@ -102,8 +102,8 @@ class ReplayProcess(BaseReplayProcess):
         view_name = 'manifest/by_dataset'
 
         opts = dict(
-            start_key = [self.dataset.primary_view_key, 0],
-            end_key   = [self.dataset.primary_view_key, {}],
+            start_key = [self.dataset_id, 0],
+            end_key   = [self.dataset_id, {}],
             include_docs = True
         )
         if self.start_time is not None:
@@ -146,8 +146,8 @@ class ReplayProcess(BaseReplayProcess):
         view_name = 'manifest/by_dataset'
 
         opts = dict(
-            start_key = [self.dataset.primary_view_key, 0],
-            end_key   = [self.dataset.primary_view_key, {}],
+            start_key = [self.dataset_id, 0],
+            end_key   = [self.dataset_id, {}],
             include_docs = True
         )
         if self.start_time is not None:
@@ -182,8 +182,8 @@ class ReplayProcess(BaseReplayProcess):
         view_name = 'manifest/by_dataset'
 
         opts = dict(
-            start_key = [dataset.primary_view_key, {}],
-            end_key   = [dataset.primary_view_key, 0], 
+            start_key = [dataset_id, {}],
+            end_key   = [dataset_id, 0], 
             descending = True,
             limit = 1,
             include_docs = True
