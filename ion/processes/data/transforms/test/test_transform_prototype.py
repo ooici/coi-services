@@ -65,7 +65,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         configuration = {
                             'process':{
                                 'algorithm_id': alg_id,
-                                'event_type': 'type_1',
+                                'event_type': 'ExampleDetectableEvent',
                                 'event_count': 3
                             }
                         }
@@ -110,6 +110,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                                                 voltage = 5,
                                                 telemetry = 10,
                                                 temperature = 20)
+        gevent.sleep(4)
 
         # expect an alert event to be published by the EventAlertTransform
         self.assertFalse(queue.empty())

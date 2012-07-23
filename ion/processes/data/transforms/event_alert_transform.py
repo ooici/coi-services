@@ -18,6 +18,7 @@ class EventAlertTransform(TransformEventListener):
 
     def on_start(self):
         log.warn('EventAlertTransform.on_start()')
+        super(EventAlertTransform, self).on_start()
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # get the algorithm to use
@@ -50,7 +51,7 @@ class EventAlertTransform(TransformEventListener):
 
         fields = []
         self.count += 1
-        for field_name in self.transform_algorithm.field_names and (self.count == self.event_count):
+        for field_name in self.transform_algorithm.algorithm.field_names and (self.count == self.event_count):
             fields.append(getattr(msg, field_name))
             self.count = 0
 
