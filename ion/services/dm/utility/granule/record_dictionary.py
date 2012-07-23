@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 
 '''
-@package pyon.ion.granule.record_dictionary
-@file pyon/ion/granule/record_dictionary
+@package ion.services.dm.utility.granule.record_dictionary
+@file ion/services/dm/utility/granule/record_dictionary.py
 @author David Stuebe
 @author Tim Giguere
 @brief https://confluence.oceanobservatories.org/display/CIDev/R2+Construction+Data+Model
 '''
 
 import StringIO
-from pyon.ion.granule.taxonomy import TaxyTool, Taxonomy
+from ion.services.dm.utility.granule.taxonomy import TaxyTool, Taxonomy
 from pyon.util.log import log
 import numpy
 

@@ -13,7 +13,7 @@ from interface.objects import HdfStorage, CouchStorage
 from pyon.public import log
 from nose.plugins.attrib import attr
 
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.stream_defs import ctd_stream_definition

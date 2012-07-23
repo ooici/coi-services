@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 '''
-@package pyon.ion.granule.granule
-@file pyon/ion/granule/granule
+@package ion.services.dm.utility.granule.granule
+@file ion/services/dm/utility/granule/granule.py
 @author David Stuebe
 @author Tim Giguere
 @brief https://confluence.oceanobservatories.org/display/CIDev/R2+Construction+Data+Model
@@ -12,8 +12,8 @@
 from interface.objects import Granule
 from pyon.core.exception import BadRequest
 from pyon.util.arg_check import validate_is_instance
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 import numpy as np
 

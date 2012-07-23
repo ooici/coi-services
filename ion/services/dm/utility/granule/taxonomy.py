@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 '''
-@package pyon.ion.granule.taxonomy
-@file pyon.ion.granule.taxonomy.py
+@package ion.services.dm.utility.granule.taxonomy
+@file ion/services/dm/utility/granule/taxonomy.py
 @author David Stuebe
 @author Don Brittain
 @author Tim Giguere

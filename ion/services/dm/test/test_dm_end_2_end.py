@@ -21,7 +21,9 @@ from pyon.util.containers import DotDict
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.net.endpoint import Publisher
-from pyon.ion.granule import RecordDictionaryTool, TaxyTool, build_granule
+from ion.services.dm.utility.granule.granule import build_granule
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from gevent.event import Event
 from nose.plugins.attrib import attr
 
