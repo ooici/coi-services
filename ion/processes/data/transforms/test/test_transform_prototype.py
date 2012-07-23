@@ -11,15 +11,17 @@ from pyon.util.containers import DotDict
 from pyon.util.file_sys import FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import IonUnitTestCase
+from pyon.event.event import EventPublisher, EventSubscriber
 from nose.plugins.attrib import attr
-
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition
-from ion.processes.data.transforms.event_alert_transform import AlgorithmA
+from interface.objects import ProcessDefinition, Algorithm
+
+from ion.processes.data.transforms.event_alert_transform import TransformAlgorithmExample
 
 
 from mock import Mock, sentinel, patch
+import gevent
 
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.processes.data.transforms.ctd.ctd_L0_all import ctd_L0_all
@@ -38,6 +40,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.rrc = ResourceRegistryServiceClient()
+        self.event_publisher = EventPublisher()
 
 
     def test_event_processing(self):
@@ -49,18 +52,21 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # Create an event alert transform
         #-------------------------------------------------------------------------------------
         # Create an algorithm object
-        query_statement = ''
-        field_names = ['voltage', 'telemetry', 'transmission_length']
+        query_statement = "SEARCH 'voltage' VALUES FROM 0 TO 10 FROM 'dummy_index'"
+        field_names = ['voltage', 'telemetry', 'temperature']
 
-        algorithm = AlgorithmA(statement=query_statement, field_names = field_names, _operator = '+', _operator_list = None)
+        algorithm = Algorithm(query_statement=query_statement, field_names = field_names, operator_ = '+', operator_list_ = None)
+
+        alg_id, _ = self.rrc.create(algorithm)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Event Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         configuration = {
                             'process':{
-                                'algorithm': 'algorithm',
-                                'event_type': 'type_1'
+                                'algorithm_id': alg_id,
+                                'event_type': 'type_1',
+                                'event_count': 3
                             }
                         }
 
@@ -74,10 +80,41 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         self.assertIsNotNone(pid)
 
+        proc = self.container.proc_manager.procs_by_name[pid]
+
         #-------------------------------------------------------------------------------------
         # Publish events and make assertions about alerts
         #-------------------------------------------------------------------------------------
-        #todo
+
+        queue = gevent.queue.Queue()
+
+        def got_event(msg, headers):
+            queue.put(msg)
+
+        proc.process_event = got_event
+
+        # publish event twice
+
+        for i in xrange(2):
+            self.event_publisher.publish_event(     event_type='ExampleDetectableEvent',
+                                                    voltage = 5,
+                                                    telemetry = 10,
+                                                    temperature = 20)
+            self.assertTrue(queue.empty())
+
+        #publish event the third time
+
+        self.event_publisher.publish_event(     event_type='ExampleDetectableEvent',
+                                                voltage = 5,
+                                                telemetry = 10,
+                                                temperature = 20)
+
+        # expect an alert event to be published by the EventAlertTransform
+        event = queue.get()
+
+        self.assertEquals(event.type_, "DeviceEvent")
+        self.assertEquals(event.origin, "EventAlertTransform")
+
 
     def test_stream_processing(self):
         '''
@@ -91,15 +128,15 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         query_statement = ''
         field_names = []
 
-        algorithm = AlgorithmA(statement=query_statement, field_names = field_names, _operator = '+', _operator_list = ['+','-'])
-
+        algorithm = Algorithm(query_statement=query_statement, field_names = field_names, operator_ = '+', operator_list_ = None)
+        alg_id, _ = self.rrc.create(algorithm)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Event Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         configuration = {
             'process':{
-                'algorithm': algorithm
+                'algorithm_id': alg_id
             }
         }
 

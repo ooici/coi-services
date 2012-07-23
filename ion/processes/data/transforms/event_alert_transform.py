@@ -5,13 +5,13 @@
         satisfy a condition. Its uses an algorithm to check the latter
 @author Swarbhanu Chatterjee
 '''
-from pyon.ion.transforma import TransformEventListener, TransformAlgorithm
-from pyon.ion.transforma import TransformStreamListener
+from pyon.ion.transforma import TransformEventListener, TransformStreamListener, TransformAlgorithm
 from pyon.util.log import log
 from ion.services.dm.utility.query_language import QueryLanguage
 from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
 
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 import operator
 
 class EventAlertTransform(TransformEventListener):
@@ -23,8 +23,15 @@ class EventAlertTransform(TransformEventListener):
         # get the algorithm to use
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        self.algorithm = self.CFG.get_safe('process.algorithm', None)
-        
+        algorithm_id = self.CFG.get_safe('process.algorithm_id', '')
+        self.event_count = self.CFG.get_safe('process.event_count', 1)
+        self.count = 0
+
+        rr = ResourceRegistryServiceClient()
+        algorithm = rr.read(algorithm_id)
+
+        self.transform_algorithm = TransformAlgorithmExample(algorithm = algorithm)
+
         #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
         #-------------------------------------------------------------------------------------
@@ -42,8 +49,10 @@ class EventAlertTransform(TransformEventListener):
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
         fields = []
-        for field_name in self.algorithm.field_names:
+        self.count += 1
+        for field_name in self.transform_algorithm.field_names and (self.count == self.event_count):
             fields.append(getattr(msg, field_name))
+            self.count = 0
 
         log.warning("in process_event, got the following fields: %s" % fields)
 
@@ -51,7 +60,7 @@ class EventAlertTransform(TransformEventListener):
         # Apply the algorithm and if criteria check out, publish an alert event
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        if self.algorithm.process(fields):
+        if self.transform_algorithm.process(fields):
             self.publish()
 
     def publish(self):
@@ -71,7 +80,15 @@ class StreamAlertTransform(TransformStreamListener):
         # get the algorithm to use
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        self.algorithm = self.CFG.get_safe('process.algorithm', None)
+        algorithm_id = self.CFG.get_safe('process.algorithm_id', None)
+
+        rr = ResourceRegistryServiceClient()
+        algorithm = rr.read(algorithm_id)
+
+        rr = ResourceRegistryServiceClient()
+        algorithm = rr.read(algorithm_id)
+
+        self.transform_algorithm = TransformAlgorithmExample(algorithm = algorithm)
 
         #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
@@ -89,13 +106,13 @@ class StreamAlertTransform(TransformStreamListener):
         # Get the list of relevant field values of the event
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        fields = self._extract_parameters_from_stream(self.algorithm.field_names)
+        fields = self._extract_parameters_from_stream(self.transform_algorithm.field_names)
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         # Apply the algorithm and if criteria check out, publish an alert event
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        if self.algorithm.process(fields):
+        if self.transform_algorithm.process(fields):
             self.publish()
 
     def publish(self):
@@ -199,7 +216,7 @@ class Operation(object):
         return result
 
 
-class AlgorithmA(TransformAlgorithm):
+class TransformAlgorithmExample(TransformAlgorithm):
     '''
     This is meant to be flexible, accept a query statement and return True/False.
 
@@ -210,7 +227,7 @@ class AlgorithmA(TransformAlgorithm):
                                 _operator = '+',
                                 _operator_list = ['+','-','*'])
 
-        algorithm.execute()
+        algorithm.process()
 
         This going to check for (1 + 20 -3 * 10 is equal to 5 OR 1 + 20 -3 * 10 has a value between 10 and 20)
 
@@ -218,18 +235,13 @@ class AlgorithmA(TransformAlgorithm):
 
     '''
 
-    def __init__(self, statement = '', field_names = None, _operator = '+', _operator_list = None):
+    def __init__(self, algorithm = None):
+
         self.ql = QueryLanguage()
-        self.statement = statement
-        self.field_names = field_names
 
-        # the number of operations have to be one less than the number of fields
-        if _operator_list and len(_operator_list) != len(fields) - 1:
-            raise AssertionError("An operator list has been provided but does not correspond correctly with number of " \
-                                 "field values to operate on" )
+        self.algorithm = algorithm
 
-
-        self.operation = Operation(_operator= _operator, _operator_list = _operator_list)
+        self.operation = Operation(_operator= self.algorithm.operator_, _operator_list = self.algorithm.operator_list_)
 
     def process(self, fields):
         '''
@@ -240,17 +252,22 @@ class AlgorithmA(TransformAlgorithm):
         @ret_val evaluation True/False
         '''
 
+        # the number of operations have to be one less than the number of fields
+        if self.algorithm.operator_list_ and len(self.algorithm.operator_list_) != len(fields) - 1:
+            raise AssertionError("An operator list has been provided but does not correspond correctly with number of "\
+                                 "field values to operate on" )
+
         #-------------------------------------------------------------------------------------
         # Construct the query dictionary after parsing the string statement
         #-------------------------------------------------------------------------------------
 
-        query_dict = self.ql.parse(self.statement)
+        query_dict = self.ql.parse(self.algorithm.query_statement)
 
         #-------------------------------------------------------------------------------------
         # Execute the operation on the fields and get the result out
         #-------------------------------------------------------------------------------------
 
-        result = self.operation.operate(fields)
+        result = self.algorithm.operation.operate(fields)
 
         #-------------------------------------------------------------------------------------
         # Check if the result satisfies the query dictionary
