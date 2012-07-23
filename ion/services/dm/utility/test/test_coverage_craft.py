@@ -19,7 +19,7 @@ class CoverageCraftUnitTest(PyonTestCase):
         rdt = RecordDictionaryTool(CoverageCraft.tx)
         rdt['time'] = np.arange(20)
         rdt['temp'] = np.array([5] * 20)
-        rdt['cond'] = np.array([10] * 20)
+        rdt['conductivity'] = np.array([10] * 20)
         rdt['lat'] = np.array([0] * 20)
         rdt['lon'] = np.array([0] * 20)
         rdt['depth'] = np.array([0] * 20)

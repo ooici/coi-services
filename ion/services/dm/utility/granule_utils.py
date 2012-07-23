@@ -6,10 +6,11 @@
 @description Utilities for crafting granules into a coverage
 '''
 
-from pyon.core.exception import BadRequest
 from pyon.ion.granule import TaxyTool, RecordDictionaryTool, build_granule 
 from pyon.util.arg_check import validate_equal
-from coverage_model.coverage import GridDomain, CRS, AxisTypeEnum, MutabilityEnum, GridShape, SimplexCoverage, RangeDictionary, ParameterContext
+from coverage_model.coverage import GridDomain, CRS, AxisTypeEnum, MutabilityEnum, GridShape, SimplexCoverage
+from coverage_model.parameter import ParameterContext, ParameterDictionary 
+from coverage_model.parameter_types import QuantityType
 import dateutil.parser
 import netCDF4
 import time
@@ -21,7 +22,7 @@ Assuming all values are np.float64 except data which is int8
 class CoverageCraft(object):
     tx = TaxyTool()
     tx.add_taxonomy_set('temp','long name for temp')
-    tx.add_taxonomy_set('cond','long name for cond')
+    tx.add_taxonomy_set('conductivity','long name for cond')
     tx.add_taxonomy_set('depth','')
     tx.add_taxonomy_set('lat','long name for latitude')
     tx.add_taxonomy_set('lon','long name for longitude')
@@ -62,7 +63,7 @@ class CoverageCraft(object):
             print "value: %s" % v
             slice_ = slice(start_index,None)
             print "slice: %s" % slice_
-            self.coverage.set_parameter_values(k,tdoa=slice_, value=v)
+            self.coverage.set_parameter_values(param_name=k,tdoa=slice_, value=v)
 
 
     def to_granule(self, coverage=None, start_time=None, end_time=None):
@@ -102,73 +103,54 @@ class CoverageCraft(object):
 
     @classmethod
     def create_coverage(cls):
-        rdict = RangeDictionary()
-        rdict.items = {
-            'coords' : ['time', 'lat', 'lon','depth'],
-            'vars'   : ['temp', 'cond', 'data']
-        }
+        pdict = cls.create_parameters()
 
         tcrs = CRS([AxisTypeEnum.TIME])
         scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT, AxisTypeEnum.HEIGHT])
 
-        tdom = GridDomain(GridShape('temporal'), tcrs, MutabilityEnum.EXTENSIBLE)
-        sdom = GridDomain(GridShape('spatial', [1]), scrs, MutabilityEnum.IMMUTABLE) # Dimensionality is excluded for now
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # Dimensionality is excluded for now
     
-        scov = SimplexCoverage('sample grid coverage_model', rdict, sdom, tdom)
-
-        for val in cls.tx._by_nick_names.iterkeys():
-            cls.create_parameters(scov,rdict,val)
+        scov = SimplexCoverage('sample grid coverage_model', pdict, sdom, tdom)
 
         return scov
 
     @classmethod
-    def create_parameters(cls, coverage,rdict, parameter):
-        if parameter is not 'data':
-            pcontext = ParameterContext(parameter, param_type=np.float64)
-        else:
-            pcontext = ParameterContext(parameter, param_type=np.int8)
-        #--------------------------------------------------------------------------------
-        # Coordinate parameters
-        #--------------------------------------------------------------------------------
-        if parameter is "time":
-            pcontext.uom = 'seconds since 1970-01-01'
-            pcontext.description = 'time'
-            pcontext.fill_value = np.float64(0e0)
-            pcontext.axis = AxisTypeEnum.TIME
-        elif parameter is "lat":
-            pcontext.uom = "degrees_north"
-            pcontext.description = 'wgs84 latitude'
-            pcontext.fill_value = np.float64(0e0)
-            pcontext.axis = AxisTypeEnum.LAT
-        elif parameter is "lon":
-            pcontext.uom = "degrees_east"
-            pcontext.description = 'wgs84 longitude'
-            pcontext.fill_value = np.float64(0e0)
-            pcontext.axis = AxisTypeEnum.LON
-        elif parameter is "depth":
-            pcontext.uom = 'urn:ogc:def:uom:UCUM::m'
-            pcontext.description = 'depth in metres'
-            pcontext.fill_value = np.float64(0e0)
-            pcontext.axis = AxisTypeEnum.HEIGHT
-        #--------------------------------------------------------------------------------
-        # Value parameters
-        #--------------------------------------------------------------------------------
-        elif parameter is "temp":
-            pcontext.uom = 'urn:ogc:def:uom:UCUM::c'
-            pcontext.description = 'degrees centigrade'
-            pcontext.fill_value = np.float64(0e0)
-        elif parameter is "cond":
-            pcontext.uom = "???"
-            pcontext.description = 'conductivity'
-            pcontext.fill_value = np.float64(0e0)
-        elif parameter is "data":
-            pcontext.uom = "byte"
-            pcontext.description = 'arbitrary data'
-            pcontext.fill_value = np.int8(0x0)
-        else:
-            raise BadRequest('The parameter is not explicitly defined and therefore not accepted')
+    def create_parameters(cls):
+        pdict = ParameterDictionary()
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
 
-        coverage.append_parameter(pcontext)
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
+        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        pdict.add_context(lat_ctxt)
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
+        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        pdict.add_context(lon_ctxt)
+
+        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
+        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
+        depth_ctxt.uom = 'meters'
+        pdict.add_context(depth_ctxt)
+
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
+        temp_ctxt.uom = 'degree_Celsius'
+        pdict.add_context(temp_ctxt)
+
+        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.float32))
+        cond_ctxt.uom = 'unknown'
+        pdict.add_context(cond_ctxt)
+
+        data_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=np.int8))
+        data_ctxt.uom = 'byte'
+        pdict.add_context(data_ctxt)
+
+        return pdict
         
     @classmethod
     def get_relative_time(cls, coverage, time):
