@@ -2,12 +2,12 @@
 
 """Process that subscribes to ALL events and persists them efficiently into the events datastore"""
 
-import time
-from gevent.greenlet import Greenlet
-
 from pyon.core import bootstrap
 from pyon.event.event import EventSubscriber
 from pyon.ion.process import StandaloneProcess
+from pyon.util.async import spawn
+from gevent.queue import Queue
+from gevent.event import Event
 from pyon.public import log
 
 
@@ -26,23 +26,22 @@ class EventPersister(StandaloneProcess):
         self.persist_interval = 1.0
 
         # Holds received events FIFO
-        self.event_queue = []
+        self.event_queue = Queue()
 
         # Temporarily holds list of events to persist while datastore operation not yet completed
         self.events_to_persist = None
 
-        # Keeps references to running threads
-        self.thread_list = []
+        # bookkeeping for timeout greenlet
+        self._persist_greenlet = None
+        self._terminate_persist = Event() # when set, exits the timeout greenlet
 
         # The event subscriber
         self.event_sub = None
 
     def on_start(self):
         # Persister thread
-        g = Greenlet(self._trigger_func, self.persist_interval)
-        g.start()
+        self._persist_greenlet = spawn(self._trigger_func, self.persist_interval)
         log.debug('Publisher Greenlet started in "%s"' % self.__class__.__name__)
-        self.thread_list.append(g)
 
         # Event subscription
         self.event_sub = EventSubscriber(pattern=EventSubscriber.ALL_EVENTS, callback=self._on_event)
@@ -52,38 +51,28 @@ class EventPersister(StandaloneProcess):
         # Stop event subscriber
         self.event_sub.stop()
 
-        # Wait for persister thread to finish persisting to datastore
-        while self.events_to_persist is not None:
-            log.warn("Persisting events in progress, waiting")
-            time.sleep(0.2)
+        # tell the trigger greenlet we're done
+        self._terminate_persist.set()
 
-        for greenlet in self.thread_list:
-            greenlet.kill()
-
-        events_to_persist = list(self.event_queue)
-        del self.event_queue[:]
-        self._persist_events(events_to_persist)
+        # wait on the greenlet to finish cleanly
+        self._persist_greenlet.join(timeout=10)
 
     def _on_event(self, event, *args, **kwargs):
-        self.event_queue.append(event)
+        self.event_queue.put(event)
 
     def _trigger_func(self, persist_interval):
         log.debug('Starting event persister thread with persist_interval=%s', persist_interval)
 
-        while True:
+        # Event.wait returns False on timeout (and True when set in on_quit), so we use this to both exit cleanly and do our timeout in a loop
+        while not self._terminate_persist.wait(timeout=persist_interval):
             try:
-                self.events_to_persist = list(self.event_queue)
-
-                # Clear contents of queue
-                del self.event_queue[:]
+                self.events_to_persist = [self.event_queue.get() for x in xrange(self.event_queue.qsize())]
 
                 self._persist_events(self.events_to_persist)
                 self.events_to_persist = None
             except Exception as ex:
                 log.exception("Failed to persist received events")
                 return False
-
-            time.sleep(persist_interval)
 
     def _persist_events(self, event_list):
         if event_list:

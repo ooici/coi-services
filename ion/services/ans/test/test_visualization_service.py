@@ -108,6 +108,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         salinity_subscription_id = self.pubsubclient.create_subscription(
             query=StreamQuery(data_product_stream_ids),
             exchange_name = user_queue_name,
+            exchange_point = 'science_data',
             name = "user visualization queue"
         )
 
@@ -136,7 +137,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         gevent.sleep(10.0)  # Send some messages - don't care how many
 
 
-        msg_count,_ = subscriber._chan.get_stats()
+        msg_count,_ = xq.get_stats()
         print 'Messages in user queue 1: ' + str(msg_count)
 
         #Validate the data from each of the messages along the way
@@ -147,7 +148,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 #            print mo.body
 #            mo.ack()
 
-        msgs = subscriber.get_n_msgs(msg_count, timeout=2)
+        msgs = subscriber.get_all_msgs(timeout=2)
         for x in range(len(msgs)):
             msgs[x].ack()
             self.validate_messages(msgs[x])
@@ -156,7 +157,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
 
         #Should be zero after pulling all of the messages.
-        msg_count,_ = subscriber._chan.get_stats()
+        msg_count,_ = xq.get_stats()
         print 'Messages in user queue 2: ' + str(msg_count)
 
 
@@ -170,16 +171,16 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
 
         #Should see more messages in the queue
-        msg_count,_ = subscriber._chan.get_stats()
+        msg_count,_ = xq.get_stats()
         print 'Messages in user queue 3: ' + str(msg_count)
 
-        msgs = subscriber.get_n_msgs(msg_count, timeout=2)
+        msgs = subscriber.get_all_msgs(timeout=2)
         for x in range(len(msgs)):
             msgs[x].ack()
             self.validate_messages(msgs[x])
 
         #Should be zero after pulling all of the messages.
-        msg_count,_ = subscriber._chan.get_stats()
+        msg_count,_ = xq.get_stats()
         print 'Messages in user queue 4: ' + str(msg_count)
 
         subscriber.close()

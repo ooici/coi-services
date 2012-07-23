@@ -8,6 +8,7 @@
 from pyon.core.exception import Timeout
 from pyon.public import RT
 from pyon.net.endpoint import Subscriber
+from pyon.ion.stream import SimpleStreamPublisher, SimpleStreamSubscriber
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -46,9 +47,15 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.event                = Event()
         self.exchange_space_name  = 'test_granules'
         self.exchange_point_name  = 'science_data'       
+
+
+    def purge_queues(self):
+        xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
+        xn.purge()
         
 
     def tearDown(self):
+        self.purge_queues()
         for pid in self.pids:
             self.process_dispatcher.cancel_process(pid)
         IngestionManagementIntTest.clean_subscriptions()
@@ -85,6 +92,36 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         ingest_configs, _  = self.resource_registry.find_resources(restype=RT.IngestionConfiguration,id_only=True)
         return ingest_configs[0]
+
+
+    def publish_hifi(self,stream_id, offset=0):
+        pub = SimpleStreamPublisher.new_publisher(self.container,'science_data',stream_id)
+
+        tt = TaxyTool()
+        tt.add_taxonomy_set('t')
+        tt.add_taxonomy_set('f')
+
+
+        rdt = RecordDictionaryTool(tt)
+
+        t = np.arange(10) + offset
+
+        rdt['t'] = t
+        rdt['f'] = t + 2
+
+        granule = build_granule('test', tt, rdt)
+
+        pub.publish(granule)
+
+        rdt = RecordDictionaryTool(tt)
+
+        t = np.arange(10,20) + offset
+
+        rdt['t'] = t
+        rdt['f'] = t + 2
+
+        granule = build_granule('test',tt,rdt)
+        pub.publish(granule)
 
     def publish_fake_data(self,stream_id):
 
@@ -266,8 +303,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         self.get_datastore(dataset_id)
 
-        self.get_datastore(dataset_id)
-
         self.publish_fake_data(stream_id)
         self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
 
@@ -277,6 +312,45 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         comp = rdt['time'] == np.array([6,7,8,9,10])
 
+        self.assertTrue(comp.all())
+
+    def test_accuracy(self):
+        stream_id = self.pubsub_management.create_stream()
+        config_id = self.get_ingestion_config()
+        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
+
+        self.get_datastore(dataset_id)
+
+        self.publish_hifi(stream_id)
+
+        self.wait_until_we_have_enough_granules(dataset_id,2)
+
+        retrieved_granule = self.data_retriever.retrieve(dataset_id)
+
+        rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
+
+        comp = rdt['t'] == np.arange(0,20)
+        self.assertTrue(comp.all())
+
+        comp = rdt['f'] == np.arange(2,22)
+        self.assertTrue(comp.all())
+
+
+    def test_repersist_data(self):
+        stream_id = self.pubsub_management.create_stream()
+        config_id = self.get_ingestion_config()
+        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
+
+        self.get_datastore(dataset_id)
+        self.publish_hifi(stream_id)
+        self.wait_until_we_have_enough_granules(dataset_id,2)
+        self.ingestion_management.unpersist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
+        self.ingestion_management.persist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
+        self.publish_hifi(stream_id,20)
+        self.wait_until_we_have_enough_granules(dataset_id,4)
+        retrieved_granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
+        comp = rdt['t'] == np.arange(0,40)
         self.assertTrue(comp.all())
 
 

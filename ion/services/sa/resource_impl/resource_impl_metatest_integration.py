@@ -154,7 +154,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             
             log.debug("got resource id: %s" % sample_resource_id)
 
-            if all_in_one: myimpl.delete_one(sample_resource_id)
+            if all_in_one: myimpl.delete_one(sample_resource_id, True)
 
 
         def gen_test_create():
@@ -206,7 +206,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             sample_resource_id = myimpl.create_one(good_sample_resource)
             self.assertRaises(BadRequest, myimpl.create_one, good_sample_resource)
 
-            if all_in_one: myimpl.delete_one(sample_resource_id)
+            if all_in_one: myimpl.delete_one(sample_resource_id, True)
 
 
         def gen_test_create_bad_dupname():
@@ -265,7 +265,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             self.assertEqual(returned_resource._id,
                              sample_resource_id)
 
-            if all_in_one: myimpl.delete_one(sample_resource_id)
+            if all_in_one: myimpl.delete_one(sample_resource_id, True)
 
         def gen_test_read():
             """
@@ -320,7 +320,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             good_sample_triplicate = myimpl.read_one(res_id)
             self.assertEqual(good_sample_duplicate.name, good_sample_triplicate.name)
 
-            if all_in_one: myimpl.delete_one(res_id)
+            if all_in_one: myimpl.delete_one(res_id, True)
 
         def gen_test_update_samename():
             """
@@ -354,7 +354,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             good_sample_triplicate = myimpl.read_one(res_id)
             self.assertEqual(newname, good_sample_triplicate.name)
 
-            if all_in_one: myimpl.delete_one(res_id)
+            if all_in_one: myimpl.delete_one(res_id, True)
 
 
         def gen_test_update_differentname():
@@ -411,8 +411,8 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             self.assertRaises(BadRequest, myimpl.update_one, good_sample_duplicate)
             
             if all_in_one: 
-                myimpl.delete_one(res_id)
-                myimpl.delete_one(dup_id)
+                myimpl.delete_one(res_id, True)
+                myimpl.delete_one(dup_id, True)
 
 
 
@@ -440,7 +440,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                       sample_resource_id)
 
             #delete
-            myimpl.delete_one(sample_resource_id)
+            myimpl.delete_one(sample_resource_id, True)
 
             # verify delete
             self.assertRaises(NotFound, myimpl.delete_one, sample_resource_id)
@@ -505,8 +505,8 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             self.assertIn(sample_resource_id2, resource_ids)
 
             if all_in_one: 
-                myimpl.delete_one(sample_resource_id)
-                myimpl.delete_one(sample_resource_id2)
+                myimpl.delete_one(sample_resource_id, True)
+                myimpl.delete_one(sample_resource_id2, True)
 
 
 

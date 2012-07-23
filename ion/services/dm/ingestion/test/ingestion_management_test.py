@@ -36,8 +36,10 @@ class IngestionManagementUnitTest(PyonTestCase):
         self.rr_find_assocs = mock_clients.resource_registry.find_associations
         self.rr_find_res = mock_clients.resource_registry.find_resources
         self.rr_create_assoc = mock_clients.resource_registry.create_association
+        self.rr_find_subjects = mock_clients.resource_registry.find_subjects
         self.rr_del_assoc =  mock_clients.resource_registry.delete_association
         self.pubsub_create_sub = mock_clients.pubsub_management.create_subscription
+        self.pubsub_read = mock_clients.pubsub_management.read_stream 
         self.pubsub_del_sub = mock_clients.pubsub_management.delete_subscription
         self.pubsub_act_sub = mock_clients.pubsub_management.activate_subscription
         self.pubsub_deact_sub = mock_clients.pubsub_management.deactivate_subscription
@@ -79,6 +81,7 @@ class IngestionManagementUnitTest(PyonTestCase):
     def test_persist_data_stream(self):
         ingestval = DotDict()
         ingestval.queues = None
+        ingestval.exchange_point = 'test'
 
         queueval = DotDict()
         queueval.name = 'test'
@@ -90,6 +93,7 @@ class IngestionManagementUnitTest(PyonTestCase):
         self.ingestion_management.read_ingestion_configuration.return_value = ingestval
         self.ingestion_management._determine_queue = Mock()
         self.ingestion_management._determine_queue.return_value = queueval
+        self.pubsub_read.return_value = DotDict({'persisted':False})
 
         self.ingestion_management._new_dataset = Mock()
         self.ingestion_management._new_dataset.return_value = testval
@@ -107,12 +111,14 @@ class IngestionManagementUnitTest(PyonTestCase):
 
         self.rr_find_objs.return_value = [('sub'),('assoc')]
         self.rr_find_assocs.return_value = ['assoc']
+        self.rr_find_subjects.return_value = ([],[])
 
         self.ingestion_management.unpersist_data_stream('stream_id','ingestion_id')
 
         self.assertTrue(self.pubsub_deact_sub.call_count)
         self.assertTrue(self.rr_del_assoc.call_count)
         self.assertTrue(self.pubsub_del_sub.call_count)
+
 
     def test_determine_queue(self):
         pass #unimplemented
@@ -130,6 +136,16 @@ class IngestionManagementUnitTest(PyonTestCase):
         retval = self.ingestion_management.list_ingestion_configurations(id_only=True)
         self.assertTrue(retval == testval[0])
         self.assertTrue(self.rr_find_res.call_count)
+
+    def test_is_persisted(self):
+        stream = DotDict()
+        stream.persisted=True
+        self.pubsub_read.return_value = stream
+
+        retval = self.ingestion_management.is_persisted('stream_id')
+
+        self.assertEquals(retval,True)
+
 
 @attr('INT', group='dm')
 class IngestionManagementIntTest(IonIntegrationTestCase):

@@ -226,8 +226,8 @@ class PolicyManagementService(BasePolicyManagementService):
 
         if self.event_pub:
             event_data = dict()
-            event_data['origin_type'] = 'Policy'
-            event_data['description'] = 'Resource Policy Modified'
+            event_data['origin_type'] = 'Resource_Policy'
+            event_data['description'] = 'Updated Resource Policy'
             event_data['resource_id'] = resource._id
             event_data['resource_type'] = resource.type_
             event_data['resource_name'] = resource.name
@@ -271,11 +271,13 @@ class PolicyManagementService(BasePolicyManagementService):
 
         res_list,_  = self.clients.resource_registry.find_resources(restype=RT.ServiceDefinition, name=name)
         if not res_list:
-            raise NotFound('The ServiceDefinition with name %s does not exist' % name )
+            raise NotFound('The Service resource object with name %s does not exist' % name )
         return res_list[0]
 
 
     def _get_policy_template(self):
+
+        #TODO - Put in resource registry as object and load in preload or test init
 
         policy_template = '''<?xml version="1.0" encoding="UTF-8"?>
         <Policy xmlns="urn:oasis:names:tc:xacml:2.0:policy:schema:os"
@@ -284,7 +286,7 @@ class PolicyManagementService(BasePolicyManagementService):
             xsi:schemaLocation="urn:oasis:names:tc:xacml:2.0:policy:schema:os http://docs.oasis-open.org/xacml/access_control-xacml-2.0-policy-schema-os.xsd"
             xmlns:xf="http://www.w3.org/TR/2002/WD-xquery-operators-20020816/#"
             xmlns:md="http:www.med.example.com/schemas/record.xsd"
-            PolicyId="urn:oasis:names:tc:xacml:2.0:example:policyid:%s_%s"
+            PolicyId="%s"
             RuleCombiningAlgId="urn:oasis:names:tc:xacml:1.0:rule-combining-algorithm:permit-overrides">
             <PolicyDefaults>
                 <XPathVersion>http://www.w3.org/TR/1999/Rec-xpath-19991116</XPathVersion>
@@ -320,7 +322,7 @@ class PolicyManagementService(BasePolicyManagementService):
             if p.enabled:
                 rules += p.rule
 
-        policy_rules = policy % ('', resource_id, rules)
+        policy_rules = policy % (resource_id, rules)
 
         return policy_rules
 
@@ -389,7 +391,7 @@ class PolicyManagementService(BasePolicyManagementService):
 
         policy = self._get_policy_template()
 
-        #TODO - investigate better ways to optimize this
+        #TODO - need to confirm if this is still the way to do this.
 
         rules = ""
         #First get any global Org rules
@@ -405,11 +407,9 @@ class PolicyManagementService(BasePolicyManagementService):
                 rules += p.rule
 
 
-        policy_rules = policy % (org.name, service_name, rules)
+        policy_rules = policy % (service_name, rules)
 
         return policy_rules
-
-
 
 
 #
