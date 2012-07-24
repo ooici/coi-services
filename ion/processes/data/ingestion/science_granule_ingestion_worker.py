@@ -5,12 +5,11 @@
 @date 06/26/12 11:38
 @description DESCRIPTION
 '''
-from pyon.core.bootstrap import get_sys_name
 from pyon.core.interceptor.encode import encode_ion
 from pyon.core.object import ion_serializer
 from pyon.ion.process import SimpleProcess
-from pyon.ion.granule import RecordDictionaryTool
 from pyon.ion.stream import SimpleStreamSubscriber
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -18,7 +17,6 @@ from pyon.util.containers import get_ion_ts, get_safe
 from pyon.util.file_sys import FileSystem, FS
 from pyon.public import log, RT, PRED
 from interface.objects import Granule
-from gevent import spawn
 from couchdb import ResourceNotFound
 import hashlib
 import msgpack

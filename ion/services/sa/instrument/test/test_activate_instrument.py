@@ -36,7 +36,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 
 from pyon.agent.agent import ResourceAgentClient
 
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 from pyon.core.exception import BadRequest, NotFound, Conflict
 
