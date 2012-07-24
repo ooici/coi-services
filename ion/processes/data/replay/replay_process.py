@@ -21,7 +21,8 @@ from pyon.util.arg_check import validate_true
 from pyon.datastore.datastore import DataStore
 import msgpack
 import gevent
-
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 class ReplayProcessException(IonException):
     """
@@ -72,67 +73,17 @@ class ReplayProcess(BaseReplayProcess):
         self.dataset = dsm_cli.read_dataset(self.dataset_id)
 
 
-    def granule_from_doc(self,doc):
-        '''
-        granule_from_doc Helper method to obtain a granule from a CouchDB document
-        '''
-        sha1 = doc.get('persisted_sha1')
-        encoding = doc.get('encoding_type')
-        # Warning: redundant serialization
-        byte_string = self.read_persisted_cache(sha1,encoding)
-        obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
-        ion_obj = self.deserializer.deserialize(obj) # Problem here is that nested objects get deserialized
-        try: 
-            log.info('Granule taxonomy: %s', ion_obj.taxonomy.__dict__)
-        except:
-            pass
-        return ion_obj
-        
-
 
     def execute_retrieve(self):
         '''
         execute_retrieve Executes a retrieval and returns the result 
         as a value in lieu of publishing it on a stream
         '''
-        datastore = self.container.datastore_manager.get_datastore(self.dataset.datastore_name)
-        #--------------------------------------------------------------------------------
-        # This handles the case where a datastore may not have been created by ingestion
-        # or there was an issue with it being delete, in any case the client should
-        # be duly notified.
-        #--------------------------------------------------------------------------------
-        validate_true(datastore.profile == DataStore.DS_PROFILE.SCIDATA, 'The datastore, %s, did not exist for this dataset.' % self.dataset.datastore_name) 
-        
-        view_name = 'manifest/by_dataset'
-
-        opts = dict(
-            start_key = [self.dataset_id, 0],
-            end_key   = [self.dataset_id, {}],
-            include_docs = True
-        )
-        if self.start_time is not None:
-            opts['start_key'][1] = self.start_time
-
-        if self.end_time is not None:
-            opts['end_key'][1] = self.end_time
-        granules = []
-        #--------------------------------------------------------------------------------
-        # Gather all the dataset granules and compile the FS cache
-        #--------------------------------------------------------------------------------
-        log.info('Getting data from datastore')
-        for result in datastore.query_view(view_name,opts=opts):
-            doc = result.get('doc')
-            if doc is not None:
-                ion_obj = self.granule_from_doc(doc)
-                granules.append(ion_obj)
-        log.info('Received %d granules.', len(granules))
-
-        while len(granules) > 1:
-            granule = combine_granules(granules.pop(0),granules.pop(0))
-            granules.insert(0,granule)
-        if granules:
-            return granules[0]
-        return None
+        coverage = DatasetManagementService._get_coverage(self.dataset_id)
+        crafter = CoverageCraft(coverage)
+        #@todo: add some slicing here
+        granule = crafter.to_granule()
+        return granule
 
     def execute_replay(self):
         '''
@@ -145,85 +96,11 @@ class ReplayProcess(BaseReplayProcess):
 
     def replay(self):
         self.publishing.set() # Minimal state, supposed to prevent two instances of the same process from replaying on the same stream
-        datastore = self.container.datastore_manager.get_datastore(self.dataset.datastore_name)
-        validate_true(datastore.profile == DataStore.DS_PROFILE.SCIDATA, 'The datastore, %s, did not exist for this dataset.' % self.dataset.datastore_name) 
-        view_name = 'manifest/by_dataset'
-
-        opts = dict(
-            start_key = [self.dataset_id, 0],
-            end_key   = [self.dataset_id, {}],
-            include_docs = True
-        )
-        if self.start_time is not None:
-            opts['start_key'][1] = self.start_time
-
-        if self.end_time is not None:
-            opts['end_key'][1] = self.end_time
-
-        #--------------------------------------------------------------------------------
-        # Gather all the dataset granules and compile the FS cache
-        #--------------------------------------------------------------------------------
-        for result in datastore.query_view(view_name,opts=opts):
-            log.info(result)
-            doc = result.get('doc')
-            if doc is not None:
-                ion_obj = self.granule_from_doc(doc)
-                self.output.publish(ion_obj)
-
-        # Need to terminate the stream, null granule = {}
+        granule = self.execute_replay()
+        self.output.publish(granule)
         self.output.publish({})
         self.publishing.clear()
         return True
-
-    @classmethod
-    def get_last_granule(cls, container, dataset_id):
-        deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
-        dsm_cli = DatasetManagementServiceClient()
-        dataset = dsm_cli.read_dataset(dataset_id)
-        cc = container
-
-        datastore = cc.datastore_manager.get_datastore(dataset.datastore_name)
-        view_name = 'manifest/by_dataset'
-
-        opts = dict(
-            start_key = [dataset_id, {}],
-            end_key   = [dataset_id, 0], 
-            descending = True,
-            limit = 1,
-            include_docs = True
-        )
-
-        results = datastore.query_view(view_name,opts=opts)
-        if not results:
-            raise NotFound('A granule could not be located.')
-        if results[0] is None:
-            raise NotFound('A granule could not be located.')
-        doc = results[0].get('doc')
-        if doc is None:
-            return None
-
-
-        sha1 = doc.get('persisted_sha1')
-        encoding = doc.get('encoding_type')
-        # Warning: redundant serialization
-        byte_string = cls.read_persisted_cache(sha1,encoding)
-        obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
-        ion_obj = deserializer.deserialize(obj) # Problem here is that nested objects get deserialized
-        return ion_obj
-
-
-        
-
-    @classmethod
-    def read_persisted_cache(cls, sha1, encoding):
-        byte_string = None
-        path = FileSystem.get_hierarchical_url(FS.CACHE,sha1,'.%s' % encoding)
-        try:
-            with open(path, 'r') as f:
-                byte_string = f.read()
-        except IOError as e:
-            raise BadRequest('(%s)\n\t\tIOProblem: %s' % (e.message,path))
-        return byte_string
 
 
 

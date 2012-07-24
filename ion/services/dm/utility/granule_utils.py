@@ -20,6 +20,9 @@ import numpy as np
 Assuming all values are np.float64 except data which is int8
 '''
 class CoverageCraft(object):
+    '''
+    AKA the BlackBox
+    '''
     tx = TaxyTool()
     tx.add_taxonomy_set('temp','long name for temp')
     tx.add_taxonomy_set('conductivity','long name for cond')
