@@ -17,9 +17,6 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition, Algorithm
 
-from ion.processes.data.transforms.event_alert_transform import TransformAlgorithmExample
-
-
 from mock import Mock, sentinel, patch
 import gevent
 
@@ -51,22 +48,15 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Create an event alert transform
         #-------------------------------------------------------------------------------------
-        # Create an algorithm object
-        query_statement = "SEARCH 'voltage' VALUES FROM 0 TO 10 FROM 'dummy_index'"
-        field_names = ['voltage', 'telemetry', 'temperature']
-
-        algorithm = Algorithm(query_statement=query_statement, field_names = field_names, operator_ = '+', operator_list_ = None)
-
-        alg_id, _ = self.rrc.create(algorithm)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Event Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         configuration = {
                             'process':{
-                                'algorithm_id': alg_id,
                                 'event_type': 'ExampleDetectableEvent',
-                                'event_count': 3
+                                'max_count': 3,
+                                'time_window': 5,
                             }
                         }
 
@@ -88,36 +78,50 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         queue = gevent.queue.Queue()
 
-        def got_event(msg, headers):
-            queue.put(msg)
+        def event_received(message, headers):
+            queue.put(message)
 
-        proc.process_event = got_event
+        event_subscriber = EventSubscriber( origin="EventAlertTransform",
+                                            event_type="DeviceEvent",
+                                            callback=event_received)
+
+        event_subscriber.start()
+
 
         # publish event twice
 
         for i in xrange(2):
             self.event_publisher.publish_event(     event_type='ExampleDetectableEvent',
                                                     origin = "instrument_A",
+                                                    ts_created = i,
                                                     voltage = 5,
                                                     telemetry = 10,
                                                     temperature = 20)
+            gevent.sleep(4)
             self.assertTrue(queue.empty())
+
 
         #publish event the third time
 
         self.event_publisher.publish_event(     event_type='ExampleDetectableEvent',
                                                 origin = "instrument_A",
+                                                ts_created = 4,
                                                 voltage = 5,
                                                 telemetry = 10,
                                                 temperature = 20)
         gevent.sleep(4)
 
-        # expect an alert event to be published by the EventAlertTransform
-        self.assertFalse(queue.empty())
-#        event = queue.get(timeout=10)
+        #-------------------------------------------------------------------------------------
+        # Make assertions about the alert event published by the EventAlertTransform
+        #-------------------------------------------------------------------------------------
 
-#        self.assertEquals(event.type_, "DeviceEvent")
-#        self.assertEquals(event.origin, "EventAlertTransform")
+        event = queue.get(timeout=10)
+
+        self.assertEquals(event.type_, "DeviceEvent")
+        self.assertEquals(event.origin, "EventAlertTransform")
+
+        log.debug("This completes the requirement that the EventAlertTransform publishes \
+         an event after a fixed number of events of a particular type are received from some instrument.")
 
 
     def test_stream_processing(self):
@@ -125,32 +129,27 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         Test that streams are processed by the transforms according to a provided algorithm
         '''
 
+        #todo: In this simple implementation, we are checking if the stream has the word, PUBLISH,
+        #todo(contd) and if the word VALUE=<number> exists and that number is less than something
+
+        #todo later on we are going to use complex algorithms to make this prototype powerful
 
         #-------------------------------------------------------------------------------------
-        # Create an algorithm object
-        #-------------------------------------------------------------------------------------
-        query_statement = ''
-        field_names = []
-
-        algorithm = Algorithm(query_statement=query_statement, field_names = field_names, operator_ = '+', operator_list_ = None)
-        alg_id, _ = self.rrc.create(algorithm)
-
-        #-------------------------------------------------------------------------------------
-        # The configuration for the Event Alert Transform... set up the event types to listen to
+        # The configuration for the Stream Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         configuration = {
             'process':{
-                'algorithm_id': alg_id
+                'value': 10
             }
         }
 
         #-------------------------------------------------------------------------------------
         # Create the process
         #-------------------------------------------------------------------------------------
-        pid = TransformPrototypeIntTest.create_process(   name= 'transform_data_process',
-                                module='ion.processes.data.transforms.event_alert_transform',
-                                class_name='StreamAlertTransform',
-                                configuration= configuration)
+        pid = TransformPrototypeIntTest.create_process( name= 'transform_data_process',
+                                                        module='ion.processes.data.transforms.event_alert_transform',
+                                                        class_name='StreamAlertTransform',
+                                                        configuration= configuration)
 
         self.assertIsNotNone(pid)
 
