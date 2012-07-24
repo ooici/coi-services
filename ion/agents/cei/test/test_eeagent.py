@@ -7,8 +7,10 @@ import os
 import os.path
 import shutil
 import tempfile
+import socket
 import functools
 
+from random import randint
 from BaseHTTPServer import HTTPServer
 import SimpleHTTPServer
 
@@ -288,6 +290,10 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         shutil.rmtree(self.persistence_directory)
 
     def _start_webserver(self, directory_to_serve, port=None):
+        """ Start a webserver for testing code download
+        Note: tries really hard to get a port, and if it can't use
+        the suggested port, randomly picks another, and returns it
+        """
         def log_message(self, format, *args):
             #swallow log massages
             pass
@@ -308,8 +314,19 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         os.chdir(directory_to_serve)
         Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
         Handler.log_message = log_message
-        self._webserver = Server(("localhost", port), Handler)
+
+        for i in range(0, 100):
+            try:
+                self._webserver = Server(("localhost", port), Handler)
+            except socket.error:
+                print "port %s is in use, picking another" % port
+                port = randint(8000, 10000)
+                continue
+            else:
+                break
+
         self._web_glet = gevent.spawn(self._webserver.serve_forever)
+        return port
 
     def _stop_webserver(self):
         if self._webserver is not None:
@@ -426,7 +443,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         downloads_directory = os.path.join(get_this_directory(), "downloads")
         http_port = 8910
-        self._start_webserver(downloads_directory, port=http_port)
+        http_port = self._start_webserver(downloads_directory, port=http_port)
 
         u_pid = "test0"
         round = 0

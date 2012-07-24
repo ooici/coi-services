@@ -28,18 +28,12 @@ from gevent.greenlet import Greenlet
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
 from interface.objects import Granule
 from pyon.util.containers import get_safe
 
-# Matplotlib related imports
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-from matplotlib.figure import Figure
 
 # Google viz library for google charts
 import ion.services.ans.gviz_api as gviz_api
@@ -47,21 +41,6 @@ import ion.services.ans.gviz_api as gviz_api
 
 
 class VisualizationService(BaseVisualizationService):
-
-    def on_start(self):
-
-        # init services needed
-        self.rrclient = self.clients.resource_registry
-        self.pubsubclient =  self.clients.pubsub_management
-        self.workflowclient = self.clients.workflow_management
-        self.tmsclient = self.clients.transform_management
-        self.data_retriever = self.clients.data_retriever
-
-        return
-
-    def on_stop(self):
-
-        return
 
 
     def initiate_realtime_visualization(self, data_product_id='', query=''):
@@ -96,7 +75,7 @@ class VisualizationService(BaseVisualizationService):
 
         xq = self.container.ex_manager.create_xn_queue(query_token)
 
-        subscription_id = self.pubsubclient.create_subscription(
+        subscription_id = self.clients.pubsub_management.create_subscription(
             query=StreamQuery(data_product_stream_id),
             exchange_name = query_token,
             exchange_point = 'science_data',
@@ -160,11 +139,11 @@ class VisualizationService(BaseVisualizationService):
             subscriber = Subscriber(from_name=xq)
             subscriber.initialize()
 
-            msg_count,_ = subscriber._chan.get_stats()
+            msg_count,_ = xq.get_stats()
             log.info('Messages in user queue 1: ' + str(msg_count))
 
             ret_val = []
-            msgs = subscriber.get_n_msgs(msg_count, timeout=2)
+            msgs = subscriber.get_all_msgs(timeout=2)
             for x in range(len(msgs)):
                 msgs[x].ack()
 
@@ -172,7 +151,7 @@ class VisualizationService(BaseVisualizationService):
                 if ret is not None:
                     ret_val.append(ret)
 
-            msg_count,_ = subscriber._chan.get_stats()
+            msg_count,_ = xq.get_stats()
             log.info('Messages in user queue 2: ' + str(msg_count))
 
         except Exception, e:
@@ -233,7 +212,7 @@ class VisualizationService(BaseVisualizationService):
         try:
             # get the dataset_id associated with the data_product. Need it to do the data retrieval
             #ds_ids, = self.rrclient.find_resources(data_product_id, PRED.hasDataset, None, True)
-            ds_ids,_ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+            ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
 
             if ds_ids == None or len(ds_ids) == 0:
                 print ">>>>>> COULD NOT LOCATE DATASET ID"
@@ -241,7 +220,7 @@ class VisualizationService(BaseVisualizationService):
 
             # Ideally just need the latest granule to figure out the list of images
             #replay_granule = self.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-            retrieve_granule = self.data_retriever.retrieve(ds_ids[0])
+            retrieve_granule = self.clients.data_retriever.retrieve(ds_ids[0])
 
             print ">>>>>>>>>>>> REPLAY_GRANULE = ", retrieve_granule
 
