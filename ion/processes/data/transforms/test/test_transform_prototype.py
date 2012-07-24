@@ -16,20 +16,9 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from nose.plugins.attrib import attr
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.objects import ProcessDefinition, ExchangeQuery, StreamQuery
-
-
+from interface.objects import ProcessDefinition
 from mock import Mock, sentinel, patch
 import gevent
-
-from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
-from ion.processes.data.transforms.ctd.ctd_L0_all import ctd_L0_all
-from ion.processes.data.transforms.ctd.ctd_L1_conductivity import CTDL1ConductivityTransform
-from ion.processes.data.transforms.ctd.ctd_L1_pressure import CTDL1PressureTransform
-from ion.processes.data.transforms.ctd.ctd_L1_temperature import CTDL1TemperatureTransform
-from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
-from ion.processes.data.transforms.ctd.ctd_L2_density import DensityTransform
 
 @attr('INT', group='dm')
 class TransformPrototypeIntTest(IonIntegrationTestCase):

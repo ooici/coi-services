@@ -7,13 +7,9 @@
 '''
 from pyon.ion.transforma import TransformEventListener, TransformStreamListener, TransformAlgorithm
 from pyon.util.log import log
-from ion.services.dm.utility.query_language import QueryLanguage
 from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
 from pyon.ion.stream import SimpleStreamSubscriber
-
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-import operator
 
 class EventAlertTransform(TransformEventListener):
 
