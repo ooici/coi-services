@@ -48,6 +48,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.exchange_space_name  = 'test_granules'
         self.exchange_point_name  = 'science_data'       
 
+        self.purge_queues()
 
     def purge_queues(self):
         xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
@@ -357,6 +358,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         retrieved_granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
         comp = rdt['t'] == np.arange(0,40)
-        self.assertTrue(comp.all())
+        self.assertTrue(comp.all(), 'Uh-oh: %s' % rdt['t'])
 
 

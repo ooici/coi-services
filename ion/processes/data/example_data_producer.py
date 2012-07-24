@@ -28,6 +28,7 @@ from pyon.public import log
 import numpy
 import random
 import time
+import gevent
 
 ### Taxonomies are defined before hand out of band... somehow.
 tx = TaxyTool()
@@ -57,25 +58,18 @@ class ExampleDataProducer(SimpleCtdPublisher):
     def _trigger_func(self, stream_id):
 
         #@todo - add lots of comments in here
-        while True:
+        while not self.finished.is_set():
 
             length = 10
 
             #Explicitly make these numpy arrays...
             c = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
-
             t = numpy.array([random.uniform(-1.7, 21.0) for i in xrange(length)])
-
             p = numpy.array([random.lognormvariate(1,2) for i in xrange(length)])
-
             lat = numpy.array([random.uniform(-90.0, 90.0) for i in xrange(length)])
-
             lon = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)])
-
             tvar = numpy.array([self.last_time + i for i in xrange(1,length+1)])
-
             self.last_time = max(tvar)
-
             rdt = RecordDictionaryTool(taxonomy=tx)
 
             # This is an example of using groups it is not a normative statement about how to use groups
@@ -100,12 +94,11 @@ class ExampleDataProducer(SimpleCtdPublisher):
             rdt['lat'] = lat
             rdt['lon'] = lon
 
-            log.info("logging published Record Dictionary:\n %s", rdt.pretty_print())
 
             g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
 
             log.info('Sending %d values!' % length)
             if(isinstance(g,Granule)):
-                self.publisher.publish(g)
+                self.publish(g)
 
-            time.sleep(2.0)
+            gevent.sleep(self.interval)
