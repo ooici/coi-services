@@ -1391,29 +1391,26 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_associations,
             ext_exclude)
 
+        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_instrument, 'attachments'):
+            for att in extended_instrument.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
+
         return extended_instrument
 
 
         #Bogus functions for computed attributes
-    def get_software_version(self, instrument_device_id):
+    def get_firmware_version(self, instrument_device_id):
         return "1.1"
 
     def get_location(self, instrument_device_id):
         return IonObject(OT.GeospatialBounds)
 
-    def get_data_url(self, instrument_device_id):
-        return "http://iontest/data/" + instrument_device_id
-
-    def get_data_producer_count(self, instrument_device_id):
-        prods, _ = self.RR.find_objects(instrument_device_id, PRED.hasDataProducer, RT.DataProducer, True)
-        return len(prods)
-
-
     def get_last_data_received_time(self, instrument_device_id):
         return "42"
 
-    def get_photo(self, instrument_device_id): # !!binary
-        return "todo"
 
     def get_operational_state(self, instrument_device_id):   # from Device
         return "23"
@@ -1441,12 +1438,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def get_location_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
         return "87"
-
-    def get_port_used(self, instrument_device_id):
-        return "76"
-
-    def get_agent(self, instrument_device_id): # Messaging address of the agent
-        return "65"
 
     def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
         return ['mon', 'tue', 'wed']
