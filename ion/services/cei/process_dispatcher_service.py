@@ -23,7 +23,11 @@ try:
     from epu.processdispatcher.matchmaker import PDMatchmaker
     from epu.dashiproc.epumanagement import EPUManagementClient
 except ImportError:
-    pass
+    ProcessDispatcherCore = None
+    ProcessDispatcherStore = None
+    EngineRegistry = None
+    PDMatchmaker = None
+    EPUManagementClient = None
 
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 
