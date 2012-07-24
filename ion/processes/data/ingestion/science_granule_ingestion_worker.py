@@ -9,7 +9,7 @@ from pyon.core.bootstrap import get_sys_name
 from pyon.core.interceptor.encode import encode_ion
 from pyon.core.object import ion_serializer
 from pyon.ion.process import SimpleProcess
-from pyon.ion.granule import RecordDictionaryTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
 from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance

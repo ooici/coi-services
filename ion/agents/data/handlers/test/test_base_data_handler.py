@@ -15,7 +15,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.core.exception import NotFound
 import unittest
 
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentDataException, InstrumentCommandException, NotImplementedException, InstrumentException
 from interface.objects import Granule, Attachment
 
