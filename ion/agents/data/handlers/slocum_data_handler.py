@@ -9,9 +9,9 @@
 
 from pyon.public import log
 from pyon.util.containers import get_safe
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.granule import build_granule
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.granule import build_granule
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler
 from ion.agents.data.handlers.handler_utils import list_file_info, get_sbuffer, calculate_iteration_count, get_time_from_filename
 import numpy as np, os, re

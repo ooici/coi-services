@@ -6,8 +6,8 @@
 @description DESCRIPTION
 '''
 from pyon.ion.process import SimpleProcess
-from pyon.ion.granule import RecordDictionaryTool
 from pyon.ion.stream import SimpleStreamSubscriber
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient

@@ -6,9 +6,9 @@
 @description DESCRIPTION
 '''
 from pyon.util.unit_test import PyonTestCase
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.granule import build_granule as bg
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.granule import build_granule as bg
 from ion.processes.data.ingestion.science_granule_ingestion_worker import ScienceGranuleIngestionWorker
 
 from mock import Mock

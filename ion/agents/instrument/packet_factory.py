@@ -18,9 +18,9 @@ from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.exceptions import PacketFactoryException
 from ion.agents.instrument.exceptions import NotImplementedException
 
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.granule.taxonomy import TaxyTool, Taxonomy
-from pyon.ion.granule.granule import build_granule
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool, Taxonomy
+from ion.services.dm.utility.granule.granule import build_granule
 
 
 class PacketFactoryType(BaseEnum):

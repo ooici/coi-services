@@ -19,8 +19,8 @@ import imghdr
 import gevent, numpy
 
 from interface.objects import Granule
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
 
 

@@ -4,7 +4,7 @@ import uuid
 import unittest
 import os
 
-from mock import Mock, patch
+from mock import Mock, patch, DEFAULT
 from nose.plugins.attrib import attr
 from gevent import queue
 
@@ -142,15 +142,22 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         self.mock_dashi = Mock()
 
-        with patch('dashi.DashiConnection') as dashi:
-            dashi.return_value = self.mock_dashi
+        with patch.multiple('ion.services.cei.process_dispatcher_service',
+                get_dashi=DEFAULT, ProcessDispatcherCore=DEFAULT,
+                ProcessDispatcherStore=DEFAULT, EngineRegistry=DEFAULT,
+                PDMatchmaker=DEFAULT) as mocks:
+            mocks['get_dashi'].return_value = self.mock_dashi
+            mocks['ProcessDispatcherStore'].return_value = self.mock_store = Mock()
+            mocks['ProcessDispatcherCore'].return_value = self.mock_core = Mock()
+            mocks['PDMatchmaker'].return_value = self.mock_matchmaker = Mock()
+            mocks['EngineRegistry'].return_value = self.mock_engineregistry = Mock()
+
             self.pd_service.init()
-        self.assertIsInstance(self.pd_service.backend, PDNativeBackend)
 
         # replace the core and matchmaker with mocks
-        self.pd_service.backend.core = self.mock_core = Mock()
-        self.pd_service.backend.matchmaker = self.mock_matchmaker = Mock()
         self.pd_service.backend.beat_subscriber = self.mock_beat_subscriber = Mock()
+        self.assertIsInstance(self.pd_service.backend, PDNativeBackend)
+
 
         self.event_pub = Mock()
         self.pd_service.backend.event_pub = self.event_pub
