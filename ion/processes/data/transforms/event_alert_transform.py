@@ -10,6 +10,7 @@ from pyon.util.log import log
 from ion.services.dm.utility.query_language import QueryLanguage
 from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
+from pyon.ion.stream import SimpleStreamSubscriber
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 import operator
@@ -69,9 +70,15 @@ class EventAlertTransform(TransformEventListener):
 class StreamAlertTransform(TransformStreamListener):
 
     def on_start(self):
-        log.warn('StreamAlertTransform.on_start()')
-        super(TransformStreamListener, self).on_start()
+        self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
 
+        log.warning("queue_name: %s" % self.queue_name)
+
+        self.subscriber = SimpleStreamSubscriber.new_subscriber(self.container, self.queue_name, self.recv_packet)
+        self.subscriber.start()
+
+        log.warning("self.subscriber: ")
+        log.warning(self.subscriber)
         #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
         #-------------------------------------------------------------------------------------

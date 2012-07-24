@@ -140,8 +140,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # The configuration for the Stream Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
-        configuration = {
+        config = {
             'process':{
+                'queue_name': 'a_queue',
                 'value': 10
             }
         }
@@ -152,54 +153,29 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         pid = TransformPrototypeIntTest.create_process( name= 'transform_data_process',
                                                         module='ion.processes.data.transforms.event_alert_transform',
                                                         class_name='StreamAlertTransform',
-                                                        configuration= configuration)
+                                                        configuration= config)
 
         self.assertIsNotNone(pid)
 
         #-------------------------------------------------------------------------------------
         # Publish streams and make assertions about alerts
         #-------------------------------------------------------------------------------------
+        exchange_name = 'queue'
+        exchange_point = 'test_exchange'
 
+        xn = self.container.ex_manager.create_xn_queue(exchange_name)
+        xp = self.container.ex_manager.create_xp(exchange_point)
+        xn.bind('stream_id.data', xp)
 
-        # Stream creation is done in SA, but to make the example go for demonstration create one here if it is not provided...
-
-        self.pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
-
-        self.stream_id = self.pubsub_cli.create_stream(name="SampleStream1", description="Sample Description")
-
-        # Make a subscription to two input streams
-        self.exchange_name = "a_queue"
-        self.exchange_point = 'an_exchange'
-        query = StreamQuery([self.stream_id])
-
-        self.subscription_id = self.pubsub_cli.create_subscription(query=query,
-            exchange_name=self.exchange_name,
-            exchange_point=self.exchange_point,
-            name="SampleSubscription",
-            description="Sample Subscription Description")
-
-        # Make a subscription to all streams on an exchange point
-        self.exchange_name = "another_queue"
-        query = ExchangeQuery()
-
-        self.exchange_subscription_id = self.pubsub_cli.create_subscription(query=query,
-                                            exchange_name=self.exchange_name,
-                                            exchange_point=self.exchange_point,
-                                            name="SampleExchangeSubscription",
-                                            description="Sample Exchange Subscription Description")
-
-
-        # Normally the user does not see or create the publisher, this is part of the containers business.
-        # For the test we need to set it up explicitly
-        self.stream_publisher = SimpleStreamPublisher.new_publisher(self.container, self.exchange_point, stream_id=self.stream_id)
-
-        self.purge_queues()
-
+        pub = SimpleStreamPublisher.new_publisher(self.container, exchange_point,'stream_id')
 
         message = "A dummy example message containing the word PUBLISH, and with VALUE = 5. This message\
                     will trigger an alert event from the StreamAlertTransform"
 
-        self.stream_publisher.publish(message)
+        pub.publish(message)
+
+#        self.purge_queues()
+
 
 
     def purge_queues(self):
