@@ -7,6 +7,7 @@
 
 from pyon.ion.transforma import TransformEventListener, TransformEventPublisher, TransformAlgorithm
 from pyon.public import log
+from pyon.ion.stream import SimpleStreamPublisher
 from pyon.util.containers import DotDict
 from pyon.util.file_sys import FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
@@ -15,7 +16,9 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from nose.plugins.attrib import attr
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, Algorithm
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.objects import ProcessDefinition, ExchangeQuery, StreamQuery
+
 
 from mock import Mock, sentinel, patch
 import gevent
@@ -156,8 +159,52 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Publish streams and make assertions about alerts
         #-------------------------------------------------------------------------------------
-        #todo
 
+
+        # Stream creation is done in SA, but to make the example go for demonstration create one here if it is not provided...
+
+        self.pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
+
+        self.stream_id = self.pubsub_cli.create_stream(name="SampleStream1", description="Sample Description")
+
+        # Make a subscription to two input streams
+        self.exchange_name = "a_queue"
+        self.exchange_point = 'an_exchange'
+        query = StreamQuery([self.stream_id])
+
+        self.subscription_id = self.pubsub_cli.create_subscription(query=query,
+            exchange_name=self.exchange_name,
+            exchange_point=self.exchange_point,
+            name="SampleSubscription",
+            description="Sample Subscription Description")
+
+        # Make a subscription to all streams on an exchange point
+        self.exchange_name = "another_queue"
+        query = ExchangeQuery()
+
+        self.exchange_subscription_id = self.pubsub_cli.create_subscription(query=query,
+                                            exchange_name=self.exchange_name,
+                                            exchange_point=self.exchange_point,
+                                            name="SampleExchangeSubscription",
+                                            description="Sample Exchange Subscription Description")
+
+
+        # Normally the user does not see or create the publisher, this is part of the containers business.
+        # For the test we need to set it up explicitly
+        self.stream_publisher = SimpleStreamPublisher.new_publisher(self.container, self.exchange_point, stream_id=self.stream_id)
+
+        self.purge_queues()
+
+
+        message = "A dummy example message containing the word PUBLISH, and with VALUE = 5. This message\
+                    will trigger an alert event from the StreamAlertTransform"
+
+        self.stream_publisher.publish(message)
+
+
+    def purge_queues(self):
+        xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
+        xn.purge()
 
     @staticmethod
     def create_process(name= '', module = '', class_name = '', configuration = None):

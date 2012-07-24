@@ -70,6 +70,7 @@ class StreamAlertTransform(TransformStreamListener):
 
     def on_start(self):
         log.warn('StreamAlertTransform.on_start()')
+        super(TransformStreamListener, self).on_start()
 
         #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
