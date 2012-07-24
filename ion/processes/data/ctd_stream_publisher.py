@@ -30,6 +30,7 @@ import time
 from uuid import uuid4
 import random
 import numpy
+import gevent
 
 from prototype.sci_data.stream_defs import ctd_stream_packet, SBE37_CDM_stream_definition, ctd_stream_definition
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
@@ -39,6 +40,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.granule.taxonomy import TaxyTool
 from pyon.ion.granule.granule import build_granule
+from pyon.ion.transforma import TransformStreamPublisher
 
 
 ### Taxonomies are defined before hand out of band... somehow.
@@ -54,120 +56,66 @@ tx.add_taxonomy_set('coordinates','This group contains coordinates...')
 tx.add_taxonomy_set('data','This group contains data...')
 
 
-class SimpleCtdPublisher(StandaloneProcess):
-    def __init__(self, *args, **kwargs):
-        super(SimpleCtdPublisher, self).__init__(*args,**kwargs)
-        #@todo Init stuff
-
-    outgoing_stream_def = SBE37_CDM_stream_definition()
-
-
+class SimpleCtdPublisher(TransformStreamPublisher):
     def on_start(self):
-
-
-        log.warn('Entering On Start!!!')
-        # Get the stream(s)
-        stream_id = self.CFG.get_safe('process.stream_id',{})
-
-        self.greenlet_queue = []
-
+        exchange_point = self.CFG.get_safe('process.exchange_point', 'science_data')
+        self.CFG.process.exchange_point = exchange_point
+        super(SimpleCtdPublisher,self).on_start()
+        self.stream_id = self.CFG.get_safe('process.stream_id',{})
+        self.interval  = self.CFG.get_safe('process.interval', 1.0)
+        self.last_time = self.CFG.get_safe('process.last_time', 0)
 
         # Stream creation is done in SA, but to make the example go for demonstration create one here if it is not provided...
-        if not stream_id:
+        if not self.stream_id:
 
-            pubsub_cli = PubsubManagementServiceClient(node=self.container.node)
+            pubsub_cli = PubsubManagementServiceClient()
+            self.stream_id = pubsub_cli.create_stream( name='Example CTD Data')
 
-            stream_def_id = pubsub_cli.create_stream_definition(name='Producer stream %s' % str(uuid4()),container=self.outgoing_stream_def)
-
-
-            stream_id = pubsub_cli.create_stream(
-                name='Example CTD Data',
-                stream_definition_id = stream_def_id,
-                original=True,
-                encoding='ION R2')
-
-        self.stream_publisher_registrar = StreamPublisherRegistrar(process=self, container=self.container)
-        # Needed to get the originator's stream_id
-        self.stream_id= stream_id
-
-
-        self.publisher = self.stream_publisher_registrar.create_publisher(stream_id=stream_id)
-
-
-        self.last_time = 0
-
-
-        g = Greenlet(self._trigger_func, stream_id)
-        log.debug('Starting publisher thread for simple ctd data.')
-        g.start()
-        log.warn('Publisher Greenlet started in "%s"' % self.__class__.__name__)
-        self.greenlet_queue.append(g)
+        self.greenlet = gevent.spawn(self._trigger_func, self.stream_id)
+        self.finished = gevent.event.Event()
+        log.info('SimpleCTDPublisher started, publishing to %s->%s', self.exchange_point, self.stream_id)
 
     def on_quit(self):
-        for greenlet in self.greenlet_queue:
-            greenlet.kill()
-        super(SimpleCtdPublisher,self).on_quit()
+        if self.greenlet:
+            self.finished.set()
+            self.greenlet.join(10)
+        super(SimpleCtdPublisher,self).on_quit() 
+
+    def publish(self, msg, to_name=''):
+        if to_name:
+            self.publisher.publish(msg,stream_id=to_name)
+        else:
+            log.info('Publishing on %s->%s', self.exchange_point, self.stream_id)
+            self.publisher.publish(msg,stream_id=self.stream_id)
 
 
     def _trigger_func(self, stream_id):
 
-        while True:
+        while not self.finished.is_set():
 
-            length = random.randint(1,20)
+            #Length of packets should be uniform
+            length = 10
 
-            #ctd_packet = self._get_ctd_packet(stream_id, length)
             ctd_packet = self._get_new_ctd_packet(stream_id, length)
 
             log.info('SimpleCtdPublisher sending %d values!' % length)
-            self.publisher.publish(ctd_packet)
+            self.publish(ctd_packet)
 
-            time.sleep(1.0)
-
-    def _get_ctd_packet(self, stream_id, length):
-
-        c = [random.uniform(0.0,75.0)  for i in xrange(length)]
-
-        t = [random.uniform(-1.7, 21.0) for i in xrange(length)]
-
-        p = [random.lognormvariate(1,2) for i in xrange(length)]
-
-        lat = [random.uniform(-90.0, 90.0) for i in xrange(length)]
-
-        lon = [random.uniform(0.0, 360.0) for i in xrange(length)]
-
-        tvar = [self.last_time + i for i in xrange(1,length+1)]
-
-        self.last_time = max(tvar)
-
-        ctd_packet = ctd_stream_packet(stream_id=stream_id,
-            c=c, t=t, p=p, lat=lat, lon=lon, time=tvar)
-
-        return ctd_packet
+            gevent.sleep(self.interval)
 
 
     def _get_new_ctd_packet(self, stream_id, length):
 
         rdt = RecordDictionaryTool(taxonomy=tx)
-#        rdt0 = RecordDictionaryTool(taxonomy=tx)
-#        rdt1 = RecordDictionaryTool(taxonomy=tx)
-
-
 
         #Explicitly make these numpy arrays...
-        c = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
-
-        t = numpy.array([random.uniform(-1.7, 21.0) for i in xrange(length)])
-
-        p = numpy.array([random.lognormvariate(1,2) for i in xrange(length)])
-
-        lat = numpy.array([random.uniform(-90.0, 90.0) for i in xrange(length)])
-
-        lon = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)])
-
-        h = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)])
-
-        tvar = numpy.array([self.last_time + i for i in xrange(1,length+1)])
-
+        c = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)]) 
+        t = numpy.array([random.uniform(-1.7, 21.0) for i in xrange(length)]) 
+        p = numpy.array([random.lognormvariate(1,2) for i in xrange(length)]) 
+        lat = numpy.array([random.uniform(-90.0, 90.0) for i in xrange(length)]) 
+        lon = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)]) 
+        h = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)]) 
+        tvar = numpy.array([self.last_time + i for i in xrange(1,length+1)]) 
         self.last_time = max(tvar)
 
         log.warn('Got time: %s' % str(tvar))
