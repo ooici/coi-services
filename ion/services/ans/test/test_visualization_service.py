@@ -28,7 +28,7 @@ import unittest, os
 import imghdr
 import gevent, numpy
 from mock import Mock, sentinel, patch, call
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
 
 from pyon.util.context import LocalContextMixin

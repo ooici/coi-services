@@ -14,7 +14,7 @@ from pyon.ion.resource import PRED, RT
 from pyon.core.exception import NotFound
 from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 from interface.objects import Granule, Attachment, AttachmentType
 
@@ -24,8 +24,8 @@ from ion.agents.instrument.exceptions import InstrumentParameterException, Instr
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 ### For new granule and stream interface
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.granule.granule import build_granule
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.granule import build_granule
 
 from ion.agents.data.handlers.handler_utils import calculate_iteration_count, list_file_info, get_time_from_filename
 

@@ -12,7 +12,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from pyon.core.exception import BadRequest, IonException, NotFound
 from pyon.util.file_sys import FileSystem,FS
 from pyon.core.interceptor.encode import decode_ion
-from pyon.ion.granule import combine_granules
+from ion.services.dm.utility.granule.granule import combine_granules
 from pyon.core.object import IonObjectDeserializer
 from pyon.core.bootstrap import get_obj_registry
 from gevent.event import Event

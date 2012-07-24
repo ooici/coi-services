@@ -17,9 +17,9 @@ from prototype.sci_data.stream_parser import PointSupplementStreamParser
 #from prototype.sci_data.stream_defs import ctd_stream_definition
 
 ### For new granule and stream interface
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.granule import build_granule
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.granule import build_granule
 
 #from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 #pmsc = PubsubManagementServiceClient(node=cc.node)
