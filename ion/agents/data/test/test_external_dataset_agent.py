@@ -678,8 +678,6 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
-        self._finished_count = 1
-
         cmd = AgentCommand(command='go_streaming')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
@@ -687,16 +685,12 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.STREAMING)
 
-        gevent.sleep(5)
-
         cmd = AgentCommand(command='go_observatory')
         retval = self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
-
-        self._async_finished_result.get(timeout=5)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
