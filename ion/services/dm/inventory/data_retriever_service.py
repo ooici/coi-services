@@ -9,9 +9,11 @@ from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
 from prototype.sci_data.constructor_apis import DefinitionTree, StreamDefinitionConstructor
 from pyon.core.exception import BadRequest, NotFound
+from pyon.ion.transforma import TransformAlgorithm
 from pyon.util.arg_check import validate_is_instance, validate_true
 from ion.processes.data.replay.replay_process import ReplayProcess
 from pyon.public import PRED, RT
+from pyon.util.containers import for_name
 
 
 class DataRetrieverService(BaseDataRetrieverService):
@@ -114,6 +116,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         cli = ReplayProcessClient(name=pid)
         cli.execute_replay()
 
+
     def cancel_replay(self, replay_id=''):
         replay = self.clients.resource_registry.read(replay_id)
         pid = replay.process_id
@@ -126,7 +129,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.delete(replay_id)
 
-    def retrieve(self, dataset_id='', query=None, delivery_format=None):
+    def retrieve(self, dataset_id='', query=None, delivery_format=None, module='', cls='', kwargs=None):
 
         if query is None:
             query = {}
@@ -147,8 +150,17 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         retrieve_data = replay_instance.execute_retrieve()
 
+        if module and cls:
+            return self._transform_data(retrieve_data, module, cls, kwargs or {})
+
         return retrieve_data
 
     def retrieve_last_granule(self, dataset_id=''):
 
         return ReplayProcess.get_last_granule(self.container,dataset_id)
+    @classmethod
+    def _transform_data(binding, data, module, cls, **kwargs):
+        transform = for_name(module,cls)
+        validate_is_instance(transform,TransformAlgorithm,'%s.%s is not a TransformAlgorithm' % (module,cls))
+        return transform.execute(data,**kwargs)
+

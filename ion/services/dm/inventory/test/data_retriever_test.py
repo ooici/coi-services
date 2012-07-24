@@ -5,9 +5,11 @@
 @date 06/14/12 15:06
 @description DESCRIPTION
 '''
+from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.arg_check import validate_is_instance
 from pyon.public import CFG
 from pyon.core.exception import BadRequest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -18,10 +20,13 @@ from ion.processes.data.replay.replay_process import ReplayProcess
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from pyon.datastore.datastore import DataStore
 from pyon.core.bootstrap import get_sys_name
+from pyon.ion.transforma import TransformAlgorithm
+from numbers import Number
+
 import unittest
 import os
-from pyon.util.unit_test import PyonTestCase
 @attr('UNIT',group='dm')
+
 class DataRetrieverUnitTest(PyonTestCase):
     def setUp(self):
         mock_clients = self._create_service_mock('data_retriever')
@@ -115,3 +120,22 @@ class DataRetrieverIntTest(IonIntegrationTestCase):
         process = self.container.proc_manager.procs[pid]
 
         self.assertIsInstance(process,ReplayProcess, 'Incorrect process launched')
+
+    def test_transform_data(self):
+        module = __name__
+        cls = 'FakeTransform'
+        retval = DataRetrieverService._transform_data(0,module,cls)
+        self.assertEquals(retval,1)
+
+
+
+#--------------------------------------------------------------------------------
+# FakeTransform
+#--------------------------------------------------------------------------------
+class FakeTransform(TransformAlgorithm):
+    @staticmethod
+    def execute(data):
+        validate_is_instance(data,Number)
+        return data+1
+
+
