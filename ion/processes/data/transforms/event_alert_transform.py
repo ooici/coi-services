@@ -40,12 +40,11 @@ class EventAlertTransform(TransformEventListener):
     def process_event(self, msg, headers):
         '''
         The callback method.
-        If the events satisfy the criteria supplied through the algorithm object, publish an alert event.
+        If the events satisfy the criteria, publish an alert event.
         '''
 
         self.counter += 1
 
-        log.warning("message we get here: %s" % msg)
         self.event_times.append(msg.ts_created)
 
         if self.counter == self.max_count:
@@ -53,7 +52,6 @@ class EventAlertTransform(TransformEventListener):
             time_diff = self.event_times[self.max_count - 1] - self.event_times[0]
 
             if time_diff <= self.time_window:
-                log.warning("inside the if statement")
 
                 self.publish()
                 self.counter = 0
@@ -61,76 +59,59 @@ class EventAlertTransform(TransformEventListener):
 
     def publish(self):
 
+        #-------------------------------------------------------------------------------------
         # publish an alert event
+        #-------------------------------------------------------------------------------------
         self.event_publisher.publish_event( event_type= "DeviceEvent",
                                             origin="EventAlertTransform",
                                             description= "An alert event being published.")
-        log.warning("published the event!")
 
 class StreamAlertTransform(TransformStreamListener):
 
     def on_start(self):
         self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
-
-        log.warning("queue_name: %s" % self.queue_name)
-
+        self.value = self.CFG.get_safe('process.value', 0)
 
         self.subscriber = SimpleStreamSubscriber.new_subscriber(self.container, self.queue_name, self.recv_packet)
         self.subscriber.start()
 
-
-
-
-        #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
-        #-------------------------------------------------------------------------------------
-
         self.event_publisher = EventPublisher()
 
     def recv_packet(self, msg, headers):
         '''
         The callback method.
-        If the events satisfy the criteria supplied through the algorithm object, publish an alert event.
+        If the events satisfy the criteria, publish an alert event.
         '''
 
-        self.publish()
+        value = self._extract_parameters_from_stream(msg, "VALUE")
 
-#        message = msg
-#
-#        if _algorithm_evaluation(message):
-#            self.publish()
+        if msg.find("PUBLISH") > -1 and (value < self.value):
+            self.publish()
 
     def publish(self):
-
-        # publish an alert event
+        '''
+        Publish an alert event
+        '''
         self.event_publisher.publish_event( event_type= "DeviceEvent",
                                             origin="StreamAlertTransform",
                                             description= "An alert event being published.")
 
-    def _extract_parameters_from_stream(self, field_names ):
+    def _extract_parameters_from_stream(self, msg, field ):
 
-        fields = []
+        tokens = msg.split(" ")
 
-        #todo implement this method according to use cases
+        try:
+            for token in tokens:
+                token = token.strip()
+                if token == '=':
+                    i = tokens.index(token)
+                    if tokens[i-1] == field:
+                        return int(tokens[i+1].strip())
+        except IndexError:
+            log.warning("Could not extract value from the message. Please check its format.")
 
-#        for field_name in field_names:
-#            fields.append(  )
-
-        log.warning("in stream alert recv_packet method, got the following fields: %s" % fields)
-
-        return fields
-
-    def _algorithm_evaluation(self, message):
-
-        assert(isinstance(message, str), "the input message here should be a string")
-
-        cond = False
-
-
-
-
-        return cond
-
+        return self.value
 
 
 

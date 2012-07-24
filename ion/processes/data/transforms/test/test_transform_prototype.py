@@ -184,8 +184,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         pub = SimpleStreamPublisher.new_publisher(self.container, exchange_point,'stream_id')
 
-        message = "A dummy example message containing the word PUBLISH, and with VALUE = 5. This message\
-                    will trigger an alert event from the StreamAlertTransform"
+        message = "A dummy example message containing the word PUBLISH, and with VALUE = 5 . This message" + \
+                    " will trigger an alert event from the StreamAlertTransform"
 
         pub.publish(message)
 
