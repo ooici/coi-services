@@ -33,7 +33,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
 
 
-        self.subscriber = SimpleStreamSubscriber(self.container,self.queue_name,self.consume)
+        self.subscriber = SimpleStreamSubscriber.new_subscriber(self.container,self.queue_name,self.consume)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         log.debug('Created datastore %s', self.datastore_name)
         self.subscriber.start()
