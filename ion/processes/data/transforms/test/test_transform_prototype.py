@@ -138,6 +138,21 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #todo later on we are going to use complex algorithms to make this prototype powerful
 
         #-------------------------------------------------------------------------------------
+        # Start a subscriber to listen for an alert event from the Stream Alert Transform
+        #-------------------------------------------------------------------------------------
+
+        queue = gevent.queue.Queue()
+
+        def event_received(message, headers):
+            queue.put(message)
+
+        event_subscriber = EventSubscriber( origin="StreamAlertTransform",
+            event_type="DeviceEvent",
+            callback=event_received)
+
+        event_subscriber.start()
+
+        #-------------------------------------------------------------------------------------
         # The configuration for the Stream Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         config = {
@@ -160,7 +175,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Publish streams and make assertions about alerts
         #-------------------------------------------------------------------------------------
-        exchange_name = 'queue'
+        exchange_name = 'a_queue'
         exchange_point = 'test_exchange'
 
         xn = self.container.ex_manager.create_xn_queue(exchange_name)
@@ -174,12 +189,16 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         pub.publish(message)
 
-#        self.purge_queues()
+        gevent.sleep(4)
 
+        event = queue.get()
+        self.assertEquals(event.type_, "DeviceEvent")
+        self.assertEquals(event.origin, "StreamAlertTransform")
 
+        self.purge_queues(exchange_name)
 
-    def purge_queues(self):
-        xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
+    def purge_queues(self, exchange_name):
+        xn = self.container.ex_manager.create_xn_queue(exchange_name)
         xn.purge()
 
     @staticmethod

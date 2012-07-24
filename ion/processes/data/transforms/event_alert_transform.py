@@ -74,11 +74,13 @@ class StreamAlertTransform(TransformStreamListener):
 
         log.warning("queue_name: %s" % self.queue_name)
 
+
         self.subscriber = SimpleStreamSubscriber.new_subscriber(self.container, self.queue_name, self.recv_packet)
         self.subscriber.start()
 
-        log.warning("self.subscriber: ")
-        log.warning(self.subscriber)
+
+
+
         #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
         #-------------------------------------------------------------------------------------
@@ -91,10 +93,7 @@ class StreamAlertTransform(TransformStreamListener):
         If the events satisfy the criteria supplied through the algorithm object, publish an alert event.
         '''
 
-        log.warning("msg type: %s" % type(msg))
-        log.warning("msg: %s" % msg)
-
-
+        self.publish()
 
 #        message = msg
 #
