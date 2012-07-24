@@ -5,9 +5,6 @@
 @date 06/26/12 11:38
 @description DESCRIPTION
 '''
-from pyon.core.bootstrap import get_sys_name
-from pyon.core.interceptor.encode import encode_ion
-from pyon.core.object import ion_serializer
 from pyon.ion.process import SimpleProcess
 from pyon.ion.granule import RecordDictionaryTool
 from pyon.ion.stream import SimpleStreamSubscriber
@@ -15,13 +12,11 @@ from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.util.containers import get_ion_ts, get_safe
-from pyon.util.file_sys import FileSystem, FS
 from pyon.public import log, RT, PRED
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import CoverageCraft
 from interface.objects import Granule
-from gevent import spawn
 from couchdb import ResourceNotFound
-import hashlib
-import msgpack
 import re
 import numpy
 
@@ -38,12 +33,21 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         log.debug('Created datastore %s', self.datastore_name)
         self.subscriber.start()
 
-        self.datasets = {}
+        #--------------------------------------------------------------------------------
+        # Ingestion Cache
+        # - Datasets
+        # - Coverage instances
+        #--------------------------------------------------------------------------------
+        self.datasets  = {}
+        self.coverages = {}
 
     def on_quit(self): #pragma no cover
         self.subscriber.stop()
 
     def _new_dataset(self, stream_id):
+        '''
+        Adds a new dataset to the internal cache of the ingestion worker
+        '''
         rr_client = ResourceRegistryServiceClient()
         datasets, _ = rr_client.find_subjects(subject_type=RT.DataSet,predicate=PRED.hasStream,object=stream_id,id_only=True)
         if datasets:
@@ -51,6 +55,9 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         return None
 
     def get_dataset(self,stream_id):
+        '''
+        Returns the dataset associated with the stream
+        '''
         #@todo: add support for a limited size of known datasets
         if not stream_id in self.datasets:
             val = self._new_dataset(stream_id)
@@ -59,46 +66,96 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
             else: return None
         return self.datasets[stream_id]
 
+    def get_coverage(self, stream_id):
+        '''
+        Returns the coverage instance associated with the stream
+        '''
+        if stream_id in self.coverages:
+            return self.coverages[stream_id]
+        else:
+            dataset_id = self.get_dataset(stream_id)
+            if not dataset_id:
+                return None
+            coverage = DatasetManagementService._get_coverage(dataset_id)
+            self.coverages[stream_id] = coverage
+            return coverage
+
     def consume(self, msg, headers):
+        '''
+        Subscriber's consume callback
+        '''
         stream_id = headers['routing_key']
         stream_id = re.sub(r'\.data', '', stream_id)
         self.ingest(msg,stream_id)
 
     def ingest(self, msg, stream_id):
+        '''
+        Actual ingestion mechanism
+        '''
         if msg == {}:
+            log.error('Received empty message from stream: %s', stream_id)
             return
+        # Message validation
         validate_is_instance(msg,Granule,'Incoming message is not compatible with this ingestion worker')
-        rdt = RecordDictionaryTool.load_from_granule(msg)
+        granule = msg
+        self.add_granule(stream_id, granule)
+        self.persist_meta(stream_id, granule)
+        
+
+    def persist_meta(self, stream_id, granule):
+        #--------------------------------------------------------------------------------
+        # Metadata persistence
+        #--------------------------------------------------------------------------------
+        # Determine the `time` in the granule
+        dataset_id = self.get_dataset(stream_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
         time = get_safe(rdt,'time')
         if time is not None and isinstance(time,numpy.ndarray):
             time = time[0]
         else:
             time = None
             
-        simple_dict = ion_serializer.serialize(msg)
-        byte_string = msgpack.packb(simple_dict, default=encode_ion)
-
-        encoding_type = 'ion_msgpack'
-
-        calculated_sha1 = hashlib.sha1(byte_string).hexdigest().upper()
-
         dataset_granule = {
            'stream_id'      : stream_id,
-           'dataset_id'     : self.get_dataset(stream_id),
-           'persisted_sha1' : calculated_sha1,
-           'encoding_type'  : encoding_type,
+           'dataset_id'     : dataset_id,
+           'persisted_sha1' : dataset_id, 
+           'encoding_type'  : 'coverage',
            'ts_create'      : get_ion_ts()
         }
         if time is not None:
             dataset_granule['ts_create'] = '%s' % time
         self.persist(dataset_granule)
+        #--------------------------------------------------------------------------------
 
-        filename = FileSystem.get_hierarchical_url(FS.CACHE, calculated_sha1, ".%s" % encoding_type)
 
-        self.write(filename,byte_string)
+    def add_granule(self,stream_id, granule):
+        '''
+        Appends the granule's data to the coverage and persists it.
+        '''
+        #--------------------------------------------------------------------------------
+        # Coverage determiniation and appending
+        #--------------------------------------------------------------------------------
+        dataset_id = self.get_dataset(stream_id)
+        if not dataset_id:
+            log.error('No dataset could be determined on this stream: %s', stream_id)
+            return
+        coverage = self.get_coverage(stream_id)
+        if not coverage:
+            log.error('Could not persist coverage from granule, coverage is None')
+            return
+        #--------------------------------------------------------------------------------
+        # Actual persistence
+        #-------------------------------------------------------------------------------- 
+        covcraft = CoverageCraft(coverage)
+        covcraft.add_granule(granule)
+        DatasetManagementService._persist_coverage(dataset_id,coverage)
+
 
 
     def persist(self, dataset_granule):
+        '''
+        Persists the dataset metadata
+        '''
         #--------------------------------------------------------------------------------
         # Theres a potential that the datastore could have been deleted while ingestion
         # is still running.  Essentially this refreshes the state
@@ -124,19 +181,4 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
             self.db.create_doc(dataset_granule)
         except ResourceNotFound as e:
             log.error(e.message) # Oh well I tried
-
-
-
-    def write(self,filename, data): #pragma no cover
-        try:
-            with open(filename, mode='wb') as f:
-                f.write(data)
-                f.close()
-        except Exception as e:
-            log.error('Problem writing to disk: %s' , e.message)
-
-
-
-
-           
 
