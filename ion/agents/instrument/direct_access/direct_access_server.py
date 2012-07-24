@@ -197,7 +197,7 @@ class TelnetServer(TcpServer):
                 input = self.connection_socket.recv(100)
             except gevent.socket.error, error:
                 if error[0] == errno.EAGAIN:
-                    pass
+                    gevent.sleep(.1)
                 else:
                     log.info("TcpServer._setup_session(): exception caught <%s>" %str(error))
                     self._exit_handler("lost connection")
