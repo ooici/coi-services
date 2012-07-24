@@ -15,9 +15,9 @@ from pyon.public import log
 
 from nose.plugins.attrib import attr
 
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.granule import build_granule
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.granule import build_granule
 
 from ion.agents.instrument.packet_factory import PacketFactory, PacketFactoryType, LCAPacketFactory
 

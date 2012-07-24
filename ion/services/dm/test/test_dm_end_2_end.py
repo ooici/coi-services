@@ -6,7 +6,7 @@
 @description DESCRIPTION
 '''
 from pyon.core.exception import Timeout
-from pyon.public import RT
+from pyon.public import RT, log
 from pyon.net.endpoint import Subscriber
 from pyon.ion.stream import SimpleStreamPublisher, SimpleStreamSubscriber
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -21,7 +21,9 @@ from pyon.util.containers import DotDict
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.net.endpoint import Publisher
-from pyon.ion.granule import RecordDictionaryTool, TaxyTool, build_granule
+from ion.services.dm.utility.granule.granule import build_granule
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from gevent.event import Event
 from nose.plugins.attrib import attr
 
@@ -268,6 +270,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def test_replay_by_time(self):
+        log.info('starting test...')
 
         #--------------------------------------------------------------------------------
         # Create the necessary configurations for the test
@@ -289,6 +292,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         comp = rdt['time'] == np.array([1,2,3,4,5])
 
+        try:
+            log.info('Compared granule: %s', replay_granule.__dict__)
+            log.info('Granule tax: %s', replay_granule.taxonomy.__dict__)
+        except:
+            pass
         self.assertTrue(comp.all())
 
     def test_last_granule(self):

@@ -21,7 +21,7 @@ from nose.plugins.attrib import attr
 
 from pyon.public import StreamSubscriberRegistrar
 
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 from interface.objects import HdfStorage, CouchStorage
 

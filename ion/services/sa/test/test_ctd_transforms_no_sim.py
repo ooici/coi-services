@@ -16,7 +16,7 @@ from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L1_tem
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 from pyon.public import log
 from nose.plugins.attrib import attr
