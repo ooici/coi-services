@@ -14,11 +14,12 @@ from pyon.core.exception import BadRequest
 from pyon.util.arg_check import validate_is_instance
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from coverage_model.parameter import ParameterDictionary
 
 import numpy as np
 
 
-def build_granule(data_producer_id, taxonomy, record_dictionary):
+def build_granule(data_producer_id, taxonomy=None, record_dictionary=None, param_dictionary=None):
     """
     This method is a simple wrapper that knows how to produce a granule IonObject from a RecordDictionaryTool and a TaxonomyTool
 
@@ -28,9 +29,14 @@ def build_granule(data_producer_id, taxonomy, record_dictionary):
     We want the Granule Builder to have a dictionary like behavior for building record dictionaries, using the taxonomy
     as a map from the name to the ordinal in the record dictionary.
     """
+    if record_dictionary is None:
+        raise StandardError('Must provide a record dictionary')
 
     #@todo If the taxonomy has an id_ and rev_ send only that.
-    return Granule(data_producer_id=data_producer_id, record_dictionary=record_dictionary._rd, taxonomy=taxonomy._t)
+    if param_dictionary:
+        return Granule(data_producer_id=data_producer_id, record_dictionary=record_dictionary._rd, param_dictionary=param_dictionary.dump())
+    elif taxonomy:
+        return Granule(data_producer_id=data_producer_id, record_dictionary=record_dictionary._rd, taxonomy=taxonomy._t)
 
 def combine_granules(granule_a, granule_b):
     """
