@@ -97,7 +97,7 @@ class PubSubTest(PyonTestCase):
                                                       stream_definition_id=self.stream.stream_definition_id)
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.stream_id, PRED.hasStreamDefinition, self.stream.stream_definition_id, None)
+        self.mock_create_association.assert_called_once_with(self.stream_id, PRED.hasStreamDefinition, self.stream.stream_definition_id, "H2H")
         self.assertEqual(stream_id, self.stream_id)
 
     def test_read_and_update_stream(self):
@@ -259,7 +259,7 @@ class PubSubTest(PyonTestCase):
                                                      )
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.subscription_id, PRED.hasStream, self.stream_id, None)
+        self.mock_create_association.assert_called_once_with(self.subscription_id, PRED.hasStream, self.stream_id, "H2H")
         self.assertEqual(id, self.subscription_id)
 
     def test_create_subscription_exchange_query(self):
@@ -309,7 +309,7 @@ class PubSubTest(PyonTestCase):
         self.mock_read.assert_called_once_with('subscription_id','')
         self.mock_find_objects.assert_called_once_with('subscription_id',PRED.hasStream,'',True)
         self.mock_delete_association.assert_called_once_with('This here is an association')
-        self.mock_create_association.assert_called_once_with('subscription_id',PRED.hasStream,'123',None)
+        self.mock_create_association.assert_called_once_with('subscription_id',PRED.hasStream,'123',"H2H")
         self.assertTrue(self.mock_update.call_count == 1, 'update was not called')
 
     def test_read_subscription(self):
@@ -585,9 +585,9 @@ class PubSubIntTest(IonIntegrationTestCase):
 
     def purge_queues(self):
         xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
-        xn.purge(None,xn.queue)
+        xn.purge()
         xn = self.container.ex_manager.create_xn_queue(self.exchange2_name)
-        xn.purge(None,xn.queue)
+        xn.purge()
         
 
 

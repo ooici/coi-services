@@ -15,7 +15,7 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.util.log import log
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 
 # _cache: A cache of taxonomies indexed by the stream name.

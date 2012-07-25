@@ -127,7 +127,11 @@ class DataProductManagementService(BaseDataProductManagementService):
 #            self.clients.resource_registry.delete_association(dp_assoc)
 
         # Delete the data product
-        self.clients.resource_registry.delete(data_product_id)
+        data_product_obj = self.read_data_product(data_product_id)
+
+        if data_product_obj.lcstate != LCS.RETIRED:
+            self.data_product.delete_one(data_product_id)
+        #self.clients.resource_registry.delete(data_product_id)
         #self.clients.resource_registry.set_lifecycle_state(data_product_id, LCS.RETIRED)
         return
 
@@ -171,21 +175,22 @@ class DataProductManagementService(BaseDataProductManagementService):
         stream_id = streams[0]._id
         log.debug("activate_data_product_persistence: stream = %s"  % str(stream_id))
 
+
         #--------------------------------------------------------------------------------
         # Create the ingestion config for this exchange
         #--------------------------------------------------------------------------------
-
-
-        self.exchange_point       = 'science_data'
-        self.exchange_space       = 'science_granule_ingestion'
-        ingest_queue = IngestionQueue(name=self.exchange_space, type='science_granule')
-        ingestion_configuration_id = self.clients.ingestion_management.create_ingestion_configuration(name='standard_ingest', exchange_point_id=self.exchange_point, queues=[ingest_queue])
-
-        log.debug("activate_data_product_persistence: ingestion_configuration_id = %s"  % str(ingestion_configuration_id))
+#        self.exchange_point       = 'science_data'
+#        self.exchange_space       = 'science_granule_ingestion'
+#        ingest_queue = IngestionQueue(name=self.exchange_space, type='science_granule')
+#        ingestion_configuration_id = self.clients.ingestion_management.create_ingestion_configuration(name='standard_ingest', exchange_point_id=self.exchange_point, queues=[ingest_queue])
+#
+#        log.debug("activate_data_product_persistence: ingestion_configuration_id = %s"  % str(ingestion_configuration_id))
 
         #--------------------------------------------------------------------------------
         # Persist the data stream
         #--------------------------------------------------------------------------------
+
+        ingestion_configuration_id = self.clients.ingestion_management.list_ingestion_configurations(id_only=True)[0]
 
         dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_configuration_id)
         log.debug("activate_data_product_persistence: dataset_id = %s"  % str(dataset_id))
@@ -203,6 +208,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
+        log.debug("suspend_data_product_persistence: data_product_id = %s"  % str(data_product_id))
+
         # retrieve the data_process object
         data_product_obj = self.clients.resource_registry.read(data_product_id)
         if data_product_obj is None:
@@ -211,13 +218,14 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise NotFound("Data Product %s dataset configuration does not exist" % data_product_id)
 
         # get the Stream associated with this data product; if no stream then create one, if multiple streams then Throw
-        streams = self.data_product.find_stemming_stream(data_product_id)
-        if not streams:
+        #streams = self.data_product.find_stemming_stream(data_product_id)
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        if not stream_ids:
             raise BadRequest('Data Product %s must have one stream associated' % str(data_product_id))
 
         #todo: what if there are multiple streams?
-        stream_id = streams[0]
-        log.debug("activate_data_product_persistence: stream = %s"  % str(stream_id))
+        stream_id = stream_ids[0]
+        log.debug("suspend_data_product_persistence: stream = %s"  % str(stream_id))
 
 
         # todo: dataset_configuration_obj contains the ingest config for now...
@@ -226,9 +234,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
 
         #detach the dataset from this data product
-        dataset_ids,other = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
-        for dataset_id in dataset_ids:
-         self.data_product.unlink_data_set(data_product_id, dataset_id)
+#        dataset_ids,other = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+#        for dataset_id in dataset_ids:
+#         self.data_product.unlink_data_set(data_product_id, dataset_id)
         
 
     def create_data_product_version(self, data_product_id='', data_product_version=None):

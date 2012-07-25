@@ -2,6 +2,8 @@ import datetime
 import logging
 
 from pyon.agent.agent import ResourceAgent
+from pyon.core.exception import Unauthorized, NotFound
+from pyon.core import bootstrap
 from pyon.public import IonObject, log
 from pyon.util.containers import get_safe
 from pyon.net.endpoint import Publisher
@@ -13,6 +15,8 @@ try:
     from eeagent.core import EEAgentCore
     from eeagent.beatit import make_beat_msg
     from eeagent.execute import get_exe_factory
+    from eeagent.eeagent_exceptions import EEAgentUnauthorizedException
+    from pidantic.pidantic_exceptions import PIDanticExecutionException
 except ImportError:
     EEAgentCore = None
 
@@ -56,13 +60,22 @@ class ExecutionEngineAgent(ResourceAgent):
         interval = self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT)
         if interval > 0:
             self.heartbeater = HeartBeater(self.CFG, self._factory, log=log)
-            looping_call(interval, self.heartbeater.poll)
+            self.heartbeat_thread = looping_call(interval, self.heartbeater.poll)
+        else:
+            self.heartbeat_thread = None
 
     def on_quit(self):
+        if self.heartbeat_thread is not None:
+            self.heartbeat_thread.kill()
         self._factory.terminate()
 
     def rcmd_launch_process(self, u_pid, round, run_type, parameters):
-        self.core.launch_process(u_pid, round, run_type, parameters)
+        try:
+            self.core.launch_process(u_pid, round, run_type, parameters)
+        except EEAgentUnauthorizedException, e:
+            raise Unauthorized(e.message)
+        except PIDanticExecutionException, e:
+            raise NotFound(e.message)
 
     def rcmd_terminate_process(self, u_pid, round):
         self.core.terminate_process(u_pid, round)
@@ -70,7 +83,7 @@ class ExecutionEngineAgent(ResourceAgent):
     def rcmd_restart_process(self, u_pid, round):
         self.core.restart_process(u_pid, round)
 
-    def rcmd_cleanup(self, u_pid, round):
+    def rcmd_cleanup_process(self, u_pid, round):
         self.core.cleanup(u_pid, round)
 
     def rcmd_dump_state(self):
@@ -90,7 +103,7 @@ class HeartBeater(object):
         self._factory = factory
         self._next_beat(datetime.datetime.now())
         self._publisher = Publisher()
-        self._pd_name = CFG.eeagent.get('process_dispatcher', 'processdispatcher')
+        self._pd_name = CFG.eeagent.get('heartbeat_queue', 'heartbeat_queue')
 
         self._factory.set_state_change_callback(self._state_change_callback, None)
 
@@ -110,9 +123,11 @@ class HeartBeater(object):
 
     def beat(self):
         try:
-            message = make_beat_msg(self._factory)
-            self._log.debug("Send heartbeat: %s" % message)
-            self._publisher.publish(message, to_name=self._pd_name)
+            beat = make_beat_msg(self._factory, self._CFG)
+            message = dict(beat=beat, resource_id=self._CFG.agent.resource_id)
+            to_name = self._pd_name
+            self._log.debug("Send heartbeat: %s to %s", message, self._pd_name)
+            self._publisher.publish(message, to_name=to_name)
         except:
             self._log.exception("beat failed")
 
@@ -138,6 +153,11 @@ class ExecutionEngineAgentClient(object):
 
         args = [u_pid, round]
         cmd = AgentCommand(command='restart_process', args=args)
+        return self.client.execute(cmd)
+
+    def cleanup_process(self, u_pid, round):
+        args = [u_pid, round]
+        cmd = AgentCommand(command='cleanup_process', args=args)
         return self.client.execute(cmd)
 
     def dump_state(self):

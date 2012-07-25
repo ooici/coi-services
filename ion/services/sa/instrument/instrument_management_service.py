@@ -33,7 +33,7 @@ import signal
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
 
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
 from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
@@ -172,8 +172,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
 
-        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasInstance,
-                                                                                instrument_agent_instance_id)
         self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance,
                                                                                 instrument_agent_instance_id)
 
@@ -1367,7 +1365,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-
+    ############################
+    #
+    #  EXTENDED RESOURCES
+    #
+    ############################
 
 
     def get_instrument_device_extension(self, instrument_device_id='', ext_associations=None, ext_exclude=None):
@@ -1386,21 +1388,102 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         extended_resource_handler = ExtendedResourceContainer(self)
 
-        extended_instrument = extended_resource_handler.create_extended_resource_container(OT.InstrumentDeviceExtension,
-            instrument_device_id, OT.InstrumentDeviceComputedAttributes, ext_associations, ext_exclude)
+        extended_instrument = extended_resource_handler.create_extended_resource_container(
+            OT.InstrumentDeviceExtension,
+            instrument_device_id,
+            OT.InstrumentDeviceComputedAttributes,
+            ext_associations,
+            ext_exclude)
+
+        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_instrument, 'attachments'):
+            for att in extended_instrument.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
 
         return extended_instrument
 
 
         #Bogus functions for computed attributes
-    def get_software_version(self, instrument_device_id):
+    def get_firmware_version(self, instrument_device_id):
         return "1.1"
 
     def get_location(self, instrument_device_id):
         return IonObject(OT.GeospatialBounds)
 
-    def get_attached_sensors(self, instrument_device_id):
-        return ['abc','123']
+    def get_last_data_received_time(self, instrument_device_id):
+        return "42"
 
-    def get_data_url(self, instrument_device_id):
-        return "http://iontest/data/" + instrument_device_id
+
+    def get_operational_state(self, instrument_device_id):   # from Device
+        return "23"
+
+    def get_last_command_status(self, instrument_device_id):
+        return "34"
+
+    def get_last_command_date(self, instrument_device_id):
+        return "45"
+
+    def get_last_command(self, instrument_device_id):
+        return "56"
+
+    def get_last_commanded_by(self, instrument_device_id):
+        return "67"
+
+    def get_power_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        return "78"
+
+    def get_communications_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        return "89"
+
+    def get_data_status_roll_up(self, instrument_device_id): # BLACK, RED, GREEN, YELLOW
+        return "98"
+
+    def get_location_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        return "87"
+
+    def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
+        return ['mon', 'tue', 'wed']
+
+
+
+    def get_platform_device_extension(self, platform_device_id='', ext_associations=None, ext_exclude=None):
+        """Returns an PlatformDeviceExtension object containing additional related information
+        """
+
+        if not platform_device_id:
+            raise BadRequest("The platform_device_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_platform = extended_resource_handler.create_extended_resource_container(
+            OT.InstrumentDeviceExtension,
+            platform_device_id,
+            OT.InstrumentDeviceComputedAttributes,
+            ext_associations,
+            ext_exclude)
+
+        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_platform, 'attachments'):
+            for att in extended_platform.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
+
+        return extended_platform
+
+
+    # amount of energy being generated on the platform in Watts
+    def get_power_energy_generation(self, platform_device_id):
+        return "1.1"
+    
+    # amount of energy currently being consumed by the platform in Watts
+    def get_energy_consumption(self, platform_device_id):
+        return "1.1"
+
+    def get_data_transmission_rate(self, platform_device_id):
+        return "1.1"
+
+    def get_speed_over_ground(self, platform_device_id):
+        return "1.1"

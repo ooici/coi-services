@@ -21,7 +21,7 @@ from nose.plugins.attrib import attr
 
 from pyon.public import StreamSubscriberRegistrar
 
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 from interface.objects import HdfStorage, CouchStorage
 
@@ -145,7 +145,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.loggerpids = []
 
         # Create InstrumentModel
-        instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model_label="SBE37IMModel" )
+        instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model="SBE37IMModel" )
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:

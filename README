@@ -67,16 +67,13 @@ installation
 PACKAGE DOWNLOAD
 ================
 
-Clone pyon and coi-services (if you haven't already) in your code directory:
+Clone coi-services (if you haven't already) in your code directory:
     > cd code   # Whatever your code repository directory is
-
-Clone pyon (needed for now):
-    > git clone git@github.com:ooici/pyon.git
 
 Clone coi-services (this repository, if you haven't already):
     > git clone git@github.com:ooici/coi-services.git
 
-Link git submodule ion-definitions, containing object and service definitions and resource files:
+Initialize submodules::
     > cd coi-services
     > git submodule update --init
 
@@ -204,15 +201,13 @@ Use integration tests:
 TROUBLESHOOTING
 ===============
 
-bin/generate_interfaces can leave outdated stuff behind that causes your
+Outdated *.pyc files can causes your
 tests to fail unexpectedly.  Do an ant clean and try again.
     > ant clean
+    > bin/generate_interface
 
-bin/generate_interfaces still has import errors after ant clean.  Then, you
-might have an outdated pyon repo
-    > cd ../pyon
-    > git pull
-    > cd -
+If your tests still fail, you might have some incorrect values in
+pyon.local.yml or logging.local.yml.  Check with other developers.
 
 If your tests fail unexpectedly when you have tried everything else, your build
 might be corrupted.  Do an ant clean buildout and try again with a new
@@ -247,25 +242,25 @@ specific repositories are available.
 Please follow the following steps as long as you are new:
 
 Get the latest code before you start editing, or anytime you want:
-    > git pull
+    > git pull --rebase
+    (fix any issues, git add, git rebase --continue)
+
     > git submodule update  # Do NOT forget. This does not happen automatically
 
 See below for an automated approach.
 
-Once in a while, service interfaces change. Generate interfaces frequently (especially in case of error):
+As extern pointers change, service interfaces can change and old pyc files
+can be left around unintentinally. enerate interfaces frequently (especially in case of error):
+    > ant clean
     > bin/generate-interfaces
-
-Before define objects, services in ./obj, define app and deploy files in /res, checkout master:
-    > cd extern/ion-definitions
-    > git status              # Just to see what's going on
-    > git checkout master     # To track the master branch (enables update and later push)
-    > git pull origin master  # To get latest from the server
 
 *See below for an automated approach to git-submodules*
 Note: The res/ and obj/ dirs are symlinks to a subdirectory in a git submodule. Beware of the pitfalls
 of git submodule. You need to treat it as a separate GIT module. In case of changes, both GIT modules
 must be pushed, submodule first:
     > cd extern/ion-definitions
+    > git checkout master
+    > do edits...
     > git status            # Just to see what's going on
     > git commit -am "Something smart"
     > git push origin master
@@ -275,6 +270,8 @@ must be pushed, submodule first:
 
 Put your services in ion/services/<subsystem>/... (subdirectories are allowed).
 
+The ion-definition submodules approach above apply to other submodules as
+well.
 
 GIT SUBMODULE HOOKS
 ===================

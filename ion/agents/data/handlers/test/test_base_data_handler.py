@@ -15,7 +15,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.core.exception import NotFound
 import unittest
 
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentDataException, InstrumentCommandException, NotImplementedException, InstrumentException
 from interface.objects import Granule, Attachment
 
@@ -33,10 +33,9 @@ import numpy
 class TestBaseDataHandlerUnit(PyonTestCase):
 
     def setUp(self):
-        self._rr_cli = Mock()
         self._stream_registrar = Mock()
         dh_config = {'external_dataset_res_id' : 'external_ds'}
-        self._bdh = BaseDataHandler(rr_cli=self._rr_cli, stream_registrar=self._stream_registrar, dh_config=dh_config)
+        self._bdh = BaseDataHandler(stream_registrar=self._stream_registrar, dh_config=dh_config)
 
     def test_set_event_callback(self):
         self._bdh.set_event_callback('test_callback')
@@ -49,7 +48,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
     @patch.object(BaseDataHandler, 'execute_acquire_data')
     @patch('ion.agents.data.handlers.base_data_handler.time')
     def test__poll(self, time_mock, execute_acquire_data_mock):
-        bdh=BaseDataHandler(None, None, None)
+        bdh=BaseDataHandler(None, None)
         bdh._params = {'POLLING_INTERVAL':1}
         glet = spawn(bdh._poll)
 
@@ -330,6 +329,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
     def test_execute_stop_autosample(self):
         self._bdh._polling = True
         self._bdh._polling_glet = Mock()
+        self._bdh._terminate_polling = Mock()
         ret = self._bdh.execute_stop_autosample()
         self.assertIsNone(ret)
         self.assertFalse(self._bdh._polling)
@@ -443,37 +443,45 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         self._bdh.execute_acquire_data({'stream_id' : 'test_stream_id'})
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
 
-    def test__find_new_data_check_attachment(self):
+    @patch('ion.agents.data.handlers.base_data_handler.ResourceRegistryServiceClient')
+    def test__find_new_data_check_attachment(self, rr_cli_cls):
+        rr_cli = rr_cli_cls.return_value
         attachment_1 = Mock()
         attachment_1._id = 'attachment_1'
         attachment_1.keywords = ['NewDataCheck']
         attachment_1.content = 'content'
-        self._rr_cli.find_attachments.return_value = [attachment_1]
+        rr_cli.find_attachments.return_value = [attachment_1]
 
         ret = self._bdh._find_new_data_check_attachment(res_id='res_id')
         self.assertEqual(ret, 'content')
-        self._rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
+        rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
 
-    def test__find_new_data_check_attachment_no_newdatacheck(self):
+    @patch('ion.agents.data.handlers.base_data_handler.ResourceRegistryServiceClient')
+    def test__find_new_data_check_attachment_no_newdatacheck(self, rr_cli_cls):
+        rr_cli = rr_cli_cls.return_value
         attachment_1 = Mock()
         attachment_1._id = 'attachment_1'
         attachment_1.keywords = ['not_found']
         attachment_1.content = 'content'
-        self._rr_cli.find_attachments.return_value = [attachment_1]
+        rr_cli.find_attachments.return_value = [attachment_1]
 
         ret = self._bdh._find_new_data_check_attachment(res_id='res_id')
         self.assertEqual(ret, None)
-        self._rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
+        rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
 
-    def test__find_new_data_check_attachment_raise_notfound(self):
-        self._rr_cli.find_attachments.side_effect = NotFound
+    @patch('ion.agents.data.handlers.base_data_handler.ResourceRegistryServiceClient')
+    def test__find_new_data_check_attachment_raise_notfound(self, rr_cli_cls):
+        rr_cli = rr_cli_cls.return_value
+        rr_cli.find_attachments.side_effect = NotFound
 
         with self.assertRaises(InstrumentException) as cm:
             self._bdh._find_new_data_check_attachment(res_id='not_found')
 
-        self._rr_cli.find_attachments.assert_called_once_with(resource_id='not_found', include_content=False, id_only=False)
+        rr_cli.find_attachments.assert_called_once_with(resource_id='not_found', include_content=False, id_only=False)
 
-    def test__update_new_data_check_attachment(self):
+    @patch('ion.agents.data.handlers.base_data_handler.ResourceRegistryServiceClient')
+    def test__update_new_data_check_attachment(self, rr_cli_cls):
+        rr_cli = rr_cli_cls.return_value
         attachment_1 = Mock()
         attachment_1._id = 'attachment_1'
         attachment_1.keywords = ['NewDataCheck']
@@ -483,15 +491,17 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         attachment_2._id = 'attachment_2'
         attachment_2.keywords = ['NewDataCheck']
         attachment_2.content = 'new_content'
-        self._rr_cli.find_attachments.return_value = [attachment_1]
-        self._rr_cli.create_attachment.return_value = attachment_2._id
+        rr_cli.find_attachments.return_value = [attachment_1]
+        rr_cli.create_attachment.return_value = attachment_2._id
 
         self._bdh._update_new_data_check_attachment(res_id='res_id', new_content=attachment_2.content)
-        self._rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
-        self._rr_cli.delete_attachment.assert_called_once_with(attachment_1._id)
-        self.assertTrue(self._rr_cli.create_attachment.called)
+        rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
+        rr_cli.delete_attachment.assert_called_once_with(attachment_1._id)
+        self.assertTrue(rr_cli.create_attachment.called)
 
-    def test__update_new_data_check_attachment_no_newdatacheck(self):
+    @patch('ion.agents.data.handlers.base_data_handler.ResourceRegistryServiceClient')
+    def test__update_new_data_check_attachment_no_newdatacheck(self, rr_cli_cls):
+        rr_cli = rr_cli_cls.return_value
         attachment_1 = Mock()
         attachment_1._id = 'attachment_1'
         attachment_1.keywords = ['notfound']
@@ -501,20 +511,22 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         attachment_2._id = 'attachment_2'
         attachment_2.keywords = ['NewDataCheck']
         attachment_2.content = 'new_content'
-        self._rr_cli.find_attachments.return_value = [attachment_1]
-        self._rr_cli.create_attachment.return_value = attachment_2._id
+        rr_cli.find_attachments.return_value = [attachment_1]
+        rr_cli.create_attachment.return_value = attachment_2._id
 
         self._bdh._update_new_data_check_attachment(res_id='res_id', new_content=attachment_2.content)
-        self._rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
-        self.assertTrue(self._rr_cli.create_attachment.called)
+        rr_cli.find_attachments.assert_called_once_with(resource_id='res_id', include_content=False, id_only=False)
+        self.assertTrue(rr_cli.create_attachment.called)
 
-    def test__update_new_data_check_attachment_raise_notfound(self):
-        self._rr_cli.find_attachments.side_effect = NotFound
+    @patch('ion.agents.data.handlers.base_data_handler.ResourceRegistryServiceClient')
+    def test__update_new_data_check_attachment_raise_notfound(self, rr_cli_cls):
+        rr_cli = rr_cli_cls.return_value
+        rr_cli.find_attachments.side_effect = NotFound
 
         with self.assertRaises(InstrumentException) as cm:
             self._bdh._update_new_data_check_attachment(res_id='not_found', new_content='new_content')
 
-        self._rr_cli.find_attachments.assert_called_once_with(resource_id='not_found', include_content=False, id_only=False)
+        rr_cli.find_attachments.assert_called_once_with(resource_id='not_found', include_content=False, id_only=False)
 
     @patch('ion.agents.data.handlers.base_data_handler.spawn')
     def test_execute_acquire_data_with_stream_id_new_not_already_acquiring(self, mock):

@@ -24,7 +24,6 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
 from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
 
-
 from pyon.util.context import LocalContextMixin
 
 
@@ -161,6 +160,12 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_output_ids) == 1 )
 
+        #persist the output product
+        #self.dataproductclient.activate_data_product_persistence(workflow_product_id)
+        dataset_ids,_ = self.rrclient.find_objects(workflow_product_id, PRED.hasDataset, RT.DataSet, True)
+        assertions(len(dataset_ids) == 1 )
+        dataset_id = dataset_ids[0]
+
         #Verify the output data product name matches what was specified in the workflow definition
         workflow_product = self.rrclient.read(workflow_product_id)
         assertions(workflow_product.name == workflow_data_product_name)
@@ -187,16 +192,18 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         #Validate the data from each of the messages along the way
         self.validate_messages(results)
 
+        #validate that the data was persisted and can be retrieved
+        self.validate_data_ingest_retrieve(dataset_id)
+
         #Cleanup to make sure delete is correct.
         self.workflowclient.delete_workflow_definition(workflow_def_id)
 
         workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition)
         assertions(len(workflow_def_ids) == 0 )
 
-
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #unittest.skip("Skipping for debugging ")
+    #@unittest.skip("Skipping for debugging ")
     def test_google_dt_transform_workflow(self):
 
         assertions = self.assertTrue
