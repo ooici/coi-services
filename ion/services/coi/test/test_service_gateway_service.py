@@ -112,16 +112,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
             "params": {
                 "object": {
                     "type_": "DataProduct",
-                    "provider_project": "Integration Test",
                     "lcstate": "DRAFT",
                     "description": "A test data product",
-                    "name": "TestDataProduct",
-                    "contact": {
-                        "name": "Test User",
-                        "phone": "858-555-1212",
-                        "city": "San Diego",
-                        "postalcode": "92093"
-                    }
+                    "name": "TestDataProduct"
                 }
             }
         }
@@ -181,7 +174,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         #modify some fields in the data for testing update
         data_product_obj['description'] = 'An updated description for test data'
-        data_product_obj['contact']['postalcode'] = '12345'
 
         data_product_update_request = {
             "serviceRequest": {
@@ -203,7 +195,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         updated_data_product_obj = convert_unicode(response.json['data'][GATEWAY_RESPONSE])
         self.assertEqual(updated_data_product_obj['description'], 'An updated description for test data', )
-        self.assertEqual(updated_data_product_obj['contact']['postalcode'], '12345')
 
         differ = DictDiffer(updated_data_product_obj, data_product_obj)
         self.assertEqual(len(differ.changed()), 2)  # Only the _rev and ts_updated fields should be different after an update

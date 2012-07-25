@@ -567,28 +567,46 @@ def get_resource_schema(resource_type):
         return build_error_response(e)
 
 
-#More RESTfull examples...should probably not use but here for example reference
+
+# Get attachment for a specific attachment id
+@app.route('/ion-service/attachment/<attachment_id>', methods=['GET','POST'])
+def get_attachment(attachment_id):
+
+    try:
+        # Create client to interface with the viz service
+        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        attachment = rr_client.read_attachment(attachment_id)
+
+        return app.response_class(attachment.content,mimetype=attachment.content_type)
+
+
+    except Exception, e:
+        return build_error_response(e)
+
+
+#More REST-ful examples...should probably not use but here for example reference
 
 #This example calls the resource registry with an id passed in as part of the URL
 #http://hostname:port/ion-service/resource/c1b6fa6aadbd4eb696a9407a39adbdc8
 @app.route('/ion-service/rest/resource/<resource_id>')
 def get_resource(resource_id):
-        try:
-            client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
-            #Validate requesting user and expiry and add governance headers
-            ion_actor_id, expiry = get_governance_info_from_request()
-            ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+    try:
+        client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
-            #Database object IDs are not unicode
-            result = client.read(convert_unicode(resource_id))
-            if not result:
-                raise NotFound("No resource found for id: %s " % resource_id)
+        #Validate requesting user and expiry and add governance headers
+        ion_actor_id, expiry = get_governance_info_from_request()
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
-            return gateway_json_response(result)
+        #Database object IDs are not unicode
+        result = client.read(convert_unicode(resource_id))
+        if not result:
+            raise NotFound("No resource found for id: %s " % resource_id)
 
-        except Exception, e:
-            return build_error_response(e)
+        return gateway_json_response(result)
+
+    except Exception, e:
+        return build_error_response(e)
 
 
 #Example operation to return a list of resources of a specific type like
@@ -614,6 +632,7 @@ def list_resources_by_type(resource_type):
 #Gateway specific services are below
 
 # Get image for a specific data product
+#TODO - do we really still need this?
 @app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
 def get_viz_image(data_product_id, img_name):
 
@@ -631,26 +650,4 @@ def create_accounts():
     run_client(Container.instance, process=service_gateway_instance)
     return json_response("")
 
-@app.route('/ion-service/seed_gov')
-def seed_gov():
-    from examples.gov_client import seed_gov
-    seed_gov(Container.instance)
-    return json_response("")
 
-@app.route('/ion-service/test_policy')
-def test_policy():
-    from examples.gov_client import test_policy
-    test_policy(Container.instance)
-    return json_response("")
-
-@app.route('/ion-service/test_requests')
-def test_requests():
-    from examples.gov_client import test_requests
-    test_requests(Container.instance)
-    return json_response("")
-
-@app.route('/ion-service/instrument_test_driver')
-def instrument_test_driver():
-    from examples.agent.instrument_driver import instrument_test_driver
-    instrument_test_driver(Container.instance)
-    return json_response("")

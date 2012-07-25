@@ -12,7 +12,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from pyon.core.exception import BadRequest, IonException, NotFound
 from pyon.util.file_sys import FileSystem,FS
 from pyon.core.interceptor.encode import decode_ion
-from pyon.ion.granule import combine_granules
+from ion.services.dm.utility.granule.granule import combine_granules
 from pyon.core.object import IonObjectDeserializer
 from pyon.core.bootstrap import get_obj_registry
 from gevent.event import Event
@@ -82,6 +82,10 @@ class ReplayProcess(BaseReplayProcess):
         byte_string = self.read_persisted_cache(sha1,encoding)
         obj = msgpack.unpackb(byte_string, object_hook=decode_ion)
         ion_obj = self.deserializer.deserialize(obj) # Problem here is that nested objects get deserialized
+        try: 
+            log.info('Granule taxonomy: %s', ion_obj.taxonomy.__dict__)
+        except:
+            pass
         return ion_obj
         
 
@@ -102,8 +106,8 @@ class ReplayProcess(BaseReplayProcess):
         view_name = 'manifest/by_dataset'
 
         opts = dict(
-            start_key = [self.dataset.primary_view_key, 0],
-            end_key   = [self.dataset.primary_view_key, {}],
+            start_key = [self.dataset_id, 0],
+            end_key   = [self.dataset_id, {}],
             include_docs = True
         )
         if self.start_time is not None:
@@ -115,13 +119,13 @@ class ReplayProcess(BaseReplayProcess):
         #--------------------------------------------------------------------------------
         # Gather all the dataset granules and compile the FS cache
         #--------------------------------------------------------------------------------
-        log.debug('Getting data from datastore')
+        log.info('Getting data from datastore')
         for result in datastore.query_view(view_name,opts=opts):
             doc = result.get('doc')
             if doc is not None:
                 ion_obj = self.granule_from_doc(doc)
                 granules.append(ion_obj)
-        log.debug('Received %d granules.', len(granules))
+        log.info('Received %d granules.', len(granules))
 
         while len(granules) > 1:
             granule = combine_granules(granules.pop(0),granules.pop(0))
@@ -146,8 +150,8 @@ class ReplayProcess(BaseReplayProcess):
         view_name = 'manifest/by_dataset'
 
         opts = dict(
-            start_key = [self.dataset.primary_view_key, 0],
-            end_key   = [self.dataset.primary_view_key, {}],
+            start_key = [self.dataset_id, 0],
+            end_key   = [self.dataset_id, {}],
             include_docs = True
         )
         if self.start_time is not None:
@@ -160,7 +164,7 @@ class ReplayProcess(BaseReplayProcess):
         # Gather all the dataset granules and compile the FS cache
         #--------------------------------------------------------------------------------
         for result in datastore.query_view(view_name,opts=opts):
-            log.debug(result)
+            log.info(result)
             doc = result.get('doc')
             if doc is not None:
                 ion_obj = self.granule_from_doc(doc)
@@ -182,8 +186,8 @@ class ReplayProcess(BaseReplayProcess):
         view_name = 'manifest/by_dataset'
 
         opts = dict(
-            start_key = [dataset.primary_view_key, {}],
-            end_key   = [dataset.primary_view_key, 0], 
+            start_key = [dataset_id, {}],
+            end_key   = [dataset_id, 0], 
             descending = True,
             limit = 1,
             include_docs = True

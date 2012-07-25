@@ -44,6 +44,16 @@ fi
 git pull --rebase origin master
 cd $THISDIR
 
+cd extern/coverage-model
+git checkout master
+if [ $? -ne 0 ]; then
+    git status
+    echo -e "\n$(basename $0) aborting due to inability to switch branches"
+    exit 1
+fi
+git pull --rebase origin master
+cd $THISDIR
+
 echo -e "\n\n=== UPDATING COI-SERVICES ===\n"
 git pull --rebase
 if [ $? -ne 0 ]; then

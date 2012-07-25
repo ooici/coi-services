@@ -26,7 +26,7 @@ from pyon.ion.process import StandaloneProcess
 from pyon.public import log, StreamSubscriberRegistrar, PRED
 from pyon.util.containers import get_datetime
 from interface.objects import StreamQuery
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
@@ -48,6 +48,7 @@ class StreamGranuleLogger(StandaloneProcess):
         subscription_id = pubsub_cli.create_subscription(
             query = query,
             exchange_name = exchange_name,
+            exchange_point = 'science_data',
             name = "SampleSubscription",
             description = "Sample Subscription Description")
 

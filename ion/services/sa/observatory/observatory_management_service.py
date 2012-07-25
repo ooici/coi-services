@@ -15,7 +15,6 @@ from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS, LCE
 
 #from pyon.util.log import log
-from ion.services.sa.observatory.org_impl import OrgImpl
 from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
 from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
@@ -27,6 +26,8 @@ from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.objects import OrgTypeEnum
+
+import constraint
 
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
@@ -73,7 +74,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #farm everything out to the impls
 
-        self.org              = OrgImpl(self.clients)
         self.observatory      = ObservatoryImpl(self.clients)
         self.subsite          = SubsiteImpl(self.clients)
         self.platform_site    = PlatformSiteImpl(self.clients)
@@ -159,7 +159,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return observatory_id
 
-
     def read_observatory(self, observatory_id=''):
         """Read a Observatory resource
 
@@ -169,7 +168,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
         return self.observatory.read_one(observatory_id)
 
-
     def update_observatory(self, observatory=None):
         """Update a Observatory resource
 
@@ -178,29 +176,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
         return self.observatory.update_one(observatory)
 
-
     def delete_observatory(self, observatory_id=''):
         """Delete a Observatory resource
 
         @param observatory_id    str
         @throws NotFound    object with specified id does not exist
         """
-        
-        # find the org for this MF
-        org_ids, _ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasObservatory, observatory_id, id_only=True)
-        if len(org_ids) == 0:
-            log.warn("ObservatoryManagementService.delete_observatory(): no org for MF " + observatory_id)
-        else:
-            if len(org_ids) > 1:
-                log.warn("ObservatoryManagementService.delete_observatory(): more than 1 org for MF " + observatory_id)
-                # TODO: delete the others and/or raise exception???
-            # delete the set of User Roles for this marine facility that this service created
-            self.clients.org_management.remove_user_role(org_ids[0], INSTRUMENT_OPERATOR_ROLE)
-            self.clients.org_management.remove_user_role(org_ids[0], OBSERVATORY_OPERATOR_ROLE)
-            self.clients.org_management.remove_user_role(org_ids[0], DATA_OPERATOR_ROLE)
-            # delete the org
-            self.clients.org_management.delete_org(org_ids[0])
-
         return self.observatory.delete_one(observatory_id)
 
 
@@ -333,30 +314,29 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
         # todo: give InstrumentSite a lifecycle in COI so that we can remove the "True" argument here
-        self.instrument_site.delete_one(instrument_site_id, True)
+        self.instrument_site.delete_one(instrument_site_id)
 
 
 
-    def create_deployment(self, deployment=None):
+    def create_deployment(self, deployment=None, site_id="", device_id=""):
         """
         Create a Deployment resource. Represents a (possibly open-ended) time interval
         grouping one or more resources within a given context, such as an instrument
         deployment on a platform at an observatory site.
         """
-#
-#        #Verify that site and device exist
-#        site_obj = self.clients.resource_registry.read(site_id)
-#        if not site_obj:
-#            raise NotFound("Deployment site %s does not exist" % site_id)
-#        device_obj = self.clients.resource_registry.read(device_id)
-#        if not device_obj:
-#            raise NotFound("Deployment device %s does not exist" % device_id)
 
         deployment_id, version = self.clients.resource_registry.create(deployment)
 
-#        # Create the links
-#        self.clients.resource_registry.create_association(site_id, PRED.hasDeployment, deployment_id)
-#        self.clients.resource_registry.create_association(device_id, PRED.hasDeployment, deployment_id)
+        #Verify that site and device exist, add links if they do
+        if site_id:
+            site_obj = self.clients.resource_registry.read(site_id)
+            if site_obj:
+                self.clients.resource_registry.create_association(site_id, PRED.hasDeployment, deployment_id)
+
+        if device_id:
+            device_obj = self.clients.resource_registry.read(device_id)
+            if device_obj:
+                self.clients.resource_registry.create_association(device_id, PRED.hasDeployment, deployment_id)
 
         return deployment_id
 
@@ -641,16 +621,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def check_site_for_deployment(self, site_id, site_type, model_type):
         log.debug("checking %s for deployment, will return %s" % (site_type, model_type))
-        # validate and return model
+        # validate and return supported models
         models, _ = self.RR.find_objects(site_id, PRED.hasModel, model_type, True)
-        if 1 != len(models):
-            raise BadRequest("Expected 1 model for %s '%s', got %d" % (site_type, site_id, len(models)))
+        if 1 > len(models):
+            raise BadRequest("Expected at least 1 model for %s '%s', got %d" % (site_type, site_id, len(models)))
 
         log.debug("checking site data products")
         prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
         if 1 != len(prods):
             raise BadRequest("Expected 1 output data product on %s '%s', got %d" % (site_type, site_id, len(prods)))
-        return models[0]
+        return models
 
 
 
@@ -662,9 +642,15 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("Expected 1 model for %s '%s', got %d" % (device_type, device_id, len(models)))
         return models[0]
 
-    def check_site_device_pair_for_deployment(self, site_id, device_id, site_type, device_type):
+    def check_site_device_pair_for_deployment(self, site_id, device_id, site_type=None, device_type=None):
         log.debug("checking %s/%s pair for deployment" % (site_type, device_type))
         #return a pair that should be REMOVED, or None
+
+        if site_type is None:
+            site_type = type(self.RR.read(site_id)).__name__
+
+        if device_type is None:
+            device_type = type(self.RR.read(device_id)).__name__
 
         ret = None
 
@@ -677,11 +663,82 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 ret = (site_id, devices[0])
                 log.info("%s '%s' is already hasDevice with a %s" % (site_type, site_id, device_type))
 
+        return ret
+
+    def has_matching_streamdef(self, site_id, device_id):
         if not self.streamdef_of_site(site_id) in self.streamdefs_of_device(device_id):
             raise BadRequest("No matching streamdefs between %s '%s' and %s '%s'" %
                              (site_type, site_id, device_type, device_id))
 
-        return ret
+    def collect_deployment_components(self, deployment_id):
+        """
+        get all devices and sites associated with this deployment and use their ID as a key to list of models
+        """
+
+        device_models = {}
+        site_models = {}
+
+        # significant change-up in how this works.
+        #
+        # collect all devices in this deployment
+
+        def add_sites(site_ids, site_type, model_type):
+            for s in site_ids:
+                models = self.check_site_for_deployment(s, site_type, model_type)
+                if s in site_models:
+                    log.warn("Site '%s' was already collected in deployment '%s'" % (s, deployment_id))
+                site_models[s] = models
+
+        def add_devices(device_ids, device_type, model_type):
+            for d in device_ids:
+                model = self.check_device_for_deployment(d, device_type, model_type)
+                if d in device_models:
+                    log.warn("Device '%s' was already collected in deployment '%s'" % (d, deployment_id))
+                device_models[d] = model
+
+
+        def collect_specific_resources(site_type, device_type, model_type):
+            # check this deployment -- specific device types -- for validity
+            # return a list of pairs (site, device) to be associated
+
+            new_site_ids, _ = self.RR.find_subjects(site_type,
+                                                    PRED.hasDeployment,
+                                                    deployment_id,
+                                                    True)
+
+            new_device_ids, _ = self.RR.find_subjects(device_type,
+                                                      PRED.hasDeployment,
+                                                      deployment_id,
+                                                      True)
+
+            add_sites(new_site_ids, site_type, model_type)
+            add_devices(new_device_ids, site_type, model_type)
+
+        # collect platforms, verify that only one platform device exists in the deployment
+        collect_specific_resources(RT.PlatformSite, RT.PlatformDevice, RT.PlatformModel)
+        if 1 < len(device_models):
+            raise BadRequest("Multiple platforms in the same deployment are not allowed")
+        elif 0 < len(device_models):
+            # add devices and sites that are children of platform device / site
+            child_device_ids = self.platform_device.find_stemming_device(device_models.keys()[0])
+            child_site_ids = self.find_related_frames_of_reference(site_models.keys()[0],
+                [RT.PlatformSite, RT.InstrumentSite])
+
+            # IGNORE child platforms
+            #  verify that platform site has no sub-platform-sites
+            #if 0 < len(child_site_ids[RT.PlatformSite]):
+            #    raise BadRequest("Deploying a platform with its own child platform is not allowed")
+
+            #  gather a list of all instrument sites on platform site
+            #  gather a list of all instrument devices on platform device
+            add_devices(child_device_ids, RT.InstrumentDevice, RT.InstrumentModel)
+            add_sites(child_site_ids[RT.InstrumentSite], RT.InstrumentSite, RT.InstrumentModel)
+
+        collect_specific_resources(RT.InstrumentSite, RT.InstrumentDevice, RT.InstrumentModel)
+
+        return device_models, site_models
+
+
 
     def activate_deployment(self, deployment_id='', activate_subscriptions=False):
         """
@@ -690,65 +747,48 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #Verify that the deployment exists
         deployment_obj = self.clients.resource_registry.read(deployment_id)
 
+#        if LCS.DEPLOYED == deployment_obj.lcstate:
+#            raise BadRequest("This deploment is already active")
 
+        device_models, site_models = self.collect_deployment_components(deployment_id)
 
-        def validate_specific_resources(site_type, device_type, model_type):
-            # check this deployment -- specific device types -- for validity
-            # return a list of pairs (site, device) to be associated
+        # create a CSP so we can solve it
+        problem = constraint.Problem()
 
-            site_ids, _ = self.RR.find_subjects(site_type,
-                                                PRED.hasDeployment,
-                                                deployment_id,
-                                                True)
+        # add variables - the devices to be assigned, and their range (possible sites)
+        for device_id in device_models.keys():
+            device_model = device_models[device_id]
+            possible_sites = [s for s in site_models.keys()
+                              if device_model in site_models[s]]
+                                    #and self.streamdef_of_site(s) in self.streamdefs_of_device(device_id)]
+            problem.addVariable("device_%s" % device_id, possible_sites)
 
-            device_ids, _ = self.RR.find_subjects(device_type,
-                                                  PRED.hasDeployment,
-                                                  deployment_id,
-                                                  True)
+        # add the constraint that all the variables have to pick their own site
+        problem.addConstraint(constraint.AllDifferentConstraint(),
+            ["device_%s" % device_id for device_id in device_models.keys()])
 
-            # we match on model.  organize by model, and make sure that there aren't 2 of any given model
-            sites_by_model = {}
-            devices_by_model = {}
+        # perform CSP solve; this will be a list of solutions, each a dict of var -> value
+        solutions = problem.getSolutions()
 
-            for s in site_ids:
-                model = self.check_site_for_deployment(s, site_type, model_type)
-                if model in sites_by_model:
-                    raise BadRequest("There is already a site with %s '%s' in this deployent" % (model_type, model))
-                sites_by_model[model] = s
+        if 1 > len(solutions):
+            raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
+                             "model and streamdefs")
+        elif 1 < len(solutions):
+            log.warn("Found %d possible ways to map device and site, but just picking the first one" % len(solutions))
 
-            for d in device_ids:
-                model = self.check_device_for_deployment(d, device_type, model_type)
-                if model in devices_by_model:
-                    raise BadRequest("There is already a device with %s '%s' in this deployent" % (model_type, model))
-                devices_by_model[model] = d
+        pairs_add = []
+        pairs_rem = []
 
-            #pair up each device with a model, keeping in mind that the lists may not match
-            # first, get the unique models that we're working with
-            all_models = dict(sites_by_model.items() + devices_by_model.items()).keys()
-
-            output_pairs_add = []
-            output_pairs_rem = []
-
-            #final validation step!  check that they are not already associated (except to each other)
-            for m in all_models:
-                if m in sites_by_model and m in devices_by_model:
-                    old_pair = self.check_site_device_pair_for_deployment(sites_by_model[m],
-                                                                          devices_by_model[m],
-                                                                          site_type,
-                                                                          device_type)
-                    if old_pair:
-                        output_pairs_rem.append(old_pair)
-                    pair = (sites_by_model[m], devices_by_model[m])
-                    output_pairs_add.append(pair)
-
-            return (output_pairs_add, output_pairs_rem)
-
-        # get the things to be associated, validating them in the process
-        inst_pairs, inst_rems = validate_specific_resources(RT.InstrumentSite, RT.InstrumentDevice, RT.InstrumentModel)
-        plat_pairs, plat_rems = validate_specific_resources(RT.PlatformSite, RT.PlatformDevice, RT.PlatformModel)
+        for device_id in device_models.keys():
+            site_id = solutions[0]["device_%s" % device_id]
+            old_pair = self.check_site_device_pair_for_deployment(site_id, device_id)
+            if old_pair:
+                pairs_rem.append(old_pair)
+            new_pair = (site_id, device_id)
+            pairs_add.append(new_pair)
 
         # process any removals
-        for site_id, device_id in list(inst_rems + plat_rems):
+        for site_id, device_id in pairs_rem:
             log.info("Unassigning hasDevice; device '%s' from site '%s'" % (device_id, site_id))
             if not activate_subscriptions:
                 log.warn("The input to the data product for site '%s' will no longer come from its primary device" %
@@ -756,12 +796,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             self.unassign_device_from_site(device_id, site_id)
 
         # process the additions
-        for site_id, device_id in list(inst_pairs + plat_pairs):
+        for site_id, device_id in pairs_add:
             log.info("Setting primary device '%s' for site '%s'" % (device_id, site_id))
             self.assign_device_to_site(device_id, site_id)
             if activate_subscriptions:
                 log.info("Activating subscription too")
                 self.transfer_site_subscription(site_id)
+#
+#        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
 
 
     def deactivate_deployment(self, deployment_id=''):
@@ -771,7 +813,45 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         @throws BadRequest    if devices can not be undeployed
         """
-        pass
+
+        #Verify that the deployment exists
+        deployment_obj = self.clients.resource_registry.read(deployment_id)
+
+#        if LCS.DEPLOYED != deployment_obj.lcstate:
+#            raise BadRequest("This deploment is not active")
+
+        # get all associated components
+        device_models, site_models = self.collect_deployment_components(deployment_id)
+
+        #must only remove from sites that are not deployed under a different active deployment
+        # must only remove devices that are not deployed under a different active deployment
+        def filter_alternate_deployments(resource_list):
+            # return the list of ids for devices or sites not connected to an alternate lcs.deployed deployment
+            ret = []
+            for r in resource_list:
+                depls, _ = self.RR.find_objects(r, PRED.hasDeployment, RT.Deployment)
+                keep = True
+                for d in depls:
+                    if d._id != deployment_id and LCS.DEPLOYED == d.lcstate:
+                        keep = False
+                if keep:
+                    ret.append(r)
+            return ret
+
+        device_ids = filter_alternate_deployments(device_models.keys())
+        site_ids   = filter_alternate_deployments(site_models.keys())
+
+        # delete only associations where both site and device have passed the filter
+        for s in site_ids:
+            ds, _ = self.RR.find_objects(s, PRED.hasDevice, id_only=True)
+            for d in ds:
+                if d in device_ids:
+                    a = self.RR.get_association(s, PRED.hasDevice, d)
+                    self.RR.delete_association(a)
+#
+#        # mark deployment as not deployed (developed seems appropriate)
+#        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
+
 
 
     def transfer_site_subscription(self, site_id=""):
@@ -801,8 +881,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         else:
             raise BadRequest("Expected a device type, got '%s'" % device_type)
 
-        if self.check_device_for_deployment(device_id, device_type, model_type) !=\
-           self.check_site_for_deployment(site_id, site_type, model_type):
+        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
+        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
+        if device_model not in site_models:
             raise BadRequest("The site and device model types are incompatible")
 
         # check site/device pair.
@@ -835,6 +916,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #look up stream defs
         ss = self.streamdef_of_site(site_id)
         ds = self.streamdefs_of_device(device_id)
+
+        if not ss in ds:
+            raise BadRequest("Data product(s) of site does not have any matching streamdef for data product of device")
 
         data_process_id = process_ids[0]
         log.info("Changing subscription")

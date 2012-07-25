@@ -33,7 +33,7 @@ import signal
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
 
-from pyon.ion.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
 from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
@@ -172,8 +172,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
 
-        self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasInstance,
-                                                                                instrument_agent_instance_id)
         self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance,
                                                                                 instrument_agent_instance_id)
 
@@ -274,11 +272,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             #todo  - Replace this hack: look in the data product name for 'raw' or 'parsed'
 
             if stream_obj.name.lower().find('parsed') > -1 :
-                out_streams['ctd_parsed'] = stream_ids[0]
-                log.debug("activate_instrument:ctd_parsed %s ", str(stream_ids[0]) )
+                out_streams['parsed'] = stream_ids[0]
+                log.debug("activate_instrument:parsed %s ", str(stream_ids[0]) )
             elif stream_obj.name.lower().find('raw') > -1:
-                out_streams['ctd_raw'] = stream_ids[0]
-                log.debug("activate_instrument:ctd_raw %s ", str(stream_ids[0]) )
+                out_streams['raw'] = stream_ids[0]
+                log.debug("activate_instrument:raw %s ", str(stream_ids[0]) )
             else:
                 raise NotFound("Stream %s is not CTD raw or parsed" % stream_obj.name)
         log.debug("activate_instrument:output stream config: %s"  +  str(out_streams))
@@ -290,27 +288,32 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #todo: move this up and out
         # Create taxonomies for both parsed and raw
         ParsedTax = TaxyTool()
-        ParsedTax.add_taxonomy_set('temp','long name for temp')
-        ParsedTax.add_taxonomy_set('cond','long name for cond')
+        ParsedTax.add_taxonomy_set('temp', 't', 'long name for temp')
+        ParsedTax.add_taxonomy_set('cond', 'c', 'long name for cond')
+        ParsedTax.add_taxonomy_set('pres', 'p', 'long name for pres')
         ParsedTax.add_taxonomy_set('lat','long name for latitude')
         ParsedTax.add_taxonomy_set('lon','long name for longitude')
-        ParsedTax.add_taxonomy_set('pres','long name for pres')
         ParsedTax.add_taxonomy_set('time','long name for time')
+        ParsedTax.add_taxonomy_set('height','long name for height')
         # This is an example of using groups it is not a normative statement about how to use groups
         ParsedTax.add_taxonomy_set('coordinates','This group contains coordinates...')
         ParsedTax.add_taxonomy_set('data','This group contains data...')
 
 
         RawTax = TaxyTool()
-        RawTax.add_taxonomy_set('raw_fixed','Fixed length bytes in an array of records')
-        RawTax.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
+        RawTax.add_taxonomy_set('blob','bytes in an array')
+        RawTax.add_taxonomy_set('lat','long name for latitude')
+        RawTax.add_taxonomy_set('lon','long name for longitude')
+        RawTax.add_taxonomy_set('time','long name for time')
+        RawTax.add_taxonomy_set('height','long name for height')
+        RawTax.add_taxonomy_set('coordinates','This group contains coordinates...')
+        RawTax.add_taxonomy_set('data','This group contains data...')
 
 
-        stream_info = {}
-        if "ctd_parsed" in out_streams:
-            stream_info['parsed'] = { id: out_streams['ctd_parsed'], 'taxonomy': ParsedTax.dump() }
-        if "ctd_raw" in out_streams:
-            stream_info['raw'] = { id: out_streams['ctd_raw'], 'taxonomy': RawTax.dump() }
+        stream_info = {
+            'parsed' : { 'id': out_streams['parsed'], 'taxonomy': ParsedTax.dump() },
+            'raw' : { 'id': out_streams['raw'], 'taxonomy': RawTax.dump()}
+        }
 
 
         self._start_pagent(instrument_agent_instance_id)
@@ -330,7 +333,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Create agent config.
         instrument_agent_instance_obj.agent_config = {
             'driver_config' : instrument_agent_instance_obj.driver_config,
-            'stream_config' : out_streams,
+            'stream_config' : stream_info,
             'agent'         : {'resource_id': instrument_device_id}
         }
 
@@ -1362,7 +1365,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-
+    ############################
+    #
+    #  EXTENDED RESOURCES
+    #
+    ############################
 
 
     def get_instrument_device_extension(self, instrument_device_id='', ext_associations=None, ext_exclude=None):
@@ -1381,21 +1388,102 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         extended_resource_handler = ExtendedResourceContainer(self)
 
-        extended_instrument = extended_resource_handler.create_extended_resource_container(OT.InstrumentDeviceExtension,
-            instrument_device_id, OT.InstrumentDeviceComputedAttributes, ext_associations, ext_exclude)
+        extended_instrument = extended_resource_handler.create_extended_resource_container(
+            OT.InstrumentDeviceExtension,
+            instrument_device_id,
+            OT.InstrumentDeviceComputedAttributes,
+            ext_associations,
+            ext_exclude)
+
+        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_instrument, 'attachments'):
+            for att in extended_instrument.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
 
         return extended_instrument
 
 
         #Bogus functions for computed attributes
-    def get_software_version(self, instrument_device_id):
+    def get_firmware_version(self, instrument_device_id):
         return "1.1"
 
     def get_location(self, instrument_device_id):
         return IonObject(OT.GeospatialBounds)
 
-    def get_attached_sensors(self, instrument_device_id):
-        return ['abc','123']
+    def get_last_data_received_time(self, instrument_device_id):
+        return "42"
 
-    def get_data_url(self, instrument_device_id):
-        return "http://iontest/data/" + instrument_device_id
+
+    def get_operational_state(self, instrument_device_id):   # from Device
+        return "23"
+
+    def get_last_command_status(self, instrument_device_id):
+        return "34"
+
+    def get_last_command_date(self, instrument_device_id):
+        return "45"
+
+    def get_last_command(self, instrument_device_id):
+        return "56"
+
+    def get_last_commanded_by(self, instrument_device_id):
+        return "67"
+
+    def get_power_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        return "78"
+
+    def get_communications_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        return "89"
+
+    def get_data_status_roll_up(self, instrument_device_id): # BLACK, RED, GREEN, YELLOW
+        return "98"
+
+    def get_location_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        return "87"
+
+    def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
+        return ['mon', 'tue', 'wed']
+
+
+
+    def get_platform_device_extension(self, platform_device_id='', ext_associations=None, ext_exclude=None):
+        """Returns an PlatformDeviceExtension object containing additional related information
+        """
+
+        if not platform_device_id:
+            raise BadRequest("The platform_device_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_platform = extended_resource_handler.create_extended_resource_container(
+            OT.InstrumentDeviceExtension,
+            platform_device_id,
+            OT.InstrumentDeviceComputedAttributes,
+            ext_associations,
+            ext_exclude)
+
+        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_platform, 'attachments'):
+            for att in extended_platform.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
+
+        return extended_platform
+
+
+    # amount of energy being generated on the platform in Watts
+    def get_power_energy_generation(self, platform_device_id):
+        return "1.1"
+    
+    # amount of energy currently being consumed by the platform in Watts
+    def get_energy_consumption(self, platform_device_id):
+        return "1.1"
+
+    def get_data_transmission_rate(self, platform_device_id):
+        return "1.1"
+
+    def get_speed_over_ground(self, platform_device_id):
+        return "1.1"

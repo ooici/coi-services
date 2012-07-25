@@ -40,6 +40,9 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def delete(self, object_id=''):
         return self.resource_registry.delete(object_id=object_id)
 
+    def retire(self, resource_id=''):
+        return self.resource_registry.retire(resource_id=resource_id)
+
     def execute_lifecycle_transition(self, resource_id='', transition_event=''):
         return self.resource_registry.execute_lifecycle_transition(resource_id=resource_id,
                                                                    transition_event=transition_event)

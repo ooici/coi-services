@@ -18,9 +18,9 @@ from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.exceptions import PacketFactoryException
 from ion.agents.instrument.exceptions import NotImplementedException
 
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.granule import build_granule
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool, Taxonomy
+from ion.services.dm.utility.granule.granule import build_granule
 
 
 class PacketFactoryType(BaseEnum):
@@ -53,19 +53,29 @@ class PacketFactory(object):
     def build_packet(self, farg, **kwargs):
         raise NotImplementedException()
 
+    def _get_taxy_tool(self, taxonomy):
+        """
+        helper to get the TaxyTool version of the given argument.
+
+        @param taxonomy Either a TaxyTool, a Taxonomy, or some value that can
+               be processed by TaxyTool.load to create the TaxyTool instance.
+        """
+
+        if isinstance(taxonomy, TaxyTool):
+            tx = taxonomy
+        elif isinstance(taxonomy, Taxonomy):
+            tx = TaxyTool(taxonomy)
+        else:
+            tx = TaxyTool.load(taxonomy)
+
+        return tx
+
     def _get_nick_names_from_taxonomy(self, taxonomy):
 
-        # NOTE this operation should probably be provided by the taxonomy
-        # object itself.
+        # NOTE this operation should probably be provided by the
+        # taxonomy object itself.
 
         return [v[0] for v in taxonomy._t.map.itervalues()]
-
-    def _get_nick_name_set_from_taxonomy(self, taxonomy):
-
-        # NOTE this operation should probably be provided by the taxonomy
-        # object itself.
-
-        return [v[1] for v in taxonomy._t.map.itervalues()]
 
 
 class LCAPacketFactory(PacketFactory):
@@ -80,23 +90,23 @@ class LCAPacketFactory(PacketFactory):
         @data dictionary containing sample data.
         @return granule suitable for publishing
         """
-        taxonomy = kwargs.get('taxonomy')
+        taxonomy_str = kwargs.get('taxonomy')
         data = kwargs.get('data')
         data_producer_id = kwargs.get('data_producer_id')
 
         if not data_producer_id:
             raise PacketFactoryException("data_producer_id parameter missing")
 
-        if not taxonomy:
+        if not taxonomy_str:
             raise PacketFactoryException("taxonomy parameter missing")
 
         if not data:
             raise PacketFactoryException("data parameter missing")
 
+        taxonomy = self._get_taxy_tool(taxonomy_str)
+
         # the nick_names in the taxonomy:
         nick_names = self._get_nick_names_from_taxonomy(taxonomy)
-        nick_name_set = self._get_nick_name_set_from_taxonomy(taxonomy)
-
 
         #
         # TODO in general, how are groups (and the individual values
@@ -105,6 +115,10 @@ class LCAPacketFactory(PacketFactory):
 
         # in this version, expect 'data' and 'coordinates' to be included in
         # the taxonomy -- TODO the idea would be to be more general here?
+
+        ##############################################################
+        # NOTE for the moment, using the flat data record dict 'rdt'
+        ##############################################################
 
 #        if not 'data' in nick_names:
 #            raise PacketFactoryException("expected name 'data' in taxonomy")
@@ -119,54 +133,48 @@ class LCAPacketFactory(PacketFactory):
 #        rdt['data'] = data_rdt
 #        rdt['coordinates'] = coordinates_rdt
 
-        def is_coordinate(nick_name):
-            # just an ad hoc check to determine which group the nick_names
-            # belong to
-            return nick_name in ['lat', 'lon', 'time', 'height']
+#        def is_coordinate(nick_name):
+#            # just an ad hoc check to determine which group the nick_names
+#            # belong to
+#            return nick_name in ['lat', 'lon', 'time', 'height']
 
 
-#        # now, assign the values to the corresp record dicts:
-#
-#        for name, value in data.iteritems():
-#            handle = -1
-#            log.info("packetfactory: name: %s" % str(name))
-#            if name in nick_names:
-#                handle = taxonomy.get_handle(name)
-#                log.info("packetfactory: handle: %s" % str(handle))
-#            else:
-#                handles = taxonomy.get_handles(name)
-#                log.info("packetfactory: handles: %s" % str(handles))
-#                if len(handles) == 1:
-#                    handle = handles.pop()
-#                elif len(handles) > 1:
-#                    # TODO proper handling of this case
-#                    log.warn("Multiple handles found for '%s': %s" % (name %
-#                                                                 handles))
-#
-#            if handle >= 0:
-#                # ok, set value (using the nick_name):
-#                nick_name = taxonomy.get_nick_name(handle)
-
+        # now, assign the values to the corresp record dicts:
         for name, value in data.iteritems():
-            idx = 0
-            for set in nick_name_set:
-                if name in set:
-                    rdt[nick_names[idx]] = numpy.array(value)
-                    break
-                else:
-                    idx = idx + 1
+            handle = -1
+            log.info("packetfactory: name: %s" % str(name))
+            if name in nick_names:
+                handle = taxonomy.get_handle(name)
+                log.info("packetfactory: handle: %s" % str(handle))
+            else:
+                handles = taxonomy.get_handles(name)
+                log.info("packetfactory: handles: %s" % str(handles))
+                if len(handles) == 1:
+                    handle = handles.pop()
+                elif len(handles) > 1:
+                    # TODO proper handling of this case
+                    log.warn("Multiple handles found for '%s': %s" % (name %
+                                                                 handles))
 
+            if handle >= 0:
+                # ok, the nick_name has been found, either directly as a
+                # nick_name or via an alias; set value (using nick_name):
+                nick_name = taxonomy.get_nick_name(handle)
 
-#                assert isinstance(value, list)
-#                val = numpy.array(value)
-#
+                assert isinstance(value, list)
+                val = numpy.array(value)
+
+                # NOTE for the moment, using the flat data record dict 'rdt':
+                rdt[nick_name] = val
 #                if is_coordinate(nick_name):
-#                    rdt[nick_name] = val
+#                    coordinates_rdt[nick_name] = val
 #                else:
-#                    rdt[nick_name] = val
-#            else:
-#                # TODO throw some exception?
-#                log.warn("No handle found for '%s'" % name)
+#                    data_rdt[nick_name] = val
+
+            else:
+                # name not found.
+                # In the current tests this is happening with 'stream_id'
+                log.warning("No handle found for '%s'" % name)
 
         log.debug("dictionary created: %s" % rdt.pretty_print())
 

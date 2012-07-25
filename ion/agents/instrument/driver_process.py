@@ -328,11 +328,18 @@ class ZMQPyClassDriverProcess(DriverProcess):
 
         return self._driver_client
 
-    def get_packet_factories(self):
+    def get_packet_factories(self, stream_info):
         """
-        Construct packet factories from packet_config member of the driver_config.
-        @retval a list of packet factories defined.
+        Construct packet factories from PACKET_CONFIG member of the driver_config
+        and the given stream_info dict.
+
+        @param stream_info
+
+        @retval a dict indexed by stream name of the packet factories defined.
         """
+
+        print("stream_info = %s" % stream_info)
+
         if not self._packet_factories:
             log.info("generating packet factories")
             self._packet_factories = {}
@@ -351,10 +358,14 @@ class ZMQPyClassDriverProcess(DriverProcess):
                 log.error('PACKET_CONFIG undefined in driver module %s ' % driver_module)
 
             if packet_config:
-                for (name, val) in packet_config.iteritems():
-                    # NOTE ignoring val for the moment
+                for name in packet_config:
+                    if not name in stream_info:
+                        log.error("Name '%s' not found in stream_info" % name)
+                        continue
+
+                    stream_config = stream_info[name]
                     try:
-                        packet_builder = create_packet_builder(name)
+                        packet_builder = create_packet_builder(name, stream_config)
                         self._packet_factories[name] = packet_builder
                         log.info('created packet builder for stream %s' % name)
                     except Exception, e:

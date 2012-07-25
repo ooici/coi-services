@@ -19,13 +19,15 @@ class BankService(BaseBankService):
     '''A demo class, it's really just for demonstration.  This class uses
     resource registry client and a trade client.'''
 
-    def new_account(self, name='', account_type='Checking'):
+    def new_account(self, name='', us_phone_number='', address=None, account_type='Checking'):
         '''Create a new bank account.
 
         @note If customer does not exist, create a customer account first before
         creating a bank account.
 
         @param name Customer name
+        @param us_phone_number    str
+        @param address    list
         @param account_type Checking or Savings
         @retval account_id Newly created bank account id
         '''

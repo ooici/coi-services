@@ -46,20 +46,22 @@ from pyon.event.event import EventSubscriber, EventPublisher
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.exception import InstParameterError
 
-# MI imports.
+from ion.agents.instrument.taxy_factory import get_taxonomy
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 from ion.agents.port.logger_process import EthernetDeviceLogger
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 from ion.agents.instrument.driver_process import DriverProcessType
+
+# MI imports.
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
-# bin/nosetests -s -v ion/agents.instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
 
 DEV_ADDR = CFG.device.sbe37.host
 DEV_PORT = CFG.device.sbe37.port
@@ -177,6 +179,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
+#@unittest.skip("not yet aligned with recent taxonomy related changes")
 class TestInstrumentAgent(IonIntegrationTestCase):
     """
     Test cases for instrument agent class. Functions in this class provide
@@ -284,7 +287,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Create streams and subscriptions for each stream named in driver.
         self._stream_config = {}
         self._data_subscribers = []
-        for (stream_name, val) in PACKET_CONFIG.iteritems():
+        # TODO the following is a mininal adjustment to at least let the test
+        # continue:
+#        for (stream_name, val) in PACKET_CONFIG.iteritems():
+        for stream_name in PACKET_CONFIG:
             stream_def = ctd_stream_definition(stream_id=None)
             stream_def_id = pubsub_client.create_stream_definition(
                                                     container=stream_def)        
@@ -293,8 +299,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                         stream_definition_id=stream_def_id,
                         original=True,
                         encoding='ION R2')
-            self._stream_config[stream_name] = stream_id
-            
+
+            taxy = get_taxonomy(stream_name)
+            stream_config = dict(
+                id=stream_id,
+                taxonomy=taxy.dump()
+            )
+            self._stream_config[stream_name] = stream_config
+#            self._stream_config[stream_name] = stream_id
+
             # Create subscriptions for each stream.
             exchange_name = '%s_queue' % stream_name
             sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name,
@@ -302,8 +315,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             self._listen(sub)
             self._data_subscribers.append(sub)
             query = StreamQuery(stream_ids=[stream_id])
-            sub_id = pubsub_client.create_subscription(\
-                                query=query, exchange_name=exchange_name)
+            sub_id = pubsub_client.create_subscription(
+                                query=query, exchange_name=exchange_name, exchange_point='science_data')
             pubsub_client.activate_subscription(sub_id)
             
     def _listen(self, sub):
@@ -346,11 +359,25 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         for sub in self._event_subscribers:
             sub.stop()
         
-    def assertSampleDict(self, val):
+    def assertRawSampleDict(self, val):
         """
-        Verify the value is a sample dictionary for the sbe37.
+        Verify the value is a raw sample dictionary for the sbe37.
         """
-        #{'p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]}        
+        #{'stream_name': 'raw', 'blob': ['20.8074,80.04590, 761.394,   33.5658, 1506.076, 01 Feb 2001, 01:01:00'], 'time': [1342392781.61211]}
+        self.assertTrue(isinstance(val, dict))
+        self.assertTrue(val.has_key('blob'))
+        self.assertTrue(val.has_key('time'))
+        blob = val['blob'][0]
+        time = val['time'][0]
+    
+        self.assertTrue(isinstance(blob, str))
+        self.assertTrue(isinstance(time, float))
+
+    def assertParsedSampleDict(self, val):
+        """
+        Verify the value is a parsed sample dictionary for the sbe37.
+        """
+        #{'p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]}
         self.assertTrue(isinstance(val, dict))
         self.assertTrue(val.has_key('c'))
         self.assertTrue(val.has_key('t'))
@@ -360,11 +387,22 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         t = val['t'][0]
         p = val['p'][0]
         time = val['time'][0]
-    
+
         self.assertTrue(isinstance(c, float))
         self.assertTrue(isinstance(t, float))
         self.assertTrue(isinstance(p, float))
         self.assertTrue(isinstance(time, float))
+
+    def assertSample(self, sample):
+        """
+        Verify a sample retrieved from the sbe37, which is expected to be a
+        dict of dicts {'raw':raw_sample, 'parsed':parsed_sample}.
+        """
+        self.assertTrue(isinstance(sample, dict))
+        raw_sample = sample['raw']
+        parsed_sample = sample['parsed']
+        self.assertParsedSampleDict(parsed_sample)
+        self.assertRawSampleDict(raw_sample)
 
     def assertParamDict(self, pd, all_params=False):
         """
@@ -610,25 +648,27 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
         
-        # Lets get 3 samples.
-        self._no_samples = 3
+        # Lets call acquire_sample 3 times, so we should get 6 samples =
+        # 3 raw samples + 3 parsed samples
+        self._no_samples = 6
         
         # Poll for a few samples.
         cmd = AgentCommand(command='acquire_sample')
         reply = self._ia_client.execute(cmd)
-        self.assertSampleDict(reply.result)
+        log.debug("acquire_sample reply.result=%s" % reply.result)
+        self.assertSample(reply.result)
 
         cmd = AgentCommand(command='acquire_sample')
         reply = self._ia_client.execute(cmd)
-        self.assertSampleDict(reply.result)
+        self.assertSample(reply.result)
 
         cmd = AgentCommand(command='acquire_sample')
         reply = self._ia_client.execute(cmd)
-        self.assertSampleDict(reply.result)        
+        self.assertSample(reply.result)
 
-        # Assert we got 3 samples.
+        # Assert we got 6 samples.
         self._async_data_result.get(timeout=10)
-        self.assertTrue(len(self._samples_received)==3)
+        self.assertEquals(len(self._samples_received), 6)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -792,7 +832,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # OK, I can do this now.        
         cmd = AgentCommand(command='acquire_sample')
         reply = self._ia_client.execute(cmd)
-        self.assertSampleDict(reply.result)
+        self.assertSample(reply.result)
 
         # 404 unknown agent command.
         cmd = AgentCommand(command='kiss_edward')

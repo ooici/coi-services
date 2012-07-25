@@ -119,7 +119,25 @@ class ResourceImpl(object):
         @new_state the new lifecycle state
         """
 
-        
+        self.check_lcs_precondition_satisfied(resource_id, transition_event)
+
+        if LCE.RETIRE == transition_event:
+            log.debug("Using RR.retire")
+            ret = self.RR.retire(resource_id)
+            return ret
+        else:
+            log.debug("Moving %s resource life cycle with transition event %s"
+                      % (self.iontype, transition_event))
+
+            ret = self.RR.execute_lifecycle_transition(resource_id=resource_id,
+                                                       transition_event=transition_event)
+
+            log.debug("Result of lifecycle transition was %s" % str(ret))
+
+        return ret
+
+
+    def check_lcs_precondition_satisfied(self, resource_id, transition_event):
         # check that the resource exists
         resource = self.RR.read(resource_id)
         resource_type = self._get_resource_type(resource)
@@ -129,7 +147,7 @@ class ResourceImpl(object):
             raise BadRequest("Attempted to change lifecycle of a %s in a %s module" %
                              (resource_type, self.iontype))
 
-        
+
         # check that precondition function exists
         if not transition_event in self.lce_precondition:
             raise BadRequest(
@@ -143,16 +161,7 @@ class ResourceImpl(object):
         if not "" == errmsg:
             raise BadRequest(("Couldn't apply '%s' LCS transition to %s '%s'; "
                               + "failed precondition: %s")
-                             % (transition_event, self.iontype, resource_id, errmsg))
-
-        log.debug("Moving %s resource life cycle with transition event %s"
-                  % (self.iontype, transition_event))
-
-        ret = self.RR.execute_lifecycle_transition(resource_id=resource_id,
-                                                   transition_event=transition_event)
-
-        log.debug("Result of lifecycle transition was %s" % str(ret))
-        return ret
+            % (transition_event, self.iontype, resource_id, errmsg))
 
 
     def add_lce_precondition(self, transition, precondition_predicate_fn):

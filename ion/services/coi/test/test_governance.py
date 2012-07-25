@@ -176,9 +176,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #disable the test policy to try again
         self.pol_client.disable_policy(test_policy_id, headers=self.sa_user_header)
 
-        gevent.sleep(2)  # Wait for events to be fired and policy updated
+        gevent.sleep(2)  # Wait for events to be published and policy updated
 
-        #The same request that previously was allowed should not be denied
+        #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(Unauthorized) as cm:
             self.ems_client.create_exchange_space(es_obj)
@@ -187,7 +187,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #now enable the test policy to try again
         self.pol_client.enable_policy(test_policy_id, headers=self.sa_user_header)
 
-        gevent.sleep(2)  # Wait for events to be fired and policy updated
+        gevent.sleep(2)  # Wait for events to be published and policy updated
 
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -198,9 +198,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.pol_client.remove_service_policy('exchange_management', test_policy_id, headers=self.sa_user_header)
         self.pol_client.delete_policy(test_policy_id, headers=self.sa_user_header)
 
-        gevent.sleep(2)  # Wait for events to be fired and policy updated
+        gevent.sleep(2)  # Wait for events to be published and policy updated
 
-        #The same request that previously was allowed should not be denied
+        #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(Unauthorized) as cm:
             self.ems_client.create_exchange_space(es_obj)

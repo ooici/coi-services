@@ -271,7 +271,7 @@ class DiscoveryService(BaseDiscoveryService):
             source_id = self._match_query_sources(query['index']) or query['index']
             kwargs = dict(
                 source_id= source_id,
-                field    = query['field'].lower(),
+                field    = query['field'],
                 value    = query['value'].lower(),
                 limit    = limit,
                 id_only  = id_only
