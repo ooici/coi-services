@@ -6,7 +6,7 @@ __author__ = 'Stephen P. Henrie'
 """
 Process that loads the system policy
 """
-from pyon.public import CFG, log, ImmediateProcess, iex, Container, IonObject, RT
+from pyon.public import CFG, log, ImmediateProcess, iex, Container, IonObject, RT, OT
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
@@ -133,13 +133,11 @@ class LoadSystemPolicy(ImmediateProcess):
         </Rule>
         '''
 
+        policy_id = policy_client.create_common_service_access_policy( 'Allowed_Anonymous_Service_Operations',
+            'A global Org policy rule which specifies operations that are allowed with anonymous access',
+            policy_text, headers=sa_user_header)
 
-        policy_obj = IonObject(RT.Policy, name='Anonymous_Allowed_Operations', definition_type="Org", rule=policy_text,
-            description='A global Org policy rule which specifies operations that are allowed with anonymous access')
 
-        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header, timeout=timeout)
-        log.debug('Policy created: ' + policy_obj.name)
 
 ##############
 
@@ -165,13 +163,10 @@ class LoadSystemPolicy(ImmediateProcess):
         </Rule>
         '''
 
+        policy_id = policy_client.create_common_service_access_policy( 'Anonymous_Deny_Everything',
+            'A global Org policy rule that denies anonymous access to everything in the Org as the base',
+            policy_text, headers=sa_user_header)
 
-        policy_obj = IonObject(RT.Policy, name='Anonymous_Deny_Everything', definition_type="Org", rule=policy_text,
-            description='A global Org policy rule that denies anonymous access to everything in the Org as the base')
-
-        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header, timeout=timeout)
-        log.debug('Policy created: ' + policy_obj.name)
 
 ###############
 
@@ -202,15 +197,9 @@ class LoadSystemPolicy(ImmediateProcess):
         </Rule>
         '''
 
-
-        policy_obj = IonObject(RT.Policy, name='Org_Manager_Permit_Everything', definition_type="Org", rule=policy_text,
-            description='A global Org policy rule that permits access to everything in the Org for a user with Org Manager or ION Manager role')
-
-        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_resource_policy(ion_org._id, policy_id, headers=sa_user_header, timeout=timeout)
-        log.debug('Policy created: ' + policy_obj.name)
-
-
+        policy_id = policy_client.create_common_service_access_policy( 'Org_Manager_Permit_Everything',
+            'A global Org policy rule that permits access to everything in the Org for a user with Org Manager or ION Manager role',
+            policy_text, headers=sa_user_header)
 
 ##############
 
@@ -275,14 +264,9 @@ class LoadSystemPolicy(ImmediateProcess):
         </Rule>
         '''
 
-
-        policy_obj = IonObject(RT.Policy, name='Resource_Registry_Anonymous_Bootstrap', definition_type="Service", rule=policy_text,
-            description='Permit anonymous access to these operations in the Resource Registry Service if called from the Identity Management Service')
-
-        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_service_policy('resource_registry', policy_id, headers=sa_user_header, timeout=timeout)
-        log.debug('Policy created: ' + policy_obj.name)
-
+        policy_id = policy_client.create_service_access_policy('resource_registry', 'RR_Anonymous_Bootstrap',
+            'Permit anonymous access to these operations in the Resource Registry Service if called from the Identity Management Service',
+            policy_text, headers=sa_user_header)
 
 
 
@@ -342,12 +326,10 @@ class LoadSystemPolicy(ImmediateProcess):
         </Rule>
         '''
 
-        policy_obj = IonObject(RT.Policy, name='Identity_Management_Anonymous_Bootstrap', definition_type="Service", rule=policy_text,
-            description='Permit anonymous access to these operations in the Identity Management Service if called from the Bootstrap Service')
+        policy_id = policy_client.create_service_access_policy('identity_management', 'IMS_Anonymous_Bootstrap',
+            'Permit anonymous access to these operations in the Identity Management Service if called from the Bootstrap Service',
+             policy_text, headers=sa_user_header)
 
-        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_service_policy('identity_management', policy_id, headers=sa_user_header, timeout=timeout)
-        log.debug('Policy created: ' + policy_obj.name)
 
 ##############
 
@@ -462,12 +444,9 @@ class LoadSystemPolicy(ImmediateProcess):
 
         </Rule> '''
 
-        policy_obj = IonObject(RT.Policy, name='Org_Management_Org_Manager_Role_Permitted', definition_type="Service", rule=policy_text,
-            description='Deny these operations in the Org Management Service if not the role of Org Manager')
-
-        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_service_policy('org_management', policy_id, headers=sa_user_header, timeout=timeout)
-        log.debug('Policy created: ' + policy_obj.name)
+        policy_id = policy_client.create_service_access_policy('org_management', 'OMS_Org_Manager_Role_Permitted',
+            'Deny these operations in the Org Management Service if not the role of Org Manager',
+             policy_text, headers=sa_user_header)
 
         ##############
 
@@ -528,9 +507,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
         </Rule> '''
 
-        policy_obj = IonObject(RT.Policy, name='Instrument_Management_Instrument_Operator_Role_Permitted', definition_type="Service", rule=policy_text,
-            description='Deny these operations in the Instrument Management Service if not the role of Instrument Operator')
+        policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Instrument_Operator_Role_Permitted',
+            'Deny these operations in the Instrument Management Service if not the role of Instrument Operator',
+             policy_text, headers=sa_user_header)
 
-        policy_id = policy_client.create_policy(policy_obj, headers=sa_user_header)
-        policy_client.add_service_policy('instrument_management', policy_id, headers=sa_user_header, timeout=timeout)
-        log.debug('Policy created: ' + policy_obj.name)

@@ -11,7 +11,7 @@ from nose.plugins.attrib import attr
 from pyon.util.context import LocalContextMixin
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound, Unauthorized
-from pyon.public import PRED, RT, IonObject, CFG, log
+from pyon.public import PRED, RT, IonObject, CFG, log, OT
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
@@ -111,6 +111,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Load system policies after container has started all of the services
         LoadSystemPolicy.op_load_system_policies(process)
 
+        gevent.sleep(1)  # Wait for events to be fired and policy updated
+
         self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
 
         self.id_client = IdentityManagementServiceProcessClient(node=self.container.node, process=process)
@@ -140,7 +142,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         for policy in sorted(policy_list,key=lambda p: p.ts_created, reverse=True):
             self.pol_client.delete_policy(policy._id, headers=self.sa_user_header)
 
-        gevent.sleep(2)  # Wait for events to be fired and policy updated
+        gevent.sleep(1)  # Wait for events to be fired and policy updated
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -158,14 +160,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
 
         #Add a new policy to allow the the above service call.
-        policy_obj = IonObject(RT.Policy, name='Exchange_Management_Test_Policy', definition_type="Service", rule=TEST_POLICY_TEXT,
-            description='Allow specific operations in the Exchange Management Service for anonymous user')
+        test_policy_id = self.pol_client.create_service_access_policy('exchange_management', 'Exchange_Management_Test_Policy',
+            'Allow specific operations in the Exchange Management Service for anonymous user',
+            TEST_POLICY_TEXT, headers=self.sa_user_header)
 
-        test_policy_id = self.pol_client.create_policy(policy_obj, headers=self.sa_user_header)
-        self.pol_client.add_service_policy('exchange_management', test_policy_id, headers=self.sa_user_header)
-        log.info('Policy created: ' + policy_obj.name)
-
-        gevent.sleep(2)  # Wait for events to be fired and policy updated
+        gevent.sleep(1)  # Wait for events to be fired and policy updated
 
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -176,7 +175,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #disable the test policy to try again
         self.pol_client.disable_policy(test_policy_id, headers=self.sa_user_header)
 
-        gevent.sleep(2)  # Wait for events to be published and policy updated
+        gevent.sleep(1)  # Wait for events to be published and policy updated
 
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -187,7 +186,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #now enable the test policy to try again
         self.pol_client.enable_policy(test_policy_id, headers=self.sa_user_header)
 
-        gevent.sleep(2)  # Wait for events to be published and policy updated
+        gevent.sleep(1)  # Wait for events to be published and policy updated
 
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -195,10 +194,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ems_client.create_exchange_space(es_obj)
         self.assertIn( 'Arguments not set',cm.exception.message)
 
-        self.pol_client.remove_service_policy('exchange_management', test_policy_id, headers=self.sa_user_header)
+        #self.pol_client.remove_service_policy('exchange_management', test_policy_id, headers=self.sa_user_header)
         self.pol_client.delete_policy(test_policy_id, headers=self.sa_user_header)
 
-        gevent.sleep(2)  # Wait for events to be published and policy updated
+        gevent.sleep(1)  # Wait for events to be published and policy updated
 
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
