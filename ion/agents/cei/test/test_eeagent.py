@@ -119,6 +119,18 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
         self.container.terminate_process(self._eea_pid)
         shutil.rmtree(self.supd_directory)
 
+    def wait_for_state(self, upid, desired_state, timeout=5):
+        attempts = 0
+        while timeout > attempts:
+            state = self.eea_client.dump_state().result
+            proc = get_proc_for_upid(state, upid)
+            if proc.get('state') == desired_state:
+                return
+            gevent.sleep(1)
+            attempts += 1
+
+        assert False, "Process %s took too long to get to %s" % (upid, desired_state)
+
     @needs_eeagent
     def test_basics(self):
         true_u_pid = "test0"
@@ -126,24 +138,18 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
         run_type = "supd"
         true_parameters = {'exec': 'true', 'argv': []}
         self.eea_client.launch_process(true_u_pid, round, run_type, true_parameters)
-        state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, true_u_pid)
 
-        self.assertEqual(proc.get('state'), [800, 'EXITED'])
+        self.wait_for_state(true_u_pid, [800, 'EXITED'])
 
         cat_u_pid = "test1"
         round = 0
         run_type = "supd"
         cat_parameters = {'exec': 'cat', 'argv': []}
         self.eea_client.launch_process(cat_u_pid, round, run_type, cat_parameters)
-        state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, cat_u_pid)
-        self.assertEqual(proc.get('state'), [500, 'RUNNING'])
+        self.wait_for_state(cat_u_pid, [500, 'RUNNING'])
 
         self.eea_client.terminate_process(cat_u_pid, round)
-        state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, cat_u_pid)
-        self.assertEqual(proc.get('state'), [700, 'TERMINATED'])
+        self.wait_for_state(cat_u_pid, [700, 'TERMINATED'])
 
 
 @attr('INT', group='cei')
