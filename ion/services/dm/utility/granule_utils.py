@@ -23,28 +23,29 @@ Assuming all values are np.float64 except data which is int8
 class CoverageCraft(object):
     '''
     AKA the BlackBox
+    PFM courtesy of Tommy Vandesteene
     '''
     def __init__(self,coverage=None, granule=None):
         if coverage is None:
             self.coverage = self.create_coverage()
-        else:
-            self.coverage = coverage
-
-        self.pdict = self.coverage.parameter_dictionary
-        if granule is None:
             self.rdt = RecordDictionaryTool(param_dictionary=self.coverage.parameter_dictionary)
         else:
-            self.from_granule(granule)
+            self.coverage = coverage
+            if granule is not None:
+                self.sync_with_granule(granule)
+            else:
+                self.rdt = RecordDictionaryTool(param_dictionary=self.coverage.parameter_dictionary)
+        self.pdict = self.coverage.parameter_dictionary
 
 
-    def from_granule(self, granule):
-        rdt = RecordDictionaryTool.load_from_granule(granule)
+    def sync_rdt_with_granule(self, granule):
+        rdt = RecordDictionaryTool.load_sync_rdt_with_granule(granule)
         self.rdt = rdt
         return rdt
 
-    def add_granule(self, granule=None):
+    def sync_with_granule(self, granule=None):
         if granule is not None:
-            self.from_granule(granule)
+            self.sync_rdt_with_granule(granule)
         if self.rdt is None:
             log.error('Failed to add granule, no granule assigned.')
             return
@@ -64,7 +65,7 @@ class CoverageCraft(object):
             self.coverage.set_parameter_values(param_name=k,tdoa=slice_, value=v)
 
 
-    def to_granule(self, coverage=None, start_time=None, end_time=None):
+    def sync_rdt_with_coverage(self, coverage=None, start_time=None, end_time=None):
         '''
         Builds a granule based on the coverage
         '''
@@ -95,7 +96,9 @@ class CoverageCraft(object):
         for d in fields:
             rdt[d] = self.coverage.get_parameter_values(d,tdoa=slice_)
         self.rdt = rdt # Sync
-        return build_granule('from coverage', param_dictionary=coverage.parameter_dictionary, record_dictionary=rdt)
+
+    def to_granule(self):
+        return build_granule('from coverage', param_dictionary=self.coverage.parameter_dictionary, record_dictionary=self.rdt)
 
     @classmethod
     def create_coverage(cls):
