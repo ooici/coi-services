@@ -108,6 +108,7 @@ def send_email(message, msg_recipient, smtp_client):
 
     @param message              Event
     @param msg_recipient        str
+    @param smtp_client          fake or real smtp client object
 
     '''
 
