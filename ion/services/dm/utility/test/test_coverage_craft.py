@@ -16,7 +16,8 @@ import numpy as np
 class CoverageCraftUnitTest(PyonTestCase):
 
     def sample_granule(self):
-        rdt = RecordDictionaryTool(CoverageCraft.tx)
+        pdict = CoverageCraft.create_parameters()
+        rdt = RecordDictionaryTool(param_dictionary=pdict)
         rdt['time'] = np.arange(20)
         rdt['temp'] = np.array([5] * 20)
         rdt['conductivity'] = np.array([10] * 20)
@@ -25,12 +26,12 @@ class CoverageCraftUnitTest(PyonTestCase):
         rdt['depth'] = np.array([0] * 20)
         rdt['data'] = np.array([0x01] * 20)
 
-        return build_granule('sample', CoverageCraft.tx, rdt)
+        return build_granule('sample', param_dictionary=pdict, record_dictionary=rdt)
 
     def test_to_coverage(self):
         granule = self.sample_granule()
-        crafter = CoverageCraft(granule=granule)
-        crafter.add_granule()
+        crafter = CoverageCraft()
+        crafter.sync_with_granule(granule)
 
         coverage = crafter.coverage
         time_vals = coverage.get_time_values()

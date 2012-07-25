@@ -147,7 +147,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         # Actual persistence
         #-------------------------------------------------------------------------------- 
         covcraft = CoverageCraft(coverage)
-        covcraft.add_granule(granule)
+        covcraft.sync_with_granule(granule)
         DatasetManagementService._persist_coverage(dataset_id,coverage)
 
 

@@ -39,7 +39,7 @@ class CoverageCraft(object):
 
 
     def sync_rdt_with_granule(self, granule):
-        rdt = RecordDictionaryTool.load_sync_rdt_with_granule(granule)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
         self.rdt = rdt
         return rdt
 

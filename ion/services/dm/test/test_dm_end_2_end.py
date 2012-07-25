@@ -208,17 +208,16 @@ class TestDMEnd2End(IonIntegrationTestCase):
         stream_id = self.pubsub_management.create_stream()
 
         dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dict=pdict, spatial_domain=sdom, temporal_domain=tdom)
-        self.dataset_management.add_stream(dataset_id, stream_id)
+        ingestion_config_id = self.get_ingestion_config()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, 
+                    ingestion_configuration_id=ingestion_config_id,
+                    dataset_id=dataset_id)
 
         black_box = CoverageCraft()
         black_box.rdt['time'] = np.arange(20)
         black_box.rdt['temp'] = np.random.random(20) * 10
-        black_box.add_granule()
+        black_box.sync_with_granule()
         granule = black_box.to_granule()
-
-        xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
-        xp = self.container.ex_manager.create_xp('science_data')
-        xn.bind('%s.data' % stream_id, xp)
 
         publisher = SimpleStreamPublisher.new_publisher(self.container,'science_data', stream_id)
         publisher.publish(granule)
@@ -228,12 +227,27 @@ class TestDMEnd2End(IonIntegrationTestCase):
         coverage = DatasetManagementService._get_coverage(dataset_id)
 
         black_box = CoverageCraft(coverage)
-        black_box.to_granule()
+        black_box.sync_rdt_with_coverage()
         comp = black_box.rdt['time'] == np.arange(20)
         self.assertTrue(comp.all())
 
+        black_box = CoverageCraft()
+        black_box.rdt['time'] = np.arange(20) + 20
+        black_box.rdt['temp'] = np.random.random(20) * 10
+        black_box.sync_with_granule()
+        granule = black_box.to_granule()
+
+        publisher.publish(granule)
 
 
+        self.wait_until_we_have_enough_granules(dataset_id,2)
+
+        coverage = DatasetManagementService._get_coverage(dataset_id)
+
+        black_box = CoverageCraft(coverage)
+        black_box.sync_rdt_with_coverage()
+        comp = black_box.rdt['time'] == np.arange(40)
+        self.assertTrue(comp.all())
 
 
 
