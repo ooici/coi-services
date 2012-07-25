@@ -1365,7 +1365,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-
+    ############################
+    #
+    #  EXTENDED RESOURCES
+    #
+    ############################
 
 
     def get_instrument_device_extension(self, instrument_device_id='', ext_associations=None, ext_exclude=None):
@@ -1442,3 +1446,44 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
         return ['mon', 'tue', 'wed']
 
+
+
+    def get_platform_device_extension(self, platform_device_id='', ext_associations=None, ext_exclude=None):
+        """Returns an PlatformDeviceExtension object containing additional related information
+        """
+
+        if not platform_device_id:
+            raise BadRequest("The platform_device_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_platform = extended_resource_handler.create_extended_resource_container(
+            OT.InstrumentDeviceExtension,
+            platform_device_id,
+            OT.InstrumentDeviceComputedAttributes,
+            ext_associations,
+            ext_exclude)
+
+        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_platform, 'attachments'):
+            for att in extended_platform.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
+
+        return extended_platform
+
+
+    # amount of energy being generated on the platform in Watts
+    def get_power_energy_generation(self, platform_device_id):
+        return "1.1"
+    
+    # amount of energy currently being consumed by the platform in Watts
+    def get_energy_consumption(self, platform_device_id):
+        return "1.1"
+
+    def get_data_transmission_rate(self, platform_device_id):
+        return "1.1"
+
+    def get_speed_over_ground(self, platform_device_id):
+        return "1.1"
