@@ -96,7 +96,7 @@ class ReplayProcess(BaseReplayProcess):
 
     def replay(self):
         self.publishing.set() # Minimal state, supposed to prevent two instances of the same process from replaying on the same stream
-        granule = self.execute_replay()
+        granule = self.execute_retrieve()
         self.output.publish(granule)
         self.output.publish({})
         self.publishing.clear()

@@ -34,7 +34,7 @@ class CoverageCraft(object):
             if granule is not None:
                 self.sync_with_granule(granule)
             else:
-                self.rdt = RecordDictionaryTool(param_dictionary=self.coverage.parameter_dictionary)
+                self.sync_rdt_with_coverage()
         self.pdict = self.coverage.parameter_dictionary
 
 

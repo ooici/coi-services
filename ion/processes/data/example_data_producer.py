@@ -20,9 +20,7 @@ from interface.objects import Granule
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 
 ### For new granule and stream interface
-from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
-from ion.services.dm.utility.granule.granule import build_granule
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool, TaxyTool, build_granule, CoverageCraft
 from pyon.public import log
 
 import numpy
@@ -44,6 +42,29 @@ tx.add_taxonomy_set('group0','This group contains data...')
 
 tx.add_taxonomy_set('raw_fixed','Fixed length bytes in an array of records')
 tx.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
+
+
+class BetterDataProducer(SimpleCtdPublisher):
+    def _trigger_func(self, stream_id):
+        t_i = 0
+        while not self.finished.is_set():
+
+            length                    = 10
+            black_box                 = CoverageCraft()
+            black_box.rdt['time']         = numpy.arange(10) + t_i*10
+            black_box.rdt['temp']         = numpy.random.random(10) * 10
+            black_box.rdt['lat']          = numpy.array([0] * 10)
+            black_box.rdt['lon']          = numpy.array([0] * 10)
+            black_box.rdt['depth']        = numpy.array([0] * 10)
+            black_box.rdt['conductivity'] = numpy.random.random(10) * 10
+            black_box.rdt['data']         = numpy.random.randint(0,255,10) # Simulates random bytes
+            
+            black_box.sync_with_granule()
+            granule = black_box.to_granule()
+
+            self.publish(granule)
+            gevent.sleep(self.interval)
+
 
 
 class ExampleDataProducer(SimpleCtdPublisher):

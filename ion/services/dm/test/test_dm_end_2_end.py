@@ -71,7 +71,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         producer_definition = ProcessDefinition(name='Example Data Producer')
         producer_definition.executable = {
             'module':'ion.processes.data.example_data_producer',
-            'class' :'ExampleDataProducer'
+            'class' :'BetterDataProducer'
         }
 
         process_definition_id = self.process_dispatcher.create_process_definition(process_definition=producer_definition)
@@ -176,7 +176,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
     def validate_granule_subscription(self, msg, header):
         if msg == {}:
             return
-        self.assertIsInstance(msg,Granule,'Message is improperly formatted.')
+        self.assertIsInstance(msg,Granule,'Message is improperly formatted. (%s)' % type(msg))
         self.event.set()
 
 
@@ -198,16 +198,21 @@ class TestDMEnd2End(IonIntegrationTestCase):
             now = time.time()
 
 
-    def test_coverage_ingest(self):
+    def create_dataset(self):
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
         sdom = sdom.dump()
         tdom = tdom.dump()
         pdict = craft.create_parameters()
         pdict = pdict.dump()
-        stream_id = self.pubsub_management.create_stream()
 
         dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dict=pdict, spatial_domain=sdom, temporal_domain=tdom)
+        return dataset_id
+
+
+    def test_coverage_ingest(self):
+        stream_id = self.pubsub_management.create_stream()
+        dataset_id = self.create_dataset()
         ingestion_config_id = self.get_ingestion_config()
         self.ingestion_management.persist_data_stream(stream_id=stream_id, 
                     ingestion_configuration_id=ingestion_config_id,
@@ -250,6 +255,15 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(comp.all())
 
 
+        granule = self.data_retriever.retrieve(dataset_id)
+
+        black_box = CoverageCraft()
+        black_box.sync_rdt_with_granule(granule)
+        comp = black_box.rdt['time'] == np.arange(40)
+        self.assertTrue(comp.all())
+        
+
+
 
 
       
@@ -271,14 +285,14 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         ingest_config_id = self.get_ingestion_config()
-
-        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id)
+        dataset_id = self.create_dataset()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
 
         #--------------------------------------------------------------------------------
         # Now the granules are ingesting and persisted
         #--------------------------------------------------------------------------------
 
-        self.wait_until_we_have_enough_granules(dataset_id)
+        self.wait_until_we_have_enough_granules(dataset_id,4)
         
 
         #--------------------------------------------------------------------------------
