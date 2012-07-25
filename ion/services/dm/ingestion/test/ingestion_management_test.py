@@ -95,11 +95,9 @@ class IngestionManagementUnitTest(PyonTestCase):
         self.ingestion_management._determine_queue.return_value = queueval
         self.pubsub_read.return_value = DotDict({'persisted':False})
 
-        self.ingestion_management._new_dataset = Mock()
-        self.ingestion_management._new_dataset.return_value = testval
+        self.ingestion_management._existing_dataset = Mock()
 
-        retval = self.ingestion_management.persist_data_stream('stream_id')
-
+        retval = self.ingestion_management.persist_data_stream('stream_id', 'config_id', 'dataset_id')
 
         self.assertTrue(self.pubsub_act_sub.call_count)
         self.assertTrue(self.pubsub_create_sub.call_count)
@@ -122,13 +120,6 @@ class IngestionManagementUnitTest(PyonTestCase):
 
     def test_determine_queue(self):
         pass #unimplemented
-
-    def test_new_dataset(self):
-        testval = 'dataset_id'
-        self.dataset_create.return_value = testval
-
-        retval = self.ingestion_management._new_dataset('stream_id', 'datastore_name')
-        self.assertTrue(retval == testval)
 
     def test_list_ingestion(self):
         testval = (['resource'], ['other'])
@@ -219,11 +210,8 @@ class IngestionManagementIntTest(IonIntegrationTestCase):
 
     def test_persist_data(self):
         config_id = self.create_ingest_config()
-
         stream_id = self.pubsub_management.create_stream()
-
         dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
-
         assoc = self.resource_registry.find_associations(subject=config_id, predicate=PRED.hasSubscription)
 
         sub = self.resource_registry.read(assoc[0].o)

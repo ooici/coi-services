@@ -12,7 +12,9 @@ from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
+from mock import Mock
 import random
+import unittest
 
 
 @attr('UNIT',group='dm')
@@ -35,13 +37,27 @@ class DatasetManagementTest(PyonTestCase):
         self.mock_rr_create.return_value = ('dataset_id','rev')
 
         # execution
-        dataset_id = self.dataset_management.create_dataset(name='123',stream_id='123',datastore_name='fake_datastore')
+        self.dataset_management._create_coverage = Mock()
+        self.dataset_management._persist_coverage = Mock()
+        dataset_id = self.dataset_management.create_dataset(name='123',stream_id='123',datastore_name='fake_datastore', parameter_dict=[0], spatial_domain=[0], temporal_domain=[0])
 
 
         # assertions
         self.assertEquals(dataset_id,'dataset_id')
         self.assertTrue(self.mock_rr_create.called)
         self.assertTrue(self.mock_rr_create_assoc.call_count)
+
+    @unittest.skip('TODO: implement')
+    def test_create_coverage(self):
+        pass
+
+    @unittest.skip('TODO: implement')
+    def test_persist_coverage(self):
+        pass
+
+    @unittest.skip('TODO: implement')
+    def test_get_coverage(self):
+        pass
 
     def test_update_dataset(self):
         # mocks
