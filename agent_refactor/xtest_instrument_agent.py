@@ -19,6 +19,15 @@ from pyon.util.context import LocalContextMixin
 from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.core.exception import InstParameterError
 
+# Pyon exceptions.
+from pyon.core.exception import IonException
+from pyon.core.exception import BadRequest
+from pyon.core.exception import Conflict
+from pyon.core.exception import Timeout
+from pyon.core.exception import NotFound
+from pyon.core.exception import ServerError
+from pyon.core.exception import ResourceError
+
 # Standard imports.
 import time
 import os
@@ -57,15 +66,18 @@ from prototype.sci_data.stream_defs import ctd_stream_definition
 
 # MI imports.
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 
 # TODO chagne the path following the refactor.
-# bin/nosetests -s -v ion/agents/instrument/refactor/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-# bin/nosetests -s -v ion/agents/instrument/refactor/test_instrument_agent.py:TestInstrumentAgent.test_states
-# bin/nosetests -s -v ion/agents/instrument/refactor/test_instrument_agent.py:TestInstrumentAgent.test_get_set
-# bin/nosetests -s -v ion/agents/instrument/refactor/test_instrument_agent.py:TestInstrumentAgent.test_poll
-# bin/nosetests -s -v ion/agents/instrument/refactor/test_instrument_agent.py:TestInstrumentAgent.test_autosample
-# bin/nosetests -s -v ion/agents/instrument/refactor/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_command
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_errors
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
 
 
 ###############################################################################
@@ -102,7 +114,7 @@ DVR_CONFIG = {
 # Agent parameters.
 IA_RESOURCE_ID = '123xyz'
 IA_NAME = 'Agent007'
-IA_MOD = 'ion.agents.instrument.refactor.instrument_agent'
+IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # Used to validate param config retrieved from driver.
@@ -146,38 +158,6 @@ PARAMS = {
     SBE37Parameter.RTCA2 : float
 }
 
-CMDS = [
-    'acquire_sample',
-    'calibrate',
-    'direct_access',
-    'start_autosample',
-    'start_direct_access',
-    'stop_autosample',
-    'stop_direct_access',
-    'test'    
-]
-
-AGT_CMDS = [
-    'clear',
-    'end_transaction',
-    'get_current_state',
-    'go_active',
-    'go_direct_access',
-    'go_inactive',
-    'go_layer_ping',
-    'go_observatory',
-    'go_streaming',
-    'helo_agent',
-    'helo_driver',
-    'initialize',
-    'pause',
-    'power_down',
-    'power_up',
-    'reset',
-    'resume',
-    'run',
-    'start_transaction'
-]
 
 class FakeProcess(LocalContextMixin):
     """
@@ -208,24 +188,33 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Start streams and subscribers.
         Start agent, client.
         """
-                
+        
+        log.info('Creating driver integration test support:')
+        log.info('driver module: %s', DRV_MOD)
+        log.info('driver class: %s', DRV_CLS)
+        log.info('device address: %s', DEV_ADDR)
+        log.info('device port: %s', DEV_PORT)
+        log.info('log delimiter: %s', DELIM)
+        log.info('work dir: %s', WORK_DIR)
         self._support = DriverIntegrationTestSupport(DRV_MOD,
                                                      DRV_CLS,
                                                      DEV_ADDR,
                                                      DEV_PORT,
                                                      DELIM,
                                                      WORK_DIR)
-        """
+        
         # Start port agent, add stop to cleanup.
         self._pagent = None        
         self._start_pagent()
         self.addCleanup(self._support.stop_pagent)    
-        """
+        
         
         # Start container.
+        log.info('Staring capability container.')
         self._start_container()
         
         # Bring up services in a deploy file (no need to message)
+        log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         """
@@ -270,6 +259,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Start instrument agent.
         self._ia_pid = None
         log.debug("TestInstrumentAgent.setup(): starting IA.")
+        log.info('Agent config: %s', str(agent_config))
         container_client = ContainerAgentClient(node=self.container.node,
                                                 name=self.container.name)
         self._ia_pid = container_client.spawn_process(name=IA_NAME,
@@ -287,7 +277,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         Construct and start the port agent.
         """
+
         port = self._support.start_pagent()
+        log.info('Port agent started at port %i',port)
         
         # Configure driver to use port agent port number.
         DVR_CONFIG['comms_config'] = {
@@ -444,38 +436,237 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         driver process and transition to inactive.
         """
         
+        # We start in uninitialized state.
+        # In this state there is no driver process.
         state = self._ia_client.get_agent_state()
-        log.info('Agent in state: %s', state)
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
         
+        # Initialize the agent.
+        # The agent is spawned with a driver config, but you can pass one in
+        # optinally with the initialize command. This validates the driver
+        # config, launches a driver process and connects to it via messaging.
+        # If successful, we switch to the inactive state.
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
-
         state = self._ia_client.get_agent_state()
-        log.info('Agent in state: %s', state)
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
 
+        # Reset the agent. This causes the driver messaging to be stopped,
+        # the driver process to end and switches us back to uninitialized.
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
-        
         state = self._ia_client.get_agent_state()
-        log.info('Agent in state: %s', state)
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
         
     def test_states(self):
         """
-        Test agent state transitions.
+        Test agent state transitions through execute agent interface.
         """
-        pass
 
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.PAUSE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.STOPPED)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESUME)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.CLEAR)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+            
     def test_get_set(self):
         """
-        Test instrument driver get and set interface.
+        Test instrument driver get and set resource interface.
         """
-        pass
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        params = SBE37Parameter.ALL
+        retval = self._ia_client.get_resource(params)
+        self.assertParamDict(retval, True)
+        orig_config = retval
+
+        params = [
+            SBE37Parameter.OUTPUTSV,
+            SBE37Parameter.NAVG,
+            SBE37Parameter.TA0
+        ]
+        retval = self._ia_client.get_resource(params)
+        self.assertParamDict(retval)
+        orig_params = retval
+
+        new_params = {
+            SBE37Parameter.OUTPUTSV : not orig_params[SBE37Parameter.OUTPUTSV],
+            SBE37Parameter.NAVG : orig_params[SBE37Parameter.NAVG] + 1,
+            SBE37Parameter.TA0 : orig_params[SBE37Parameter.TA0] * 2
+        }
+
+        self._ia_client.set_resource(new_params)
+        retval = self._ia_client.get_resource(params)
+        self.assertParamVals(retval, new_params)
+
+        params = SBE37Parameter.ALL
+        self._ia_client.set_resource(orig_config)
+        retval = self._ia_client.get_resource(params)
+        self.assertParamVals(retval, orig_config)        
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+    def test_get_set_errors(self):
+        """
+        Test instrument driver get and set resource errors.
+        """
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        # Attempt to get in invalid state.
+        params = SBE37Parameter.ALL
+        with self.assertRaises(Conflict):
+            self._ia_client.get_resource(params)
+        
+        # Attempt to set in invalid state.
+        params = {
+            SBE37Parameter.TA0 : -2.5e-04
+        }
+        with self.assertRaises(Conflict):
+            self._ia_client.set_resource(params)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Attempt to get in invalid state.
+        params = SBE37Parameter.ALL
+        with self.assertRaises(Conflict):
+            self._ia_client.get_resource(params)
+        
+        # Attempt to set in invalid state.
+        params = {
+            SBE37Parameter.TA0 : -2.5e-04
+        }
+        with self.assertRaises(Conflict):
+            self._ia_client.set_resource(params)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        # Attempt to get with no parameters.
+        with self.assertRaises(BadRequest):
+            self._ia_client.get_resource()
+                
+        # Attempt to get with bogus parameters.
+        params = [
+            'I am a bogus parameter name',
+            SBE37Parameter.OUTPUTSV            
+        ]
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.get_resource(params)
+        
+        # Attempt to set with no parameters.
+        # Set without parameters.
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.set_resource()
+        
+        # Attempt to set with bogus parameters.
+        params = {
+            'I am a bogus parameter name' : 'bogus val',
+            SBE37Parameter.OUTPUTSV : False
+        }
+        with self.assertRaises(BadRequest):
+            self._ia_client.set_resource(params)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
     def test_poll(self):
         """
-        Test observatory polling function.
+        Test observatory polling function thorugh execute resource interface.
         """
-        pass        
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+        retval = self._ia_client.execute_resource(command=cmd)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
         
     def test_autosample(self):
         """

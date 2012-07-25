@@ -26,19 +26,31 @@ from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
 from pyon.core.exception import Timeout
 from pyon.core.exception import NotFound
-from pyon.core.exception import IonInstrumentError
-from pyon.core.exception import InstTimeoutError
-from pyon.core.exception import InstConnectionError
-from pyon.core.exception import InstNotImplementedError
-from pyon.core.exception import InstParameterError
-from pyon.core.exception import InstProtocolError
-from pyon.core.exception import InstSampleError
-from pyon.core.exception import InstStateError
-from pyon.core.exception import InstUnknownCommandError
-from pyon.core.exception import InstDriverError
+from pyon.core.exception import ServerError
+from pyon.core.exception import ResourceError
+
+# MI exceptions
+from mi.core.exceptions import InstrumentTimeoutException
+from mi.core.exceptions import InstrumentParameterException
+from mi.core.exceptions import SampleException
+from mi.core.exceptions import InstrumentStateException
+from mi.core.exceptions import InstrumentProtocolException
+from mi.core.exceptions import InstrumentException
 
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess
+
+# MI imports
+from mi.core.instrument.instrument_driver import DriverEvent
+from mi.core.instrument.instrument_driver import DriverAsyncEvent
+from mi.core.instrument.instrument_driver import DriverProtocolState
+from mi.core.instrument.instrument_driver import DriverParameter
+
+class InstrumentAgentState():
+    UNINITIALIZED='xxx'
+
+class InstrumentAgentEvent():
+    pass
 
 class InstrumentAgent(ResourceAgent):
     """
@@ -127,17 +139,59 @@ class InstrumentAgent(ResourceAgent):
     def _handler_get_resource(self, *args, **kwargs):
         """
         """
-        pass
+        result = None
+        next_state = None
+        
+        try:
+            params = args[0]
+        
+        # Raise ION BadRequest if required parameters missing.
+        except KeyError:
+            raise BadRequest('get_resource missing parameters argument.')
+
+        try:
+            result = self._dvr_client.cmd_dvr('get_resource', params)
+        
+        except Exception as ex:
+            self._raise_ion_exception(ex)
+        
+        return (next_state, result)
 
     def _handler_set_resource(self, *args, **kwargs):
         """
         """
-        pass
+        result = None
+        next_state = None
+        
+        try:
+            params = args[0]
+        
+        except KeyError:
+            raise BadRequest('set_resource missing parameters argument.')
+
+        try:
+            result = self._dvr_client.cmd_dvr('set_resource', params)
+            
+        except Exception as ex:
+            self._raise_ion_exception(ex)
+
+        return (next_state, result)
 
     def _handler_execute_resource(self, *args, **kwargs):
         """
         """
-        pass
+        result = None
+        next_state = None
+        
+        try:
+            print "IN IA EXECUTE RESOURCE"
+            result = self._dvr_client.cmd_dvr('execute_resource',
+                                              *args, **kwargs)
+            
+        except Exception as ex:
+            self._raise_ion_exception(ex)
+
+        return (next_state, result)
 
     ##############################################################
     # UNINITIALIZED event handlers.
@@ -158,7 +212,8 @@ class InstrumentAgent(ResourceAgent):
         
         # If config not valid, fail.
         if not self._validate_driver_config():
-            raise InstDriverError('The driver configuration is missing or invalid.')
+            #fixfix
+            raise BadRequest('The driver configuration is missing or invalid.')
 
         # Start the driver and switch to inactive.
         self._start_driver(self._dvr_config)        
@@ -175,7 +230,7 @@ class InstrumentAgent(ResourceAgent):
         """
         result = None
         next_state = None
-  
+
         result = self._stop_driver()
         next_state = ResourceAgentState.UNINITIALIZED
   
@@ -194,50 +249,25 @@ class InstrumentAgent(ResourceAgent):
         except IndexError:
             pass
         
-        # Configure the driver, driver checks if config is valid.
+        # Connect to the device.
         dvr_comms = self._dvr_config.get('comms_config', None)   
-        try:
-            self._dvr_client.cmd_dvr('configure', dvr_comms)
-        
-        except InstrumentParameterException:
-            raise InstParameterError('The driver comms configuration is invalid.')
-        
-        # Connect to the device, propagating connection errors.
-        try:
-            self._dvr_client.cmd_dvr('connect')
-        
-        except InstrumentConnectionException:
-            raise InstConnectionError('Driver could not connect to %s', str(dvr_comms))
-        
-        # If the device state is unknown, send the discover command.
-        # Disconnect and raise if the state cannot be determined.
-        # If state discoveered, switch into autosample state if driver there,
-        # else switch into idle. Agent assumes a non autosample driver state
-        # is observatory friendly. Drivers should implement discover to
-        # affect the necessary internal state changes if necessary.
-        dvr_state = self._dvr_client.cmd_dvr('get_current_state')
-        if dvr_state == DriverProtocolState.UNKNOWN:
-            max_tries = kwargs.get('max_tries', 5)
-            if not isinstance(max_tries, int) or max_tries < 1:
-                max_tries = 5
-            no_tries = 0
-            while True: 
-                try:    
-                    dvr_state = self._dvr_client.cmd_dvr('discover')
-                    if dvr_state == DriverProtocolState.AUTOSAMPLE:
-                        next_state = InstrumentAgentState.STREAMING
-                    else:
-                        next_state = InstrumentAgentState.IDLE
-                    break
-                
-                except InstrumentTimeoutException, InstrumentProtocolException:
-                    no_tries += 1
-                    if no_tries >= max_tries:
-                        self._dvr_client.cmd_dvr('disconnect')
-                        raise InstProtocolError('Could not discover instrument state.')
-        
-        else:
-            next_state = InstrumentAgentState.IDLE        
+        self._dvr_client.cmd_dvr('configure', dvr_comms)
+        self._dvr_client.cmd_dvr('connect')
+
+        max_tries = kwargs.get('max_tries', 5)
+        if not isinstance(max_tries, int) or max_tries < 1:
+            max_tries = 5
+        no_tries = 0
+        while True:
+            try:
+                next_state = self._dvr_client.cmd_dvr('discover_state')
+                break
+            except InstrumentTimeoutException, InstrumentProtocolException:
+                no_tries += 1
+                if no_tries >= max_tries:
+                    self._dvr_client.cmd_dvr('disconnect')
+                    # fixfix
+                    raise ResourceError('Could not discover instrument state.')
         
         return (next_state, result)        
 
@@ -248,16 +278,25 @@ class InstrumentAgent(ResourceAgent):
     def _handler_idle_reset(self, *args, **kwargs):
         """
         """
-        next_state = None
         result = None
-        
-        return (next_state, result)        
+        next_state = None
+
+        # Disconnect, initialize, stop driver and go to uninitialized.
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        result = self._stop_driver()
+        next_state = ResourceAgentState.UNINITIALIZED
+  
+        return (next_state, result)
 
     def _handler_idle_go_inactive(self, *args, **kwargs):
         """
         """
         next_state = None
         result = None
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        next_state = ResourceAgentState.INACTIVE
         
         return (next_state, result)        
 
@@ -266,6 +305,10 @@ class InstrumentAgent(ResourceAgent):
         """
         next_state = None
         result = None
+
+        # TODO: need to determine correct obs state to enter (streaming or
+        # command, and follow agent transitions as needed.)
+        next_state = ResourceAgentState.COMMAND
         
         return (next_state, result)        
 
@@ -278,6 +321,10 @@ class InstrumentAgent(ResourceAgent):
         """
         next_state = None
         result = None
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        result = self._stop_driver()
+        next_state = ResourceAgentState.UNINITIALIZED
         
         return (next_state, result)        
 
@@ -286,6 +333,9 @@ class InstrumentAgent(ResourceAgent):
         """
         next_state = None
         result = None
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        next_state = ResourceAgentState.INACTIVE
         
         return (next_state, result)        
 
@@ -295,6 +345,8 @@ class InstrumentAgent(ResourceAgent):
         next_state = None
         result = None
         
+        next_state = ResourceAgentState.COMMAND
+        
         return (next_state, result)        
 
     def _handler_stopped_clear(self, *args, **kwargs):
@@ -302,6 +354,8 @@ class InstrumentAgent(ResourceAgent):
         """
         next_state = None
         result = None
+
+        next_state = ResourceAgentState.IDLE
         
         return (next_state, result)        
 
@@ -314,6 +368,10 @@ class InstrumentAgent(ResourceAgent):
         """
         next_state = None
         result = None
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        result = self._stop_driver()
+        next_state = ResourceAgentState.UNINITIALIZED
         
         return (next_state, result)        
     
@@ -322,6 +380,9 @@ class InstrumentAgent(ResourceAgent):
         """
         next_state = None
         result = None
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        next_state = ResourceAgentState.INACTIVE
         
         return (next_state, result)        
 
@@ -330,6 +391,8 @@ class InstrumentAgent(ResourceAgent):
         """
         next_state = None
         result = None
+
+        next_state = ResourceAgentState.IDLE
         
         return (next_state, result)        
 
@@ -338,6 +401,8 @@ class InstrumentAgent(ResourceAgent):
         """
         next_state = None
         result = None
+
+        next_state = ResourceAgentState.STOPPED
         
         return (next_state, result)        
 
@@ -346,6 +411,8 @@ class InstrumentAgent(ResourceAgent):
         """
         next_state = None
         result = None
+
+        # TODO add this logic.
         
         return (next_state, result)        
 
@@ -359,6 +426,11 @@ class InstrumentAgent(ResourceAgent):
         next_state = None
         result = None
         
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        result = self._stop_driver()
+        next_state = ResourceAgentState.UNINITIALIZED
+          
         return (next_state, result)        
     
     def _handler_streaming_go_inactive(self, *args, **kwargs):
@@ -366,7 +438,11 @@ class InstrumentAgent(ResourceAgent):
         """
         next_state = None
         result = None
-        
+
+        self._dvr_client.cmd_dvr('disconnect')
+        self._dvr_client.cmd_dvr('initialize')        
+        next_state = ResourceAgentState.INACTIVE
+          
         return (next_state, result)        
     
     ##############################################################
@@ -393,6 +469,10 @@ class InstrumentAgent(ResourceAgent):
         
         return (next_state, result)        
 
+
+    ##############################################################
+    # Instrument agent event callback.
+    ##############################################################    
 
     def evt_recv(self, evt):
         """
@@ -478,14 +558,13 @@ class InstrumentAgent(ResourceAgent):
         @raises InstDriverError If the driver or client failed to start properly.
         """
 
-
         self._dvr_proc = DriverProcess.get_process(dvr_config, True)
         self._dvr_proc.launch()
 
         # Verify the driver has started.
         if not self._dvr_proc.getpid():
             log.error('Instrument agent %s error starting driver process.', self._proc_name)
-            raise InstDriverError('Error starting driver process.')
+            raise ResourceError('Error starting driver process.')
 
         try:
             driver_client = self._dvr_proc.get_client()
@@ -496,7 +575,7 @@ class InstrumentAgent(ResourceAgent):
         except Exception, e:
             self._dvr_proc.stop()
             log.error('Instrument agent %s rror starting driver client. %s', self._proc_name, e)
-            raise InstDriverError('Error starting driver client.')
+            raise ResourceError('Error starting driver client.')
 
         #self._construct_packet_factories()
 
@@ -506,8 +585,8 @@ class InstrumentAgent(ResourceAgent):
         """
         Stop the driver process and driver client.
         """
-        log.info('Instrument agent %s stopped its driver.', self._proc_name)
         self._dvr_proc.stop()
+        log.info('Instrument agent %s stopped its driver.', self._proc_name)
 
             
     def _validate_driver_config(self):
@@ -526,3 +605,32 @@ class InstrumentAgent(ResourceAgent):
             return False
         
         return True
+
+    def _raise_ion_exception(self, ex):
+        """
+        """
+        if isinstance(ex, IonException):
+            iex = ex
+        
+        elif isinstance(ex, InstrumentParameterException):
+            iex = BadRequest(*(ex.args))
+
+        elif isinstance(ex, InstrumentStateException):
+            iex = Conflict(*(ex.args))
+
+        elif isinstance(ex, FSMStateError):
+            iex = Conflict(*(ex.args))
+
+        elif isinstance(ex, InstrumentTimeoutException):
+            iex = Timeout(*(ex.args))
+        
+        elif isinstance(ex, InstrumentException):
+            iex = ResourceError(*(ex.args))
+
+        elif isinstance(ex, Exception):
+            iex = ServerError('Unknown error in instrument agent.')
+
+        if iex:
+            raise iex
+        
+        
