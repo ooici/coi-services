@@ -10,7 +10,7 @@ from pyon.public import PRED
 from pyon.datastore.datastore import DataStore
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService
 from interface.objects import DataSet
-from coverage_model.coverage import SimplexCoverage
+from ion.services.dm.utility.granule_utils import SimplexCoverage, ParameterDictionary, GridDomain
 from pyon.util.arg_check import validate_is_instance, validate_true
 from pyon.util.file_sys import FileSystem, FS
 
@@ -52,7 +52,6 @@ class DatasetManagementService(BaseDatasetManagementService):
         if stream_id:
             self.add_stream(dataset_id,stream_id)
 
-
         coverage = self._create_coverage(description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
         self._persist_coverage(dataset_id, coverage)
 
@@ -63,7 +62,12 @@ class DatasetManagementService(BaseDatasetManagementService):
         #--------------------------------------------------------------------------------
         # Create coversions and deserialization then craft the coverage
         #--------------------------------------------------------------------------------
-        scov = SimplexCoverage(description, parameter_dictionary=parameter_dict, spatial_domain=spatial_domain, temporal_domain=temporal_domain)
+
+        pdict = ParameterDictionary.load(parameter_dict)
+        sdom = GridDomain.load(spatial_domain)
+        tdom = GridDomain.load(temporal_domain)
+
+        scov = SimplexCoverage(description, parameter_dictionary=pdict, spatial_domain=sdom, temporal_domain=tdom)
         return scov
 
     def _persist_coverage(self, dataset_id, coverage):

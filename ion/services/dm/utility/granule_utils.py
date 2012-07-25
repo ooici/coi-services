@@ -6,11 +6,12 @@
 @description Utilities for crafting granules into a coverage
 '''
 
-from pyon.ion.granule import TaxyTool, RecordDictionaryTool, build_granule 
+from ion.services.dm.utility.granule import TaxyTool, RecordDictionaryTool, build_granule 
 from pyon.util.arg_check import validate_equal
 from coverage_model.coverage import GridDomain, CRS, AxisTypeEnum, MutabilityEnum, GridShape, SimplexCoverage
 from coverage_model.parameter import ParameterContext, ParameterDictionary 
 from coverage_model.parameter_types import QuantityType
+from pyon.public import log
 import dateutil.parser
 import netCDF4
 import time
@@ -23,29 +24,21 @@ class CoverageCraft(object):
     '''
     AKA the BlackBox
     '''
-    tx = TaxyTool()
-    tx.add_taxonomy_set('temp','long name for temp')
-    tx.add_taxonomy_set('conductivity','long name for cond')
-    tx.add_taxonomy_set('depth','')
-    tx.add_taxonomy_set('lat','long name for latitude')
-    tx.add_taxonomy_set('lon','long name for longitude')
-    tx.add_taxonomy_set('time','long name for time')
-    tx.add_taxonomy_set('data', 'arbitrary data uint8')
-
     def __init__(self,coverage=None, granule=None):
-        self.rdt = RecordDictionaryTool(self.tx)
         if coverage is None:
             self.coverage = self.create_coverage()
         else:
             self.coverage = coverage
-        
-        if granule is not None:
+
+        self.pdict = self.coverage.parameter_dictionary
+        if granule is None:
+            self.rdt = RecordDictionaryTool(param_dictionary=self.coverage.parameter_dictionary)
+
+        else:
             self.from_granule(granule)
 
 
     def from_granule(self, granule):
-        tt = TaxyTool.load_from_granule(granule)
-        validate_equal(tt,self.tx, "The taxonomies don't match up.")
         rdt = RecordDictionaryTool.load_from_granule(granule)
         self.rdt = rdt
         return rdt
@@ -53,19 +46,22 @@ class CoverageCraft(object):
     def add_granule(self, granule=None):
         if granule is not None:
             self.from_granule(granule)
+        if self.rdt is None:
+            log.error('Failed to add granule, no granule assigned.')
+            return
         start_index = self.coverage.num_timesteps 
         elements = self.rdt._shp[0]
-        if self.coverage.num_timesteps == 1:
+        if start_index == 1:
             start_index = 0
             self.coverage.insert_timesteps(elements - 1)
         else:
             self.coverage.insert_timesteps(elements)
 
         for k,v in self.rdt.iteritems():
-            print "key: %s" % k
-            print "value: %s" % v
+            log.info("key: %s" , k)
+            log.info("value: %s" , v)
             slice_ = slice(start_index,None)
-            print "slice: %s" % slice_
+            log.info("slice: %s",  slice_)
             self.coverage.set_parameter_values(param_name=k,tdoa=slice_, value=v)
 
 
@@ -82,41 +78,43 @@ class CoverageCraft(object):
             uom = coverage.get_parameter_context('time').uom
             if start_time is not None:
                 start_units = self.ts_to_units(uom,start_time)
-                print start_units
+                log.info('Units: %s', start_units)
                 start_idx = self.get_relative_time(coverage,start_units)
-                print start_idx
+                log.info('Start Index: %s', start_idx)
                 start_time = start_idx
             if end_time is not None:
                 end_units   = self.ts_to_units(uom,end_time)
-                print end_units
+                log.info('End units: %s', end_units)
                 end_idx   = self.get_relative_time(coverage,end_units)
-                print end_idx
+                log.info('End index: %s',  end_idx)
                 end_time = end_idx
             slice_ = slice(start_time,end_time)
-            print slice_
+            log.info('Slice: %s', slice_)
 
-
-
-        rdt = RecordDictionaryTool(self.tx)
+        rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
         fields = self.coverage.list_parameters()
         for d in fields:
             rdt[d] = self.coverage.get_parameter_values(d,tdoa=slice_)
         self.rdt = rdt # Sync
-        return build_granule('from coverage', self.tx, rdt)
+        return build_granule('from coverage', param_dictionary=coverage.parameter_dictionary, record_dictionary=rdt)
 
     @classmethod
     def create_coverage(cls):
         pdict = cls.create_parameters()
+        sdom, tdom = cls.create_domains()
+    
+        scov = SimplexCoverage('sample grid coverage_model', pdict, sdom, tdom)
 
+        return scov
+
+    @classmethod
+    def create_domains(cls):
         tcrs = CRS([AxisTypeEnum.TIME])
         scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT, AxisTypeEnum.HEIGHT])
 
         tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE)
         sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # Dimensionality is excluded for now
-    
-        scov = SimplexCoverage('sample grid coverage_model', pdict, sdom, tdom)
-
-        return scov
+        return sdom, tdom
 
     @classmethod
     def create_parameters(cls):
@@ -124,33 +122,40 @@ class CoverageCraft(object):
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
         t_ctxt.reference_frame = AxisTypeEnum.TIME
         t_ctxt.uom = 'seconds since 01-01-1970'
+        t_ctxt.fill_value = 0x0
         pdict.add_context(t_ctxt)
 
         lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
         lat_ctxt.reference_frame = AxisTypeEnum.LAT
         lat_ctxt.uom = 'degree_north'
+        lat_ctxt.fill_value = 0e0
         pdict.add_context(lat_ctxt)
 
         lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
         lon_ctxt.reference_frame = AxisTypeEnum.LON
         lon_ctxt.uom = 'degree_east'
+        lon_ctxt.fill_value = 0e0
         pdict.add_context(lon_ctxt)
 
         depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
         depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
         depth_ctxt.uom = 'meters'
+        depth_ctxt.fill_value = 0e0
         pdict.add_context(depth_ctxt)
 
         temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
         temp_ctxt.uom = 'degree_Celsius'
+        temp_ctxt.fill_value = 0e0
         pdict.add_context(temp_ctxt)
 
         cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.float32))
         cond_ctxt.uom = 'unknown'
+        cond_ctxt.fill_value = 0e0
         pdict.add_context(cond_ctxt)
 
         data_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=np.int8))
         data_ctxt.uom = 'byte'
+        data_ctxt.fill_value = 0x0
         pdict.add_context(data_ctxt)
 
         return pdict
