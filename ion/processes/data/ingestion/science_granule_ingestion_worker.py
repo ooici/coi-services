@@ -110,7 +110,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         dataset_id = self.get_dataset(stream_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         time = get_safe(rdt,'time')
-        if time is not None and isinstance(time,numpy.ndarray):
+        if time is not None and len(time) and isinstance(time,numpy.ndarray):
             time = time[0]
         else:
             time = None

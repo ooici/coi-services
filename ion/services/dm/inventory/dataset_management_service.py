@@ -70,7 +70,8 @@ class DatasetManagementService(BaseDatasetManagementService):
         scov = SimplexCoverage(description, parameter_dictionary=pdict, spatial_domain=sdom, temporal_domain=tdom)
         return scov
 
-    def _persist_coverage(self, dataset_id, coverage):
+    @classmethod
+    def _persist_coverage(cls, dataset_id, coverage):
         validate_is_instance(coverage,SimplexCoverage,'Coverage is not an instance of SimplexCoverage: %s' % type(coverage))
         filename = FileSystem.get_hierarchical_url(FS.CACHE, dataset_id, '.cov')
         SimplexCoverage.save(coverage, filename, use_ascii=False)
@@ -112,9 +113,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.clients.resource_registry.delete(dataset_id)
 
     def add_stream(self,dataset_id='', stream_id=''):
+        validate_true(dataset_id and stream_id, 'Clients must provide both the dataset_id and stream_id')
         self.clients.resource_registry.create_association(subject=dataset_id, predicate=PRED.hasStream,object=stream_id)
 
     def remove_stream(self,dataset_id='', stream_id=''):
+        validate_true(dataset_id and stream_id, 'Clients must provide both the dataset_id and stream_id')
         assocs = self.clients.resource_registry.find_associations(subject=dataset_id, predicate=PRED.hasStream,object=stream_id)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)

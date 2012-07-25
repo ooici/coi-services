@@ -33,7 +33,6 @@ class CoverageCraft(object):
         self.pdict = self.coverage.parameter_dictionary
         if granule is None:
             self.rdt = RecordDictionaryTool(param_dictionary=self.coverage.parameter_dictionary)
-
         else:
             self.from_granule(granule)
 

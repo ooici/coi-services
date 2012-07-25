@@ -21,9 +21,8 @@ from pyon.util.containers import DotDict
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.net.endpoint import Publisher
-from ion.services.dm.utility.granule.granule import build_granule
-from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule_utils import build_granule, RecordDictionaryTool, TaxyTool, CoverageCraft
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from gevent.event import Event
 from nose.plugins.attrib import attr
 
@@ -197,6 +196,47 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 done = True
 
             now = time.time()
+
+
+    def test_coverage_ingest(self):
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        pdict = craft.create_parameters()
+        pdict = pdict.dump()
+        stream_id = self.pubsub_management.create_stream()
+
+        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dict=pdict, spatial_domain=sdom, temporal_domain=tdom)
+        self.dataset_management.add_stream(dataset_id, stream_id)
+
+        black_box = CoverageCraft()
+        black_box.rdt['time'] = np.arange(20)
+        black_box.rdt['temp'] = np.random.random(20) * 10
+        black_box.add_granule()
+        granule = black_box.to_granule()
+
+        xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
+        xp = self.container.ex_manager.create_xp('science_data')
+        xn.bind('%s.data' % stream_id, xp)
+
+        publisher = SimpleStreamPublisher.new_publisher(self.container,'science_data', stream_id)
+        publisher.publish(granule)
+
+        self.wait_until_we_have_enough_granules(dataset_id,1)
+
+        coverage = DatasetManagementService._get_coverage(dataset_id)
+
+        black_box = CoverageCraft(coverage)
+        black_box.to_granule()
+        comp = black_box.rdt['time'] == np.arange(20)
+        self.assertTrue(comp.all())
+
+
+
+
+
+
 
       
     def test_dm_end_2_end(self):
