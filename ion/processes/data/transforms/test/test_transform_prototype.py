@@ -18,7 +18,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition
 from mock import Mock, sentinel, patch
-import gevent
+import gevent, unittest, os
 
 @attr('INT', group='dm')
 class TransformPrototypeIntTest(IonIntegrationTestCase):
@@ -31,7 +31,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient()
         self.event_publisher = EventPublisher()
 
-
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_event_processing(self):
         '''
         Test that events are processed by the transforms according to a provided algorithm
@@ -116,6 +117,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
          an event after a fixed number of events of a particular type are received from some instrument.")
 
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_stream_processing(self):
         '''
         Test that streams are processed by the transforms according to a provided algorithm
