@@ -489,7 +489,7 @@ class RecordDictionaryToolTestCase(unittest.TestCase):
 
         # Now put in some data and make sure it works...
         temp_array = numpy.random.standard_normal(100)
-        self._rdt['temp'] = temp_array
+        self._rdt_pdict['temp'] = temp_array
 
         self.assertIn('temp', self._rdt_pdict)
 
@@ -515,7 +515,7 @@ class RecordDictionaryToolTestCase(unittest.TestCase):
         pres_array = numpy.random.standard_normal(100)
 
         self._rdt_pdict['temp'] = temp_array
-        self._rdt_pdict['cond'] = cond_array
+        self._rdt_pdict['conductivity'] = cond_array
         self._rdt_pdict['pres'] = pres_array
 
         self.assertGreater(len(self._rdt_pdict.pretty_print()), 0)
