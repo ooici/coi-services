@@ -103,8 +103,9 @@ class ReplayProcess(BaseReplayProcess):
         dataset = dsm_cli.read_dataset(dataset_id)
         cc = container
         datastore_name = dataset.datastore_name
-        datastore = cc.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
         view_name = dataset.view_name
+        
+        datastore = cc.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
 
         opts = dict(
             start_key = [dataset_id, {}],
