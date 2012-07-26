@@ -7,7 +7,7 @@ __license__ = 'Apache 2.0'
 
 from interface.services.coi.ipolicy_management_service import BasePolicyManagementService
 from pyon.core.exception import NotFound, BadRequest
-from pyon.public import PRED, RT, Container
+from pyon.public import PRED, RT, Container, CFG, OT, IonObject
 from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
 from pyon.event.event import EventPublisher
@@ -29,15 +29,109 @@ class PolicyManagementService(BasePolicyManagementService):
     def on_start(self):
         self.event_pub = EventPublisher()
 
-        self.policy_event_subscriber = ProcessEventSubscriber(event_type="ResourceModifiedEvent", origin_type="Policy", callback=self.policy_event_callback, process=self)
+        self.policy_event_subscriber = ProcessEventSubscriber(event_type="ResourceModifiedEvent", origin_type="Policy", callback=self._policy_event_callback, process=self)
         self._process.add_endpoint(self.policy_event_subscriber)
 
+    """Provides the interface to define and manage policy and a repository to store and retrieve policy
+    and templates for policy definitions, aka attribute authority.
+
+    @see https://confluence.oceanobservatories.org/display/syseng/CIAD+COI+OV+Policy+Management+Service
     """
-    Provides the interface to define and manage policy and a repository to store and retrieve policy and templates for
-    policy definitions, aka attribute authority.
-    """
+
+    def create_resource_access_policy(self, resource_id='', policy_name='', description='', policy_rule=''):
+        """Helper operation for creating an access policy for a specific resource. The id string returned
+        is the internal id by which Policy will be identified in the data store.
+
+        @param resource_id    str
+        @param policy_name    str
+        @param description    str
+        @param policy_rule    str
+        @retval policy_id    str
+        @throws BadRequest    If any of the paramaters are not set.
+        """
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is missing")
+
+        if not policy_name:
+            raise BadRequest("The policy_name parameter is missing")
+
+        if not description:
+            raise BadRequest("The description parameter is missing")
+
+        if not policy_rule:
+            raise BadRequest("The policy_rule parameter is missing")
+
+
+        service_policy_obj = IonObject(OT.ResourceAccessPolicy, policy_rule=policy_rule)
+
+        policy_obj = IonObject(RT.Policy, name=policy_name, description=description, policy_type=service_policy_obj)
+
+        policy_id = self.create_policy(policy_obj)
+
+        self.add_resource_policy(resource_id, policy_id)
+
+        return policy_id
+
+    def create_service_access_policy(self, service_name='', policy_name='', description='', policy_rule=''):
+        """Helper operation for creating an access policy for a specific service. The id string returned
+        is the internal id by which Policy will be identified in the data store.
+
+        @param service_name    str
+        @param policy_name    str
+        @param description    str
+        @param policy_rule    str
+        @retval policy_id    str
+        @throws BadRequest    If any of the paramaters are not set.
+        """
+
+        if not service_name:
+            raise BadRequest("The service_name parameter is missing")
+
+        if not policy_name:
+            raise BadRequest("The policy_name parameter is missing")
+
+        if not description:
+            raise BadRequest("The description parameter is missing")
+
+        if not policy_rule:
+            raise BadRequest("The policy_rule parameter is missing")
+
+
+        service_policy_obj = IonObject(OT.ServiceAccessPolicy, policy_rule=policy_rule, service_name=service_name)
+
+        policy_obj = IonObject(RT.Policy, name=policy_name, description=description, policy_type=service_policy_obj)
+
+        return self.create_policy(policy_obj)
+
+    def create_common_service_access_policy(self, policy_name='', description='', policy_rule=''):
+        """Helper operation for creating a service access policy common to all services. The id string returned
+        is the internal id by which Policy will be identified in the data store.
+
+        @param policy_name    str
+        @param description    str
+        @param policy_rule    str
+        @retval policy_id    str
+        @throws BadRequest    If any of the paramaters are not set.
+        """
+
+        if not policy_name:
+            raise BadRequest("The policy_name parameter is missing")
+
+        if not description:
+            raise BadRequest("The description parameter is missing")
+
+        if not policy_rule:
+            raise BadRequest("The policy_rule parameter is missing")
+
+
+        service_policy_obj = IonObject(OT.CommonServiceAccessPolicy, policy_rule=policy_rule)
+
+        policy_obj = IonObject(RT.Policy, name=policy_name, description=description, policy_type=service_policy_obj)
+
+        return self.create_policy(policy_obj)
+
     def create_policy(self, policy=None):
-        """Persists the provided Policy object for the specified Org id. The id string returned
+        """Persists the provided Policy object The id string returned
         is the internal id by which Policy will be identified in the data store.
 
         @param policy    Policy
@@ -47,8 +141,14 @@ class PolicyManagementService(BasePolicyManagementService):
         if not is_basic_identifier(policy.name):
             raise BadRequest("The policy name '%s' can only contain alphanumeric and underscore characters" % policy.name)
 
-        policy.rule = policy.rule % (policy.name, policy.description)
+        #If there is a policy_rule field then try to add the policy name and decription to the rule text
+        if hasattr(policy.policy_type, 'policy_rule'):
+            policy.policy_type.policy_rule = policy.policy_type.policy_rule % (policy.name, policy.description)
+
         policy_id, version = self.clients.resource_registry.create(policy)
+
+        log.debug('Policy created: ' + policy.name)
+
         return policy_id
 
     def update_policy(self, policy=None):
@@ -104,9 +204,11 @@ class PolicyManagementService(BasePolicyManagementService):
 
         self.clients.resource_registry.delete(policy_id)
 
+        #Force a publish since the policy object will have been deleted
+        self._publish_policy_event(policy)
 
     def enable_policy(self, policy_id=''):
-        """Sets a flag to enable the use of the policy rule
+        """Sets a flag to enable the use of the policy
 
         @param policy_id    str
         @throws NotFound    object with specified id does not exist
@@ -117,7 +219,7 @@ class PolicyManagementService(BasePolicyManagementService):
 
 
     def disable_policy(self, policy_id=''):
-        """Resets a flag to disable the use of the policy rule
+        """Resets a flag to disable the use of the policy
 
         @param policy_id    str
         @throws NotFound    object with specified id does not exist
@@ -127,30 +229,9 @@ class PolicyManagementService(BasePolicyManagementService):
         self.update_policy(policy)
 
 
-    def policy_event_callback(self, *args, **kwargs):
-        """
-        This method is a callback function for receiving Policy Events.
-        """
-        policy_event = args[0]
-        policy_id = policy_event.origin
-        log.debug("Policy modified: %s" % policy_id)
-
-        try:
-            policy = self.clients.resource_registry.read(policy_id)
-            if policy:
-                #Need to publish an event that a policy has changed for any associated resource
-                res_list = self._find_resources_for_policy(policy_id)
-                for res in res_list:
-                    self._publish_resource_policy_event(policy, res)
-
-        except Exception, e:
-            #If this is a delete operation, then don't bother with not finding the object.
-            if policy_event.sub_type != 'DELETE':
-                log.error(e)
-
 
     def add_resource_policy(self, resource_id='', policy_id=''):
-        """Associates a policy rule to a specific resource
+        """Associates a policy to a specific resource
 
         @param resource_id    str
         @param policy_id    str
@@ -172,18 +253,13 @@ class PolicyManagementService(BasePolicyManagementService):
         if not policy:
             raise NotFound("Policy %s does not exist" % policy_id)
 
-        aid = self.clients.resource_registry.create_association(resource, PRED.hasPolicy, policy)
-        if not aid:
-            return False
-
-        #Publish an event that the resource policy has changed
-        self._publish_resource_policy_event(policy, resource)
+        self._add_resource_policy(resource, policy)
 
         return True
 
 
     def remove_resource_policy(self, resource_id='', policy_id=''):
-        """Removes an association for a policy rule to a specific resource
+        """Removes an association for a policy to a specific resource
 
         @param resource_id    str
         @param policy_id    str
@@ -209,6 +285,16 @@ class PolicyManagementService(BasePolicyManagementService):
         return True
 
     #Internal helper function for removing a policy resource association and publish event for containers to update
+    def _add_resource_policy(self, resource, policy):
+        aid = self.clients.resource_registry.create_association(resource, PRED.hasPolicy, policy)
+        if not aid:
+            return False
+
+        #Publish an event that the resource policy has changed
+        self._publish_resource_policy_event(policy, resource)
+
+        return True
+
     def _remove_resource_policy(self, resource, policy):
         aid = self.clients.resource_registry.get_association(resource, PRED.hasPolicy, policy)
         if not aid:
@@ -221,18 +307,64 @@ class PolicyManagementService(BasePolicyManagementService):
 
 
 
+    def _policy_event_callback(self, *args, **kwargs):
+        """
+        This method is a callback function for receiving Policy Events.
+        """
+        policy_event = args[0]
+        policy_id = policy_event.origin
+        log.debug("Policy modified: %s" % policy_id)
+
+        try:
+            policy = self.clients.resource_registry.read(policy_id)
+            if policy:
+                self._publish_policy_event(policy)
+
+        except Exception, e:
+            #If this is a delete operation, then don't bother with not finding the object.
+            if policy_event.sub_type != 'DELETE':
+                log.error(e)
+
+    def _publish_policy_event(self, policy):
+
+        if policy.policy_type.type_ == OT.CommonServiceAccessPolicy:
+            self._publish_service_policy_event(policy)
+        elif policy.policy_type.type_ == OT.ServiceAccessPolicy:
+            self._publish_service_policy_event(policy)
+        else:
+            #Need to publish an event that a policy has changed for any associated resource
+            res_list = self._find_resources_for_policy(policy._id)
+            for res in res_list:
+                self._publish_resource_policy_event(policy, res)
+
+
     def _publish_resource_policy_event(self, policy, resource):
         #Sent ResourcePolicyEvent event
 
         if self.event_pub:
             event_data = dict()
-            event_data['origin_type'] = 'Policy'
-            event_data['description'] = 'Resource Policy Modified'
+            event_data['origin_type'] = 'Resource_Policy'
+            event_data['description'] = 'Updated Resource Policy'
             event_data['resource_id'] = resource._id
             event_data['resource_type'] = resource.type_
             event_data['resource_name'] = resource.name
 
             self.event_pub.publish_event(event_type='ResourcePolicyEvent', origin=policy._id, **event_data)
+
+    def _publish_service_policy_event(self, policy):
+        #Sent ServicePolicyEvent event
+
+        if self.event_pub:
+            event_data = dict()
+            event_data['origin_type'] = 'Service_Policy'
+            event_data['description'] = 'Updated Service Policy'
+
+            if hasattr(policy.policy_type, 'service_name'):
+                event_data['service_name'] = policy.policy_type.service_name
+            else:
+                event_data['service_name'] = ''
+
+            self.event_pub.publish_event(event_type='ServicePolicyEvent', origin=policy._id, **event_data)
 
 
     def find_resource_policies(self, resource_id=''):
@@ -249,8 +381,10 @@ class PolicyManagementService(BasePolicyManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        policy_list,_ = self.clients.resource_registry.find_objects(resource, PRED.hasPolicy, RT.Policy)
+        return self._find_resource_policies(resource)
 
+    def _find_resource_policies(self, resource, policy=None):
+        policy_list,_ = self.clients.resource_registry.find_objects(resource, PRED.hasPolicy, policy)
         return policy_list
 
     def _find_resources_for_policy(self, policy_id=''):
@@ -264,43 +398,17 @@ class PolicyManagementService(BasePolicyManagementService):
 
         return resource_list
 
-    def _find_service_resource_by_name(self, name):
-
-        if not name:
-            raise BadRequest("The name parameter is missing")
-
-        res_list,_  = self.clients.resource_registry.find_resources(restype=RT.ServiceDefinition, name=name)
-        if not res_list:
-            raise NotFound('The ServiceDefinition with name %s does not exist' % name )
-        return res_list[0]
 
 
-    def _get_policy_template(self):
-
-        policy_template = '''<?xml version="1.0" encoding="UTF-8"?>
-        <Policy xmlns="urn:oasis:names:tc:xacml:2.0:policy:schema:os"
-            xmlns:xacml-context="urn:oasis:names:tc:xacml:2.0:context:schema:os"
-            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-            xsi:schemaLocation="urn:oasis:names:tc:xacml:2.0:policy:schema:os http://docs.oasis-open.org/xacml/access_control-xacml-2.0-policy-schema-os.xsd"
-            xmlns:xf="http://www.w3.org/TR/2002/WD-xquery-operators-20020816/#"
-            xmlns:md="http:www.med.example.com/schemas/record.xsd"
-            PolicyId="urn:oasis:names:tc:xacml:2.0:example:policyid:%s_%s"
-            RuleCombiningAlgId="urn:oasis:names:tc:xacml:1.0:rule-combining-algorithm:permit-overrides">
-            <PolicyDefaults>
-                <XPathVersion>http://www.w3.org/TR/1999/Rec-xpath-19991116</XPathVersion>
-            </PolicyDefaults>
-
-            %s
-        </Policy>'''
-
-        return policy_template
 
 
-    def get_active_resource_policy_rules(self, resource_id=''):
-        """Generates the set of all enabled policies for the specified resource
+    def get_active_resource_access_policy_rules(self, resource_id='', org_name=''):
+        """Generates the set of all enabled access policies for the specified resource within the specified Org. If the org_name
+        is not provided, then the root ION Org will be assumed.
 
         @param resource_id    str
-        @retval policy    str
+        @param org_name    str
+        @retval policy_rules    str
         @throws NotFound    object with specified id does not exist
         """
         if not resource_id:
@@ -310,106 +418,55 @@ class PolicyManagementService(BasePolicyManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        policy = self._get_policy_template()
+        #policy = self._get_policy_template()
 
-        #TODO - investigate better ways to optimize this
         rules = ""
         policy_set = self.find_resource_policies(resource_id)
 
         for p in policy_set:
             if p.enabled:
-                rules += p.rule
+                rules += p.policy_type.policy_rule
 
-        policy_rules = policy % ('', resource_id, rules)
+        #policy_rules = policy % (resource_id, rules)
 
-        return policy_rules
+        #return policy_rules
 
-    def add_service_policy(self, service_name='', policy_id=''):
-        """Associates a policy rule to a specific service
+        return rules
+
+    def get_active_service_access_policy_rules(self, service_name='', org_name=''):
+        """Generates the set of all enabled access policies for the specified service within the specified Org. If the org_name
+        is not provided, then the root ION Org will be assumed.
 
         @param service_name    str
-        @param policy_id    str
-        @retval success    bool
+        @param org_name    str
+        @retval policy_rules    str
         @throws NotFound    object with specified id does not exist
         """
 
-        if not service_name:
-            raise BadRequest("The name parameter is missing")
+        #TODO - extend to handle Org specific service policies at some point.
 
-        service_resource = self._find_service_resource_by_name(service_name)
-        aid = self.add_resource_policy(service_resource._id,policy_id )
-        return aid
+        #TODO - can the finds be replaced with a better index based on sub types?
 
 
-    def remove_service_policy(self, service_name='', policy_id=''):
-        """Removes an association for a policy rule to a specific service
-
-        @param service_name    str
-        @param policy_id    str
-        @retval success    bool
-        @throws NotFound    object with specified id does not exist
-        """
-        if not service_name:
-            raise BadRequest("The name parameter is missing")
-
-        service_resource = self._find_service_resource_by_name(service_name)
-        return self.remove_resource_policy(service_resource._id,policy_id )
-
-    def find_service_policies(self, service_name=''):
-        """Finds all policies associated with a specific service
-
-        @param service_name    str
-        @retval policy_list    list
-        @throws NotFound    object with specified id does not exist
-        """
-        if not service_name:
-            raise BadRequest("The name parameter is missing")
-
-        service_resource = self._find_service_resource_by_name(service_name)
-        return self.find_resource_policies(service_resource._id )
-
-    def get_active_service_policy_rules(self, org_id='', service_name=''):
-        """Generates the set of all enabled policies for the specified service
-
-        @param org_id    str
-        @param service_name    str
-        @retval policy    str
-        @throws NotFound    object with specified id does not exist
-        """
-
-        if not org_id:
-            raise BadRequest("The org_id parameter is missing")
-
-        org = self.clients.resource_registry.read(org_id)
-        if not org:
-            raise NotFound("Org %s does not exist" % org_id)
-
-        if not service_name:
-            raise BadRequest("The name parameter is missing")
-
-        policy = self._get_policy_template()
-
-        #TODO - investigate better ways to optimize this
+        #policy = self._get_policy_template()
 
         rules = ""
-        #First get any global Org rules
-        policy_set = self.find_resource_policies(org_id)
-        for p in policy_set:
-            if p.enabled:
-                rules += p.rule
+        policy_set,_ = self.clients.resource_registry.find_resources(restype=RT.Policy)
+        if not service_name:
+            for p in policy_set:
+                if p.enabled and p.policy_type.type_ == OT.CommonServiceAccessPolicy:
+                    rules += p.policy_type.policy_rule
 
-        #Next get service specific rules
-        policy_set = self.find_service_policies(service_name)
-        for p in policy_set:
-            if p.enabled:
-                rules += p.rule
+        else:
+            for p in policy_set:
+                if p.enabled and p.policy_type.type_ == OT.ServiceAccessPolicy and p.policy_type.service_name == service_name:
+                    rules += p.policy_type.policy_rule
 
-
-        policy_rules = policy % (org.name, service_name, rules)
-
-        return policy_rules
+        #policy_rules = policy % (service_name, rules)
 
 
+        #return policy_rules
+        return rules
 
 
 #

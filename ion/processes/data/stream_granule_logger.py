@@ -26,7 +26,7 @@ from pyon.ion.process import StandaloneProcess
 from pyon.public import log, StreamSubscriberRegistrar, PRED
 from pyon.util.containers import get_datetime
 from interface.objects import StreamQuery
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 

@@ -21,13 +21,29 @@ from pyon.event.event import EventPublisher
 from pyon.util.log import log
 from pyon.util.containers import get_ion_ts
 
+# Pyon exceptions.
+from pyon.core.exception import IonException
+from pyon.core.exception import BadRequest
+from pyon.core.exception import Conflict
+from pyon.core.exception import Timeout
+from pyon.core.exception import NotFound
+from pyon.core.exception import ServerError
+from pyon.core.exception import ResourceError
+
 # Interface imports.
 from interface.services.iresource_agent import BaseResourceAgent
 from interface.services.iresource_agent import ResourceAgentProcessClient
+from interface.objects import CapabilityType
 
 # ION imports.
-from ion.agents.instrument.instrument_fsm import InstrumentFSM  # TODO move this to a common location and rename ResourceFSM.
-from ion.agents.instrument.common import BaseEnum   # TODO move this to a common location and rename BaseResourceEnum.
+# TODO rename these to reflect base resource use.
+from ion.agents.instrument.instrument_fsm import InstrumentFSM 
+from ion.agents.instrument.instrument_fsm import FSMStateError
+from ion.agents.instrument.common import BaseEnum
+
+
+class UserAgent():
+    pass
 
 class ResourceAgentState(BaseEnum):
     """
@@ -69,7 +85,7 @@ class ResourceAgentEvent(BaseEnum):
     GET_RESOURCE_STATE = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_STATE'
     GET_RESOURCE_CAPABILITIES = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_CAPABILITIES'
     
-class ResourceAgentRefactor(BaseResourceAgent):
+class ResourceAgent(BaseResourceAgent):
     """
     A resource agent is an ION process of type "agent" that exposes the standard
     resource agent service interface. This base class captures the mechanisms
@@ -132,7 +148,8 @@ class ResourceAgentRefactor(BaseResourceAgent):
         """
         ION on_init initializer called once the process exists.
         """
-        log.debug("Resource Agent initializing. name=%s, resource_id=%s" % (self._proc_name, self.resource_id))
+        log.debug("Resource Agent initializing. name=%s, resource_id=%s"
+                  % (self._proc_name, self.resource_id))
 
         # Create event publisher.
         self._event_publisher = EventPublisher()
@@ -164,16 +181,36 @@ class ResourceAgentRefactor(BaseResourceAgent):
         """
         """
         
-        try:
-            caps = self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, current_state)
-            
-        except InstrumentStateException:
-            caps = []
+        caps = []
+        agent_caps= []
         
-        caps.extend(self._get_agent_capabilities(current_state))
-        
-        return caps
+        agent_cmds = self._fsm.get_events(current_state)
+        for item in agent_cmds:
+            cap = IonObject('AgentCapability',
+                            name=item,
+                            cap_type=CapabilityType.AGT_CMD)
+            agent_caps.append(cap)
 
+        agent_params = []
+        for item in agent_params:
+            cap = IonObject('AgentCapability',
+                            name=item,
+                            cap_type=CapabilityType.AGT_PAR)
+            agent_caps.append(cap)
+        
+        try:
+            resource_caps = self._fsm.on_event(
+                ResourceAgentEvent.GET_RESOURCE_CAPABILITIES,
+                current_state=current_state)
+        
+        except FSMStateError:
+            resource_caps = []
+            
+        caps.extend(agent_caps)
+        caps.extend(resource_caps)
+
+        return caps
+    
     ##############################################################
     # Agent interface.
     ##############################################################    
@@ -190,33 +227,41 @@ class ResourceAgentRefactor(BaseResourceAgent):
     
     def get_agent_state(self, resource_id=''):
         """
+        Return resource agent current common fsm state.
         """
         return self._fsm.get_current_state()
 
     def execute_agent(self, resource_id="", command=None):
         """
         """
+        
+        # Raise ION exceptions if the command is ill formed.
         if not command:
             raise iex.BadRequest('Execute argument "command" not set.')
 
         if not command.command:
             raise iex.BadRequest('Command name not set.')
 
-        cmd_id = command.command_id
-        cmd_name = command.command
-        cmd_result = IonObject('AgentCommandResult', cmd_id, cmd_name)
-        cmd_result.ts_execute = get_ion_ts()
+        # Construct a command result object.
+        cmd_result = IonObject("AgentCommandResult",
+                               command_id=command.command_id,
+                               command=command.command,
+                               ts_execute=get_ion_ts(),
+                               status=0)
 
-        cmd_args = command.args
-        cmd_kwargs = command.kwargs
+        # Grab command syntax.
+        cmd = command.command
+        args = command.args or []
+        kwargs = command.kwargs or {}
 
-        # This can throw an InstrumentException, some other resource
-        # exception (TBD), IonException, or other system Exception (server error).
-        # Should all be converted into equivalent IonExceptions here?
-        cmd_result.result = self._fsm.on_event(cmd_name, *cmd_argd, **cmd_kwargs)
+        try:
+            cmd_result.result = self._fsm.on_event(cmd, *args, **kwargs)
         
+        except FSMStateError as ex:
+            raise Conflict(*(ex.args))    
+                
         return cmd_result
-
+        
     ##############################################################
     # Resource interface.
     ##############################################################    
@@ -225,13 +270,21 @@ class ResourceAgentRefactor(BaseResourceAgent):
         """
         """
         
-        return self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE, params)
+        try:
+            self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE, params)
+            
+        except FSMStateError as ex:
+            raise Conflict(*(ex.args))    
     
     def set_resource(self, resource_id='', params={}):
         """
         """
-        
-        return self._fsm.on_event(ResourceAgentEvent.SET_RESOURCE, params)
+
+        try:
+            return self._fsm.on_event(ResourceAgentEvent.SET_RESOURCE, params)
+
+        except FSMStateError as ex:
+            raise Conflict(*(ex.args))    
 
     def get_resource_state(self, resource_id=''):
         """
@@ -255,10 +308,14 @@ class ResourceAgentRefactor(BaseResourceAgent):
         cmd_args = command.args
         cmd_kwargs = command.kwargs
 
-        # This can throw an InstrumentException, some other resource
-        # exception (TBD), IonException, or other system Exception (server error).
-        # Should all be converted into equivalent IonExceptions here?
-        cmd_result.result = self._fsm.on_event(ResourceAgentEvent.EXECUTE_RESOURCE, *cmd_args, **cmd_kwargs)
+        try:
+            print 'IN AGENT EXECUTE RESOURCE'
+            cmd_result.result = self._fsm.on_event(
+                ResourceAgentEvent.EXECUTE_RESOURCE, cmd_name,
+                *cmd_args, **cmd_kwargs)
+            
+        except FSMStateError as ex:
+            raise Conflict(*(ex.args))    
         
         return cmd_result        
 
@@ -425,8 +482,10 @@ class ResourceAgentRefactor(BaseResourceAgent):
         Common work upon every state entry.
         """
         state = self._fsm.get_current_state()
-        desc_str = 'Instrumnet agent entered state: %s' % state
+        desc_str = 'Resource agent %s entered state: %s' % (self.id, state)
         log.info(desc_str)
+        
+        #TODO add state change publication here.
         #pub = EventPublisher('DeviceCommonLifecycleEvent')
         #pub.publish_event(origin=self.resource_id, description=desc_str)
 
@@ -434,7 +493,11 @@ class ResourceAgentRefactor(BaseResourceAgent):
         """
         Common work upon every state exit.
         """
-        pass
+        state = self._fsm.get_current_state()
+        desc_str = 'Resource agent %s leaving state: %s' % (self.id, state)
+        log.info(desc_str)
+        #pub = EventPublisher('DeviceCommonLifecycleEvent')
+        #pub.publish_event(origin=self.resource_id, description=desc_str)
     
     def _construct_fsm(self):
         """
@@ -510,7 +573,7 @@ class ResourceAgentClient(ResourceAgentProcessClient):
         assert "name" in kwargs, "Name argument for agent target not set"
         
         # Superclass constructor.
-        ResourceAgentRefactorProcessClient.__init__(self, *args, **kwargs)
+        ResourceAgentProcessClient.__init__(self, *args, **kwargs)
 
     ##############################################################
     # Client interface.
@@ -523,25 +586,28 @@ class ResourceAgentClient(ResourceAgentProcessClient):
         return super(ResourceAgentClient, self).get_capabilities(self.resource_id, *args, **kwargs)
 
     def execute_agent(self, *args, **kwargs):
-        return super(ResourceAgentClient, self).execute(self.resource_id, *args, **kwargs)
-
-    def get_agent(self, *args, **kwargs):
-        return super(ResourceAgentClient, self).get_param(self.resource_id, *args, **kwargs)
-
-    def set_agent(self, *args, **kwargs):
-        return super(ResourceAgentClient, self).set_param(self.resource_id, *args, **kwargs)
-
-    def get_agent_state(self, *args, **kwargs):
-        return super(ResourceAgentClient, self).get_resource_state(self.resource_id, *args, **kwargs)
-
-    def execute_resource(self, *args, **kwargs):
         return super(ResourceAgentClient, self).execute_agent(self.resource_id, *args, **kwargs)
 
+    def get_agent(self, *args, **kwargs):
+        return super(ResourceAgentClient, self).get_agent(self.resource_id, *args, **kwargs)
+
+    def set_agent(self, *args, **kwargs):
+        return super(ResourceAgentClient, self).set_agent(self.resource_id, *args, **kwargs)
+
+    def get_agent_state(self, *args, **kwargs):
+        return super(ResourceAgentClient, self).get_agent_state(self.resource_id, *args, **kwargs)
+
+    def execute_resource(self, *args, **kwargs):
+        print 'IN EXE RESOURCE CLIENT'
+        print str(*args)
+        print str(**kwargs)
+        return super(ResourceAgentClient, self).execute_resource(self.resource_id, *args, **kwargs)
+
     def get_resource(self, *args, **kwargs):
-        return super(ResourceAgentClient, self).get_agent_param(self.resource_id, *args, **kwargs)
+        return super(ResourceAgentClient, self).get_resource(self.resource_id, *args, **kwargs)
 
     def set_resource(self, *args, **kwargs):
-        return super(ResourceAgentClient, self).set_agent_param(self.resource_id, *args, **kwargs)
+        return super(ResourceAgentClient, self).set_resource(self.resource_id, *args, **kwargs)
 
     def get_resource_state(self, *args, **kwargs):
         return super(ResourceAgentClient, self).get_resource_state(self.resource_id, *args, **kwargs)

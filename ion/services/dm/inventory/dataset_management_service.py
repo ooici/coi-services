@@ -10,6 +10,7 @@ from pyon.public import PRED
 from pyon.datastore.datastore import DataStore
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService
 from interface.objects import DataSet
+from pyon.util.arg_check import validate_is_instance
 
 class DatasetManagementService(BaseDatasetManagementService):
     def __init__(self, *args, **kwargs):
@@ -60,7 +61,6 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.clients.resource_registry.create_association(subject=dataset_id,predicate=PRED.hasStream,object=stream_id)
         return dataset_id
 
-
     def update_dataset(self, dataset=None):
         """@todo document this interface!!!
 
@@ -74,68 +74,36 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def read_dataset(self, dataset_id=''):
         """
-
         @throws NotFound if resource does not exist.
         """
-        return self.clients.resource_registry.read(dataset_id)
+        retval = self.clients.resource_registry.read(dataset_id)
+        validate_is_instance(retval,DataSet)
+        return retval
 
     def delete_dataset(self, dataset_id=''):
         """
         @throws NotFound if resource does not exist.
 
         """
-
         assocs = self.clients.resource_registry.find_associations(subject=dataset_id,predicate=PRED.hasStream)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(dataset_id)
 
+    def add_stream(self,dataset_id='', stream_id=''):
+        self.clients.resource_registry.create_association(subject=dataset_id, predicate=PRED.hasStream,object=stream_id)
+
+    def remove_stream(self,dataset_id='', stream_id=''):
+        assocs = self.clients.resource_registry.find_associations(subject=dataset_id, predicate=PRED.hasStream,object=stream_id)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
 
     def get_dataset_bounds(self, dataset_id=''):
-        """@brief Get the bounding coordinates of the dataset using a couch map/reduce query
-        @param dataset_id
-        @result bounds is a dictionary containing spatial and temporal bounds of the dataset in standard units
-
-        @param dataset_id    str
-        @retval bounds    Unknown
-        """
-        dataset = self.read_dataset(dataset_id=dataset_id)
-        key = dataset.primary_view_key # stream_id
-        ar = gevent.event.AsyncResult()
-        def ar_timeout(db):
-            opts = {
-                'start_key':[key,0],
-                'end_key':[key,2]
-            }
-            try:
-                results = db.query_view("datasets/bounds",opts=opts)[0]['value']
-            except IndexError:
-                # Means there are no results
-                results = {}
-            ar.set(results)
-        db = self.container.datastore_manager.get_datastore(dataset.datastore_name)
-        g = Greenlet(ar_timeout,db)
-        g.start()
-        bounds = ar.get(timeout=5)
-
-        return bounds
+        raise NotImplementedError('This function is deprecated and does not exist')
 
     def get_dataset_metadata(self, dataset_id=''):
-        """@brief Get the metadata for the dataset using a couch map/reduce query
-        @param dataset_id
-        @result the aggregated available metadata for the specified dataset
-
-        @param dataset_id    str
-        @retval metadata    Unknown
-        """
-        dataset = self.read_dataset(dataset_id=dataset_id)
-        #@todo: Perform Query
-        return ''
-
+        raise NotImplementedError('This function does not exist')
 
     def find_datasets(self, filters=None):
-        """
-        method docstring
-        """
-        pass
+        raise NotImplementedError('This function does not exist')
 

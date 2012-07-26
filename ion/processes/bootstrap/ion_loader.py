@@ -114,11 +114,12 @@ class IONLoader(ImmediateProcess):
 
             catfunc_ooi = getattr(self, "_load_%s_OOI" % category, None)
             if self.loadooi and catfunc_ooi:
+                log.debug('performing OOI parsing of %s', category)
                 catfunc_ooi()
 
             catfunc = getattr(self, "_load_%s" % category)
             filename = "%s/%s.csv" % (path, category)
-            log.info("Loading category %s from file %s" % (category, filename))
+            log.info("Loading category %s from file %s", category, filename)
             try:
                 with open(filename, "rb") as csvfile:
                     reader = self._get_csv_reader(csvfile)
@@ -130,6 +131,7 @@ class IONLoader(ImmediateProcess):
                             continue
                         row_do += 1
 
+                        log.debug('handling %s row: %r', category, row)
                         catfunc(row)
             except IOError, ioe:
                 log.warn("Resource category file %s error: %s" % (filename, str(ioe)))
@@ -539,9 +541,10 @@ class IONLoader(ImmediateProcess):
         if ass_id:
             ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
 
-#        ass_id = row["platform_device_id"]
-#        if ass_id:
-#            ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
+        #print 'about to get device for ' + row['ID'] + ' cols: ' + repr(row.keys())
+        ass_id = row["platform_device_id"]# if 'platform_device_id' in row else None
+        if ass_id:
+            ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
 
         self._resource_advance_lcs(row, res_id, "InstrumentDevice")
 
@@ -735,6 +738,11 @@ class IONLoader(ImmediateProcess):
         deployment_id = oms.create_deployment(deployment)
         oms.deploy_instrument_site(site_id, deployment_id)
         ims.deploy_instrument_device(device_id, deployment_id)
+
+        activate_str = row['activate'].lower()# if 'activate' in row else None
+        activate = activate_str=='true' or activate_str=='yes' or activate_str=='activate'
+        if activate:
+            oms.activate_deployment(deployment_id)
 
     def extract_ooi_assets(self, path):
         if not path:

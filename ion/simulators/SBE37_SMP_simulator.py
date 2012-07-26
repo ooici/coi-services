@@ -52,7 +52,7 @@ class sbe37(asyncore.dispatcher_with_send):
     ta1 = 3.138936e-04
     ta2 = -9.717158e-06
     ta3 = 2.138735e-07
-    caldate = "08-nov-05"
+    ccaldate = "08-nov-05"
     cg = -9.870930e-01
     ch = 1.417895e-01
     ci = 1.334915e-04
@@ -631,7 +631,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.send_data("    TA1 = " + '{0:.6e}'.format(self.ta1) + "\r\n", 'dc line 4')
                     self.send_data("    TA2 = " + '{0:.6e}'.format(self.ta2) + "\r\n", 'dc line 5')
                     self.send_data("    TA3 = " + '{0:.6e}'.format(self.ta3) + "\r\n", 'dc line 6')
-                    self.send_data("conductivity:  " + self.caldate + "\r\n", 'dc line 7')
+                    self.send_data("conductivity:  " + self.ccaldate + "\r\n", 'dc line 7')
                     self.send_data("    G = " + '{0:.6e}'.format(self.cg) + "\r\n", 'dc line 8')
                     self.send_data("    H = " + '{0:.6e}'.format(self.ch) + "\r\n", 'dc line 9')
                     self.send_data("    I = " + '{0:.6e}'.format(self.ci) + "\r\n", 'dc line 10')
@@ -685,8 +685,8 @@ class sbe37(asyncore.dispatcher_with_send):
                     except:
                         self.send_data("? CMD\r\n", 'ta3 line 1')
 
-                elif command_args[0] == 'caldate':
-                    self.caldate=command_args[1]                 #take it on faith
+                elif command_args[0] == 'ccaldate':
+                    self.ccaldate=command_args[1]                 #take it on faith
 
                 elif command_args[0] == 'cg':
                     try:

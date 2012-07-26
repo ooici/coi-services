@@ -122,3 +122,22 @@ class InstrumentFSM():
         if handler:
             handler(*args, **kwargs)
 
+    def get_events(self, current_state=True):
+        """
+        Return a list of events handled.
+        @param current_state if true, return events handled in the current state only.
+        @retval list of events handled.
+        """
+        events = []
+        for (key, handler) in self.state_handlers.iteritems():
+            state = key[0]
+            event = key[1]
+            if not ((event == self.enter_event) or (event == self.exit_event)):
+                if current_state:
+                    if (self.current_state==state):
+                        if event not in events:
+                            events.append(event)
+                else:
+                    if event not in events:
+                        events.append(event)
+        return events

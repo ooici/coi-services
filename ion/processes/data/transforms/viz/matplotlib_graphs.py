@@ -6,9 +6,9 @@ from pyon.public import IonObject, RT, log
 
 import time
 import numpy
-from pyon.ion.granule.granule import build_granule
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.granule import build_granule
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 

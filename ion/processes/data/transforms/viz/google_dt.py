@@ -13,18 +13,14 @@ from pyon.public import IonObject, RT, log
 
 from datetime import datetime
 import numpy
-from pyon.ion.granule.granule import build_granule
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.granule import build_granule
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor, RawSupplementConstructor
 
-### For new granule and stream interface
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.granule import build_granule
 from pyon.util.containers import get_safe
 
 tx = TaxyTool()

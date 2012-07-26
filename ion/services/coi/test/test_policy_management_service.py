@@ -10,7 +10,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import PRED, RT, IonObject
+from pyon.public import PRED, RT, IonObject, OT
 from ion.services.coi.policy_management_service import PolicyManagementService
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceClient
 
@@ -38,7 +38,7 @@ class TestPolicyManagementService(PyonTestCase):
         self.policy = Mock()
         self.policy.name = "Foo"
         self.policy.description ="This is a test policy"
-        self.policy.rule = '<Rule id="%s"> <description>%s</description></Rule>'
+        self.policy.policy_type.policy_rule = '<Rule id="%s"> <description>%s</description></Rule>'
 
         # UserRole
         self.user_role = Mock()
@@ -181,7 +181,13 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
         self.policy_management_service = PolicyManagementServiceClient(node=self.container.node)
 
     def test_policy_crud(self):
-        policy_obj = IonObject("Policy", {"name": "Test_Policy", "description":"This is a test policy", "rule": '<Rule id="%s"> <description>%s</description></Rule>' })
+
+        res_policy_obj = IonObject(OT.ResourceAccessPolicy, policy_rule='<Rule id="%s"> <description>%s</description></Rule>')
+
+        policy_obj = IonObject(RT.Policy, name='Test_Policy',
+            description='This is a test policy',
+            policy_type=res_policy_obj)
+
         policy_id = self.policy_management_service.create_policy(policy_obj)
         self.assertNotEqual(policy_id, None)
 
@@ -218,7 +224,7 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
         self.assertNotEqual(user_role, None)
 
         user_role.name = 'Test_User_Role_2'
-        self.policy_management_service.update_policy(user_role)
+        self.policy_management_service.update_role(user_role)
 
         user_role = None
         user_role = self.policy_management_service.read_role(user_role_id)

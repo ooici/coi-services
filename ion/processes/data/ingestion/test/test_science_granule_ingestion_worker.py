@@ -6,9 +6,9 @@
 @description DESCRIPTION
 '''
 from pyon.util.unit_test import PyonTestCase
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.granule import build_granule as bg
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule.granule import build_granule as bg
 from ion.processes.data.ingestion.science_granule_ingestion_worker import ScienceGranuleIngestionWorker
 
 from mock import Mock
@@ -52,10 +52,12 @@ class ScienceGranuleIngestionWorkerUnitTest(PyonTestCase):
 
         self.worker.write   = Mock()
         self.worker.persist = Mock()
+        self.worker.get_dataset = Mock()
+        self.worker.get_dataset.return_value = 'dataset_id'
 
         def check_persist(dataset_granule):
             self.assertTrue(dataset_granule['stream_id'] == 'stream_id')
-            self.assertTrue(dataset_granule['dataset_id'] == 'stream_id')
+            self.assertTrue(dataset_granule['dataset_id'] == 'dataset_id')
         self.worker.persist.side_effect = check_persist
 
         self.worker.ingest(granule,'stream_id')

@@ -550,32 +550,32 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         #- - - - - - - - - - - - - - - - - 
 
         instrument_pool = [
-            InstrumentDevice(name='sonobuoy1', hardware_version='1'),
-            InstrumentDevice(name='sonobuoy2', hardware_version='2'),
-            InstrumentDevice(name='sonobuoy3', hardware_version='3')
+            InstrumentDevice(name='sonobuoy1', firmware_version='1'),
+            InstrumentDevice(name='sonobuoy2', firmware_version='2'),
+            InstrumentDevice(name='sonobuoy3', firmware_version='3')
         ]
         for instrument in instrument_pool:
             self.rr.create(instrument)
 
-        view_id = self.discovery.create_view('devices', fields=['hardware_version'])
+        view_id = self.discovery.create_view('devices', fields=['firmware_version'])
 
-        search_string = "search 'hardware_version' is '2' from '%s'"%view_id
+        search_string = "search 'firmware_version' is '2' from '%s'"%view_id
         results = self.poll(5, self.discovery.parse,search_string)
         result  = results[0]['_source']
         self.assertIsInstance(result, InstrumentDevice)
         self.assertTrue(result.name == 'sonobuoy2')
-        self.assertTrue(result.hardware_version == '2')
+        self.assertTrue(result.firmware_version == '2')
 
 
     @skipIf(not use_es, 'No ElasticSearch')
     def test_associative_searching(self):
 
-        view_id = self.discovery.create_view('devices', fields=['model'])
+        view_id = self.discovery.create_view('devices', fields=['platform_family'])
         site_id,_ = self.rr.create(Site('my_site'))
-        pd_id, _  = self.rr.create(PlatformDevice('my_device', model='abc123'))
+        pd_id, _  = self.rr.create(PlatformDevice('my_device', platform_family='abc123'))
         self.rr.create_association(subject=site_id, object=pd_id, predicate=PRED.hasDevice)
 
-        search_string = "search 'model' is 'abc*' from '%s' and belongs to '%s'"%(view_id, site_id)
+        search_string = "search 'platform_family' is 'abc*' from '%s' and belongs to '%s'"%(view_id, site_id)
 
         results = self.poll(5, self.discovery.parse,search_string)
         self.assertIsNotNone(results, 'Results not found')
@@ -685,7 +685,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         dp.data_format.character_set = 'utf8'
         dp.data_format.nominal_sampling_rate_maximum = '44000'
         dp.data_format.nominal_sampling_rate_minimum = '44000'
-        dp.data_product_level = 'basic'
+        dp.CDM_data_type = 'basic'
         dp_id, _ = self.rr.create(dp)
 
         search_string = "search 'data_format.name' is 'test_signal' from 'data_products_index'"
@@ -694,7 +694,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dp_id)
 
-        search_string = "search 'data_product_level' is 'basic' from 'data_products_index'"
+        search_string = "search 'CDM_data_type' is 'basic' from 'data_products_index'"
         results = self.poll(9, self.discovery.parse, search_string)
 
         self.assertIsNotNone(results, 'Results not found')

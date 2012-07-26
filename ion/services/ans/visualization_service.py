@@ -15,16 +15,17 @@ Note:
 from pyon.public import IonObject, RT, log, PRED, StreamSubscriberRegistrar, StreamPublisherRegistrar, Container
 from pyon.util.containers import create_unique_identifier, get_safe
 from interface.objects import StreamQuery
-from pyon.core.exception import Inconsistent
+from pyon.core.exception import Inconsistent, BadRequest
 from datetime import datetime
 
 import simplejson
 import math
 import gevent
-from gevent.greenlet import Greenlet
-try: import simplejson as json
-except ImportError: import json
 import base64
+import string
+import random
+from gevent.greenlet import Greenlet
+
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
@@ -34,14 +35,6 @@ from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
 from interface.objects import Granule
 from pyon.util.containers import get_safe
-
-
-# Matplotlib related imports
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-from matplotlib.figure import Figure
 
 # Google viz library for google charts
 import ion.services.ans.gviz_api as gviz_api
@@ -66,12 +59,16 @@ class VisualizationService(BaseVisualizationService):
         return
 
 
-    def initiate_realtime_visualization(self, data_product_id='', viz_product_type='', query='', callback=""):
+    def initiate_realtime_visualization(self, data_product_id='', in_product_type='', query='', callback=""):
         """Initial request required to start a realtime chart for the specified data product. Returns a user specific token associated
         with the request that will be required for subsequent requests when polling data.
+        
+        Note : The in_product_type is a temporary fix for specifying the type of data product to the the service
 
         @param data_product_id    str
-        @param query    str
+        @param in_product_type str
+        @param query        str
+        @param callback     str
         @retval query_token    str
         @throws NotFound    Throws if specified data product id or its visualization product does not exist
         """
@@ -80,20 +77,21 @@ class VisualizationService(BaseVisualizationService):
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
         data_product = self.clients.resource_registry.read(data_product_id)
+        
         if not data_product:
             raise NotFound("Data product %s does not exist" % data_product_id)
 
         data_product_stream_id = None
         workflow_def_id = None
 
-        # If not viz_product_type was specified, assume the data product passed represents a pure data stream
+        # If not in_product_type was specified, assume the data product passed represents a pure data stream
         # and needs to be converted to some form of visualization .. Google DataTable by default unless specified
         # in the future by additional parameters. Create appropriate workflow to do the conversion
-        if viz_product_type == '':
+        if in_product_type == '':
 
             # Check to see if the workflow defnition already exist
             workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
-            print ">>>>>>>>>>>>>>>>>> workflow_def_ids = ", workflow_def_ids
+
             if len(workflow_def_ids) > 0:
                 workflow_def_id = workflow_def_ids[0]
             else:
@@ -123,7 +121,7 @@ class VisualizationService(BaseVisualizationService):
 
 
         # TODO check if is a real time GDT stream automatically
-        if viz_product_type == 'google_dt':
+        if in_product_type == 'google_dt':
 
             # Retrieve the id of the OUTPUT stream from the out Data Product
             stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, None, True)
@@ -160,7 +158,7 @@ class VisualizationService(BaseVisualizationService):
 
         gdt_description = None
         gdt_content = []
-        viz_product_type = ''
+        product_type = ''
 
         for message in messages:
 
@@ -179,13 +177,13 @@ class VisualizationService(BaseVisualizationService):
                     continue
 
                 gdt_component = gdt_components[0]
-                viz_product_type = gdt_component['viz_product_type']
+                product_type = gdt_component['product_type']
 
                 # Process Google DataTable messages
-                if viz_product_type == 'google_dt':
+                if product_type == 'google_dt':
 
                     # If the data description is being put together for the first time,
-                    # switch the time fomat from float to datetime
+                    # switch the time format from float to datetime
                     if (gdt_description == None):
                         temp_gdt_description = gdt_component['data_description']
                         gdt_description = [('time', 'datetime', 'time')]
@@ -214,7 +212,7 @@ class VisualizationService(BaseVisualizationService):
 
 
         # Now that all the messages have been parsed, any last processing should be done here
-        if viz_product_type == "google_dt":
+        if product_type == "google_dt":
 
             # Using the description and content, build the google data table
             gdt = gviz_api.DataTable(gdt_description)
@@ -341,7 +339,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
-    def get_visualization_data(self, data_product_id='', viz_product_type='', query='', callback=''):
+    def get_visualization_data(self, data_product_id='', out_product_type='', query='', callback=''):
         """Retrieves the data for the specified DP and sends a token back which can be checked in
             a non-blocking fashion till data is ready
 
@@ -352,7 +350,7 @@ class VisualizationService(BaseVisualizationService):
         """
 
         # error check
-        if data_product_id == '' or viz_product_type == '':
+        if data_product_id == '' or out_product_type == '':
             return None
 
         query_token = None
@@ -370,7 +368,7 @@ class VisualizationService(BaseVisualizationService):
         if retrieved_granule == None:
             return None
 
-        if viz_product_type == 'google_dt':
+        if out_product_type == 'google_dt':
             # send the granule through the transform to get the google datatable
             gdt_transform = VizTransformGoogleDT()
             gdt_data_granule = gdt_transform.execute(retrieved_granule)
@@ -409,7 +407,7 @@ class VisualizationService(BaseVisualizationService):
             else:
                 return callback + "(\"" + gdt.ToJSonResponse() + "\")"
 
-        if viz_product_type == 'matplotlib_graphs':
+        if out_product_type == 'matplotlib_graphs':
 
             mpl_transform = VizTransformMatplotlibGraphs()
             mpl_data_granule = mpl_transform.execute(retrieved_granule)
