@@ -62,7 +62,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         if not stream_id in self.datasets:
             val = self._new_dataset(stream_id)
             if val:
-                self.datasets[stream_id] = self._new_dataset(stream_id)
+                self.datasets[stream_id] = val
             else: return None
         return self.datasets[stream_id]
 
@@ -153,7 +153,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
 
 
 
-    def persist(self, dataset_granule):
+    def persist(self, dataset_granule): #pragma no cover
         '''
         Persists the dataset metadata
         '''
