@@ -156,8 +156,11 @@ class DataRetrieverService(BaseDataRetrieverService):
         return retrieve_data
 
     def retrieve_last_granule(self, dataset_id=''):
-
         return ReplayProcess.get_last_granule(self.container,dataset_id)
+
+    def retrieve_last_data_point(self, dataset_id=''):
+        return ReplayProcess.get_last_values(dataset_id)
+    
     @classmethod
     def _transform_data(binding, data, module, cls, **kwargs):
         transform = for_name(module,cls)

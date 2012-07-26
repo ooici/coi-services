@@ -10,16 +10,10 @@
 from interface.services.dm.ireplay_process import BaseReplayProcess
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from pyon.core.exception import BadRequest, IonException, NotFound
-from pyon.util.file_sys import FileSystem,FS
-from pyon.core.interceptor.encode import decode_ion
-from ion.services.dm.utility.granule.granule import combine_granules
 from pyon.core.object import IonObjectDeserializer
 from pyon.core.bootstrap import get_obj_registry
 from gevent.event import Event
-from pyon.public import log
-from pyon.util.arg_check import validate_true
 from pyon.datastore.datastore import DataStore
-import msgpack
 import gevent
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule_utils import CoverageCraft
@@ -81,7 +75,8 @@ class ReplayProcess(BaseReplayProcess):
         '''
         coverage = DatasetManagementService._get_coverage(self.dataset_id)
         crafter = CoverageCraft(coverage)
-        #@todo: add some slicing here
+        #@todo: add bounds checking to ensure the dataset being retrieved is not too large
+        crafter.sync_rdt_with_coverage(start_time=self.start_time,end_time=self.end_time)
         granule = crafter.to_granule()
         return granule
 
@@ -101,6 +96,55 @@ class ReplayProcess(BaseReplayProcess):
         self.output.publish({})
         self.publishing.clear()
         return True
+
+    @classmethod
+    def get_last_granule(cls, container, dataset_id):
+        dsm_cli = DatasetManagementServiceClient()
+        dataset = dsm_cli.read_dataset(dataset_id)
+        cc = container
+        datastore_name = dataset.datastore_name
+        datastore = cc.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
+        view_name = dataset.view_name
+
+        opts = dict(
+            start_key = [dataset_id, {}],
+            end_key   = [dataset_id, 0], 
+            descending = True,
+            limit = 1,
+            include_docs = True
+        )
+
+        results = datastore.query_view(view_name,opts=opts)
+        if not results:
+            raise NotFound('A granule could not be located.')
+        if results[0] is None:
+            raise NotFound('A granule could not be located.')
+        doc = results[0].get('doc')
+        if doc is None:
+            return None
+
+        ts = float(doc.get('ts_create',0))
+
+        coverage = DatasetManagementService._get_coverage(dataset_id)
+        
+        black_box = CoverageCraft(coverage)
+        black_box.sync_rdt_with_coverage(start_time=ts,end_time=None)
+        granule = black_box.to_granule()
+
+        return granule
+
+    @classmethod
+    def get_last_values(cls, dataset_id):
+        coverage = DatasetManagementService._get_coverage(dataset_id)
+        
+        black_box = CoverageCraft(coverage)
+        black_box.sync_rdt_with_coverage(tdoa=slice(-1,None))
+        granule = black_box.to_granule()
+        return granule
+
+
+        
+
 
 
 

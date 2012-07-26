@@ -76,6 +76,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
             dataset_id = self.get_dataset(stream_id)
             if not dataset_id:
                 return None
+            #@todo: For workers>1 we cannot maintain an instantiated coverage object in cache.
             coverage = DatasetManagementService._get_coverage(dataset_id)
             self.coverages[stream_id] = coverage
             return coverage

@@ -65,7 +65,7 @@ class CoverageCraft(object):
             self.coverage.set_parameter_values(param_name=k,tdoa=slice_, value=v)
 
 
-    def sync_rdt_with_coverage(self, coverage=None, start_time=None, end_time=None):
+    def sync_rdt_with_coverage(self, coverage=None, tdoa=None, start_time=None, end_time=None):
         '''
         Builds a granule based on the coverage
         '''
@@ -73,8 +73,10 @@ class CoverageCraft(object):
             coverage = self.coverage
 
         slice_ = slice(None) # Defaults to all values
+        if tdoa is not None and isinstance(tdoa,slice):
+            slice_ = tdoa
 
-        if not (start_time is None or end_time is None):
+        elif not (start_time is None and end_time is None):
             uom = coverage.get_parameter_context('time').uom
             if start_time is not None:
                 start_units = self.ts_to_units(uom,start_time)
@@ -123,7 +125,7 @@ class CoverageCraft(object):
         pdict = ParameterDictionary()
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
         t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 01-01-1970'
+        t_ctxt.uom = 'seconds since 1970-01-01'
         t_ctxt.fill_value = 0x0
         pdict.add_context(t_ctxt)
 
