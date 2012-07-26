@@ -238,6 +238,19 @@ class DataProductManagementService(BaseDataProductManagementService):
 #        for dataset_id in dataset_ids:
 #         self.data_product.unlink_data_set(data_product_id, dataset_id)
         
+    def get_data_product_provenance(self, data_product_id=''):
+        """
+        method docstring
+        """
+        # Retrieve all metadata for a specific data product
+        # Return data product resource
+
+        log.debug("DataProductManagementService:read_data_product: %s" % str(data_product_id))
+
+        result = self.data_product.read_one(data_product_id)
+
+        return {}
+    
 
     def create_data_product_version(self, data_product_id='', data_product_version=None):
         """Define a new version of an existing set of information that represent an inprovement in the quality or
