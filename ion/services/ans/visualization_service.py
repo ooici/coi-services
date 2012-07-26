@@ -158,7 +158,7 @@ class VisualizationService(BaseVisualizationService):
 
         gdt_description = None
         gdt_content = []
-        product_type = ''
+        viz_product_type = ''
 
         for message in messages:
 
@@ -177,10 +177,10 @@ class VisualizationService(BaseVisualizationService):
                     continue
 
                 gdt_component = gdt_components[0]
-                product_type = gdt_component['product_type']
+                viz_product_type = gdt_component['viz_product_type']
 
                 # Process Google DataTable messages
-                if product_type == 'google_dt':
+                if viz_product_type == 'google_dt':
 
                     # If the data description is being put together for the first time,
                     # switch the time format from float to datetime
@@ -212,7 +212,7 @@ class VisualizationService(BaseVisualizationService):
 
 
         # Now that all the messages have been parsed, any last processing should be done here
-        if product_type == "google_dt":
+        if viz_product_type == "google_dt":
 
             # Using the description and content, build the google data table
             gdt = gviz_api.DataTable(gdt_description)
@@ -325,7 +325,7 @@ class VisualizationService(BaseVisualizationService):
 
 
         # create a stream definition for the data from the
-        stream_def_id = self.pubsubclient.create_stream_definition(container=VizTransformGoogleDT.outgoing_stream_def,  name='VizTransformGoogleDT')
+        stream_def_id = self.pubsubclient.create_stream_definition(container=VizTransformGoogleDT.outgoing_stream_def, name='VizTransformGoogleDT')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
 
         return procdef_id
@@ -424,6 +424,6 @@ class VisualizationService(BaseVisualizationService):
             if callback == '':
                 return ret_dict
             else:
-                return callback + "(" + json.dumps(ret_dict) + ")"
+                return callback + "(" + simplejson.dumps(ret_dict) + ")"
 
 
