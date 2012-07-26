@@ -11,8 +11,9 @@ from pyon.datastore.datastore import DataStore
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
+from ion.services.dm.utility.granule_utils import CoverageCraft, SimplexCoverage
 from nose.plugins.attrib import attr
-from mock import Mock
+from mock import Mock, patch
 import random
 import unittest
 
@@ -47,17 +48,35 @@ class DatasetManagementTest(PyonTestCase):
         self.assertTrue(self.mock_rr_create.called)
         self.assertTrue(self.mock_rr_create_assoc.call_count)
 
-    @unittest.skip('TODO: implement')
+
     def test_create_coverage(self):
-        pass
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        pdict = craft.create_parameters()
+        pdict = pdict.dump()
 
-    @unittest.skip('TODO: implement')
-    def test_persist_coverage(self):
-        pass
+        coverage = self.dataset_management._create_coverage("doesn't matter", pdict, sdom, tdom)
+        self.assertIsInstance(coverage,SimplexCoverage)
 
-    @unittest.skip('TODO: implement')
-    def test_get_coverage(self):
-        pass
+    @patch('ion.services.dm.inventory.dataset_management_service.SimplexCoverage')
+    @patch('ion.services.dm.inventory.dataset_management_service.validate_is_instance')
+    def test_persist_coverage(self,validation, cov_mock):
+        validation = Mock()
+        cov_mock.save = Mock()
+        mock_bb = CoverageCraft()
+        self.dataset_management._persist_coverage('dataset_id', mock_bb.coverage)
+
+
+    @patch('ion.services.dm.inventory.dataset_management_service.SimplexCoverage')
+    def test_get_coverage(self, cov_mock):
+        cov_mock.load = Mock()
+        cov_mock.load.return_value = 'test'
+
+        retval = self.dataset_management._get_coverage('dataset_id')
+        self.assertEquals(retval,'test')
+
 
     def test_update_dataset(self):
         # mocks
@@ -81,6 +100,15 @@ class DatasetManagementTest(PyonTestCase):
         # assertions
         self.mock_rr_delete.assert_called_with('123')
         self.assertTrue(self.mock_rr_delete_assoc.call_count == 1)
+
+    def test_add_stream(self):
+        self.dataset_management.add_stream('dataset_id','stream_id')
+        self.assertTrue(self.mock_rr_create_assoc.call_count)
+    
+    def test_remove_stream(self):
+        self.mock_rr_find_assocs.return_value = [0]
+        self.dataset_management.remove_stream('dataset_id','stream_id')
+        self.assertTrue(self.mock_rr_delete_assoc.call_count)
 
 
 @attr('INT', group='dm')
