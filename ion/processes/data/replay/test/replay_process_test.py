@@ -40,6 +40,7 @@ class ReplayProcessUnitTest(PyonTestCase):
 
         self.replay.start_time = 0
         self.replay.end_time = 0
+        self.replay.parameters = None
 
         retval = self.replay.execute_retrieve()
 
