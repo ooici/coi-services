@@ -110,6 +110,28 @@ class DatasetManagementTest(PyonTestCase):
         self.dataset_management.remove_stream('dataset_id','stream_id')
         self.assertTrue(self.mock_rr_delete_assoc.call_count)
 
+    def test_get_dataset_info(self):
+        coverage = DotDict()
+        coverage.info = 1
+
+        self.dataset_management._get_coverage = Mock()
+        self.dataset_management._get_coverage.return_value = coverage
+
+        retval = self.dataset_management.get_dataset_info('dataset_id')
+        self.assertEquals(retval,1)
+
+
+    def test_get_dataset_parameters(self):
+        coverage = DotDict()
+        coverage.parameter_dictionary.dump = Mock()
+        coverage.parameter_dictionary.dump.return_value = 1
+
+        self.dataset_management._get_coverage = Mock()
+        self.dataset_management._get_coverage.return_value = coverage
+
+        retval = self.dataset_management.get_dataset_parameters('dataset_id')
+        self.assertEquals(retval,1)
+
 
 @attr('INT', group='dm')
 class DatasetManagementIntTest(IonIntegrationTestCase):

@@ -122,6 +122,15 @@ class DatasetManagementService(BaseDatasetManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
+
+    def get_dataset_info(self,dataset_id=''):
+        coverage = self._get_coverage(dataset_id)
+        return coverage.info
+
+    def get_dataset_parameters(self, dataset_id):
+        coverage = self._get_coverage(dataset_id)
+        return coverage.parameter_dictionary.dump()
+
     def get_dataset_bounds(self, dataset_id=''):
         raise NotImplementedError('This function is deprecated and does not exist')
 
