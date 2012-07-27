@@ -23,7 +23,9 @@ from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from ion.services.coi.service_gateway_service import get_role_message_headers
 from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE, ION_MANAGER
 from pyon.core.governance.negotiate_request import REQUEST_DENIED
-
+from ion.agents.instrument.test.test_instrument_agent import start_test_instrument_agent
+from interface.objects import AgentCommand
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
 ORG2 = 'Org2'
 INSTRUMENT_OPERATOR = 'INSTRUMENT_OPERATOR'
@@ -460,4 +462,36 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         commitments, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.ResourceCommitment)
         self.assertEqual(len(commitments),0)
+
+    @unittest.skip('not ready')
+    def test_agent_policy(self):
+
+        #Make sure that the system policies have been loaded
+        policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
+        self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
+
+
+        #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user level - test this
+        ia_client = start_test_instrument_agent(self.container, message_headers=self.sa_user_header)
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command='initialize')
+        retval = ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.INACTIVE)
+
+        cmd = AgentCommand(command='reset')
+        retval = ia_client.execute_agent(cmd)
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
