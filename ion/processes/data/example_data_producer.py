@@ -64,6 +64,7 @@ class BetterDataProducer(SimpleCtdPublisher):
 
             self.publish(granule)
             gevent.sleep(self.interval)
+            t_i += 1
 
 
 

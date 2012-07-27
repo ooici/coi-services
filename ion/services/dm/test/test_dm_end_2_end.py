@@ -338,6 +338,38 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(comp.all())
 
 
+    def test_replay_with_parameters(self):
+        #--------------------------------------------------------------------------------
+        # Create the configurations and the dataset
+        #--------------------------------------------------------------------------------
+        stream_id  = self.pubsub_management.create_stream()
+        config_id  = self.get_ingestion_config()
+        dataset_id = self.create_dataset()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
+
+
+        #--------------------------------------------------------------------------------
+        # Coerce the datastore into existence (beats race condition)
+        #--------------------------------------------------------------------------------
+        self.get_datastore(dataset_id)
+
+        self.launch_producer(stream_id)
+
+        self.wait_until_we_have_enough_granules(dataset_id,4)
+
+        query = {
+            'start_time': 0,
+            'end_time':   20,
+            'parameters': ['time','temp']
+        }
+        retrieved_data = self.data_retriever.retrieve(dataset_id=dataset_id,query=query)
+
+        rdt = RecordDictionaryTool.load_from_granule(retrieved_data)
+        comp = np.arange(20) == rdt['time']
+        self.assertTrue(comp.all(),'%s' % rdt.pretty_print())
+        self.assertEquals(set(rdt.iterkeys()), set(['time','temp']))
+
+
 
     def test_repersist_data(self):
         stream_id = self.pubsub_management.create_stream()
