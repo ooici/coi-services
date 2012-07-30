@@ -23,7 +23,6 @@ from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from ion.services.coi.service_gateway_service import get_role_message_headers
 from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE, ION_MANAGER
 from pyon.core.governance.negotiate_request import REQUEST_DENIED
-from ion.agents.instrument.test.test_instrument_agent import start_test_instrument_agent
 from interface.objects import AgentCommand
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
@@ -472,6 +471,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
         #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user level - test this
+        from ion.agents.instrument.test.test_instrument_agent import start_test_instrument_agent
         ia_client = start_test_instrument_agent(self.container, message_headers=self.sa_user_header)
 
         cmd = AgentCommand(command='get_current_state')
