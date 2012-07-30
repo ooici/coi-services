@@ -1458,9 +1458,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_platform = extended_resource_handler.create_extended_resource_container(
-            OT.InstrumentDeviceExtension,
+            OT.PlatformDeviceExtension,
             platform_device_id,
-            OT.InstrumentDeviceComputedAttributes,
+            OT.PlatformDeviceComputedAttributes,
             ext_associations,
             ext_exclude)
 
@@ -1476,14 +1476,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     # amount of energy being generated on the platform in Watts
     def get_power_energy_generation(self, platform_device_id):
-        return "1.1"
+        # amount of energy being generated on the platform in Watts
+        return 1.1
     
     # amount of energy currently being consumed by the platform in Watts
     def get_energy_consumption(self, platform_device_id):
-        return "1.1"
+        # amount of energy currently being consumed by the platform in Watts
+        return 1.1
 
     def get_data_transmission_rate(self, platform_device_id):
-        return "1.1"
+        return "data_transmission_rate"
 
     def get_speed_over_ground(self, platform_device_id):
-        return "1.1"
+        return "speed_over_ground"
+
+    def get_aggregated_status(self, platform_device_id):
+        # The status roll-up that summarizes the entire status of the device  (CV:  RED, YELLOW, GREEN, BLACK)
+        return "RED"

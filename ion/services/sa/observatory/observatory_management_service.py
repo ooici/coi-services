@@ -13,6 +13,7 @@ and the relationships between them
 
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, log, RT, PRED, LCS, LCE
+from pyon.ion.resource import ExtendedResourceContainer
 
 #from pyon.util.log import log
 from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
@@ -1127,3 +1128,68 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
+    ############################
+    #
+    #  EXTENDED RESOURCES
+    #
+    ############################
+
+
+    def get_observatory_extension(self, observatory_id='', ext_associations=None, ext_exclude=None):
+        """Returns an InstrumentDeviceExtension object containing additional related information
+
+        @param observatory_id    str
+        @param ext_associations    dict
+        @param ext_exclude    list
+        @retval observatory    ObservatoryExtension
+        @throws BadRequest    A parameter is missing
+        @throws NotFound    An object with the specified observatory_id does not exist
+        """
+
+        if not observatory_id:
+            raise BadRequest("The observatory_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_instrument = extended_resource_handler.create_extended_resource_container(
+            OT.ObservatoryExtension,
+            observatory_id,
+            OT.ObservatoryComputedAttributes,
+            ext_associations,
+            ext_exclude)
+
+        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_instrument, 'attachments'):
+            for att in extended_instrument.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
+
+        return extended_instrument
+
+
+        #Bogus functions for computed attributes
+    def get_number_data_sets(self, observatory_id):
+        return "1"
+
+    def get_number_instruments_deployed(self, observatory_id):
+        return "1"
+
+
+    def get_number_instruments_operational(self, observatory_id):
+        return "1"
+
+
+    def get_number_instruments_inoperational(self, observatory_id):
+        return "1"
+
+
+    def get_number_instruments(self, observatory_id):
+        return "1"
+
+
+    def get_number_platforms(self, observatory_id):
+        return "1"
+
+    def get_number_platforms_deployed(self, observatory_id):
+        return "1"
