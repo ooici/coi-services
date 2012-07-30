@@ -68,7 +68,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
             # create a dataset... todo: how to get the temporal and spatial domains to pass in when creating the dataset?
-            # todo: for now sending in dummy list....
+            # todo: for now sending in None....
 
 #            #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #            # Construct temporal and spatial Coordinate Reference System objects
