@@ -214,7 +214,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #TODO - Need to add workflow creation for google data table
 
-        vis_token = self.vis_client.initiate_realtime_visualization(workflow_product_id)
+        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=workflow_product_id, in_product_type='google_dt')
 
         #Trying to continue to receive messages in the queue
         gevent.sleep(10.0)  # Send some messages - don't care how many

@@ -21,6 +21,15 @@ from pyon.event.event import EventPublisher
 from pyon.util.log import log
 from pyon.util.containers import get_ion_ts
 
+# Pyon exceptions.
+from pyon.core.exception import IonException
+from pyon.core.exception import BadRequest
+from pyon.core.exception import Conflict
+from pyon.core.exception import Timeout
+from pyon.core.exception import NotFound
+from pyon.core.exception import ServerError
+from pyon.core.exception import ResourceError
+
 # Interface imports.
 from interface.services.iresource_agent import BaseResourceAgent
 from interface.services.iresource_agent import ResourceAgentProcessClient
@@ -29,8 +38,12 @@ from interface.objects import CapabilityType
 # ION imports.
 # TODO rename these to reflect base resource use.
 from ion.agents.instrument.instrument_fsm import InstrumentFSM 
+from ion.agents.instrument.instrument_fsm import FSMStateError
 from ion.agents.instrument.common import BaseEnum
-from ion.agents.instrument.exceptions import InstrumentStateException
+
+
+class UserAgent():
+    pass
 
 class ResourceAgentState(BaseEnum):
     """
@@ -190,7 +203,7 @@ class ResourceAgent(BaseResourceAgent):
                 ResourceAgentEvent.GET_RESOURCE_CAPABILITIES,
                 current_state=current_state)
         
-        except InstrumentStateException:
+        except FSMStateError:
             resource_caps = []
             
         caps.extend(agent_caps)
@@ -205,14 +218,12 @@ class ResourceAgent(BaseResourceAgent):
     def get_agent(self, resource_id='', params=[]):
         """
         """
-        #return 'GET_AGENT!'
-        return self._fsm.get_events(False)
-        
+        pass
     
     def set_agent(self, resource_id='', params={}):
         """
         """
-        return 'SET_AGENT'
+        pass
     
     def get_agent_state(self, resource_id=''):
         """
@@ -244,21 +255,11 @@ class ResourceAgent(BaseResourceAgent):
         kwargs = command.kwargs or {}
 
         try:
-            # Fire the command at the (derived class) state machine.
-            # Put the result in the result object.
             cmd_result.result = self._fsm.on_event(cmd, *args, **kwargs)
         
-        except Exception as e:
-            # If an exception is raised, return that in the result object.
-            if hasattr(e,'status_code'):
-                cmd_result.status = e.status_code
-            elif hasattr(e, 'error_code'):
-                cmd_result.status = e.error_code
-            else:
-                cmd_result.status = -1
-            cmd_result.result = e
-            log.warning("Agent command %s failed with trace=%s" % (command.command, traceback.format_exc()))
-            
+        except FSMStateError as ex:
+            raise Conflict(*(ex.args))    
+                
         return cmd_result
         
     ##############################################################
@@ -268,12 +269,22 @@ class ResourceAgent(BaseResourceAgent):
     def get_resource(self, resource_id='', params=[]):
         """
         """
-        return self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE, params)
+        
+        try:
+            self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE, params)
+            
+        except FSMStateError as ex:
+            raise Conflict(*(ex.args))    
     
     def set_resource(self, resource_id='', params={}):
         """
         """
-        return self._fsm.on_event(ResourceAgentEvent.SET_RESOURCE, params)
+
+        try:
+            return self._fsm.on_event(ResourceAgentEvent.SET_RESOURCE, params)
+
+        except FSMStateError as ex:
+            raise Conflict(*(ex.args))    
 
     def get_resource_state(self, resource_id=''):
         """
@@ -297,10 +308,14 @@ class ResourceAgent(BaseResourceAgent):
         cmd_args = command.args
         cmd_kwargs = command.kwargs
 
-        # This can throw an InstrumentException, some other resource
-        # exception (TBD), IonException, or other system Exception (server error).
-        # Should all be converted into equivalent IonExceptions here?
-        cmd_result.result = self._fsm.on_event(ResourceAgentEvent.EXECUTE_RESOURCE, *cmd_args, **cmd_kwargs)
+        try:
+            print 'IN AGENT EXECUTE RESOURCE'
+            cmd_result.result = self._fsm.on_event(
+                ResourceAgentEvent.EXECUTE_RESOURCE, cmd_name,
+                *cmd_args, **cmd_kwargs)
+            
+        except FSMStateError as ex:
+            raise Conflict(*(ex.args))    
         
         return cmd_result        
 
@@ -469,6 +484,8 @@ class ResourceAgent(BaseResourceAgent):
         state = self._fsm.get_current_state()
         desc_str = 'Resource agent %s entered state: %s' % (self.id, state)
         log.info(desc_str)
+        
+        #TODO add state change publication here.
         #pub = EventPublisher('DeviceCommonLifecycleEvent')
         #pub.publish_event(origin=self.resource_id, description=desc_str)
 
@@ -581,6 +598,9 @@ class ResourceAgentClient(ResourceAgentProcessClient):
         return super(ResourceAgentClient, self).get_agent_state(self.resource_id, *args, **kwargs)
 
     def execute_resource(self, *args, **kwargs):
+        print 'IN EXE RESOURCE CLIENT'
+        print str(*args)
+        print str(**kwargs)
         return super(ResourceAgentClient, self).execute_resource(self.resource_id, *args, **kwargs)
 
     def get_resource(self, *args, **kwargs):

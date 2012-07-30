@@ -169,6 +169,7 @@ AGT_CMDS = [
     'start_transaction'
 ]
 
+
 class FakeProcess(LocalContextMixin):
     """
     A fake process used because the test case is not an ion process.
@@ -176,6 +177,40 @@ class FakeProcess(LocalContextMixin):
     name = ''
     id=''
     process_type = ''
+
+#Refactored as stand alone method for starting an instrument agent for use in other tests, like governance
+#to do policy testing for resource agents
+#shenrie
+def start_test_instrument_agent(container, stream_config={}, message_headers=None):
+
+    # Create agent config.
+    agent_config = {
+        'driver_config' : DVR_CONFIG,
+        'stream_config' : stream_config,
+        'agent'         : {'resource_id': IA_RESOURCE_ID},
+        'test_mode' : True
+    }
+
+    # Start instrument agent.
+
+    log.debug("TestInstrumentAgent.setup(): starting IA.")
+    container_client = ContainerAgentClient(node=container.node,
+        name=container.name)
+
+    ia_pid = container_client.spawn_process(name=IA_NAME,
+        module=IA_MOD,
+        cls=IA_CLS,
+        config=agent_config, headers=message_headers)
+
+    log.info('Agent pid=%s.', str(ia_pid))
+
+    # Start a resource agent client to talk with the instrument agent.
+
+    ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
+    log.info('Got ia client %s.', str(ia_client))
+
+    return ia_client
+
 
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
@@ -230,31 +265,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._event_subscribers = []
         self._start_event_subscribers()
         self.addCleanup(self._stop_event_subscribers)
-                
-        # Create agent config.
-        agent_config = {
-            'driver_config' : DVR_CONFIG,
-            'stream_config' : self._stream_config,
-            'agent'         : {'resource_id': IA_RESOURCE_ID},
-            'test_mode' : True
-        }
-        
-        # Start instrument agent.
-        self._ia_pid = None
-        log.debug("TestInstrumentAgent.setup(): starting IA.")
-        container_client = ContainerAgentClient(node=self.container.node,
-                                                name=self.container.name)
-        self._ia_pid = container_client.spawn_process(name=IA_NAME,
-                                                      module=IA_MOD, 
-                                                      cls=IA_CLS, 
-                                                      config=agent_config)      
-        log.info('Agent pid=%s.', str(self._ia_pid))
-        
+
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
-        self._ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
-        log.info('Got ia client %s.', str(self._ia_client))        
-        
+        self._ia_client = start_test_instrument_agent(self.container, self._stream_config)
+
+
     def _start_pagent(self):
         """
         Construct and start the port agent.

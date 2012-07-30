@@ -23,11 +23,8 @@ from prototype.sci_data.constructor_apis import PointSupplementConstructor, RawS
 
 from pyon.util.containers import get_safe
 
-# Google viz library for google charts
-import ion.services.ans.gviz_api as gviz_api
-
 tx = TaxyTool()
-tx.add_taxonomy_set('google_dt','Google datatable')
+tx.add_taxonomy_set('google_dt_components','Google datatable')
 
 
 class VizTransformGoogleDT(TransformFunction):
@@ -51,7 +48,6 @@ class VizTransformGoogleDT(TransformFunction):
     """
 
     outgoing_stream_def = SBE37_RAW_stream_definition()
-    #outgoing_stream_def = SBE37_CDM_stream_definition()
     incoming_stream_def = SBE37_CDM_stream_definition()
 
     def on_start(self):
@@ -63,77 +59,63 @@ class VizTransformGoogleDT(TransformFunction):
         log.debug('(Google DT transform): Received Viz Data Packet' )
 
         #init stuff
-        # Need to move it to YAML or something
-        #self.realtime_window_size = 100
-        self.max_google_dt_len = 1024 # Remove this once the decimation has been moved in to the incoming dp
-
-        self.varTuple = []
-        self.total_num_of_records_recvd = 0
-        self.dataDescription = []
-        self.dataTableContent = []
+        varTuple = []
+        dataDescription = []
+        dataTableContent = []
 
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
         vardict = {}
         vardict['time'] = get_safe(rdt, 'time')
-        vardict['conductivity'] = get_safe(rdt, 'conductivity')
-        vardict['pressure'] = get_safe(rdt, 'pressure')
-        vardict['temperature'] = get_safe(rdt, 'temperature')
+        vardict['conductivity'] = get_safe(rdt, 'cond')
+        vardict['pressure'] = get_safe(rdt, 'pres')
+        vardict['temperature'] = get_safe(rdt, 'temp')
 
-        vardict['longitude'] = get_safe(rdt, 'longitude')
-        vardict['latitude'] = get_safe(rdt, 'latitude')
+        vardict['longitude'] = get_safe(rdt, 'long')
+        vardict['latitude'] = get_safe(rdt, 'lat')
         vardict['height'] = get_safe(rdt, 'height')
         arrLen = len(vardict['time'])  # Figure out how many values are present in the granule
 
         #iinit the dataTable
         # create data description from the variables in the message
-        self.dataDescription = [('time', 'datetime', 'time')]
+        dataDescription = [('time', 'float', 'time')]
 
         # split the data string to extract variable names
         for varname in  vardict.keys():   #psd.list_field_names():
             if varname == 'time':
                 continue
 
-            self.dataDescription.append((varname, 'number', varname))
+            dataDescription.append((varname, 'number', varname))
 
         # Add the records to the datatable
         for i in xrange(arrLen):
             varTuple = []
 
-            for varname,_,_ in self.dataDescription:
+            for varname,_,_ in dataDescription:
 
-                if vardict[varname] == None:
+                if vardict[varname] == None or len(vardict[varname]) == 0:
                     val = 0.0
                 else:
-                    if varname == 'time':
-                        val = datetime.fromtimestamp(vardict[varname][i])
-                    else:
-                        val = float(vardict[varname][i])
+                    val = float(vardict[varname][i])
 
                 varTuple.append(val)
 
             # Append the tuples to the data table
-            self.dataTableContent.append (varTuple)
-
+            if len(varTuple) > 0:
+                dataTableContent.append(varTuple)
 
         # submit the partial datatable to the viz service
         out_rdt = RecordDictionaryTool(taxonomy=tx)
 
-        # Use the components to create the actual google datatable
-        gdt = gviz_api.DataTable(self.dataDescription)
-        gdt.LoadData(self.dataTableContent)
-
         # submit resulting table back using the out stream publisher. The data_product_id is the input dp_id
         # responsible for the incoming data
         msg = {"viz_product_type": "google_dt",
-               "data_table": gdt.ToJSonResponse()}
+               "data_description": dataDescription,
+               "data_content": dataTableContent}
 
-        out_rdt['google_dt'] = numpy.array([msg])
+        out_rdt['google_dt_components'] = numpy.array([msg])
 
         log.debug('Google DT transform: Sending a granule')
         out_granule = build_granule(data_producer_id='google_dt_transform', taxonomy=tx, record_dictionary=out_rdt)
-
-        # clear the tuple for future use
-        self.varTuple[:] = []
 
         return out_granule

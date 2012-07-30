@@ -362,7 +362,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 tx = TaxyTool.load_from_granule(g)
                 rdt = RecordDictionaryTool.load_from_granule(g)
 
-                gdt_data = get_safe(rdt, 'google_dt')
+                gdt_data = get_safe(rdt, 'google_dt_components')
 
                 # IF this granule does not contains google dt, skip
                 if gdt_data == None:
@@ -371,7 +371,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 gdt = gdt_data[0]
 
                 assertions(gdt['viz_product_type'] == 'google_dt' )
-                assertions(len(gdt['data_table']) >= 0) # Need to come up with a better check
+                assertions(len(gdt['data_description']) >= 0) # Need to come up with a better check
+                assertions(len(gdt['data_content']) >= 0)
 
 
 
@@ -423,7 +424,13 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 if graphs == None:
                     continue
 
-                for graph in graphs:
+                for graph in graphs[0]:
+
+                    # At this point only dictionaries containing image data should be passed
+                    # For some reason non dictionary values are filtering through.
+                    if not isinstance(graph, dict):
+                        continue
+
                     assertions(graph['viz_product_type'] == 'matplotlib_graphs' )
                     # check to see if the list (numpy array) contians actual images
                     assertions(imghdr.what(graph['image_name'], graph['image_obj']) == 'png')
