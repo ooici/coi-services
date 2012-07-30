@@ -244,7 +244,7 @@ class VisualizationService(BaseVisualizationService):
             subscriber.initialize()
 
             msg_count,_ = subscriber.get_stats()
-            log.info('Messages in user queue 1: ' + str(msg_count))
+            log.info('Messages in user queue 1: %s ' % msg_count)
 
             ret_val = []
             msgs = subscriber.get_all_msgs(timeout=2)
@@ -255,7 +255,7 @@ class VisualizationService(BaseVisualizationService):
             ret_val = self._process_visualization_message(msgs)
 
             msg_count,_ = subscriber.get_stats()
-            log.info('Messages in user queue 2: ' + str(msg_count))
+            log.info('Messages in user queue 2: %s ' % msg_count)
 
         except Exception, e:
             raise e
