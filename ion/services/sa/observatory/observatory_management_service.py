@@ -1181,7 +1181,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
     def get_number_instruments_inoperational(self, observatory_id):
-        return "1"
+        return "1"  
 
 
     def get_number_instruments(self, observatory_id):

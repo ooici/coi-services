@@ -1492,4 +1492,4 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def get_aggregated_status(self, platform_device_id):
         # The status roll-up that summarizes the entire status of the device  (CV:  RED, YELLOW, GREEN, BLACK)
-        return "RED"
+        return "RED"   
