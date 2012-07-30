@@ -243,18 +243,18 @@ class VisualizationService(BaseVisualizationService):
             subscriber = Subscriber(from_name=xq)
             subscriber.initialize()
 
-            msg_count,_ = subscriber._chan.get_stats()
+            msg_count,_ = subscriber.get_stats()
             log.info('Messages in user queue 1: ' + str(msg_count))
 
             ret_val = []
-            msgs = subscriber.get_n_msgs(msg_count, timeout=2)
+            msgs = subscriber.get_all_msgs(timeout=2)
             for x in range(len(msgs)):
                 msgs[x].ack()
 
             # Different messages should get processed differently. Ret val will be decided by the viz product type
             ret_val = self._process_visualization_message(msgs)
 
-            msg_count,_ = subscriber._chan.get_stats()
+            msg_count,_ = subscriber.get_stats()
             log.info('Messages in user queue 2: ' + str(msg_count))
 
         except Exception, e:
@@ -285,7 +285,7 @@ class VisualizationService(BaseVisualizationService):
 
         if not subscription_ids:
             raise BadRequest("A Subscription object for the query_token parameter %s is not found" % query_token)
-            return
+
 
         if len(subscription_ids[0]) > 1:
             log.warn("An inconsistent number of Subscription resources associated with the name: %s - using the first one in the list",query_token )
