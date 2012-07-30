@@ -17,10 +17,16 @@ from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, PRED
 from mock import Mock
 from pyon.util.unit_test import PyonTestCase
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
 from nose.plugins.attrib import attr
 from interface.objects import ProcessDefinition
 import unittest
 import time
+import numpy as np
+from coverage_model.basic_types import AbstractIdentifiable, AbstractBase, AxisTypeEnum, MutabilityEnum
+from coverage_model.coverage import CRS, GridDomain, GridShape
+
 
 
 class FakeProcess(LocalContextMixin):
@@ -64,7 +70,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         dp = DataProduct(name='dp1')
 
-        parameter_dictionary = {}
+        parameter_dictionary = ParameterDictionary()
         data_product_id = self.client.create_data_product(data_product=dp, stream_definition_id=stream_def_id, parameter_dictionary=parameter_dictionary)
         stream_ids, garbage = self.rrclient.find_objects(data_product_id, PRED.hasStream, id_only=True)
         stream_id = stream_ids[0]
@@ -78,8 +84,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------
         res = self.client.get_last_update(data_product_id=data_product_id)
         self.assertTrue(isinstance(res[stream_id], LastUpdate), 'retrieving documents failed')
-
-
 
     def test_createDataProduct(self):
         client = self.client
@@ -117,7 +121,13 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             name='DP1',
             description='some new dp')
 
-        parameter_dictionary = {}
+        parameter_dictionary = ParameterDictionary()
+        # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('int64')))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        parameter_dictionary.add_context(t_ctxt)
+
         dp_id = client.create_data_product(dp_obj, '', parameter_dictionary)
 
         dp_obj = client.read_data_product(dp_id)

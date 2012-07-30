@@ -11,7 +11,8 @@ from interface.objects import IngestionQueue, DataProductVersion
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, PRED, LCS
 
-
+from coverage_model.basic_types import AbstractIdentifiable, AbstractBase, AxisTypeEnum, MutabilityEnum
+from coverage_model.coverage import CRS, GridDomain, GridShape
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -39,7 +40,9 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # Create will validate and register a new data product within the system
 
+        #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
+        #--------------------------------------------------------------------------------
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
         data_product_id = self.data_product.create_one(data_product)
 
@@ -53,7 +56,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.clients.resource_registry.create_association( subject=data_product_id, predicate=PRED.hasVersion, object=dpv_id)
         # - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -
 
-        #Create the stream if a stream definition is provided
+        #--------------------------------------------------------------------------------
+        #Create the stream and a dataset if a stream definition is provided
+        #--------------------------------------------------------------------------------
         log.debug("DataProductManagementService:create_data_product: stream definition id = %s" % stream_definition_id)
 
         if stream_definition_id:
@@ -61,15 +66,34 @@ class DataProductManagementService(BaseDataProductManagementService):
             # Associate the Stream with the main Data Product and with the default version
             self.data_product.link_stream(data_product_id, stream_id)
 
+
             # create a dataset... todo: how to get the temporal and spatial domains to pass in when creating the dataset?
-            data_set_id = self.clients.dataset_management.create_dataset(stream_id=stream_id, parameter_dict=parameter_dictionary)
+            # todo: for now sending in dummy list....
+
+#            #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#            # Construct temporal and spatial Coordinate Reference System objects
+#            tcrs = CRS([AxisTypeEnum.TIME])
+#            scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+#
+#            # Construct temporal and spatial Domain objects
+#            temporal_domain = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+#            spatial_domain = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+#            #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+            temporal_domain = None
+            spatial_domain = None
+
+            data_set_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
+                                                                            stream_id=stream_id,
+                                                                            parameter_dict=parameter_dictionary,
+                                                                            temporal_domain=temporal_domain,
+                                                                            spatial_domain=spatial_domain)
 
             # link dataset with data product. This creates the association in the resource registry
             self.data_product.link_data_set(data_product_id=data_product_id, data_set_id=data_set_id)
 
         # Return the id of the new data product
         return data_product_id
-
 
     def read_data_product(self, data_product_id=''):
         """
@@ -128,7 +152,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
 
         for dataset_id in dataset_ids:
-            self.data_product.unlink_stream(data_product_id=data_product_id, dataset_id=dataset_id)
+            self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
 
         #        # delete the hasOutputDataProduct associations link
         #        dp_assocs = self.clients.resource_registry.find_associations(data_product_id, PRED.hasOutputProduct)
@@ -208,9 +232,9 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         if persist_data:
 
-            #--------------------------------------------------------------------------------
-            # grab the ingestion configuration id to use to persist
-            #--------------------------------------------------------------------------------
+            #-----------------------------------------------------------------------------------------
+            # grab the ingestion configuration id from the data_product in order to use to persist it
+            #-----------------------------------------------------------------------------------------
             if data_product_obj.dataset_configuration_id:
                 ingestion_configuration_id = data_product_obj.dataset_configuration_id
             else:
