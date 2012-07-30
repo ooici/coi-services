@@ -286,7 +286,7 @@ class QueryLanguage(object):
             return False
         if not isinstance(query,dict):
             return False
-        if query.has_key('range') and isinstance(query['range'], dict) and query['range'].has_key('from') and query['range'].has_key('to') and query.has_key('index') and query.has_key('field'):
+        if query.has_key('range') and isinstance(query['range'], dict) and query.has_key('index') and query.has_key('field'):
             return True
         return False
     @classmethod
@@ -328,7 +328,7 @@ class QueryLanguage(object):
             return False
         if not isinstance(query,dict):
             return False
-        if query.has_key('time') and isinstance(query['time'], dict) and query['time'].has_key('from') and query['time'].has_key('to') and query.has_key('index') and query.has_key('field'):
+        if query.has_key('time') and isinstance(query['time'], dict) and query.has_key('index') and query.has_key('field'):
             return True
         return False
 
