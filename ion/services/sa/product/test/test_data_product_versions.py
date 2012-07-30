@@ -9,6 +9,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+from coverage_model.parameter import ParameterDictionary
 
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
@@ -59,7 +60,8 @@ class TestDataProductVersions(IonIntegrationTestCase):
         log.debug('Creating new data product with a stream definition')
         dp_obj = IonObject(RT.DataProduct, name='DP',description='some new dp')
         try:
-            dp_id = self.client.create_data_product(dp_obj, ctd_stream_def_id)
+            param_dict = ParameterDictionary()
+            dp_id = self.client.create_data_product(dp_obj, ctd_stream_def_id, param_dict)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         log.debug( 'new dp_id = %s', str(dp_id))
@@ -108,7 +110,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
         log.debug( 'new dpv_id = %s', str(dpv3_id))
 
 
-
+    @unittest.skip('')
     def test_createDataProductVersionFromSim(self):
 
         # ctd simulator process
@@ -143,7 +145,8 @@ class TestDataProductVersions(IonIntegrationTestCase):
         print 'Creating new CDM data product with a stream definition'
         dp_obj = IonObject(RT.DataProduct,name='ctd_parsed',description='ctd stream test')
         try:
-            ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
+            param_dict = ParameterDictionary()
+            ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, param_dict)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product

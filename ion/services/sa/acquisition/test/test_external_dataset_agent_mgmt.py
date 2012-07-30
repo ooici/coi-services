@@ -35,6 +35,7 @@ from pyon.public import RT, LCS, PRED
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
+from coverage_model.parameter import ParameterDictionary
 import unittest
 import time
 
@@ -123,7 +124,8 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         log.debug("TestExternalDatasetAgentMgmt: Creating new data product with a stream definition")
         dp_obj = IonObject(RT.DataProduct,name='eoi dataset data',description=' stream test')
         try:
-            data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
+            param_dict = ParameterDictionary()
+            data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, param_dict)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         log.debug("TestExternalDatasetAgentMgmt: new dp_id = %s", str(data_product_id1) )
