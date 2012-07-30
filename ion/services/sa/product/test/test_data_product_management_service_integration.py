@@ -71,6 +71,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dp = DataProduct(name='dp1')
 
         parameter_dictionary = ParameterDictionary()
+        parameter_dictionary.add_context(ParameterContext('p1',param_type=QuantityType(value_encoding='f', uom='m/s')))
+        parameter_dictionary.add_context(ParameterContext('p2',param_type=QuantityType(value_encoding='d', uom='km')))
+        parameter_dictionary.add_context(ParameterContext('p3',param_type=QuantityType(value_encoding='i', uom='s')))
+
         data_product_id = self.client.create_data_product(data_product=dp, stream_definition_id=stream_def_id, parameter_dictionary=parameter_dictionary)
         stream_ids, garbage = self.rrclient.find_objects(data_product_id, PRED.hasStream, id_only=True)
         stream_id = stream_ids[0]

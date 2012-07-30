@@ -80,17 +80,14 @@ class DataProductManagementService(BaseDataProductManagementService):
 #            spatial_domain = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
 #            #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-            temporal_domain = None
-            spatial_domain = None
-
-            data_set_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
-                                                                            stream_id=stream_id,
-                                                                            parameter_dict=parameter_dictionary,
-                                                                            temporal_domain=temporal_domain,
-                                                                            spatial_domain=spatial_domain)
-
-            # link dataset with data product. This creates the association in the resource registry
-            self.data_product.link_data_set(data_product_id=data_product_id, data_set_id=data_set_id)
+#            data_set_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
+#                                                                            stream_id=stream_id,
+#                                                                            parameter_dict=parameter_dictionary,
+#                                                                            temporal_domain=temporal_domain,
+#                                                                            spatial_domain=spatial_domain)
+#
+#            # link dataset with data product. This creates the association in the resource registry
+#            self.data_product.link_data_set(data_product_id=data_product_id, data_set_id=data_set_id)
 
         # Return the id of the new data product
         return data_product_id

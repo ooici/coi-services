@@ -124,8 +124,7 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         log.debug("TestExternalDatasetAgentMgmt: Creating new data product with a stream definition")
         dp_obj = IonObject(RT.DataProduct,name='eoi dataset data',description=' stream test')
         try:
-            param_dict = ParameterDictionary()
-            data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, param_dict)
+            data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         log.debug("TestExternalDatasetAgentMgmt: new dp_id = %s", str(data_product_id1) )
