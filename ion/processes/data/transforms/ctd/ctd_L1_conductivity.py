@@ -37,16 +37,50 @@ class CTDL1ConductivityTransform(TransformFunction):
         self.incoming_stream_def = L0_conductivity_stream_definition()
         #outgoing_stream_def = L1_conductivity_stream_definition()
 
+        ### Parameter dictionaries
+        self.defining_parameter_dictionary()
+
+    def defining_parameter_dictionary(self):
+
+        # Define the parameter context objects
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 1970-01-01'
+        t_ctxt.fill_value = 0x0
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
+        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt.fill_value = 0e0
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
+        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt.fill_value = 0e0
+
+        height_ctxt = ParameterContext('height', param_type=QuantityType(value_encoding=np.float32))
+        height_ctxt.reference_frame = AxisTypeEnum.HEIGHT
+        height_ctxt.uom = 'meters'
+        height_ctxt.fill_value = 0e0
+
+        cond_ctxt = ParameterContext('cond', param_type=QuantityType(value_encoding=np.float32))
+        cond_ctxt.uom = 'unknown'
+        cond_ctxt.fill_value = 0e0
+
+        data_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=np.int8))
+        data_ctxt.uom = 'byte'
+        data_ctxt.fill_value = 0x0
+
+        # Define the parameter dictionary objects
+
         self.cond = ParameterDictionary()
-        self.cond.add_context(ParameterContext('cond', param_type=QuantityType(value_encoding='f', uom='Pa') ))
-        self.cond.add_context(ParameterContext('lat', param_type=QuantityType(value_encoding='f', uom='deg') ))
-        self.cond.add_context(ParameterContext('lon', param_type=QuantityType(value_encoding='f', uom='deg') ))
-        self.cond.add_context(ParameterContext('height', param_type=QuantityType(value_encoding='f', uom='km') ))
-        self.cond.add_context(ParameterContext('time', param_type=QuantityType(value_encoding='i', uom='km') ))
-
-        self.cond.add_context(ParameterContext('coordinates', param_type=QuantityType(value_encoding='f', uom='') ))
-        self.cond.add_context(ParameterContext('data', param_type=QuantityType(value_encoding='f', uom='undefined') ))
-
+        self.cond.add_context(t_ctxt)
+        self.cond.add_context(lat_ctxt)
+        self.cond.add_context(lon_ctxt)
+        self.cond.add_context(height_ctxt)
+        self.cond.add_context(cond_ctxt)
+        self.cond.add_context(data_ctxt)
 
     def execute(self, granule):
         """Processes incoming data!!!!

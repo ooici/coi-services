@@ -107,6 +107,15 @@ class ScienceObjectCodecIntTest(IonIntegrationTestCase):
 
         self.tx_L0 = ctd_L0_all()
 
+        self.cond_L1 = CTDL1ConductivityTransform()
+
+        self.pres_L1 = CTDL1PressureTransform()
+
+        self.temp_L1 = CTDL1TemperatureTransform()
+
+        self.dens_L2 = DensityTransform()
+
+        self.sal_L2 = SalinityTransform()
 
 
     @attr('LOCOINT')
@@ -122,3 +131,14 @@ class ScienceObjectCodecIntTest(IonIntegrationTestCase):
         log.info("Packet: %s" % packet)
 
         self.tx_L0.process(packet)
+
+#        self.cond_L1.execute(granule=g)
+#
+#        self.pres_L1.execute(granule=g)
+#
+#        self.temp_L1.execute(granule=g)
+#
+#        self.dens_L2.execute(granule=g)
+#
+#        self.sal_L2.execute(granule=g)
+
