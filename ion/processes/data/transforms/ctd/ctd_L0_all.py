@@ -11,8 +11,10 @@ from pyon.public import IonObject, RT, log
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 from pyon.net.endpoint import Publisher
+import numpy as np
 
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 #from prototype.sci_data.constructor_apis import PointSupplementConstructor
@@ -79,28 +81,73 @@ class ctd_L0_all(TransformDataProcess):
     #    coord.add_taxonomy_set('data','This group contains data...')
 
         ### Parameter dictionaries
+        self.defining_parameter_dictionary()
+
+    def defining_parameter_dictionary(self):
+
+        # Define the parameter context objects
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 1970-01-01'
+        t_ctxt.fill_value = 0x0
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
+        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt.fill_value = 0e0
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
+        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt.fill_value = 0e0
+
+        height_ctxt = ParameterContext('height', param_type=QuantityType(value_encoding=np.float32))
+        height_ctxt.reference_frame = AxisTypeEnum.HEIGHT
+        height_ctxt.uom = 'meters'
+        height_ctxt.fill_value = 0e0
+
+        pres_ctxt = ParameterContext('pres', param_type=QuantityType(value_encoding=np.float32))
+        pres_ctxt.uom = 'degree_Celsius'
+        pres_ctxt.fill_value = 0e0
+
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
+        temp_ctxt.uom = 'degree_Celsius'
+        temp_ctxt.fill_value = 0e0
+
+        cond_ctxt = ParameterContext('cond', param_type=QuantityType(value_encoding=np.float32))
+        cond_ctxt.uom = 'unknown'
+        cond_ctxt.fill_value = 0e0
+
+        data_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=np.int8))
+        data_ctxt.uom = 'byte'
+        data_ctxt.fill_value = 0x0
+
+        # Define the parameter dictionary objects
 
         self.pres = ParameterDictionary()
-        self.pres.add_context(ParameterContext('pres', param_type=QuantityType(value_encoding='f', uom='Pa') ))
-        self.pres.add_context(ParameterContext('lat', param_type=QuantityType(value_encoding='f', uom='deg') ))
-        self.pres.add_context(ParameterContext('lon', param_type=QuantityType(value_encoding='f', uom='deg') ))
-        self.pres.add_context(ParameterContext('height', param_type=QuantityType(value_encoding='f', uom='km') ))
-        self.pres.add_context(ParameterContext('time', param_type=QuantityType(value_encoding='i', uom='s') ))
+        self.pres.add_context(t_ctxt)
+        self.pres.add_context(lat_ctxt)
+        self.pres.add_context(lon_ctxt)
+        self.pres.add_context(height_ctxt)
+        self.pres.add_context(pres_ctxt)
+        self.pres.add_context(data_ctxt)
 
         self.temp = ParameterDictionary()
-        self.temp.add_context(ParameterContext('temp', param_type=QuantityType(value_encoding='f', uom='K') ))
-        self.temp.add_context(ParameterContext('lat', param_type=QuantityType(value_encoding='f', uom='deg') ))
-        self.temp.add_context(ParameterContext('lon', param_type=QuantityType(value_encoding='f', uom='deg') ))
-        self.temp.add_context(ParameterContext('height', param_type=QuantityType(value_encoding='f', uom='km') ))
-        self.temp.add_context(ParameterContext('time', param_type=QuantityType(value_encoding='i', uom='s') ))
+        self.temp.add_context(t_ctxt)
+        self.temp.add_context(lat_ctxt)
+        self.temp.add_context(lon_ctxt)
+        self.temp.add_context(height_ctxt)
+        self.temp.add_context(temp_ctxt)
+        self.temp.add_context(data_ctxt)
 
         self.cond = ParameterDictionary()
-        self.cond.add_context(ParameterContext('cond', param_type=QuantityType(value_encoding='f', uom='K') ))
-        self.cond.add_context(ParameterContext('lat', param_type=QuantityType(value_encoding='f', uom='deg') ))
-        self.cond.add_context(ParameterContext('lon', param_type=QuantityType(value_encoding='f', uom='deg') ))
-        self.cond.add_context(ParameterContext('height', param_type=QuantityType(value_encoding='f', uom='km') ))
-        self.cond.add_context(ParameterContext('time', param_type=QuantityType(value_encoding='i', uom='s') ))
-
+        self.cond.add_context(t_ctxt)
+        self.cond.add_context(lat_ctxt)
+        self.cond.add_context(lon_ctxt)
+        self.cond.add_context(height_ctxt)
+        self.cond.add_context(cond_ctxt)
+        self.cond.add_context(data_ctxt)
 
     def process(self, packet):
 
