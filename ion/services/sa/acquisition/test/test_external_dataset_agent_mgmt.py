@@ -35,6 +35,7 @@ from pyon.public import RT, LCS, PRED
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
+from coverage_model.parameter import ParameterDictionary
 import unittest
 import time
 
