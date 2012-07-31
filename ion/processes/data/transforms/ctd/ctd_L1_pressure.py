@@ -20,7 +20,8 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
-
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter import QuantityType
 
 class CTDL1PressureTransform(TransformFunction):
     ''' A basic transform that receives input through a subscription,

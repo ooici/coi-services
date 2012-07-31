@@ -20,6 +20,8 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter import QuantityType
 
 class CTDL1ConductivityTransform(TransformFunction):
     ''' A basic transform that receives input through a subscription,
@@ -29,21 +31,21 @@ class CTDL1ConductivityTransform(TransformFunction):
 
     '''
 
+    def __init__(self):
 
-    # Make the stream definitions of the transform class attributes... best available option I can think of?
-    incoming_stream_def = L0_conductivity_stream_definition()
-    #outgoing_stream_def = L1_conductivity_stream_definition()
+        # Make the stream definitions of the transform class attributes... best available option I can think of?
+        self.incoming_stream_def = L0_conductivity_stream_definition()
+        #outgoing_stream_def = L1_conductivity_stream_definition()
 
-    ### Taxonomies are defined before hand out of band... somehow.
-    tx = TaxyTool()
-    tx.add_taxonomy_set('cond','long name for cond')
-    tx.add_taxonomy_set('lat','long name for latitude')
-    tx.add_taxonomy_set('lon','long name for longitude')
-    tx.add_taxonomy_set('height','long name for height')
-    tx.add_taxonomy_set('time','long name for time')
-    # This is an example of using groups it is not a normative statement about how to use groups
-    tx.add_taxonomy_set('coordinates','This group contains coordinates...')
-    tx.add_taxonomy_set('data','This group contains data...')
+        self.cond = ParameterDictionary()
+        self.cond.add_context(ParameterContext('cond', param_type=QuantityType(value_encoding='f', uom='Pa') ))
+        self.cond.add_context(ParameterContext('lat', param_type=QuantityType(value_encoding='f', uom='deg') ))
+        self.cond.add_context(ParameterContext('lon', param_type=QuantityType(value_encoding='f', uom='deg') ))
+        self.cond.add_context(ParameterContext('height', param_type=QuantityType(value_encoding='f', uom='km') ))
+        self.cond.add_context(ParameterContext('time', param_type=QuantityType(value_encoding='i', uom='km') ))
+
+        self.cond.add_context(ParameterContext('coordinates', param_type=QuantityType(value_encoding='f', uom='') ))
+        self.cond.add_context(ParameterContext('data', param_type=QuantityType(value_encoding='f', uom='undefined') ))
 
 
     def execute(self, granule):
@@ -61,11 +63,9 @@ class CTDL1ConductivityTransform(TransformFunction):
         time = get_safe(rdt, 'time') # psd.get_values('time')
         height = get_safe(rdt, 'height') # psd.get_values('time')
 
-
-
         log.warn('CTDL1ConductivityTransform: Got conductivity: %s' % str(conductivity))
 
-        root_rdt = RecordDictionaryTool(taxonomy=self.tx)
+        root_rdt = RecordDictionaryTool(param_dictionary=self.cond)
 
         #todo: use only flat dicts for now, may change later...
 #        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
@@ -76,7 +76,6 @@ class CTDL1ConductivityTransform(TransformFunction):
         for i in xrange(len(conductivity)):
             scaled_conductivity[i] = (conductivity[i] / 100000.0) - 0.5
 
-
         root_rdt['cond'] = scaled_conductivity
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
@@ -86,7 +85,7 @@ class CTDL1ConductivityTransform(TransformFunction):
 #        root_rdt['coordinates'] = coord_rdt
 #        root_rdt['data'] = data_rdt
 
-        return build_granule(data_producer_id='ctd_L1_conductivity', taxonomy=self.tx, record_dictionary=root_rdt)
+        return build_granule(data_producer_id='ctd_L1_conductivity', param_dictionary=self.cond, record_dictionary=root_rdt)
 
 #        # The L1 conductivity data product algorithm takes the L0 conductivity data product and converts it
 #        # into Siemens per meter (S/m)

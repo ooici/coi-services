@@ -25,6 +25,9 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter import QuantityType
+
 
 class CTDL1TemperatureTransform(TransformFunction):
     ''' A basic transform that receives input through a subscription,
@@ -34,21 +37,21 @@ class CTDL1TemperatureTransform(TransformFunction):
 
     '''
 
+    def __init__(self):
 
-    # Make the stream definitions of the transform class attributes... best available option I can think of?
-    incoming_stream_def = L0_temperature_stream_definition()
-    outgoing_stream_def = L1_temperature_stream_definition()
+        # Make the stream definitions of the transform class attributes... best available option I can think of?
+        self.incoming_stream_def = L0_temperature_stream_definition()
+        self.outgoing_stream_def = L1_temperature_stream_definition()
 
-    ### Taxonomies are defined before hand out of band... somehow.
-    tx = TaxyTool()
-    tx.add_taxonomy_set('temp','long name for temperature')
-    tx.add_taxonomy_set('lat','long name for latitude')
-    tx.add_taxonomy_set('lon','long name for longitude')
-    tx.add_taxonomy_set('height','long name for height')
-    tx.add_taxonomy_set('time','long name for time')
-    # This is an example of using groups it is not a normative statement about how to use groups
-    tx.add_taxonomy_set('coordinates','This group contains coordinates...')
-    tx.add_taxonomy_set('data','This group contains data...')
+        self.temp = ParameterDictionary()
+        self.temp.add_context(ParameterContext('temp', param_type=QuantityType(value_encoding='f', uom='Pa') ))
+        self.temp.add_context(ParameterContext('lat', param_type=QuantityType(value_encoding='f', uom='deg') ))
+        self.temp.add_context(ParameterContext('lon', param_type=QuantityType(value_encoding='f', uom='deg') ))
+        self.temp.add_context(ParameterContext('height', param_type=QuantityType(value_encoding='f', uom='km') ))
+        self.temp.add_context(ParameterContext('time', param_type=QuantityType(value_encoding='i', uom='s') ))
+
+        self.temp.add_context(ParameterContext('coordinates', param_type=QuantityType(value_encoding='f', uom='') ))
+        self.temp.add_context(ParameterContext('data', param_type=QuantityType(value_encoding='f', uom='undefined') ))
 
 
     def execute(self, granule):
@@ -78,7 +81,7 @@ class CTDL1TemperatureTransform(TransformFunction):
         #    1) Standard conversion from 5-character hex string (Thex) to decimal (tdec)
         #    2) Scaling: T [C] = (tdec / 10,000) - 10
 
-        root_rdt = RecordDictionaryTool(taxonomy=self.tx)
+        root_rdt = RecordDictionaryTool(param_dictionary=self.temp)
 
         #todo: use only flat dicts for now, may change later...
 #        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
@@ -88,7 +91,6 @@ class CTDL1TemperatureTransform(TransformFunction):
 
         for i in xrange(len(temperature)):
             scaled_temperature[i] = ( temperature[i] / 10000.0) - 10
-
 
         root_rdt['temp'] = scaled_temperature
         root_rdt['time'] = time
@@ -100,5 +102,5 @@ class CTDL1TemperatureTransform(TransformFunction):
 #        root_rdt['coordinates'] = coord_rdt
 #        root_rdt['data'] = data_rdt
 
-        return build_granule(data_producer_id='ctd_L1_temperature', taxonomy=self.tx, record_dictionary=root_rdt)
+        return build_granule(data_producer_id='ctd_L1_temperature', param_dictionary=self.temp, record_dictionary=root_rdt)
   
