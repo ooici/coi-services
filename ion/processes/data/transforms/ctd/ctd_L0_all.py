@@ -10,8 +10,9 @@ from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter import QuantityType
+from coverage_model.parameter_types import QuantityType
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
+from pyon.net.endpoint import Publisher
 
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 #from prototype.sci_data.constructor_apis import PointSupplementConstructor
@@ -36,6 +37,9 @@ class ctd_L0_all(TransformDataProcess):
     """
 
     def __init__(self):
+
+        super(ctd_L0_all, self).__init__()
+
         # Make the stream definitions of the transform class attributes
         self.incoming_stream_def = SBE37_CDM_stream_definition()
 
@@ -81,18 +85,22 @@ class ctd_L0_all(TransformDataProcess):
         self.pres.add_context(ParameterContext('lat', param_type=QuantityType(value_encoding='f', uom='deg') ))
         self.pres.add_context(ParameterContext('lon', param_type=QuantityType(value_encoding='f', uom='deg') ))
         self.pres.add_context(ParameterContext('height', param_type=QuantityType(value_encoding='f', uom='km') ))
+        self.pres.add_context(ParameterContext('time', param_type=QuantityType(value_encoding='i', uom='s') ))
 
         self.temp = ParameterDictionary()
         self.temp.add_context(ParameterContext('temp', param_type=QuantityType(value_encoding='f', uom='K') ))
         self.temp.add_context(ParameterContext('lat', param_type=QuantityType(value_encoding='f', uom='deg') ))
         self.temp.add_context(ParameterContext('lon', param_type=QuantityType(value_encoding='f', uom='deg') ))
         self.temp.add_context(ParameterContext('height', param_type=QuantityType(value_encoding='f', uom='km') ))
+        self.temp.add_context(ParameterContext('time', param_type=QuantityType(value_encoding='i', uom='s') ))
 
         self.cond = ParameterDictionary()
         self.cond.add_context(ParameterContext('cond', param_type=QuantityType(value_encoding='f', uom='K') ))
         self.cond.add_context(ParameterContext('lat', param_type=QuantityType(value_encoding='f', uom='deg') ))
         self.cond.add_context(ParameterContext('lon', param_type=QuantityType(value_encoding='f', uom='deg') ))
         self.cond.add_context(ParameterContext('height', param_type=QuantityType(value_encoding='f', uom='km') ))
+        self.cond.add_context(ParameterContext('time', param_type=QuantityType(value_encoding='i', uom='s') ))
+
 
     def process(self, packet):
 
@@ -121,17 +129,21 @@ class ctd_L0_all(TransformDataProcess):
 
         g = self._build_granule_settings(self.cond, 'cond', conductivity, time, latitude, longitude, height)
 
-        conductivity.publish(g)
+        # publish a granule
+#        self.cond_publisher = self.publisher
+#        self.cond_publisher.publish(g)
 
         g = self._build_granule_settings(self.temp, 'temp', temperature, time, latitude, longitude, height)
 
-        temperature.publish(g)
+        # publish a granule
+#        self.temp_publisher = self.publisher
+#        self.temp_publisher.publish(g)
 
         g = self._build_granule_settings(self.pres, 'pres', pressure, time, latitude, longitude, height)
 
-        pressure.publish(g)
-
-        return
+        # publish a granule
+#        self.pres_publisher = self.publisher
+#        self.pres_publisher.publish(g)
 
     def _build_granule_settings(self, param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, height=None):
 
