@@ -178,6 +178,14 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         print 'Creating the same data product a second time (duplicate)'
         dp_obj.description = 'the first dp'
         dp_id = client.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+#        print 'Creating the same data product a second time (duplicate)'
+#        dp_obj.description = 'the first dp'
+#        try:
+#            dp_id = client.create_data_product(dp_obj, ctd_stream_def_id)
+#        except BadRequest as ex:
+#            print ex
+#        else:
+#            self.fail("duplicate data product was created with the same name")
 
         # test reading a non-existent data product
         print 'reading non-existent data product'

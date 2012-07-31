@@ -30,7 +30,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.data_product   = DataProductImpl(self.clients)
 
 
-
     def create_data_product(self, data_product=None, stream_definition_id='', parameter_dictionary = None):
         """
         @param      data_product IonObject which defines the general data product resource
@@ -44,7 +43,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Register - create and store a new DataProduct resource using provided metadata
         #--------------------------------------------------------------------------------
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
-        data_product_id = self.data_product.create_one(data_product)
+        data_product_id, rev = self.clients.resource_registry.create(data_product)
 
         # - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -  - - - -
         # todo: the data product version will be deprecated
