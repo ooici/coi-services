@@ -88,7 +88,7 @@ class TestPythonEthernetProcess(unittest.TestCase):
         config['process_type'] = 'foo'
         with self.assertRaises(PortAgentLaunchException) as exp:
             process = PortAgentProcess.get_process(config, timeout = TEST_TIMEOUT, test_mode=True)
-        self.assertRegexpMatches(str(exp.exception), 'unknown port agent process type:')
+        self.assertRegexpMatches(str(exp.exception), '.*unknown port agent process type:.*', msg='exception message was ' + str(exp.exception))
 
 
     def test_invalid_type(self):
