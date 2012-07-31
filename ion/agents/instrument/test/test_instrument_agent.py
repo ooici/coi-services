@@ -181,7 +181,7 @@ class FakeProcess(LocalContextMixin):
 #Refactored as stand alone method for starting an instrument agent for use in other tests, like governance
 #to do policy testing for resource agents
 #shenrie
-def start_test_instrument_agent(container, stream_config={}, message_headers=None):
+def start_fake_instrument_agent(container, stream_config={}, message_headers=None):
 
     # Create agent config.
     agent_config = {
@@ -268,7 +268,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
-        self._ia_client = start_test_instrument_agent(self.container, self._stream_config)
+        self._ia_client = start_fake_instrument_agent(self.container, self._stream_config)
 
 
     def _start_pagent(self):

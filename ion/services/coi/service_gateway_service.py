@@ -587,7 +587,7 @@ def get_attachment(attachment_id):
 # Get a visualization image for a specific data product
 #TODO - will need to update this to handle parameters to pass on to the Vis service and to use proper return keys
 @app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
-def get_viz_image(data_product_id, img_name):
+def get_visualization_image(data_product_id, img_name):
 
     # Create client to interface with the viz service
     vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)

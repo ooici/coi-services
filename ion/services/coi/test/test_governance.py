@@ -471,8 +471,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
         #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user level - test this
-        from ion.agents.instrument.test.test_instrument_agent import start_test_instrument_agent
-        ia_client = start_test_instrument_agent(self.container, message_headers=self.sa_user_header)
+        from ion.agents.instrument.test.test_instrument_agent import start_fake_instrument_agent
+        ia_client = start_fake_instrument_agent(self.container, message_headers=self.sa_user_header)
 
         cmd = AgentCommand(command='get_current_state')
         retval = ia_client.execute_agent(cmd)
