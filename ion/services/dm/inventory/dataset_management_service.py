@@ -35,7 +35,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     """
 
     def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None,temporal_domain=None, description=''):
-        validate_true(name and parameter_dict and temporal_domain and spatial_domain, 'Datasets require name, parameter dictionary, temporal and spatial domains.')
+#        validate_true(name and parameter_dict and temporal_domain and spatial_domain, 'Datasets require name, parameter dictionary, temporal and spatial domains.')
 
         dataset                      = DataSet()
         dataset.description          = description

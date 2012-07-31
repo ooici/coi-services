@@ -17,10 +17,16 @@ from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.public import RT, PRED
 from mock import Mock
 from pyon.util.unit_test import PyonTestCase
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
 from nose.plugins.attrib import attr
 from interface.objects import ProcessDefinition
 import unittest
 import time
+import numpy as np
+from coverage_model.basic_types import AbstractIdentifiable, AbstractBase, AxisTypeEnum, MutabilityEnum
+from coverage_model.coverage import CRS, GridDomain, GridShape
+
 
 
 class FakeProcess(LocalContextMixin):
@@ -64,7 +70,12 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         dp = DataProduct(name='dp1')
 
-        data_product_id = self.client.create_data_product(data_product=dp, stream_definition_id=stream_def_id)
+        parameter_dictionary = ParameterDictionary()
+        parameter_dictionary.add_context(ParameterContext('p1',param_type=QuantityType(value_encoding='f', uom='m/s')))
+        parameter_dictionary.add_context(ParameterContext('p2',param_type=QuantityType(value_encoding='d', uom='km')))
+        parameter_dictionary.add_context(ParameterContext('p3',param_type=QuantityType(value_encoding='i', uom='s')))
+
+        data_product_id = self.client.create_data_product(data_product=dp, stream_definition_id=stream_def_id, parameter_dictionary=parameter_dictionary)
         stream_ids, garbage = self.rrclient.find_objects(data_product_id, PRED.hasStream, id_only=True)
         stream_id = stream_ids[0]
 
@@ -77,8 +88,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------
         res = self.client.get_last_update(data_product_id=data_product_id)
         self.assertTrue(isinstance(res[stream_id], LastUpdate), 'retrieving documents failed')
-
-
 
     def test_createDataProduct(self):
         client = self.client
@@ -93,7 +102,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         }
         process_definition_id = self.process_dispatcher.create_process_definition(process_definition=ingestion_worker_definition)
         self.process_definitions['ingestion_worker'] = process_definition_id
-        
+
 
         # First launch the ingestors
         self.exchange_space       = 'science_granule_ingestion'
@@ -113,13 +122,20 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # test creating a new data product w/o a stream definition
         print 'test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)'
         dp_obj = IonObject(RT.DataProduct,
-                           name='DP1',
-                           description='some new dp')
-        try:
-            dp_id = client.create_data_product(dp_obj, '')
-            dp_obj = client.read_data_product(dp_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+            name='DP1',
+            description='some new dp')
+
+        parameter_dictionary = ParameterDictionary()
+        # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('int64')))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        parameter_dictionary.add_context(t_ctxt)
+
+        dp_id = client.create_data_product(dp_obj, '', parameter_dictionary)
+
+        dp_obj = client.read_data_product(dp_id)
+
         print 'new dp_id = ', dp_id
         log.debug("test_createDataProduct: Data product info from registry %s (L4-CI-SA-RQ-308)", str(dp_obj))
 
@@ -127,12 +143,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # test creating a new data product with  a stream definition
         print 'Creating new data product with a stream definition'
         dp_obj = IonObject(RT.DataProduct,
-                           name='DP2',
-                           description='some new dp')
-        try:
-            dp_id2 = client.create_data_product(dp_obj, ctd_stream_def_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+            name='DP2',
+            description='some new dp')
+
+        dp_id2 = client.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
         print 'new dp_id = ', dp_id2
 
         #make sure data product is associated with stream def
@@ -148,26 +162,22 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
 
         # test activate and suspend data product persistence
-        try:
-            client.activate_data_product_persistence(dp_id2, persist_data=True, persist_metadata=True)
-        except BadRequest as ex:
-            self.fail("failed to activate  data product persistence : %s" %ex)
-
+        client.activate_data_product_persistence(dp_id2, persist_data=True, persist_metadata=True)
 
         # test suspend data product persistence
-        try:
-            client.suspend_data_product_persistence(dp_id2)
-        except BadRequest as ex:
-            self.fail("failed to suspend deactivate data product persistence : %s" %ex)
+        client.suspend_data_product_persistence(dp_id2)
 
         pid = self.container.spawn_process(name='dummy_process_for_test',
-                                           module='pyon.ion.process',
-                                           cls='SimpleProcess',
-                                           config={})
+            module='pyon.ion.process',
+            cls='SimpleProcess',
+            config={})
         dummy_process = self.container.proc_manager.procs[pid]
 
 
         # test creating a duplicate data product
+        print 'Creating the same data product a second time (duplicate)'
+        dp_obj.description = 'the first dp'
+        dp_id = client.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 #        print 'Creating the same data product a second time (duplicate)'
 #        dp_obj.description = 'the first dp'
 #        try:
@@ -177,71 +187,36 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 #        else:
 #            self.fail("duplicate data product was created with the same name")
 
-
         # test reading a non-existent data product
         print 'reading non-existent data product'
-        try:
-            dp_obj = client.read_data_product('some_fake_id')
-        except NotFound as ex:
-            pass
-        else:
-            self.fail("non-existing data product was found during read: %s" %dp_obj)
+        dp_obj = client.read_data_product('some_fake_id')
 
         # update a data product (tests read also)
         print 'Updating data product'
         # first get the existing dp object
-        try:
-            dp_obj = client.read_data_product(dp_id)
-        except NotFound as ex:
-            self.fail("existing data product was not found during read")
-        else:
-            pass
-            #print 'dp_obj = ', dp_obj
+        dp_obj = client.read_data_product(dp_id)
+
         # now tweak the object
         dp_obj.description = 'the very first dp'
         # now write the dp back to the registry
-        try:
-            update_result = client.update_data_product(dp_obj)
-        except NotFound as ex:
-            self.fail("existing data product was not found during update")
-        except Conflict as ex:
-            self.fail("revision conflict exception during data product update")
+        update_result = client.update_data_product(dp_obj)
 
         # now get the dp back to see if it was updated
-        try:
-            dp_obj = client.read_data_product(dp_id)
-        except NotFound as ex:
-            self.fail("existing data product was not found during read")
-        else:
-            pass
-            #print 'dp_obj = ', dp_obj
+        dp_obj = client.read_data_product(dp_id)
         self.assertTrue(dp_obj.description == 'the very first dp')
 
         # now 'delete' the data product
         print "deleting data product: ", dp_id
-        try:
-            client.delete_data_product(dp_id)
-        except NotFound as ex:
-            self.fail("existing data product was not found during delete")
+        client.delete_data_product(dp_id)
 
         # now try to get the deleted dp object
 
         #todo: the RR should perhaps not return retired data products
-#        try:
-#            dp_obj = client.read_data_product(dp_id)
-#        except NotFound as ex:
-#            pass
-#        else:
-#            self.fail("deleted data product was found during read")
+    #            dp_obj = client.read_data_product(dp_id)
 
-        # now try to delete the already deleted dp object
-#        print "deleting non-existing data product"
-#        try:
-#            client.delete_data_product(dp_id)
-#        except NotFound as ex:
-#            pass
-#        else:
-#            self.fail("non-existing data product was found during delete")
+    # now try to delete the already deleted dp object
+    #        print "deleting non-existing data product"
+    #            client.delete_data_product(dp_id)
 
-            # Shut down container
-            #container.stop()
+    # Shut down container
+    #container.stop()
