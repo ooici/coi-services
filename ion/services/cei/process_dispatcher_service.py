@@ -451,10 +451,13 @@ class PDNativeBackend(object):
         # has a fixed set of Execution Engines and cannot ask for more.
         if conf.get('static_resources'):
             base_domain_config = None
+            domain_definition_id = None
             epum_client = None
 
         else:
             base_domain_config = conf.get('domain_config')
+            domain_definition_id = conf.get('definition_id')
+
             epum_client = EPUManagementClient(self.dashi,
                 "epu_management_service")
 
@@ -466,7 +469,7 @@ class PDNativeBackend(object):
             self.eeagent_client, self.notifier)
         self.matchmaker = PDMatchmaker(self.store, self.eeagent_client,
             self.registry, epum_client, self.notifier, dashi_name,
-            base_domain_config)
+            domain_definition_id, base_domain_config)
 
         heartbeat_queue = conf.get('heartbeat_queue', DEFAULT_HEARTBEAT_QUEUE)
         self.beat_subscriber = HeartbeatSubscriber(heartbeat_queue,

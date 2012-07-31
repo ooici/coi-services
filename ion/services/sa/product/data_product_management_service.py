@@ -30,7 +30,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     
 
-    def create_data_product(self, data_product=None, stream_definition_id=''):
+    def create_data_product(self, data_product=None, stream_definition_id='', parameter_dictionary=''):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
@@ -41,7 +41,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # Register - create and store a new DataProduct resource using provided metadata
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
-        data_product_id = self.data_product.create_one(data_product)
+        data_product_id, rev = self.clients.resource_registry.create(data_product)
 
         #create the initial/default data product version
         data_product_version = DataProductVersion()

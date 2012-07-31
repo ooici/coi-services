@@ -312,3 +312,16 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval exchange_broker_list    []
         """
         raise NotImplementedError()
+
+    def call_management(self, url='', method=''):
+        """Makes a call to the RabbitMQ Management HTTP API
+
+        @param url    str
+        @param method    str
+        @retval content    dict
+        @throws Timeout    the call to the management API tiemed out
+        @throws ServiceUnavailable    a connection error occured to the management API
+        @throws ServerError    the management API responded with an HTTP error, or any other issue
+        """
+        return self.container.ex_manager._make_management_call(url, method=method, use_ems=False)
+

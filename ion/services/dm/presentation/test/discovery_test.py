@@ -624,6 +624,14 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         results = self.poll(5, discovery.parse, search_string)
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == bank_id)
+        
+        bank_id, _ = rr.create(BankAccount(name='broke', cash_balance=90))
+
+        search_string = "search 'cash_balance' values from 80 from '%s'" % view_id
+
+        results = self.poll(5, discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+        self.assertTrue(results[0]['_id'] == bank_id)
 
     @skipIf(not use_es, 'No ElasticSearch')
     def test_collections_searching(self):
@@ -767,6 +775,14 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         dp_id, _ = self.rr.create(data_product)
         
         search_string = "search 'ts_created' time from '%s' to '%s' from 'data_products_index'" % (yesterday, tomorrow)
+
+        results = self.poll(9, self.discovery.parse,search_string)
+
+        self.assertIsNotNone(results,'Results not found')
+
+        self.assertTrue(results[0]['_id'] == dp_id)
+        
+        search_string = "search 'ts_created' time from '%s' from 'data_products_index'" % yesterday
 
         results = self.poll(9, self.discovery.parse,search_string)
 

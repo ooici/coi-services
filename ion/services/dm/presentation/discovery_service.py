@@ -8,7 +8,7 @@
 
 from interface.objects import View, Catalog, ElasticSearchIndex
 from interface.services.dm.idiscovery_service import BaseDiscoveryService
-from pyon.util.containers import DotDict
+from pyon.util.containers import DotDict, get_safe
 from pyon.util.arg_check import validate_true, validate_is_instance
 from pyon.public import PRED, CFG, RT, log
 from pyon.core.exception import BadRequest
@@ -306,12 +306,14 @@ class DiscoveryService(BaseDiscoveryService):
             kwargs = dict(
                 source_id  = source_id,
                 field      = query['field'],
-                from_value = query['range']['from'],
-                to_value   = query['range']['to'],
                 limit      = limit,
                 id_only    = id_only
             )
-            
+            if get_safe(query,'range.from') is not None:
+                kwargs['from_value'] = query['range']['from']
+            if get_safe(query,'range.to') is not None:
+                kwargs['to_value'] = query['range']['to']
+                
             if query.get('limit'):
                 kwargs['limit'] = query['limit']
             if query.get('order'):
@@ -329,12 +331,13 @@ class DiscoveryService(BaseDiscoveryService):
             kwargs = dict(
                 source_id  = source_id,
                 field      = query['field'],
-                from_value = query['time']['from'],
-                to_value   = query['time']['to'],
                 limit      = limit,
                 id_only    = id_only
             )
-            
+            if get_safe(query,'range.from') is not None:
+                kwargs['from_value'] = query['range']['from']
+            if get_safe(query,'range.to') is not None:
+                kwargs['to_value'] = query['range']['to']
             if query.get('limit'):
                 kwargs['limit'] = query['limit']
             if query.get('order'):
@@ -475,10 +478,10 @@ class DiscoveryService(BaseDiscoveryService):
         if not self.use_es:
             raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
 
-        validate_true(not from_value is None, 'from_value not specified')
-        validate_true(isinstance(from_value,int) or isinstance(from_value,float), 'from_value is not a valid number')
-        validate_true(not to_value is None, 'to_value not specified')
-        validate_true(isinstance(to_value,int) or isinstance(to_value,float), 'to_value is not a valid number')
+        if from_value is not None:
+            validate_true(isinstance(from_value,int) or isinstance(from_value,float), 'from_value is not a valid number')
+        if to_value is not None:
+            validate_true(isinstance(to_value,int) or isinstance(to_value,float), 'to_value is not a valid number')
         validate_true(source_id, 'source_id not specified')
 
         es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
@@ -510,7 +513,6 @@ class DiscoveryService(BaseDiscoveryService):
             from_value = from_value,
             to_value   = to_value
         )
-
         response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
 
         IndexManagementService._check_response(response)
@@ -521,8 +523,11 @@ class DiscoveryService(BaseDiscoveryService):
         if not self.use_es:
             raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
 
-        validate_is_instance(from_value,basestring,'"From" is not a valid string (%s)' % from_value)
-        validate_is_instance(to_value,basestring,'"To" is not a valid string')
+        if from_value is not None:
+            validate_is_instance(from_value,basestring,'"From" is not a valid string (%s)' % from_value)
+
+        if to_value is not None:
+            validate_is_instance(to_value,basestring,'"To" is not a valid string')
 
         es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
 
@@ -547,13 +552,17 @@ class DiscoveryService(BaseDiscoveryService):
         if field == '*':
             field = '_all'
 
+        if from_value is not None:
+            from_value = time.mktime(dateutil.parser.parse(from_value).timetuple()) * 1000
+
+        if to_value is not None:
+            to_value = time.mktime(dateutil.parser.parse(to_value).timetuple()) * 1000
+
         query = ep.ElasticQuery().range(
             field      = field,
-            from_value = time.mktime(dateutil.parser.parse(from_value).timetuple()) * 1000,
-            to_value   = time.mktime(dateutil.parser.parse(to_value).timetuple()) * 1000
+            from_value = from_value,
+            to_value   = to_value
         )
-        log.critical(query)
-
         response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
 
         IndexManagementService._check_response(response)
