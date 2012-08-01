@@ -38,9 +38,9 @@ class ctd_L0_all(TransformDataProcess):
 
     """
 
-    def on_start(self):
+    def __init__(self):
 
-        super(ctd_L0_all, self).on_start()
+        super(ctd_L0_all, self).__init__()
 
         # Make the stream definitions of the transform class attributes
         self.incoming_stream_def = SBE37_CDM_stream_definition()
