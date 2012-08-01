@@ -1464,11 +1464,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return 1.1
 
     def get_data_transmission_rate(self, platform_device_id):
+        #todo: units?
         return "data_transmission_rate"
 
     def get_speed_over_ground(self, platform_device_id):
+        #todo: units?
         return "speed_over_ground"
 
     def get_aggregated_status(self, platform_device_id):
         # The status roll-up that summarizes the entire status of the device  (CV:  RED, YELLOW, GREEN, BLACK)
+        #todo: class for constants?
         return "RED"   

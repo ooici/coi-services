@@ -9,7 +9,7 @@ from pyon.public import PRED, RT, LCS
 from pyon.ion.resource import get_maturity_visibility
 from ion.services.sa.instrument.flag import KeywordFlag
 
-class Policy(object):
+class ResourceLCSPolicy(object):
 
     def __init__(self, clients):
         self.clients = clients
@@ -76,7 +76,7 @@ class Policy(object):
           find resource IDs of the given object type that
           are associated with the primary object
         @param primary_object_id the id of the primary object
-        @param association_prediate the association type
+        @param association_predicate the association type
         @param some_object_type the type of associated object
         """
         #log.debug("_find_stemming, from %s" % self._toplevel_call())
@@ -93,7 +93,10 @@ class Policy(object):
                     return self._make_pass()
         return self._make_fail("No attachment found with keyword='%s'" % desired_keyword)
 
-    def _resource_lcstate_in(self, resource_obj, permissible_states=[]):
+    def _resource_lcstate_in(self, resource_obj, permissible_states=None):
+
+        if permissible_states is None:
+            permissible_states = []
                 
         parts = get_maturity_visibility(resource_obj.lcstate)
 
@@ -102,7 +105,7 @@ class Policy(object):
                                  (self._get_resource_type(resource_obj), parts[0], str(permissible_states)))
                       
 
-class AgentPolicy(Policy):
+class AgentPolicy(ResourceLCSPolicy):
 
     def lce_precondition_plan(self, agent_id):
         # always OK
@@ -147,7 +150,7 @@ class AgentPolicy(Policy):
         ret = (0 == self._find_having(RT.InstrumentAgentInstance, PRED.hasAgentDefinition, agent_id))
         return self._make_result(ret, "InstrumentAgentInstance(s) are still using this InstrumentAgent")
 
-class ModelPolicy(Policy):
+class ModelPolicy(ResourceLCSPolicy):
     def lce_precondition_plan(self, model_id):
         # always OK
         return self._make_pass()
@@ -190,10 +193,10 @@ class ModelPolicy(Policy):
                 return self._make_fail("PlatformSite(s) are using this model")
             return self._make_pass()
 
-        return self._make_fail("Wrong resource type (got '%s')" % agent_type)
+        return self._make_fail("Wrong resource type (got '%s')" % model_type)
 
 
-class DevicePolicy(Policy):
+class DevicePolicy(ResourceLCSPolicy):
 
     def lce_precondition_plan(self, device_id):
         obj = self.RR.read(device_id)
@@ -219,7 +222,7 @@ class DevicePolicy(Policy):
             if not self._resource_lcstate_in(models[0], [LCS.DEPLOYED]):
                 return self._make_fail("Device's associated model is not in '%s'" % LCS.DEPLOYED)
 
-            return self._has_keyworded_attachment(agent_id, KeywordFlag.VENDOR_TEST_RESULTS)
+            return self._has_keyworded_attachment(device_id, KeywordFlag.VENDOR_TEST_RESULTS)
 
         if RT.PlatformDevice == device_type:
             models = self._find_stemming(device_id, PRED.hasModel, RT.PlatformModel)
@@ -228,9 +231,9 @@ class DevicePolicy(Policy):
             if not self._resource_lcstate_in(models[0], [LCS.DEPLOYED]):
                 return self._make_fail("Device's associated model is not in '%s'" % LCS.DEPLOYED)
 
-            return self._has_keyworded_attachment(agent_id, KeywordFlag.VENDOR_TEST_RESULTS)
+            return self._has_keyworded_attachment(device_id, KeywordFlag.VENDOR_TEST_RESULTS)
 
-        return self._make_fail("Wrong resource type (got '%s')" % agent_type)
+        return self._make_fail("Wrong resource type (got '%s')" % device_type)
 
 
     def lce_precondition_integrate(self, device_id):
@@ -365,7 +368,7 @@ class DevicePolicy(Policy):
 
         return False
 
-class SitePolicy(Policy):
+class SitePolicy(ResourceLCSPolicy):
     def lce_precondition_plan(self, site_id):
         # always OK
         return self._make_pass()
@@ -399,7 +402,7 @@ class SitePolicy(Policy):
         return self._make_pass()
 
 
-class DataProductPolicy(Policy):
+class DataProductPolicy(ResourceLCSPolicy):
     def lce_precondition_plan(self, data_product_id):
         # always OK
         return self._make_pass()
@@ -409,7 +412,7 @@ class DataProductPolicy(Policy):
         if not former[0]: return former
 
         # todo: mandatory fields?
-        return self._has_keyworded_attachment(data_process_id, KeywordFlag.CERTIFICATION)
+        return self._has_keyworded_attachment(data_product_id, KeywordFlag.CERTIFICATION)
 
     def lce_precondition_integrate(self, data_product_id):
         former = self.lce_precondition_develop(data_product_id)
@@ -445,7 +448,7 @@ class DataProductPolicy(Policy):
         return self._make_pass()
 
 
-class DataProcessPolicy(Policy):
+class DataProcessPolicy(ResourceLCSPolicy):
     def lce_precondition_plan(self, data_process_id):
         # always OK
         return self._make_pass()

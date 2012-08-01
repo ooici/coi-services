@@ -8,6 +8,26 @@
 
 # go to root of repository
 THISDIR=$(git rev-parse --show-toplevel)
+THISSCRIPT=$(basename $0)
+
+get_submodule ()
+{
+    echo -e "\n\n=== UPDATING COI-SERVICES SUBMODULE ($1) ===\n"
+ 
+    cd "$1"
+
+    git checkout master
+    if [ $? -ne 0 ]; then
+        git status
+        echo -e "\n$THISSCRIPT aborting due to inability to switch branches"
+        exit 1
+    fi
+    git pull --rebase origin master
+
+    cd $THISDIR
+}
+
+
 cd $THISDIR
 
 if [ -r "scripts/get-latest-code-local-hooks.sh" ]; then
@@ -18,41 +38,11 @@ else
     echo -e "  (containing your local pre-update commands) but it didn't exist."
 fi
 
-echo -e "\n\n=== UPDATING PYON ===\n"
-cd ../pyon
-git pull --rebase
-git submodule update
-
-echo -e "\n\n=== UPDATING COI-SERVICES SUBMODULE(S) ===\n"
-cd extern/ion-definitions
-git checkout master
-if [ $? -ne 0 ]; then
-    git status
-    echo -e "\n$(basename $0) aborting due to inability to switch branches"
-    exit 1
-fi
-git pull --rebase origin master
-cd $THISDIR
-
-cd extern/marine-integrations
-git checkout master
-if [ $? -ne 0 ]; then
-    git status
-    echo -e "\n$(basename $0) aborting due to inability to switch branches"
-    exit 1
-fi
-git pull --rebase origin master
-cd $THISDIR
-
-cd extern/coverage-model
-git checkout master
-if [ $? -ne 0 ]; then
-    git status
-    echo -e "\n$(basename $0) aborting due to inability to switch branches"
-    exit 1
-fi
-git pull --rebase origin master
-cd $THISDIR
+#echo -e "\n\n=== UPDATING COI-SERVICES SUBMODULE(S) ===\n"
+get_submodule extern/pyon
+get_submodule extern/ion-definitions
+get_submodule extern/marine-integrations
+get_submodule extern/coverage-model
 
 echo -e "\n\n=== UPDATING COI-SERVICES ===\n"
 git pull --rebase
