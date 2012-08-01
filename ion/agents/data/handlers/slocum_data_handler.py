@@ -9,7 +9,7 @@
 
 from pyon.public import log
 from pyon.util.containers import get_safe
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from coverage_model.parameter import ParameterDictionary
 from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler
@@ -107,18 +107,21 @@ class SlocumDataHandler(BaseDataHandler):
 
                 max_rec = get_safe(config, 'max_records', 1)
                 dprod_id = get_safe(config, 'data_producer_id', 'unknown data producer')
-                tx_yml = get_safe(config, 'taxonomy')
-                ttool = TaxyTool.load(tx_yml) #CBM: Assertion inside RDT.__setitem__ requires same instance of TaxyTool
+                #tx_yml = get_safe(config, 'taxonomy')
+                #ttool = TaxyTool.load(tx_yml) #CBM: Assertion inside RDT.__setitem__ requires same instance of TaxyTool
+                pdict = ParameterDictionary.load(get_safe(config, 'param_dictionary'))
 
                 cnt = calculate_iteration_count(len(parser.sensor_map), max_rec)
                 for x in xrange(cnt):
-                    rdt = RecordDictionaryTool(taxonomy=ttool)
+                    #rdt = RecordDictionaryTool(taxonomy=ttool)
+                    rdt = RecordDictionaryTool(param_dictionary=pdict)
 
                     for name in parser.sensor_map:
                         d = parser.data_map[name][x*max_rec:(x+1)*max_rec]
                         rdt[name]=d
 
-                    g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
+                    #g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
+                    g = build_granule(data_producer_id=dprod_id, record_dictionary=rdt, param_dictionary=pdict)
                     yield g
             except SlocumParseException as spe:
                 # TODO: Decide what to do here, raise an exception or carry on
