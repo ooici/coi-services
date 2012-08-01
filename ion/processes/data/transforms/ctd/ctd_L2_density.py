@@ -26,6 +26,8 @@ from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
+import numpy as np
 
 class DensityTransform(TransformFunction):
     ''' A basic transform that receives input through a subscription,
@@ -35,7 +37,7 @@ class DensityTransform(TransformFunction):
 
     '''
 
-    def __init__(self):
+    def on_start(self):
 
         # Make the stream definitions of the transform class attributes... best available option I can think of?
         self.incoming_stream_def = SBE37_CDM_stream_definition()

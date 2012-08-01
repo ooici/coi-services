@@ -8,7 +8,7 @@ from pyon.ion.transform import TransformFunction, TransformDataProcess
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
-
+import numpy as np
 
 from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L0_pressure_stream_definition
 
@@ -22,6 +22,7 @@ from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
 
 class CTDL1PressureTransform(TransformFunction):
     ''' A basic transform that receives input through a subscription,
@@ -31,7 +32,7 @@ class CTDL1PressureTransform(TransformFunction):
 
     '''
 
-    def __init__(self):
+    def on_start(self):
 
         # Make the stream definitions of the transform class attributes... best available option I can think of?
         self.incoming_stream_def = L0_pressure_stream_definition()
