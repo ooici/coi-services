@@ -37,7 +37,7 @@ class DensityTransform(TransformFunction):
 
     '''
 
-    def __init__(self):
+    def on_start(self):
 
         # Make the stream definitions of the transform class attributes... best available option I can think of?
         self.incoming_stream_def = SBE37_CDM_stream_definition()

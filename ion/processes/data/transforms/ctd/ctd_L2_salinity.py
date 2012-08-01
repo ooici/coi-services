@@ -34,7 +34,7 @@ class SalinityTransform(TransformFunction):
     Output is Practical Salinity as calculated by the Gibbs Seawater package
     '''
 
-    def _init__(self):
+    def on_start(self):
 
         self.outgoing_stream_def = L2_practical_salinity_stream_definition()
 
