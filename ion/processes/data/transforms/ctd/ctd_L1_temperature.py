@@ -27,7 +27,8 @@ from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
-
+from coverage_model.basic_types import AxisTypeEnum
+import numpy as np
 
 class CTDL1TemperatureTransform(TransformFunction):
     ''' A basic transform that receives input through a subscription,
