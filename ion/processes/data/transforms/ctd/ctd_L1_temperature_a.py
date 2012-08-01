@@ -46,9 +46,9 @@ from pyon.public import log
 
 class ctd_L1_temperature(TransformDataProcess):
 
-    def on_start(self):
+    def __init__(self):
         self.temp_stream = self.CFG.process.publish_streams.temperature
-        super(ctd_L1_temperature, self).on_start()
+        super(ctd_L1_temperature, self).__init__()
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L1_temperature.recv_packet: {0}'.format(msg))

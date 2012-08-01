@@ -55,9 +55,9 @@ class ctd_L2_salinity(TransformDataProcess):
         self._tx.add_taxonomy_set('lon','long name for longitude')
         self._tx.add_taxonomy_set('time','long name for time')
 
-    def on_start(self):
+    def __init__(self):
         self.sal_stream = self.CFG.process.publish_streams.salinity
-        super(ctd_L2_salinity, self).on_start()
+        super(ctd_L2_salinity, self).__init__()
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L2_salinity.recv_packet: {0}'.format(msg))

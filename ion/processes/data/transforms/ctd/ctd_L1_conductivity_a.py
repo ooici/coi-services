@@ -46,9 +46,9 @@ from pyon.public import log
 
 class ctd_L1_conductivity(TransformDataProcess):
 
-    def on_start(self):
+    def __init__(self):
         self.cond_stream = self.CFG.process.publish_streams.conductivity
-        super(ctd_L1_conductivity, self).on_start()
+        super(ctd_L1_conductivity, self).__init__()
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L1_conductivity.recv_packet: {0}'.format(msg))

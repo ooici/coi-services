@@ -53,11 +53,11 @@ from pyon.public import log
 
 class ctd_L0_all(TransformDataProcess):
 
-    def on_start(self):
+    def __init__(self):
         self.cond_stream = self.CFG.process.publish_streams.conductivity
         self.temp_stream = self.CFG.process.publish_streams.temperature
         self.pres_stream = self.CFG.process.publish_streams.pressure
-        super(ctd_L0_all, self).on_start()
+        super(ctd_L0_all, self).__init__()
 
     def recv_packet(self, msg, headers):
         stream_id = headers['routing_key']
