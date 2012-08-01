@@ -51,7 +51,6 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.pd_service.container.proc_manager['terminate_process'] = Mock()
         self.pd_service.container.proc_manager['procs'] = {}
 
-
         self.mock_cc_spawn = self.pd_service.container.spawn_process
         self.mock_cc_terminate = self.pd_service.container.proc_manager.terminate_process
         self.mock_cc_procs = self.pd_service.container.proc_manager.procs
@@ -75,6 +74,7 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
 
         # not used for anything in local mode
         proc_schedule = DotDict()
+
 
         configuration = {"some": "value"}
 
@@ -158,7 +158,6 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         # replace the core and matchmaker with mocks
         self.pd_service.backend.beat_subscriber = self.mock_beat_subscriber = Mock()
         self.assertIsInstance(self.pd_service.backend, PDNativeBackend)
-
 
         self.event_pub = Mock()
         self.pd_service.backend.event_pub = self.event_pub
@@ -618,6 +617,7 @@ pd_config = {
     }
 }
 
+
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 @attr('LOCOINT', group='cei')
 class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
@@ -639,7 +639,7 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         self.process_definition = ProcessDefinition(name='test_process')
         self.process_definition.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
-                                              'class':'TestProcess'}
+                                              'class': 'TestProcess'}
         self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
         self.event_queue = queue.Queue()
 
@@ -653,7 +653,7 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self.agent_config = {
             'eeagent': {
                 'heartbeat': 1,
-                'heartbeat_queue' : 'hbeatq',
+                'heartbeat_queue': 'hbeatq',
                 'slots': 100,
                 'name': 'pyon_eeagent',
                 'node_id': 'somenodeid',
