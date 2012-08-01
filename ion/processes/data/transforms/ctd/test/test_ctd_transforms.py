@@ -25,7 +25,7 @@ from ion.processes.data.transforms.ctd.ctd_L2_density import DensityTransform
 import unittest, os
 
 @attr('UNIT', group='ctd')
-@unittest.skip('OBE')
+@unittest.skip('Not working')
 class TestScienceObjectCodec(IonUnitTestCase):
     pass
 
@@ -70,6 +70,11 @@ class TestScienceObjectCodec(IonUnitTestCase):
         self.tx_L0.cond_publisher.publish = mocksignature(self.tx_L0.cond_publisher.publish)
         self.tx_L0.cond_publisher.publish.return_value = ''
 
+        self.tx_L0.temp_publisher.publish = mocksignature(self.tx_L0.cond_publisher.publish)
+        self.tx_L0.temp_publisher.publish.return_value = ''
+
+        self.tx_L0.pres_publisher.publish = mocksignature(self.tx_L0.cond_publisher.publish)
+        self.tx_L0.pres_publisher.publish.return_value = ''
 
         L0_cond = self.tx_L0.cond_publisher.publish.call_args[0][0]
         L0_temp = self.tx_L0.temp_publisher.publish.call_args[0][0]
@@ -122,7 +127,7 @@ class ScienceObjectCodecIntTest(IonIntegrationTestCase):
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_process(self):
         '''
-        Test that events are processed by the transforms according to a provided algorithm
+        Test that packets are processed by the ctd_L0_all transform
         '''
         length = 1
 
@@ -131,6 +136,14 @@ class ScienceObjectCodecIntTest(IonIntegrationTestCase):
         log.info("Packet: %s" % packet)
 
         self.tx_L0.process(packet)
+
+    @unittest.skip('write it later')
+    def test_execute(self):
+        '''
+        Test that the other transforms (temperature, press, density) execute correctly
+        '''
+
+        pass
 
 #        self.cond_L1.execute(granule=g)
 #
