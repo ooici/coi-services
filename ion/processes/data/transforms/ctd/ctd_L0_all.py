@@ -15,6 +15,9 @@ from coverage_model.basic_types import AxisTypeEnum
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 from pyon.net.endpoint import Publisher
 import numpy as np
+import uuid
+from pyon.core.bootstrap import get_sys_name
+from pyon.net.transport import NameTrio
 
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 #from prototype.sci_data.constructor_apis import PointSupplementConstructor
@@ -82,6 +85,8 @@ class ctd_L0_all(TransformDataProcess):
 
         ### Parameter dictionaries
         self.defining_parameter_dictionary()
+
+        self.publisher = Publisher(to_name=NameTrio(get_sys_name(), str(uuid.uuid4())[0:6]))
 
     def defining_parameter_dictionary(self):
 
@@ -177,20 +182,20 @@ class ctd_L0_all(TransformDataProcess):
         g = self._build_granule_settings(self.cond, 'cond', conductivity, time, latitude, longitude, height)
 
         # publish a granule
-#        self.cond_publisher = self.publisher
-#        self.cond_publisher.publish(g)
+        self.cond_publisher = self.publisher
+        self.cond_publisher.publish(g)
 
         g = self._build_granule_settings(self.temp, 'temp', temperature, time, latitude, longitude, height)
 
         # publish a granule
-#        self.temp_publisher = self.publisher
-#        self.temp_publisher.publish(g)
+        self.temp_publisher = self.publisher
+        self.temp_publisher.publish(g)
 
         g = self._build_granule_settings(self.pres, 'pres', pressure, time, latitude, longitude, height)
 
         # publish a granule
-#        self.pres_publisher = self.publisher
-#        self.pres_publisher.publish(g)
+        self.pres_publisher = self.publisher
+        self.pres_publisher.publish(g)
 
     def _build_granule_settings(self, param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, height=None):
 
