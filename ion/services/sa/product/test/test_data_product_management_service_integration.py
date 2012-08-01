@@ -113,7 +113,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         res = self.dpsc_cli.get_last_update(data_product_id=data_product_id)
         self.assertTrue(isinstance(res[stream_id], LastUpdate), 'retrieving documents failed')
 
-    def test_createDataProduct(self):
+    def test_create_data_product(self):
 
         #------------------------------------------------------------------------------------------------
         # create a stream definition for the data from the ctd simulator
@@ -126,18 +126,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # test creating a new data product w/o a stream definition
         #------------------------------------------------------------------------------------------------
         log.debug('test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)')
-
-#        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#        # Construct temporal and spatial Coordinate Reference System objects
-#        tcrs = CRS([AxisTypeEnum.TIME])
-#        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-#
-#        #------------------------------------------------------------------------------------------------
-#        # Construct temporal and spatial Domain objects
-#        #------------------------------------------------------------------------------------------------
-#        temporal_domain = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-#        spatial_domain = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
-#        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
@@ -196,45 +184,11 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.assertIn(ctd_stream_def_id, streamdefs)
 
 
-    def test_activate_data_product(self):
-
-
-
-        #------------------------------------------------------------------------------------------------
-        # test activate and suspend data product persistence
-        #------------------------------------------------------------------------------------------------
-#        self.dpsc_cli.activate_data_product_persistence(dp_id2, persist_data=True, persist_metadata=True)
-
-        #------------------------------------------------------------------------------------------------
-        # test suspend data product persistence
-        #------------------------------------------------------------------------------------------------
-        self.dpsc_cli.suspend_data_product_persistence(dp_id2)
-
-        pid = self.container.spawn_process(name='dummy_process_for_test',
-            module='pyon.ion.process',
-            cls='SimpleProcess',
-            config={})
-        dummy_process = self.container.proc_manager.procs[pid]
-
-
-        #------------------------------------------------------------------------------------------------
-        # test creating a duplicate data product
-        #------------------------------------------------------------------------------------------------
-        log.debug('Creating the same data product a second time (duplicate)')
-        dp_obj.description = 'the first dp'
-        dp_id = self.dpsc_cli.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
-#        log.debug( 'Creating the same data product a second time (duplicate)')
-#        dp_obj.description = 'the first dp'
-#        try:
-#            dp_id = self.dpsc_cli.create_data_product(dp_obj, ctd_stream_def_id)
-#        except BadRequest as ex:
-#            log.debug( ex )
-#        else:
-#            self.fail("duplicate data product was created with the same name")
-
         # test reading a non-existent data product
         log.debug('reading non-existent data product')
-        dp_obj = self.dpsc_cli.read_data_product('some_fake_id')
+
+        with self.assertRaises(NotFound):
+            dp_obj = self.dpsc_cli.read_data_product('some_fake_id')
 
         # update a data product (tests read also)
         log.debug('Updating data product')
@@ -265,4 +219,65 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
     # Shut down container
     #container.stop()
+
+
+    def test_activate_suspend_data_product(self):
+
+        #------------------------------------------------------------------------------------------------
+        # create a stream definition for the data from the ctd simulator
+        #------------------------------------------------------------------------------------------------
+        ctd_stream_def = ctd_stream_definition()
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        log.debug("Created stream def id %s" % ctd_stream_def_id)
+
+        #------------------------------------------------------------------------------------------------
+        # test creating a new data product w/o a stream definition
+        #------------------------------------------------------------------------------------------------
+        log.debug('test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)')
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='DP1',
+            description='some new dp',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        log.debug("Created an IonObject for a data product: %s" % dp_obj)
+
+        #------------------------------------------------------------------------------------------------
+        # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
+        #------------------------------------------------------------------------------------------------
+        log.debug("parameter dictionary: %s" % parameter_dictionary)
+
+        dp_id = self.dpsc_cli.create_data_product( data_product= dp_obj,
+            stream_definition_id=ctd_stream_def_id,
+            parameter_dictionary= parameter_dictionary)
+
+        dp_obj = self.dpsc_cli.read_data_product(dp_id)
+
+        log.debug('new dp_id = %s' % dp_id)
+        log.debug("test_createDataProduct: Data product info from registry %s (L4-CI-SA-RQ-308)", str(dp_obj))
+
+        #------------------------------------------------------------------------------------------------
+        # test activate and suspend data product persistence
+        #------------------------------------------------------------------------------------------------
+        self.dpsc_cli.activate_data_product_persistence(dp_id, persist_data=True, persist_metadata=True)
+
+        #------------------------------------------------------------------------------------------------
+        # test suspend data product persistence
+        #------------------------------------------------------------------------------------------------
+        self.dpsc_cli.suspend_data_product_persistence(dp_id)
+
+#        pid = self.container.spawn_process(name='dummy_process_for_test',
+#            module='pyon.ion.process',
+#            cls='SimpleProcess',
+#            config={})
+#        dummy_process = self.container.proc_manager.procs[pid]
+
 

@@ -39,8 +39,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # Create will validate and register a new data product within the system
 
-        log.debug("came here!")
-
         #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
         #--------------------------------------------------------------------------------
@@ -239,7 +237,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             else:
                 ingestion_configuration_id = self.clients.ingestion_management.list_ingestion_configurations(id_only=True)[0]
 
-            log.warning("ingestion_configuration_id for data product: %s" % ingestion_configuration_id)
+            log.debug("ingestion_configuration_id for data product: %s" % ingestion_configuration_id)
 
             #--------------------------------------------------------------------------------
             # persist the data stream using the ingestion config id and stream id
@@ -251,9 +249,13 @@ class DataProductManagementService(BaseDataProductManagementService):
             log.debug("Found the following datasets for the data product: %s" % dataset_ids)
             for dataset_id in dataset_ids:
 
-                dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
-                    ingestion_configuration_id=ingestion_configuration_id,
-                    dataset_id=dataset_id)
+                try:
+                    dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
+                        ingestion_configuration_id=ingestion_configuration_id,
+                        dataset_id=dataset_id)
+                except BadRequest:
+                    log.warning("Activate data product may have resulted in a duplicate attempt to associate a stream to a dataset")
+                    log.warning("Please note that creating a data product calls the create_dataset() method which already makes an association")
 
                 log.debug("activate_data_product_persistence: dataset_id = %s"  % str(dataset_id))
 
@@ -288,7 +290,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         if data_product_obj.dataset_configuration_id is None:
             raise NotFound("Data Product %s dataset configuration does not exist" % data_product_id)
 
-        log.warning("Data product: %s" % data_product_obj)
+        log.debug("Data product: %s" % data_product_obj)
 
         #--------------------------------------------------------------------------------
         # get the Stream associated with this data product; if no stream then create one, if multiple streams then Throw
@@ -300,7 +302,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         for stream_id in stream_ids:
             log.debug("suspend_data_product_persistence: stream = %s"  % str(stream_id))
-            log.warning("data_product_obj.dataset_configuration_id: %s" % data_product_obj.dataset_configuration_id)
+            log.debug("data_product_obj.dataset_configuration_id: %s" % data_product_obj.dataset_configuration_id)
 
             ret = self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=data_product_obj.dataset_configuration_id)
             log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
