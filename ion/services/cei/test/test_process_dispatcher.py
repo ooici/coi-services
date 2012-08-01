@@ -19,7 +19,8 @@ from pyon.event.event import EventSubscriber
 from pyon.core import bootstrap
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessStateEnum
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget,\
+    ProcessStateEnum, ProcessQueueingMode, ProcessRestartMode
 from interface.services.icontainer_agent import ContainerAgentClient
 
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
@@ -181,6 +182,8 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         proc_schedule = DotDict()
         proc_schedule['target'] = DotDict()
         proc_schedule.target['constraints'] = {"hats": 4}
+        proc_schedule.target['node_exclusive'] = None
+        proc_schedule.target['execution_engine_id'] = None
 
         configuration = {"some": "value"}
 
@@ -192,6 +195,86 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
 
         self.assertEqual(self.mock_core.dispatch_process.call_count, 1)
+
+    def test_queueing_mode(self):
+
+        proc_def = DotDict()
+        proc_def['name'] = "someprocess"
+        proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
+        mock_read_definition = Mock()
+        mock_read_definition.return_value = proc_def
+        self.pd_service.backend.read_definition = mock_read_definition
+
+        pid = self.pd_service.create_process("fake-process-def-id")
+
+        pyon_queueing_mode = ProcessQueueingMode.ALWAYS
+        core_queueing_mode = "ALWAYS"
+
+        proc_schedule = ProcessSchedule()
+        proc_schedule.queueing_mode = pyon_queueing_mode
+
+        configuration = {"some": "value"}
+
+        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+            proc_schedule, configuration, pid)
+
+        self.assertEqual(self.mock_core.dispatch_process.call_count, 1)
+        call_args, call_kwargs = self.mock_core.dispatch_process.call_args
+        self.assertEqual(call_kwargs['queueing_mode'], core_queueing_mode)
+
+    def test_restart_mode(self):
+
+        proc_def = DotDict()
+        proc_def['name'] = "someprocess"
+        proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
+        mock_read_definition = Mock()
+        mock_read_definition.return_value = proc_def
+        self.pd_service.backend.read_definition = mock_read_definition
+
+        pid = self.pd_service.create_process("fake-process-def-id")
+
+        pyon_restart_mode = ProcessRestartMode.ABNORMAL
+        core_restart_mode = "ABNORMAL"
+
+        proc_schedule = ProcessSchedule()
+        proc_schedule.restart_mode = pyon_restart_mode
+
+        configuration = {"some": "value"}
+
+        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+            proc_schedule, configuration, pid)
+
+        self.assertEqual(self.mock_core.dispatch_process.call_count, 1)
+        call_args, call_kwargs = self.mock_core.dispatch_process.call_args
+        self.assertEqual(call_kwargs['restart_mode'], core_restart_mode)
+
+    def test_node_exclusive_eeid(self):
+
+        proc_def = DotDict()
+        proc_def['name'] = "someprocess"
+        proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
+        mock_read_definition = Mock()
+        mock_read_definition.return_value = proc_def
+        self.pd_service.backend.read_definition = mock_read_definition
+
+        pid = self.pd_service.create_process("fake-process-def-id")
+
+        node_exclusive = "someattr"
+        ee_id = "some_ee"
+
+        proc_schedule = ProcessSchedule()
+        proc_schedule.target.node_exclusive = node_exclusive
+        proc_schedule.target.execution_engine_id = ee_id
+
+        configuration = {"some": "value"}
+
+        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+            proc_schedule, configuration, pid)
+
+        self.assertEqual(self.mock_core.dispatch_process.call_count, 1)
+        call_args, call_kwargs = self.mock_core.dispatch_process.call_args
+        self.assertEqual(call_kwargs['execution_engine_id'], ee_id)
+        self.assertEqual(call_kwargs['node_exclusive'], node_exclusive)
 
     def test_cancel(self):
 
@@ -294,6 +377,8 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         proc_schedule = DotDict()
         proc_schedule['target'] = DotDict()
         proc_schedule.target['constraints'] = {"hats": 4}
+        proc_schedule.target['node_exclusive'] = None
+        proc_schedule.target['execution_engine_id'] = None
 
         configuration = {"some": "value"}
 
@@ -451,6 +536,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
     def test_create_schedule_cancel(self):
         process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
 
         pid = self.pd_cli.create_process(self.process_definition_id)
         self.subscribe_events(pid)
@@ -510,7 +596,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.assertTrue(ar.exception.message.startswith("bad configuration"))
 
 pd_config = {
-    'processdispatcher':{
+    'processdispatcher': {
         'backend': "native",
         'static_resources': True,
         'heartbeat_queue': "hbeatq",
