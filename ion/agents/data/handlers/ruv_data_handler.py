@@ -8,7 +8,7 @@
 """
 from pyon.public import log
 from pyon.util.containers import get_safe
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from coverage_model.parameter import ParameterDictionary
 from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler, NoNewDataWarning

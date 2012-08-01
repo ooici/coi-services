@@ -59,7 +59,10 @@ from ion.agents.instrument.exceptions import InstrumentParameterException
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
+#from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 
 #########################
@@ -850,14 +853,20 @@ class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestC
 
     def _setup_resources(self):
         stream_id = self.create_stream_and_logger(name='fibonacci_stream')
-        tx = TaxyTool()
-        tx.add_taxonomy_set('data', 'external_data')
+#        tx = TaxyTool()
+#        tx.add_taxonomy_set('data', 'external_data')
+        pdict = ParameterDictionary()
+
+        t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
         #TG: Build TaxonomyTool & add to dh_cfg.taxonomy
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
             'stream_id':stream_id,
             'data_producer_id':'fibonacci_data_producer_id',
-            'taxonomy':tx.dump(),
+            'param_dictionary':pdict.dump(),
             'max_records':4,
             }
 

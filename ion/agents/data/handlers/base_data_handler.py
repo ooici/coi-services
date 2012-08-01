@@ -14,7 +14,7 @@ from pyon.ion.resource import PRED, RT
 from pyon.core.exception import NotFound
 from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+#from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
 from interface.objects import Granule, Attachment, AttachmentType
 
@@ -26,6 +26,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
+from coverage_model.parameter import ParameterDictionary
 
 from ion.agents.data.handlers.handler_utils import calculate_iteration_count, list_file_info, get_time_from_filename
 
@@ -566,8 +567,9 @@ class FibonacciDataHandler(BaseDataHandler):
 
         max_rec = get_safe(config, 'max_records', 1)
         dprod_id = get_safe(config, 'data_producer_id')
-        tx_yml = get_safe(config, 'taxonomy')
-        ttool = TaxyTool.load(tx_yml)
+        #tx_yml = get_safe(config, 'taxonomy')
+        #ttool = TaxyTool.load(tx_yml)
+        pdict = ParameterDictionary.load(get_safe(config, 'param_dictionary'))
 
         def fibGenerator():
             """
@@ -589,10 +591,10 @@ class FibonacciDataHandler(BaseDataHandler):
         gen=fibGenerator()
         cnt = calculate_iteration_count(cnt, max_rec)
         for i in xrange(cnt):
-            rdt = RecordDictionaryTool(taxonomy=ttool)
+            rdt = RecordDictionaryTool(param_dictionary=pdict)
             d = gen.next()
             rdt['data'] = d
-            g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
+            g = build_granule(data_producer_id=dprod_id, record_dictionary=rdt, param_dictionary=pdict)
             yield g
 
 class DummyDataHandler(BaseDataHandler):
@@ -681,17 +683,18 @@ class DummyDataHandler(BaseDataHandler):
 
         max_rec = get_safe(config, 'max_records', 1)
         dprod_id = get_safe(config, 'data_producer_id')
-        tx_yml = get_safe(config, 'taxonomy')
-        ttool = TaxyTool.load(tx_yml)
+        #tx_yml = get_safe(config, 'taxonomy')
+        #ttool = TaxyTool.load(tx_yml)
+        pdict = ParameterDictionary.load(get_safe(config, 'param_dictionary'))
 
         arr = npr.random_sample(array_len)
         log.debug('Array to send using max_rec={0}: {1}'.format(max_rec, arr))
         cnt = calculate_iteration_count(arr.size, max_rec)
         for x in xrange(cnt):
-            rdt = RecordDictionaryTool(taxonomy=ttool)
+            rdt = RecordDictionaryTool(param_dictionary=pdict)
             d = arr[x*max_rec:(x+1)*max_rec]
             rdt['dummy'] = d
-            g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
+            g = build_granule(data_producer_id=dprod_id, record_dictionary=rdt, param_dictionary=pdict)
             yield g
 
 

@@ -10,7 +10,7 @@
 # Import pyon first for monkey patching.
 from pyon.public import log
 from pyon.ion.resource import PRED, RT
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+#from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -21,6 +21,9 @@ from nose.plugins.attrib import attr
 
 #temp until stream defs are completed
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
 
 @attr('INT_LONG', group='eoi')
 class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
@@ -114,9 +117,13 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
 
         #CBM: Use CF standard_names
 
-        ttool = TaxyTool()
-
-        ttool.add_taxonomy_set('data','test data')
+        #ttool = TaxyTool()
+        #
+        #ttool.add_taxonomy_set('data','test data')
+        t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
 
         #CBM: Eventually, probably want to group this crap somehow - not sure how yet...
 
