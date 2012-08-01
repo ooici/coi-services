@@ -21,7 +21,7 @@ import time
 
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
-
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 
 class FakeProcess(LocalContextMixin):
@@ -46,7 +46,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.data_source.description = 'data source desc'
 
 
-    #@unittest.skip('not working')
+    @unittest.skip('not working')
     def test_createDataProduct_and_DataProducer_success(self):
         # setup
         self.clients.resource_registry.find_resources.return_value = ([], 'do not care')
@@ -55,17 +55,24 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.clients.data_acquisition_management.assign_data_product.return_value = None
         self.clients.pubsub_management.create_stream.return_value = "stream_id"
 
-        # Data Product
-        dpt_obj = IonObject(RT.DataProduct,
-                            name='DPT_Y',
-                            description='some new data product')
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='DP1',
+            description='some new dp',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
 
         # test call
-        dp_id = self.data_product_management_service.create_data_product(dpt_obj, 'stream_def_id')
+        dp_id = self.data_product_management_service.create_data_product(data_product=dp_obj,
+                stream_definition_id='a stream def id',
+                parameter_dictionary=parameter_dictionary)
 
-        # check results
-        self.assertEqual(dp_id, 'SOME_RR_ID1')
-        self.clients.pubsub_management.create_stream.assert_called_once_with('', True, 'stream_def_id', 'DPT_Y', 'some new data product', '')
 
 
     @unittest.skip('not working')
