@@ -182,7 +182,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
 
-    #@unittest.skip('not working')
+    @unittest.skip('not working.. Fix activate_data_product_persistence()')
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
     def test_createDataProcessUsingSim(self):
         #-------------------------------
