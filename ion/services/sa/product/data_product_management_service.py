@@ -30,7 +30,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.data_product   = DataProductImpl(self.clients)
 
 
-    def create_data_product(self, data_product=None, stream_definition_id='', parameter_dictionary = None, spatial_domain=None,temporal_domain=None):
+    def create_data_product(self, data_product=None, stream_definition_id='', parameter_dictionary = None):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data

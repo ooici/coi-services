@@ -28,7 +28,7 @@ import numpy as np
 from coverage_model.basic_types import AbstractIdentifiable, AbstractBase, AxisTypeEnum, MutabilityEnum
 from coverage_model.coverage import CRS, GridDomain, GridShape
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
-from ion.services.dm.utility.granule_utils import build_granule, RecordDictionaryTool, TaxyTool, CoverageCraft
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 class FakeProcess(LocalContextMixin):
     name = ''
