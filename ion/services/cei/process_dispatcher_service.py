@@ -70,7 +70,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         except AttributeError:
             pd_conf = {}
 
-
         # temporarily supporting old config format
         try:
             pd_bridge_conf = self.CFG.process_dispatcher_bridge
@@ -340,6 +339,7 @@ _PD_PROCESS_STATE_MAP = {
     "900-REJECTED": ProcessStateEnum.ERROR
 }
 
+
 class Notifier(object):
     """Sends Process state notifications via ION events
 
@@ -354,7 +354,7 @@ class Notifier(object):
 
         ion_process_state = _PD_PROCESS_STATE_MAP.get(state)
         if not ion_process_state:
-            log.debug("Received unknown process state from Process Dispatcher."+
+            log.debug("Received unknown process state from Process Dispatcher." +
                       " process=%s state=%s", process_id, state)
             return
         if ion_process_state is _PD_IGNORED_STATE:
@@ -368,6 +368,7 @@ class Notifier(object):
 
 # should be configurable to support multiple process dispatchers?
 DEFAULT_HEARTBEAT_QUEUE = "heartbeats"
+
 
 class HeartbeatSubscriber(Subscriber):
     """Custom subscriber to handle incoming EEAgent heartbeats
@@ -445,7 +446,7 @@ class PDNativeBackend(object):
         try:
             uri = conf.dashi_uri
             exchange = conf.dashi_exchange
-        except AttributeError,e:
+        except AttributeError, e:
             log.warn("Needed Process Dispatcher config not found: %s", e)
             raise
 
@@ -756,6 +757,7 @@ class PDBridgeBackend(object):
 
         return process
 
+
 def _ion_process_from_core(core_process):
     try:
         config = core_process['spec']['parameters']['config']
@@ -776,6 +778,7 @@ def _ion_process_from_core(core_process):
 
     return process
 
+
 def get_dashi(*args, **kwargs):
     try:
         import dashi
@@ -784,6 +787,7 @@ def get_dashi(*args, **kwargs):
                  "dashi library dependency is not available.")
         raise
     return dashi.DashiConnection(*args, **kwargs)
+
 
 def get_pd_dashi_name():
     return "%s.dashi_process_dispatcher" % bootstrap.get_sys_name()
