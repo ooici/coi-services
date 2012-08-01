@@ -31,7 +31,7 @@ import numpy as np
 
 class DensityTransform(TransformFunction):
     ''' A basic transform that receives input through a subscription,
-    parses the input from a CTD, extracts the conductivity, denssure and Temperature value and calculates density
+    parses the input from a CTD, extracts the conductivity, density and Temperature value and calculates density
     according to the defined algorithm. If the transform
     has an output_stream it will publish the output on the output stream.
 
@@ -109,9 +109,9 @@ class DensityTransform(TransformFunction):
 #        rdt0 = rdt['coordinates']
 #        rdt1 = rdt['data']
 
-        temperature = get_safe(rdt, 'dens')
+        temperature = get_safe(rdt, 'temp')
         conductivity = get_safe(rdt, 'cond')
-        denssure = get_safe(rdt, 'temp')
+        density = get_safe(rdt, 'dens')
 
         longitude = get_safe(rdt, 'lon')
         latitude = get_safe(rdt, 'lat')
@@ -120,15 +120,15 @@ class DensityTransform(TransformFunction):
 
 
         log.warn('Got conductivity: %s' % str(conductivity))
-        log.warn('Got denssure: %s' % str(denssure))
+        log.warn('Got density: %s' % str(density))
         log.warn('Got temperature: %s' % str(temperature))
 
 
-        sp = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=denssure)
+        sp = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=density)
 
-        sa = SA_from_SP(sp, denssure, longitude, latitude)
+        sa = SA_from_SP(sp, density, longitude, latitude)
 
-        density = rho(sa, temperature, denssure)
+        density = rho(sa, temperature, density)
 
         log.warn('Got density: %s' % str(density))
 
