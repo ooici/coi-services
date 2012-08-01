@@ -18,9 +18,7 @@ import math
 class FakeProcess(LocalContextMixin):
     name = ''
 
-#@attr('INT', group='eoi')
-@attr('ssss', group='eoi')
-#@unittest.skip('not completed')
+@attr('INT', group='eoi')
 class TestSchedulerService(IonIntegrationTestCase):
 
     def setUp(self):
