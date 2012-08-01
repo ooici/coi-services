@@ -127,7 +127,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         coverage = self._get_coverage(dataset_id)
         return coverage.info
 
-    def get_dataset_parameters(self, dataset_id):
+    def get_dataset_parameters(self, dataset_id=''):
         coverage = self._get_coverage(dataset_id)
         return coverage.parameter_dictionary.dump()
 
