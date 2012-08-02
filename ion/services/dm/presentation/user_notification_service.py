@@ -27,11 +27,12 @@ from gevent import Greenlet
 import elasticpy as ep
 
 from ion.services.dm.presentation.sms_providers import sms_providers
-from interface.objects import ProcessDefinition
+from interface.objects import ProcessDefinition, IntervalTimer, TimeOfDayTimer, TimerSchedulerEntry
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
 from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, FakeScheduler
+from ion.services.cei.scheduler_service import SchedulerService
 
 
 """
@@ -292,6 +293,7 @@ class UserNotificationService(BaseUserNotificationService):
         self.datastore_manager = DatastoreManager()
 
         self.event_publisher = EventPublisher()
+        self.scheduler_service = SchedulerService()
 
     def on_quit(self):
 
@@ -538,46 +540,30 @@ class UserNotificationService(BaseUserNotificationService):
 
         return events
 
-    def publish_event(self, event=None, publish_time= None):
+    def publish_event(self, event=None, scheduler_entry= None):
         '''
         Publish a general event at a certain time using the UNS
 
         @param event Event
-        @param publish_time list Ex: [year, month, day, hour, minute, second]
+        @param scheduler_entry SchedulerEntry This object is created through Scheduler Service
         '''
 
-        if not isinstance(publish_time, list) or not len(publish_time) == 6:
-            raise AssertionError("Publish time must be a list of integers of length 6. \
-                                    Ex: [year, month, day, hour, minute, second]")
+        log.debug("UNS to publish on schedule the event: %s" % event)
 
-        log.info("Publishing event: event.origin = %s" % event.origin)
-        log.info("Publishing event: event.event_type = %s" % event.type_)
-
-        def publish_immediately(message, headers):
-            log.info("UNS received a SchedulerEvent")
+        #--------------------------------------------------------------------------------
+        # Set up a subscriber to get the nod from the scheduler to publish the event
+        #--------------------------------------------------------------------------------
+        def publish(message, headers):
             self.event_publisher._publish_event( event_msg = event,
                                             origin=event.origin,
                                             event_type = event.type_)
+            log.info("UNS published an event in response to a nod from the Scheduler Service.")
 
-        # Set up a subscriber to get the nod from the scheduler to publish the event
-        event_subscriber = EventSubscriber( event_type = "SchedulerEvent",
-            origin="Scheduler",
-            callback=publish_immediately)
-
+        event_subscriber = EventSubscriber( event_type = "ResourceEvent", callback=publish)
         event_subscriber.start()
 
-
-        publish_time_object = datetime.datetime( publish_time[0], publish_time[1], publish_time[2], publish_time[3],
-                                            publish_time[4], publish_time[5])
-
-        #todo - When there is a real scheduler, we can publish events using that
-        #todo - For now, creating a proxy for the scheduler
-
-        log.info("UNS providing the scheduler the following time = %s" % publish_time_object)
-
-        fake_scheduler = FakeScheduler()
-        fake_scheduler.set_task(publish_time_object, "Schedule UserNotificationService.publish_event")
-
+        # Use the scheduler to set up a timer
+        self.scheduler_service.create_timer(scheduler_entry)
 
     def create_worker(self, number_of_workers=1):
         '''
