@@ -136,20 +136,20 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
 
         #CBM: Use CF standard_names
 
-        ttool = TaxyTool()
-        ttool.add_taxonomy_set('time','time')
-        ttool.add_taxonomy_set('lon','longitude')
-        ttool.add_taxonomy_set('lat','latitude')
-        ttool.add_taxonomy_set('z','water depth')
-        ttool.add_taxonomy_set('water_temperature', 'average water temperature')
-        ttool.add_taxonomy_set('water_temperature_bottom','water temperature at bottom of water column')
-        ttool.add_taxonomy_set('water_temperature_middle', 'water temperature at middle of water column')
-        ttool.add_taxonomy_set('streamflow', 'flow velocity of stream')
-        ttool.add_taxonomy_set('specific_conductance', 'specific conductance of water')
-        ttool.add_taxonomy_set('data_qualifier','data qualifier flag')
-
-        ttool.add_taxonomy_set('coords','This group contains coordinate parameters')
-        ttool.add_taxonomy_set('data','This group contains data parameters')
+#        ttool = TaxyTool()
+#        ttool.add_taxonomy_set('time','time')
+#        ttool.add_taxonomy_set('lon','longitude')
+#        ttool.add_taxonomy_set('lat','latitude')
+#        ttool.add_taxonomy_set('z','water depth')
+#        ttool.add_taxonomy_set('water_temperature', 'average water temperature')
+#        ttool.add_taxonomy_set('water_temperature_bottom','water temperature at bottom of water column')
+#        ttool.add_taxonomy_set('water_temperature_middle', 'water temperature at middle of water column')
+#        ttool.add_taxonomy_set('streamflow', 'flow velocity of stream')
+#        ttool.add_taxonomy_set('specific_conductance', 'specific conductance of water')
+#        ttool.add_taxonomy_set('data_qualifier','data qualifier flag')
+#
+#        ttool.add_taxonomy_set('coords','This group contains coordinate parameters')
+#        ttool.add_taxonomy_set('data','This group contains data parameters')
 
         # Create the logger for receiving publications
         self.create_stream_and_logger(name='usgs',stream_id=stream_id)
@@ -184,7 +184,7 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
         pdict.add_context(temp_ctxt)
 
         temp_ctxt = ParameterContext('z', param_type=QuantityType(value_encoding = numpy.dtype('float32')))
-        tempctxt.uom = 'meters'
+        temp_ctxt.uom = 'meters'
         pdict.add_context(temp_ctxt)
 
         cond_ctxt = ParameterContext('streamflow', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
