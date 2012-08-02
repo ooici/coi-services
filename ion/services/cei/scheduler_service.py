@@ -3,8 +3,7 @@
 __author__ = 'Seman, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
-
-from pyon.public import log, IonObject
+from pyon.public import IonObject, RT, log
 from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
 from interface.services.cei.ischeduler_service import BaseSchedulerService
@@ -226,8 +225,10 @@ class SchedulerService(BaseSchedulerService):
         if number_of_intervals < 0 or interval < 1 or not event_origin:
             log.error("SchedulerService.create_interval_timer: event_origin is not set")
             raise BadRequest
-        return IonObject("IntervalTimer", {"start_time": start_time, "interval": interval, "number_of_intervals": number_of_intervals,
+        interval_timer = IonObject("IntervalTimer", {"start_time": start_time, "interval": interval, "number_of_intervals": number_of_intervals,
                                            "event_origin": event_origin, "event_subtype": event_subtype})
+        se = IonObject(RT.SchedulerEntry, {"entry": interval_timer})
+        return self.create_timer(se)
 
     def create_time_of_day_timer(self, times_of_day, expires, event_origin, event_subtype=""):
         # Validate the timer
@@ -244,5 +245,8 @@ class SchedulerService(BaseSchedulerService):
                 log.error("SchedulerService.create_time_of_day_timer: TimeOfDayTimer is set to invalid value")
                 raise BadRequest
 
-        return IonObject("TimeOfDayTimer", {"times_of_day": times_of_day, "expires": expires,
+        time_of_day_timer = IonObject("TimeOfDayTimer", {"times_of_day": times_of_day, "expires": expires,
                                            "event_origin": event_origin, "event_subtype": event_subtype})
+
+        se = IonObject(RT.SchedulerEntry, {"entry": time_of_day_timer})
+        return self.create_timer(se)
