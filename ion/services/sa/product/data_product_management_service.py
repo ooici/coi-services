@@ -6,10 +6,11 @@ __license__ = 'Apache 2.0'
 from pyon.util.log import log
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from ion.services.sa.product.data_product_impl import DataProductImpl
-from interface.objects import IngestionQueue, DataProductVersion
+from interface.objects import DataProduct
 
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, PRED, LCS
+from pyon.util.arg_check import validate_is_instance, validate_true, validate_is_not_none
 
 from coverage_model.basic_types import AbstractIdentifiable, AbstractBase, AxisTypeEnum, MutabilityEnum
 from coverage_model.coverage import CRS, GridDomain, GridShape
@@ -38,6 +39,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
 
         # Create will validate and register a new data product within the system
+        validate_is_not_none(parameter_dictionary, 'A parameter dictionary must be passed to register a data product')
+        validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to register a data product')
+        validate_is_not_none(data_product, 'A data product (ion object) must be passed to register a data product')
 
         #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
@@ -109,6 +113,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product    DataProduct
         @throws NotFound    object with specified id does not exist
         """
+        validate_is_instance(data_product, DataProduct)
 
         log.debug("DataProductManagementService:update_data_product: %s" % str(data_product))
 
@@ -161,6 +166,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         data_product_obj = self.read_data_product(data_product_id)
 
+        validate_is_instance(data_product_obj, DataProduct)
+
         if data_product_obj.lcstate != LCS.RETIRED:
             self.data_product.delete_one(data_product_id)
 
@@ -200,6 +207,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         # retrieve the data_process object
         #--------------------------------------------------------------------------------
         data_product_obj = self.data_product.read_one(data_product_id)
+
+        validate_is_not_none(data_product_obj, "The data product id should correspond to a valid registered data product.")
 
         #--------------------------------------------------------------------------------
         # get the Stream associated with this data product; if no stream then create one, if multiple streams then Throw
@@ -285,8 +294,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         # retrieve the data_process object
         #--------------------------------------------------------------------------------
         data_product_obj = self.clients.resource_registry.read(data_product_id)
-        if data_product_obj is None:
-            raise NotFound("Data Product %s does not exist" % data_product_id)
+
+        validate_is_not_none(data_product_obj, 'Should not have been empty')
+        validate_is_instance(data_product_obj, DataProduct)
+
         if data_product_obj.dataset_configuration_id is None:
             raise NotFound("Data Product %s dataset configuration does not exist" % data_product_id)
 
@@ -325,7 +336,8 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         log.debug("DataProductManagementService:get_data_product_provenance: %s" % str(current_data_product))
 
-        result = self.data_product.read_one(data_product_id)
+        data_product = self.data_product.read_one(data_product_id)
+        validate_is_not_none(data_product, "Should have got a non empty data product")
 
         # todo: get the start time of this data product
         producer_ids = self._find_producers(data_product_id)
@@ -376,6 +388,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
         data_product_obj = self.read_data_product(data_product_id)
 
+        validate_is_not_none(data_product_version, "Need to pass in a data product version")
+
         data_product_version_id, version = self.clients.resource_registry.create(data_product_version)
         self.clients.resource_registry.create_association( subject=data_product_id, predicate=PRED.hasVersion, object=data_product_version_id)
 
@@ -398,6 +412,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product    DataProductVersion
         @throws NotFound    object with specified id does not exist
         """
+
+        validate_is_not_none(data_product, "Should not pass in a None object")
+
         log.debug("DataProductManagementService:update_data_product_version: %s" % str(data_product))
 
         self.clients.resource_registry.update(data_product)
@@ -415,6 +432,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         log.debug("DataProductManagementService:read_data_product_version: %s" % str(data_product_version_id))
 
         result = self.clients.resource_registry.read(data_product_version_id)
+
+        validate_is_not_none(result, "Should not have returned an empty result")
 
         return result
 
