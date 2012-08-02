@@ -150,15 +150,14 @@ class TestSchedulerService(IonIntegrationTestCase):
         sub = EventSubscriber(event_type="ResourceEvent", callback=self.tod_callback, origin=event_origin)
         sub.start()
         # Expires in two days
-        e = time.mktime((datetime.datetime.utcnow() + timedelta(days=2)).timetuple())
+        e = time.mktime((datetime.datetime.utcnow() + timedelta(days=1)).timetuple())
         time_of_day_timer = ss.create_time_of_day_timer(times_of_day=times_of_day, expires=e, event_origin=event_origin, event_subtype="")
         se = IonObject(RT.SchedulerEntry, {"entry": time_of_day_timer})
         self.tod_sent_time = datetime.datetime.utcnow()
         id = ss.create_timer(se)
         self.assertEqual(type(id), str)
-        gevent.sleep(10)
-        ss.cancel_timer(id)
-        # After waiting for 10 seconds, validate 2 events are generated.
+        gevent.sleep(15)
+        # After waiting for 15 seconds, validate 2 events are generated.
         self.assertTrue(self.tod_count == 2)
 
 

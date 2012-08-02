@@ -103,9 +103,10 @@ class SchedulerService(BaseSchedulerService):
                 self.__update_entry(id=id, index=index, spawn=spawn)
                 return True
         elif type(task) == TimeOfDayTimer:
-            if task.expires > self.__now_posix(self.__now()):
+            now_posix = self.__now_posix(self.__now())
+            if task.expires > now_posix:
                 expire_time = self.__get_reschedule_expire_time(task, index)
-                if expire_time and expire_time >= 1:
+                if expire_time and expire_time >= 1 and ((task.expires - now_posix) > expire_time):
                     log.debug("SchedulerService:__reschedule: rescheduling: - " + task.event_origin + " - Now: " + str(self.__now()) +
                               " - Expire: " + str(expire_time) + " - ID: " + id + " -Index:" + str(index))
                     spawn = gevent.spawn_later(expire_time, self._expire_callback, id, index)
