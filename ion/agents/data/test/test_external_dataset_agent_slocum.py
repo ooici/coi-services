@@ -10,7 +10,7 @@
 # Import pyon first for monkey patching.
 from pyon.public import log
 from pyon.ion.resource import PRED, RT
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+#from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -21,6 +21,10 @@ from nose.plugins.attrib import attr
 
 #temp until stream defs are completed
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
 
 @attr('INT_LONG', group='eoi')
 class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
@@ -168,63 +172,68 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
 
         #CBM: Use CF standard_names
 
-        ttool = TaxyTool()
+#        ttool = TaxyTool()
+#
+#        ttool.add_taxonomy_set('c_wpt_y_lmc'),
+#        ttool.add_taxonomy_set('sci_water_cond'),
+#        ttool.add_taxonomy_set('m_y_lmc'),
+#        ttool.add_taxonomy_set('u_hd_fin_ap_inflection_holdoff'),
+#        ttool.add_taxonomy_set('sci_m_present_time'),
+#        ttool.add_taxonomy_set('m_leakdetect_voltage_forward'),
+#        ttool.add_taxonomy_set('sci_bb3slo_b660_scaled'),
+#        ttool.add_taxonomy_set('c_science_send_all'),
+#        ttool.add_taxonomy_set('m_gps_status'),
+#        ttool.add_taxonomy_set('m_water_vx'),
+#        ttool.add_taxonomy_set('m_water_vy'),
+#        ttool.add_taxonomy_set('c_heading'),
+#        ttool.add_taxonomy_set('sci_fl3slo_chlor_units'),
+#        ttool.add_taxonomy_set('u_hd_fin_ap_gain'),
+#        ttool.add_taxonomy_set('m_vacuum'),
+#        ttool.add_taxonomy_set('u_min_water_depth'),
+#        ttool.add_taxonomy_set('m_gps_lat'),
+#        ttool.add_taxonomy_set('m_veh_temp'),
+#        ttool.add_taxonomy_set('f_fin_offset'),
+#        ttool.add_taxonomy_set('u_hd_fin_ap_hardover_holdoff'),
+#        ttool.add_taxonomy_set('c_alt_time'),
+#        ttool.add_taxonomy_set('m_present_time'),
+#        ttool.add_taxonomy_set('m_heading'),
+#        ttool.add_taxonomy_set('sci_bb3slo_b532_scaled'),
+#        ttool.add_taxonomy_set('sci_fl3slo_cdom_units'),
+#        ttool.add_taxonomy_set('m_fin'),
+#        ttool.add_taxonomy_set('x_cycle_overrun_in_ms'),
+#        ttool.add_taxonomy_set('sci_water_pressure'),
+#        ttool.add_taxonomy_set('u_hd_fin_ap_igain'),
+#        ttool.add_taxonomy_set('sci_fl3slo_phyco_units'),
+#        ttool.add_taxonomy_set('m_battpos'),
+#        ttool.add_taxonomy_set('sci_bb3slo_b470_scaled'),
+#        ttool.add_taxonomy_set('m_lat'),
+#        ttool.add_taxonomy_set('m_gps_lon'),
+#        ttool.add_taxonomy_set('sci_ctd41cp_timestamp'),
+#        ttool.add_taxonomy_set('m_pressure'),
+#        ttool.add_taxonomy_set('c_wpt_x_lmc'),
+#        ttool.add_taxonomy_set('c_ballast_pumped'),
+#        ttool.add_taxonomy_set('x_lmc_xy_source'),
+#        ttool.add_taxonomy_set('m_lon'),
+#        ttool.add_taxonomy_set('m_avg_speed'),
+#        ttool.add_taxonomy_set('sci_water_temp'),
+#        ttool.add_taxonomy_set('u_pitch_ap_gain'),
+#        ttool.add_taxonomy_set('m_roll'),
+#        ttool.add_taxonomy_set('m_tot_num_inflections'),
+#        ttool.add_taxonomy_set('m_x_lmc'),
+#        ttool.add_taxonomy_set('u_pitch_ap_deadband'),
+#        ttool.add_taxonomy_set('m_final_water_vy'),
+#        ttool.add_taxonomy_set('m_final_water_vx'),
+#        ttool.add_taxonomy_set('m_water_depth'),
+#        ttool.add_taxonomy_set('m_leakdetect_voltage'),
+#        ttool.add_taxonomy_set('u_pitch_max_delta_battpos'),
+#        ttool.add_taxonomy_set('m_coulomb_amphr'),
+#        ttool.add_taxonomy_set('m_pitch'),
 
-        ttool.add_taxonomy_set('c_wpt_y_lmc'),
-        ttool.add_taxonomy_set('sci_water_cond'),
-        ttool.add_taxonomy_set('m_y_lmc'),
-        ttool.add_taxonomy_set('u_hd_fin_ap_inflection_holdoff'),
-        ttool.add_taxonomy_set('sci_m_present_time'),
-        ttool.add_taxonomy_set('m_leakdetect_voltage_forward'),
-        ttool.add_taxonomy_set('sci_bb3slo_b660_scaled'),
-        ttool.add_taxonomy_set('c_science_send_all'),
-        ttool.add_taxonomy_set('m_gps_status'),
-        ttool.add_taxonomy_set('m_water_vx'),
-        ttool.add_taxonomy_set('m_water_vy'),
-        ttool.add_taxonomy_set('c_heading'),
-        ttool.add_taxonomy_set('sci_fl3slo_chlor_units'),
-        ttool.add_taxonomy_set('u_hd_fin_ap_gain'),
-        ttool.add_taxonomy_set('m_vacuum'),
-        ttool.add_taxonomy_set('u_min_water_depth'),
-        ttool.add_taxonomy_set('m_gps_lat'),
-        ttool.add_taxonomy_set('m_veh_temp'),
-        ttool.add_taxonomy_set('f_fin_offset'),
-        ttool.add_taxonomy_set('u_hd_fin_ap_hardover_holdoff'),
-        ttool.add_taxonomy_set('c_alt_time'),
-        ttool.add_taxonomy_set('m_present_time'),
-        ttool.add_taxonomy_set('m_heading'),
-        ttool.add_taxonomy_set('sci_bb3slo_b532_scaled'),
-        ttool.add_taxonomy_set('sci_fl3slo_cdom_units'),
-        ttool.add_taxonomy_set('m_fin'),
-        ttool.add_taxonomy_set('x_cycle_overrun_in_ms'),
-        ttool.add_taxonomy_set('sci_water_pressure'),
-        ttool.add_taxonomy_set('u_hd_fin_ap_igain'),
-        ttool.add_taxonomy_set('sci_fl3slo_phyco_units'),
-        ttool.add_taxonomy_set('m_battpos'),
-        ttool.add_taxonomy_set('sci_bb3slo_b470_scaled'),
-        ttool.add_taxonomy_set('m_lat'),
-        ttool.add_taxonomy_set('m_gps_lon'),
-        ttool.add_taxonomy_set('sci_ctd41cp_timestamp'),
-        ttool.add_taxonomy_set('m_pressure'),
-        ttool.add_taxonomy_set('c_wpt_x_lmc'),
-        ttool.add_taxonomy_set('c_ballast_pumped'),
-        ttool.add_taxonomy_set('x_lmc_xy_source'),
-        ttool.add_taxonomy_set('m_lon'),
-        ttool.add_taxonomy_set('m_avg_speed'),
-        ttool.add_taxonomy_set('sci_water_temp'),
-        ttool.add_taxonomy_set('u_pitch_ap_gain'),
-        ttool.add_taxonomy_set('m_roll'),
-        ttool.add_taxonomy_set('m_tot_num_inflections'),
-        ttool.add_taxonomy_set('m_x_lmc'),
-        ttool.add_taxonomy_set('u_pitch_ap_deadband'),
-        ttool.add_taxonomy_set('m_final_water_vy'),
-        ttool.add_taxonomy_set('m_final_water_vx'),
-        ttool.add_taxonomy_set('m_water_depth'),
-        ttool.add_taxonomy_set('m_leakdetect_voltage'),
-        ttool.add_taxonomy_set('u_pitch_max_delta_battpos'),
-        ttool.add_taxonomy_set('m_coulomb_amphr'),
-        ttool.add_taxonomy_set('m_pitch'),
-
+        pdict = ParameterDictionary()
+        t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
         #CBM: Eventually, probably want to group this crap somehow - not sure how yet...
 
         # Create the logger for receiving publications
@@ -236,7 +245,7 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
             'TESTING':True,
             'stream_id':stream_id,
             'external_dataset_res':dset,
-            'taxonomy':ttool.dump(),
+            'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':20,
         }

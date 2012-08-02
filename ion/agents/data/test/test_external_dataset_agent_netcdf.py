@@ -10,7 +10,10 @@
 # Import pyon first for monkey patching.
 from pyon.public import log
 from pyon.ion.resource import PRED, RT
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+#from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -23,7 +26,7 @@ from nose.plugins.attrib import attr
 #temp until stream defs are completed
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
-
+import numpy
 
 @attr('INT_LONG', group='eoi')
 class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
@@ -151,12 +154,58 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
         # Create the logger for receiving publications
         self.create_stream_and_logger(name='usgs',stream_id=stream_id)
 
+        pdict = ParameterDictionary()
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        pdict.add_context(lat_ctxt)
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        pdict.add_context(lon_ctxt)
+
+        temp_ctxt = ParameterContext('water_temperature', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        temp_ctxt.uom = 'degree_Celsius'
+        pdict.add_context(temp_ctxt)
+
+        temp_ctxt = ParameterContext('water_temperature_bottom', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        temp_ctxt.uom = 'degree_Celsius'
+        pdict.add_context(temp_ctxt)
+
+        temp_ctxt = ParameterContext('water_temperature_middle', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        temp_ctxt.uom = 'degree_Celsius'
+        pdict.add_context(temp_ctxt)
+
+        temp_ctxt = ParameterContext('z', param_type=QuantityType(value_encoding = numpy.dtype('float32')))
+        tempctxt.uom = 'meters'
+        pdict.add_context(temp_ctxt)
+
+        cond_ctxt = ParameterContext('streamflow', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        cond_ctxt.uom = 'unknown'
+        pdict.add_context(cond_ctxt)
+
+        pres_ctxt = ParameterContext('specific_conductance', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        pres_ctxt.uom = 'unknown'
+        pdict.add_context(pres_ctxt)
+
+        pres_ctxt = ParameterContext('data_qualifier', param_type=QuantityType(value_encoding=numpy.dtype('bool')))
+        pres_ctxt.uom = 'unknown'
+        pdict.add_context(pres_ctxt)
+
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
             'stream_id':stream_id,
-            'taxonomy':ttool.dump(),
+            #'taxonomy':ttool.dump(),
+            'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':4,
         }
