@@ -623,6 +623,7 @@ class DummyDataHandler(BaseDataHandler):
 #        # Make sure the array_len is at least 1 larger than max_rec - so chunking is always seen
 #        max_rec = get_safe(config, 'max_records', 1)
 #        return {'array_len':npr.randint(max_rec+1,max_rec+10,1)[0],}
+
         old_list = get_safe(config, 'new_data_check') or []
 
         ret = {}
@@ -632,8 +633,10 @@ class DummyDataHandler(BaseDataHandler):
         date_extraction_pattern = get_safe(config, 'ds_params.date_extraction_pattern')
 
         curr_list = list_file_info(base_url, list_pattern)
-
         # Determine which files are new
+        log.warn('curr_list:{0}'.format(curr_list))
+        log.warn('old_list:{0}'.format(old_list))
+
         new_list = [tuple(x) for x in curr_list if list(x) not in old_list]
 
         if len(new_list) is 0:

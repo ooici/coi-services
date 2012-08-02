@@ -133,56 +133,6 @@ class ContainerAppError(ContainerError):
     '''
     '''
     status_code = 554
-
-class IonInstrumentError(IonException):
-    """
-    """
-    status_code = 600
-    
-class InstConnectionError(IonInstrumentError):
-    """
-    """
-    status_code = 610
-    
-class InstNotImplementedError(IonInstrumentError):
-    """
-    """
-    status_code = 620
-    
-class InstParameterError(IonInstrumentError):
-    """
-    """
-    status_code = 630
-
-class InstProtocolError(IonInstrumentError):
-    """
-    """
-    status_code = 640
-
-class InstSampleError(IonInstrumentError):
-    """
-    """
-    status_code = 650
-
-class InstStateError(IonInstrumentError):
-    """
-    """
-    status_code = 660
-
-class InstUnknownCommandError(IonInstrumentError):
-    """
-    """
-    status_code = 670
-
-class InstDriverError(IonInstrumentError):
-    """
-    """
-    status_code = 680
-
-class InstTimeoutError(IonInstrumentError):
-    """
-    """
-    status_code = 690
     
 class ResourceError(IonException):
     """

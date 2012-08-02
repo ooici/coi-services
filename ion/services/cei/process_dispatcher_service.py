@@ -34,7 +34,8 @@ from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
 from interface.objects import ProcessStateEnum, Process
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.objects import ProcessStateEnum, ProcessDefinition, ProcessDefinitionType
+from interface.objects import ProcessStateEnum, ProcessDefinition, ProcessDefinitionType,\
+        ProcessQueueingMode, ProcessRestartMode
 
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
@@ -68,7 +69,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
             pd_conf = self.CFG.processdispatcher
         except AttributeError:
             pd_conf = {}
-
 
         # temporarily supporting old config format
         try:
@@ -339,6 +339,7 @@ _PD_PROCESS_STATE_MAP = {
     "900-REJECTED": ProcessStateEnum.ERROR
 }
 
+
 class Notifier(object):
     """Sends Process state notifications via ION events
 
@@ -353,7 +354,7 @@ class Notifier(object):
 
         ion_process_state = _PD_PROCESS_STATE_MAP.get(state)
         if not ion_process_state:
-            log.debug("Received unknown process state from Process Dispatcher."+
+            log.debug("Received unknown process state from Process Dispatcher." +
                       " process=%s state=%s", process_id, state)
             return
         if ion_process_state is _PD_IGNORED_STATE:
@@ -367,6 +368,7 @@ class Notifier(object):
 
 # should be configurable to support multiple process dispatchers?
 DEFAULT_HEARTBEAT_QUEUE = "heartbeats"
+
 
 class HeartbeatSubscriber(Subscriber):
     """Custom subscriber to handle incoming EEAgent heartbeats
@@ -444,7 +446,7 @@ class PDNativeBackend(object):
         try:
             uri = conf.dashi_uri
             exchange = conf.dashi_exchange
-        except AttributeError,e:
+        except AttributeError, e:
             log.warn("Needed Process Dispatcher config not found: %s", e)
             raise
 
@@ -560,9 +562,24 @@ class PDNativeBackend(object):
         # service doesn't fully support it.
 
         constraints = None
-        if schedule:
-            if schedule.target and schedule.target.constraints:
+        node_exclusive = None
+        execution_engine_id = None
+        if schedule and schedule.target:
+            if schedule.target.constraints:
                 constraints = schedule.target.constraints
+            if schedule.target.node_exclusive:
+                node_exclusive = schedule.target.node_exclusive
+            if schedule.target.execution_engine_id:
+                execution_engine_id = schedule.target.execution_engine_id
+
+        queueing_mode = None
+        restart_mode = None
+        if schedule:
+            if hasattr(schedule, 'queueing_mode') and schedule.queueing_mode:
+                queueing_mode = ProcessQueueingMode._str_map.get(schedule.queueing_mode)
+            if hasattr(schedule, 'restart_mode') and schedule.restart_mode:
+                restart_mode = ProcessRestartMode._str_map.get(schedule.restart_mode)
+        print queueing_mode
 
         parameters = {'name': name, 'module': module, 'cls': cls}
         if configuration:
@@ -572,7 +589,10 @@ class PDNativeBackend(object):
 
         log.debug("calling core: %s", self.core.dispatch_process)
         self.core.dispatch_process(None, upid=name, spec=spec,
-            subscribers=None, constraints=constraints)
+            subscribers=None, constraints=constraints,
+            node_exclusive=node_exclusive, queueing_mode=queueing_mode,
+            execution_engine_id=execution_engine_id,
+            restart_mode=restart_mode)
 
         return name
 
@@ -737,6 +757,7 @@ class PDBridgeBackend(object):
 
         return process
 
+
 def _ion_process_from_core(core_process):
     try:
         config = core_process['spec']['parameters']['config']
@@ -757,6 +778,7 @@ def _ion_process_from_core(core_process):
 
     return process
 
+
 def get_dashi(*args, **kwargs):
     try:
         import dashi
@@ -765,6 +787,7 @@ def get_dashi(*args, **kwargs):
                  "dashi library dependency is not available.")
         raise
     return dashi.DashiConnection(*args, **kwargs)
+
 
 def get_pd_dashi_name():
     return "%s.dashi_process_dispatcher" % bootstrap.get_sys_name()
