@@ -11,7 +11,7 @@ from pyon.datastore.datastore import DataStore
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService
 from interface.objects import DataSet
 from ion.services.dm.utility.granule_utils import SimplexCoverage, ParameterDictionary, GridDomain
-from pyon.util.arg_check import validate_is_instance, validate_true
+from pyon.util.arg_check import validate_is_instance, validate_true, validate_is_not_none
 from pyon.util.file_sys import FileSystem, FS
 
 
@@ -36,6 +36,10 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None,temporal_domain=None, description=''):
 #        validate_true(name and parameter_dict and temporal_domain and spatial_domain, 'Datasets require name, parameter dictionary, temporal and spatial domains.')
+
+        validate_is_not_none(parameter_dict, 'A parameter dictionary must be supplied to register a new dataset.')
+        validate_is_not_none(spatial_domain, 'A spatial domain must be supplied to register a new dataset.')
+        validate_is_not_none(temporal_domain, 'A temporal domain must be supplied to register a new dataset.')
 
         dataset                      = DataSet()
         dataset.description          = description
