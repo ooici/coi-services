@@ -20,8 +20,9 @@ from interface.services.sa.idata_acquisition_management_service import  DataAcqu
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, ExternalDatasetModel, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
-from interface.objects import AgentCommand, ExternalDatasetAgent, ExternalDatasetAgentInstance
+from interface.objects import AgentCommand, ExternalDatasetAgent, ExternalDatasetAgentInstance, ProcessDefinition
 
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
@@ -44,7 +45,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='foo')
 @unittest.skip('not working')
 class TestBulkIngest(IonIntegrationTestCase):
 
@@ -63,6 +64,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
         self.dams_client = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+        self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
 
         self._container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
 
@@ -94,11 +96,29 @@ class TestBulkIngest(IonIntegrationTestCase):
         self._ia_client = ResourceAgentClient(self.EDA_RESOURCE_ID,  process=FakeProcess())
         log.debug('TestBulkIngest: Got ia client %s.', str(self._ia_client))
 
+    def create_logger(self, name, stream_id=''):
 
+        # logger process
+        producer_definition = ProcessDefinition(name=name+'_logger')
+        producer_definition.executable = {
+            'module':'ion.processes.data.stream_granule_logger',
+            'class':'StreamGranuleLogger'
+        }
+
+        logger_procdef_id = self.processdispatchclient.create_process_definition(process_definition=producer_definition)
+        configuration = {
+            'process':{
+                'stream_id':stream_id,
+                }
+        }
+        pid = self.processdispatchclient.schedule_process(process_definition_id= logger_procdef_id, configuration=configuration)
+
+        return pid
 
     def _start_finished_event_subscriber(self):
 
         def consume_event(*args,**kwargs):
+            log.debug('EventSubscriber event received: %s', str(args[0]) )
             if args[0].description == 'TestingFinished':
                 log.debug('TestingFinished event received')
                 self._finished_events_received.append(args[0])
@@ -188,7 +208,14 @@ class TestBulkIngest(IonIntegrationTestCase):
 
 
 
+
+        for pid in self.loggerpids:
+            self.processdispatchclient.cancel_process(pid)
+
+
     def _setup_resources(self):
+
+        self.loggerpids = []
 
         # Create DataProvider
         dprov = ExternalDataProvider(institution=Institution(), contact=ContactInformation())
@@ -206,8 +233,13 @@ class TestBulkIngest(IonIntegrationTestCase):
 
         dset.dataset_description.parameters['base_url'] = 'test_data/slocum/'
         dset.dataset_description.parameters['list_pattern'] = 'ru05-2012-021-0-0-sbd.dat'
-        dset.dataset_description.parameters['date_pattern'] = '%Y %j'
         dset.dataset_description.parameters['date_extraction_pattern'] = 'ru05-([\d]{4})-([\d]{3})-\d-\d-sbd.dat'
+#        dset.dataset_description.parameters['base_url'] = 'test_data/slocum/ru10-339'
+#        dset.dataset_description.parameters['list_pattern'] = '*_sbd.dat'
+#        dset.dataset_description.parameters['date_extraction_pattern'] = 'ru10_([\d]{4})_([\d]{3})_\d_\d_sbd.dat'
+
+        dset.dataset_description.parameters['date_pattern'] = '%Y %j'
+        dset.dataset_description.parameters['date_extraction_pattern'] = 'ru10_([\d]{4})_([\d]{3})_\d_\d_sbd.dat'
         dset.dataset_description.parameters['temporal_dimension'] = None
         dset.dataset_description.parameters['zonal_dimension'] = None
         dset.dataset_description.parameters['meridional_dimension'] = None
@@ -291,11 +323,234 @@ class TestBulkIngest(IonIntegrationTestCase):
         stream_id, assn = self.rrclient.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
         stream_id = stream_id[0]
 
+
+        pid = self.create_logger('slocum_parsed_product', stream_id )
+        self.loggerpids.append(pid)
+
+#        pdict = ParameterDictionary()
+#        t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+#        t_ctxt.reference_frame = AxisTypeEnum.TIME
+#        t_ctxt.uom = 'seconds since 01-01-1970'
+#        pdict.add_context(t_ctxt)
+
         pdict = ParameterDictionary()
-        t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 01-01-1970'
+
+        t_ctxt = ParameterContext('c_wpt_y_lmc', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
         pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_water_cond', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_y_lmc', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('u_hd_fin_ap_inflection_holdoff', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_m_present_time', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_leakdetect_voltage_forward', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_bb3slo_b660_scaled', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('c_science_send_all', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_gps_status', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_water_vx', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_water_vy', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('c_heading', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_fl3slo_chlor_units', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('u_hd_fin_ap_gain', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_vacuum', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('u_min_water_depth', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_gps_lat', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_veh_temp', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('f_fin_offset', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('u_hd_fin_ap_hardover_holdoff', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('c_alt_time', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_present_time', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_heading', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_bb3slo_b532_scaled', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_fl3slo_cdom_units', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_fin', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('x_cycle_overrun_in_ms', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_water_pressure', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('u_hd_fin_ap_igain', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_fl3slo_phyco_units', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_battpos', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_bb3slo_b470_scaled', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_lat', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_gps_lon', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_ctd41cp_timestamp', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_pressure', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('c_wpt_x_lmc', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('c_ballast_pumped', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('x_lmc_xy_source', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_lon', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_avg_speed', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('sci_water_temp', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('u_pitch_ap_gain', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_roll', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_tot_num_inflections', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_x_lmc', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('u_pitch_ap_deadband', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_final_water_vy', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_final_water_vx', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_water_depth', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_leakdetect_voltage', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('u_pitch_max_delta_battpos', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_coulomb_amphr', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('m_pitch', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.uom = 'unknown'
+        pdict.add_context(t_ctxt)
+
 
         # Create the logger for receiving publications
         #self.create_stream_and_logger(name='slocum',stream_id=stream_id)
