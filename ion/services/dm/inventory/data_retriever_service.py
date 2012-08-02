@@ -159,7 +159,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         return ReplayProcess.get_last_granule(self.container,dataset_id)
     @classmethod
-    def _transform_data(binding, data, module, cls, **kwargs):
+    def _transform_data(binding, data, module, cls, kwargs={}):
         transform = for_name(module,cls)
         validate_is_instance(transform,TransformAlgorithm,'%s.%s is not a TransformAlgorithm' % (module,cls))
         return transform.execute(data,**kwargs)
