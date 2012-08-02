@@ -18,7 +18,7 @@ import math
 class FakeProcess(LocalContextMixin):
     name = ''
 
-@attr('INT', group='eoi')
+@attr('INT', group='cei')
 class TestSchedulerService(IonIntegrationTestCase):
 
     def setUp(self):
