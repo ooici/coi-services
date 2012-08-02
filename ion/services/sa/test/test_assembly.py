@@ -11,6 +11,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from pyon.core.exception import BadRequest, NotFound, Inconsistent #, Conflict
 from pyon.public import RT, LCS, LCE
@@ -434,8 +435,31 @@ class TestAssembly(IonIntegrationTestCase):
         ctd_stream_def_id = c.PSMS.create_stream_definition(container=ctd_stream_def)
 
         #create data products for instrument data
-        inst_data_product_id = c.DPMS.create_data_product(any_old(RT.DataProduct), ctd_stream_def_id)
-        log_data_product_id = c.DPMS.create_data_product(any_old(RT.DataProduct), ctd_stream_def_id)
+
+        log.debug('test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)')
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='DP1',
+            description='some new dp',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        log.debug("Created an IonObject for a data product: %s" % dp_obj)
+
+        #------------------------------------------------------------------------------------------------
+        # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
+        #------------------------------------------------------------------------------------------------
+        log.debug("parameter dictionary: %s" % parameter_dictionary)
+
+        inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
         #assign data products appropriately
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
