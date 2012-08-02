@@ -18,11 +18,13 @@ from ion.services.dm.utility.granule_utils import CoverageCraft
 from interface.objects import Granule
 from couchdb import ResourceNotFound
 import re
+import collections
 import numpy
 
 
 
 class ScienceGranuleIngestionWorker(SimpleProcess):
+    CACHE_LIMIT=100
     def on_start(self): #pragma no cover
         self.queue_name = self.CFG.get_safe('process.queue_name','ingestion_queue')
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
@@ -38,8 +40,8 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         # - Datasets
         # - Coverage instances
         #--------------------------------------------------------------------------------
-        self.datasets  = {}
-        self.coverages = {}
+        self._datasets  = collections.OrderedDict()
+        self._coverages = collections.OrderedDict()
 
     def on_quit(self): #pragma no cover
         self.subscriber.stop()
@@ -53,33 +55,38 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         if datasets:
             return datasets[0]
         return None
-
     def get_dataset(self,stream_id):
         '''
-        Returns the dataset associated with the stream
+        Memoization (LRU) of _new_dataset
         '''
-        #@todo: add support for a limited size of known datasets
-        if not stream_id in self.datasets:
-            val = self._new_dataset(stream_id)
-            if val:
-                self.datasets[stream_id] = val
-            else: return None
-        return self.datasets[stream_id]
+        try:
+            result = self._datasets.pop(stream_id)
+        except KeyError:
+            result = self._new_dataset(stream_id)
+            if result is None:
+                return None
+            if len(self._datasets) >= self.CACHE_LIMIT:
+                self._datasets.popitem(0)
+        self._datasets[stream_id] = result
+        return result
 
     def get_coverage(self, stream_id):
         '''
-        Returns the coverage instance associated with the stream
+        Memoization (LRU) of _get_coverage
         '''
-        if stream_id in self.coverages:
-            return self.coverages[stream_id]
-        else:
+        try:
+            result = self._coverages.pop(stream_id)
+        except KeyError:
             dataset_id = self.get_dataset(stream_id)
-            if not dataset_id:
+            if dataset_id is None:
                 return None
-            #@todo: For workers>1 we cannot maintain an instantiated coverage object in cache.
-            coverage = DatasetManagementService._get_coverage(dataset_id)
-            self.coverages[stream_id] = coverage
-            return coverage
+            result = DatasetManagementService._get_coverage(dataset_id)
+            if result is None:
+                return None
+            if len(self._coverages) >= self.CACHE_LIMIT:
+                self._coverages.popitem(0)
+        self._coverages[stream_id] = result
+        return result
 
     def consume(self, msg, headers):
         '''
