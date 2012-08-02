@@ -8,9 +8,6 @@
 from pyparsing import ParseException, Regex, quotedString, CaselessLiteral, MatchFirst, removeQuotes, Optional
 from pyon.core.exception import BadRequest
 
-import time
-import dateutil.parser
-
 
 class QueryLanguage(object):
     '''
@@ -34,10 +31,12 @@ class QueryLanguage(object):
       <depth-parameter> ::= "DEPTH" <integer>
            <term-query> ::= "IS" <field-query>
           <field-query> ::= <wildcard-string>
-          <range-query> ::= "VALUES FROM" <number> "TO" <number>
-           <time-query> ::= "TIME FROM" <date> "TO" <date>
+          <range-query> ::= "VALUES" [<from-statement>] [<to-statement>]
+           <time-query> ::= "TIME" [<from-statement>] [<to-statement>]
             <geo-query> ::= "GEO" ( <geo-distance> | <geo-bbox> )
          <geo-distance> ::= "DISTANCE" <distance> "FROM" <coords>
+       <from-statement> ::= "FROM" <number>
+         <to-statement> ::= "TO" <number>
              <geo-bbox> ::= "BOX" "TOP-LEFT" <coords> "BOTTOM-RIGHT" <coords>
            <index-name> ::= <python-string>
         <collection-id> ::= <resource_id>
@@ -87,10 +86,10 @@ class QueryLanguage(object):
         distance = number + units
         distance.setParseAction( lambda x : self.frame.update({'dist' : float(x[0]), 'units' : x[1]}))
 
+
         #--------------------------------------------------------------------------------------
         # Date
         #--------------------------------------------------------------------------------------
-        
         date = python_string
         
         #--------------------------------------------------------------------------------------
@@ -108,20 +107,41 @@ class QueryLanguage(object):
         resource_id = Regex(r'("(?:[a-zA-Z0-9\$_-])*"|\'(?:[a-zA-Z0-9\$_-]*)\')').setParseAction(removeQuotes)
         collection_id = resource_id
 
+
+        #--------------------------------------------------------------------------------------
+        # <from-statement> ::= "FROM" <number> 
+        # <to-statement>   ::= "TO" <number>
+        #--------------------------------------------------------------------------------------
+        from_statement = CaselessLiteral("FROM") + number
+        from_statement.setParseAction(lambda x : self.frame.update({'from' : x[1]}))
+        to_statement = CaselessLiteral("TO") + number
+        to_statement.setParseAction(lambda x : self.frame.update({'to' : x[1]}))
+
+
+        #--------------------------------------------------------------------------------------
+        # <date-from-statement> ::= "FROM" <date> 
+        # <date-to-statement>   ::= "TO" <date>
+        #--------------------------------------------------------------------------------------
+        date_from_statement = CaselessLiteral("FROM") + date
+        date_from_statement.setParseAction(lambda x : self.frame.update({'from' : x[1]}))
+        date_to_statement = CaselessLiteral("TO") + date
+        date_to_statement.setParseAction(lambda x : self.frame.update({'to' : x[1]}))
+
+
         #--------------------------------------------------------------------------------------
         # <time-query> ::= "TIME FROM" <date> "TO" <date>
         #--------------------------------------------------------------------------------------
-        time_query = CaselessLiteral("TIME") + CaselessLiteral("FROM") + date + CaselessLiteral("TO") + date
-        time_query.setParseAction(lambda x : self.frame.update({'time' : {'from' : x[2], 'to' : x[4]}}))
+        time_query = CaselessLiteral("TIME") + Optional(date_from_statement) + Optional(date_to_statement)
+        time_query.setParseAction(lambda x : self.time_frame())
            # time.mktime(dateutil.parser.parse(x[2])), 'to':time.mktime(dateutil.parser.parse(x[4]))}}))
 
 
         #--------------------------------------------------------------------------------------
-        # <range-query>  ::= "VALUES FROM" <number> "TO" <number>
+        # <range-query>  ::= "VALUES" [<from-statement>] [<to-statement>]
         #--------------------------------------------------------------------------------------
-        range_query = CaselessLiteral("VALUES") + CaselessLiteral("FROM") + number + CaselessLiteral("TO") + number
+        range_query = CaselessLiteral("VALUES") + Optional(from_statement) + Optional(to_statement)
         # Add the range to the frame object
-        range_query.setParseAction(lambda x : self.frame.update({'range':{'from' : float(x[2]), 'to' : float(x[4])}}))
+        range_query.setParseAction(lambda x : self.range_frame())
 
         #--------------------------------------------------------------------------------------
         # <geo-distance> ::= "DISTANCE" <distance> "FROM" <coords>
@@ -214,6 +234,26 @@ class QueryLanguage(object):
             self.json_query['or'] = [self.frame]
         self.frame = dict()
 
+    def range_frame(self):
+        if not 'range' in self.frame:
+            self.frame['range'] = {}
+        if 'from' in self.frame:
+            self.frame['range']['from'] = float(self.frame['from'])
+            del self.frame['from']
+        if 'to' in self.frame:
+            self.frame['range']['to'] = float(self.frame['to'])
+            del self.frame['to']
+            
+    def time_frame(self):
+        if not 'time' in self.frame:
+            self.frame['time'] = {}
+        if 'from' in self.frame:
+            self.frame['time']['from'] = self.frame['from']
+            del self.frame['from']
+        if 'to' in self.frame:
+            self.frame['time']['to'] = self.frame['to']
+            del self.frame['to']
+            
 
     def parse(self, s):
         '''
@@ -246,7 +286,7 @@ class QueryLanguage(object):
             return False
         if not isinstance(query,dict):
             return False
-        if query.has_key('range') and isinstance(query['range'], dict) and query['range'].has_key('from') and query['range'].has_key('to') and query.has_key('index') and query.has_key('field'):
+        if query.has_key('range') and isinstance(query['range'], dict) and query.has_key('index') and query.has_key('field'):
             return True
         return False
     @classmethod
@@ -288,7 +328,7 @@ class QueryLanguage(object):
             return False
         if not isinstance(query,dict):
             return False
-        if query.has_key('time') and isinstance(query['time'], dict) and query['time'].has_key('from') and query['time'].has_key('to') and query.has_key('index') and query.has_key('field'):
+        if query.has_key('time') and isinstance(query['time'], dict) and query.has_key('index') and query.has_key('field'):
             return True
         return False
 

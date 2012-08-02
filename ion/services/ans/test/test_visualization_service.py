@@ -138,7 +138,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
 
         msg_count,_ = xq.get_stats()
-        print 'Messages in user queue 1: ' + str(msg_count)
+        log.info('Messages in user queue 1: %s ' % msg_count)
 
         #Validate the data from each of the messages along the way
         #self.validate_messages(results)
@@ -158,7 +158,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Should be zero after pulling all of the messages.
         msg_count,_ = xq.get_stats()
-        print 'Messages in user queue 2: ' + str(msg_count)
+        log.info('Messages in user queue 2: %s ' % msg_count)
 
 
         #Trying to continue to receive messages in the queue
@@ -172,7 +172,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Should see more messages in the queue
         msg_count,_ = xq.get_stats()
-        print 'Messages in user queue 3: ' + str(msg_count)
+        log.info('Messages in user queue 3: %s ' % msg_count)
 
         msgs = subscriber.get_all_msgs(timeout=2)
         for x in range(len(msgs)):
@@ -181,7 +181,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Should be zero after pulling all of the messages.
         msg_count,_ = xq.get_stats()
-        print 'Messages in user queue 4: ' + str(msg_count)
+        log.info('Messages in user queue 4: %s ' % msg_count)
 
         subscriber.close()
 
@@ -214,7 +214,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #TODO - Need to add workflow creation for google data table
 
-        vis_token = self.vis_client.initiate_realtime_visualization(workflow_product_id)
+        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=workflow_product_id, in_product_type='google_dt')
 
         #Trying to continue to receive messages in the queue
         gevent.sleep(10.0)  # Send some messages - don't care how many

@@ -30,7 +30,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     
 
-    def create_data_product(self, data_product=None, stream_definition_id=''):
+    def create_data_product(self, data_product=None, stream_definition_id='', parameter_dictionary=''):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
@@ -41,7 +41,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # Register - create and store a new DataProduct resource using provided metadata
         log.debug("DataProductManagementService:create_data_product: %s" % str(data_product))
-        data_product_id = self.data_product.create_one(data_product)
+        data_product_id, rev = self.clients.resource_registry.create(data_product)
 
         #create the initial/default data product version
         data_product_version = DataProductVersion()
@@ -238,6 +238,59 @@ class DataProductManagementService(BaseDataProductManagementService):
 #        for dataset_id in dataset_ids:
 #         self.data_product.unlink_data_set(data_product_id, dataset_id)
         
+    def get_data_product_provenance(self, data_product_id=''):
+        """
+        method docstring
+        """
+        # Retrieve information that characterizes how this data was produced
+        # Return in a dictionary
+
+        provenance_results = {}
+        current_data_product = data_product_id
+        log.debug("DataProductManagementService:get_data_product_provenance: %s" % str(current_data_product))
+        result = self.data_product.read_one(data_product_id)
+
+        # todo: get the start time of this data product
+
+        producer_ids, _ = self._find_producers(current_data_product, provenance_results)
+
+        while producer_ids:
+            for producer_id in producer_ids:
+                provenance_results[current_data_product] = { 'producer': producer_id, 'inputs': self._find_producer_in_products(producer_id) }
+                producer_ids = self._find_producers(current_data_product)
+        return {}
+    
+
+    def _find_producers(self, data_product_id=''):
+
+        source_ids = []
+        # get the link to the DataProducer resource
+        producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
+
+
+        for producer_id in producer_ids:
+            # get the link to that resources parent DataProducer
+            parent_ids, _ = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasParent, id_only=True)
+
+            for parent_id in parent_ids:
+                # get the producer that this DataProducer represents
+                nxt_producer_ids, _ = self.clients.resource_registry.find_objects(subject=parent_id, predicate=PRED.hasDataProducer, id_only=True)
+                for nxt_producer_id in nxt_producer_ids:
+                    nxt_producer_obj = self.clients.resource_registry.read(nxt_producer_id)
+                    #todo: check the type of resource; instrument, data process or extDataset
+                    #nxt_producer_obj
+                    source_ids.append(nxt_producer_id)
+        log.debug("DataProductManagementService:_find_producers: %s" % str(source_ids))
+        return source_ids
+
+    def _find_producer_in_products(self, producer_id=''):
+
+
+        # get the link to the inout DataProduct resource
+        product_ids, _ = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasInputDataProduct, id_only=True)
+
+        return product_ids
+
 
     def create_data_product_version(self, data_product_id='', data_product_version=None):
         """Define a new version of an existing set of information that represent an inprovement in the quality or

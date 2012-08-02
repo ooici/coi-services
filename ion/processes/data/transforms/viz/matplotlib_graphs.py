@@ -33,6 +33,7 @@ class VizTransformMatplotlibGraphs(TransformFunction):
 
     """
 
+    # Need to extract the incoming stream def automatically
     outgoing_stream_def = SBE37_RAW_stream_definition()
     incoming_stream_def = SBE37_CDM_stream_definition()
 
@@ -44,26 +45,25 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         log.debug('Matplotlib transform: Received Viz Data Packet')
 
         #init stuff
-        self.out_granule = None
 
         # parse the incoming data
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
         vardict = {}
         vardict['time'] = get_safe(rdt, 'time')
-        vardict['conductivity'] = get_safe(rdt, 'conductivity')
-        vardict['pressure'] = get_safe(rdt, 'pressure')
-        vardict['temperature'] = get_safe(rdt, 'temperature')
+        vardict['conductivity'] = get_safe(rdt, 'cond')
+        vardict['pressure'] = get_safe(rdt, 'pres')
+        vardict['temperature'] = get_safe(rdt, 'temp')
 
-        vardict['longitude'] = get_safe(rdt, 'longitude')
-        vardict['latitude'] = get_safe(rdt, 'latitude')
+        vardict['longitude'] = get_safe(rdt, 'long')
+        vardict['latitude'] = get_safe(rdt, 'lat')
         vardict['height'] = get_safe(rdt, 'height')
         arrLen = len(vardict['time'])
 
         # init the graph_data structure for storing values
-        self.graph_data = {}
+        graph_data = {}
         for varname in vardict.keys():    #psd.list_field_names():
-            self.graph_data[varname] = []
+            graph_data[varname] = []
 
 
         # If code reached here, the graph data storage has been initialized. Just add values
@@ -71,15 +71,15 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         for varname in vardict.keys():  # psd.list_field_names():
             if vardict[varname] == None:
                 # create an array of zeros to compensate for missing values
-                self.graph_data[varname].extend([0.0]*arrLen)
+                graph_data[varname].extend([0.0]*arrLen)
             else:
-                self.graph_data[varname].extend(vardict[varname])
+                graph_data[varname].extend(vardict[varname])
 
-        self.render_graphs()
-        return self.out_granule
+        out_granule = self.render_graphs(graph_data)
 
+        return out_granule
 
-    def render_graphs(self):
+    def render_graphs(self, graph_data):
 
         # init Matplotlib
         fig = Figure()
@@ -90,16 +90,16 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         # If there's no data, wait
         # For the simple case of testing, lets plot all time variant variables one at a time
         xAxisVar = 'time'
-        xAxisFloatData = self.graph_data[xAxisVar]
+        xAxisFloatData = graph_data[xAxisVar]
         rdt = RecordDictionaryTool(taxonomy=tx)
         msgs = []
 
-        for varName, varData in self.graph_data.iteritems():
+        for varName, varData in graph_data.iteritems():
             if varName == 'time' or varName == 'height' or varName == 'longitude' or varName == 'latitude':
                 continue
 
             yAxisVar = varName
-            yAxisFloatData = self.graph_data[varName]
+            yAxisFloatData = graph_data[varName]
 
             # Generate the plot
             ax.plot(xAxisFloatData, yAxisFloatData, 'ro')
@@ -124,8 +124,8 @@ class VizTransformMatplotlibGraphs(TransformFunction):
             #clear the canvas for the next image
             ax.clear()
 
-        rdt['matplotlib_graphs'] = numpy.array(msgs)
+        rdt['matplotlib_graphs'] = numpy.array([msgs])
         #Generate a list of the graph objects generated
-        self.out_granule = build_granule(data_producer_id='matplotlib_graphs_transform', taxonomy=tx, record_dictionary=rdt)
+        return build_granule(data_producer_id='matplotlib_graphs_transform', taxonomy=tx, record_dictionary=rdt)
 
 

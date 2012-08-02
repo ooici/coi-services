@@ -142,6 +142,18 @@ class QueryLanguageUnitTest(PyonTestCase):
         retval = self.parser.parse(test_string)
         self.assertTrue(retval == {'and':[], 'or':[], 'query':{'field':'ts_timestamp', 'time':{'from':'2012-01-01', 'to':'2012-02-01'}, 'index':'index'}})
 
+    def test_open_range(self):
+        test_string = 'SEARCH "model" VALUES FROM 1.14 FROM "instrument.model"'
+
+        retval = self.parser.parse(test_string)
+        struct = DotDict(retval)
+        self.assertTrue(struct.query['range']['from'] == 1.14)
+    
+    def  test_open_time_search(self):
+        test_string = "search 'ts_timestamp' time from '2012-01-01' from 'index'"
+        retval = self.parser.parse(test_string)
+        self.assertTrue(retval == {'and':[], 'or':[], 'query':{'field':'ts_timestamp', 'time':{'from':'2012-01-01'}, 'index':'index'}})
+
     def test_extensive(self):
 
         cases = [

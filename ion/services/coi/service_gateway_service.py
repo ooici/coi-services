@@ -584,6 +584,22 @@ def get_attachment(attachment_id):
         return build_error_response(e)
 
 
+# Get a visualization image for a specific data product
+#TODO - will need to update this to handle parameters to pass on to the Vis service and to use proper return keys
+@app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
+def get_visualization_image(data_product_id, img_name):
+
+    # Create client to interface with the viz service
+    vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+    
+    visualization_params = dict()
+    visualization_params['image'] = img_name
+    #TODO - add additional query string parameters as needed to dict
+
+    image_info = vs_cli.get_visualization_image(data_product_id, visualization_params)
+    return app.response_class(image_info['image_obj'],mimetype=image_info['content_type'])
+
+
 #More REST-ful examples...should probably not use but here for example reference
 
 #This example calls the resource registry with an id passed in as part of the URL
@@ -629,16 +645,6 @@ def list_resources_by_type(resource_type):
         return build_error_response(e)
 
 
-#Gateway specific services are below
-
-# Get image for a specific data product
-#TODO - do we really still need this?
-@app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
-def get_viz_image(data_product_id, img_name):
-
-    # Create client to interface with the viz service
-    vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-    return app.response_class(vs_cli.get_image(data_product_id, img_name),mimetype='image/png')
 
 
 #Below are example restful calls to stuff for testing... all should be removed at some point
