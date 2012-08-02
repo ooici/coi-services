@@ -16,7 +16,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
-from interface.objects import DeliveryMode, UserInfo, DeliveryConfig, DetectionFilterConfig
+from interface.objects import UserInfo, DeliveryConfig
 from interface.objects import DeviceEvent
 from ion.services.cei.scheduler_service import SchedulerService
 from nose.plugins.attrib import attr
@@ -26,11 +26,10 @@ from pyon.event.event import EventPublisher, EventSubscriber
 import gevent
 from mock import Mock, mocksignature
 from interface.objects import NotificationRequest
-from ion.services.dm.utility.query_language import QueryLanguage
 from ion.services.dm.inventory.index_management_service import IndexManagementService
 from ion.services.dm.presentation.user_notification_service import EmailEventProcessor
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
-import os, time, datetime
+import os, time
 from gevent import event, queue
 from gevent.timeout import Timeout
 import elasticpy as ep
@@ -1100,18 +1099,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         Test the publish_event method of UNS
         '''
 
-        #--------------------------------------------------------------------------------
-        # Create a scheduler entry "time interval" object using the scheduler service
-        #--------------------------------------------------------------------------------
-#        current_time = datetime.datetime.today()
-#
-#        if current_time.second < 50:
-#            future_time = [current_time.year, current_time.month, current_time.day,\
-#                           current_time.hour, current_time.minute, current_time.second + 4]
-#        else:
-#            future_time = [current_time.year, current_time.month, current_time.day,\
-#                           current_time.hour, current_time.minute, 4]
-
         # Time out in 3 seconds
         ss = SchedulerService()
         interval_timer = ss.create_interval_timer(start_time= time.time(), interval=3,
@@ -1147,8 +1134,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.publish_event(event=event, scheduler_entry=scheduler_entry)
 
         event_in = ar.get(timeout=20)
-
-        log.warning("event_in got in the test: %s" % event_in)
 
         #--------------------------------------------------------------------------------
         # check that the event was published
