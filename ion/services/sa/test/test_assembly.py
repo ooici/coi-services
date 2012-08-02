@@ -28,7 +28,7 @@ from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 from ion.services.sa.instrument.flag import KeywordFlag
 
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, ctd_stream_definition
 
 # some stuff for logging info to the console
 # import sys
@@ -430,13 +430,16 @@ class TestAssembly(IonIntegrationTestCase):
         #
         #----------------------------------------------
 
-        #set up stream (this would be preload)
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = c.PSMS.create_stream_definition(container=ctd_stream_def)
+        #------------------------------------------------------------------------------------------------
+        # create a stream definition for the data from the ctd simulator
+        #------------------------------------------------------------------------------------------------
+        ctd_stream_def = ctd_stream_definition()
+        ctd_stream_def_id = self.client.PSMS.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        log.debug("Created stream def id %s" % ctd_stream_def_id)
 
         #create data products for instrument data
 
-        log.debug('test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)')
+        log.debug('test_createDataProduct: Creating new data product w/o a stream definition: %s' % ctd_stream_def_id)
 
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
@@ -492,7 +495,7 @@ class TestAssembly(IonIntegrationTestCase):
                                     c.IMS.find_instrument_device_by_platform_device,
                                     platform_device_id,
                                     instrument_device_id2)
-        inst_data_product_id2 = c.DPMS.create_data_product(any_old(RT.DataProduct), ctd_stream_def_id)
+        inst_data_product_id2 = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id2,
                                    data_product_id=inst_data_product_id2)
 
