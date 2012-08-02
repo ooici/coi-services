@@ -101,14 +101,15 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
     def on_quit(self):
         self.backend.shutdown()
 
-    def create_process_definition(self, process_definition=None):
+    def create_process_definition(self, process_definition=None, process_definition_id=None):
         """Creates a Process Definition based on given object.
 
         @param process_definition    ProcessDefinition
+        @param process_definition_id desired process definition ID
         @retval process_definition_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
-        return self.backend.create_definition(process_definition)
+        return self.backend.create_definition(process_definition, process_definition_id)
 
     def read_process_definition(self, process_definition_id=''):
         """Returns a Process Definition as object.
@@ -257,7 +258,9 @@ class PDLocalBackend(object):
     def shutdown(self):
         pass
 
-    def create_definition(self, definition):
+    def create_definition(self, definition, definition_id=None):
+        if definition_id:
+            raise BadRequest("specifying process definition IDs is not supported in local backend")
         pd_id, version = self.rr.create(definition)
         return pd_id
 
@@ -521,11 +524,11 @@ class PDNativeBackend(object):
 
         self.core.ee_heartbeart(resource_id, beat)
 
-    def create_definition(self, definition):
+    def create_definition(self, definition, definition_id=None):
         """
         @type definition: ProcessDefinition
         """
-        definition_id = uuid.uuid4().hex
+        definition_id = definition_id or uuid.uuid4().hex
         self.core.create_definition(definition_id, definition.definition_type,
             definition.executable, name=definition.name,
             description=definition.description)
@@ -657,11 +660,11 @@ class PDBridgeBackend(object):
             origin=process_id, origin_type="DispatchedProcess",
             state=ion_process_state)
 
-    def create_definition(self, definition):
+    def create_definition(self, definition, definition_id=None):
         """
         @type definition: ProcessDefinition
         """
-        definition_id = uuid.uuid4().hex
+        definition_id = definition_id or uuid.uuid4().hex
         args = dict(definition_id=definition_id,
             definition_type=definition.definition_type,
             executable=definition.executable, name=definition.name,

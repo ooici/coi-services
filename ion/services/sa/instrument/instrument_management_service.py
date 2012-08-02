@@ -265,10 +265,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             if not stream_obj:
                 raise NotFound("Stream %s does not exist" % stream_ids[0])
 
-#            log.debug("activate_instrument:output stream name: %s"  +  str(stream_obj.name))
-#            log.debug("activate_instrument:output stream name find parsed %s", str(stream_obj.name.lower().find('parsed')) )
-#            log.debug("activate_instrument:output stream name find raw %s", str(stream_obj.name.lower().find('raw')) )
-
             #todo  - Replace this hack: look in the data product name for 'raw' or 'parsed'
 
             if stream_obj.name.lower().find('parsed') > -1 :
@@ -280,10 +276,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             else:
                 raise NotFound("Stream %s is not CTD raw or parsed" % stream_obj.name)
         log.debug("activate_instrument:output stream config: %s"  +  str(out_streams))
-
-#        for necessary_field in ["ctd_raw", "ctd_parsed"]:
-#            if not necessary_field in out_streams:
-#                raise BadRequest("Failed to find output stream '%s'" % necessary_field)
 
         #todo: move this up and out
         # Create taxonomies for both parsed and raw
@@ -358,31 +350,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
-        log.debug("IMS: _start_pagent ")
-        # Create port agent object.
-        this_pid = os.getpid()
-        self._pagent = EthernetDeviceLogger.launch_process(
-            instrument_agent_instance_obj.comms_device_address,
-            int(instrument_agent_instance_obj.comms_device_port),
-            instrument_agent_instance_obj.port_agent_work_dir,
-            instrument_agent_instance_obj.port_agent_delimeter,
-            this_pid)
-
-        # Get the pid and port agent server port number.
+        config = { 'device_addr' : instrument_agent_instance_obj.comms_device_address,
+                   'device_port' : instrument_agent_instance_obj.comms_device_port,
+                   'working_dir' : instrument_agent_instance_obj.port_agent_work_dir,
+                   'delimiter' : instrument_agent_instance_obj.port_agent_delimeter  }
+        self._pagent = PortAgentProcess.launch_process(config, timeout = 60, test_mode = True)
         pid = self._pagent.get_pid()
-        while not pid:
-            gevent.sleep(.1)
-            pid = self._pagent.get_pid()
-        port = self._pagent.get_port()
-        while not port:
-            gevent.sleep(.1)
-            port = self._pagent.get_port()
-
-        log.debug("IMS: _start_pagent pid %s ", str(pid))
+        port = self._pagent.get_data_port()
+        log.debug("IMS: port agent pid: %d ", pid)
 
         # Configure driver to use port agent port number.
         instrument_agent_instance_obj.driver_config['comms_config'] = {
-            'addr' : 'localhost',
+            'addr' : 'localhost', #TODO: should this be FQDN?
             'port' : port
         }
         instrument_agent_instance_obj.driver_config['pagent_pid'] = pid
@@ -1485,11 +1464,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return 1.1
 
     def get_data_transmission_rate(self, platform_device_id):
+        #todo: units?
         return "data_transmission_rate"
 
     def get_speed_over_ground(self, platform_device_id):
+        #todo: units?
         return "speed_over_ground"
 
     def get_aggregated_status(self, platform_device_id):
         # The status roll-up that summarizes the entire status of the device  (CV:  RED, YELLOW, GREEN, BLACK)
+        #todo: class for constants?
         return "RED"   

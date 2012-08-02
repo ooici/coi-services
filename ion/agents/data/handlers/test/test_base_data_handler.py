@@ -15,7 +15,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.core.exception import NotFound
 import unittest
 
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+#from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentDataException, InstrumentCommandException, NotImplementedException, InstrumentException
 from interface.objects import Granule, Attachment
 
@@ -62,7 +62,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         glet.join(timeout=5)
 
-        self.assertTrue(execute_acquire_data_mock.call_count >= 2)
+        self.assertTrue(execute_acquire_data_mock.call_count >= 1)
 
     def test__publish_data_with_granules(self):
         publisher = Mock()
@@ -617,17 +617,17 @@ class TestDummyDataHandlerUnit(PyonTestCase):
 
 
     @patch('ion.agents.data.handlers.base_data_handler.RecordDictionaryTool')
-    @patch('ion.agents.data.handlers.base_data_handler.TaxyTool')
+    @patch('ion.agents.data.handlers.base_data_handler.ParameterDictionary')
     @patch('ion.agents.data.handlers.base_data_handler.build_granule')
-    def test__get_data(self, build_granule_mock, TaxyTool_mock, RecordDictionaryTool_mock):
-        config={'constraints':{'array_len':6},'max_records':4,'data_producer_id':sentinel.dprod_id,'taxonomy':sentinel.taxy_tool}
+    def test__get_data(self, build_granule_mock, ParamDict_mock, RecordDictionaryTool_mock):
+        config={'constraints':{'array_len':6},'max_records':4,'data_producer_id':sentinel.dprod_id,'param_dictionary':sentinel.pdict}
 
-        TaxyTool_mock.load.return_value = sentinel.ttool_ret_val
+        ParamDict_mock.load.return_value = sentinel.pdict_return_value
         RecordDictionaryTool_mock.side_effect = lambda **kwargs: {}
 
         for x in DummyDataHandler._get_data(config):
-            RecordDictionaryTool_mock.assert_called_with(taxonomy=sentinel.ttool_ret_val)
-            build_granule_mock.assert_called_with(taxonomy=sentinel.ttool_ret_val, data_producer_id=sentinel.dprod_id, record_dictionary=ANY)
+            RecordDictionaryTool_mock.assert_called_with(param_dictionary=sentinel.pdict_return_value)
+            build_granule_mock.assert_called_with(data_producer_id=sentinel.dprod_id, record_dictionary=ANY, param_dictionary=sentinel.pdict_return_value)
             cargs=build_granule_mock.call_args
             self.assertIn('dummy', cargs[1]['record_dictionary'])
             self.assertIsInstance(cargs[1]['record_dictionary']['dummy'], numpy.ndarray)
@@ -635,7 +635,7 @@ class TestDummyDataHandlerUnit(PyonTestCase):
         self.assertEquals(build_granule_mock.call_count, 2)
         self.assertEquals(RecordDictionaryTool_mock.call_count, 2)
 
-        TaxyTool_mock.load.assert_called_once_with(sentinel.taxy_tool)
+        ParamDict_mock.load.assert_called_once_with(sentinel.pdict)
 
 
 
@@ -658,17 +658,17 @@ class TestFibonacciDataHandlerUnit(PyonTestCase):
         self.assertTrue(5 <= i <= 20)
 
     @patch('ion.agents.data.handlers.base_data_handler.RecordDictionaryTool')
-    @patch('ion.agents.data.handlers.base_data_handler.TaxyTool')
+    @patch('ion.agents.data.handlers.base_data_handler.ParameterDictionary')
     @patch('ion.agents.data.handlers.base_data_handler.build_granule')
-    def test__get_data(self, build_granule_mock, TaxyTool_mock, RecordDictionaryTool_mock):
-        config={'constraints':{'count':6},'max_records':4,'data_producer_id':sentinel.dprod_id,'taxonomy':sentinel.taxy_tool}
+    def test__get_data(self, build_granule_mock, ParamDict_mock, RecordDictionaryTool_mock):
+        config={'constraints':{'count':6},'max_records':4,'data_producer_id':sentinel.dprod_id,'param_dictionary':sentinel.pdict}
 
-        TaxyTool_mock.load.return_value = sentinel.ttool_ret_val
+        ParamDict_mock.load.return_value = sentinel.pdict_return_value
         RecordDictionaryTool_mock.side_effect = lambda **kwargs: {}
 
         for x in FibonacciDataHandler._get_data(config):
-            RecordDictionaryTool_mock.assert_called_with(taxonomy=sentinel.ttool_ret_val)
-            build_granule_mock.assert_called_with(taxonomy=sentinel.ttool_ret_val, data_producer_id=sentinel.dprod_id, record_dictionary=ANY)
+            RecordDictionaryTool_mock.assert_called_with(param_dictionary=sentinel.pdict_return_value)
+            build_granule_mock.assert_called_with(data_producer_id=sentinel.dprod_id, record_dictionary=ANY, param_dictionary=sentinel.pdict_return_value)
             cargs=build_granule_mock.call_args
             self.assertIn('data', cargs[1]['record_dictionary'])
             self.assertIsInstance(cargs[1]['record_dictionary']['data'], numpy.ndarray)
@@ -676,4 +676,4 @@ class TestFibonacciDataHandlerUnit(PyonTestCase):
         self.assertEquals(build_granule_mock.call_count, 2)
         self.assertEquals(RecordDictionaryTool_mock.call_count, 2)
 
-        TaxyTool_mock.load.assert_called_once_with(sentinel.taxy_tool)
+        ParamDict_mock.load.assert_called_once_with(sentinel.pdict)

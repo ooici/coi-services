@@ -6,6 +6,8 @@
 @author Steve Foley, Carlos Rueda
 @brief Utilities to be used in driver integration test cases
 """
+from ion.agents.port.port_agent_process import PortAgentProcess
+
 __author__ = 'Steve Foley, Carlos Rueda'
 __license__ = 'Apache 2.0'
 
@@ -57,21 +59,13 @@ class DriverIntegrationTestSupport(object):
         @retval port Port that was used for connection to agent
         """
         # Create port agent object.
-        this_pid = os.getpid()
-        self._pagent = EthernetDeviceLogger.launch_process(self.device_addr,
-                                                           self.device_port,
-                                                           self.work_dir,
-                                                           self.delim,
-                                                           this_pid)
-
+        config = { 'device_addr' : self.device_addr,
+                   'device_port' : self.device_port,
+                   'working_dir' : self.work_dir,
+                   'delimiter' : self.delim }
+        self._pagent = PortAgentProcess.launch_process(config, timeout = 60, test_mode = True)
         pid = self._pagent.get_pid()
-        while not pid:
-            gevent.sleep(.1)
-            pid = self._pagent.get_pid()
-        port = self._pagent.get_port()
-        while not port:
-            gevent.sleep(.1)
-            port = self._pagent.get_port()
+        port = self._pagent.get_data_port()
 
         mi_logger.info('Started port agent pid %d listening at port %d', pid, port)
         return port
