@@ -221,7 +221,7 @@ class SchedulerService(BaseSchedulerService):
             log.error("SchedulerService: cancel_timer: timer id doesn't exist: " + str(timer_id))
             raise BadRequest
 
-    def create_interval_timer(self, start_time, interval, number_of_intervals, event_origin, event_subtype=""):
+    def create_interval_timer(self, start_time="", interval=0, number_of_intervals=0, event_origin="", event_subtype=""):
         if number_of_intervals < 0 or interval < 1 or not event_origin:
             log.error("SchedulerService.create_interval_timer: event_origin is not set")
             raise BadRequest
@@ -230,7 +230,7 @@ class SchedulerService(BaseSchedulerService):
         se = IonObject(RT.SchedulerEntry, {"entry": interval_timer})
         return self.create_timer(se)
 
-    def create_time_of_day_timer(self, times_of_day, expires, event_origin, event_subtype=""):
+    def create_time_of_day_timer(self, times_of_day=None, expires='', event_origin='', event_subtype=''):
         # Validate the timer
         if not event_origin:
             log.error("SchedulerService.create_time_of_day_timer: event_origin is set to invalid value")
