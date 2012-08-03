@@ -34,11 +34,11 @@ class SalinityTransform(TransformFunction):
     Output is Practical Salinity as calculated by the Gibbs Seawater package
     '''
 
+    outgoing_stream_def = L2_practical_salinity_stream_definition()
+    incoming_stream_def = SBE37_CDM_stream_definition()
+
     def __init__(self):
 
-        self.outgoing_stream_def = L2_practical_salinity_stream_definition()
-
-        self.incoming_stream_def = SBE37_CDM_stream_definition()
 
 #        ### Taxonomies are defined before hand out of band... somehow.
 #        tx = TaxyTool()

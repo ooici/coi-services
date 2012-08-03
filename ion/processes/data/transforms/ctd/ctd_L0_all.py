@@ -41,12 +41,13 @@ class ctd_L0_all(TransformDataProcess):
 
     """
 
+    incoming_stream_def = SBE37_CDM_stream_definition()
+
     def __init__(self):
 
         super(ctd_L0_all, self).__init__()
 
         # Make the stream definitions of the transform class attributes
-        self.incoming_stream_def = SBE37_CDM_stream_definition()
 
         #outgoing_stream_pressure = L0_pressure_stream_definition()
         #outgoing_stream_temperature = L0_temperature_stream_definition()
