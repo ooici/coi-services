@@ -1355,6 +1355,49 @@ class InstrumentManagementService(BaseInstrumentManagementService):
        return self.sensor_device.advance_lcs(sensor_device_id, lifecycle_event)
 
 
+    ############################
+    #
+    #  STREAM RETRIEVAL
+    #
+    ############################
+
+    def retrieve_latest_device_event(self, device_id):
+        #todo: is there a constant for "events"?
+        datastore = self.container.datastore_manager.get_datastore("events")
+
+        view_name = 'event/by_type'
+
+        key_name = device_id #todo: not sure what this needs to be for event/event_type
+
+        opts = dict(
+            start_key = [key_name, 0],
+            end_key   = [key_name, {}],
+            descending = True,
+            limit = 1,
+            include_docs = True
+        )
+
+        granules = []
+        #--------------------------------------------------------------------------------
+        # Gather all the dataset granules and compile the FS cache
+        #--------------------------------------------------------------------------------
+        log.info('Getting data from datastore')
+        for result in datastore.query_view(view_name, opts=opts):
+            doc = result.get('doc')
+            if doc is not None:
+                ion_obj = self.granule_from_doc(doc)
+                granules.append(ion_obj)
+        log.info('Received %d granules.', len(granules))
+
+        #todo: handle this better
+        return granules[0]
+
+
+    def retrieve_latest_data_granule(self, device_id):
+        #todo: how to identify stream?
+        #todo: wait for DM refactor before proceeding
+        pass
+
 
     ############################
     #
