@@ -21,9 +21,8 @@ from pyon.util.containers import DotDict
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.net.endpoint import Publisher
-from ion.services.dm.utility.granule.granule import build_granule
-from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule_utils import build_granule, RecordDictionaryTool, TaxyTool, CoverageCraft
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from gevent.event import Event
 from nose.plugins.attrib import attr
 
@@ -50,6 +49,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.exchange_space_name  = 'test_granules'
         self.exchange_point_name  = 'science_data'       
 
+        self.purge_queues()
 
     def purge_queues(self):
         xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
@@ -71,7 +71,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         producer_definition = ProcessDefinition(name='Example Data Producer')
         producer_definition.executable = {
             'module':'ion.processes.data.example_data_producer',
-            'class' :'ExampleDataProducer'
+            'class' :'BetterDataProducer'
         }
 
         process_definition_id = self.process_dispatcher.create_process_definition(process_definition=producer_definition)
@@ -97,76 +97,18 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def publish_hifi(self,stream_id, offset=0):
-        pub = SimpleStreamPublisher.new_publisher(self.container,'science_data',stream_id)
+        pub = SimpleStreamPublisher.new_publisher(self.container,self.exchange_point_name,stream_id)
 
-        tt = TaxyTool()
-        tt.add_taxonomy_set('t')
-        tt.add_taxonomy_set('f')
-
-
-        rdt = RecordDictionaryTool(tt)
-
-        t = np.arange(10) + offset
-
-        rdt['t'] = t
-        rdt['f'] = t + 2
-
-        granule = build_granule('test', tt, rdt)
-
-        pub.publish(granule)
-
-        rdt = RecordDictionaryTool(tt)
-
-        t = np.arange(10,20) + offset
-
-        rdt['t'] = t
-        rdt['f'] = t + 2
-
-        granule = build_granule('test',tt,rdt)
+        black_box = CoverageCraft()
+        black_box.rdt['time'] = np.arange(10) + (offset * 10)
+        black_box.rdt['temp'] = (np.arange(10) + (offset * 10)) * 2
+        granule = black_box.to_granule()
         pub.publish(granule)
 
     def publish_fake_data(self,stream_id):
 
-        pub = Publisher()
-        tt = TaxyTool()
-        tt.add_taxonomy_set('pres','long name for pres')
-        tt.add_taxonomy_set('lat','long name for latitude')
-        tt.add_taxonomy_set('lon','long name for longitude')
-        tt.add_taxonomy_set('height','long name for height')
-        tt.add_taxonomy_set('time','long name for time')
-        tt.add_taxonomy_set('temp','long name for temp')
-        tt.add_taxonomy_set('cond','long name for cond')
-
-        rdt = RecordDictionaryTool(tt)
-
-        rdt['pres'] = np.array([1,2,3,4,5])
-        rdt['lat'] = np.array([1,2,3,4,5])
-        rdt['lon'] = np.array([1,2,3,4,5])
-        rdt['height'] = np.array([1,2,3,4,5])
-        rdt['time'] = np.array([1,2,3,4,5])
-        rdt['temp'] = np.array([1,2,3,4,5])
-        rdt['cond'] = np.array([1,2,3,4,5])
-
-        granule = build_granule('test',tt,rdt)
-
-        xp = self.container.ex_manager.create_xp('science_data')
-        xpr = xp.create_route('%s.data' % stream_id)
-
-        pub.publish(granule,to_name=xpr)
-
-        rdt = RecordDictionaryTool(tt)
-        rdt['pres'] = np.array([1,2,3,4,5])
-        rdt['lat'] = np.array([1,2,3,4,5])
-        rdt['lon'] = np.array([1,2,3,4,5])
-        rdt['height'] = np.array([1,2,3,4,5])
-        rdt['time'] = np.array([6,7,8,9,10])
-        rdt['temp'] = np.array([1,2,3,4,5])
-        rdt['cond'] = np.array([1,2,3,4,5])
-
-
-        granule = build_granule(data_producer_id='tool', taxonomy=tt, record_dictionary=rdt)
-
-        pub.publish(granule,to_name=xpr)
+        for i in xrange(4):
+            self.publish_hifi(stream_id,i)
         
 
     def get_datastore(self, dataset_id):
@@ -178,7 +120,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
     def validate_granule_subscription(self, msg, header):
         if msg == {}:
             return
-        self.assertIsInstance(msg,Granule,'Message is improperly formatted.')
+        self.assertIsInstance(msg,Granule,'Message is improperly formatted. (%s)' % type(msg))
         self.event.set()
 
 
@@ -199,6 +141,74 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
             now = time.time()
 
+    def create_dataset(self):
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        pdict = craft.create_parameters()
+        pdict = pdict.dump()
+
+        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dict=pdict, spatial_domain=sdom, temporal_domain=tdom)
+        return dataset_id
+
+
+    def test_coverage_ingest(self):
+        stream_id = self.pubsub_management.create_stream()
+        dataset_id = self.create_dataset()
+        ingestion_config_id = self.get_ingestion_config()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, 
+                    ingestion_configuration_id=ingestion_config_id,
+                    dataset_id=dataset_id)
+
+        black_box = CoverageCraft()
+        black_box.rdt['time'] = np.arange(20)
+        black_box.rdt['temp'] = np.random.random(20) * 10
+        black_box.sync_with_granule()
+        granule = black_box.to_granule()
+
+        publisher = SimpleStreamPublisher.new_publisher(self.container,self.exchange_point_name, stream_id)
+        publisher.publish(granule)
+
+        self.wait_until_we_have_enough_granules(dataset_id,1)
+
+        coverage = DatasetManagementService._get_coverage(dataset_id)
+
+        black_box = CoverageCraft(coverage)
+        black_box.sync_rdt_with_coverage()
+        comp = black_box.rdt['time'] == np.arange(20)
+        self.assertTrue(comp.all())
+
+        black_box = CoverageCraft()
+        black_box.rdt['time'] = np.arange(20) + 20
+        black_box.rdt['temp'] = np.random.random(20) * 10
+        black_box.sync_with_granule()
+        granule = black_box.to_granule()
+
+        publisher.publish(granule)
+
+
+        self.wait_until_we_have_enough_granules(dataset_id,2)
+
+        coverage = DatasetManagementService._get_coverage(dataset_id)
+
+        black_box = CoverageCraft(coverage)
+        black_box.sync_rdt_with_coverage()
+        comp = black_box.rdt['time'] == np.arange(40)
+        self.assertTrue(comp.all())
+
+
+        granule = self.data_retriever.retrieve(dataset_id)
+
+        black_box = CoverageCraft()
+        black_box.sync_rdt_with_granule(granule)
+        comp = black_box.rdt['time'] == np.arange(40)
+        self.assertTrue(comp.all())
+        
+
+
+
+
       
     def test_dm_end_2_end(self):
         #--------------------------------------------------------------------------------
@@ -213,19 +223,20 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Start persisting the data on the stream 
         # - Get the ingestion configuration from the resource registry
+        # - Create the dataset
         # - call persist_data_stream to setup the subscription for the ingestion workers
         #   on the stream that you specify which causes the data to be persisted
         #--------------------------------------------------------------------------------
 
         ingest_config_id = self.get_ingestion_config()
-
-        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id)
+        dataset_id = self.create_dataset()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
 
         #--------------------------------------------------------------------------------
         # Now the granules are ingesting and persisted
         #--------------------------------------------------------------------------------
 
-        self.wait_until_we_have_enough_granules(dataset_id)
+        self.wait_until_we_have_enough_granules(dataset_id,4)
         
 
         #--------------------------------------------------------------------------------
@@ -247,12 +258,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
         xp = self.container.ex_manager.create_xp(self.exchange_point_name)
         xn = self.container.ex_manager.create_xn_queue(self.exchange_space_name)
         xn.bind('%s.data' % stream_id, xp)
-        subscriber = Subscriber(name=xn, callback=self.validate_granule_subscription)
-        greenlet = gevent.spawn(subscriber.listen)
+        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,
+                    self.exchange_space_name,self.validate_granule_subscription)
+        subscriber.start()
         
         self.data_retriever.start_replay(replay_id)
-
-
         
         fail = False
         try:
@@ -261,12 +271,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
             fail = True
 
 
-        subscriber.close()
-        greenlet.join()
+        subscriber.stop()
 
         self.assertTrue(not fail, 'Failed to validate the data.')
-        
-
 
 
     def test_replay_by_time(self):
@@ -277,20 +284,24 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         stream_id  = self.pubsub_management.create_stream()
         config_id  = self.get_ingestion_config()
-        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
+        dataset_id = self.create_dataset()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         #--------------------------------------------------------------------------------
         # Create the datastore first,
         #--------------------------------------------------------------------------------
-        self.get_datastore(dataset_id)
+        # There is a race condition sometimes between the services and the process for
+        # the creation of the datastore and it's instance, this ensures the datastore
+        # exists before the process is even subscribing to data.
+        self.get_datastore(dataset_id) 
 
         self.publish_fake_data(stream_id)
         self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
 
-        replay_granule = self.data_retriever.retrieve(dataset_id,{'start_time':0,'end_time':2})
+        replay_granule = self.data_retriever.retrieve(dataset_id,{'start_time':0,'end_time':6})
 
         rdt = RecordDictionaryTool.load_from_granule(replay_granule)
 
-        comp = rdt['time'] == np.array([1,2,3,4,5])
+        comp = rdt['time'] == np.array([0,1,2,3,4,5])
 
         try:
             log.info('Compared granule: %s', replay_granule.__dict__)
@@ -305,60 +316,78 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         stream_id  = self.pubsub_management.create_stream()
         config_id  = self.get_ingestion_config()
-        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
+        dataset_id = self.create_dataset()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         #--------------------------------------------------------------------------------
         # Create the datastore first,
         #--------------------------------------------------------------------------------
         self.get_datastore(dataset_id)
 
-        self.publish_fake_data(stream_id)
+        self.publish_hifi(stream_id, 0)
+        self.publish_hifi(stream_id, 1)
+        
+
         self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
 
         replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
 
         rdt = RecordDictionaryTool.load_from_granule(replay_granule)
 
-        comp = rdt['time'] == np.array([6,7,8,9,10])
+        comp = rdt['time'] == np.arange(10) + 10
 
         self.assertTrue(comp.all())
 
-    def test_accuracy(self):
-        stream_id = self.pubsub_management.create_stream()
-        config_id = self.get_ingestion_config()
-        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
 
+    def test_replay_with_parameters(self):
+        #--------------------------------------------------------------------------------
+        # Create the configurations and the dataset
+        #--------------------------------------------------------------------------------
+        stream_id  = self.pubsub_management.create_stream()
+        config_id  = self.get_ingestion_config()
+        dataset_id = self.create_dataset()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
+
+
+        #--------------------------------------------------------------------------------
+        # Coerce the datastore into existence (beats race condition)
+        #--------------------------------------------------------------------------------
         self.get_datastore(dataset_id)
 
-        self.publish_hifi(stream_id)
+        self.launch_producer(stream_id)
 
-        self.wait_until_we_have_enough_granules(dataset_id,2)
+        self.wait_until_we_have_enough_granules(dataset_id,4)
 
-        retrieved_granule = self.data_retriever.retrieve(dataset_id)
+        query = {
+            'start_time': 0,
+            'end_time':   20,
+            'parameters': ['time','temp']
+        }
+        retrieved_data = self.data_retriever.retrieve(dataset_id=dataset_id,query=query)
 
-        rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
+        rdt = RecordDictionaryTool.load_from_granule(retrieved_data)
+        comp = np.arange(20) == rdt['time']
+        self.assertTrue(comp.all(),'%s' % rdt.pretty_print())
+        self.assertEquals(set(rdt.iterkeys()), set(['time','temp']))
 
-        comp = rdt['t'] == np.arange(0,20)
-        self.assertTrue(comp.all())
-
-        comp = rdt['f'] == np.arange(2,22)
-        self.assertTrue(comp.all())
 
 
     def test_repersist_data(self):
         stream_id = self.pubsub_management.create_stream()
         config_id = self.get_ingestion_config()
-        dataset_id = self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id)
-
+        dataset_id = self.create_dataset()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         self.get_datastore(dataset_id)
-        self.publish_hifi(stream_id)
+        self.publish_hifi(stream_id,0)
+        self.publish_hifi(stream_id,1)
         self.wait_until_we_have_enough_granules(dataset_id,2)
         self.ingestion_management.unpersist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
-        self.ingestion_management.persist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
-        self.publish_hifi(stream_id,20)
+        self.ingestion_management.persist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id,dataset_id=dataset_id)
+        self.publish_hifi(stream_id,2)
+        self.publish_hifi(stream_id,3)
         self.wait_until_we_have_enough_granules(dataset_id,4)
         retrieved_granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
-        comp = rdt['t'] == np.arange(0,40)
-        self.assertTrue(comp.all())
+        comp = rdt['time'] == np.arange(0,40)
+        self.assertTrue(comp.all(), 'Uh-oh: %s' % rdt['time'])
 
 
