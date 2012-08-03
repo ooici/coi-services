@@ -156,6 +156,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
     def test_coverage_ingest(self):
         stream_id = self.pubsub_management.create_stream()
         dataset_id = self.create_dataset()
+        # I freaking hate this bug
+        self.get_datastore(dataset_id)
         ingestion_config_id = self.get_ingestion_config()
         self.ingestion_management.persist_data_stream(stream_id=stream_id, 
                     ingestion_configuration_id=ingestion_config_id,
@@ -209,7 +211,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
 
-      
+    @attr('SMOKE') 
     def test_dm_end_2_end(self):
         #--------------------------------------------------------------------------------
         # Set up a stream and have a mock instrument (producer) send data
