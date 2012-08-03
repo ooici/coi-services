@@ -93,13 +93,14 @@ class RecordDictionaryTool(object):
                 if vals.ndim == 0:
                     raise ValueError('The rank of a value sequence array in a record dictionary must be greater than zero. Got name "%s" with rank "%d"' % (name, vals.ndim))
 
-                # Set _shp if it is None
-                if self._shp is None:
-                    self._shp = vals.shape
-
-                # Test new value sequence length
-                if self._shp != vals.shape:
-                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
+#TJG - Taken out for now, until we figure out how the coverage can accept data of different shapes
+#                # Set _shp if it is None
+#                if self._shp is None:
+#                    self._shp = vals.shape
+#
+#                # Test new value sequence length
+#                if self._shp != vals.shape:
+#                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
 
                 self._rd[self._param_dict.ord_from_key(param_name=name)] = vals
 

@@ -888,6 +888,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         dams_cli = DataAcquisitionManagementServiceClient()
         dpms_cli = DataProductManagementServiceClient()
         rr_cli = ResourceRegistryServiceClient()
+        pubsub_cli = PubsubManagementServiceClient()
 
         eda = ExternalDatasetAgent()
         eda_id = dams_cli.create_external_dataset_agent(eda)
@@ -946,11 +947,14 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         dams_cli.assign_external_dataset_to_data_source(external_dataset_id=ds_id, data_source_id=ext_dsrc_id)
         dams_cli.assign_external_dataset_to_agent_instance(external_dataset_id=ds_id, agent_instance_id=eda_inst_id)
 
+        #create temp streamdef so the data product can create the stream
+        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
+
         # Generate the data product and associate it to the ExternalDataset
         dprod = DataProduct(name='dummy_dataset', description='dummy data product')
-        dproduct_id = dpms_cli.create_data_product(data_product=dprod)
+        dproduct_id = dpms_cli.create_data_product(data_product=dprod, stream_definition_id=streamdef_id)
 
-        dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id, create_stream=True)
+        dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id) #, create_stream=True)
 
         stream_id, assn = rr_cli.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
         stream_id = stream_id[0]
@@ -959,11 +963,32 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
 
         #CBM: Use CF standard_names
 
-        ttool = TaxyTool()
-        ttool.add_taxonomy_set('time','time')
-        ttool.add_taxonomy_set('lon','longitude')
-        ttool.add_taxonomy_set('lat','latitude')
-        ttool.add_taxonomy_set('dummy', 'dummy')
+#        ttool = TaxyTool()
+#        ttool.add_taxonomy_set('time','time')
+#        ttool.add_taxonomy_set('lon','longitude')
+#        ttool.add_taxonomy_set('lat','latitude')
+#        ttool.add_taxonomy_set('dummy', 'dummy')
+
+        pdict = ParameterDictionary()
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.reference_frame = AxisTypeEnum.LON
+        t_ctxt.uom = 'degree_east'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.reference_frame = AxisTypeEnum.LON
+        t_ctxt.uom = 'degree_north'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('dummy', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+        t_ctxt.uom = 'unkown'
+        pdict.add_context(t_ctxt)
 
         # Create the logger for receiving publications
         self.create_stream_and_logger(name='dummy',stream_id=stream_id)
@@ -973,7 +998,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
             'stream_id':stream_id,
-            'taxonomy':ttool.dump(),
+            'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':4,
             }

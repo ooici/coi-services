@@ -39,6 +39,9 @@ from mi.core.exceptions import InstrumentException
 
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess
+from ion.agents.instrument.common import BaseEnum
+from ion.agents.instrument.instrument_fsm import FSMStateError
+from ion.agents.instrument.instrument_fsm import FSMCommandUnknownError
 
 # MI imports
 from mi.core.instrument.instrument_driver import DriverEvent
@@ -51,6 +54,18 @@ class InstrumentAgentState():
 
 class InstrumentAgentEvent():
     pass
+
+class InstrumentAgentCapability(BaseEnum):
+    INITIALIZE = ResourceAgentEvent.INITIALIZE
+    RESET = ResourceAgentEvent.RESET
+    GO_ACTIVE = ResourceAgentEvent.GO_ACTIVE
+    GO_INACTIVE = ResourceAgentEvent.GO_INACTIVE
+    RUN = ResourceAgentEvent.RUN
+    CLEAR = ResourceAgentEvent.CLEAR
+    PAUSE = ResourceAgentEvent.PAUSE
+    RESUME = ResourceAgentEvent.RESUME
+    GO_COMMAND = ResourceAgentEvent.GO_COMMAND
+    GO_DIRECT_ACCESS = ResourceAgentEvent.GO_DIRECT_ACCESS
 
 class InstrumentAgent(ResourceAgent):
     """
@@ -123,8 +138,17 @@ class InstrumentAgent(ResourceAgent):
     def _handler_get_resource_capabilities(self, *args, **kwargs):
         """
         """
-        pass
+        result = None
+        next_state = None
 
+        result = self._dvr_client.cmd_dvr('get_resource_capabilities', *args, **kwargs)
+        return (next_state, result)
+
+    def _filter_capabilities(self, events):
+
+        events_out = [x for x in events if InstrumentAgentCapability.has(x)]
+        return events_out
+    
     ##############################################################
     # Agent interface.
     ##############################################################    
@@ -151,7 +175,7 @@ class InstrumentAgent(ResourceAgent):
 
         try:
             result = self._dvr_client.cmd_dvr('get_resource', params)
-        
+            
         except Exception as ex:
             self._raise_ion_exception(ex)
         
@@ -184,14 +208,30 @@ class InstrumentAgent(ResourceAgent):
         next_state = None
         
         try:
-            print "IN IA EXECUTE RESOURCE"
-            result = self._dvr_client.cmd_dvr('execute_resource',
+            (next_state, result) = self._dvr_client.cmd_dvr(
+                'execute_resource', *args, **kwargs)
+            
+        except Exception as ex:
+            self._raise_ion_exception(ex)
+
+        return (next_state, result)
+
+    def _handler_get_resource_state(self, *args, **kwargs):
+        """
+        """
+        result = None
+        next_state = None
+        
+        try:
+            result = self._dvr_client.cmd_dvr('get_resource_state',
                                               *args, **kwargs)
             
         except Exception as ex:
             self._raise_ion_exception(ex)
 
         return (next_state, result)
+
+
 
     ##############################################################
     # UNINITIALIZED event handlers.
@@ -212,7 +252,7 @@ class InstrumentAgent(ResourceAgent):
         
         # If config not valid, fail.
         if not self._validate_driver_config():
-            #fixfix
+            log.error('Bad or missing driver configuration.')
             raise BadRequest('The driver configuration is missing or invalid.')
 
         # Start the driver and switch to inactive.
@@ -476,8 +516,89 @@ class InstrumentAgent(ResourceAgent):
 
     def evt_recv(self, evt):
         """
-        """
-        log.info('Instrument agent got an event: %s', str(evt))
+        """        
+        log.info('Instrument agent %s got async driver event %s',
+                 self.id, str(evt))
+        try:
+            type = evt['type']
+            val = evt['value']
+            ts = evt['time']
+            
+        except KeyError, ValueError:
+            log.error('Instrument agent %s received driver event %s \
+                      has missing required fields.', self.id, str(evt))
+
+        else:
+            if type == DriverAsyncEvent.STATE_CHANGE:
+                event_data = {
+                    'state' : val
+                }
+                self._event_publisher.publish_event(
+                    event_type='ResourceAgentResourceStateEvent',
+                    origin=self.resource_id, **event_data)
+  
+            elif type == DriverAsyncEvent.CONFIG_CHANGE:
+                # Publsih resource config change event.
+                event_data = {
+                    'config' : val
+                }
+                self._event_publisher.publish_event(
+                    event_type='ResourceAgentResourceConfigEvent',
+                    origin=self.resource_id, **event_data)
+            
+            elif type == DriverAsyncEvent.SAMPLE:
+                # Publish sample on sample data streams.
+                pass
+            
+            elif type == DriverAsyncEvent.ERROR:
+                # Publish resource error event.
+                if isinstance(val, IonException):
+                    event_data = {
+                        'error_type' : str(type(val)),
+                        'error_msg' : val.message,
+                        "error_code" : val.error_code
+                    }
+                
+                elif isinstance(val, Exception):
+                    event_data = {
+                        'error_type' : str(type(val)),
+                        'error_msg' : val.message
+                    }
+                
+                else:
+                    event_data = {
+                        'error_msg' : str(val)
+                    }
+                
+                self._event_publisher.publish_event(
+                    event_type='ResourceAgentErrorEvent',
+                    origin=self.resource_id, **event_data)
+            
+            elif type == DriverAsyncEvent.RESULT:
+                # Publsih async result event.
+                cmd = val.get('cmd', None)
+                desc = val.get('desc', None)
+                event_data = {
+                    'command' : cmd,
+                    'desc' : desc,
+                    'result' : val
+                }
+                self._event_publisher.publish_event(
+                    event_type='ResourceAgentAsyncResultEvent',
+                    origin=self.resource_id, **event_data)
+
+            elif type == DriverAsyncEvent.DIRECT_ACCESS:
+                # Add direct access logic.
+                pass
+
+            elif type == DriverAsyncEvent.AGENT_EVENT:
+                # File instrument agent FSM event (e.g. to switch agent state).
+                try:
+                    self._fsm.on_event(val)
+                    
+                except:
+                    log.error('Instrument agent %s error processing \
+                              asynchronous agent event %s', self.id, val)
 
     ##############################################################
     # Helpers.
@@ -498,20 +619,20 @@ class InstrumentAgent(ResourceAgent):
         # INACTIVE state event handlers.
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.RESET, self._handler_inactive_reset)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
-        self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
 
         # IDLE state event handlers.
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.RESET, self._handler_idle_reset)
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.RUN, self._handler_idle_run)
-        self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
  
         # STOPPED state event handlers.
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.RESET, self._handler_stopped_reset)
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.GO_INACTIVE, self._handler_stopped_go_inactive)
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.RESUME, self._handler_stopped_resume)
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.CLEAR, self._handler_stopped_clear)
-        self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
 
         # COMMAND state event handlers.
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.RESET, self._handler_command_reset)
@@ -523,6 +644,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.GO_DIRECT_ACCESS, self._handler_command_go_direct_access)
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         
         # STREAMING state event handlers.
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.RESET, self._handler_streaming_reset)
@@ -530,26 +652,31 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         
         # TEST state event handlers.
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         
         # CALIBRATE state event handlers.
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
                 
         # BUSY state event handlers.
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
 
         # DIRECT_ACCESS state event handlers.
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GO_COMMAND, self._handler_direct_access_go_command)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
 
     def _start_driver(self, dvr_config):
         """
@@ -621,6 +748,9 @@ class InstrumentAgent(ResourceAgent):
         elif isinstance(ex, FSMStateError):
             iex = Conflict(*(ex.args))
 
+        elif isinstance(ex, FSMCommandUnknownError):
+            iex = BadRequest(*(ex.args))
+
         elif isinstance(ex, InstrumentTimeoutException):
             iex = Timeout(*(ex.args))
         
@@ -628,7 +758,7 @@ class InstrumentAgent(ResourceAgent):
             iex = ResourceError(*(ex.args))
 
         elif isinstance(ex, Exception):
-            iex = ServerError('Unknown error in instrument agent.')
+            iex = ServerError(*(ex.args))
 
         if iex:
             raise iex

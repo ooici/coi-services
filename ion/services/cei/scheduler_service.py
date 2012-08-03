@@ -3,8 +3,7 @@
 __author__ = 'Seman, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
-
-from pyon.public import log, IonObject
+from pyon.public import IonObject, RT, log
 from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
 from interface.services.cei.ischeduler_service import BaseSchedulerService
@@ -103,9 +102,10 @@ class SchedulerService(BaseSchedulerService):
                 self.__update_entry(id=id, index=index, spawn=spawn)
                 return True
         elif type(task) == TimeOfDayTimer:
-            if task.expires > self.__now_posix(self.__now()):
+            now_posix = self.__now_posix(self.__now())
+            if task.expires > now_posix:
                 expire_time = self.__get_reschedule_expire_time(task, index)
-                if expire_time and expire_time >= 1:
+                if expire_time and expire_time >= 1 and ((task.expires - now_posix) > expire_time):
                     log.debug("SchedulerService:__reschedule: rescheduling: - " + task.event_origin + " - Now: " + str(self.__now()) +
                               " - Expire: " + str(expire_time) + " - ID: " + id + " -Index:" + str(index))
                     spawn = gevent.spawn_later(expire_time, self._expire_callback, id, index)
@@ -221,14 +221,16 @@ class SchedulerService(BaseSchedulerService):
             log.error("SchedulerService: cancel_timer: timer id doesn't exist: " + str(timer_id))
             raise BadRequest
 
-    def create_interval_timer(self, start_time, interval, number_of_intervals, event_origin, event_subtype=""):
+    def create_interval_timer(self, start_time="", interval=0, number_of_intervals=0, event_origin="", event_subtype=""):
         if number_of_intervals < 0 or interval < 1 or not event_origin:
             log.error("SchedulerService.create_interval_timer: event_origin is not set")
             raise BadRequest
-        return IonObject("IntervalTimer", {"start_time": start_time, "interval": interval, "number_of_intervals": number_of_intervals,
+        interval_timer = IonObject("IntervalTimer", {"start_time": start_time, "interval": interval, "number_of_intervals": number_of_intervals,
                                            "event_origin": event_origin, "event_subtype": event_subtype})
+        se = IonObject(RT.SchedulerEntry, {"entry": interval_timer})
+        return self.create_timer(se)
 
-    def create_time_of_day_timer(self, times_of_day, expires, event_origin, event_subtype=""):
+    def create_time_of_day_timer(self, times_of_day=None, expires='', event_origin='', event_subtype=''):
         # Validate the timer
         if not event_origin:
             log.error("SchedulerService.create_time_of_day_timer: event_origin is set to invalid value")
@@ -243,5 +245,8 @@ class SchedulerService(BaseSchedulerService):
                 log.error("SchedulerService.create_time_of_day_timer: TimeOfDayTimer is set to invalid value")
                 raise BadRequest
 
-        return IonObject("TimeOfDayTimer", {"times_of_day": times_of_day, "expires": expires,
+        time_of_day_timer = IonObject("TimeOfDayTimer", {"times_of_day": times_of_day, "expires": expires,
                                            "event_origin": event_origin, "event_subtype": event_subtype})
+
+        se = IonObject(RT.SchedulerEntry, {"entry": time_of_day_timer})
+        return self.create_timer(se)

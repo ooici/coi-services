@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-from pyon.public import IonObject
-from pyon.public import RT
+
 from pyon.core.exception import BadRequest
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
@@ -50,21 +49,18 @@ class TestSchedulerService(IonIntegrationTestCase):
         # call scheduler to set the timer
         # call scheduler to cancel the timer
         # wait until after expiry to verify that event is not sent
-
         self.single_timer_count = 0
         event_origin = "Time of Day"
-        # Time out in 3 seconds
-        now = datetime.datetime.utcnow() + timedelta(seconds=3)
-        times_of_day =[{'hour': str(now.hour),'minute' : str(now.minute), 'second':str(now.second) }]
 
         sub = EventSubscriber(event_type="ResourceEvent", callback=self.single_timer_call_back, origin=event_origin)
         sub.start()
 
+        # Time out in 3 seconds
+        now = datetime.datetime.utcnow() + timedelta(seconds=3)
+        times_of_day =[{'hour': str(now.hour),'minute' : str(now.minute), 'second':str(now.second) }]
         ss = SchedulerService()
-        time_of_day_timer = ss.create_time_of_day_timer(times_of_day=times_of_day,  expires=time.time()+25200+60, event_origin=event_origin, event_subtype="")
-        se = IonObject(RT.SchedulerEntry, {"entry": time_of_day_timer})
+        id = ss.create_time_of_day_timer(times_of_day=times_of_day,  expires=time.time()+25200+60, event_origin=event_origin, event_subtype="")
 
-        id = ss.create_timer(se)
         self.assertEqual(type(id), str)
         ss.cancel_timer(id)
         gevent.sleep(5)
@@ -96,16 +92,14 @@ class TestSchedulerService(IonIntegrationTestCase):
         sub.start()
 
         ss = SchedulerService()
-        interval_timer = ss.create_interval_timer(start_time= time.time(), interval=self.interval_timer_interval,
-                                                  number_of_intervals=self.interval_timer_number_of_intervals,
-                                                  event_origin=event_origin, event_subtype="")
-        se = IonObject(RT.SchedulerEntry, {"entry": interval_timer})
+        id = ss.create_interval_timer(start_time= time.time(), interval=self.interval_timer_interval,
+                                      number_of_intervals=self.interval_timer_number_of_intervals,
+                                      event_origin=event_origin, event_subtype="")
         self.interval_timer_sent_time = datetime.datetime.utcnow()
-        id = ss.create_timer(se)
         self.assertEqual(type(id), str)
 
         # Wait until two events are published
-        gevent.sleep((self.interval_timer_interval * 2) + .5)
+        gevent.sleep((self.interval_timer_interval * 2) + 1)
         ss.cancel_timer(id)
 
         # Validate the timer id is invalid once it has been canceled
@@ -121,9 +115,6 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.interval_timer_count += 1
         time_diff = math.fabs( ((self.interval_timer_received_time - self.interval_timer_sent_time).total_seconds())
                                 - (self.interval_timer_interval * self.interval_timer_count) )
-        #v_diff =  ((self.interval_timer_received_time - self.interval_timer_sent_time).total_seconds())
-        #log.debug("Received event for interval timer: diff:" + str(time_diff) + " interval: " +
-        #          str(self.interval_timer_interval) + " -v:" + str(v_diff) + " count: " + str(self.interval_timer_count) )
         # Assert expire time is within +-2 seconds
         self.assertTrue(time_diff <= 2)
 
@@ -149,16 +140,13 @@ class TestSchedulerService(IonIntegrationTestCase):
 
         sub = EventSubscriber(event_type="ResourceEvent", callback=self.tod_callback, origin=event_origin)
         sub.start()
-        # Expires in two days
-        e = time.mktime((datetime.datetime.utcnow() + timedelta(days=2)).timetuple())
-        time_of_day_timer = ss.create_time_of_day_timer(times_of_day=times_of_day, expires=e, event_origin=event_origin, event_subtype="")
-        se = IonObject(RT.SchedulerEntry, {"entry": time_of_day_timer})
+        # Expires in one days
+        e = time.mktime((datetime.datetime.utcnow() + timedelta(days=1)).timetuple())
         self.tod_sent_time = datetime.datetime.utcnow()
-        id = ss.create_timer(se)
+        id = ss.create_time_of_day_timer(times_of_day=times_of_day, expires=e, event_origin=event_origin, event_subtype="")
         self.assertEqual(type(id), str)
-        gevent.sleep(10)
-        ss.cancel_timer(id)
-        # After waiting for 10 seconds, validate 2 events are generated.
+        gevent.sleep(15)
+        # After waiting for 15 seconds, validate only 2 events are generated.
         self.assertTrue(self.tod_count == 2)
 
 
