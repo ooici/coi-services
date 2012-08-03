@@ -41,6 +41,7 @@ class CTDL1ConductivityTransform(TransformFunction):
         ### Parameter dictionaries
         self.defining_parameter_dictionary()
 
+
     def defining_parameter_dictionary(self):
 
         # Define the parameter context objects
