@@ -554,8 +554,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         # now try communicating with the process to make sure it is really running
         test_client = TestClient()
         for i in range(5):
-            # this timeout may be too low
-            self.assertEqual(i + 1, test_client.count(timeout=1))
+            self.assertEqual(i + 1, test_client.count(timeout=10))
 
         # kill the process and start it again
         self.pd_cli.cancel_process(pid)
@@ -575,8 +574,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.await_state_event(pid, ProcessStateEnum.SPAWN)
 
         for i in range(5):
-            # this timeout may be too low
-            self.assertEqual(i + 1, test_client.count(timeout=1))
+            self.assertEqual(i + 1, test_client.count(timeout=10))
 
         # kill the process for good
         self.pd_cli.cancel_process(pid)
