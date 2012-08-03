@@ -25,6 +25,16 @@ import numpy
 
 class ScienceGranuleIngestionWorker(SimpleProcess):
     CACHE_LIMIT=100
+
+    def __init__(self, *args,**kwargs):
+        super(ScienceGranuleIngestionWorker, self).__init__(*args, **kwargs)
+        #--------------------------------------------------------------------------------
+        # Ingestion Cache
+        # - Datasets
+        # - Coverage instances
+        #--------------------------------------------------------------------------------
+        self._datasets  = collections.OrderedDict()
+        self._coverages = collections.OrderedDict()
     def on_start(self): #pragma no cover
         self.queue_name = self.CFG.get_safe('process.queue_name','ingestion_queue')
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
@@ -35,13 +45,6 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         log.debug('Created datastore %s', self.datastore_name)
         self.subscriber.start()
 
-        #--------------------------------------------------------------------------------
-        # Ingestion Cache
-        # - Datasets
-        # - Coverage instances
-        #--------------------------------------------------------------------------------
-        self._datasets  = collections.OrderedDict()
-        self._coverages = collections.OrderedDict()
 
     def on_quit(self): #pragma no cover
         self.subscriber.stop()
