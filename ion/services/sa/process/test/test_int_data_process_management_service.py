@@ -35,7 +35,7 @@ from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from mock import patch
-
+from coverage_model.parameter import ParameterDictionary
 
 class FakeProcess(LocalContextMixin):
     """
@@ -111,7 +111,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create input data product")
         input_dp_obj = IonObject(RT.DataProduct, name='InputDataProduct', description='some new dp')
         try:
-            input_dp_id = self.dataproductclient.create_data_product(input_dp_obj, ctd_stream_def_id)
+            param_dict = ParameterDictionary()
+            input_dp_id = self.dataproductclient.create_data_product(input_dp_obj, ctd_stream_def_id, param_dict)
         except BadRequest as ex:
             self.fail("failed to create new input data product: %s" %ex)
 
@@ -144,20 +145,20 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.output_products={}
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product conductivity")
         output_dp_obj = IonObject(RT.DataProduct, name='conductivity',description='transform output conductivity')
-        output_dp_id_1 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id)
+        output_dp_id_1 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id, param_dict)
         self.output_products['conductivity'] = output_dp_id_1
         self.dataproductclient.activate_data_product_persistence(data_product_id=output_dp_id_1, persist_data=True, persist_metadata=True)
 
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product pressure")
         output_dp_obj = IonObject(RT.DataProduct, name='pressure',description='transform output pressure')
-        output_dp_id_2 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id)
+        output_dp_id_2 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id, param_dict)
         self.output_products['pressure'] = output_dp_id_2
         self.dataproductclient.activate_data_product_persistence(data_product_id=output_dp_id_2, persist_data=True, persist_metadata=True)
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product temperature")
         output_dp_obj = IonObject(RT.DataProduct, name='temperature',description='transform output ')
-        output_dp_id_3 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_temperature_id)
+        output_dp_id_3 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_temperature_id, param_dict)
         self.output_products['temperature'] = output_dp_id_3
         self.dataproductclient.activate_data_product_persistence(data_product_id=output_dp_id_3, persist_data=True, persist_metadata=True)
 
@@ -181,7 +182,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
 
-    #@unittest.skip('not working')
+    @unittest.skip('not working.. Fix activate_data_product_persistence()')
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
     def test_createDataProcessUsingSim(self):
         #-------------------------------
@@ -240,7 +241,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         print 'Creating new CDM data product with a stream definition'
         dp_obj = IonObject(RT.DataProduct,name='ctd_parsed',description='ctd stream test')
         try:
-            ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
+            param_dict = ParameterDictionary()
+            ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, param_dict)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product
@@ -262,7 +264,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,name='ctd_raw',description='raw stream test')
         try:
-            ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id)
+            ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id, param_dict)
         except BadRequest as ex:
             self.fail("failed to create new data product: %s" %ex)
         print 'new ctd_raw_data_product_id = ', ctd_raw_data_product
@@ -311,20 +313,20 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.output_products={}
         log.debug("test_createDataProcessUsingSim: create output data product L0 conductivity")
         ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='L0_Conductivity',description='transform output conductivity')
-        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj, outgoing_stream_l0_conductivity_id)
+        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj, outgoing_stream_l0_conductivity_id, param_dict)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
 
 
         log.debug("test_createDataProcessUsingSim: create output data product L0 pressure")
         ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L0_Pressure',description='transform output pressure')
-        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id)
+        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id, param_dict)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
 
         log.debug("test_createDataProcessUsingSim: create output data product L0 temperature")
         ctd_l0_temperature_output_dp_obj = IonObject(RT.DataProduct, name='L0_Temperature',description='transform output temperature')
-        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id)
+        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id, param_dict)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
 

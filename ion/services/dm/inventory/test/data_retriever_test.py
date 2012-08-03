@@ -16,7 +16,6 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from ion.processes.data.replay.replay_process import ReplayProcess
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from pyon.datastore.datastore import DataStore
 from pyon.core.bootstrap import get_sys_name
@@ -24,9 +23,7 @@ from pyon.ion.transforma import TransformAlgorithm
 from numbers import Number
 
 import unittest
-import os
 @attr('UNIT',group='dm')
-
 class DataRetrieverUnitTest(PyonTestCase):
     def setUp(self):
         mock_clients = self._create_service_mock('data_retriever')
@@ -102,24 +99,6 @@ class DataRetrieverIntTest(IonIntegrationTestCase):
         except ValueError:
             raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_define_replay(self):
-        fake_stream = self.pubsub_management.create_stream()
-
-        # Create a dataset to work with
-        dataset_id = self.dataset_management.create_dataset(fake_stream, self.datastore_name)
-
-        replay_id, stream_id = self.data_retriever.define_replay(dataset_id=dataset_id)
-
-        # Verify that the replay instance was created
-        replay = self.resource_registry.read(replay_id)
-
-        pid = replay.process_id
-
-        process = self.container.proc_manager.procs[pid]
-
-        self.assertIsInstance(process,ReplayProcess, 'Incorrect process launched')
 
     def test_transform_data(self):
         module = __name__

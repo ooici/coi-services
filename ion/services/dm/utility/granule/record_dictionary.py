@@ -169,7 +169,7 @@ class RecordDictionaryTool(object):
         if self._param_dict:
             for k, v in self._rd.iteritems():
                 if isinstance(v, dict):
-                    result = RecordDictionaryTool(taxonomy=self._param_dict)
+                    result = RecordDictionaryTool(param_dictionary=self._param_dict)
                     result._rd = v
                     yield self._param_dict.key_from_ord(k), result
                 else:
