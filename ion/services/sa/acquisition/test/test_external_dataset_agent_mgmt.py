@@ -38,7 +38,7 @@ from nose.plugins.attrib import attr
 from coverage_model.parameter import ParameterDictionary
 import unittest
 import time
-
+from ion.services.dm.utility.granule_utils import CoverageCraft
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 
@@ -83,7 +83,7 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         self.dpclient = DataProductManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
 
-    @unittest.skip('not yet working. fix activate_data_product_persistence()')
+#    @unittest.skip('not yet working. fix activate_data_product_persistence()')
     def test_activateDatasetAgent(self):
 
         # Create ExternalDatasetModel
@@ -124,10 +124,22 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
 
         log.debug("TestExternalDatasetAgentMgmt: Creating new data product with a stream definition")
         dp_obj = IonObject(RT.DataProduct,name='eoi dataset data',description=' stream test')
-        try:
-            data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='DP1',
+            description='some new dp',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+
         log.debug("TestExternalDatasetAgentMgmt: new dp_id = %s", str(data_product_id1) )
 
         self.damsclient.assign_data_product(input_resource_id=extDataset_id, data_product_id=data_product_id1)

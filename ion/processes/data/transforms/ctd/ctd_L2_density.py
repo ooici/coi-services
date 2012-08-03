@@ -37,11 +37,11 @@ class DensityTransform(TransformFunction):
 
     '''
 
-    def __init__(self):
+    # Make the stream definitions of the transform class attributes... best available option I can think of?
+    incoming_stream_def = SBE37_CDM_stream_definition()
+    outgoing_stream_def = L2_density_stream_definition()
 
-        # Make the stream definitions of the transform class attributes... best available option I can think of?
-        self.incoming_stream_def = SBE37_CDM_stream_definition()
-        self.outgoing_stream_def = L2_density_stream_definition()
+    def __init__(self):
 
 #        ### Taxonomies are defined before hand out of band... somehow.
 #        tx = TaxyTool()

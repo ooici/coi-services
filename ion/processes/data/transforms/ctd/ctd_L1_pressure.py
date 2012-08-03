@@ -32,12 +32,11 @@ class CTDL1PressureTransform(TransformFunction):
 
     '''
 
+    # Make the stream definitions of the transform class attributes... best available option I can think of?
+    incoming_stream_def = L0_pressure_stream_definition()
+    outgoing_stream_def = L1_pressure_stream_definition()
+
     def __init__(self):
-
-        # Make the stream definitions of the transform class attributes... best available option I can think of?
-        self.incoming_stream_def = L0_pressure_stream_definition()
-        self.outgoing_stream_def = L1_pressure_stream_definition()
-
 
         ### Parameter dictionaries
         self.defining_parameter_dictionary()

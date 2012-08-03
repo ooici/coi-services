@@ -27,6 +27,7 @@ from interface.objects import AgentCommand, ExternalDatasetAgent, ExternalDatase
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
@@ -46,7 +47,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='foo')
-@unittest.skip('not working')
+@unittest.skip('Not done yet.')
 class TestBulkIngest(IonIntegrationTestCase):
 
     EDA_MOD = 'ion.agents.data.external_dataset_agent'
@@ -316,8 +317,24 @@ class TestBulkIngest(IonIntegrationTestCase):
 
         # Generate the data product and associate it to the ExternalDataset
         streamdef_id = self.pubsub_client.create_stream_definition(name="temp", description="temp")
-        dprod = DataProduct(name='slocum_parsed_product', description='parsed slocum product')
-        dproduct_id = self.dataproductclient.create_data_product(data_product=dprod, stream_definition_id=streamdef_id)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dprod = IonObject(RT.DataProduct,
+            name='slocum_parsed_product',
+            description='parsed slocum product',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        dproduct_id = self.dataproductclient.create_data_product(data_product=dprod,
+                                                                stream_definition_id=streamdef_id,
+                                                                parameter_dictionary= parameter_dictionary)
+
         self.dams_client.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
 
         stream_id, assn = self.rrclient.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
