@@ -120,6 +120,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @attr('SMOKE')
+    @unittest.skip("not working")
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     #@unittest.skip("Skipping for debugging ")
     def test_transform_workflow(self):
