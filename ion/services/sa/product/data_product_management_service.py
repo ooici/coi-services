@@ -269,7 +269,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                 log.debug("activate_data_product_persistence: dataset_id = %s"  % str(dataset_id))
 
                 # link data set to data product
-                self.data_product.link_data_set(data_product_id, dataset_id)
+                #self.data_product.link_data_set(data_product_id, dataset_id)
 
             #--------------------------------------------------------------------------------
             # todo: dataset_configuration_obj contains the ingest config for now...
