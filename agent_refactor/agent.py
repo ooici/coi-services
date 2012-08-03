@@ -16,7 +16,6 @@ import traceback
 # Pyon imports.
 from pyon.core import bootstrap
 from pyon.core.bootstrap import IonObject
-from pyon.core import exception as iex
 from pyon.event.event import EventPublisher
 from pyon.util.log import log
 from pyon.util.containers import get_ion_ts
@@ -39,6 +38,7 @@ from interface.objects import CapabilityType
 # TODO rename these to reflect base resource use.
 from ion.agents.instrument.instrument_fsm import InstrumentFSM 
 from ion.agents.instrument.instrument_fsm import FSMStateError
+from ion.agents.instrument.instrument_fsm import FSMCommandUnknownError
 from ion.agents.instrument.common import BaseEnum
 
 
@@ -84,6 +84,7 @@ class ResourceAgentEvent(BaseEnum):
     EXECUTE_RESOURCE = 'RESOURCE_AGENT_EVENT_EXECUTE_RESOURCE'
     GET_RESOURCE_STATE = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_STATE'
     GET_RESOURCE_CAPABILITIES = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_CAPABILITIES'
+    DONE = 'RESOURCE_AGENT_EVENT_DONE'
     
 class ResourceAgent(BaseResourceAgent):
     """
@@ -105,6 +106,9 @@ class ResourceAgent(BaseResourceAgent):
 
     # Override in subclass to set specific origin type.
     ORIGIN_TYPE = "Resource"
+    
+    # Override in subclass to expose agent capabilities.
+    CAPABILITIES = []
     
     ##############################################################
     # Constructor and ION init/deinit.
@@ -181,35 +185,47 @@ class ResourceAgent(BaseResourceAgent):
         """
         """
         
-        caps = []
-        agent_caps= []
-        
         agent_cmds = self._fsm.get_events(current_state)
-        for item in agent_cmds:
-            cap = IonObject('AgentCapability',
-                            name=item,
-                            cap_type=CapabilityType.AGT_CMD)
-            agent_caps.append(cap)
-
-        agent_params = []
-        for item in agent_params:
-            cap = IonObject('AgentCapability',
-                            name=item,
-                            cap_type=CapabilityType.AGT_PAR)
-            agent_caps.append(cap)
+        agent_cmds = self._filter_capabilities(agent_cmds)
+        agent_params = self.get_agent_parameters()
         
         try:
-            resource_caps = self._fsm.on_event(
-                ResourceAgentEvent.GET_RESOURCE_CAPABILITIES,
-                current_state=current_state)
-        
+            [res_cmds, res_params] = self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, current_state)
+
         except FSMStateError:
-            resource_caps = []
-            
-        caps.extend(agent_caps)
-        caps.extend(resource_caps)
+            res_cmds = []
+            res_params = []
+                
+        caps = []
+        for item in agent_cmds:
+            cap = IonObject('AgentCapability', name=item,
+                            cap_type=CapabilityType.AGT_CMD)
+            caps.append(cap)
+        for item in agent_params:
+            cap = IonObject('AgentCapability', name=item,
+                            cap_type=CapabilityType.AGT_PAR)
+            caps.append(cap)
+        for item in res_cmds:
+            cap = IonObject('AgentCapability', name=item,
+                            cap_type=CapabilityType.RES_CMD)
+            caps.append(cap)
+        for item in res_params:
+            cap = IonObject('AgentCapability', name=item,
+                            cap_type=CapabilityType.RES_PAR)
+            caps.append(cap)
 
         return caps
+    
+    def get_agent_parameters(self):
+        """
+        """
+        aparams = ['aparam1']
+        return aparams
+    
+    def _filter_capabilities(self, events):
+        """
+        """
+        return events
     
     ##############################################################
     # Agent interface.
@@ -234,31 +250,53 @@ class ResourceAgent(BaseResourceAgent):
     def execute_agent(self, resource_id="", command=None):
         """
         """
-        
-        # Raise ION exceptions if the command is ill formed.
+                
         if not command:
-            raise iex.BadRequest('Execute argument "command" not set.')
-
-        if not command.command:
-            raise iex.BadRequest('Command name not set.')
-
-        # Construct a command result object.
-        cmd_result = IonObject("AgentCommandResult",
-                               command_id=command.command_id,
-                               command=command.command,
-                               ts_execute=get_ion_ts(),
-                               status=0)
-
+            iex = BadRequest('Execute argument "command" not set.')
+            self._on_command_error('execute_agent', None, None, None, iex)
+            raise iex
+        
         # Grab command syntax.
+        id = command.command_id
         cmd = command.command
         args = command.args or []
         kwargs = command.kwargs or {}
 
+        if not command.command:
+            iex = BadRequest('Command name not set.')
+            self._on_command_error('execute_agent', cmd, args, kwargs, iex)
+            raise iex
+
+        # Construct a command result object.
+        cmd_result = IonObject("AgentCommandResult",
+                               command_id=id,
+                               command=cmd,
+                               ts_execute=get_ion_ts(),
+                               status=0)
+
         try:
-            cmd_result.result = self._fsm.on_event(cmd, *args, **kwargs)
+            result = self._fsm.on_event(cmd, *args, **kwargs)
+            cmd_result.result = result
+            self._on_command('execute_agent', cmd, args, kwargs, result)
         
         except FSMStateError as ex:
-            raise Conflict(*(ex.args))    
+            iex = Conflict(*(ex.args))    
+            self._on_command_error('execute_agent', cmd, args, kwargs, iex)
+            raise iex
+
+        except FSMCommandUnknownError as ex:
+            iex = BadRequest(*(ex.args))    
+            self._on_command_error('execute_agent', cmd, args, kwargs, iex)
+            raise iex
+                
+        except IonException as iex:
+            self._on_command_error('execute_agent', cmd, args, kwargs, iex)
+            raise
+
+        except Exception as ex:
+            iex = ServerError(*(ex.args))
+            self._on_command_error('execute_agent', cmd, args, kwargs, iex)
+            raise iex
                 
         return cmd_result
         
@@ -271,51 +309,132 @@ class ResourceAgent(BaseResourceAgent):
         """
         
         try:
-            self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE, params)
-            
+            result = self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE, params)
+            return result
+        
         except FSMStateError as ex:
-            raise Conflict(*(ex.args))    
+            iex = Conflict(*(ex.args))
+            self._on_command_error('get_resource', None, [params], None, iex)
+            raise iex
+    
+        except FSMCommandUnknownError as iex:
+            iex = BadRequest(*(ex.args))
+            self._on_command_error('get_resource', None, [params], None, iex)
+            raise iex
+
+        except IonException as iex:
+            self._on_command_error('get_resource', None, [params], None, iex)
+            raise
+
+        except Exception as ex:
+            iex = ServerError(*(ex.args))
+            self._on_command_error('get_resource', None, [params], None, iex)
+            raise iex
     
     def set_resource(self, resource_id='', params={}):
         """
         """
 
         try:
-            return self._fsm.on_event(ResourceAgentEvent.SET_RESOURCE, params)
-
+            result = self._fsm.on_event(ResourceAgentEvent.SET_RESOURCE, params)
+            self._on_command('set_resource', None, [params], None, result)
+            return result
+        
         except FSMStateError as ex:
-            raise Conflict(*(ex.args))    
+            iex = Conflict(*(ex.args))
+            self._on_command_error('set_resource', None, [params], None, iex)
+            raise iex
+        
+        except FSMCommandUnknownError as ex:
+            iex = BadRequest(*(ex.args))
+            self._on_command_error('set_resource', None, [params], None, iex)
+            raise iex
+
+        except IonException as iex:
+            self._on_command_error('set_resource', None, [params], None, iex)
+            raise iex
+    
+        except Exception as ex:
+            iex = ServerError(*(ex.args))            
+            self._on_command_error('set_resource', None, [params], None, iex)
+            raise iex
 
     def get_resource_state(self, resource_id=''):
         """
-        """        
-        return self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE_STATE)
-
-    def execute_resource(self, resource_id="", command=None):
         """
-        """
-        if not command:
-            raise iex.BadRequest('Execute argument "command" not set.')
-
-        if not command.command:
-            raise iex.BadRequest('Command name not set.')
-
-        cmd_id = command.command_id
-        cmd_name = command.command
-        cmd_result = IonObject('AgentCommandResult', cmd_id, cmd_name)
-        cmd_result.ts_execute = get_ion_ts()
-
-        cmd_args = command.args
-        cmd_kwargs = command.kwargs
-
         try:
-            print 'IN AGENT EXECUTE RESOURCE'
-            cmd_result.result = self._fsm.on_event(
-                ResourceAgentEvent.EXECUTE_RESOURCE, cmd_name,
-                *cmd_args, **cmd_kwargs)
+            return self._fsm.on_event(ResourceAgentEvent.GET_RESOURCE_STATE)
             
         except FSMStateError as ex:
-            raise Conflict(*(ex.args))    
+            iex = Conflict(*(ex.args))    
+            self._on_command_error('get_resource_state', None, None, None, iex)
+            raise iex
+
+        except FSMCommandUnknownError as ex:
+            iex = BadRequest(*(ex.args))
+            self._on_command_error('get_resource_state', None, None, None, iex)
+            raise iex
+        
+        except IonException as iex:
+            self._on_command_error('get_resource_state', None, None, None, iex)
+            raise iex
+
+        except Exception as ex:
+            iex = ServerError(*(ex.args))
+            self._on_command_error('get_resource_state', None, None, None, iex)
+            raise iex
+        
+    def execute_resource(self, resource_id='', command=None):
+        """
+        """        
+
+        if not command:
+            iex = BadRequest('Execute argument "command" not set.')
+            self._on_command_error('execute_resource', None, None, None, iex)
+            raise iex
+
+        # Grab command syntax.
+        id = command.command_id
+        cmd = command.command
+        args = command.args or []
+        kwargs = command.kwargs or {}
+
+        if not command.command:
+            iex = BadRequest('Command name not set.')
+            self._on_command_error('execute_resource', cmd, args, kwargs, iex)
+            raise iex
+
+        # Construct a command result object.
+        cmd_result = IonObject("AgentCommandResult",
+                               command_id=id,
+                               command=cmd,
+                               ts_execute=get_ion_ts(),
+                               status=0)
+
+        try:
+            result = self._fsm.on_event(
+                ResourceAgentEvent.EXECUTE_RESOURCE, cmd, *args, **kwargs)
+            cmd_result.result = result
+            self._on_command('execute_resource', cmd, args, kwargs, result)
+            
+        except FSMStateError as ex:
+            iex = Conflict(*(ex.args))    
+            self._on_command_error('execute_resource', cmd, args, kwargs, iex)
+            raise iex
+
+        except FSMCommandUnknownError as ex:
+            iex = BadRequest(*(ex.args))
+            self._on_command_error('execute_resource', cmd, args, kwargs, iex)
+            raise iex
+        
+        except IonException as iex:
+            self._on_command_error('execute_resource', cmd, args, kwargs, iex)
+            raise iex
+
+        except Exception as ex:
+            iex = ServerError(*(ex.args))
+            self._on_command_error('execute_resource', cmd, args, kwargs, iex)
+            raise iex
         
         return cmd_result        
 
@@ -482,23 +601,62 @@ class ResourceAgent(BaseResourceAgent):
         Common work upon every state entry.
         """
         state = self._fsm.get_current_state()
-        desc_str = 'Resource agent %s entered state: %s' % (self.id, state)
-        log.info(desc_str)
+        log.info('Resource agent %s publsihing state change: %s, time: %s', self.id, state, get_ion_ts())
         
-        #TODO add state change publication here.
-        #pub = EventPublisher('DeviceCommonLifecycleEvent')
-        #pub.publish_event(origin=self.resource_id, description=desc_str)
+        event_data = {
+            'state' : state
+        }
+        self._event_publisher.publish_event(event_type='ResourceAgentStateEvent',
+                              origin=self.resource_id, **event_data)
 
     def _common_state_exit(self, *args, **kwargs):
         """
         Common work upon every state exit.
         """
-        state = self._fsm.get_current_state()
-        desc_str = 'Resource agent %s leaving state: %s' % (self.id, state)
-        log.info(desc_str)
-        #pub = EventPublisher('DeviceCommonLifecycleEvent')
-        #pub.publish_event(origin=self.resource_id, description=desc_str)
+        pass
     
+    def _on_command(self, cmd, execute_cmd, args, kwargs, result):
+        log.info('Resource agent %s publishing command event: \
+                 cmd=%s, execute_cmd=%s, args=%s kwargs=%s time=%s',
+                 self.id, str(cmd), str(execute_cmd), str(args), str(kwargs),
+                 get_ion_ts())
+        event_data = {
+            'command': cmd,
+            'execute_command' : execute_cmd,
+            'args' : args,
+            'kwargs' : kwargs,
+            'result' : result
+        }
+        self._event_publisher.publish_event(event_type='ResourceAgentCommandEvent',
+                                            origin=self.resource_id,
+                                            **event_data)
+    
+    def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
+        log.info('Resource agent %s publishing command error event: \
+                 cmd=%s, execute_cmd=%s, args=%s, kwargs=%s, \
+                 errtype=%s, errmsg=%s, errno=%i, time=%s',
+                 self.id, str(cmd), str(execute_cmd), str(args), str(kwargs),
+                 str(type(ex)), ex.message, ex.status_code, get_ion_ts())
+        
+        if hasattr(ex, 'status_code'):
+            status_code = ex.status_code
+        else:
+            status_code = -1
+            
+        event_data = {
+            'command': cmd,
+            'execute_command' : execute_cmd,
+            'args' : args,
+            'kwargs' : kwargs,
+            'error_type' : str(type(ex)),
+            'error_msg' : ex.message,
+            'error_code' : status_code
+        }
+            
+        self._event_publisher.publish_event(event_type='ResourceAgentErrorEvent',
+                                            origin=self.resource_id,
+                                            **event_data)
+     
     def _construct_fsm(self):
         """
         Construct the state machine and register default handlers.
@@ -568,7 +726,7 @@ class ResourceAgentClient(ResourceAgentProcessClient):
             else:
                 # TODO: Check if there is a service for this type of resource
                 log.debug("No agent process found for resource_id %s" % self.resource_id)
-                raise iex.NotFound("No agent process found for resource_id %s" % self.resource_id)
+                raise NotFound("No agent process found for resource_id %s" % self.resource_id)
 
         assert "name" in kwargs, "Name argument for agent target not set"
         
@@ -598,9 +756,6 @@ class ResourceAgentClient(ResourceAgentProcessClient):
         return super(ResourceAgentClient, self).get_agent_state(self.resource_id, *args, **kwargs)
 
     def execute_resource(self, *args, **kwargs):
-        print 'IN EXE RESOURCE CLIENT'
-        print str(*args)
-        print str(**kwargs)
         return super(ResourceAgentClient, self).execute_resource(self.resource_id, *args, **kwargs)
 
     def get_resource(self, *args, **kwargs):

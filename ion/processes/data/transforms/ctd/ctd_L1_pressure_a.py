@@ -45,9 +45,9 @@ from pyon.public import log
 
 class ctd_L1_pressure(TransformDataProcess):
 
-    def on_start(self):
+    def __init__(self):
         self.pres_stream = self.CFG.process.publish_streams.pressure
-        super(ctd_L1_pressure, self).on_start()
+        super(ctd_L1_pressure, self).__init__()
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L1_pressure.recv_packet: {0}'.format(msg))

@@ -43,6 +43,10 @@ class DataRetrieverService(BaseDataRetrieverService):
 
     def define_replay(self, dataset_id='', query=None, delivery_format=None):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
+        query: 
+          start_time: 0    The beginning timestamp
+          end_time:   N    The ending timestamp
+          parameters: []   The list of parameters which match the coverages parameters
         '''
 
         if not dataset_id:
@@ -146,6 +150,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay_instance.dataset_id = dataset_id
         replay_instance.start_time = query.get('start_time', None)
         replay_instance.end_time = query.get('end_time', None)
+        replay_instance.parameters = query.get('parameters',None)
         replay_instance.container = self.container
 
         retrieve_data = replay_instance.execute_retrieve()
@@ -156,8 +161,11 @@ class DataRetrieverService(BaseDataRetrieverService):
         return retrieve_data
 
     def retrieve_last_granule(self, dataset_id=''):
-
         return ReplayProcess.get_last_granule(self.container,dataset_id)
+
+    def retrieve_last_data_point(self, dataset_id=''):
+        return ReplayProcess.get_last_values(dataset_id)
+    
     @classmethod
     def _transform_data(binding, data, module, cls, kwargs={}):
         transform = for_name(module,cls)

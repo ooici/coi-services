@@ -25,6 +25,8 @@ from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 
+import numpy
+
 @attr('INT_LONG', group='eoi')
 class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
@@ -120,6 +122,8 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
         #ttool = TaxyTool()
         #
         #ttool.add_taxonomy_set('data','test data')
+        pdict = ParameterDictionary()
+
         t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
         t_ctxt.reference_frame = AxisTypeEnum.TIME
         t_ctxt.uom = 'seconds since 01-01-1970'
@@ -136,7 +140,7 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
             'TESTING':True,
             'stream_id':stream_id,
             'external_dataset_res':dset,
-            'taxonomy':ttool.dump(),
+            'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':20,
         }

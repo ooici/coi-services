@@ -1,0 +1,221 @@
+# Base type for all events in the system
+Event:
+  origin: ""        # the origin of the event (content specific to subtype). Mostly a resource id
+  origin_type: ""   # the type of origin (e.g. resource type, etc) or empty
+  description: ""   # readable description of the event (not required)
+  ts_created: ""    # timestamp of event created in millis in UNIX epoch
+  base_types: []    # List of event super types
+  sub_type: ""      # A specialization of the event_type expressed by this object type (or empty)
+
+---
+
+# Base type for resource related events in the system
+ResourceEvent: !Extends_Event
+  # The origin is the resource id
+
+---
+
+# Event indicating that a resource changed its life cycle or was created
+ResourceLifecycleEvent: !Extends_ResourceEvent
+  old_state: ""
+  new_state: ""
+  transition_event: ""
+  resource_type: ""
+
+# Event indicating that a (taskable) resource was commanded and a result is available
+ResourceCommandEvent: !Extends_ResourceEvent
+  command: ""
+  result: ""
+
+# Event created by an operator of a resource, for instance to manually indicate a modification or error.
+ResourceOperatorEvent: !Extends_ResourceEvent
+
+---
+
+# Event indicating that resource metadata was changed or the resource was created or deleted
+ResourceModifiedEvent: !Extends_ResourceEvent
+  mod_type: !enum (name=ResourceModificationType, values=(CREATE, UPDATE, RETIRE, DELETE), default=UPDATE)
+
+ContainerConfigModifiedEvent: !Extends_Event
+
+ContainerStateEnum: !enum (values=(START, STOP, TERMINATE, ERROR), default=START)
+
+# Base type of events related to physical devices such as instruments
+DeviceEvent: !Extends_Event
+    # The origin is a device (resource) id
+
+# Event for the scheduler's timer functionality
+TimerEvent: !Extends_Event
+
+---
+
+ContainerLifecycleEvent: !Extends_Event
+  # The origin is the container id
+  state: !ContainerStateEnum
+  host: ""
+
+ProcessLifecycleEvent: !Extends_Event
+  # The origin is the process id
+  state: !ProcessStateEnum
+  container_id: ""
+  process_type: ""
+  process_name: ""
+
+IngestionEvent: !Extends_ResourceModifiedEvent
+  # origin: dataset id
+  stream_id: ""
+  status: 0
+
+---
+
+GranuleIngestedEvent: !Extends_IngestionEvent
+  ingest_attributes: {}
+
+GranuleIngestionErrorEvent: !Extends_IngestionEvent
+  error_msg: ""
+
+
+DatasetIngestionConfigurationEvent: !Extends_ResourceModifiedEvent
+  type: !DatasetIngestionTypeEnum
+  configuration: {}
+  deleted: False # Temporary - until we have resource life cycle events
+  resource_id: ""
+
+---
+DeviceSpecificLifecycleEvent: !Extends_DeviceEvent
+
+DeviceCommonLifecycleEvent: !Extends_DeviceEvent
+
+DeviceCommandEvent: !Extends_ResourceCommandEvent
+
+DeviceOperatorEvent: !Extends_ResourceOperatorEvent
+
+---
+
+ResourceAgentEvent: !Extends_Event
+
+---
+
+ResourceAgentCommandEvent: !Extends_ResourceAgentEvent
+  command: ""
+  execute_command: ""
+  args: []
+  kwargs: {}
+  result: ""
+
+ResourceAgentErrorEvent: !Extends_ResourceAgentEvent
+  command: ""
+  execute_command: ""
+  args: []
+  kwargs: {}
+  error_type: ""
+  error_msg: ""
+  error_code: -1
+  
+ResourceAgentStateEvent: !Extends_ResourceAgentEvent
+  state: ""
+
+ResourceAgentResourceStateEvent: !Extends_ResourceAgentEvent
+  state: ""
+
+ResourceAgentResourceConfigEvent: !Extends_ResourceAgentEvent
+  config: {}
+
+ResourceAgentAsyncResultEvent: !Extends_ResourceAgentEvent
+  command: ""
+  desc: ""
+  result: ""  
+
+---
+
+# ------------------------------------------------------------------------------------
+# DataSource Events
+# ------------------------------------------------------------------------------------
+ExternalDataSourceEvent: !Extends_ResourceEvent
+
+ExternalDataSourceStatusEnum: !enum (values=(ONLINE, OFFLINE), default=OFFLINE)
+
+---
+
+ExternalDatasetAddedEvent: !Extends_ExternalDataSourceEvent
+  dataset_information: {}
+
+ExternalDatasetRemovedEvent: !Extends_ExternalDataSourceEvent
+  dataset_information: {}
+
+ExternalDatasetChangedEvent: !Extends_ExternalDataSourceEvent
+  dataset_information: {} # Not really sure what this will be...
+
+ExternalDataSourceStatusEvent: !Extends_ExternalDataSourceEvent
+  status: !ExternalDataSourceStatusEnum
+
+
+---
+# ------------------------------------------------------------------------------------
+# Governance Events
+# ------------------------------------------------------------------------------------
+
+NegotiationEvent: !Extends_Event
+  # The origin is the id of the provider actor (e.g. org id, resource id)
+
+---
+
+RequestStatusEvent: !Extends_NegotiationEvent
+  # The origin is the org_id
+  request_id: ""
+  user_id: ""
+
+---
+
+EnrollmentRequestStatusEvent: !Extends_RequestStatusEvent
+
+RoleRequestStatusEvent: !Extends_RequestStatusEvent
+  role_name: ""
+
+ResourceRequestStatusEvent: !Extends_RequestStatusEvent
+  resource_id: ""
+
+---
+
+# The ResourcePolicyEvent is a little different that a Policy resource object event, in that it does not get fired
+# when the underlying policy object is updated in the resource registry but by business login in the Policy Management
+# Service as appropriate, like when it is assigned or removed from a resource or service
+# The origin is the policy_id
+ResourcePolicyEvent: !Extends_Event
+  resource_id: ""
+  resource_type: ""
+  resource_name: ""
+
+
+# The UserRoleModifiedEvent is a specialized event that gets published whenever a user's role within an Org changes.
+# The origin is the org_id
+# the sub_type is GRANT or REVOKE
+UserRoleModifiedEvent: !Extends_Event
+  user_id: ""
+  role_name: ""
+
+
+---
+
+# Used by DM UNS
+ExampleDetectableEvent: !Extends_Event
+  voltage: 0
+  telemetry: 0
+  temperature: 0
+
+# output event from detection process
+DetectionEvent: !Extends_Event
+  message: ""             # Message field for this detection event
+  condition: ""           # Concatenate the filter and make it a message
+  original_origin: ""     # The origin from the event that was detected by the filter
+  original_type: ""       # The type of the event that was detected by the filter
+
+---
+# a reload_user_info event generated when a notification is created, updated or deleted
+ReloadUserInfoEvent: !Extends_Event
+  notification_id: ""
+
+
+---
+# The Scheduler fires off this event so that services can react to it and perform tasks
+SchedulerEvent: !Extends_Event

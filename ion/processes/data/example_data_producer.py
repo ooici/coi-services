@@ -20,14 +20,13 @@ from interface.objects import Granule
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 
 ### For new granule and stream interface
-from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
-from ion.services.dm.utility.granule.granule import build_granule
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool, TaxyTool, build_granule, CoverageCraft
 from pyon.public import log
 
 import numpy
 import random
 import time
+import gevent
 
 ### Taxonomies are defined before hand out of band... somehow.
 tx = TaxyTool()
@@ -45,6 +44,30 @@ tx.add_taxonomy_set('raw_fixed','Fixed length bytes in an array of records')
 tx.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
 
 
+class BetterDataProducer(SimpleCtdPublisher):
+    def _trigger_func(self, stream_id):
+        t_i = 0
+        while not self.finished.is_set():
+
+            length                    = 10
+            black_box                 = CoverageCraft()
+            black_box.rdt['time']         = numpy.arange(10) + t_i*10
+            black_box.rdt['temp']         = numpy.random.random(10) * 10
+            black_box.rdt['lat']          = numpy.array([0] * 10)
+            black_box.rdt['lon']          = numpy.array([0] * 10)
+            black_box.rdt['depth']        = numpy.array([0] * 10)
+            black_box.rdt['conductivity'] = numpy.random.random(10) * 10
+            black_box.rdt['data']         = numpy.random.randint(0,255,10) # Simulates random bytes
+            
+            black_box.sync_with_granule()
+            granule = black_box.to_granule()
+
+            self.publish(granule)
+            gevent.sleep(self.interval)
+            t_i += 1
+
+
+
 class ExampleDataProducer(SimpleCtdPublisher):
     """
     This Example process inherits some business logic from the above example.
@@ -57,25 +80,18 @@ class ExampleDataProducer(SimpleCtdPublisher):
     def _trigger_func(self, stream_id):
 
         #@todo - add lots of comments in here
-        while True:
+        while not self.finished.is_set():
 
             length = 10
 
             #Explicitly make these numpy arrays...
             c = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
-
             t = numpy.array([random.uniform(-1.7, 21.0) for i in xrange(length)])
-
             p = numpy.array([random.lognormvariate(1,2) for i in xrange(length)])
-
             lat = numpy.array([random.uniform(-90.0, 90.0) for i in xrange(length)])
-
             lon = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)])
-
             tvar = numpy.array([self.last_time + i for i in xrange(1,length+1)])
-
             self.last_time = max(tvar)
-
             rdt = RecordDictionaryTool(taxonomy=tx)
 
             # This is an example of using groups it is not a normative statement about how to use groups
@@ -100,12 +116,11 @@ class ExampleDataProducer(SimpleCtdPublisher):
             rdt['lat'] = lat
             rdt['lon'] = lon
 
-            log.info("logging published Record Dictionary:\n %s", rdt.pretty_print())
 
             g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
 
             log.info('Sending %d values!' % length)
             if(isinstance(g,Granule)):
-                self.publisher.publish(g)
+                self.publish(g)
 
-            time.sleep(2.0)
+            gevent.sleep(self.interval)
