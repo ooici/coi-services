@@ -1132,10 +1132,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.platform_device.unlink_model(platform_device_id, platform_model_id)
 
     def assign_instrument_device_to_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.platform_device.link_device(platform_device_id, instrument_device_id)
+        self.platform_device.link_instrument_device(platform_device_id, instrument_device_id)
 
     def unassign_instrument_device_from_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.platform_device.unlink_device(platform_device_id, instrument_device_id)
+        self.platform_device.unlink_instrument_device(platform_device_id, instrument_device_id)
+
+    def assign_platform_device_to_platform_device(self, child_platform_device_id='', platform_device_id=''):
+        self.platform_device.link_platform_device(platform_device_id, child_platform_device_id)
+
+    def unassign_platform_device_from_platform_device(self, child_platform_device_id='', platform_device_id=''):
+        self.platform_device.unlink_platform_device(platform_device_id, child_platform_device_id)
 
     def assign_platform_agent_to_platform_agent_instance(self, platform_agent_id='', platform_agent_instance_id=''):
         self.platform_agent_instance.link_agent_definition(platform_agent_instance_id, platform_agent_id)
@@ -1223,10 +1229,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.instrument_device.find_stemming_agent_instance(instrument_device_id)
 
     def find_instrument_device_by_platform_device(self, platform_device_id=''):
-        return self.platform_device.find_stemming_device(platform_device_id)
+        return self.platform_device.find_stemming_instrument_device(platform_device_id)
 
     def find_platform_device_by_instrument_device(self, instrument_device_id=''):
-        return self.platform_device.find_having_device(instrument_device_id)
+        return self.platform_device.find_having_instrument_device(instrument_device_id)
+
+    def find_child_platform_device_by_platform_device(self, platform_device_id=''):
+        return self.platform_device.find_stemming_platform_device(platform_device_id)
+
+    def find_platform_device_by_child_platform_device(self, instrument_device_id=''):
+        return self.platform_device.find_having_platform_device(instrument_device_id)
 
     def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
         raise NotImplementedError("TODO: this function will be removed")
@@ -1474,4 +1486,44 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_aggregated_status(self, platform_device_id):
         # The status roll-up that summarizes the entire status of the device  (CV:  RED, YELLOW, GREEN, BLACK)
         #todo: class for constants?
-        return "RED"   
+
+        #todo: does framework validate id?
+
+        #recursive function to determine the aggregate status by visiting all relevant nodes
+        def get_status_helper(acc, device_id, device_type):
+            if "todo: early exit criteria" == acc:
+                return acc
+
+            if RT.InstrumentDevice == device_type:
+                stat_p = self.get_power_status_roll_up(device_id)
+                stat_d = self.get_data_status_roll_up(device_id)
+                stat_l = self.get_location_status_roll_up(device_id)
+                stat_c = self.get_communications_status_roll_up(device_id)
+
+                #todo: return acc based on instrument status?
+
+            elif RT.PlatformDevice == device_type:
+                #todo: how to get platform status?
+                #stat_p = self.get_power_status_roll_up(device_id)
+                #stat_d = self.get_data_status_roll_up(device_id)
+                #stat_l = self.get_location_status_roll_up(device_id)
+                #stat_c = self.get_communications_status_roll_up(device_id)
+
+                #todo: return acc based on platform status?
+
+                instrument_resources = self.platform_device.find_stemming_instrument_device(device_id)
+                for instrument_resource in instrument_resources:
+                    acc = get_status_helper(acc, instrument_resource._id, type(instrument_resource).__name__)
+
+                platform_resources = self.platform_device.find_stemming_platform_device(device_id)
+                for platform_resource in platform_resources:
+                    acc = get_status_helper(acc, platform_resource._id, type(platform_resource).__name__)
+
+                return acc
+            else:
+                raise NotImplementedError("Completely avoidable error, got bad device_type: %s" % device_type)
+
+        retval = get_status_helper(None, platform_device_id, RT.PlatformDevice)
+        retval = "RED" #todo: remove this line
+
+        return retval
