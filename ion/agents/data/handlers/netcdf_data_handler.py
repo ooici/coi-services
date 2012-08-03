@@ -142,7 +142,7 @@ class NetcdfDataHandler(BaseDataHandler):
                 rdt[x_vname] = lon
                 rdt[y_vname] = lat
                 rdt[z_vname] = z
-                log.warn(ta)
+
                 # Assign values to the data RecDict
                 rdt[t_vname] = ta
                 for key, arr in data_arrays.iteritems():
