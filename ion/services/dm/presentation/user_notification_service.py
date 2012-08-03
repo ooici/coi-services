@@ -293,7 +293,6 @@ class UserNotificationService(BaseUserNotificationService):
         self.datastore_manager = DatastoreManager()
 
         self.event_publisher = EventPublisher()
-        self.scheduler_service = SchedulerService()
 
     def on_quit(self):
 
@@ -563,7 +562,8 @@ class UserNotificationService(BaseUserNotificationService):
         event_subscriber.start()
 
         # Use the scheduler to set up a timer
-        self.scheduler_service.create_timer(scheduler_entry)
+        timer_id = self.clients.scheduler.create_timer(scheduler_entry)
+        log.debug("timer_id in UNS: %s" % timer_id)
 
     def create_worker(self, number_of_workers=1):
         '''

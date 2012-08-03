@@ -15,6 +15,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
+from interface.services.cei.ischeduler_service import SchedulerServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from interface.objects import UserInfo, DeliveryConfig
 from interface.objects import DeviceEvent
@@ -241,6 +242,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient()
         self.imc = IdentityManagementServiceClient()
         self.discovery = DiscoveryServiceClient()
+        self.scheduler = SchedulerService()
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
@@ -1100,12 +1102,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         '''
 
         # Time out in 3 seconds
-        ss = SchedulerService()
-        interval_timer = ss.create_interval_timer(start_time= time.time(), interval=3,
+        scheduler = SchedulerService()
+        interval_timer = scheduler.create_interval_timer(start_time= time.time(), interval=3,
                                                     number_of_intervals=1,
                                                     event_origin="origin_1",
                                                     event_subtype='sub_type_1')
         scheduler_entry = IonObject(RT.SchedulerEntry, {"entry": interval_timer})
+
+        log.debug("interval timer: %s" % interval_timer)
+        log.debug("scheduler entry: %s" % scheduler_entry)
 
         #--------------------------------------------------------------------------------
         # Create an event object
@@ -1120,7 +1125,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         ar = gevent.event.AsyncResult()
         def received_event(event, headers):
-#            log.debug("received the event in the test: %s" % event)
+            log.debug("received the event in the test: %s" % event)
             ar.set(event)
 
         event_subscriber = EventSubscriber( event_type = 'DeviceEvent',
@@ -1131,9 +1136,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Use the UNS publish_event
         #--------------------------------------------------------------------------------
+
+        log.debug("about to publish an event")
         self.unsc.publish_event(event=event, scheduler_entry=scheduler_entry)
 
+        log.debug("came here")
+        log.debug("ar: %s" % ar)
+
         event_in = ar.get(timeout=20)
+
+        log.debug("event_in: %s" % event_in)
 
         #--------------------------------------------------------------------------------
         # check that the event was published
