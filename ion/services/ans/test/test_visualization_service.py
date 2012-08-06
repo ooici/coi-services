@@ -214,7 +214,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #TODO - Need to add workflow creation for google data table
 
-        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=workflow_product_id, in_product_type='google_dt')
+        vis_params ={}
+        vis_params['in_product_type'] = 'google_dt'
+        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=workflow_product_id, visualization_parameters=vis_params)
 
         #Trying to continue to receive messages in the queue
         gevent.sleep(10.0)  # Send some messages - don't care how many
@@ -242,3 +244,44 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Cleanup to make sure delete is correct.
         self.workflowclient.delete_workflow_definition(workflow_def_id)
+
+
+    def test_google_dt_overview_visualization(self):
+
+        #Create the input data product
+        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
+        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
+
+        # Generate some data for a few seconds
+        gevent.sleep(5.0)
+
+        #Turning off after everything - since it is more representative of an always on stream of data!
+        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
+        # Use the data product to test the data retrieval and google dt generation capability of the vis service
+        vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id)
+
+        # validate the returned data
+        self.validate_vis_service_google_dt_results(vis_data)
+
+
+    def test_mpl_graphs_overview_visualization(self):
+
+        #Create the input data product
+        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
+        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
+
+        # Generate some data for a few seconds
+        gevent.sleep(5.0)
+
+        #Turning off after everything - since it is more representative of an always on stream of data!
+        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
+        # Use the data product to test the data retrieval and google dt generation capability of the vis service
+        vis_data = self.vis_client.get_visualization_image(ctd_parsed_data_product_id)
+
+        # validate the returned data
+        self.validate_vis_service_mpl_graphs_results(vis_data)
+
+        return
+

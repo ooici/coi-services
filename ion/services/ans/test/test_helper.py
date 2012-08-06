@@ -17,12 +17,14 @@ from pyon.core.exception import BadRequest, Inconsistent
 
 import imghdr
 import gevent, numpy
+import simplejson
+import base64
 
 from interface.objects import Granule
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
-
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 
 class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
@@ -67,6 +69,25 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         ctd_stream_id = stream_ids[0]
 
         return ctd_stream_id, ctd_parsed_data_product_id
+
+    def create_data_product(self, dp_name = "", dp_description = ""):
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()   # this creates a ParameterDictionary object
+        parameter_dictionary = parameter_dictionary.dump()  # this returns a python dictionary
+
+        data_prod_obj = IonObject(RT.DataProduct,
+            name=dp_name,
+            description=dp_description,
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        data_prod_id = self.create_data_product(data_prod_obj, stream_definition_id, parameter_dictionary)
+
+        return data_prod_id, data_prod_obj
 
     def start_simple_input_stream_process(self, ctd_stream_id):
         return self.start_input_stream_process(ctd_stream_id)
@@ -346,7 +367,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         return procdef_id
 
 
-    def validate_google_dt_results(self, results):
+    def validate_google_dt_transform_results(self, results):
 
         cc = self.container
         assertions = self.assertTrue
@@ -404,7 +425,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         return procdef_id
 
-    def validate_mpl_graphs_results(self, results):
+    def validate_mpl_graphs_transform_results(self, results):
 
         cc = self.container
         assertions = self.assertTrue
@@ -432,7 +453,31 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                         continue
 
                     assertions(graph['viz_product_type'] == 'matplotlib_graphs' )
-                    # check to see if the list (numpy array) contians actual images
-                    assertions(imghdr.what(graph['image_name'], graph['image_obj']) == 'png')
+                    # check to see if the list (numpy array) contains actual images
+                    assertions(imghdr.what(graph['image_name'], h = graph['image_obj']) == 'png')
 
 
+
+    def validate_vis_service_google_dt_results(self, results):
+
+
+        assertions = self.assertTrue
+
+        assertions(results)
+        gdt_str = (results.lstrip("google.visualization.Query.setResponse(")).rstrip(")")
+
+        assertions(len(gdt_str) > 0)
+
+        return
+
+    def validate_vis_service_mpl_graphs_results(self, results):
+
+        assertions = self.assertTrue
+        assertions(results)
+
+        # check to see if the object passed is a dictionary with a valid image object in it
+        image_format = results["content_type"].lstrip("image/")
+
+        assertions(imghdr.what(results['image_name'], h = base64.decodestring(results['image_obj'])) == image_format)
+
+        return
