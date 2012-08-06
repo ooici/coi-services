@@ -29,7 +29,7 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='version')
+@attr('INT', group='sa')
 #@unittest.skip('not working')
 class TestDataProductVersions(IonIntegrationTestCase):
 
