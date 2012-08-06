@@ -1103,17 +1103,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         Test the publish_event method of UNS
         '''
 
-        future_time = {'hour': hour}
+#        hour = 10
+#        minutes = 34
+#        seconds = 43
+#        future_time = {'hour': hour, 'minutes': minutes, 'seconds':seconds}
 
-        # Time out in 3 seconds
-        interval_timer = self.scheduler.create_interval_timer(start_time= time.time(), interval=3,
-                                                    number_of_intervals=1,
-                                                    event_origin="origin_1",
-                                                    event_subtype='sub_type_1')
-        scheduler_entry = IonObject(RT.SchedulerEntry, {"entry": interval_timer})
-
-        log.debug("interval timer: %s" % interval_timer)
-        log.debug("scheduler entry: %s" % scheduler_entry)
+        interval_timer_params = {'count': 0,
+                                'sent_time':0,
+                                'received_time':0,
+                                'interval':3,
+                                'number_of_intervals':4}
 
         #--------------------------------------------------------------------------------
         # Create an event object
@@ -1141,7 +1140,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         log.debug("about to publish an event")
-        self.unsc.publish_event(event=event, scheduler_entry=scheduler_entry)
+        self.unsc.publish_event(event=event, interval_timer_params = interval_timer_params )
 
         log.debug("came here")
         log.debug("ar: %s" % ar)

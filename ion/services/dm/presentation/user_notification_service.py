@@ -539,16 +539,16 @@ class UserNotificationService(BaseUserNotificationService):
 
         return events
 
-    def publish_event(self, event=None, future_time= None):
+    def publish_event(self, event=None, interval_timer_params= None):
         '''
         Publish a general event at a certain time using the UNS
 
         @param event Event
-        @param scheduler_entry SchedulerEntry This object is created through Scheduler Service
+        @param interval_timer_params dict Ex: {'count': 0, 'sent_time':0, 'received_time'=0, 'interval':3, 'number_of_intervals':4}
         '''
 
         log.debug("UNS to publish on schedule the event: %s" % event)
-        log.debug("future time to publish event: %s" % future_time)
+        log.debug("interval_timer_params: %s" % interval_timer_params)
         #--------------------------------------------------------------------------------
         # Set up a subscriber to get the nod from the scheduler to publish the event
         #--------------------------------------------------------------------------------
@@ -562,8 +562,14 @@ class UserNotificationService(BaseUserNotificationService):
         event_subscriber.start()
 
         # Use the scheduler to set up a timer
-        timer_id = self.clients.scheduler.create_timer(scheduler_entry)
-        log.debug("timer_id in UNS: %s" % timer_id)
+#        timer_id = self.clients.scheduler.create_timer(scheduler_entry)
+#        log.debug("timer_id in UNS: %s" % timer_id)
+
+        id = self.clients.scheduler.create_interval_timer(start_time= time.time(),
+                                                            interval=interval_timer_params['interval'],
+                                                            number_of_intervals=interval_timer_params['number_of_intervals'],
+                                                            event_origin=event.origin,
+                                                            event_subtype='')
 
     def create_worker(self, number_of_workers=1):
         '''
