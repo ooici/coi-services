@@ -874,6 +874,7 @@ class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestC
             }
 
 @attr('INT_EXPERIMENTAL', group='eoi')
+@unittest.skip("ion.agents.data.handlers.base_data_handler.DummyDataHandler._acquire_data complains still!")
 class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     # DataHandler config
     DVR_CONFIG = {

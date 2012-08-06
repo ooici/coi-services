@@ -48,7 +48,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-@unittest.skip('Not done yet.')
+#@unittest.skip('Not done yet.')
 class TestBulkIngest(IonIntegrationTestCase):
 
     EDA_MOD = 'ion.agents.data.external_dataset_agent'
@@ -143,7 +143,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         pass
 
 
-    @unittest.skip('Not done yet.')
+#    @unittest.skip('Not done yet.')
     def test_slocum_data_ingest(self):
 
         # Test instrument driver execute interface to start and stop streaming mode.
@@ -328,7 +328,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         sdom, tdom = craft.create_domains()
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+#        parameter_dictionary = craft.create_parameters()
         #parameter_dictionary = parameter_dictionary.dump()
         parameter_dictionary = self._create_param_dict()
 
