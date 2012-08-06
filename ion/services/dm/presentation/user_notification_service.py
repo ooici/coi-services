@@ -539,7 +539,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         return events
 
-    def publish_event(self, event=None, scheduler_entry= None):
+    def publish_event(self, event=None, future_time= None):
         '''
         Publish a general event at a certain time using the UNS
 
@@ -548,7 +548,7 @@ class UserNotificationService(BaseUserNotificationService):
         '''
 
         log.debug("UNS to publish on schedule the event: %s" % event)
-
+        log.debug("future time to publish event: %s" % future_time)
         #--------------------------------------------------------------------------------
         # Set up a subscriber to get the nod from the scheduler to publish the event
         #--------------------------------------------------------------------------------

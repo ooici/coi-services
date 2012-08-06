@@ -20,6 +20,7 @@ from ion.services.dm.presentation.user_notification_service import UserNotificat
 from interface.objects import UserInfo, DeliveryConfig
 from interface.objects import DeviceEvent
 from ion.services.cei.scheduler_service import SchedulerService
+from interface.services.cei.ischeduler_service import SchedulerServiceClient
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
@@ -242,7 +243,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient()
         self.imc = IdentityManagementServiceClient()
         self.discovery = DiscoveryServiceClient()
-        self.scheduler = SchedulerService()
+        self.scheduler = SchedulerServiceClient()
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
@@ -1102,9 +1103,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         Test the publish_event method of UNS
         '''
 
+        future_time = {'hour': hour}
+
         # Time out in 3 seconds
-        scheduler = SchedulerService()
-        interval_timer = scheduler.create_interval_timer(start_time= time.time(), interval=3,
+        interval_timer = self.scheduler.create_interval_timer(start_time= time.time(), interval=3,
                                                     number_of_intervals=1,
                                                     event_origin="origin_1",
                                                     event_subtype='sub_type_1')
