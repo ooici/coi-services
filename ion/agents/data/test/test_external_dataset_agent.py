@@ -1045,6 +1045,19 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         f = open(file_name, 'wb')
         f.write(numpy.arange(100))
 
+    def tearDown(self):
+        folder = 'test_data/dummy'
+
+        if os.path.isdir(folder):
+            for the_file in os.listdir(folder):
+                file_path = os.path.join(folder, the_file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except Exception as e:
+                    log.debug('_setup_resources error: {0}'.format(e))
+
+
     def clean_up(self, file_path):
 
         try:
