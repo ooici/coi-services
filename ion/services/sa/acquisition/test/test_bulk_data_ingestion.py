@@ -21,13 +21,14 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, ExternalDatasetModel, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 from interface.objects import AgentCommand, ExternalDatasetAgent, ExternalDatasetAgentInstance, ProcessDefinition
 
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from ion.services.dm.utility.granule_utils import CoverageCraft, RecordDictionaryTool
 
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
@@ -46,7 +47,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='foo')
+@attr('INT', group='sa')
 @unittest.skip('Not done yet.')
 class TestBulkIngest(IonIntegrationTestCase):
 
@@ -66,6 +67,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         self.dams_client = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.pubsub_client = PubsubManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
+        self.data_retriever    = DataRetrieverServiceClient(node=self.container.node)
 
         self._container_client = ContainerAgentClient(node=self.container.node, name=self.container.name)
 
@@ -208,7 +210,15 @@ class TestBulkIngest(IonIntegrationTestCase):
 
 
 
-
+#        replay_granule = self.data_retriever.retrieve_last_granule(self.dataset_id)
+#
+#        rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+#
+#        comp = rdt['date_pattern'] == numpy.arange(10) + 10
+#
+#        log.debug("TestBulkIngest: comp: %s", comp)
+#
+#        self.assertTrue(comp.all())
 
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
@@ -232,15 +242,11 @@ class TestBulkIngest(IonIntegrationTestCase):
         ds_name = 'slocum_test_dataset'
         dset = ExternalDataset(name=ds_name, dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
 
+
         dset.dataset_description.parameters['base_url'] = 'test_data/slocum/'
         dset.dataset_description.parameters['list_pattern'] = 'ru05-2012-021-0-0-sbd.dat'
-        dset.dataset_description.parameters['date_extraction_pattern'] = 'ru05-([\d]{4})-([\d]{3})-\d-\d-sbd.dat'
-#        dset.dataset_description.parameters['base_url'] = 'test_data/slocum/ru10-339'
-#        dset.dataset_description.parameters['list_pattern'] = '*_sbd.dat'
-#        dset.dataset_description.parameters['date_extraction_pattern'] = 'ru10_([\d]{4})_([\d]{3})_\d_\d_sbd.dat'
-
         dset.dataset_description.parameters['date_pattern'] = '%Y %j'
-        dset.dataset_description.parameters['date_extraction_pattern'] = 'ru10_([\d]{4})_([\d]{3})_\d_\d_sbd.dat'
+        dset.dataset_description.parameters['date_extraction_pattern'] = 'ru05-([\d]{4})-([\d]{3})-\d-\d-sbd.dat'
         dset.dataset_description.parameters['temporal_dimension'] = None
         dset.dataset_description.parameters['zonal_dimension'] = None
         dset.dataset_description.parameters['meridional_dimension'] = None
@@ -323,7 +329,8 @@ class TestBulkIngest(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
         parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
+        #parameter_dictionary = parameter_dictionary.dump()
+        parameter_dictionary = self._create_param_dict()
 
         dprod = IonObject(RT.DataProduct,
             name='slocum_parsed_product',
@@ -331,24 +338,54 @@ class TestBulkIngest(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        dproduct_id = self.dataproductclient.create_data_product(data_product=dprod,
+        self.dproduct_id = self.dataproductclient.create_data_product(data_product=dprod,
                                                                 stream_definition_id=streamdef_id,
                                                                 parameter_dictionary= parameter_dictionary)
 
-        self.dams_client.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
+        self.dams_client.assign_data_product(input_resource_id=ds_id, data_product_id=self.dproduct_id)
 
-        stream_id, assn = self.rrclient.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        #save the incoming slocum data
+        #self.dataproductclient.activate_data_product_persistence(self.dproduct_id)
+
+        stream_id, assn = self.rrclient.find_objects(subject=self.dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
         stream_id = stream_id[0]
 
+        dataset_id, assn = self.rrclient.find_objects(subject=self.dproduct_id, predicate=PRED.hasDataset, object_type=RT.Dataset, id_only=True)
+        self.dataset_id = dataset_id[0]
 
         pid = self.create_logger('slocum_parsed_product', stream_id )
         self.loggerpids.append(pid)
 
-#        pdict = ParameterDictionary()
-#        t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
-#        t_ctxt.reference_frame = AxisTypeEnum.TIME
-#        t_ctxt.uom = 'seconds since 01-01-1970'
-#        pdict.add_context(t_ctxt)
+
+        # Create the logger for receiving publications
+        #self.create_stream_and_logger(name='slocum',stream_id=stream_id)
+        # Create agent config.
+        self.EDA_RESOURCE_ID = ds_id
+        self.EDA_NAME = ds_name
+
+        self.DVR_CONFIG['dh_cfg'] = {
+            'TESTING':True,
+            'stream_id':stream_id,
+            'param_dictionary':parameter_dictionary.dump(),
+            'data_producer_id':dproducer_id, #CBM: Should this be put in the main body of the config - with mod & cls?
+            'max_records':20,
+        }
+        self.agent_config = {
+            'driver_config' : self.DVR_CONFIG,
+            'stream_config' : {},
+            'agent'         : {'resource_id': self.EDA_RESOURCE_ID},
+            'test_mode' : True
+        }
+
+        datasetagent_instance_obj = IonObject(RT.ExternalDatasetAgentInstance,  name='ExternalDatasetAgentInstance1', description='external data agent instance',
+                                     handler_module=self.EDA_MOD, handler_class=self.EDA_CLS,
+                                      dataset_driver_config=self.DVR_CONFIG, dataset_agent_config=self.agent_config )
+        self.dataset_agent_instance_id = self.dams_client.create_external_dataset_agent_instance(external_dataset_agent_instance=datasetagent_instance_obj,
+                                                                                            external_dataset_agent_id=datasetagent_id, external_dataset_id=ds_id)
+
+
+
+    def _create_param_dict(self):
 
         pdict = ParameterDictionary()
 
@@ -568,32 +605,4 @@ class TestBulkIngest(IonIntegrationTestCase):
         t_ctxt.uom = 'unknown'
         pdict.add_context(t_ctxt)
 
-
-        # Create the logger for receiving publications
-        #self.create_stream_and_logger(name='slocum',stream_id=stream_id)
-        # Create agent config.
-        self.EDA_RESOURCE_ID = ds_id
-        self.EDA_NAME = ds_name
-
-        self.DVR_CONFIG['dh_cfg'] = {
-            'TESTING':True,
-            'stream_id':stream_id,
-            'param_dictionary':pdict.dump(),
-            'data_producer_id':dproducer_id, #CBM: Should this be put in the main body of the config - with mod & cls?
-            'max_records':20,
-        }
-        self.agent_config = {
-            'driver_config' : self.DVR_CONFIG,
-            'stream_config' : {},
-            'agent'         : {'resource_id': self.EDA_RESOURCE_ID},
-            'test_mode' : True
-        }
-
-        datasetagent_instance_obj = IonObject(RT.ExternalDatasetAgentInstance,  name='ExternalDatasetAgentInstance1', description='external data agent instance',
-                                     handler_module=self.EDA_MOD, handler_class=self.EDA_CLS,
-                                      dataset_driver_config=self.DVR_CONFIG, dataset_agent_config=self.agent_config )
-        self.dataset_agent_instance_id = self.dams_client.create_external_dataset_agent_instance(external_dataset_agent_instance=datasetagent_instance_obj,
-                                                                                            external_dataset_agent_id=datasetagent_id, external_dataset_id=ds_id)
-
-
-
+        return pdict
