@@ -16,9 +16,8 @@ from pyon.public import IonObject, log
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
+from pyon.ion.stream import StreamPublisherRegistrar
 
-# Stancdard imports.
-import time
 
 # Pyon exceptions.
 from pyon.core.exception import IonException
@@ -113,8 +112,18 @@ class InstrumentAgent(ResourceAgent):
         # Set the 'reason' to be the default.
         self.da_session_close_reason = 'due to ION request'                
 
-        # TODO stream publisher setup (mixin)
+        # Dictionary of data stream IDs for data publishing. Constructed
+        # by stream_config agent config member during process on_init.
+        self._data_streams = {}
+        
+        # Dictionary of data stream publishers. Constructed by
+        # stream_config agent config member during process on_init.
+        self._data_publishers = {}
 
+        # Factories for stream packets. Constructed by driver
+        # configuration information on transition to inactive.
+        self._packet_factories = {}
+        
     def on_init(self):
         """
         Instrument agent pyon process initialization.
@@ -127,9 +136,10 @@ class InstrumentAgent(ResourceAgent):
         
         # Set the test mode.
         self._test_mode = self.CFG.get('test_mode', False)
-        
-        # TODO stream publisher setup (mixin)
 
+        # Construct stream publishers.
+        self._construct_data_publishers()        
+                                       
     ##############################################################
     # Capabilities interface and event handlers.
     ##############################################################    
@@ -231,8 +241,6 @@ class InstrumentAgent(ResourceAgent):
 
         return (next_state, result)
 
-
-
     ##############################################################
     # UNINITIALIZED event handlers.
     ##############################################################    
@@ -256,7 +264,10 @@ class InstrumentAgent(ResourceAgent):
             raise BadRequest('The driver configuration is missing or invalid.')
 
         # Start the driver and switch to inactive.
-        self._start_driver(self._dvr_config)        
+        self._start_driver(self._dvr_config)
+
+        self._construct_packet_factories()
+        
         next_state = ResourceAgentState.INACTIVE
 
         return (next_state, result)
@@ -272,6 +283,7 @@ class InstrumentAgent(ResourceAgent):
         next_state = None
 
         result = self._stop_driver()
+        self._clear_packet_factories()
         next_state = ResourceAgentState.UNINITIALIZED
   
         return (next_state, result)
@@ -325,6 +337,7 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
+        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
   
         return (next_state, result)
@@ -364,6 +377,7 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
+        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
         
         return (next_state, result)        
@@ -411,6 +425,7 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
+        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
         
         return (next_state, result)        
@@ -469,6 +484,7 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
+        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
           
         return (next_state, result)        
@@ -509,7 +525,6 @@ class InstrumentAgent(ResourceAgent):
         
         return (next_state, result)        
 
-
     ##############################################################
     # Instrument agent event callback.
     ##############################################################    
@@ -548,7 +563,18 @@ class InstrumentAgent(ResourceAgent):
             
             elif type == DriverAsyncEvent.SAMPLE:
                 # Publish sample on sample data streams.
-                pass
+                try:
+                    stream_name = val.pop('stream_name')
+                    val['stream_id'] = self._data_streams[stream_name]
+                    packet = self._packet_factories[stream_name](**val)
+                    self._data_publishers[stream_name].publish(packet)
+                    log.info('Instrument agent %s published data packet. '
+                         'stream_name=%s (stream_id=%s)', self._proc_name,
+                         stream_name, val['stream_id'])
+                
+                except:
+                    log.error('Instrument agent %s could not publish data.',
+                              self._proc_name)
             
             elif type == DriverAsyncEvent.ERROR:
                 # Publish resource error event.
@@ -704,8 +730,6 @@ class InstrumentAgent(ResourceAgent):
             log.error('Instrument agent %s rror starting driver client. %s', self._proc_name, e)
             raise ResourceError('Error starting driver client.')
 
-        #self._construct_packet_factories()
-
         log.info('Instrument agent %s started its driver.', self._proc_name)
         
     def _stop_driver(self):
@@ -762,5 +786,57 @@ class InstrumentAgent(ResourceAgent):
 
         if iex:
             raise iex
+
+    def _construct_data_publishers(self):
+        """
+        Construct the stream publishers from the stream_config agent
+        config variable.
+        @retval None
+        """
+        # The registrar to create publishers.
+        stream_registrar = StreamPublisherRegistrar(process=self,
+                                                    container=self.container)
         
+        stream_info = self.CFG.get('stream_config', None)
+        if not stream_info:
+            log.warning('No stream config found in agent config -- publishers \
+                        not constructed.')
+        
+        else:
+            log.info("stream_info = %s" % stream_info)
+ 
+            for (name, stream_config) in stream_info.iteritems():
+                try:
+                    stream_id = stream_config['id']
+                    self._data_streams[name] = stream_id
+                    publisher = stream_registrar.create_publisher(
+                       stream_id=stream_id)
+                    self._data_publishers[name] = publisher
+                    log.info("Instrument agent '%s' created publisher for stream_name "
+                         "%s (stream_id=%s)" % (self._proc_name, name, stream_id))
+                
+                except:
+                    log.warning('Instrument agent %s failed to create \
+                                publisher for stream %s.', self._proc_name,
+                                name)
+
+    def _construct_packet_factories(self):
+        """
+        Construct packet factories from packet_config member of the
+        driver_config and self.CFG.stream_config.
+        @retval None
+        """
+        self._packet_factories = self._dvr_proc.get_packet_factories(
+            self.CFG.stream_config)
+        log.info('Insturment agent %s constructed its packet factories.',
+                 self._proc_name)
+        
+    def _clear_packet_factories(self):
+        """
+        Delete packet factories.
+        @retval None
+        """
+        self._packet_factories.clear()
+        log.info('Instrument agent %s deleted packet factories.',
+                 self._proc_name)
         
