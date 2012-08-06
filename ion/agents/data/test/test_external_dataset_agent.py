@@ -36,6 +36,7 @@ import numpy
 import os
 
 # ION imports.
+from pyon.public import IonObject, log
 from interface.objects import StreamQuery, Attachment, AttachmentType, Granule
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -55,6 +56,7 @@ from pyon.ion.resource import PRED, RT
 # MI imports
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 from ion.agents.instrument.exceptions import InstrumentParameterException
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
@@ -951,8 +953,23 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
 
         # Generate the data product and associate it to the ExternalDataset
-        dprod = DataProduct(name='dummy_dataset', description='dummy data product')
-        dproduct_id = dpms_cli.create_data_product(data_product=dprod, stream_definition_id=streamdef_id)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dprod = IonObject(RT.DataProduct,
+            name='dummy_dataset',
+            description='dummy data product',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        dproduct_id = dpms_cli.create_data_product(data_product=dprod,
+                                                    stream_definition_id=streamdef_id,
+                                                    parameter_dictionary=parameter_dictionary)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id) #, create_stream=True)
 
