@@ -1095,23 +1095,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(pids), 2)
 
     @attr('LOCOINT')
-    @unittest.skip('Need to incorporate latest changes to scheduler service')
+#    @unittest.skip('Need to incorporate latest changes to scheduler service')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_publish_event_on_time(self):
         '''
         Test the publish_event method of UNS
         '''
-
-#        hour = 10
-#        minutes = 34
-#        seconds = 43
-#        future_time = {'hour': hour, 'minutes': minutes, 'seconds':seconds}
-
-        interval_timer_params = {'count': 0,
-                                'sent_time':0,
-                                'received_time':0,
-                                'interval':3,
+        interval_timer_params = {'interval':3,
                                 'number_of_intervals':4}
 
         #--------------------------------------------------------------------------------
@@ -1125,10 +1116,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Set up a subscriber to listen for that event
         #--------------------------------------------------------------------------------
-        ar = gevent.event.AsyncResult()
         def received_event(event, headers):
             log.debug("received the event in the test: %s" % event)
-            ar.set(event)
+
+            #--------------------------------------------------------------------------------
+            # check that the event was published
+            #--------------------------------------------------------------------------------
+            self.assertEquals(event.origin, "origin_1")
+            self.assertEquals(event.type_, 'DeviceEvent')
+            self.assertEquals(event.origin_type, 'origin_type_1')
+            self.assertEquals(event.ts_created, 2)
+            self.assertEquals(event.sub_type, 'sub_type_1')
 
         event_subscriber = EventSubscriber( event_type = 'DeviceEvent',
                                             origin="origin_1",
@@ -1141,20 +1139,4 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         log.debug("about to publish an event")
         self.unsc.publish_event(event=event, interval_timer_params = interval_timer_params )
-
-        log.debug("came here")
-        log.debug("ar: %s" % ar)
-
-        event_in = ar.get(timeout=20)
-
-        log.debug("event_in: %s" % event_in)
-
-        #--------------------------------------------------------------------------------
-        # check that the event was published
-        #--------------------------------------------------------------------------------
-        self.assertEquals(event_in.origin, "origin_1")
-        self.assertEquals(event_in.type_, 'DeviceEvent')
-        self.assertEquals(event_in.origin_type, 'origin_type_1')
-        self.assertEquals(event_in.ts_created, 2)
-        self.assertEquals(event_in.sub_type, 'sub_type_1')
 

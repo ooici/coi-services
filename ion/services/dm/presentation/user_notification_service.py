@@ -17,6 +17,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 import string
 import time, datetime
@@ -544,7 +545,7 @@ class UserNotificationService(BaseUserNotificationService):
         Publish a general event at a certain time using the UNS
 
         @param event Event
-        @param interval_timer_params dict Ex: {'count': 0, 'sent_time':0, 'received_time'=0, 'interval':3, 'number_of_intervals':4}
+        @param interval_timer_params dict Ex: {'interval':3, 'number_of_intervals':4}
         '''
 
         log.debug("UNS to publish on schedule the event: %s" % event)
@@ -561,15 +562,21 @@ class UserNotificationService(BaseUserNotificationService):
         event_subscriber = EventSubscriber( event_type = "ResourceEvent", callback=publish)
         event_subscriber.start()
 
-        # Use the scheduler to set up a timer
-#        timer_id = self.clients.scheduler.create_timer(scheduler_entry)
-#        log.debug("timer_id in UNS: %s" % timer_id)
+#        id = self.clients.scheduler.create_interval_timer(start_time= time.time(),
+#                                                            interval=interval_timer_params['interval'],
+#                                                            number_of_intervals=interval_timer_params['number_of_intervals'],
+#                                                            event_origin=event.origin,
+#                                                            event_subtype='')
 
-        id = self.clients.scheduler.create_interval_timer(start_time= time.time(),
-                                                            interval=interval_timer_params['interval'],
-                                                            number_of_intervals=interval_timer_params['number_of_intervals'],
-                                                            event_origin=event.origin,
-                                                            event_subtype='')
+        ss = SchedulerService()
+
+        id = ss.create_interval_timer(start_time= time.time(),
+            interval=interval_timer_params['interval'],
+            number_of_intervals=interval_timer_params['number_of_intervals'],
+            event_origin=event.origin,
+            event_subtype='')
+
+        log.debug("created the id: %s" % id)
 
     def create_worker(self, number_of_workers=1):
         '''
