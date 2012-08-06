@@ -36,7 +36,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 
 from pyon.agent.agent import ResourceAgentClient
 
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from pyon.core.exception import BadRequest, NotFound, Conflict
 
@@ -102,7 +102,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         return pid
 
 
-    #@unittest.skip("TBD")
+    @unittest.skip("TBD")
     def test_activateInstrumentSample(self):
 
         self.loggerpids = []
@@ -148,16 +148,27 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug( 'new Stream Definition id = %s', instDevice_id)
 
         log.debug( 'Creating new CDM data product with a stream definition')
-        dp_obj = IonObject(RT.DataProduct,name='the parsed data',description='ctd stream test')
-        try:
-            data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='the parsed data',
+            description='ctd stream test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
@@ -203,10 +214,18 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.output_products={}
         log.debug("test_createTransformsThenActivateInstrument: create output data product L0 conductivity")
-        ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='L0_Conductivity',description='transform output conductivity')
-        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj, outgoing_stream_l0_conductivity_id)
+
+        ctd_l0_conductivity_output_dp_obj = IonObject(  RT.DataProduct,
+                                                        name='L0_Conductivity',
+                                                        description='transform output conductivity',
+                                                        temporal_domain = tdom,
+                                                        spatial_domain = sdom)
+
+        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(  ctd_l0_conductivity_output_dp_obj,
+                                                                                        outgoing_stream_l0_conductivity_id,
+                                                                                        parameter_dictionary)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l0_conductivity_output_dp_id, PRED.hasStream, None, True)
         log.debug(" ctd_l0_conductivity stream id =  %s", str(stream_ids) )
@@ -214,10 +233,18 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.loggerpids.append(pid)
 
         log.debug("test_createTransformsThenActivateInstrument: create output data product L0 pressure")
-        ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L0_Pressure',description='transform output pressure')
-        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id)
+
+        ctd_l0_pressure_output_dp_obj = IonObject(  RT.DataProduct,
+                                                    name='L0_Pressure',
+                                                    description='transform output pressure',
+                                                    temporal_domain = tdom,
+                                                    spatial_domain = sdom)
+
+        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(  ctd_l0_pressure_output_dp_obj,
+                                                                                    outgoing_stream_l0_pressure_id,
+                                                                                    parameter_dictionary)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l0_pressure_output_dp_id, PRED.hasStream, None, True)
         log.debug(" ctd_l0_pressure stream id =  %s", str(stream_ids) )
@@ -225,10 +252,18 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.loggerpids.append(pid)
 
         log.debug("test_createTransformsThenActivateInstrument: create output data product L0 temperature")
-        ctd_l0_temperature_output_dp_obj = IonObject(RT.DataProduct, name='L0_Temperature',description='transform output temperature')
-        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id)
+
+        ctd_l0_temperature_output_dp_obj = IonObject(   RT.DataProduct,
+                                                        name='L0_Temperature',
+                                                        description='transform output temperature',
+                                                        temporal_domain = tdom,
+                                                        spatial_domain = sdom)
+
+        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj,
+                                                                                    outgoing_stream_l0_temperature_id,
+                                                                                    parameter_dictionary)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l0_temperature_output_dp_id, PRED.hasStream, None, True)
         log.debug(" ctd_l0_temperature stream id =  %s", str(stream_ids) )
@@ -247,42 +282,26 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process return")
 
-
-        #todo: attaching the taxonomy to the stream is a TEMPORARY measure
-        # Create taxonomies for both parsed and attach to the stream
-        ParsedTax = TaxyTool()
-        ParsedTax.add_taxonomy_set('temp','long name for temp')
-        ParsedTax.add_taxonomy_set('cond','long name for cond')
-        ParsedTax.add_taxonomy_set('lat','long name for latitude')
-        ParsedTax.add_taxonomy_set('lon','long name for longitude')
-        ParsedTax.add_taxonomy_set('pres','long name for pres')
-        ParsedTax.add_taxonomy_set('time','long name for time')
-
-
         log.debug( 'Creating new RAW data product with a stream definition')
         raw_stream_def = SBE37_RAW_stream_definition()
         raw_stream_def_id = self.pubsubcli.create_stream_definition(container=raw_stream_def)
 
-        dp_obj = IonObject(RT.DataProduct,name='the raw data',description='raw stream test')
-        try:
-            data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+        dp_obj = IonObject(RT.DataProduct,
+            name='the raw data',
+            description='raw stream test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id, parameter_dictionary)
         log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2, persist_data=True, persist_metadata=True)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
         log.debug( 'Data product streams2 = %s', str(stream_ids))
-
-        #todo: attaching the taxonomy to the stream is a TEMPORARY measure
-        # Create taxonomies for both parsed and attach to the stream
-        RawTax = TaxyTool()
-        RawTax.add_taxonomy_set('raw_fixed','Fixed length bytes in an array of records')
-        RawTax.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
 
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
@@ -395,16 +414,26 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug( 'new Stream Definition id = %s', instDevice_id)
 
         log.debug( 'Creating new CDM data product with a stream definition')
-        dp_obj = IonObject(RT.DataProduct,name='the parsed data',description='ctd stream test')
-        try:
-            data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='the parsed data',
+            description='ctd stream test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
@@ -440,27 +469,22 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         raw_stream_def = SBE37_RAW_stream_definition()
         raw_stream_def_id = self.pubsubcli.create_stream_definition(container=raw_stream_def)
 
-        dp_obj = IonObject(RT.DataProduct,name='the raw data',description='raw stream test')
-        try:
-            data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+        dp_obj = IonObject(RT.DataProduct,
+            name='the raw data',
+            description='raw stream test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id, parameter_dictionary)
         log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2, persist_data=True, persist_metadata=True)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
         log.debug( 'Data product streams2 = %s', str(stream_ids))
-
-        #todo: attaching the taxonomy to the stream is a TEMPORARY measure
-        # Create taxonomies for both parsed and attach to the stream
-        RawTax = TaxyTool()
-        RawTax.add_taxonomy_set('raw_fixed','Fixed length bytes in an array of records')
-        RawTax.add_taxonomy_set('raw_blob','Unlimited length bytes in an array')
-
 
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 

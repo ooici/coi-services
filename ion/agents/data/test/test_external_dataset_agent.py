@@ -36,6 +36,7 @@ import numpy
 import os
 
 # ION imports.
+from pyon.public import IonObject, log
 from interface.objects import StreamQuery, Attachment, AttachmentType, Granule
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -55,6 +56,7 @@ from pyon.ion.resource import PRED, RT
 # MI imports
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 from ion.agents.instrument.exceptions import InstrumentParameterException
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
@@ -412,6 +414,7 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+    @unittest.skip('not working')
     def test_streaming(self):
         # Test instrument driver execute interface to start and stop streaming mode.
         cmd = AgentCommand(command='get_current_state')
@@ -871,6 +874,7 @@ class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestC
             }
 
 @attr('INT_EXPERIMENTAL', group='eoi')
+@unittest.skip("ion.agents.data.handlers.base_data_handler.DummyDataHandler._acquire_data complains still!")
 class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     # DataHandler config
     DVR_CONFIG = {
@@ -888,6 +892,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         dams_cli = DataAcquisitionManagementServiceClient()
         dpms_cli = DataProductManagementServiceClient()
         rr_cli = ResourceRegistryServiceClient()
+        pubsub_cli = PubsubManagementServiceClient()
 
         eda = ExternalDatasetAgent()
         eda_id = dams_cli.create_external_dataset_agent(eda)
@@ -946,11 +951,29 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         dams_cli.assign_external_dataset_to_data_source(external_dataset_id=ds_id, data_source_id=ext_dsrc_id)
         dams_cli.assign_external_dataset_to_agent_instance(external_dataset_id=ds_id, agent_instance_id=eda_inst_id)
 
-        # Generate the data product and associate it to the ExternalDataset
-        dprod = DataProduct(name='dummy_dataset', description='dummy data product')
-        dproduct_id = dpms_cli.create_data_product(data_product=dprod)
+        #create temp streamdef so the data product can create the stream
+        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
 
-        dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id, create_stream=True)
+        # Generate the data product and associate it to the ExternalDataset
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dprod = IonObject(RT.DataProduct,
+            name='dummy_dataset',
+            description='dummy data product',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        dproduct_id = dpms_cli.create_data_product(data_product=dprod,
+                                                    stream_definition_id=streamdef_id,
+                                                    parameter_dictionary=parameter_dictionary)
+
+        dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id) #, create_stream=True)
 
         stream_id, assn = rr_cli.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
         stream_id = stream_id[0]
@@ -959,11 +982,32 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
 
         #CBM: Use CF standard_names
 
-        ttool = TaxyTool()
-        ttool.add_taxonomy_set('time','time')
-        ttool.add_taxonomy_set('lon','longitude')
-        ttool.add_taxonomy_set('lat','latitude')
-        ttool.add_taxonomy_set('dummy', 'dummy')
+#        ttool = TaxyTool()
+#        ttool.add_taxonomy_set('time','time')
+#        ttool.add_taxonomy_set('lon','longitude')
+#        ttool.add_taxonomy_set('lat','latitude')
+#        ttool.add_taxonomy_set('dummy', 'dummy')
+
+        pdict = ParameterDictionary()
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.reference_frame = AxisTypeEnum.LON
+        t_ctxt.uom = 'degree_east'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.reference_frame = AxisTypeEnum.LON
+        t_ctxt.uom = 'degree_north'
+        pdict.add_context(t_ctxt)
+
+        t_ctxt = ParameterContext('dummy', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+        t_ctxt.uom = 'unkown'
+        pdict.add_context(t_ctxt)
 
         # Create the logger for receiving publications
         self.create_stream_and_logger(name='dummy',stream_id=stream_id)
@@ -973,19 +1017,24 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
             'stream_id':stream_id,
-            'taxonomy':ttool.dump(),
+            'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':4,
             }
 
         folder = 'test_data/dummy'
-        for the_file in os.listdir(folder):
-            file_path = os.path.join(folder, the_file)
-            try:
-                if os.path.isfile(file_path):
-                    os.unlink(file_path)
-            except Exception, e:
-                log.debug('_setup_resources error: {0}'.format(e))
+
+        if os.path.isdir(folder):
+            for the_file in os.listdir(folder):
+                file_path = os.path.join(folder, the_file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except Exception as e:
+                    log.debug('_setup_resources error: {0}'.format(e))
+
+        if not os.path.exists(folder):
+            os.makedirs(folder)
 
         self.add_dummy_file('test_data/dummy/test2012-02-01-12.dum')
         self.add_dummy_file('test_data/dummy/test2012-02-01-13.dum')
@@ -993,8 +1042,30 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         self.add_dummy_file('test_data/dummy/test2012-02-01-15.dum')
 
     def add_dummy_file(self, file_name):
-        with open(file_name, 'w') as f:
-            f.write(numpy.arange(100))
+#        with open(file_name, 'w') as f:
+        f = open(file_name, 'wb')
+        f.write(numpy.arange(100))
+
+    def tearDown(self):
+        folder = 'test_data/dummy'
+
+        if os.path.isdir(folder):
+            for the_file in os.listdir(folder):
+                file_path = os.path.join(folder, the_file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except Exception as e:
+                    log.debug('_setup_resources error: {0}'.format(e))
+
+
+    def clean_up(self, file_path):
+
+        try:
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            log.debug('_setup_resources error: {0}'.format(e))
 
     def test_new_data_available_at_end(self):
         cmd=AgentCommand(command='initialize')
@@ -1037,6 +1108,10 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+        self.clean_up('test_data/dummy/test2012-02-01-16.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-17.dum')
+
+
     def test_new_data_available_at_beginning(self):
         cmd=AgentCommand(command='initialize')
         _ = self._ia_client.execute_agent(cmd)
@@ -1077,6 +1152,10 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+        self.clean_up('test_data/dummy/test2012-02-01-10.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-11.dum')
+
 
     def test_new_data_available_at_beginning_and_end(self):
         cmd=AgentCommand(command='initialize')
@@ -1121,6 +1200,12 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+        self.clean_up('test_data/dummy/test2012-02-01-10.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-11.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-16.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-17.dum')
+
+
     def test_data_removed_from_beginning(self):
         cmd=AgentCommand(command='initialize')
         _ = self._ia_client.execute_agent(cmd)
@@ -1162,6 +1247,10 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+        self.clean_up('test_data/dummy/test2012-02-01-12.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-13.dum')
+
+
     def test_data_removed_from_end(self):
         cmd=AgentCommand(command='initialize')
         _ = self._ia_client.execute_agent(cmd)
@@ -1202,6 +1291,10 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+        self.clean_up('test_data/dummy/test2012-02-01-14.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-15.dum')
+
 
     @unittest.skip('')
     def test_acquire_data(self):

@@ -40,6 +40,31 @@ class ResourceAgentState(BaseEnum):
     DIRECT_ACCESS = 'RESOUCE_AGENT_STATE_DIRECT_ACCESS'
     BUSY = 'RESOURCE_AGENT_STATE_BUSY'
     
+class ResourceAgentEvent(BaseEnum):
+    """
+    Resource agent common events.
+    """
+    ENTER = 'RESOURCE_AGENT_EVENT_ENTER'
+    EXIT = 'RESOURCE_AGENT_EVENT_EXIT'
+    POWER_UP = 'RESOURCE_AGENT_EVENT_POWER_UP'
+    POWER_DOWN = 'RESOURCE_AGENT_EVENT_POWER_DOWN'
+    INITIALIZE = 'RESOURCE_AGENT_EVENT_INITIALIZE'
+    RESET = 'RESOURCE_AGENT_EVENT_RESET'
+    GO_ACTIVE = 'RESOURCE_AGENT_EVENT_GO_ACTIVE'
+    GO_INACTIVE = 'RESOURCE_AGENT_EVENT_GO_INACTIVE'
+    RUN = 'RESOURCE_AGENT_EVENT_RUN'
+    CLEAR = 'RESOURCE_AGENT_EVENT_CLEAR'
+    PAUSE = 'RESOURCE_AGENT_EVENT_PAUSE'
+    RESUME = 'RESOURCE_AGENT_EVENT_RESUME'
+    GO_COMMAND = 'RESOURCE_AGENT_EVENT_GO_COMMAND'
+    GO_DIRECT_ACCESS = 'RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS'
+    GET_RESOURCE = 'RESOURCE_AGENT_EVENT_GET_RESOURCE'
+    SET_RESOURCE = 'RESOURCE_AGENT_EVENT_SET_RESOURCE'
+    EXECUTE_RESOURCE = 'RESOURCE_AGENT_EVENT_EXECUTE_RESOURCE'
+    GET_RESOURCE_STATE = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_STATE'
+    GET_RESOURCE_CAPABILITIES = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_CAPABILITIES'
+    DONE = 'RESOURCE_AGENT_EVENT_DONE'    
+    
 class DriverState(BaseEnum):
     """Common driver state enum"""
 
@@ -113,8 +138,9 @@ class DriverAsyncEvent(BaseEnum):
     CONFIG_CHANGE = 'DRIVER_ASYNC_EVENT_CONFIG_CHANGE'
     SAMPLE = 'DRIVER_ASYNC_EVENT_SAMPLE'
     ERROR = 'DRIVER_ASYNC_EVENT_ERROR'
-    TEST_RESULT = 'DRIVER_ASYNC_TEST_RESULT'
+    RESULT = 'DRIVER_ASYNC_RESULT'
     DIRECT_ACCESS = 'DRIVER_ASYNC_EVENT_DIRECT_ACCESS'
+    AGENT_EVENT = 'DRIVER_ASYNC_EVENT_AGENT_EVENT'
 
 class DriverParameter(BaseEnum):
     """
@@ -127,7 +153,7 @@ class InstrumentDriver(object):
     """
     Base class for instrument drivers.
     """
-    
+        
     def __init__(self, event_callback):
         """
         Constructor.
@@ -280,14 +306,18 @@ class InstrumentDriver(object):
             self._send_event(event)
             
         elif type == DriverAsyncEvent.ERROR:
-            # Error caught at driver process level.
+            # Notify agent of async driver error.
             pass
 
-        elif type == DriverAsyncEvent.TEST_RESULT:
+        elif type == DriverAsyncEvent.RESULT:
             event['value'] = val
             self._send_event(event)
 
         elif type == DriverAsyncEvent.DIRECT_ACCESS:
+            event['value'] = val
+            self._send_event(event)
+
+        elif type == DriverAsyncEvent.AGENT_EVENT:
             event['value'] = val
             self._send_event(event)
 
@@ -431,21 +461,13 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         @raises NotImplementedException if not implemented by subclass.        
         """
 
-        connection_state = self._connection_fsm.get_current_state()
-        if connection_state == DriverConnectionState.CONNECTED:
-            cmd_caps = self._protocol.get_events(current_state)
+        if self._protocol:
+            return self._protocol.get_resource_capabilities(current_state)
+        
         else:
-            cmd_caps = []
-        
-        param_caps = self.get_resource_parameters()
+            return [[], []]
 
-        return [cmd_caps, param_caps]
-        
-    def get_resource_parameters(self):
-        """
-        """
-        return []
-        
+                
     def get_resource_state(self, *args, **kwargs):
         """
         Return the current state of the driver.
@@ -535,7 +557,6 @@ class SingleConnectionInstrumentDriver(InstrumentDriver):
         """
         next_state = None
         result = None
-
 
         # Get the required param dict.
         config = kwargs.get('config', None)  # via kwargs

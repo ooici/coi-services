@@ -10,6 +10,7 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L1_temperature_stream_definition, L1_conductivity_stream_definition, L2_practical_salinity_stream_definition, L2_density_stream_definition
@@ -51,7 +52,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('HARDWARE', group='foome')
-@unittest.skip("run locally only")
+#@unittest.skip("run locally only")
 #@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
@@ -91,10 +92,10 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
            if procs[0].isdigit():
                pid = int(procs[0])
                os.kill(pid,signal.SIGKILL)
-       stm = os.popen('rm /tmp/*.pid.txt')
+#       stm = os.popen('rm /tmp/*.pid.txt')
 
 
-    #@unittest.skip ("Deprecated by IngestionManagement refactor, timeout on start inst agent?")
+    @unittest.skip ("Deprecated by IngestionManagement refactor, timeout on start inst agent?")
     def test_deploy_activate_full(self):
 
         # ensure no processes or pids are left around by agents or Sims
@@ -167,14 +168,24 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
 
         log.debug("test_deployAsPrimaryDevice: create output parsed data product for Logical Instrument")
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
         ctd_logical_output_dp_obj = IonObject(RT.DataProduct,
-                                              name='ctd_parsed_logical',
-                                              description='ctd parsed from the logical instrument')
+            name='ctd_parsed_logical',
+            description='ctd parsed from the logical instrument',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
         instrument_site_output_dp_id = self.dataproductclient.create_data_product(ctd_logical_output_dp_obj,
-                                                                                  ctd_stream_def_id)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=instrument_site_output_dp_id,
-                                                                 persist_data=True,
-                                                                 persist_metadata=True)
+                                                                                  ctd_stream_def_id,
+                                                                                    parameter_dictionary)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=instrument_site_output_dp_id)
 
         self.omsclient.create_site_data_product(instrumentSite_id, instrument_site_output_dp_id)
 
@@ -240,11 +251,15 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         print 'test_deployAsPrimaryDevice: new Stream Definition id = ', ctd_stream_def_id
 
         print 'Creating new CDM data product with a stream definition'
-        dp_obj = IonObject(RT.DataProduct,name='ctd_parsed_year1',description='ctd stream test year 1')
-        try:
-            ctd_parsed_data_product_year1 = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='ctd_parsed_year1',
+            description='ctd stream test year 1',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        ctd_parsed_data_product_year1 = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product_year1
 
         self.damsclient.assign_data_product(input_resource_id=oldInstDevice_id,
@@ -253,8 +268,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_year1, PRED.hasStream, None, True)
         print 'test_deployAsPrimaryDevice: Data product streams1 = ', stream_ids
-
-
 
         #-------------------------------
         # Create New InstrumentDevice
@@ -324,11 +337,15 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         print 'test_deployAsPrimaryDevice: new Stream Definition id = ', ctd_stream_def_id
 
         print 'Creating new CDM data product with a stream definition'
-        dp_obj = IonObject(RT.DataProduct,name='ctd_parsed_year2',description='ctd stream test year 2')
-        try:
-            ctd_parsed_data_product_year2 = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='ctd_parsed_year2',
+            description='ctd stream test year 2',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        ctd_parsed_data_product_year2 = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product_year2
 
         self.damsclient.assign_data_product(input_resource_id=newInstDevice_id,
@@ -374,23 +391,47 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         self.output_products={}
         log.debug("test_deployAsPrimaryDevice: create output data product L0 conductivity")
-        ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='L0_Conductivity',description='transform output conductivity')
-        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj, outgoing_stream_l0_conductivity_id)
+
+        ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct,
+            name='L0_Conductivity',
+            description='transform output conductivity',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(  ctd_l0_conductivity_output_dp_obj,
+                                                                                        outgoing_stream_l0_conductivity_id,
+                                                                                        parameter_dictionary)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
 
         log.debug("test_deployAsPrimaryDevice: create output data product L0 pressure")
-        ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L0_Pressure',description='transform output pressure')
-        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id)
+
+        ctd_l0_pressure_output_dp_obj = IonObject(  RT.DataProduct,
+                                                    name='L0_Pressure',
+                                                    description='transform output pressure',
+                                                    temporal_domain = tdom,
+                                                    spatial_domain = sdom)
+
+        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(  ctd_l0_pressure_output_dp_obj,
+                                                                                    outgoing_stream_l0_pressure_id,
+                                                                                    parameter_dictionary )
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("test_deployAsPrimaryDevice: create output data product L0 temperature")
-        ctd_l0_temperature_output_dp_obj = IonObject(RT.DataProduct, name='L0_Temperature',description='transform output temperature')
-        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id)
+
+        ctd_l0_temperature_output_dp_obj = IonObject(   RT.DataProduct,
+                                                        name='L0_Temperature',
+                                                        description='transform output temperature',
+                                                        temporal_domain = tdom,
+                                                        spatial_domain = sdom)
+
+        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(   ctd_l0_temperature_output_dp_obj,
+                                                                                        outgoing_stream_l0_temperature_id,
+                                                                                        parameter_dictionary)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
 

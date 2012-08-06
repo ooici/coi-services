@@ -141,8 +141,15 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.assertEqual(len(self.get_procs()), 1)
 
-        status = self.haa_client.status().result
-        self.assertEqual(status, 'STEADY')
+        for i in range(0, 5):
+            status = self.haa_client.status().result
+            try:
+                self.assertEqual(status, 'STEADY')
+                break
+            except:
+                gevent.sleep(1)
+        else:
+            assert False, "HA Service took too long to get to state STEADY"
 
         new_policy = {'preserve_n': 2}
         self.haa_client.reconfigure_policy(new_policy)

@@ -35,6 +35,7 @@ from interface.objects import HdfStorage, CouchStorage
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 import base64
 
@@ -50,7 +51,6 @@ class FakeProcess(LocalContextMixin):
     
 
 @attr('HARDWARE', group='foo')
-#@unittest.skip('not working')
 class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
     def setUp(self):
@@ -69,7 +69,6 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
 
 
-    #@unittest.skip('not working')
     def test_lookupTableProcessing(self):
         #-------------------------------
         # Create InstrumentModel
@@ -136,16 +135,27 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         print 'TestDataProcessWithLookupTable: new Stream Definition id = ', instDevice_id
 
         print 'Creating new CDM data product with a stream definition'
-        dp_obj = IonObject(RT.DataProduct,name='ctd_parsed',description='ctd stream test')
-        try:
-            ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='ctd_parsed',
+            description='ctd stream test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
@@ -158,16 +168,19 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         raw_stream_def = SBE37_RAW_stream_definition()
         raw_stream_def_id = self.pubsubclient.create_stream_definition(container=raw_stream_def)
 
-        dp_obj = IonObject(RT.DataProduct,name='ctd_raw',description='raw stream test')
-        try:
-            ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data product: %s" %ex)
+        dp_obj = IonObject(RT.DataProduct,
+            name='ctd_raw',
+            description='raw stream test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id, parameter_dictionary)
+
         print 'new ctd_raw_data_product_id = ', ctd_raw_data_product
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
@@ -214,23 +227,50 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         self.output_products={}
         log.debug("TestDataProcessWithLookupTable: create output data product L0 conductivity")
-        ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct, name='L0_Conductivity',description='transform output conductivity')
-        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj, outgoing_stream_l0_conductivity_id)
+
+        ctd_l0_conductivity_output_dp_obj = IonObject(  RT.DataProduct,
+                                                        name='L0_Conductivity',
+                                                        description='transform output conductivity',
+                                                        temporal_domain = tdom,
+                                                        spatial_domain = sdom)
+
+        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj,
+                                                                                    outgoing_stream_l0_conductivity_id,
+                                                                                    parameter_dictionary)
+
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
 
         log.debug("TestDataProcessWithLookupTable: create output data product L0 pressure")
-        ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct, name='L0_Pressure',description='transform output pressure')
-        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id)
+
+        ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct,
+            name='L0_Pressure',
+            description='transform output pressure',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj,
+                                                                                outgoing_stream_l0_pressure_id,
+                                                                                parameter_dictionary)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("TestDataProcessWithLookupTable: create output data product L0 temperature")
-        ctd_l0_temperature_output_dp_obj = IonObject(RT.DataProduct, name='L0_Temperature',description='transform output temperature')
-        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id)
+
+        ctd_l0_temperature_output_dp_obj = IonObject(   RT.DataProduct,
+                                                        name='L0_Temperature',
+                                                        description='transform output temperature',
+                                                        temporal_domain = tdom,
+                                                        spatial_domain = sdom)
+
+
+        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj,
+                                                                                    outgoing_stream_l0_temperature_id,
+                                                                                    parameter_dictionary)
+
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
         #-------------------------------

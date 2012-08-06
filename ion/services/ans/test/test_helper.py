@@ -6,6 +6,19 @@ from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.example_double_salinity import SalinityDoubler
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
 from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphs
+from ion.services.dm.utility.granule_utils import CoverageCraft
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.ans.ivisualization_service import VisualizationServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from pyon.public import log
 
@@ -34,20 +47,44 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         cc = self.container
         assertions = self.assertTrue
 
+        # Now create client to DataProductManagementService
+        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
+        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
+        self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
+        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
+        self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
+        self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
+        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
+        self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
+        self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
+        self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
+        self.vis_client = VisualizationServiceClient(node=self.container.node)
+
+
         #-------------------------------
         # Create CTD Parsed as the initial data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=self.ctd_stream_def, name='Simulated CTD data')
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
 
 
         log.debug('Creating new CDM data product with a stream definition')
-        dp_obj = IonObject(RT.DataProduct,name=data_product_name,description='ctd stream test')
-        try:
-            ctd_parsed_data_product_id = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
-        except Exception as ex:
-            self.fail("failed to create new data product: %s" %ex)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name=data_product_name,
+            description='ctd stream test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        ctd_parsed_data_product_id = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
         log.debug('new ctd_parsed_data_product_id = %s' % ctd_parsed_data_product_id)
 
@@ -61,7 +98,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product_id)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product_id, persist_data=False, persist_metadata=False)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product_id)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_id, PRED.hasStream, None, True)
@@ -233,7 +270,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
     def validate_data_ingest_retrieve(self, dataset_id):
 
         assertions = self.assertTrue
-        
+        self.data_retriever = DataRetrieverServiceClient(node=self.container.node)
+
         #validate that data was ingested
         replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_granule)
@@ -319,7 +357,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         # Create the output data product of the transform
         transform_dp_obj = IonObject(RT.DataProduct, name=data_process_name,description=data_process_definition.description)
         transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id)
 
         #last one out of the for loop is the output product id
         output_data_product_id = transform_dp_id

@@ -11,22 +11,10 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 # Import pyon first for monkey patching.
+
+# Pyon log and config objects.
 from pyon.public import log
 from pyon.public import CFG
-from pyon.public import StreamSubscriberRegistrar
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.context import LocalContextMixin
-from pyon.event.event import EventSubscriber, EventPublisher
-from pyon.core.exception import InstParameterError
-
-# Pyon exceptions.
-from pyon.core.exception import IonException
-from pyon.core.exception import BadRequest
-from pyon.core.exception import Conflict
-from pyon.core.exception import Timeout
-from pyon.core.exception import NotFound
-from pyon.core.exception import ServerError
-from pyon.core.exception import ResourceError
 
 # Standard imports.
 import time
@@ -44,18 +32,41 @@ from gevent.event import AsyncResult
 from nose.plugins.attrib import attr
 from mock import patch
 
+# Pyon pubsub and event support.
+from pyon.public import StreamSubscriberRegistrar
+from pyon.event.event import EventSubscriber, EventPublisher
+
+# Pyon unittest support.
+from pyon.util.int_test import IonIntegrationTestCase
+
+# Pyon exceptions.
+from pyon.core.exception import IonException
+from pyon.core.exception import BadRequest
+from pyon.core.exception import Conflict
+from pyon.core.exception import Timeout
+from pyon.core.exception import NotFound
+from pyon.core.exception import ServerError
+from pyon.core.exception import ResourceError
+
 # Agent imports.
+from pyon.util.context import LocalContextMixin
 from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
+
+# Driver imports.
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 from ion.agents.port.logger_process import EthernetDeviceLogger
 from ion.agents.instrument.driver_process import DriverProcessType
+from mi.core.instrument.instrument_driver import DriverProtocolState
+from mi.core.instrument.instrument_driver import DriverConnectionState
+from ion.agents.instrument.taxy_factory import get_taxonomy
 
 # Objects and clients.
 from interface.objects import AgentCommand
 from interface.objects import StreamQuery
+from interface.objects import CapabilityType
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -71,13 +82,14 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 
 # TODO chagne the path following the refactor.
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_command
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_resource_states
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_errors
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_command_errors
 
 
 ###############################################################################
@@ -176,17 +188,18 @@ class TestInstrumentAgent(IonIntegrationTestCase):
     the agent setup and interface.
     """
     
-    ###############################################################################
-    # Setup, teardown, helpers.
-    ###############################################################################
+    ############################################################################
+    # Setup, teardown.
+    ############################################################################
         
     def setUp(self):
         """
-        Initialize test members.
-        Start port agent.
-        Start container and client.
-        Start streams and subscribers.
-        Start agent, client.
+        Set up driver integration support.
+        Start port agent, add port agent cleanup.
+        Start container.
+        Start deploy services.
+        Define agent config, start agent.
+        Start agent client.
         """
         
         log.info('Creating driver integration test support:')
@@ -204,10 +217,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                                                      WORK_DIR)
         
         # Start port agent, add stop to cleanup.
-        self._pagent = None        
         self._start_pagent()
         self.addCleanup(self._support.stop_pagent)    
-        
         
         # Start container.
         log.info('Staring capability container.')
@@ -217,41 +228,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        """
-        # Start data suscribers, add stop to cleanup.
-        # Define stream_config.
-        self._no_samples = None
-        self._async_data_result = AsyncResult()
-        self._data_greenlets = []
-        self._stream_config = {}
-        self._samples_received = []
-        self._data_subscribers = []
-        self._start_data_subscribers()
-        self.addCleanup(self._stop_data_subscribers)
-
-        # Start event subscribers, add stop to cleanup.
-        self._no_events = None
-        self._async_event_result = AsyncResult()
-        self._events_received = []
-        self._event_subscribers = []
-        self._start_event_subscribers()
-        self.addCleanup(self._stop_event_subscribers)
-        """
+        # Setup stream config.
+        self._build_stream_config()
         
-        """        
         # Create agent config.
         agent_config = {
             'driver_config' : DVR_CONFIG,
             'stream_config' : self._stream_config,
-            'agent'         : {'resource_id': IA_RESOURCE_ID},
-            'test_mode' : True
-        }
-        """
-        
-        # Create agent config.
-        agent_config = {
-            'driver_config' : DVR_CONFIG,
-            'stream_config' : None,
             'agent'         : {'resource_id': IA_RESOURCE_ID},
             'test_mode' : True
         }
@@ -270,8 +253,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
-        self._ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
+        self._ia_client = ResourceAgentClient(IA_RESOURCE_ID,
+                                              process=FakeProcess())
         log.info('Got ia client %s.', str(self._ia_client))        
+        
+    ###############################################################################
+    # Port agent helpers.
+    ###############################################################################
         
     def _start_pagent(self):
         """
@@ -286,28 +274,59 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'addr' : 'localhost',
             'port' : port
         }
-        
-    def _start_data_subscribers(self):
+                        
+    ###############################################################################
+    # Event helpers.
+    ###############################################################################
+
+    def _start_event_subscriber(self, type='ResourceAgentEvent', count=0):
+        """
+        Start a subscriber to the instrument agent events.
+        @param type The type of event to catch.
+        @count Trigger the async event result when events received reaches this.
+        """
+        def consume_event(*args, **kwargs):
+            log.info('Test recieved ION event: args=%s, kwargs=%s, event=%s.', 
+                     str(args), str(kwargs), str(args[0]))
+            self._events_received.append(args[0])
+            if self._event_count > 0 and \
+                self._event_count == len(self._events_received):
+                self._async_event_result.set()
+            
+        # Event array and async event result.
+        self._event_count = count
+        self._events_received = []
+        self._async_event_result = AsyncResult()
+            
+        self._event_subscriber = EventSubscriber(
+            event_type=type, callback=consume_event,
+            origin=IA_RESOURCE_ID)
+        self._event_subscriber.start()
+        self._event_subscriber._ready_event.wait(timeout=5)
+
+    def _stop_event_subscriber(self):
+        """
+        Stop event subscribers on cleanup.
+        """
+        self._event_subscriber.stop()
+        self._event_subscriber = None
+
+    ###############################################################################
+    # Data stream helpers.
+    ###############################################################################
+
+    def _build_stream_config(self):
         """
         """
         # Create a pubsub client to create streams.
         pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-
-        # A callback for processing subscribed-to data.
-        def consume_data(message, headers):
-            log.info('Subscriber received data message: %s.', str(message))
-            self._samples_received.append(message)
-            if self._no_samples and self._no_samples == len(self._samples_received):
-                self._async_data_result.set()
                 
-        # Create a stream subscriber registrar to create subscribers.
-        subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
-                                                container=self.container)
-
         # Create streams and subscriptions for each stream named in driver.
         self._stream_config = {}
-        self._data_subscribers = []
-        for (stream_name, val) in PACKET_CONFIG.iteritems():
+
+        for stream_name in PACKET_CONFIG:
+            
+            # Create stream_id from stream_name.
             stream_def = ctd_stream_definition(stream_id=None)
             stream_def_id = pubsub_client.create_stream_definition(
                                                     container=stream_def)        
@@ -316,20 +335,55 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                         stream_definition_id=stream_def_id,
                         original=True,
                         encoding='ION R2')
-            self._stream_config[stream_name] = stream_id
+
+            # Create stream config from taxonomy and id.
+            taxy = get_taxonomy(stream_name)
+            stream_config = dict(
+                id=stream_id,
+                taxonomy=taxy.dump()
+            )
+            self._stream_config[stream_name] = stream_config        
+
+    def _start_data_subscribers(self, count):
+        """
+        """
+        # Create a pubsub client to create streams.
+        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+                
+        # Create a stream subscriber registrar to create subscribers.
+        subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
+                                                container=self.container)
+
+        # Create streams and subscriptions for each stream named in driver.
+        self._data_subscribers = []
+        self._data_greenlets = []
+        self._samples_received = []
+        self._async_sample_result = AsyncResult()
+
+        # A callback for processing subscribed-to data.
+        def consume_data(message, headers):
+            log.info('Subscriber received data message: %s   %s.',
+                     str(message), str(headers))
+            self._samples_received.append(message)
+            if len(self._samples_received) == count:
+                self._async_sample_result.set()
+
+        for (stream_name, stream_config) in self._stream_config.iteritems():
+            
+            stream_id = stream_config['id']
             
             # Create subscriptions for each stream.
             exchange_name = '%s_queue' % stream_name
-            sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name,
-                                                         callback=consume_data)
-            self._listen(sub)
+            sub = subscriber_registrar.create_subscriber(
+                exchange_name=exchange_name, callback=consume_data)
+            self._listen_data(sub)
             self._data_subscribers.append(sub)
             query = StreamQuery(stream_ids=[stream_id])
-            sub_id = pubsub_client.create_subscription(\
-                                query=query, exchange_name=exchange_name)
+            sub_id = pubsub_client.create_subscription(query=query,
+                    exchange_name=exchange_name, exchange_point='science_data')
             pubsub_client.activate_subscription(sub_id)
-            
-    def _listen(self, sub):
+ 
+    def _listen_data(self, sub):
         """
         Pass in a subscriber here, this will make it listen in a background greenlet.
         """
@@ -346,34 +400,17 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             sub.stop()
         for gl in self._data_greenlets:
             gl.kill()
-            
-    def _start_event_subscribers(self):
-        """
-        Create subscribers for agent and driver events.
-        """
-        def consume_event(*args, **kwargs):
-            log.info('Test recieved ION event: args=%s, kwargs=%s, event=%s.', 
-                     str(args), str(kwargs), str(args[0]))
-            self._events_received.append(args[0])
-            if self._no_events and self._no_events == len(self._event_received):
-                self._async_event_result.set()
-                
-        event_sub = EventSubscriber(event_type="DeviceEvent", callback=consume_event)
-        event_sub.start()
-        self._event_subscribers.append(event_sub)
         
-    def _stop_event_subscribers(self):
-        """
-        Stop event subscribers on cleanup.
-        """
-        for sub in self._event_subscribers:
-            sub.stop()
+    ###############################################################################
+    # Assert helpers.
+    ###############################################################################
         
     def assertSampleDict(self, val):
         """
         Verify the value is a sample dictionary for the sbe37.
         """
-        #{'p': [-6.945], 'c': [0.08707], 't': [20.002], 'time': [1333752198.450622]}        
+        # AgentCommandResult.result['parsed']
+        # {'p': [707.311], 'c': [69.03532], 'stream_name': 'parsed', 't': [85.9109], 'time': [1343258355.202828]}
         self.assertTrue(isinstance(val, dict))
         self.assertTrue(val.has_key('c'))
         self.assertTrue(val.has_key('t'))
@@ -400,12 +437,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                     self.assertTrue(isinstance(pd[key], (list, tuple)))
                 else:
                     self.assertTrue(isinstance(pd[key], type_val))
-                    
+
         else:
             for (key, val) in pd.iteritems():
                 self.assertTrue(PARAMS.has_key(key))
                 self.assertTrue(isinstance(val, PARAMS[key]))
-    
+        
     def assertParamVals(self, params, correct_params):
         """
         Verify parameters take the correct values.
@@ -458,10 +495,68 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
         
+    def test_resource_states(self):
+        """
+        Bring the agent up, through COMMAND state, and reset to UNINITIALIZED,
+        verifying the resource state at each step. Verify
+        ResourceAgentResourceStateEvents are published.
+        """
+
+        # Set up a subscriber to collect error events.
+        self._start_event_subscriber('ResourceAgentResourceStateEvent', 6)
+        self.addCleanup(self._stop_event_subscriber)    
+
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        with self.assertRaises(Conflict):
+            res_state = self._ia_client.get_resource_state()
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+        
+        res_state = self._ia_client.get_resource_state()
+        self.assertEqual(res_state, DriverConnectionState.UNCONFIGURED)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        res_state = self._ia_client.get_resource_state()
+        self.assertEqual(res_state, DriverProtocolState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)        
+        
+        res_state = self._ia_client.get_resource_state()
+        self.assertEqual(res_state, DriverProtocolState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+        
+        with self.assertRaises(Conflict):
+            res_state = self._ia_client.get_resource_state()
+        
+        self._async_event_result.get(timeout=2)
+        self.assertGreaterEqual(len(self._events_received), 6)
+        
     def test_states(self):
         """
         Test agent state transitions through execute agent interface.
+        Verify agent state status as we go. Verify ResourceAgentStateEvents
+        are published.
         """
+
+        # Set up a subscriber to collect error events.
+        self._start_event_subscriber('ResourceAgentStateEvent', 8)
+        self.addCleanup(self._stop_event_subscriber)    
 
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
@@ -506,10 +601,19 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
             
+        self._async_event_result.get(timeout=2)
+        self.assertEquals(len(self._events_received), 8)
+            
     def test_get_set(self):
         """
-        Test instrument driver get and set resource interface.
+        Test instrument driver get and set resource interface. Verify
+        ResourceAgentResourceConfigEvents are published.
         """
+                
+        # Set up a subscriber to collect error events.
+        self._start_event_subscriber('ResourceAgentResourceConfigEvent', 3)
+        self.addCleanup(self._stop_event_subscriber)    
+        
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
     
@@ -556,11 +660,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._ia_client.set_resource(orig_config)
         retval = self._ia_client.get_resource(params)
         self.assertParamVals(retval, orig_config)        
-
+        
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        self._async_event_result.get(timeout=2)
+        self.assertEquals(len(self._events_received), 3)
+
 
     def test_get_set_errors(self):
         """
@@ -641,7 +749,17 @@ class TestInstrumentAgent(IonIntegrationTestCase):
     def test_poll(self):
         """
         Test observatory polling function thorugh execute resource interface.
+        Verify ResourceAgentCommandEvents are published.
         """
+
+        # Start data subscribers.
+        self._start_data_subscribers(6)
+        self.addCleanup(self._stop_data_subscribers)    
+        
+        # Set up a subscriber to collect command events.
+        self._start_event_subscriber('ResourceAgentCommandEvent', 7)
+        self.addCleanup(self._stop_event_subscriber)    
+        
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
     
@@ -661,34 +779,484 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
-        retval = self._ia_client.execute_resource(command=cmd)
+        retval = self._ia_client.execute_resource(cmd)
+        self.assertSampleDict(retval.result['parsed'])
+        retval = self._ia_client.execute_resource(cmd)
+        self.assertSampleDict(retval.result['parsed'])
+        retval = self._ia_client.execute_resource(cmd)
+        self.assertSampleDict(retval.result['parsed'])
 
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-        
+               
+        self._async_event_result.get(timeout=2)
+        self.assertEquals(len(self._events_received), 7)
+               
+        self._async_sample_result.get(timeout=2)
+        self.assertEquals(len(self._samples_received), 6)
+               
     def test_autosample(self):
         """
         Test instrument driver execute interface to start and stop streaming
-        mode.
+        mode. Verify ResourceAgentResourceStateEvents are publsihed.
         """
-        pass
+        
+        # Start data subscribers.
+        self._start_data_subscribers(6)
+        self.addCleanup(self._stop_data_subscribers)    
+        
+        # Set up a subscriber to collect error events.
+        self._start_event_subscriber('ResourceAgentResourceStateEvent', 7)
+        self.addCleanup(self._stop_event_subscriber)            
+        
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        
+        gevent.sleep(15)
+        
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+ 
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        self._async_event_result.get(timeout=2)
+        self.assertGreaterEqual(len(self._events_received), 8)
+
+        self._async_sample_result.get(timeout=2)
+        self.assertGreaterEqual(len(self._samples_received), 6)
 
     def test_capabilities(self):
         """
         Test the ability to retrieve agent and resource parameter and command
-        capabilities.
+        capabilities in various system states.
         """
-        pass
-    
-    @unittest.skip('Never written')
-    def test_errors(self):
-        """
-        Test illegal behavior and replies.
-        """
-        pass
 
+        agt_cmds_all = [
+            ResourceAgentEvent.INITIALIZE,
+            ResourceAgentEvent.RESET,
+            ResourceAgentEvent.GO_ACTIVE,
+            ResourceAgentEvent.GO_INACTIVE,
+            ResourceAgentEvent.RUN,
+            ResourceAgentEvent.CLEAR,
+            ResourceAgentEvent.PAUSE,
+            ResourceAgentEvent.RESUME,
+            ResourceAgentEvent.GO_COMMAND,
+            ResourceAgentEvent.GO_DIRECT_ACCESS           
+        ]
+        
+        agt_pars_all = ['aparam1']
+        
+        res_cmds_all =[
+            SBE37ProtocolEvent.TEST,
+            SBE37ProtocolEvent.ACQUIRE_SAMPLE,
+            SBE37ProtocolEvent.START_AUTOSAMPLE,
+            SBE37ProtocolEvent.STOP_AUTOSAMPLE
+        ]
+                
+        res_pars_all = PARAMS.keys()
+        
+        ##################################################################
+        # UNINITIALIZED
+        ##################################################################
+        
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)        
+        
+        # Get exposed capabilities in current state.
+        retval = self._ia_client.get_capabilities()
+        
+        # Validate capabilities for state UNINITIALIZED.
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        
+        agt_cmds_uninitialized = [
+            ResourceAgentEvent.INITIALIZE
+        ]
+        self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+        
+        # Get exposed capabilities in all states.
+        retval = self._ia_client.get_capabilities(False)        
+
+        # Validate all capabilities as read from state UNINITIALIZED.
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+                
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        
+        ##################################################################
+        # INACTIVE
+        ##################################################################        
+        
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Get exposed capabilities in current state.
+        retval = self._ia_client.get_capabilities()
+
+        # Validate capabilities for state INACTIVE.
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+                
+        agt_cmds_inactive = [
+            ResourceAgentEvent.GO_ACTIVE,
+            ResourceAgentEvent.RESET
+        ]
+        
+        self.assertItemsEqual(agt_cmds, agt_cmds_inactive)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+        
+        # Get exposed capabilities in all states.
+        retval = self._ia_client.get_capabilities(False)        
+ 
+         # Validate all capabilities as read from state INACTIVE.
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+ 
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+        
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        
+        ##################################################################
+        # IDLE
+        ##################################################################                
+        
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        # Get exposed capabilities in current state.
+        retval = self._ia_client.get_capabilities()
+
+         # Validate capabilities for state IDLE.
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+
+        agt_cmds_idle = [
+            ResourceAgentEvent.GO_INACTIVE,
+            ResourceAgentEvent.RESET,
+            ResourceAgentEvent.RUN
+        ]
+        
+        self.assertItemsEqual(agt_cmds, agt_cmds_idle)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+        
+        # Get exposed capabilities in all states as read from IDLE.
+        retval = self._ia_client.get_capabilities(False)        
+        
+         # Validate all capabilities as read from state IDLE.
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+                        
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        
+        ##################################################################
+        # COMMAND
+        ##################################################################                
+                
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        # Get exposed capabilities in current state.
+        retval = self._ia_client.get_capabilities()
+
+         # Validate capabilities of state COMMAND
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+
+        agt_cmds_command = [
+            ResourceAgentEvent.CLEAR,
+            ResourceAgentEvent.RESET,
+            ResourceAgentEvent.GO_DIRECT_ACCESS,
+            ResourceAgentEvent.GO_INACTIVE,
+            ResourceAgentEvent.PAUSE
+        ]
+
+        res_cmds_command = [
+            SBE37ProtocolEvent.TEST,
+            SBE37ProtocolEvent.ACQUIRE_SAMPLE,
+            SBE37ProtocolEvent.START_AUTOSAMPLE
+        ]
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_command)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_pars, res_pars_all)
+        
+        # Get exposed capabilities in all states as read from state COMMAND.
+        retval = self._ia_client.get_capabilities(False)        
+        
+         # Validate all capabilities as read from state COMMAND
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]        
+                
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_pars, res_pars_all)
+        
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+
+        ##################################################################
+        # STREAMING
+        ##################################################################                        
+
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.STREAMING)
+
+        # Get exposed capabilities in current state.
+        retval = self._ia_client.get_capabilities()
+
+         # Validate capabilities of state STREAMING
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+
+ 
+        agt_cmds_streaming = [
+            ResourceAgentEvent.RESET,
+            ResourceAgentEvent.GO_INACTIVE
+        ]
+
+        res_cmds_streaming = [
+            SBE37ProtocolEvent.STOP_AUTOSAMPLE
+        ]
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_streaming)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_streaming)
+        self.assertItemsEqual(res_pars, res_pars_all)
+        
+        # Get exposed capabilities in all states as read from state STREAMING.
+        retval = self._ia_client.get_capabilities(False)        
+        
+         # Validate all capabilities as read from state COMMAND
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]        
+        
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_pars, res_pars_all)
+        
+        gevent.sleep(5)
+        
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        
+        ##################################################################
+        # COMMAND
+        ##################################################################                        
+
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        # Get exposed capabilities in current state.
+        retval = self._ia_client.get_capabilities()
+
+         # Validate capabilities of state COMMAND
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        
+        self.assertItemsEqual(agt_cmds, agt_cmds_command)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_pars, res_pars_all)        
+        
+        # Get exposed capabilities in all states as read from state STREAMING.
+        retval = self._ia_client.get_capabilities(False)        
+        
+         # Validate all capabilities as read from state COMMAND
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]        
+        
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_pars, res_pars_all)        
+        
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        
+        ##################################################################
+        # UNINITIALIZED
+        ##################################################################                        
+        
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        # Get exposed capabilities in current state.
+        retval = self._ia_client.get_capabilities()
+        
+        # Validate capabilities for state UNINITIALIZED.
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        
+        self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+        
+        # Get exposed capabilities in all states.
+        retval = self._ia_client.get_capabilities(False)        
+
+        # Validate all capabilities as read from state UNINITIALIZED.
+        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])        
+                
+    def test_command_errors(self):
+        """
+        Test illegal behavior and replies. Verify ResourceAgentErrorEvents
+        are published.
+        """
+        
+        # Set up a subscriber to collect error events.
+        self._start_event_subscriber('ResourceAgentErrorEvent', 6)
+        self.addCleanup(self._stop_event_subscriber)    
+        
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        # Try to execute agent command with no command arg.
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.execute_agent()    
+
+        # Try to execute agent command with bogus command.
+        with self.assertRaises(BadRequest):
+            cmd = AgentCommand(command='BOGUS_COMMAND')
+            retval = self._ia_client.execute_agent()
+
+        # Try to execute a valid command, wrong state.
+        with self.assertRaises(Conflict):
+            cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+            retval = self._ia_client.execute_agent(cmd)
+
+        # Try to execute the resource, wrong state.
+        with self.assertRaises(Conflict):
+            cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+            retval = self._ia_client.execute_resource(cmd)        
+
+        # Try initializing with a bogus option driver config parameter.
+        with self.assertRaises(BadRequest):
+            bogus_config = {
+                'no' : 'idea'
+            }
+            cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE,
+                           args=[bogus_config])
+            retval = self._ia_client.execute_agent()
+
+        # Initialize the agent correctly.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE,
+                        args=[DVR_CONFIG])
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        # Issue a good resource command and verify result.
+        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        self.assertSampleDict(retval.result['parsed'])
+
+        # Try to issue a wrong state resource command.
+        with self.assertRaises(Conflict):
+            cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+            retval = self._ia_client.execute_resource(cmd)
+
+        # Reset and shutdown.
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        self._async_event_result.get(timeout=2)
+        self.assertEquals(len(self._events_received), 6)
         
     @unittest.skip('Direct access test to be finished by adding the telnet client, manual for now.')
     def test_direct_access(self):
