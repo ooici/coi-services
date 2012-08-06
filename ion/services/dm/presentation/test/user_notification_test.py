@@ -1095,7 +1095,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(pids), 2)
 
     @attr('LOCOINT')
-#    @unittest.skip('Need to incorporate latest changes to scheduler service')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_publish_event_on_time(self):
@@ -1137,6 +1136,5 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Use the UNS publish_event
         #--------------------------------------------------------------------------------
 
-        log.debug("about to publish an event")
         self.unsc.publish_event(event=event, interval_timer_params = interval_timer_params )
 

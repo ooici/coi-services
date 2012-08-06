@@ -548,8 +548,6 @@ class UserNotificationService(BaseUserNotificationService):
         @param interval_timer_params dict Ex: {'interval':3, 'number_of_intervals':4}
         '''
 
-        log.debug("UNS to publish on schedule the event: %s" % event)
-        log.debug("interval_timer_params: %s" % interval_timer_params)
         #--------------------------------------------------------------------------------
         # Set up a subscriber to get the nod from the scheduler to publish the event
         #--------------------------------------------------------------------------------
@@ -567,16 +565,6 @@ class UserNotificationService(BaseUserNotificationService):
                                                             number_of_intervals=interval_timer_params['number_of_intervals'],
                                                             event_origin=event.origin,
                                                             event_subtype='')
-
-#        ss = SchedulerService()
-#
-#        id = ss.create_interval_timer(start_time= time.time(),
-#            interval=interval_timer_params['interval'],
-#            number_of_intervals=interval_timer_params['number_of_intervals'],
-#            event_origin=event.origin,
-#            event_subtype='')
-
-        log.debug("created the id: %s" % id)
 
     def create_worker(self, number_of_workers=1):
         '''
