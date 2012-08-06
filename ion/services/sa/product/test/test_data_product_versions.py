@@ -29,8 +29,8 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='sa')
-@unittest.skip('not working')
+@attr('INT', group='version')
+#@unittest.skip('not working')
 class TestDataProductVersions(IonIntegrationTestCase):
 
     def setUp(self):
@@ -53,7 +53,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
 
 
-    @unittest.skip('not working')
+    #@unittest.skip('not working')
     def test_createDataProductVersionSimple(self):
 
         ctd_stream_def_id = self.pubsubcli.create_stream_definition( name='test')
@@ -88,11 +88,9 @@ class TestDataProductVersions(IonIntegrationTestCase):
         # test creating a subsequent data product version which will update the data product pointers
 
 
-        dpv_obj = IonObject(RT.DataProduct,
+        dpv_obj = IonObject(RT.DataProductVersion,
             name='DPV2',
-            description='some new dp version',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='some new dp version')
 
         dpv2_id = self.client.create_data_product_version(dp_id, dpv_obj)
         log.debug( 'new dpv_id = %s', str(dpv2_id))
@@ -107,24 +105,14 @@ class TestDataProductVersions(IonIntegrationTestCase):
         if not stream_ids:
             self.fail("failed to assoc second data product version with a stream")
 
+        dataset_ids = self.rrclient.find_objects(subject=dpv2_id, predicate=PRED.hasDataset, id_only=True)
+        if not dataset_ids:
+            self.fail("failed to assoc second data product version with a dataset")
+
         dp_stream_ids, _ = self.rrclient.find_objects(subject=dp_id, predicate=PRED.hasStream, id_only=True)
         if not dp_stream_ids:
             self.fail("the data product is not assoc with a stream")
 
-#        if not str(dp_stream_ids[0]) == str(stream_ids[0]):
-#            self.fail("the data product is not assoc with the stream of the most recent version")
-
-        # test creating a subsequent data product version which will update the data product pointers
-
-        dpv_obj = IonObject(RT.DataProduct,
-            name='DPV2',
-            description='some new dp version',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
-        dpv_obj = IonObject(RT.DataProductVersion, name='DPV2',description='some new dp version')
-        dpv3_id = self.client.create_data_product_version(dp_id, dpv_obj)
-        log.debug( 'new dpv_id = %s', str(dpv3_id))
 
 
     @unittest.skip('not working')
@@ -179,7 +167,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id1, data_product_id=ctd_parsed_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
@@ -234,7 +222,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
         #-------------------------------
         # ACTIVATE PERSISTANCE FOR DATA PRODUCT VERSIONS NOT IMPL YET!!!!!!!!
         #-------------------------------
-        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product_new_version, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product_new_version)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_new_version, PRED.hasStream, None, True)

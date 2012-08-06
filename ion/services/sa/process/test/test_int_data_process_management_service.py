@@ -165,7 +165,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         output_dp_id_1 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id, parameter_dictionary)
         self.output_products['conductivity'] = output_dp_id_1
-        self.dataproductclient.activate_data_product_persistence(data_product_id=output_dp_id_1, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=output_dp_id_1)
 
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product pressure")
@@ -178,7 +178,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         output_dp_id_2 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id, parameter_dictionary)
         self.output_products['pressure'] = output_dp_id_2
-        self.dataproductclient.activate_data_product_persistence(data_product_id=output_dp_id_2, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=output_dp_id_2)
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product temperature")
 
@@ -190,7 +190,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         output_dp_id_3 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_temperature_id, parameter_dictionary)
         self.output_products['temperature'] = output_dp_id_3
-        self.dataproductclient.activate_data_product_persistence(data_product_id=output_dp_id_3, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=output_dp_id_3)
 
 
         #-------------------------------
@@ -290,7 +290,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
@@ -315,7 +315,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
@@ -368,7 +368,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
                                                                                 outgoing_stream_l0_conductivity_id,
                                                                                 parameter_dictionary)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
 
         log.debug("test_createDataProcessUsingSim: create output data product L0 pressure")
@@ -383,7 +383,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
                                                                                     outgoing_stream_l0_pressure_id,
                                                                                     parameter_dictionary)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("test_createDataProcessUsingSim: create output data product L0 temperature")
 
@@ -398,7 +398,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
                                                                                     outgoing_stream_l0_temperature_id,
                                                                                     parameter_dictionary)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
         #-------------------------------

@@ -96,7 +96,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product_id)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product_id, persist_data=False, persist_metadata=False)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product_id)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_id, PRED.hasStream, None, True)
@@ -336,7 +336,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         # Create the output data product of the transform
         transform_dp_obj = IonObject(RT.DataProduct, name=data_process_name,description=data_process_definition.description)
         transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id)
 
         #last one out of the for loop is the output product id
         output_data_product_id = transform_dp_id

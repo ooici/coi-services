@@ -168,7 +168,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
@@ -225,7 +225,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                                                                         outgoing_stream_l0_conductivity_id,
                                                                                         parameter_dictionary)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l0_conductivity_output_dp_id, PRED.hasStream, None, True)
         log.debug(" ctd_l0_conductivity stream id =  %s", str(stream_ids) )
@@ -244,7 +244,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                                                                     outgoing_stream_l0_pressure_id,
                                                                                     parameter_dictionary)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l0_pressure_output_dp_id, PRED.hasStream, None, True)
         log.debug(" ctd_l0_pressure stream id =  %s", str(stream_ids) )
@@ -263,7 +263,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                                                                     outgoing_stream_l0_temperature_id,
                                                                                     parameter_dictionary)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l0_temperature_output_dp_id, PRED.hasStream, None, True)
         log.debug(" ctd_l0_temperature stream id =  %s", str(stream_ids) )
@@ -297,7 +297,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2, persist_data=True, persist_metadata=True)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
@@ -433,7 +433,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
@@ -480,7 +480,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2, persist_data=True, persist_metadata=True)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)

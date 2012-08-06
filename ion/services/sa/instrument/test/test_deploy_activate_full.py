@@ -185,9 +185,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         instrument_site_output_dp_id = self.dataproductclient.create_data_product(ctd_logical_output_dp_obj,
                                                                                   ctd_stream_def_id,
                                                                                     parameter_dictionary)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=instrument_site_output_dp_id,
-                                                                 persist_data=True,
-                                                                 persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=instrument_site_output_dp_id)
 
         self.omsclient.create_site_data_product(instrumentSite_id, instrument_site_output_dp_id)
 
@@ -404,7 +402,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
                                                                                         outgoing_stream_l0_conductivity_id,
                                                                                         parameter_dictionary)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
 
         log.debug("test_deployAsPrimaryDevice: create output data product L0 pressure")
@@ -419,7 +417,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
                                                                                     outgoing_stream_l0_pressure_id,
                                                                                     parameter_dictionary )
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("test_deployAsPrimaryDevice: create output data product L0 temperature")
 
@@ -433,7 +431,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
                                                                                         outgoing_stream_l0_temperature_id,
                                                                                         parameter_dictionary)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
 

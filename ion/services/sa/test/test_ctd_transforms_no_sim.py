@@ -196,7 +196,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
         #self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
-        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product, persist_data=True, persist_metadata=True)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product))
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
@@ -222,7 +222,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
         #self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
@@ -359,7 +359,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
                                                                                 outgoing_stream_l0_conductivity_id,
                                                                                 parameter_dictionary)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
         log.debug("test_createTransformsThenActivateInstrument: create output data product L0 pressure")
 
@@ -371,7 +371,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id, parameter_dictionary)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("test_createTransformsThenActivateInstrument: create output data product L0 temperature")
 
@@ -384,7 +384,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id, parameter_dictionary)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
         #-------------------------------
@@ -412,7 +412,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         ctd_l1_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_conductivity_output_dp_obj, outgoing_stream_l1_conductivity_id, parameter_dictionary)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_conductivity_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l1_conductivity_output_dp_id, PRED.hasStream, None, True)
         log.debug(" ctd_l1_conductivity stream id =  %s", str(stream_ids) )
@@ -428,7 +428,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
                                                     spatial_domain = sdom)
 
         ctd_l1_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_pressure_output_dp_obj, outgoing_stream_l1_pressure_id, parameter_dictionary)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_pressure_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_pressure_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l1_pressure_output_dp_id, PRED.hasStream, None, True)
         log.debug(" ctd_l1_pressure stream id =  %s", str(stream_ids) )
@@ -444,7 +444,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         ctd_l1_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_temperature_output_dp_obj, outgoing_stream_l1_temperature_id, parameter_dictionary)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_temperature_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l1_temperature_output_dp_id, PRED.hasStream, None, True)
         log.debug(" ctd_l1_temperature stream id =  %s", str(stream_ids) )
@@ -474,7 +474,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         ctd_l2_salinity_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_salinity_output_dp_obj, outgoing_stream_l2_salinity_id, parameter_dictionary)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_salinity_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_salinity_output_dp_id)
 
         log.debug("test_createTransformsThenActivateInstrument: create output data product L2 Density")
 
@@ -485,7 +485,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         ctd_l2_density_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_density_output_dp_obj, outgoing_stream_l2_density_id, parameter_dictionary)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_density_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_density_output_dp_id)
 
 
 
