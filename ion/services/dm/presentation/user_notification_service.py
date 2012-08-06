@@ -562,19 +562,19 @@ class UserNotificationService(BaseUserNotificationService):
         event_subscriber = EventSubscriber( event_type = "ResourceEvent", callback=publish)
         event_subscriber.start()
 
-#        id = self.clients.scheduler.create_interval_timer(start_time= time.time(),
-#                                                            interval=interval_timer_params['interval'],
-#                                                            number_of_intervals=interval_timer_params['number_of_intervals'],
-#                                                            event_origin=event.origin,
-#                                                            event_subtype='')
+        id = self.clients.scheduler.create_interval_timer(start_time= time.time(),
+                                                            interval=interval_timer_params['interval'],
+                                                            number_of_intervals=interval_timer_params['number_of_intervals'],
+                                                            event_origin=event.origin,
+                                                            event_subtype='')
 
-        ss = SchedulerService()
-
-        id = ss.create_interval_timer(start_time= time.time(),
-            interval=interval_timer_params['interval'],
-            number_of_intervals=interval_timer_params['number_of_intervals'],
-            event_origin=event.origin,
-            event_subtype='')
+#        ss = SchedulerService()
+#
+#        id = ss.create_interval_timer(start_time= time.time(),
+#            interval=interval_timer_params['interval'],
+#            number_of_intervals=interval_timer_params['number_of_intervals'],
+#            event_origin=event.origin,
+#            event_subtype='')
 
         log.debug("created the id: %s" % id)
 
