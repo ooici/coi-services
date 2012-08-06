@@ -8,7 +8,7 @@
 """
 
 # Import pyon first for monkey patching.
-from pyon.public import log
+from pyon.public import log, IonObject
 from pyon.ion.resource import PRED, RT
 #from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
@@ -21,6 +21,7 @@ from nose.plugins.attrib import attr
 
 #temp until stream defs are completed
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
@@ -162,8 +163,23 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
 
         # Generate the data product and associate it to the ExternalDataset
-        dprod = DataProduct(name='slocum_parsed_product', description='parsed slocum product')
-        dproduct_id = dpms_cli.create_data_product(data_product=dprod, stream_definition_id=streamdef_id)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dprod = IonObject(RT.DataProduct,
+            name='slocum_parsed_product',
+            description='parsed slocum product',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        dproduct_id = dpms_cli.create_data_product(data_product=dprod,
+                                                    stream_definition_id=streamdef_id,
+                                                    parameter_dictionary=parameter_dictionary)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
 

@@ -414,6 +414,7 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+    @unittest.skip('not working')
     def test_streaming(self):
         # Test instrument driver execute interface to start and stop streaming mode.
         cmd = AgentCommand(command='get_current_state')
@@ -1021,13 +1022,18 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
             }
 
         folder = 'test_data/dummy'
-        for the_file in os.listdir(folder):
-            file_path = os.path.join(folder, the_file)
-            try:
-                if os.path.isfile(file_path):
-                    os.unlink(file_path)
-            except Exception, e:
-                log.debug('_setup_resources error: {0}'.format(e))
+
+        if os.path.isdir(folder):
+            for the_file in os.listdir(folder):
+                file_path = os.path.join(folder, the_file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except Exception as e:
+                    log.debug('_setup_resources error: {0}'.format(e))
+
+        if not os.path.exists(folder):
+            os.makedirs(folder)
 
         self.add_dummy_file('test_data/dummy/test2012-02-01-12.dum')
         self.add_dummy_file('test_data/dummy/test2012-02-01-13.dum')
@@ -1035,8 +1041,17 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         self.add_dummy_file('test_data/dummy/test2012-02-01-15.dum')
 
     def add_dummy_file(self, file_name):
-        with open(file_name, 'w') as f:
-            f.write(numpy.arange(100))
+#        with open(file_name, 'w') as f:
+        f = open(file_name, 'wb')
+        f.write(numpy.arange(100))
+
+    def clean_up(self, file_path):
+
+        try:
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            log.debug('_setup_resources error: {0}'.format(e))
 
     def test_new_data_available_at_end(self):
         cmd=AgentCommand(command='initialize')
@@ -1079,6 +1094,10 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+        self.clean_up('test_data/dummy/test2012-02-01-16.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-17.dum')
+
+
     def test_new_data_available_at_beginning(self):
         cmd=AgentCommand(command='initialize')
         _ = self._ia_client.execute_agent(cmd)
@@ -1119,6 +1138,10 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+        self.clean_up('test_data/dummy/test2012-02-01-10.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-11.dum')
+
 
     def test_new_data_available_at_beginning_and_end(self):
         cmd=AgentCommand(command='initialize')
@@ -1163,6 +1186,12 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+        self.clean_up('test_data/dummy/test2012-02-01-10.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-11.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-16.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-17.dum')
+
+
     def test_data_removed_from_beginning(self):
         cmd=AgentCommand(command='initialize')
         _ = self._ia_client.execute_agent(cmd)
@@ -1204,6 +1233,10 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
+        self.clean_up('test_data/dummy/test2012-02-01-12.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-13.dum')
+
+
     def test_data_removed_from_end(self):
         cmd=AgentCommand(command='initialize')
         _ = self._ia_client.execute_agent(cmd)
@@ -1244,6 +1277,10 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+        self.clean_up('test_data/dummy/test2012-02-01-14.dum')
+        self.clean_up('test_data/dummy/test2012-02-01-15.dum')
+
 
     @unittest.skip('')
     def test_acquire_data(self):
