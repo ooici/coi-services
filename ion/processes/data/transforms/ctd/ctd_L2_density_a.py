@@ -53,9 +53,9 @@ class ctd_L2_density(TransformDataProcess):
         self._tx.add_taxonomy_set('lon','long name for longitude')
         self._tx.add_taxonomy_set('time','long name for time')
 
-    def on_start(self):
+    def __init__(self):
         self.dens_stream = self.CFG.process.publish_streams.density
-        super(ctd_L2_density, self).on_start()
+        super(ctd_L2_density, self).__init__()
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L2_desnity.recv_packet: {0}'.format(msg))

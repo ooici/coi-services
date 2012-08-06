@@ -133,25 +133,25 @@ class NetcdfDataHandler(BaseDataHandler):
                 rdt = RecordDictionaryTool(param_dictionary=pdict)
                 # Make a 'coordinate' RecDict
                 #rdt_c = RecordDictionaryTool(taxonomy=ttool)
-                rdt_c = RecordDictionaryTool(param_dictionary=pdict)
+                #rdt_c = RecordDictionaryTool(param_dictionary=pdict)
                 # Make a 'data' RecDict
                 #rdt_d = RecordDictionaryTool(taxonomy=ttool)
-                rdt_d = RecordDictionaryTool(param_dictionary=pdict)
+                #rdt_d = RecordDictionaryTool(param_dictionary=pdict)
 
                 # Assign values to the coordinate RecDict
-                rdt_c[x_vname] = lon
-                rdt_c[y_vname] = lat
-                rdt_c[z_vname] = z
+                rdt[x_vname] = lon
+                rdt[y_vname] = lat
+                rdt[z_vname] = z
 
                 # Assign values to the data RecDict
-                rdt_d[t_vname] = ta
+                rdt[t_vname] = ta
                 for key, arr in data_arrays.iteritems():
                     d = arr[x*max_rec:(x+1)*max_rec]
-                    rdt_d[key] = d
+                    rdt[key] = d
 
                 # Add the coordinate and data RecDicts to the master RecDict
-                rdt['coords'] = rdt_c
-                rdt['data'] = rdt_d
+                #rdt['coords'] = rdt_c
+                #rdt['data'] = rdt_d
 
                 # Build and return a granule
                 # CBM: ttool must be passed

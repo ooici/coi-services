@@ -33,7 +33,7 @@ class DiscoveryService(BaseDiscoveryService):
     class docstring
     """
 
-    def on_start(self): # pragma: no cover
+    def on_start(self): # pragma no cover
         super(DiscoveryService,self).on_start()
 
         self.use_es = CFG.get_safe('system.elasticsearch',False)

@@ -10,6 +10,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
@@ -124,7 +125,21 @@ class TestDeployment(IonIntegrationTestCase):
         #set up stream (this would be preload)
         ctd_stream_def = SBE37_CDM_stream_definition()
         ctd_stream_def_id = self.psmsclient.create_stream_definition(container=ctd_stream_def)
-        log_data_product_id = self.dmpsclient.create_data_product(any_old(RT.DataProduct), ctd_stream_def_id)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='DP1',
+            description='some new dp',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        log_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
         self.omsclient.create_site_data_product(instrument_site_id, log_data_product_id)
 
 
@@ -134,7 +149,14 @@ class TestDeployment(IonIntegrationTestCase):
         instrument_device_id = self.imsclient.create_instrument_device(instrument_device_obj)
         self.rrclient.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
 
-        inst_data_product_id = self.dmpsclient.create_data_product(any_old(RT.DataProduct), ctd_stream_def_id)
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='DP1',
+            description='some new dp',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        inst_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
         #assign data products appropriately
         self.damsclient.assign_data_product(input_resource_id=instrument_device_id,

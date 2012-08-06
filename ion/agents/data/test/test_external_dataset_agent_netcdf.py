@@ -8,7 +8,7 @@
 """
 
 # Import pyon first for monkey patching.
-from pyon.public import log
+from pyon.public import log, IonObject
 from pyon.ion.resource import PRED, RT
 #from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from coverage_model.parameter import ParameterDictionary, ParameterContext
@@ -18,6 +18,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from ion.agents.data.test.test_external_dataset_agent import ExternalDatasetAgentTestBase, IonIntegrationTestCase
 
@@ -123,9 +124,23 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
         #create temp streamdef so the data product can create the stream
         streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
 
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dprod = IonObject(RT.DataProduct,
+            name='usgs_parsed_product',
+            description='parsed usgs product',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
         # Generate the data product and associate it to the ExternalDataset
-        dprod = DataProduct(name='usgs_parsed_product', description='parsed usgs product')
-        dproduct_id = dpms_cli.create_data_product(data_product=dprod, stream_definition_id=streamdef_id)
+        dproduct_id = dpms_cli.create_data_product(data_product=dprod,
+                                                    stream_definition_id=streamdef_id,
+                                                    parameter_dictionary=parameter_dictionary)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
 
@@ -136,20 +151,20 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
 
         #CBM: Use CF standard_names
 
-        ttool = TaxyTool()
-        ttool.add_taxonomy_set('time','time')
-        ttool.add_taxonomy_set('lon','longitude')
-        ttool.add_taxonomy_set('lat','latitude')
-        ttool.add_taxonomy_set('z','water depth')
-        ttool.add_taxonomy_set('water_temperature', 'average water temperature')
-        ttool.add_taxonomy_set('water_temperature_bottom','water temperature at bottom of water column')
-        ttool.add_taxonomy_set('water_temperature_middle', 'water temperature at middle of water column')
-        ttool.add_taxonomy_set('streamflow', 'flow velocity of stream')
-        ttool.add_taxonomy_set('specific_conductance', 'specific conductance of water')
-        ttool.add_taxonomy_set('data_qualifier','data qualifier flag')
-
-        ttool.add_taxonomy_set('coords','This group contains coordinate parameters')
-        ttool.add_taxonomy_set('data','This group contains data parameters')
+#        ttool = TaxyTool()
+#        ttool.add_taxonomy_set('time','time')
+#        ttool.add_taxonomy_set('lon','longitude')
+#        ttool.add_taxonomy_set('lat','latitude')
+#        ttool.add_taxonomy_set('z','water depth')
+#        ttool.add_taxonomy_set('water_temperature', 'average water temperature')
+#        ttool.add_taxonomy_set('water_temperature_bottom','water temperature at bottom of water column')
+#        ttool.add_taxonomy_set('water_temperature_middle', 'water temperature at middle of water column')
+#        ttool.add_taxonomy_set('streamflow', 'flow velocity of stream')
+#        ttool.add_taxonomy_set('specific_conductance', 'specific conductance of water')
+#        ttool.add_taxonomy_set('data_qualifier','data qualifier flag')
+#
+#        ttool.add_taxonomy_set('coords','This group contains coordinate parameters')
+#        ttool.add_taxonomy_set('data','This group contains data parameters')
 
         # Create the logger for receiving publications
         self.create_stream_and_logger(name='usgs',stream_id=stream_id)
@@ -184,7 +199,7 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
         pdict.add_context(temp_ctxt)
 
         temp_ctxt = ParameterContext('z', param_type=QuantityType(value_encoding = numpy.dtype('float32')))
-        tempctxt.uom = 'meters'
+        temp_ctxt.uom = 'meters'
         pdict.add_context(temp_ctxt)
 
         cond_ctxt = ParameterContext('streamflow', param_type=QuantityType(value_encoding=numpy.dtype('float32')))

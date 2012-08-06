@@ -116,6 +116,9 @@ class HighAvailabilityAgentClient(object):
 
 class ProcessDispatcherSimpleAPIClient(object):
 
+    # State to use when state returned from PD is None
+    unknown_state = "400-PENDING"
+
     state_map = {
         ProcessStateEnum.SPAWN: '500-RUNNING',
         ProcessStateEnum.TERMINATE: '700-TERMINATED',
@@ -146,7 +149,11 @@ class ProcessDispatcherSimpleAPIClient(object):
         sched_pid = self.real_client.schedule_process(process_def_id,
                 process_schedule, configuration={}, process_id=pid)
 
-        return sched_pid
+        proc = self.real_client.read_process(sched_pid)
+        dict_proc = {'upid': proc.process_id,
+                'state': self.state_map.get(proc.process_state, self.unknown_state),
+                }
+        return dict_proc
 
     def terminate_process(self, pid):
         return self.real_client.cancel_process(pid)
@@ -156,8 +163,7 @@ class ProcessDispatcherSimpleAPIClient(object):
         dict_procs = []
         for proc in procs:
             dict_proc = {'upid': proc.process_id,
-                    'state': self.state_map[proc.process_state],
+                    'state': self.state_map.get(proc.process_state, self.unknown_state),
                     }
             dict_procs.append(dict_proc)
-
         return dict_procs

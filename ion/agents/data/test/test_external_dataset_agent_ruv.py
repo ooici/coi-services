@@ -8,13 +8,14 @@
 """
 
 # Import pyon first for monkey patching.
-from pyon.public import log
+from pyon.public import log, IonObject
 from pyon.ion.resource import PRED, RT
 #from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from ion.agents.data.test.test_external_dataset_agent import ExternalDatasetAgentTestBase, IonIntegrationTestCase
 from nose.plugins.attrib import attr
@@ -24,6 +25,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
+
+import numpy
 
 @attr('INT_LONG', group='eoi')
 class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
@@ -102,11 +105,26 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
         #        dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
 
         #create temp streamdef so the data product can create the stream
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dprod = IonObject(RT.DataProduct,
+            name='ruv_parsed_product',
+            description='parsed ruv product',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
         streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
 
         # Generate the data product and associate it to the ExternalDataset
-        dprod = DataProduct(name='ruv_parsed_product', description='parsed ruv product')
-        dproduct_id = dpms_cli.create_data_product(data_product=dprod, stream_definition_id=streamdef_id)
+        dproduct_id = dpms_cli.create_data_product(data_product=dprod,
+                                                    stream_definition_id=streamdef_id,
+                                                    parameter_dictionary=parameter_dictionary)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
 
@@ -120,6 +138,8 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
         #ttool = TaxyTool()
         #
         #ttool.add_taxonomy_set('data','test data')
+        pdict = ParameterDictionary()
+
         t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
         t_ctxt.reference_frame = AxisTypeEnum.TIME
         t_ctxt.uom = 'seconds since 01-01-1970'
@@ -136,7 +156,7 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
             'TESTING':True,
             'stream_id':stream_id,
             'external_dataset_res':dset,
-            'taxonomy':ttool.dump(),
+            'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':20,
         }

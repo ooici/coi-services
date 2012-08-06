@@ -55,6 +55,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         # Just going to use the first queue for now
 
         validate_is_instance(stream_id,basestring, 'stream_id %s is not a valid string' % stream_id)
+        validate_true(dataset_id,'Clients must specify the dataset to persist')
 
         ingestion_config = self.read_ingestion_configuration(ingestion_configuration_id)
         if self.is_persisted(stream_id):
@@ -78,11 +79,7 @@ class IngestionManagementService(BaseIngestionManagementService):
             predicate=PRED.hasSubscription,
             object=subscription_id
         )
-        if dataset_id:
-            self._existing_dataset(stream_id,dataset_id)
-        else:
-            dataset_id = self._new_dataset(stream_id, ingestion_queue.datastore_name)
-
+        self._existing_dataset(stream_id,dataset_id)
         return dataset_id
 
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
@@ -113,14 +110,6 @@ class IngestionManagementService(BaseIngestionManagementService):
     def _determine_queue(self,stream_id='', queues=[]):
         # For now just return the first queue until stream definition is defined
         return queues[0]
-
-    def _new_dataset(self,stream_id='', datastore_name=''):
-        '''
-        Handles stream definition inspection.
-        Uses dataset management to create the dataset
-        '''
-        dataset_id = self.clients.dataset_management.create_dataset(stream_id=stream_id,datastore_name=datastore_name)
-        return dataset_id
 
     def _existing_dataset(self,stream_id='', dataset_id=''):
         self.clients.dataset_management.add_stream(dataset_id,stream_id)

@@ -19,6 +19,7 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         ingestion_class     = config.get_safe('bootstrap.processes.ingestion.class' ,'ScienceGranuleIngestionWorker')
         ingestion_datastore = config.get_safe('bootstrap.processes.ingestion.datastore_name', 'datasets')
         ingestion_queue     = config.get_safe('bootstrap.processes.ingestion.queue' , 'science_granule_ingestion')
+        ingestion_workers   = config.get_safe('bootstrap.processes.ingestion.workers', 2)
 
         replay_module       = config.get_safe('bootstrap.processes.replay.module', 'ion.processes.data.replay.replay_process')
         replay_class        = config.get_safe('bootstrap.processes.replay.class' , 'ReplayProcess')
@@ -37,7 +38,7 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         config.process.datastore_name = ingestion_datastore
         config.process.queue_name     = ingestion_queue
 
-        for i in xrange(2):
+        for i in xrange(ingestion_workers):
             pds_client.schedule_process(process_definition_id=ingestion_procdef_id, configuration=config)
 
 
