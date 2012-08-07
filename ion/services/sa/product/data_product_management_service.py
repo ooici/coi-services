@@ -317,7 +317,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Retrieve information that characterizes how this data was produced
         # Return in a dictionary
 
-        provenance_results = {}
+        self.provenance_results = {}
         current_data_product = data_product_id
 
         log.debug("DataProductManagementService:get_data_product_provenance: %s" % str(current_data_product))
@@ -326,38 +326,48 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(data_product, "Should have got a non empty data product")
 
         # todo: get the start time of this data product
-        producer_ids = self._find_producers(data_product_id)
+        self._find_producers(data_product_id)
 
-        while producer_ids:
-            for producer_id in producer_ids:
-                provenance_results[current_data_product] = { 'producer': producer_id, 'inputs': self._find_producer_in_products(producer_id) }
-                producer_ids = self._find_producers(current_data_product)
+#        while producer_ids:
+#            for producer_id in producer_ids:
+#                provenance_results[current_data_product] = { 'producer': producer_id, 'inputs': self._find_producer_in_products(producer_id) }
+#                producer_ids = self._find_producers(current_data_product)
 
-        return {}
+        return self.provenance_results
 
     def _find_producers(self, data_product_id=''):
         source_ids = []
         # get the link to the DataProducer resource
+        log.debug("DataProductManagementService:_find_producers start %s" % str(data_product_id))
         producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
         for producer_id in producer_ids:
             # get the link to that resources parent DataProducer
             parent_ids, _ = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasParent, id_only=True)
             for parent_id in parent_ids:
                 # get the producer that this DataProducer represents
-                nxt_producer_ids, _ = self.clients.resource_registry.find_objects(subject=parent_id, predicate=PRED.hasDataProducer, id_only=True)
+                nxt_producer_ids, _ = self.clients.resource_registry.find_subjects( predicate=PRED.hasDataProducer, object=parent_id, id_only=True)
                 for nxt_producer_id in nxt_producer_ids:
                     nxt_producer_obj = self.clients.resource_registry.read(nxt_producer_id)
-                    #todo: check the type of resource; instrument, data process or extDataset
-                    #nxt_producer_obj
-                    source_ids.append(nxt_producer_id)
+                    log.debug("DataProductManagementService:_find_producers nxt_producer %s" % nxt_producer_obj.name)
+                    #todo: check the type of resource; instrument, data process or extDataset'
+                    #todo: check if this is a SiteDataProduct name=SiteDataProduct and desc=site_id
+                    inputs_to_nxt_producer = self._find_producer_in_products(nxt_producer_id)
+                    log.debug("DataProductManagementService:_find_producers inputs_to_nxt_producer %s", str(inputs_to_nxt_producer))
+                    self.provenance_results[data_product_id] = { 'producername': nxt_producer_obj.name , 'producer': nxt_producer_id, 'inputs': inputs_to_nxt_producer }
+                    log.debug("DataProductManagementService:_find_producers self.provenance_results %s", str(self.provenance_results))
+                    for input in inputs_to_nxt_producer:
+                        self._find_producers(input)
         log.debug("DataProductManagementService:_find_producers: %s" % str(source_ids))
-        return source_ids
+        return
 
     def _find_producer_in_products(self, producer_id=''):
         # get the link to the inout DataProduct resource
         product_ids, _ = self.clients.resource_registry.find_objects(   subject=producer_id,
-                                                                            predicate=PRED.hasInputDataProduct,
+                                                                            predicate=PRED.hasInputProduct,
                                                                             id_only=True)
+        for product_id in product_ids:
+            product_obj = self.read_data_product(product_id)
+            log.debug("DataProductManagementService:_find_producer_in_products: %s" % product_obj.name)
 
         return product_ids
 

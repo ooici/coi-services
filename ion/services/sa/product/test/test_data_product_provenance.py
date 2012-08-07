@@ -1,11 +1,12 @@
 
 from pyon.public import  log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
-from ion.services.sa.product.data_product_management_service import DataProductManagementService
+
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
@@ -36,7 +37,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-@unittest.skip('not working')
+#@unittest.skip('not working')
 class TestDataProductProvenance(IonIntegrationTestCase):
 
     def setUp(self):
@@ -46,19 +47,17 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        print 'started services'
-
         # Now create client to DataProductManagementService
-        self.client = DataProductManagementServiceClient(node=self.container.node)
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
         self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
-        self.dpmsclient = DataProductManagementService(node=self.container.node)
+        self.dpmsclient = DataProductManagementServiceClient(node=self.container.node)
+        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.process_dispatcher   = ProcessDispatcherServiceClient()
 
-    @unittest.skip('not ready')
+    #@unittest.skip('not ready')
     def test_get_provenance(self):
         # Create InstrumentModel
         instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model="SBE37IMModel" )
@@ -79,7 +78,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
         # Create InstrumentDevice
-        log.debug('test_activateInstrumentSample: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
+        log.debug('test_get_provenance: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
         instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
         try:
             instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
@@ -87,12 +86,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
 
-        log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
-
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance",
-                                          driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver', driver_class='SBE37Driver',
-                                          comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
-        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
+        log.debug("test_get_provenance: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = SBE37_CDM_stream_definition()
@@ -115,23 +109,14 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_parsed_data_product = self.dpmsclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        ctd_parsed_data_product = self.dpmsclient.create_data_product(data_product=dp_obj, stream_definition_id=ctd_stream_def_id, parameter_dictionary=parameter_dictionary)
         log.debug( 'new dp_id = %s', ctd_parsed_data_product)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
-        self.dpmsclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product)
-
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
         log.debug( 'Data product streams1 = %s', stream_ids)
-
-        pid = self.create_logger('ctd_parsed', stream_ids[0] )
-        self.loggerpids.append(pid)
- 
-        print 'TestDataProductProvenance: Data product streams1 = ', stream_ids
-
-
 
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Data Process Definition
@@ -229,8 +214,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
 
 
-
-
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
@@ -261,7 +244,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                                                 outgoing_stream_l0_conductivity_id,
                                                                                 parameter_dictionary)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dpmsclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
 
         log.debug("TestDataProductProvenance: create output data product L0 pressure")
@@ -276,7 +258,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                                             outgoing_stream_l0_pressure_id,
                                                                             parameter_dictionary)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dpmsclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("TestDataProductProvenance: create output data product L0 temperature")
 
@@ -290,7 +271,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                                                 outgoing_stream_l0_temperature_id,
                                                                                 parameter_dictionary)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dpmsclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
         #-------------------------------
@@ -321,11 +301,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                                                 outgoing_stream_l1_conductivity_id,
                                                                                 parameter_dictionary)
 
-        self.dpmsclient.activate_data_product_persistence(data_product_id=ctd_l1_conductivity_output_dp_id)
-        # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
-        stream_ids, _ = self.rrclient.find_objects(ctd_l1_conductivity_output_dp_id, PRED.hasStream, None, True)
-        pid = self.create_logger('ctd_l1_conductivity', stream_ids[0] )
-        self.loggerpids.append(pid)
 
         log.debug("TestDataProductProvenance: create output data product L1 pressure")
 
@@ -339,11 +314,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                                             outgoing_stream_l1_pressure_id,
                                                                             parameter_dictionary)
 
-        self.dpmsclient.activate_data_product_persistence(data_product_id=ctd_l1_pressure_output_dp_id)
-        # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
-        stream_ids, _ = self.rrclient.find_objects(ctd_l1_pressure_output_dp_id, PRED.hasStream, None, True)
-        pid = self.create_logger('ctd_l1_pressure', stream_ids[0] )
-        self.loggerpids.append(pid)
 
         log.debug("TestDataProductProvenance: create output data product L1 temperature")
 
@@ -356,11 +326,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         ctd_l1_temperature_output_dp_id = self.dpmsclient.create_data_product(ctd_l1_temperature_output_dp_obj,
                                                                                 outgoing_stream_l1_temperature_id,
                                                                                 parameter_dictionary)
-        self.dpmsclient.activate_data_product_persistence(data_product_id=ctd_l1_temperature_output_dp_id)
-        # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
-        stream_ids, _ = self.rrclient.find_objects(ctd_l1_temperature_output_dp_id, PRED.hasStream, None, True)
-        pid = self.create_logger('ctd_l1_temperature', stream_ids[0] )
-        self.loggerpids.append(pid)
 
         #-------------------------------
         # L2 Salinity - Density: Output Data Products
@@ -387,11 +352,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                                             outgoing_stream_l2_salinity_id,
                                                                             parameter_dictionary)
 
-        self.dpmsclient.activate_data_product_persistence(data_product_id=ctd_l2_salinity_output_dp_id)
-        # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
-        stream_ids, _ = self.rrclient.find_objects(ctd_l2_salinity_output_dp_id, PRED.hasStream, None, True)
-        pid = self.create_logger('ctd_l2_salinity', stream_ids[0] )
-        self.loggerpids.append(pid)
 
         log.debug("TestDataProductProvenance: create output data product L2 Density")
 
@@ -405,12 +365,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                                             outgoing_stream_l2_density_id,
                                                                             parameter_dictionary)
 
-        self.dpmsclient.activate_data_product_persistence(data_product_id=ctd_l2_density_output_dp_id)
-        # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
-        stream_ids, _ = self.rrclient.find_objects(ctd_l2_density_output_dp_id, PRED.hasStream, None, True)
-        pid = self.create_logger('ctd_l2_density', stream_ids[0] )
-        self.loggerpids.append(pid)
-
 
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
@@ -418,6 +372,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L0 all data_process start")
         try:
             ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
+            #activate only this data process just for coverage
             self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -431,7 +386,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L1 Conductivity data_process start")
         try:
             l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_conductivity_dprocdef_id, [ctd_l0_conductivity_output_dp_id], {'output':ctd_l1_conductivity_output_dp_id})
-            self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -444,7 +398,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L1_Pressure data_process start")
         try:
             l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, [ctd_l0_pressure_output_dp_id], {'output':ctd_l1_pressure_output_dp_id})
-            self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -458,7 +411,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L1_Pressure data_process start")
         try:
             l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, [ctd_l0_temperature_output_dp_id], {'output':ctd_l1_temperature_output_dp_id})
-            self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -471,8 +423,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L2_salinity data_process start")
         try:
-            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, [ctd_parsed_data_product], {'output':ctd_l2_salinity_output_dp_id})
-            self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
+            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id], {'output':ctd_l2_salinity_output_dp_id})
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -483,8 +434,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L2_Density data_process start")
         try:
-            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_density_dprocdef_id, [ctd_parsed_data_product], {'output':ctd_l2_density_output_dp_id})
-            self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
+            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_density_dprocdef_id, [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id], {'output':ctd_l2_density_output_dp_id})
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -494,3 +444,14 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
 
         provenance_dict = self.dpmsclient.get_data_product_provenance(ctd_l2_density_output_dp_id)
+        log.debug("TestDataProductProvenance: provenance_dict  %s", str(provenance_dict))
+
+        #validate that products are represented
+        self.assertTrue (provenance_dict[str(ctd_l1_conductivity_output_dp_id)])
+        self.assertTrue (provenance_dict[str(ctd_l0_conductivity_output_dp_id)])
+        self.assertTrue (provenance_dict[str(ctd_l2_density_output_dp_id)])
+        self.assertTrue (provenance_dict[str(ctd_l1_temperature_output_dp_id)])
+        self.assertTrue (provenance_dict[str(ctd_l0_temperature_output_dp_id)])
+
+        density_dict = (provenance_dict[str(ctd_l2_density_output_dp_id)])
+        self.assertEquals(density_dict['producer'], l2_density_all_data_process_id)
