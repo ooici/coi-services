@@ -480,8 +480,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
         
         # Ping the agent.
-        cmd = AgentCommand(command=ResourceAgentEvent.PING_AGENT)
-        retval = self._ia_client.execute_agent(cmd)
+        retval = self._ia_client.ping_agent()
+        log.info(retval)
 
         # Initialize the agent.
         # The agent is spawned with a driver config, but you can pass one in
@@ -492,6 +492,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Ping the driver proc.
+        retval = self._ia_client.ping_resource()
+        log.info(retval)
 
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.
