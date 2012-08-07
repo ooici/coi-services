@@ -85,6 +85,7 @@ class ResourceAgentEvent(BaseEnum):
     GET_RESOURCE_STATE = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_STATE'
     GET_RESOURCE_CAPABILITIES = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_CAPABILITIES'
     DONE = 'RESOURCE_AGENT_EVENT_DONE'
+    PING_RESOURCE = 'RESOURCE_AGENT_PING_RESOURCE'
     
 class ResourceAgent(BaseResourceAgent):
     """
@@ -137,6 +138,9 @@ class ResourceAgent(BaseResourceAgent):
         # Event publisher.
         self._event_publisher = None
                 
+        # An example agent parameter.
+        self.aparam_example = None
+
         # Set intial state.        
         if 'initial_state' in kwargs:
             if ResourceAgentState.has(kwargs['initial_state']):
@@ -219,8 +223,8 @@ class ResourceAgent(BaseResourceAgent):
     def get_agent_parameters(self):
         """
         """
-        aparams = ['aparam1']
-        return aparams
+        params = [x.lstrip('aparam_') for x in vars(self).keys() if x.startswith('aparam_')]
+        return params    
     
     def _filter_capabilities(self, events):
         """
@@ -234,12 +238,51 @@ class ResourceAgent(BaseResourceAgent):
     def get_agent(self, resource_id='', params=[]):
         """
         """
-        pass
-    
+        result = {}
+        for x in params:
+            try:
+                key = 'aparam_' + x
+                val = getattr(self, key)
+                result[x] = val
+            
+            except TypeError:
+                raise BadRequest('Bad agent parameter name: %s' % str(x))
+
+            except AttributeError:
+                raise BadRequest('Unknown agent parameter: %s' % x)
+        
+        return result
+        
     def set_agent(self, resource_id='', params={}):
         """
         """
-        pass
+        for (x, val) in params.iteritems():
+            try:
+                key = 'aparam_' + x
+                getattr(self, key)
+                
+                set_key = 'aparam_set_' + x
+                try:
+                    set_func = getattr(self, set_key)
+                    
+                except AttributeError:
+                    set_func = None
+                
+                else:
+                    if not callable(set_func):
+                        set_func = None
+
+                if set_func:
+                    set_func(val)
+                
+                else:
+                    setattr(self, key, val)
+                    
+            except TypeError:
+                raise BadRequest('Bad agent parameter name: %s' % str(x))
+
+            except AttributeError:
+                raise BadRequest('Unknown agent parameter: %s' % x)
     
     def get_agent_state(self, resource_id=''):
         """
@@ -299,6 +342,21 @@ class ResourceAgent(BaseResourceAgent):
             raise iex
                 
         return cmd_result
+
+    def ping_agent(self, resource_id=""):
+        """
+        """
+        result = 'ping from %s, time: %s' % (str(self), get_ion_ts())
+        return result
+
+    def aparam_set_example(self, val):
+        """
+        """
+        if isinstance(val, str):
+            self.aparam_example = val
+        
+        else:
+            raise BadRequest('Invalid type to set agent parameter "example".')
         
     ##############################################################
     # Resource interface.
@@ -437,6 +495,31 @@ class ResourceAgent(BaseResourceAgent):
             raise iex
         
         return cmd_result        
+
+    def ping_resource(self, resource_id=''):
+        """
+        """
+        try:
+            return self._fsm.on_event(ResourceAgentEvent.PING_RESOURCE)
+            
+        except FSMStateError as ex:
+            iex = Conflict(*(ex.args))    
+            self._on_command_error('ping_resource', None, None, None, iex)
+            raise iex
+
+        except FSMCommandUnknownError as ex:
+            iex = BadRequest(*(ex.args))
+            self._on_command_error('ping_resource', None, None, None, iex)
+            raise iex
+        
+        except IonException as iex:
+            self._on_command_error('ping_resource', None, None, None, iex)
+            raise iex
+
+        except Exception as ex:
+            iex = ServerError(*(ex.args))
+            self._on_command_error('ping_resource', None, None, None, iex)
+            raise iex
 
     ##############################################################
     # UNINITIALIZED event handlers.
@@ -755,6 +838,9 @@ class ResourceAgentClient(ResourceAgentProcessClient):
     def get_agent_state(self, *args, **kwargs):
         return super(ResourceAgentClient, self).get_agent_state(self.resource_id, *args, **kwargs)
 
+    def ping_agent(self, *args, **kwargs):
+        return super(ResourceAgentClient, self).ping_agent(self.resource_id, *args, **kwargs)
+
     def execute_resource(self, *args, **kwargs):
         return super(ResourceAgentClient, self).execute_resource(self.resource_id, *args, **kwargs)
 
@@ -766,6 +852,9 @@ class ResourceAgentClient(ResourceAgentProcessClient):
 
     def get_resource_state(self, *args, **kwargs):
         return super(ResourceAgentClient, self).get_resource_state(self.resource_id, *args, **kwargs)
+
+    def ping_resource(self, *args, **kwargs):
+        return super(ResourceAgentClient, self).ping_resource(self.resource_id, *args, **kwargs)
 
     def emit(self, *args, **kwargs):
         return super(ResourceAgentClient, self).emit(self.resource_id, *args, **kwargs)
