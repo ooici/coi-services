@@ -149,7 +149,12 @@ class DriverProcess(object):
             self.events += events
             reply = 'test_events'
         elif cmd == 'process_echo':
-            reply = 'process_echo: %s' % str(args[0])
+            reply = 'ping from resource ppid:%s, resource:%s' % (str(self.ppid), str(self.driver))
+            #try:
+            #    msg = args[0]
+            #except IndexError:
+            #    msg = 'no message to echo'
+            # reply = 'process_echo: %s' % msg
         elif cmd_func:
             try:
                 reply = cmd_func(*args, **kwargs)

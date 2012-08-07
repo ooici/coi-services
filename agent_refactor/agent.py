@@ -85,6 +85,8 @@ class ResourceAgentEvent(BaseEnum):
     GET_RESOURCE_STATE = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_STATE'
     GET_RESOURCE_CAPABILITIES = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_CAPABILITIES'
     DONE = 'RESOURCE_AGENT_EVENT_DONE'
+    PING_AGENT = 'RESOURCE_AGENT_PING_AGENT'
+    PING_RESOURCE = 'RESOURCE_AGENT_PING_RESOURCE'
     
 class ResourceAgent(BaseResourceAgent):
     """
@@ -137,6 +139,9 @@ class ResourceAgent(BaseResourceAgent):
         # Event publisher.
         self._event_publisher = None
                 
+        # An example agent parameter.
+        self.aparam_example = None
+
         # Set intial state.        
         if 'initial_state' in kwargs:
             if ResourceAgentState.has(kwargs['initial_state']):
@@ -219,8 +224,8 @@ class ResourceAgent(BaseResourceAgent):
     def get_agent_parameters(self):
         """
         """
-        aparams = ['aparam1']
-        return aparams
+        params = [x.lstrip('aparam_') for x in vars(self).keys() if x.startswith('aparam_')]
+        return params    
     
     def _filter_capabilities(self, events):
         """
@@ -234,12 +239,51 @@ class ResourceAgent(BaseResourceAgent):
     def get_agent(self, resource_id='', params=[]):
         """
         """
-        pass
-    
+        result = {}
+        for x in params:
+            try:
+                key = 'aparam_' + x
+                val = getattr(self, key)
+                result[x] = val
+            
+            except TypeError:
+                raise BadRequest('Bad agent parameter name: %s' % str(x))
+
+            except AttributeError:
+                raise BadRequest('Unknown agent parameter: %s' % x)
+        
+        return result
+        
     def set_agent(self, resource_id='', params={}):
         """
         """
-        pass
+        for (x, val) in params.iteritems():
+            try:
+                key = 'aparam_' + x
+                getattr(self, key)
+                
+                set_key = 'aparam_set_' + x
+                try:
+                    set_func = getattr(self, set_key)
+                    
+                except AttributeError:
+                    set_func = None
+                
+                else:
+                    if not callable(set_func):
+                        set_func = None
+
+                if set_func:
+                    set_func(val)
+                
+                else:
+                    setattr(self, key, val)
+                    
+            except TypeError:
+                raise BadRequest('Bad agent parameter name: %s' % str(x))
+
+            except AttributeError:
+                raise BadRequest('Unknown agent parameter: %s' % x)
     
     def get_agent_state(self, resource_id=''):
         """
@@ -299,6 +343,21 @@ class ResourceAgent(BaseResourceAgent):
             raise iex
                 
         return cmd_result
+
+    def ping_agent(self, resource_id=""):
+        """
+        """
+        result = 'ping from %s, time: %s' % (str(self), get_ion_ts())
+        return result
+
+    def aparam_set_example(self, val):
+        """
+        """
+        if isinstance(val, str):
+            self.aparam_example = val
+        
+        else:
+            raise BadRequest('Invalid type to set agent parameter "example".')
         
     ##############################################################
     # Resource interface.
@@ -437,6 +496,43 @@ class ResourceAgent(BaseResourceAgent):
             raise iex
         
         return cmd_result        
+
+    def ping_resource(self, resource_id=''):
+        """
+        """
+        try:
+            return self._fsm.on_event(ResourceAgentEvent.PING_RESOURCE)
+            
+        except FSMStateError as ex:
+            iex = Conflict(*(ex.args))    
+            self._on_command_error('ping_resource', None, None, None, iex)
+            raise iex
+
+        except FSMCommandUnknownError as ex:
+            iex = BadRequest(*(ex.args))
+            self._on_command_error('ping_resource', None, None, None, iex)
+            raise iex
+        
+        except IonException as iex:
+            self._on_command_error('ping_resource', None, None, None, iex)
+            raise iex
+
+        except Exception as ex:
+            iex = ServerError(*(ex.args))
+            self._on_command_error('ping_resource', None, None, None, iex)
+            raise iex
+
+    ##############################################################
+    # ping handler.
+    ##############################################################    
+
+    def _handler_ping_agent(self, *args, **kwargs):
+        """
+        """
+        next_state = None
+        result = 'ping resource agent'
+        
+        return (next_state, result)        
 
     ##############################################################
     # UNINITIALIZED event handlers.
@@ -670,36 +766,47 @@ class ResourceAgent(BaseResourceAgent):
         
         self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, ResourceAgentEvent.ENTER, self._handler_uninitialized_enter)
         self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, ResourceAgentEvent.EXIT, self._handler_uninitialized_exit)
+        self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         self._fsm.add_handler(ResourceAgentState.POWERED_DOWN, ResourceAgentEvent.ENTER, self._handler_powered_down_enter)
         self._fsm.add_handler(ResourceAgentState.POWERED_DOWN, ResourceAgentEvent.EXIT, self._handler_powered_down_exit)
+        self._fsm.add_handler(ResourceAgentState.POWERED_DOWN, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.ENTER, self._handler_inactive_enter)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.EXIT, self._handler_inactive_exit)
+        self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.ENTER, self._handler_idle_enter)
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.EXIT, self._handler_idle_exit)
+        self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.ENTER, self._handler_stopped_enter)
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.EXIT, self._handler_stopped_exit)
+        self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.ENTER, self._handler_command_enter)
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.EXIT, self._handler_command_exit)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
         
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.ENTER, self._handler_streaming_enter)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXIT, self._handler_streaming_exit)
+        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
         
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.ENTER, self._handler_test_enter)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.EXIT, self._handler_test_exit)
+        self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
         
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.ENTER, self._handler_calibrate_enter)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.EXIT, self._handler_calibrate_exit)
+        self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
         
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.ENTER, self._handler_direct_access_enter)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.EXIT, self._handler_direct_access_exit)
+        self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
         
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.ENTER, self._handler_busy_enter)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.EXIT, self._handler_busy_exit)
+        self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
     
 class ResourceAgentClient(ResourceAgentProcessClient):
     """
@@ -755,6 +862,9 @@ class ResourceAgentClient(ResourceAgentProcessClient):
     def get_agent_state(self, *args, **kwargs):
         return super(ResourceAgentClient, self).get_agent_state(self.resource_id, *args, **kwargs)
 
+    def ping_agent(self, *args, **kwargs):
+        return super(ResourceAgentClient, self).ping_agent(self.resource_id, *args, **kwargs)
+
     def execute_resource(self, *args, **kwargs):
         return super(ResourceAgentClient, self).execute_resource(self.resource_id, *args, **kwargs)
 
@@ -766,6 +876,9 @@ class ResourceAgentClient(ResourceAgentProcessClient):
 
     def get_resource_state(self, *args, **kwargs):
         return super(ResourceAgentClient, self).get_resource_state(self.resource_id, *args, **kwargs)
+
+    def ping_resource(self, *args, **kwargs):
+        return super(ResourceAgentClient, self).ping_resource(self.resource_id, *args, **kwargs)
 
     def emit(self, *args, **kwargs):
         return super(ResourceAgentClient, self).emit(self.resource_id, *args, **kwargs)

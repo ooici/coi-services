@@ -86,6 +86,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_errors
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_agent
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
@@ -478,6 +479,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
         
+        # Ping the agent.
+        cmd = AgentCommand(command=ResourceAgentEvent.PING_AGENT)
+        retval = self._ia_client.execute_agent(cmd)
+
         # Initialize the agent.
         # The agent is spawned with a driver config, but you can pass one in
         # optinally with the initialize command. This validates the driver
@@ -551,7 +556,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         Test agent state transitions through execute agent interface.
         Verify agent state status as we go. Verify ResourceAgentStateEvents
-        are published.
+        are published. Verify agent and resource pings.
         """
 
         # Set up a subscriber to collect error events.
@@ -560,11 +565,22 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        # Ping the agent.
+        retval = self._ia_client.ping_agent()
+        log.info(retval)
+
+        with self.assertRaises(Conflict):
+            retval = self._ia_client.ping_resource()
     
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Ping the driver proc.
+        retval = self._ia_client.ping_resource()
+        log.info(retval)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
         retval = self._ia_client.execute_agent(cmd)
@@ -745,6 +761,38 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+    def test_get_set_agent(self):
+        """
+        Test instrument agent get and set interface, including errors.
+        """
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        # Test with a bad parameter name.
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.get_agent(['a bad param name'])
+
+        # Test with a bad parameter type.
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.get_agent([123])
+
+        retval = self._ia_client.get_agent(['example'])
+
+        with self.assertRaises(BadRequest):
+            self._ia_client.set_agent({'a bad param name' : 'newvalue'})
+
+        with self.assertRaises(BadRequest):
+            self._ia_client.set_agent({123 : 'newvalue'})
+
+        with self.assertRaises(BadRequest):
+            self._ia_client.set_agent({'example' : 999})
+
+        self._ia_client.set_agent({'example' : 'newvalue'})
+
+        retval = self._ia_client.get_agent(['example'])
+
+        self.assertEquals(retval['example'], 'newvalue')
 
     def test_poll(self):
         """
