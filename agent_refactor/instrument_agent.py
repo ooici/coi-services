@@ -66,7 +66,6 @@ class InstrumentAgentCapability(BaseEnum):
     RESUME = ResourceAgentEvent.RESUME
     GO_COMMAND = ResourceAgentEvent.GO_COMMAND
     GO_DIRECT_ACCESS = ResourceAgentEvent.GO_DIRECT_ACCESS
-    PING_AGENT = ResourceAgentEvent.PING_AGENT
 
 class InstrumentAgent(ResourceAgent):
     """

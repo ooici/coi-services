@@ -523,18 +523,6 @@ class ResourceAgent(BaseResourceAgent):
             raise iex
 
     ##############################################################
-    # ping handler.
-    ##############################################################    
-
-    def _handler_ping_agent(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = 'ping resource agent'
-        
-        return (next_state, result)        
-
-    ##############################################################
     # UNINITIALIZED event handlers.
     ##############################################################    
 

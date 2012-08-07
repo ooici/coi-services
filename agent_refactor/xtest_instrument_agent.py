@@ -915,7 +915,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.GO_DIRECT_ACCESS           
         ]
         
-        agt_pars_all = ['aparam1']
+        agt_pars_all = ['example']
         
         res_cmds_all =[
             SBE37ProtocolEvent.TEST,
