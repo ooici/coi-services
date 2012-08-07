@@ -85,7 +85,6 @@ class ResourceAgentEvent(BaseEnum):
     GET_RESOURCE_STATE = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_STATE'
     GET_RESOURCE_CAPABILITIES = 'RESOURCE_AGENT_EVENT_GET_RESOURCE_CAPABILITIES'
     DONE = 'RESOURCE_AGENT_EVENT_DONE'
-    PING_AGENT = 'RESOURCE_AGENT_PING_AGENT'
     PING_RESOURCE = 'RESOURCE_AGENT_PING_RESOURCE'
     
 class ResourceAgent(BaseResourceAgent):
@@ -754,47 +753,36 @@ class ResourceAgent(BaseResourceAgent):
         
         self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, ResourceAgentEvent.ENTER, self._handler_uninitialized_enter)
         self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, ResourceAgentEvent.EXIT, self._handler_uninitialized_exit)
-        self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         self._fsm.add_handler(ResourceAgentState.POWERED_DOWN, ResourceAgentEvent.ENTER, self._handler_powered_down_enter)
         self._fsm.add_handler(ResourceAgentState.POWERED_DOWN, ResourceAgentEvent.EXIT, self._handler_powered_down_exit)
-        self._fsm.add_handler(ResourceAgentState.POWERED_DOWN, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.ENTER, self._handler_inactive_enter)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.EXIT, self._handler_inactive_exit)
-        self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.ENTER, self._handler_idle_enter)
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.EXIT, self._handler_idle_exit)
-        self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.ENTER, self._handler_stopped_enter)
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.EXIT, self._handler_stopped_exit)
-        self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.ENTER, self._handler_command_enter)
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.EXIT, self._handler_command_exit)
-        self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
         
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.ENTER, self._handler_streaming_enter)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXIT, self._handler_streaming_exit)
-        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
         
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.ENTER, self._handler_test_enter)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.EXIT, self._handler_test_exit)
-        self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
         
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.ENTER, self._handler_calibrate_enter)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.EXIT, self._handler_calibrate_exit)
-        self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
         
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.ENTER, self._handler_direct_access_enter)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.EXIT, self._handler_direct_access_exit)
-        self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
         
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.ENTER, self._handler_busy_enter)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.EXIT, self._handler_busy_exit)
-        self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.PING_AGENT, self._handler_ping_agent)
     
 class ResourceAgentClient(ResourceAgentProcessClient):
     """

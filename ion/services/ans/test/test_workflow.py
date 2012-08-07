@@ -64,7 +64,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
+    @unittest.skip("In progress")
     def test_SA_transform_components(self):
 
         assertions = self.assertTrue
@@ -122,7 +122,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
     @attr('SMOKE')
     @unittest.skip("not working")
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
+    @unittest.skip("in progress")
     def test_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -204,7 +204,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
+    @unittest.skip("in progress")
     def test_google_dt_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -269,7 +269,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
+    @unittest.skip("in progress")
     def test_mpl_graphs_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -334,7 +334,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
+    @unittest.skip("in progress")
     def test_multiple_workflow_instances(self):
 
         assertions = self.assertTrue

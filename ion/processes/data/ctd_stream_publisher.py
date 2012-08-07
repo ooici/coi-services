@@ -46,10 +46,10 @@ from ion.services.dm.utility.granule.granule import build_granule
 ### Taxonomies are defined before hand out of band... somehow.
 tx = TaxyTool()
 tx.add_taxonomy_set('temp','long name for temp')
-tx.add_taxonomy_set('cond','long name for cond')
+tx.add_taxonomy_set('conductivity','long name for cond')
 tx.add_taxonomy_set('lat','long name for latitude')
 tx.add_taxonomy_set('lon','long name for longitude')
-tx.add_taxonomy_set('pres','long name for pres')
+tx.add_taxonomy_set('pressure','long name for pres')
 tx.add_taxonomy_set('time','long name for time')
 tx.add_taxonomy_set('height','long name for height')
 tx.add_taxonomy_set('coordinates','This group contains coordinates...')
@@ -126,8 +126,8 @@ class SimpleCtdPublisher(TransformStreamPublisher):
         rdt['lon'] = lon
         rdt['height'] = h
         rdt['temp'] = t
-        rdt['cond'] = c
-        rdt['pres'] = p
+        rdt['conductivity'] = c
+        rdt['pressure'] = p
 
 #        rdt['coordinates'] = rdt0
 #        rdt['data'] = rdt1

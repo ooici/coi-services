@@ -37,7 +37,6 @@ from interface.objects import Granule
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
 
 class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
@@ -106,25 +105,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         ctd_stream_id = stream_ids[0]
 
         return ctd_stream_id, ctd_parsed_data_product_id
-
-    def create_data_product(self, dp_name = "", dp_description = ""):
-
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()   # this creates a ParameterDictionary object
-        parameter_dictionary = parameter_dictionary.dump()  # this returns a python dictionary
-
-        data_prod_obj = IonObject(RT.DataProduct,
-            name=dp_name,
-            description=dp_description,
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
-        data_prod_id = self.create_data_product(data_prod_obj, stream_definition_id, parameter_dictionary)
-
-        return data_prod_id, data_prod_obj
 
     def start_simple_input_stream_process(self, ctd_stream_id):
         return self.start_input_stream_process(ctd_stream_id)
@@ -497,8 +477,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
     def validate_vis_service_google_dt_results(self, results):
-
-
         assertions = self.assertTrue
 
         assertions(results)
