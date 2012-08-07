@@ -185,10 +185,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         subscriber.close()
 
-    #@unittest.skip("in progress")
+    @unittest.skip("in progress")
     def test_realtime_visualization(self):
         assertions = self.assertTrue
-
 
         # Build the workflow definition
         workflow_def_obj = IonObject(RT.WorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
@@ -201,19 +200,16 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #Create it in the resource registry
         workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
 
-
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
 
         #Create and start the workflow
         workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
 
-
         ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 
 
         #TODO - Need to add workflow creation for google data table
-
         vis_params ={}
         vis_params['in_product_type'] = 'google_dt'
         vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=workflow_product_id, visualization_parameters=vis_params)
@@ -249,6 +245,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.workflowclient.delete_workflow_definition(workflow_def_id)
 
 
+    @unittest.skip("in progress")
     def test_google_dt_overview_visualization(self):
 
         #Create the input data product
@@ -268,6 +265,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.validate_vis_service_google_dt_results(vis_data)
 
 
+    @unittest.skip("in progress")
     def test_mpl_graphs_overview_visualization(self):
 
         #Create the input data product

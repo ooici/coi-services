@@ -60,7 +60,7 @@ class VisualizationService(BaseVisualizationService):
         return
 
 
-    def initiate_realtime_visualization(self, data_product_id='', in_product_type='', visualization_parameters={}, callback=""):
+    def initiate_realtime_visualization(self, data_product_id='', visualization_parameters={}, callback=""):
         """Initial request required to start a realtime chart for the specified data product. Returns a user specific token associated
         with the request that will be required for subsequent requests when polling data.
         
@@ -74,10 +74,12 @@ class VisualizationService(BaseVisualizationService):
         """
 
         query = None
-
+        in_product_type = ''
         if visualization_parameters:
             if visualization_parameters.has_key('query'):
                 query=visualization_parameters['query']
+            if visualization_parameters.has_key('in_product_type'):
+                in_product_type = visualization_parameters['in_product_type']
 
         # Perform a look up to check and see if the DP is indeed a realtime GDT stream
         if not data_product_id:
@@ -118,9 +120,8 @@ class VisualizationService(BaseVisualizationService):
 
         # TODO check if is a real time GDT stream automatically
         if in_product_type == 'google_dt':
-
             # Retrieve the id of the OUTPUT stream from the out Data Product
-            stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, None, True)
+            stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)
             if not stream_ids:
                 raise Inconsistent("Could not find Stream Id for Data Product %s" % data_product_id)
 
@@ -328,7 +329,7 @@ class VisualizationService(BaseVisualizationService):
 
     def _create_google_dt_workflow_def(self):
         # Check to see if the workflow defnition already exist
-        workflow_def_ids,_ = self.re.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+        workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
 
         if len(workflow_def_ids) > 0:
             workflow_def_id = workflow_def_ids[0]
