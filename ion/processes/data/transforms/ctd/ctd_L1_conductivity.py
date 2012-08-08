@@ -37,6 +37,7 @@ class CTDL1ConductivityTransform(TransformFunction):
     #outgoing_stream_def = L1_conductivity_stream_definition()
 
     def __init__(self):
+        super(CTDL1ConductivityTransform, self).__init__()
 
         ### Parameter dictionaries
         self.defining_parameter_dictionary()

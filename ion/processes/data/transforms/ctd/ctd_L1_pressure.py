@@ -37,6 +37,7 @@ class CTDL1PressureTransform(TransformFunction):
     outgoing_stream_def = L1_pressure_stream_definition()
 
     def __init__(self):
+        super(CTDL1PressureTransform, self).__init__()
 
         ### Parameter dictionaries
         self.defining_parameter_dictionary()
