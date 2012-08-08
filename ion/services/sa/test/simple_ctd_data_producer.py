@@ -3,29 +3,23 @@ from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.public import log
+from ion.services.dm.utility.granule_utils import CoverageCraft
+from coverage_model.parameter import ParameterContext, ParameterDictionary
+from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
-import numpy
+import numpy, gevent
 import random
 import time
 
-
-### Taxonomies are defined before hand out of band... somehow.
-tx = TaxyTool()
-tx.add_taxonomy_set('temp','long name for temp', 't')
-tx.add_taxonomy_set('cond','long name for cond', 'c')
-tx.add_taxonomy_set('pres','long name for pres', 'd', 'p')
-tx.add_taxonomy_set('lat','long name for latitude', 'lt')
-tx.add_taxonomy_set('lon','long name for longitude', 'ln')
-tx.add_taxonomy_set('time','long name for time', 'tm')
-tx.add_taxonomy_set('height','long name for height', 'h')
-
-# This is an example of using groups it is not a normative statement about how to use groups
-tx.add_taxonomy_set('coordinates','This group contains coordinates...')
-tx.add_taxonomy_set('data','This group contains data...')
-
+craft = CoverageCraft
+sdom, tdom = craft.create_domains()
+sdom = sdom.dump()
+tdom = tdom.dump()
+parameter_dictionary = craft.create_parameters()
 
 class SimpleCtdDataProducer(SimpleCtdPublisher):
     """
@@ -33,6 +27,11 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
 
     It is not infrastructure - it is a demonstration of the infrastructure applied to an example.
     """
+    def on_start(self):
+        exchange_point = self.CFG.get_safe('process.exchange_point', 'science_data')
+        self.CFG.process.exchange_point = exchange_point
+        super(SimpleCtdDataProducer,self).on_start()
+        self.stream_id = self.CFG.get_safe('process.stream_id',{})
 
 
     #overriding trigger function here to use new granule
@@ -40,9 +39,9 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
         log.debug("SimpleCtdDataProducer:_trigger_func ")
 
 
-        rdt = RecordDictionaryTool(taxonomy=tx)
-#        rdt0 = RecordDictionaryTool(taxonomy=tx)
-#        rdt1 = RecordDictionaryTool(taxonomy=tx)
+        rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
+#        rdt0 = RecordDictionaryTool(param_dictionary=parameter_dictionary)
+#        rdt1 = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
 
         #@todo - add lots of comments in here
@@ -70,10 +69,10 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
             rdt['time'] = tvar
             rdt['lat'] = lat
             rdt['lon'] = lon
-            rdt['height'] = h
+            rdt['depth'] = h
             rdt['temp'] = t
-            rdt['cond'] = c
-            rdt['pres'] = p
+            rdt['conductivity'] = c
+            rdt['pressure'] = p
 
 
             #todo: use only flat dicts for now, may change later...
@@ -82,7 +81,7 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
 
             log.debug("SimpleCtdDataProducer: logging published Record Dictionary:\n %s", rdt.pretty_print())
 
-            g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
+            g = build_granule(data_producer_id=stream_id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
 
             log.debug('SimpleCtdDataProducer: Sending %d values!' % length)
             self.publisher.publish(g)
