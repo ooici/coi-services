@@ -47,8 +47,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='bulk')
-#@unittest.skip('Not done yet.')
+@attr('INT', group='sa')
+@unittest.skip('Not done yet.')
 class TestBulkIngest(IonIntegrationTestCase):
 
     EDA_MOD = 'ion.agents.data.external_dataset_agent'
@@ -163,7 +163,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         pass
 
 
-#    @unittest.skip('Not done yet.')
+    @unittest.skip('Not done yet.')
     def test_slocum_data_ingest(self):
 
         HIST_CONSTRAINTS_1 = {}
