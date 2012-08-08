@@ -223,17 +223,17 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
         #todo simple_ctd_data_producer needs to be fixed
 
-        #-------------------------------------------------------------------------------------
-        # Create the process -  ctd simulator process
-        #-------------------------------------------------------------------------------------
-        producer_procdef_id = TestCTDTransformsNoSim.create_process(  name='Example Data Producer',
-            module='ion.services.sa.test.simple_ctd_data_producer',
-            class_name='SimpleCtdDataProducer',
-            configuration= configuration)
-
-        log.debug("Created an example data producer process with the following id: %s" % producer_procdef_id)
-
-        self.assertIsNotNone(producer_procdef_id)
+#        #-------------------------------------------------------------------------------------
+#        # Create the process -  ctd simulator process
+#        #-------------------------------------------------------------------------------------
+#        producer_procdef_id = TestCTDTransformsNoSim.create_process(  name='Example Data Producer',
+#            module='ion.services.sa.test.simple_ctd_data_producer',
+#            class_name='SimpleCtdDataProducer',
+#            configuration= configuration)
+#
+#        log.debug("Created an example data producer process with the following id: %s" % producer_procdef_id)
+#
+#        self.assertIsNotNone(producer_procdef_id)
 
         #-------------------------------
         # Create CTD Raw as the second data product
