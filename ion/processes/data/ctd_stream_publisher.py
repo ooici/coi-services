@@ -54,8 +54,8 @@ parameter_dictionary = craft.create_parameters()
 
 class SimpleCtdPublisher(TransformStreamPublisher):
     def on_start(self):
-        exchange_point = self.CFG.get_safe('process.exchange_point', 'science_data')
-        self.CFG.process.exchange_point = exchange_point
+        self.exchange_point = self.CFG.get_safe('process.exchange_point', 'science_data')
+        self.CFG.process.exchange_point = self.exchange_point
         super(SimpleCtdPublisher,self).on_start()
         self.stream_id = self.CFG.get_safe('process.stream_id',{})
         self.interval  = self.CFG.get_safe('process.interval', 1.0)

@@ -28,12 +28,7 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
     It is not infrastructure - it is a demonstration of the infrastructure applied to an example.
     """
     def on_start(self):
-        exchange_point = self.CFG.get_safe('process.exchange_point', 'science_data')
-        self.CFG.process.exchange_point = exchange_point
         super(SimpleCtdDataProducer,self).on_start()
-        self.stream_id = self.CFG.get_safe('process.stream_id',{})
-
-        log.warning("Got the stream_id from config: %s" % self.stream_id)
 
     #overriding trigger function here to use new granule
     def _trigger_func(self, stream_id):

@@ -181,6 +181,8 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         log.debug('test_createTransformsThenActivateInstrument: new Stream Definition id = %s' % ctd_stream_def_id)
         log.debug('Creating new CDM data product with a stream definition')
 
+#        stream_id = self.pubsubclient.create_stream(stream_definition_id=ctd_stream_def_id)
+
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
         sdom = sdom.dump()
@@ -198,21 +200,24 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
         log.debug('new ctd_parsed_data_product_id = %s' % ctd_parsed_data_product)
 
-        #self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
+#        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
-        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product))
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product)
 
-        # Retrieve the id of the OUTPUT stream from the out Data Product
-        #        stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
-        #        log.debug('test_createTransformsThenActivateInstrument: Data product streams1 = %s' % stream_ids)
-        #        self.parsed_stream_id = stream_ids[0]
+#        Retrieve the id of the OUTPUT stream from the out Data Product
+        stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
+        log.debug('test_createTransformsThenActivateInstrument: Data product streams1 = %s' % stream_ids)
+        self.parsed_stream_id = stream_ids[0]
+
+        log.debug("got the parsed stream id: %s" % self.parsed_stream_id)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Event Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         configuration = {
             'process':{
-                'stream_id':ctd_stream_def_id,
+                'exchange_point': 'science_data',
+                'stream_id':self.parsed_stream_id,
                 }
         }
 
