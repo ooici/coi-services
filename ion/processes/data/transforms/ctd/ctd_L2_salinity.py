@@ -38,7 +38,7 @@ class SalinityTransform(TransformFunction):
     incoming_stream_def = SBE37_CDM_stream_definition()
 
     def __init__(self):
-
+        super(SalinityTransform, self).__init__()
 
 #        ### Taxonomies are defined before hand out of band... somehow.
 #        tx = TaxyTool()

@@ -42,6 +42,7 @@ class DensityTransform(TransformFunction):
     outgoing_stream_def = L2_density_stream_definition()
 
     def __init__(self):
+        super(DensityTransform, self).__init__()
 
 #        ### Taxonomies are defined before hand out of band... somehow.
 #        tx = TaxyTool()
