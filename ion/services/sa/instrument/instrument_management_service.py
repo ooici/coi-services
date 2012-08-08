@@ -94,6 +94,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if hasattr(self.clients, "pubsub_management"):
             self.PSMS = self.clients.pubsub_management
 
+        if hasattr(self.clients, "data_retriever"):
+            self.DRS = self.clients.data_retriever
+
         #farm everything out to the impls
 
         self.instrument_agent           = InstrumentAgentImpl(self.clients)
@@ -1378,9 +1381,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         )
 
         granules = []
-        #--------------------------------------------------------------------------------
-        # Gather all the dataset granules and compile the FS cache
-        #--------------------------------------------------------------------------------
+
         log.info('Getting data from datastore')
         for result in datastore.query_view(view_name, opts=opts):
             doc = result.get('doc')
@@ -1394,9 +1395,28 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def retrieve_latest_data_granule(self, device_id):
-        #todo: how to identify stream?
+        #todo: how to get dataset?
         #todo: wait for DM refactor before proceeding
-        pass
+
+        dataset_id = "fixme, how to get this"
+
+#        # TESTING
+#        stream_id  = self.PSMS.create_stream()
+#        config_id  = self.get_ingestion_config()
+#        dataset_id = self.create_dataset()
+#        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
+#        #--------------------------------------------------------------------------------
+#        # Create the datastore first,
+#        #--------------------------------------------------------------------------------
+#        self.get_datastore(dataset_id)
+#
+#        self.publish_hifi(stream_id, 0)
+#        self.publish_hifi(stream_id, 1)
+#
+#        self.wait_until_we_have_enough_granules(dataset_id, 2) # I just need two
+
+        return self.DRS.retrieve_last_granule(dataset_id)
+
 
 
     ############################
@@ -1570,3 +1590,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval = "RED" #todo: remove this line
 
         return retval
+
+
+
+
