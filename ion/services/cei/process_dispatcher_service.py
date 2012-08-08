@@ -765,6 +765,7 @@ def _ion_process_from_core(core_process):
         config = {}
 
     state = core_process.get('state')
+    process_id = core_process.get('upid')
     ion_process_state = _PD_PROCESS_STATE_MAP.get(state)
     if not ion_process_state:
         log.debug("Process has unknown state: process=%s state=%s",
@@ -772,7 +773,7 @@ def _ion_process_from_core(core_process):
     if ion_process_state is _PD_IGNORED_STATE:
         ion_process_state = None
 
-    process = Process(process_id=core_process.get('upid'),
+    process = Process(process_id=process_id,
         process_state=ion_process_state,
         process_configuration=config)
 
