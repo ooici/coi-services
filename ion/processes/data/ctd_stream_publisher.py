@@ -39,22 +39,18 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 ### For new granule and stream interface
 from pyon.ion.transforma import TransformStreamPublisher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
+from ion.services.dm.utility.granule_utils import CoverageCraft
+from coverage_model.parameter import ParameterContext, ParameterDictionary
+from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
 
-
-### Taxonomies are defined before hand out of band... somehow.
-tx = TaxyTool()
-tx.add_taxonomy_set('temp','long name for temp')
-tx.add_taxonomy_set('conductivity','long name for cond')
-tx.add_taxonomy_set('lat','long name for latitude')
-tx.add_taxonomy_set('lon','long name for longitude')
-tx.add_taxonomy_set('pressure','long name for pres')
-tx.add_taxonomy_set('time','long name for time')
-tx.add_taxonomy_set('height','long name for height')
-tx.add_taxonomy_set('coordinates','This group contains coordinates...')
-tx.add_taxonomy_set('data','This group contains data...')
-
+craft = CoverageCraft
+sdom, tdom = craft.create_domains()
+sdom = sdom.dump()
+tdom = tdom.dump()
+parameter_dictionary = craft.create_parameters()
+#parameter_dictionary = parameter_dictionary.dump()
 
 class SimpleCtdPublisher(TransformStreamPublisher):
     def on_start(self):
@@ -106,12 +102,12 @@ class SimpleCtdPublisher(TransformStreamPublisher):
 
     def _get_new_ctd_packet(self, stream_id, length):
 
-        rdt = RecordDictionaryTool(taxonomy=tx)
+        rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
         #Explicitly make these numpy arrays...
         c = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)]) 
         t = numpy.array([random.uniform(-1.7, 21.0) for i in xrange(length)]) 
-        p = numpy.array([random.lognormvariate(1,2) for i in xrange(length)]) 
+        p = numpy.array([random.lognormvariate(1,2) for i in xrange(length)])
         lat = numpy.array([random.uniform(-90.0, 90.0) for i in xrange(length)]) 
         lon = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)]) 
         h = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)]) 
@@ -124,7 +120,7 @@ class SimpleCtdPublisher(TransformStreamPublisher):
         rdt['time'] = tvar
         rdt['lat'] = lat
         rdt['lon'] = lon
-        rdt['height'] = h
+        rdt['depth'] = h
         rdt['temp'] = t
         rdt['conductivity'] = c
         rdt['pressure'] = p
@@ -132,7 +128,7 @@ class SimpleCtdPublisher(TransformStreamPublisher):
 #        rdt['coordinates'] = rdt0
 #        rdt['data'] = rdt1
 
-        g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
+        g = build_granule(data_producer_id=stream_id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
 
         return g
 

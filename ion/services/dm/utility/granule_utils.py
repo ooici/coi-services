@@ -174,6 +174,11 @@ class CoverageCraft(object):
         data_ctxt.fill_value = 0x0
         pdict.add_context(data_ctxt)
 
+        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.float32))
+        pres_ctxt.uom = 'Pascal'
+        pres_ctxt.fill_value = 0x0
+        pdict.add_context(pres_ctxt)
+
         return pdict
         
     @classmethod
