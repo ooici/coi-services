@@ -121,8 +121,11 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         """
 
         base = self._base_procs
+        base_pids = [proc.process_id for proc in base]
         current = self.pd_cli.list_processes()
-        normal = [proc for proc in current if proc not in base]
+        current_pids = [proc.process_id for proc in current]
+        print "filtering base procs %s from %s" % (base_pids, current_pids)
+        normal = [proc for cproc in current if cproc.process_id not in base_pids]
         return normal
 
     @needs_epu
