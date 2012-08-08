@@ -44,6 +44,7 @@ class CTDL1TemperatureTransform(TransformFunction):
 
 
     def __init__(self):
+        super(CTDL1TemperatureTransform, self).__init__()
 
         ### Parameter dictionaries
         self.defining_parameter_dictionary()
