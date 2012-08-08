@@ -33,6 +33,7 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
         super(SimpleCtdDataProducer,self).on_start()
         self.stream_id = self.CFG.get_safe('process.stream_id',{})
 
+        log.warning("Got the stream_id from config: %s" % self.stream_id)
 
     #overriding trigger function here to use new granule
     def _trigger_func(self, stream_id):
@@ -79,7 +80,8 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
 #            rdt['coordinates'] = rdt0
 #            rdt['data'] = rdt1
 
-            log.debug("SimpleCtdDataProducer: logging published Record Dictionary:\n %s", rdt.pretty_print())
+#            log.debug("SimpleCtdDataProducer: logging published Record Dictionary:\n %s", rdt.pretty_print())
+#            log.debug("SimpleCtdDataProducer: logging published Record Dictionary:\n %s", rdt)
 
             g = build_granule(data_producer_id=stream_id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
 
