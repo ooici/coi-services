@@ -30,7 +30,7 @@ import numpy as np
 class SalinityTransform(TransformFunction):
     '''
     L2 Transform for CTD Data.
-    Input is conductivity temperature and salsure delivered as a single packet.
+    Input is conductivity temperature and pres delivered as a single packet.
     Output is Practical Salinity as calculated by the Gibbs Seawater package
     '''
 
@@ -86,6 +86,16 @@ class SalinityTransform(TransformFunction):
         data_ctxt.uom = 'byte'
         data_ctxt.fill_value = 0x0
 
+        pres_ctxt = ParameterContext('pres', param_type=QuantityType(value_encoding=np.float32))
+        pres_ctxt.uom = 'degree_Celsius'
+        pres_ctxt.fill_value = 0e0
+
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
+        temp_ctxt.uom = 'degree_Celsius'
+        temp_ctxt.fill_value = 0e0
+
+
+
         # Define the parameter dictionary objects
 
         self.sal = ParameterDictionary()
@@ -95,6 +105,8 @@ class SalinityTransform(TransformFunction):
         self.sal.add_context(height_ctxt)
         self.sal.add_context(sal_ctxt)
         self.sal.add_context(data_ctxt)
+        self.sal.add_context(temp_ctxt)
+        self.sal.add_context(pres_ctxt)
 
     def execute(self, granule):
         """Processes incoming data!!!!
@@ -105,9 +117,9 @@ class SalinityTransform(TransformFunction):
 #        rdt0 = rdt['coordinates']
 #        rdt1 = rdt['data']
 
-        temperature = get_safe(rdt, 'sal')
+        temperature = get_safe(rdt, 'temp')
         conductivity = get_safe(rdt, 'cond')
-        salsure = get_safe(rdt, 'temp')
+        pres = get_safe(rdt, 'pres')
 
         longitude = get_safe(rdt, 'lon')
         latitude = get_safe(rdt, 'lat')
@@ -115,10 +127,10 @@ class SalinityTransform(TransformFunction):
         height = get_safe(rdt, 'height')
 
         log.warn('Got conductivity: %s' % str(conductivity))
-        log.warn('Got salsure: %s' % str(salsure))
+        log.warn('Got pres: %s' % str(pres))
         log.warn('Got temperature: %s' % str(temperature))
 
-        salinity = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=salsure)
+        salinity = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pres)
 
         log.warn('Got salinity: %s' % str(salinity))
 
