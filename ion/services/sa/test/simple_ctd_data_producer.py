@@ -41,7 +41,14 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
 
 
         #@todo - add lots of comments in here
-        while True:
+
+        # The base SimpleCtdPublisher provides a gevent Event that indicates when the process is being
+        # shut down. We can use a simple pattern here to accomplish both a safe shutdown of this loop
+        # when the process shuts down *AND* do the timeout between loops in a very safe/efficient fashion.
+        #
+        # By using this instead of a sleep in the loop itself, we can immediatly interrupt this loop when
+        # the process is being shut down instead of having to wait for the sleep to terminate.
+        while not self.finished.wait(timeout=2):
 
             length = 10
 
@@ -83,5 +90,3 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
             log.debug('SimpleCtdDataProducer: Sending %d values!' % length)
             self.publisher.publish(g)
 
-            time.sleep(2.0)
-  
