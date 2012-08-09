@@ -58,7 +58,10 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
 
 
     def test_l4_ci_sa_rq_161_235_336(self):
-        instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
+
+        instrum_device = IonObject(RT.Attachment,name="sample_instrument_device",description="blah blah")
+
+        instrument_device_id, _ =          self.RR.create(instrum_device)
         #attachments to instrument
         self.RR.create_attachment(instrument_device_id, IonObject(RT.Attachment,
                                                                  name="blah",
