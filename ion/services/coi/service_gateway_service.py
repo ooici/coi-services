@@ -10,6 +10,7 @@ from gevent.wsgi import WSGIServer
 from pyon.public import IonObject, Container, ProcessRPCClient
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
 from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict
+from pyon.core.governance.governance_controller import DEFAULT_ACTOR_ID
 from pyon.event.event import EventSubscriber
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
@@ -39,7 +40,7 @@ GATEWAY_ERROR_EXCEPTION = 'Exception'
 GATEWAY_ERROR_MESSAGE = 'Message'
 GATEWAY_ERROR_TRACE = 'Trace'
 
-DEFAULT_ACTOR_ID = 'anonymous'
+
 DEFAULT_EXPIRY = '0'
 
 #Stuff for specifying other return types
@@ -409,7 +410,7 @@ def build_message_headers( ion_actor_id, expiry):
         org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
 
-        role_header = get_role_message_headers(org_roles)
+        role_header = self.container.governance_controller.get_role_message_headers(org_roles)
 
         #Cache the roles by user id
         service_gateway_instance.user_data_cache.put(ion_actor_id, role_header)
@@ -421,16 +422,7 @@ def build_message_headers( ion_actor_id, expiry):
 
     return headers
 
-#Iterate the Org(s) that the user belongs to and create a header that lists only the role names per Org assigned
-#to the user; i.e. {'ION': ['Member', 'Operator'], 'Org2': ['Member']}
-def get_role_message_headers(org_roles):
 
-    role_header = dict()
-    for org in org_roles:
-        role_header[org] = []
-        for role in org_roles[org]:
-            role_header[org].append(role.name)
-    return role_header
 
 #Build parameter list dynamically from
 def create_parameter_list(request_type, service_name, target_client,operation, json_params):

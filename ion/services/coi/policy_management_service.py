@@ -6,7 +6,7 @@ __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
 from interface.services.coi.ipolicy_management_service import BasePolicyManagementService
-from pyon.core.exception import NotFound, BadRequest
+from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import PRED, RT, Container, CFG, OT, IonObject
 from pyon.util.containers import is_basic_identifier
 from pyon.util.log import log
@@ -83,7 +83,6 @@ class PolicyManagementService(BasePolicyManagementService):
         @retval policy_id    str
         @throws BadRequest    If any of the paramaters are not set.
         """
-
         if not service_name:
             raise BadRequest("The service_name parameter is missing")
 
@@ -129,6 +128,114 @@ class PolicyManagementService(BasePolicyManagementService):
         policy_obj = IonObject(RT.Policy, name=policy_name, description=description, policy_type=service_policy_obj)
 
         return self.create_policy(policy_obj)
+    '''
+    def add_resource_operation_precondition_policy(self, resource_id='', op='', policy_content=''):
+        """Helper operation for adding a precondition policy for a specific agent ooperation for a specific resource. The id
+        string returned is the internal id by which Policy will be identified in the data store. The precondition
+        method must return a tuple (boolean, string).
+
+        @param resource_id    str
+        @param op    str
+        @param policy_content    str
+        @retval policy_id    str
+        @throws BadRequest    If any of the parameters are not set.
+        """
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is missing")
+
+        resource = self.clients.resource_registry.read(resource_id)
+        if not resource:
+            raise BadRequest("The resource %s cannot be found", resource_id)
+
+        if not op:
+            raise BadRequest("The op parameter is missing")
+
+        if not policy_content:
+            raise BadRequest("The policy_content parameter is missing")
+
+        policy_name = resource.name + "_" + op + "_Precondition_Policies"
+
+        policies,_ = self.clients.resource_registry.find_resources(restype=RT.Policy, name=policy_name)
+        if policies:
+            #Update existing policy by adding to list
+            if len(policies) > 1:
+                raise Inconsistent('There should only be one Policy object per operation')
+
+            if policies[0].policy_type.op != op or  policies[0].policy_type.type_ != OT.OperationPreconditionPolicy:
+                raise Inconsistent('There Policy object %s does not match the requested operation %s: %s' % ( policies[0].name,resource.name, op ))
+
+            policies[0].policy_type.preconditions.append(policy_content)
+
+            self.update_policy(policies[0])
+
+            return policies[0]._id
+
+        else:
+            #Create a new policy object
+
+            op_policy_obj = IonObject(OT.OperationPreconditionPolicy,  op=op)
+            op_policy_obj.preconditions.append(policy_content)
+
+            policy_obj = IonObject(RT.Policy, name=policy_name, policy_type=op_policy_obj, description='List of operation precondition policies')
+
+            policy_id =  self.create_policy(policy_obj)
+            policy = self.clients.resource_registry.read(policy_id)
+            if not policy:
+                raise NotFound("Policy %s does not exist" % policy_id)
+
+            self._add_resource_policy(resource, policy)
+
+            return policy_id
+    '''
+
+    def add_process_operation_precondition_policy(self, process_name='', op='', policy_content=''):
+        """Helper operation for adding a precondition policy for a specific process operation; could be a service or agent.
+        The id string returned is the internal id by which Policy will be identified in the data store. The precondition
+        method must return a tuple (boolean, string).
+
+        @param process_name    str
+        @param op    str
+        @param policy_content    str
+        @retval policy_id    str
+        @throws BadRequest    If any of the parameters are not set.
+        """
+        if not process_name:
+            raise BadRequest("The process_name parameter is missing")
+
+        if not op:
+            raise BadRequest("The op parameter is missing")
+
+        if not policy_content:
+            raise BadRequest("The policy_content parameter is missing")
+
+        policy_name = process_name + "_" + op + "_Precondition_Policies"
+
+        policies,_ = self.clients.resource_registry.find_resources(restype=RT.Policy, name=policy_name)
+        if policies:
+            #Update existing policy by adding to list
+            if len(policies) > 1:
+                raise Inconsistent('There should only be one Policy object per process_name operation')
+
+            if policies[0].policy_type.op != op or  policies[0].policy_type.type_ != OT.ProcessOperationPreconditionPolicy:
+                raise Inconsistent('There Policy object %s does not match the requested process operation %s: %s' % ( policies[0].name, process_name, op ))
+
+            policies[0].policy_type.preconditions.append(policy_content)
+
+            self.update_policy(policies[0])
+
+            return policies[0]._id
+
+        else:
+            #Create a new policy object
+
+            op_policy_obj = IonObject(OT.ProcessOperationPreconditionPolicy,  process_name=process_name, op=op)
+            op_policy_obj.preconditions.append(policy_content)
+
+            policy_obj = IonObject(RT.Policy, name=policy_name, policy_type=op_policy_obj, description='List of operation precondition policies for ' + process_name)
+
+            return self.create_policy(policy_obj)
+
+
 
     def create_policy(self, policy=None):
         """Persists the provided Policy object The id string returned
@@ -329,7 +436,7 @@ class PolicyManagementService(BasePolicyManagementService):
 
         if policy.policy_type.type_ == OT.CommonServiceAccessPolicy:
             self._publish_service_policy_event(policy)
-        elif policy.policy_type.type_ == OT.ServiceAccessPolicy:
+        elif policy.policy_type.type_ == OT.ServiceAccessPolicy or policy.policy_type.type_ == OT.ProcessOperationPreconditionPolicy:
             self._publish_service_policy_event(policy)
         else:
             #Need to publish an event that a policy has changed for any associated resource
@@ -359,8 +466,13 @@ class PolicyManagementService(BasePolicyManagementService):
             event_data['origin_type'] = 'Service_Policy'
             event_data['description'] = 'Updated Service Policy'
 
+            if policy.policy_type.type_ == OT.ProcessOperationPreconditionPolicy:
+                event_data['op'] =  policy.policy_type.op
+
             if hasattr(policy.policy_type, 'service_name'):
                 event_data['service_name'] = policy.policy_type.service_name
+            elif hasattr(policy.policy_type, 'process_name'):
+                event_data['service_name'] = policy.policy_type.process_name
             else:
                 event_data['service_name'] = ''
 
@@ -399,9 +511,6 @@ class PolicyManagementService(BasePolicyManagementService):
         return resource_list
 
 
-
-
-
     def get_active_resource_access_policy_rules(self, resource_id='', org_name=''):
         """Generates the set of all enabled access policies for the specified resource within the specified Org. If the org_name
         is not provided, then the root ION Org will be assumed.
@@ -414,24 +523,21 @@ class PolicyManagementService(BasePolicyManagementService):
         if not resource_id:
             raise BadRequest("The resource_id parameter is missing")
 
-        resource = self.clients.resource_registry.read(resource_id)
-        if not resource:
-            raise NotFound("Resource %s does not exist" % resource_id)
 
-        #policy = self._get_policy_template()
+        #TODO - extend to handle Org specific service policies at some point.
+
+        #TODO - can the finds be replaced with a better index based on sub types?
 
         rules = ""
         policy_set = self.find_resource_policies(resource_id)
 
         for p in policy_set:
-            if p.enabled:
+            if p.enabled  and p.policy_type.type_ == OT.ResourceAccessPolicy :
                 rules += p.policy_type.policy_rule
 
-        #policy_rules = policy % (resource_id, rules)
-
-        #return policy_rules
 
         return rules
+
 
     def get_active_service_access_policy_rules(self, service_name='', org_name=''):
         """Generates the set of all enabled access policies for the specified service within the specified Org. If the org_name
@@ -442,7 +548,6 @@ class PolicyManagementService(BasePolicyManagementService):
         @retval policy_rules    str
         @throws NotFound    object with specified id does not exist
         """
-
         #TODO - extend to handle Org specific service policies at some point.
 
         #TODO - can the finds be replaced with a better index based on sub types?
@@ -462,16 +567,51 @@ class PolicyManagementService(BasePolicyManagementService):
                 if p.enabled and p.policy_type.type_ == OT.ServiceAccessPolicy and p.policy_type.service_name == service_name:
                     rules += p.policy_type.policy_rule
 
-        #policy_rules = policy % (service_name, rules)
-
-
-        #return policy_rules
         return rules
 
+    def get_active_process_operation_preconditions(self, process_name='', op='', org_name=''):
+        """Generates the set of all enabled precondition policies for the specified process operation within the specified
+        Org; could be a service or resource agent. If the org_name is not provided, then the root ION Org will be assumed.
 
-#
-#  ROLE CRUD Operations
-#
+        @param process_name    str
+        @param op    str
+        @param org_name    str
+        @retval preconditions    list
+        @throws NotFound    object with specified id does not exist
+        """
+        if not process_name:
+            raise BadRequest("The process_name parameter is missing")
+
+        if not op:
+            raise BadRequest("The op parameter is missing")
+
+        #TODO - extend to handle Org specific service policies at some point.
+
+        #TODO - can the finds be replaced with a better index based on sub types?
+
+        preconditions = list()
+        policy_set,_ = self.clients.resource_registry.find_resources(restype=RT.Policy)
+
+        for p in policy_set:
+            if p.enabled and p.policy_type.type_ == OT.ProcessOperationPreconditionPolicy and p.policy_type.process_name == process_name \
+            and p.policy_type.op == op:
+                return p.policy_type.preconditions
+
+        return preconditions
+
+    #Local helper functions for testing policies - do not remove
+
+    def func1_pass(self, msg, header):
+        return True, ''
+
+    def func2_deny(self,  msg, header):
+        return False, 'Denied for no reason'
+
+
+
+    #
+    #  ROLE CRUD Operations
+    #
 
 
     def create_role(self, user_role=None):

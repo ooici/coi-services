@@ -10,7 +10,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 from pyon.util.context import LocalContextMixin
 
-from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound, Unauthorized
+from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound, Unauthorized, InstStateError
 from pyon.public import PRED, RT, IonObject, CFG, log, OT
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
@@ -20,11 +20,11 @@ from interface.services.coi.iexchange_management_service import ExchangeManageme
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
-from ion.services.coi.service_gateway_service import get_role_message_headers
 from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE, ION_MANAGER
 from pyon.core.governance.negotiate_request import REQUEST_DENIED
 from interface.objects import AgentCommand
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 ORG2 = 'Org2'
 INSTRUMENT_OPERATOR = 'INSTRUMENT_OPERATOR'
@@ -91,6 +91,7 @@ TEST_POLICY_TEXT = '''
 class GovernanceTestProcess(LocalContextMixin):
     name = 'gov_test'
     id='gov_client'
+    process_type = 'simple'
 
 @attr('INT', group='coi')
 class TestGovernanceInt(IonIntegrationTestCase):
@@ -129,12 +130,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.ion_org = self.org_client.find_org()
 
 
-        self.system_actor = self.id_client.find_actor_identity_by_name(name=CFG.system.system_actor)
-        log.debug('system actor:' + self.system_actor._id)
+        self.system_actor = self.container.governance_controller.get_system_actor()
+        log.info('system actor:' + self.system_actor._id)
 
-
-        sa_header_roles = get_role_message_headers(self.org_client.find_all_roles_by_user(self.system_actor._id))
-        self.sa_user_header = {'ion-actor-id': self.system_actor._id, 'ion-actor-roles': sa_header_roles }
+        self.sa_user_header = self.container.governance_controller.get_system_actor_header()
 
     def tearDown(self):
         policy_list, _ = self.rr_client.find_resources(restype=RT.Policy)
@@ -147,7 +146,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    def test_basic_policy(self):
+    def test_basic_policy_operations(self):
 
         #Make sure that the system policies have been loaded
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
@@ -195,7 +194,80 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ems_client.create_exchange_space(es_obj)
         self.assertIn( 'Arguments not set',cm.exception.message)
 
-        #self.pol_client.remove_service_policy('exchange_management', test_policy_id, headers=self.sa_user_header)
+
+        #Now test service operation specific policies
+
+        pol1_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content='func1_pass', headers=self.sa_user_header )
+
+        gevent.sleep(1)  # Wait for events to be published and policy updated
+
+        #try to disable the test policy  again
+        self.pol_client.disable_policy(test_policy_id, headers=self.sa_user_header)
+
+        gevent.sleep(1)  # Wait for events to be published and policy updated
+
+        #The same request that previously was allowed should now be denied
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(Unauthorized) as cm:
+            self.ems_client.create_exchange_space(es_obj)
+        self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
+
+        #now enable the test policy to try again
+        self.pol_client.enable_policy(test_policy_id, headers=self.sa_user_header)
+
+        gevent.sleep(1)  # Wait for events to be published and policy updated
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj)
+        self.assertIn( 'Arguments not set',cm.exception.message)
+
+
+        pol2_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content='func2_deny', headers=self.sa_user_header )
+
+        gevent.sleep(1)  # Wait for events to be published and policy updated
+
+        #try to disable the test policy again
+        with self.assertRaises(Unauthorized) as cm:
+            self.pol_client.disable_policy(test_policy_id, headers=self.sa_user_header)
+        self.assertIn( 'Denied for no reason',cm.exception.message)
+
+
+        self.pol_client.delete_policy(pol2_id,  headers=self.sa_user_header)
+
+        gevent.sleep(1)  # Wait for events to be published and policy updated
+
+        #try to disable the test policy  again
+        self.pol_client.disable_policy(test_policy_id, headers=self.sa_user_header)
+
+        gevent.sleep(1)  # Wait for events to be published and policy updated
+
+        #The same request that previously was allowed should now be denied
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(Unauthorized) as cm:
+            self.ems_client.create_exchange_space(es_obj)
+        self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
+
+        pre_func1 =\
+        """def precondition_func(process, msg, headers):
+            if headers['op'] == 'disable_policy':
+                return False, 'Denied for no reason again'
+            else:
+                return True, ''
+
+        """
+
+        pol2_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content=pre_func1, headers=self.sa_user_header )
+
+        gevent.sleep(1)  # Wait for events to be published and policy updated
+
+        #try to disable the test policy again
+        with self.assertRaises(Unauthorized) as cm:
+            self.pol_client.disable_policy(test_policy_id, headers=self.sa_user_header)
+        self.assertIn( 'Denied for no reason again',cm.exception.message)
+
+
         self.pol_client.delete_policy(test_policy_id, headers=self.sa_user_header)
 
         gevent.sleep(1)  # Wait for events to be published and policy updated
@@ -205,6 +277,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(Unauthorized) as cm:
             self.ems_client.create_exchange_space(es_obj)
         self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
+
+
+
+
 
 
 
@@ -223,10 +299,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
         user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
-        log.debug( "user id=" + user_id)
-
-        user_roles = get_role_message_headers(self.org_client.find_all_roles_by_user(user_id))
-        user_header = {'ion-actor-id': user_id, 'ion-actor-roles': user_roles }
+        log.info( "user id=" + user_id)
+        user_header = self.container.governance_controller.get_actor_header(user_id)
 
         #Attempt to enroll a user anonymously - should not be allowed
         with self.assertRaises(Unauthorized) as cm:
@@ -404,8 +478,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.accept_request(org2_id, req_id, headers=user_header)
 
         #Refresh headers with new role
-        user_roles = get_role_message_headers(self.org_client.find_all_roles_by_user(user_id))
-        user_header = {'ion-actor-id': user_id, 'ion-actor-roles': user_roles }
+        user_header = self.container.governance_controller.get_actor_header(user_id)
 
         self.ims_client.create_instrument_agent(ia_obj, headers=user_header)
 
@@ -462,36 +535,122 @@ class TestGovernanceInt(IonIntegrationTestCase):
         commitments, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.ResourceCommitment)
         self.assertEqual(len(commitments),0)
 
-    @unittest.skip('not ready')
-    def test_agent_policy(self):
+    #@unittest.skip('not ready')
+    def test_instrument_agent_policy(self):
 
         #Make sure that the system policies have been loaded
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
+        #Create Test InstrumentDevice
+        inst_obj = IonObject(RT.InstrumentDevice, name='Test_Instrument_123')
+        inst_obj_id,_ = self.rr_client.create(inst_obj, headers=self.sa_user_header)
 
-        #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user level - test this
+        #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user level - figure this  out
         from ion.agents.instrument.test.test_instrument_agent import start_fake_instrument_agent
-        ia_client = start_fake_instrument_agent(self.container, message_headers=self.sa_user_header)
+        ia_client = start_fake_instrument_agent(self.container, resource_id=inst_obj_id, resource_name=inst_obj.name, message_headers=self.sa_user_header)
+
+        #Create Instrument Operator Role
+        operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR,label='Instrument Operator', description='Instrument Operator')
+        self.org_client.add_user_role(self.ion_org._id, operator_role, headers=self.sa_user_header)
+
 
         cmd = AgentCommand(command='get_current_state')
-        retval = ia_client.execute_agent(cmd)
+
+        #First try to execute a command anonymously - it should be denied
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia_client.execute_agent(cmd)
+        self.assertIn('(execute_agent) has been denied',cm.exception.message)
+
+        #Create user
+        user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
+        log.debug( "user id=" + user_id)
+
+        user_header = self.container.governance_controller.get_actor_header(user_id)
+
+        #Next try to execute a command with a user that is not an Instrument Operator - it should be denied
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia_client.execute_agent(cmd, headers=user_header)
+        self.assertIn('(execute_agent) has been denied',cm.exception.message)
+
+        #However the ION Manager should be allowed
+        cmd = AgentCommand(command='get_current_state')
+        retval = ia_client.execute_agent(cmd, headers=self.sa_user_header)
+        state = retval.result
+        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+
+        #Setup appropriate Role for user
+        self.org_client.grant_role(self.ion_org._id,user_id, INSTRUMENT_OPERATOR, headers=self.sa_user_header)
+
+        #Refresh header with updated roles
+        user_header = self.container.governance_controller.get_actor_header(user_id)
+
+        cmd = AgentCommand(command='get_current_state')
+        retval = ia_client.execute_agent(cmd, headers=user_header)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
         cmd = AgentCommand(command='initialize')
-        retval = ia_client.execute_agent(cmd)
+        retval = ia_client.execute_agent(cmd, headers=user_header)
 
         cmd = AgentCommand(command='get_current_state')
-        retval = ia_client.execute_agent(cmd)
+        retval = ia_client.execute_agent(cmd, headers=user_header)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.INACTIVE)
 
-        cmd = AgentCommand(command='reset')
-        retval = ia_client.execute_agent(cmd)
 
+        #Going to try access to other operations on the agent, don't care if they actually work - just do they get denied or not
+
+        with self.assertRaises(InstStateError) as cm:
+            reply = ia_client.get_param(SBE37Parameter.ALL)
+
+        new_params = {
+            SBE37Parameter.TA0 : 2,
+            SBE37Parameter.INTERVAL : 1,
+        }
+
+        #First try anonymously - should be denied
+        with self.assertRaises(Unauthorized) as cm:
+            ia_client.set_param(new_params)
+        self.assertIn('(set_param) has been denied',cm.exception.message)
+
+        #THen try with user that is Instrument Operator - should pass policy check
+        with self.assertRaises(InstStateError) as cm:
+            ia_client.set_param(new_params, headers=user_header)
+
+
+        #Test access precondition to deny get_current_state commands but allow all others
+        pre_func1 =\
+        """def precondition_func(process, msg, headers):
+            if msg['command'].command == 'get_current_state':
+                return False, 'get_current_state is being denied'
+            else:
+                return True, ''
+
+        """
+
+        #Add an example of a operation specific policy that checks internal values to decide on access
+        pol_id = self.pol_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='execute_agent', policy_content=pre_func1, headers=self.sa_user_header )
+
+        gevent.sleep(1)  # Wait for events to be published and policy updated
+
+        #The reset command should be allowed
+        cmd = AgentCommand(command='reset')
+        retval = ia_client.execute_agent(cmd, headers=user_header)
+
+        #The get_current_state command should be denied
         cmd = AgentCommand(command='get_current_state')
-        retval = ia_client.execute_agent(cmd)
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia_client.execute_agent(cmd, headers=user_header)
+        self.assertIn( 'get_current_state is being denied',cm.exception.message)
+
+        #Now delete the get_current_state policy and try again
+        self.pol_client.delete_policy(pol_id, headers=self.sa_user_header)
+
+        gevent.sleep(1)  # Wait for events to be published and policy updated
+
+        #The get_current_state command should be denied
+        cmd = AgentCommand(command='get_current_state')
+        retval = ia_client.execute_agent(cmd, headers=user_header)
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-
