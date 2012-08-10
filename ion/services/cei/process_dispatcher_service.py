@@ -502,6 +502,7 @@ class PDNativeBackend(object):
                 if self.consumer_thread:
                     self.dashi.cancel()
                     self.consumer_thread.join()
+                self.dashi.disconnect()
         except Exception:
             log.exception("Error shutting down Process Dispatcher dashi consumer")
 
