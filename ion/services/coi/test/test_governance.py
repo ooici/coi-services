@@ -88,6 +88,31 @@ TEST_POLICY_TEXT = '''
         </Rule>
         '''
 
+
+TEST_BOUNDARY_POLICY_TEXT = '''
+        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
+                            <SubjectAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+
+            </Target>
+
+        </Rule>
+        '''
+
+
 class GovernanceTestProcess(LocalContextMixin):
     name = 'gov_test'
     id='gov_client'
@@ -136,7 +161,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.sa_user_header = self.container.governance_controller.get_system_actor_header()
 
     def tearDown(self):
-        policy_list, _ = self.rr_client.find_resources(restype=RT.Policy)
+        policy_list, _ = self.rr_client.find_resources(restype=RT.Policy, headers=self.sa_user_header)
 
         #Must remove the policies in the reverse order they were added
         for policy in sorted(policy_list,key=lambda p: p.ts_created, reverse=True):
@@ -280,7 +305,68 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    @patch.dict(CFG, {'container':{'org_boundary':True}})
+    def test_org_boundary(self):
 
+        with self.assertRaises(NotFound) as nf:
+            org2 = self.org_client.find_org(ORG2)
+        self.assertIn('The Org with name Org2 does not exist',nf.exception.message)
+
+        #Create a second Org
+        org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
+        org2_id = self.org_client.create_org(org2, headers=self.sa_user_header)
+
+        org2 = self.org_client.find_org(ORG2)
+        self.assertEqual(org2_id, org2._id)
+
+        #Create a new user
+        user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
+        log.info( "user id=" + user_id)
+        user_header = self.container.governance_controller.get_actor_header(user_id)
+        print user_header
+
+        #First try to get a list of Users by hitting the RR anonymously - should be allowed.
+        users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
+        self.assertEqual(len(users),2) #Should include the ION System Actor as well.
+
+        #Now enroll the user as a member of the Second Org
+        self.org_client.enroll_member(org2_id,user_id, headers=self.sa_user_header)
+        user_header = self.container.governance_controller.get_actor_header(user_id)
+        print user_header
+
+        #Add a new Org boundary policy which deny's all anonymous access
+        test_policy_id = self.pol_client.create_resource_access_policy( org2_id, 'Org_Test_Policy',
+            'Deny all access for anonymous user',
+            TEST_BOUNDARY_POLICY_TEXT, headers=self.sa_user_header)
+
+        gevent.sleep(1)  # Wait for events to be fired and policy updated
+
+        #Hack to force container into an Org Boundary for second Org
+        self.container.governance_controller._container_org_name = org2.name
+        self.container.governance_controller._is_container_org_boundary = True
+
+        #First try to get a list of Users by hitting the RR anonymously - should be denied.
+        with self.assertRaises(Unauthorized) as cm:
+            users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
+        self.assertIn( 'resource_registry(find_resources) has been denied',cm.exception.message)
+
+
+        #Now try to hit the RR with a real user and should noe bw allowed
+        users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=user_header)
+        self.assertEqual(len(users),2) #Should include the ION System Actor as well.
+
+        #TODO - figure out how to right a XACML rule to be a member of the specific Org as well
+
+        #Hack to force container back to default values
+        self.container.governance_controller._container_org_name = 'ION'
+        self.container.governance_controller._is_container_org_boundary = False
+        self.container.governance_controller._container_org_id = None
+
+        self.pol_client.delete_policy(test_policy_id, headers=self.sa_user_header)
+
+        gevent.sleep(1)  # Wait for events to be published and policy updated
 
 
 
