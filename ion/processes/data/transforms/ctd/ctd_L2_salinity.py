@@ -16,6 +16,7 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L2_densi
 
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -26,6 +27,12 @@ from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 import numpy as np
+
+craft = CoverageCraft
+sdom, tdom = craft.create_domains()
+sdom = sdom.dump()
+tdom = tdom.dump()
+parameter_dictionary = craft.create_parameters()
 
 class SalinityTransform(TransformFunction):
     '''
@@ -40,74 +47,6 @@ class SalinityTransform(TransformFunction):
     def __init__(self):
         super(SalinityTransform, self).__init__()
 
-#        ### Taxonomies are defined before hand out of band... somehow.
-#        tx = TaxyTool()
-#        tx.add_taxonomy_set('salinity','long name for salinity')
-#        tx.add_taxonomy_set('lat','long name for latitude')
-#        tx.add_taxonomy_set('lon','long name for longitude')
-#        tx.add_taxonomy_set('height','long name for height')
-#        tx.add_taxonomy_set('time','long name for time')
-#        # This is an example of using groups it is not a normative statement about how to use groups
-#        tx.add_taxonomy_set('coordinates','This group contains coordinates...')
-#        tx.add_taxonomy_set('data','This group contains data...')
-
-        ### Parameter dictionaries
-        self.defining_parameter_dictionary()
-
-    def defining_parameter_dictionary(self):
-
-        # Define the parameter context objects
-
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 1970-01-01'
-        t_ctxt.fill_value = 0x0
-
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
-        lat_ctxt.reference_frame = AxisTypeEnum.LAT
-        lat_ctxt.uom = 'degree_north'
-        lat_ctxt.fill_value = 0e0
-
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
-        lon_ctxt.reference_frame = AxisTypeEnum.LON
-        lon_ctxt.uom = 'degree_east'
-        lon_ctxt.fill_value = 0e0
-
-        height_ctxt = ParameterContext('height', param_type=QuantityType(value_encoding=np.float32))
-        height_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        height_ctxt.uom = 'meters'
-        height_ctxt.fill_value = 0e0
-
-        sal_ctxt = ParameterContext('cond', param_type=QuantityType(value_encoding=np.float32))
-        sal_ctxt.uom = 'unknown'
-        sal_ctxt.fill_value = 0e0
-
-        data_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=np.int8))
-        data_ctxt.uom = 'byte'
-        data_ctxt.fill_value = 0x0
-
-        pres_ctxt = ParameterContext('pres', param_type=QuantityType(value_encoding=np.float32))
-        pres_ctxt.uom = 'degree_Celsius'
-        pres_ctxt.fill_value = 0e0
-
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
-        temp_ctxt.uom = 'degree_Celsius'
-        temp_ctxt.fill_value = 0e0
-
-
-
-        # Define the parameter dictionary objects
-
-        self.sal = ParameterDictionary()
-        self.sal.add_context(t_ctxt)
-        self.sal.add_context(lat_ctxt)
-        self.sal.add_context(lon_ctxt)
-        self.sal.add_context(height_ctxt)
-        self.sal.add_context(sal_ctxt)
-        self.sal.add_context(data_ctxt)
-        self.sal.add_context(temp_ctxt)
-        self.sal.add_context(pres_ctxt)
-
     def execute(self, granule):
         """Processes incoming data!!!!
         """
@@ -118,13 +57,13 @@ class SalinityTransform(TransformFunction):
 #        rdt1 = rdt['data']
 
         temperature = get_safe(rdt, 'temp')
-        conductivity = get_safe(rdt, 'cond')
-        pres = get_safe(rdt, 'pres')
+        conductivity = get_safe(rdt, 'conductivity')
+        pres = get_safe(rdt, 'pressure')
 
         longitude = get_safe(rdt, 'lon')
         latitude = get_safe(rdt, 'lat')
         time = get_safe(rdt, 'time')
-        height = get_safe(rdt, 'height')
+        depth = get_safe(rdt, 'depth')
 
         log.warn('Got conductivity: %s' % str(conductivity))
         log.warn('Got pres: %s' % str(pres))
@@ -135,7 +74,7 @@ class SalinityTransform(TransformFunction):
         log.warn('Got salinity: %s' % str(salinity))
 
 
-        root_rdt = RecordDictionaryTool(param_dictionary=self.sal)
+        root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
         #todo: use only flat dicts for now, may change later...
 #        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
 #        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
@@ -144,11 +83,11 @@ class SalinityTransform(TransformFunction):
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
-        root_rdt['height'] = height
+        root_rdt['depth'] = depth
 
 #        root_rdt['coordinates'] = coord_rdt
 #        root_rdt['data'] = data_rdt
 
-        return build_granule(data_producer_id='ctd_L2_salinity', param_dictionary=self.sal, record_dictionary=root_rdt)
+        return build_granule(data_producer_id='ctd_L2_salinity', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
 
 
