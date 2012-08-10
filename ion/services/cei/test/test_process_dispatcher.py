@@ -552,6 +552,8 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
             process_schedule, configuration={}, process_id=pid)
         self.assertEqual(pid, pid2)
 
+        # verifies L4-CI-CEI-RQ141 and L4-CI-CEI-RQ142
+
         self.await_state_event(pid, ProcessStateEnum.SPAWN)
 
         proc = self.pd_cli.read_process(pid)
@@ -563,6 +565,8 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         test_client = TestClient()
         for i in range(5):
             self.assertEqual(i + 1, test_client.count(timeout=10))
+
+        # verifies L4-CI-CEI-RQ147
 
         # kill the process and start it again
         self.pd_cli.cancel_process(pid)
@@ -595,6 +599,8 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
         pid = self.pd_cli.create_process(self.process_definition_id)
         self.subscribe_events(pid)
+
+        # verifies L4-CI-CEI-RQ66
 
         # feed in a string that the process will return -- verifies that
         # configuration actually makes it to the instantiated process

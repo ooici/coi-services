@@ -154,6 +154,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         else:
             assert False, "HA Service took too long to get to state STEADY"
 
+        # verifies L4-CI-CEI-RQ122 and L4-CI-CEI-RQ124
+
         new_policy = {'preserve_n': 2}
         self.haa_client.reconfigure_policy(new_policy)
 
