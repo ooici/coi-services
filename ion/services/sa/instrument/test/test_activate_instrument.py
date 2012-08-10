@@ -5,7 +5,9 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
+from interface.services.sa.idata_product_management_service import IDataProductManagementService
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -17,7 +19,10 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from prototype.sci_data.stream_defs import ctd_stream_definition
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
+from prototype.sci_data.stream_defs import \
+    ctd_stream_definition, \
+    L0_pressure_stream_definition, L0_temperature_stream_definition, \
+    L0_conductivity_stream_definition
 
 from interface.objects import AgentCommand
 from interface.objects import ProcessDefinition
@@ -97,7 +102,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                 'stream_id':stream_id,
                 }
         }
-        pid = self.processdispatchclient.schedule_process(process_definition_id= logger_procdef_id, configuration=configuration)
+        pid = self.processdispatchclient.schedule_process(process_definition_id=logger_procdef_id,
+                                                          configuration=configuration)
 
         return pid
 
@@ -108,7 +114,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.loggerpids = []
 
         # Create InstrumentModel
-        instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model="SBE37IMModel" )
+        instModel_obj = IonObject(RT.InstrumentModel,
+                                  name='SBE37IMModel',
+                                  description="SBE37IMModel",
+                                  model="SBE37IMModel" )
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
@@ -116,7 +125,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug( 'new InstrumentModel id = %s ', instModel_id)
 
         # Create InstrumentAgent
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.agents.instrument.instrument_agent", driver_class="InstrumentAgent" )
+        instAgent_obj = IonObject(RT.InstrumentAgent,
+                                  name='agent007',
+                                  description="SBE37IMAgent",
+                                  driver_module="ion.agents.instrument.instrument_agent",
+                                  driver_class="InstrumentAgent" )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -126,20 +139,33 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
         # Create InstrumentDevice
-        log.debug('test_activateInstrumentSample: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
-        instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
+        log.debug('test_activateInstrumentSample: Create instrument resource to represent the SBE37 '
+                + '(SA Req: L4-CI-SA-RQ-241) ')
+        instDevice_obj = IonObject(RT.InstrumentDevice,
+                                   name='SBE37IMDevice',
+                                   description="SBE37IMDevice",
+                                   serial_number="12345" )
         try:
             instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
             self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
 
-        log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
+        log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ",
+                  instDevice_id)
 
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance",
-                                          driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver', driver_class='SBE37Driver',
-                                          comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
-        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
+                                          description="SBE37IMAgentInstance",
+                                          driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
+                                          driver_class='SBE37Driver',
+                                          comms_device_address='sbe37-simulator.oceanobservatories.org',
+                                          comms_device_port=4001,
+                                          port_agent_work_dir='/tmp/',
+                                          port_agent_delimeter=['<<','>>'] )
+
+        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
+                                                                               instAgent_id,
+                                                                               instDevice_id)
 
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = SBE37_CDM_stream_definition()
@@ -200,16 +226,28 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l0_conductivity = L0_conductivity_stream_definition()
-        outgoing_stream_l0_conductivity_id = self.pubsubcli.create_stream_definition(container=outgoing_stream_l0_conductivity, name='L0_Conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id )
+        outgoing_stream_l0_conductivity_id = self.pubsubcli.create_stream_definition(
+            container=outgoing_stream_l0_conductivity,
+            name='L0_Conductivity')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(
+            outgoing_stream_l0_conductivity_id,
+            ctd_L0_all_dprocdef_id )
 
         outgoing_stream_l0_pressure = L0_pressure_stream_definition()
-        outgoing_stream_l0_pressure_id = self.pubsubcli.create_stream_definition(container=outgoing_stream_l0_pressure, name='L0_Pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id )
+        outgoing_stream_l0_pressure_id = self.pubsubcli.create_stream_definition(
+            container=outgoing_stream_l0_pressure,
+            name='L0_Pressure')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(
+            outgoing_stream_l0_pressure_id,
+            ctd_L0_all_dprocdef_id )
 
         outgoing_stream_l0_temperature = L0_temperature_stream_definition()
-        outgoing_stream_l0_temperature_id = self.pubsubcli.create_stream_definition(container=outgoing_stream_l0_temperature, name='L0_Temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id )
+        outgoing_stream_l0_temperature_id = self.pubsubcli.create_stream_definition(
+            container=outgoing_stream_l0_temperature,
+            name='L0_Temperature')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(
+            outgoing_stream_l0_temperature_id,
+            ctd_L0_all_dprocdef_id )
 
 
         self.output_products={}
@@ -221,9 +259,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                                         temporal_domain = tdom,
                                                         spatial_domain = sdom)
 
-        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(  ctd_l0_conductivity_output_dp_obj,
-                                                                                        outgoing_stream_l0_conductivity_id,
-                                                                                        parameter_dictionary)
+        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(
+            ctd_l0_conductivity_output_dp_obj,
+            outgoing_stream_l0_conductivity_id,
+            parameter_dictionary)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
@@ -275,7 +314,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_activateInstrumentSample: create L0 all data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [data_product_id1], self.output_products)
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(
+                ctd_L0_all_dprocdef_id,
+                [data_product_id1],
+                self.output_products)
             self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -374,7 +416,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.loggerpids = []
 
         # Create InstrumentModel
-        instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model="SBE37IMModel" )
+        instModel_obj = IonObject(RT.InstrumentModel,
+                                  name='SBE37IMModel',
+                                  description="SBE37IMModel",
+                                  model="SBE37IMModel" )
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
@@ -382,7 +427,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug( 'new InstrumentModel id = %s ', instModel_id)
 
         # Create InstrumentAgent
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.agents.instrument.instrument_agent", driver_class="InstrumentAgent" )
+        instAgent_obj = IonObject(RT.InstrumentAgent,
+                                  name='agent007',
+                                  description="SBE37IMAgent",
+                                  driver_module="ion.agents.instrument.instrument_agent",
+                                  driver_class="InstrumentAgent" )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -392,8 +441,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
         # Create InstrumentDevice
-        log.debug('test_activateInstrumentSample: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
-        instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
+        log.debug('test_activateInstrumentSample: Create instrument resource to represent the SBE37 '
+            + '(SA Req: L4-CI-SA-RQ-241) ')
+        instDevice_obj = IonObject(RT.InstrumentDevice,
+                                   name='SBE37IMDevice',
+                                   description="SBE37IMDevice",
+                                   serial_number="12345" )
         try:
             instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
             self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
@@ -402,10 +455,18 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance",
-                                          driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver', driver_class='SBE37Driver',
-                                          comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
-        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance,
+                                          name='SBE37IMAgentInstance',
+                                          description="SBE37IMAgentInstance",
+                                          driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
+                                          driver_class='SBE37Driver',
+                                          comms_device_address='sbe37-simulator.oceanobservatories.org',
+                                          comms_device_port=4001,
+                                          port_agent_work_dir='/tmp/',
+                                          port_agent_delimeter=['<<','>>'] )
+        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
+                                                                               instAgent_id,
+                                                                               instDevice_id)
 
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = SBE37_CDM_stream_definition()
@@ -513,7 +574,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
-        log.debug("test_activateInstrumentStream: current state after sending go_active command %s    (L4-CI-SA-RQ-334)", str(state))
+        log.debug("test_activateInstrumentStream: current state after sending go_active command %s    "
+            + "(L4-CI-SA-RQ-334)", str(state))
 
         cmd = AgentCommand(command='run')
         reply = self._ia_client.execute_agent(cmd)

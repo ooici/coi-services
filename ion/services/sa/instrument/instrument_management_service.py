@@ -8,6 +8,7 @@
 
 
 #from pyon.public import Container
+from pyon.agent.agent import ResourceAgentClient
 from pyon.public import LCE
 from pyon.public import RT, PRED, OT
 from pyon.public import CFG
@@ -93,6 +94,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         if hasattr(self.clients, "pubsub_management"):
             self.PSMS = self.clients.pubsub_management
+
+        if hasattr(self.clients, "data_retriever"):
+            self.DRS = self.clients.data_retriever
 
         #farm everything out to the impls
 
@@ -1132,10 +1136,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.platform_device.unlink_model(platform_device_id, platform_model_id)
 
     def assign_instrument_device_to_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.platform_device.link_device(platform_device_id, instrument_device_id)
+        self.platform_device.link_instrument_device(platform_device_id, instrument_device_id)
 
     def unassign_instrument_device_from_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.platform_device.unlink_device(platform_device_id, instrument_device_id)
+        self.platform_device.unlink_instrument_device(platform_device_id, instrument_device_id)
+
+    def assign_platform_device_to_platform_device(self, child_platform_device_id='', platform_device_id=''):
+        self.platform_device.link_platform_device(platform_device_id, child_platform_device_id)
+
+    def unassign_platform_device_from_platform_device(self, child_platform_device_id='', platform_device_id=''):
+        self.platform_device.unlink_platform_device(platform_device_id, child_platform_device_id)
 
     def assign_platform_agent_to_platform_agent_instance(self, platform_agent_id='', platform_agent_instance_id=''):
         self.platform_agent_instance.link_agent_definition(platform_agent_instance_id, platform_agent_id)
@@ -1223,10 +1233,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.instrument_device.find_stemming_agent_instance(instrument_device_id)
 
     def find_instrument_device_by_platform_device(self, platform_device_id=''):
-        return self.platform_device.find_stemming_device(platform_device_id)
+        return self.platform_device.find_stemming_instrument_device(platform_device_id)
 
     def find_platform_device_by_instrument_device(self, instrument_device_id=''):
-        return self.platform_device.find_having_device(instrument_device_id)
+        return self.platform_device.find_having_instrument_device(instrument_device_id)
+
+    def find_child_platform_device_by_platform_device(self, platform_device_id=''):
+        return self.platform_device.find_stemming_platform_device(platform_device_id)
+
+    def find_platform_device_by_child_platform_device(self, instrument_device_id=''):
+        return self.platform_device.find_having_platform_device(instrument_device_id)
 
     def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
         raise NotImplementedError("TODO: this function will be removed")
@@ -1343,6 +1359,66 @@ class InstrumentManagementService(BaseInstrumentManagementService):
        return self.sensor_device.advance_lcs(sensor_device_id, lifecycle_event)
 
 
+    ############################
+    #
+    #  STREAM RETRIEVAL
+    #
+    ############################
+
+    def retrieve_latest_device_event(self, device_id):
+        #todo: is there a constant for "events"?
+        datastore = self.container.datastore_manager.get_datastore("events")
+
+        view_name = 'event/by_type'
+
+        key_name = device_id #todo: not sure what this needs to be for event/event_type
+
+        opts = dict(
+            start_key = [key_name, 0],
+            end_key   = [key_name, {}],
+            descending = True,
+            limit = 1,
+            include_docs = True
+        )
+
+        granules = []
+
+        log.info('Getting data from datastore')
+        for result in datastore.query_view(view_name, opts=opts):
+            doc = result.get('doc')
+            if doc is not None:
+                ion_obj = self.granule_from_doc(doc)
+                granules.append(ion_obj)
+        log.info('Received %d granules.', len(granules))
+
+        #todo: handle this better
+        return granules[0]
+
+
+    def retrieve_latest_data_granule(self, device_id):
+        #todo: how to get dataset?
+        #todo: wait for DM refactor before proceeding
+
+        dataset_id = "fixme, how to get this"
+
+#        # TESTING
+#        stream_id  = self.PSMS.create_stream()
+#        config_id  = self.get_ingestion_config()
+#        dataset_id = self.create_dataset()
+#        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
+#        #--------------------------------------------------------------------------------
+#        # Create the datastore first,
+#        #--------------------------------------------------------------------------------
+#        self.get_datastore(dataset_id)
+#
+#        self.publish_hifi(stream_id, 0)
+#        self.publish_hifi(stream_id, 1)
+#
+#        self.wait_until_we_have_enough_granules(dataset_id, 2) # I just need two
+
+        return self.DRS.retrieve_last_granule(dataset_id)
+
+
 
     ############################
     #
@@ -1374,7 +1450,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_associations,
             ext_exclude)
 
-        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
+        #Loop through any attachments and remove the actual content since we don't need
+        #   to send it to the front end this way
         #TODO - see if there is a better way to do this in the extended resource frame work.
         if hasattr(extended_instrument, 'attachments'):
             for att in extended_instrument.attachments:
@@ -1383,6 +1460,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return extended_instrument
 
+
+    # TODO: this causes a problem because an instrument agent must be running in order to look up extended attributes.
+    def obtain_agent_handle(self, instrument_devivce_id):
+        ia_client = ResourceAgentClient(instrument_devivce_id,  process=self)
+
+
+#       #todo: any validation?
+#        cmd = AgentCommand(command='get_current_state')
+#        retval = self._ia_client.execute_agent(cmd)
+#        state = retval.result
+#        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+#
+
+        return ia_client
 
         #Bogus functions for computed attributes
     def get_firmware_version(self, instrument_device_id):
@@ -1396,6 +1487,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def get_operational_state(self, instrument_device_id):   # from Device
+        #ia_client = self.obtain_agent_handle(instrument_device_id) # todo: CAUSES ERRORS
         return "23"
 
     def get_last_command_status(self, instrument_device_id):
@@ -1474,4 +1566,48 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_aggregated_status(self, platform_device_id):
         # The status roll-up that summarizes the entire status of the device  (CV:  RED, YELLOW, GREEN, BLACK)
         #todo: class for constants?
-        return "RED"   
+
+        #todo: does framework validate id?
+
+        #recursive function to determine the aggregate status by visiting all relevant nodes
+        def get_status_helper(acc, device_id, device_type):
+            if "todo: early exit criteria" == acc:
+                return acc
+
+            if RT.InstrumentDevice == device_type:
+                stat_p = self.get_power_status_roll_up(device_id)
+                stat_d = self.get_data_status_roll_up(device_id)
+                stat_l = self.get_location_status_roll_up(device_id)
+                stat_c = self.get_communications_status_roll_up(device_id)
+
+                #todo: return acc based on instrument status?
+
+            elif RT.PlatformDevice == device_type:
+                #todo: how to get platform status?
+                #stat_p = self.get_power_status_roll_up(device_id)
+                #stat_d = self.get_data_status_roll_up(device_id)
+                #stat_l = self.get_location_status_roll_up(device_id)
+                #stat_c = self.get_communications_status_roll_up(device_id)
+
+                #todo: return acc based on platform status?
+
+                instrument_resources = self.platform_device.find_stemming_instrument_device(device_id)
+                for instrument_resource in instrument_resources:
+                    acc = get_status_helper(acc, instrument_resource._id, type(instrument_resource).__name__)
+
+                platform_resources = self.platform_device.find_stemming_platform_device(device_id)
+                for platform_resource in platform_resources:
+                    acc = get_status_helper(acc, platform_resource._id, type(platform_resource).__name__)
+
+                return acc
+            else:
+                raise NotImplementedError("Completely avoidable error, got bad device_type: %s" % device_type)
+
+        retval = get_status_helper(None, platform_device_id, RT.PlatformDevice)
+        retval = "RED" #todo: remove this line
+
+        return retval
+
+
+
+

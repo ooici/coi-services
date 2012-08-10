@@ -54,8 +54,14 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #stuff we control
 #        instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
         instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
-        instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
-        instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel))
+        instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel,
+                                                                  {"custom_attributes":
+                                                                        {"favorite_color": "attr desc goes here"}
+                                                                  }))
+        instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice,
+                                                                  {"custom_attributes":
+                                                                        {"favorite_color": "red"}
+                                                                  }))
         platform_agent_instance_id, _ =    self.RR.create(any_old(RT.PlatformAgentInstance))
         platform_agent_id, _ =             self.RR.create(any_old(RT.PlatformAgent))
         platform_device_id, _ =            self.RR.create(any_old(RT.PlatformDevice))
@@ -145,6 +151,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual("1.1", extended_instrument.computed.firmware_version)
         self.assertEqual("42", extended_instrument.computed.last_data_received_time)
+        #self.assertRaises(NotFound, extended_instrument.computed.operational_state)
         self.assertEqual("23", extended_instrument.computed.operational_state)
         self.assertEqual("34", extended_instrument.computed.last_command_status)
         self.assertEqual("45", extended_instrument.computed.last_command_date)
