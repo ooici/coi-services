@@ -335,8 +335,22 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         data_process_name = data_process_definition.name
 
         # Create the output data product of the transform
-        transform_dp_obj = IonObject(RT.DataProduct, name=data_process_name,description=data_process_definition.description)
-        transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        transform_dp_obj = IonObject(RT.DataProduct,
+            name=data_process_name,
+            description=data_process_definition.description,
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id, parameter_dictionary)
+
         self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id)
 
         #last one out of the for loop is the output product id

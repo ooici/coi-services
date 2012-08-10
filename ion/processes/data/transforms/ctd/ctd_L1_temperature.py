@@ -16,6 +16,7 @@ from prototype.sci_data.stream_defs import L1_temperature_stream_definition, L0_
 
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from seawater.gibbs import SP_from_cndr
 from seawater.gibbs import cte
@@ -29,6 +30,12 @@ from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 import numpy as np
+
+craft = CoverageCraft
+sdom, tdom = craft.create_domains()
+sdom = sdom.dump()
+tdom = tdom.dump()
+parameter_dictionary = craft.create_parameters()
 
 class CTDL1TemperatureTransform(TransformFunction):
     ''' A basic transform that receives input through a subscription,
@@ -46,52 +53,6 @@ class CTDL1TemperatureTransform(TransformFunction):
     def __init__(self):
         super(CTDL1TemperatureTransform, self).__init__()
 
-        ### Parameter dictionaries
-        self.defining_parameter_dictionary()
-
-    def defining_parameter_dictionary(self):
-
-        # Define the parameter context objects
-
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 1970-01-01'
-        t_ctxt.fill_value = 0x0
-
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
-        lat_ctxt.reference_frame = AxisTypeEnum.LAT
-        lat_ctxt.uom = 'degree_north'
-        lat_ctxt.fill_value = 0e0
-
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
-        lon_ctxt.reference_frame = AxisTypeEnum.LON
-        lon_ctxt.uom = 'degree_east'
-        lon_ctxt.fill_value = 0e0
-
-        height_ctxt = ParameterContext('height', param_type=QuantityType(value_encoding=np.float32))
-        height_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        height_ctxt.uom = 'meters'
-        height_ctxt.fill_value = 0e0
-
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
-        temp_ctxt.uom = 'degree_Celsius'
-        temp_ctxt.fill_value = 0e0
-
-
-        data_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=np.int8))
-        data_ctxt.uom = 'byte'
-        data_ctxt.fill_value = 0x0
-
-        # Define the parameter dictionary objects
-
-        self.temp = ParameterDictionary()
-        self.temp.add_context(t_ctxt)
-        self.temp.add_context(lat_ctxt)
-        self.temp.add_context(lon_ctxt)
-        self.temp.add_context(height_ctxt)
-        self.temp.add_context(temp_ctxt)
-        self.temp.add_context(data_ctxt)
-
     def execute(self, granule):
         """Processes incoming data!!!!
         """
@@ -106,7 +67,7 @@ class CTDL1TemperatureTransform(TransformFunction):
         longitude = get_safe(rdt, 'lon')
         latitude = get_safe(rdt, 'lat')
         time = get_safe(rdt, 'time')
-        height = get_safe(rdt, 'height')
+        depth = get_safe(rdt, 'depth')
 
         log.warn('Got temperature: %s' % str(temperature))
 
@@ -119,7 +80,7 @@ class CTDL1TemperatureTransform(TransformFunction):
         #    1) Standard conversion from 5-character hex string (Thex) to decimal (tdec)
         #    2) Scaling: T [C] = (tdec / 10,000) - 10
 
-        root_rdt = RecordDictionaryTool(param_dictionary=self.temp)
+        root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
         #todo: use only flat dicts for now, may change later...
 #        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
@@ -134,11 +95,11 @@ class CTDL1TemperatureTransform(TransformFunction):
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
-        root_rdt['height'] = height
+        root_rdt['depth'] = depth
 
         #todo: use only flat dicts for now, may change later...
 #        root_rdt['coordinates'] = coord_rdt
 #        root_rdt['data'] = data_rdt
 
-        return build_granule(data_producer_id='ctd_L1_temperature', param_dictionary=self.temp, record_dictionary=root_rdt)
+        return build_granule(data_producer_id='ctd_L1_temperature', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
   
