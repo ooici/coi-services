@@ -8,6 +8,7 @@
 
 
 #from pyon.public import Container
+from pyon.agent.agent import ResourceAgentClient
 from pyon.public import LCE
 from pyon.public import RT, PRED, OT
 from pyon.public import CFG
@@ -1449,7 +1450,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_associations,
             ext_exclude)
 
-        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
+        #Loop through any attachments and remove the actual content since we don't need
+        #   to send it to the front end this way
         #TODO - see if there is a better way to do this in the extended resource frame work.
         if hasattr(extended_instrument, 'attachments'):
             for att in extended_instrument.attachments:
@@ -1458,6 +1460,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return extended_instrument
 
+
+    def obtain_agent_handle(self, instrument_devivce_id):
+        ia_client = ResourceAgentClient(instrument_devivce_id,  process=self)
+
+
+#       #todo: any validation?
+#        cmd = AgentCommand(command='get_current_state')
+#        retval = self._ia_client.execute_agent(cmd)
+#        state = retval.result
+#        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
+#
+        return ia_client
 
         #Bogus functions for computed attributes
     def get_firmware_version(self, instrument_device_id):
@@ -1471,6 +1485,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def get_operational_state(self, instrument_device_id):   # from Device
+        ia_client = self.obtain_agent_handle(instrument_device_id)
         return "23"
 
     def get_last_command_status(self, instrument_device_id):
