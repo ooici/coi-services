@@ -481,10 +481,14 @@ class TestProcess(BaseService):
 
     def on_init(self):
         self.i = 0
+        self.response = self.CFG.test_response
 
     def count(self):
         self.i += 1
         return self.i
+
+    def query(self):
+        return self.response
 
 
 class TestClient(RPCClient):
@@ -494,6 +498,10 @@ class TestClient(RPCClient):
 
     def count(self, headers=None, timeout=None):
         return self.request({}, op='count', headers=headers, timeout=timeout)
+
+    def query(self, headers=None, timeout=None):
+        return self.request({}, op='query', headers=headers, timeout=timeout)
+
 
 
 @attr('INT', group='cei')
@@ -580,6 +588,38 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.pd_cli.cancel_process(pid)
         self.await_state_event(pid, ProcessStateEnum.TERMINATE)
 
+    def test_schedule_with_config(self):
+
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+
+        pid = self.pd_cli.create_process(self.process_definition_id)
+        self.subscribe_events(pid)
+
+        # feed in a string that the process will return -- verifies that
+        # configuration actually makes it to the instantiated process
+        test_response = uuid.uuid4().hex
+        configuration = {"test_response" : test_response}
+
+        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, configuration=configuration, process_id=pid)
+        self.assertEqual(pid, pid2)
+
+        self.await_state_event(pid, ProcessStateEnum.SPAWN)
+
+        test_client = TestClient()
+
+        # verifies L4-CI-CEI-RQ139
+        # assure that configuration block (which can contain inputs, outputs,
+        # and arbitrary config) 1) makes it to the process and 2) is returned
+        # in process queries
+
+        self.assertEqual(test_client.query(), test_response)
+
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
+        self.assertEqual(proc.process_configuration, configuration)
+
     def test_schedule_bad_config(self):
 
         process_schedule = ProcessSchedule()
@@ -628,7 +668,7 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             name=self.container.name)
         self.container = self.container_client._get_container_instance()
 
-        app = dict(processapp=("process_dispatcher",
+        app = dict(name="process_dispatcher", processapp=("process_dispatcher",
                                "ion.services.cei.process_dispatcher_service",
                                "ProcessDispatcherService"))
         self.container.start_app(app, config=pd_config)
