@@ -69,7 +69,7 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
         startTime = time.time()
         count = samples #something other than zero
 
-        while True:
+        while not self.finished.is_set():
             count = time.time() - startTime
             sine_curr_deg = (count % samples) * 360 / samples
 
