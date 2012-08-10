@@ -23,7 +23,6 @@ from seawater.gibbs import cte
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
@@ -81,10 +80,6 @@ class CTDL1TemperatureTransform(TransformFunction):
         #    2) Scaling: T [C] = (tdec / 10,000) - 10
 
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
-
-        #todo: use only flat dicts for now, may change later...
-#        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
-#        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
         scaled_temperature = temperature
 

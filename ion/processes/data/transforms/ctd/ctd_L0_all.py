@@ -25,7 +25,6 @@ from prototype.sci_data.stream_parser import PointSupplementStreamParser
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule_utils import CoverageCraft
 
@@ -109,20 +108,13 @@ class ctd_L0_all(TransformDataProcess):
 
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
 
-        #data_rdt = RecordDictionaryTool(taxonomy=taxonomy)
 
         root_rdt[field_name] = value
-
-        #coor_rdt = RecordDictionaryTool(taxonomy=taxonomy)
 
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
         root_rdt['depth'] = depth
-
-        #todo: use only flat dicts for now, may change later...
-#        root_rdt['coordinates'] = coor_rdt
-#        root_rdt['data'] = data_rdt
 
         log.debug("ctd_L0_all:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
 
