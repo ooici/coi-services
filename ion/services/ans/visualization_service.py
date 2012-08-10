@@ -60,7 +60,7 @@ class VisualizationService(BaseVisualizationService):
         return
 
 
-    def initiate_realtime_visualization(self, data_product_id='', visualization_parameters={}, callback=""):
+    def initiate_realtime_visualization(self, data_product_id='', visualization_parameters=None, callback=""):
         """Initial request required to start a realtime chart for the specified data product. Returns a user specific token associated
         with the request that will be required for subsequent requests when polling data.
         

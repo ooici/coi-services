@@ -33,25 +33,19 @@ import math
 
 from prototype.sci_data.stream_defs import ctd_stream_packet, SBE37_CDM_stream_definition, ctd_stream_definition
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
 import numpy
 
-
-### Taxonomies are defined before hand out of band... somehow.
-tx = TaxyTool()
-tx.add_taxonomy_set('temp','long name for temp')
-tx.add_taxonomy_set('cond','long name for cond')
-tx.add_taxonomy_set('lat','long name for latitude')
-tx.add_taxonomy_set('lon','long name for longitude')
-tx.add_taxonomy_set('pres','long name for pres')
-tx.add_taxonomy_set('time','long name for time')
-tx.add_taxonomy_set('height','long name for height')
-
+craft = CoverageCraft
+sdom, tdom = craft.create_domains()
+sdom = sdom.dump()
+tdom = tdom.dump()
+parameter_dictionary = craft.create_parameters()
 
 
 class SinusoidalCtdPublisher(SimpleCtdPublisher):
@@ -69,7 +63,7 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
         startTime = time.time()
         count = samples #something other than zero
 
-        while True:
+        while not self.finished.is_set():
             count = time.time() - startTime
             sine_curr_deg = (count % samples) * 360 / samples
 
@@ -82,19 +76,19 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
 
 #            ctd_packet = ctd_stream_packet(stream_id=stream_id,
 #                c=c, t=t, p = p, lat = lat, lon = lon, time=tvar)
-            rdt = RecordDictionaryTool(taxonomy=tx)
+            rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
             h = numpy.array([random.uniform(0.0, 360.0)])
 
             rdt['time'] = tvar
             rdt['lat'] = lat
             rdt['lon'] = lon
-            rdt['height'] = h
+            rdt['depth'] = h
             rdt['temp'] = t
-            rdt['cond'] = c
-            rdt['pres'] = p
+            rdt['conductivity'] = c
+            rdt['pressure'] = p
 
-            g = build_granule(data_producer_id=stream_id, taxonomy=tx, record_dictionary=rdt)
+            g = build_granule(data_producer_id=stream_id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
 
             log.info('SinusoidalCtdPublisher sending 1 record!')
             self.publisher.publish(g)

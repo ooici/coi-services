@@ -135,13 +135,21 @@ class SimpleCtdPublisher(TransformStreamPublisher):
 
 class PointCtdPublisher(StandaloneProcess):
 
+    def on_start(self):
+        super(PointCtdPublisher,self).on_start()
+        self.finished = gevent.event.Event()
+
+    def on_quit(self):
+        self.finished.set()
+        super(PointCtdPublisher,self).on_quit()
+
     #overriding trigger function here to use PointSupplementConstructor
     def _trigger_func(self, stream_id):
 
         point_def = ctd_stream_definition(stream_id=stream_id)
         point_constructor = PointSupplementConstructor(point_definition=point_def)
 
-        while True:
+        while not self.finished.is_set():
 
             length = 1
 

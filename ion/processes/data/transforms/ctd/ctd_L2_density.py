@@ -89,9 +89,6 @@ class DensityTransform(TransformFunction):
         ### application level like this!
 
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
-        #todo: use only flat dicts for now, may change later...
-#        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
-#        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
         root_rdt['density'] = density
         root_rdt['time'] = time

@@ -12,7 +12,6 @@ from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
 
@@ -66,9 +65,6 @@ class SalinityDoubler(TransformFunction):
 #
 #        return psc.close_stream_granule()
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
-
-        #data_rdt = RecordDictionaryTool(taxonomy=self.tx)
-        #coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
 
         root_rdt['salinity'] = salinity
         root_rdt['time'] = time
