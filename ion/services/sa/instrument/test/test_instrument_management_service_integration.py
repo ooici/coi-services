@@ -151,6 +151,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual("1.1", extended_instrument.computed.firmware_version)
         self.assertEqual("42", extended_instrument.computed.last_data_received_time)
+        #self.assertRaises(NotFound, extended_instrument.computed.operational_state)
         self.assertEqual("23", extended_instrument.computed.operational_state)
         self.assertEqual("34", extended_instrument.computed.last_command_status)
         self.assertEqual("45", extended_instrument.computed.last_command_date)

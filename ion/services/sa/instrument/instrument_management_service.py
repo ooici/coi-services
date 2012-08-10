@@ -1461,6 +1461,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return extended_instrument
 
 
+    # TODO: this causes a problem because an instrument agent must be running in order to look up extended attributes.
     def obtain_agent_handle(self, instrument_devivce_id):
         ia_client = ResourceAgentClient(instrument_devivce_id,  process=self)
 
@@ -1471,6 +1472,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #        state = retval.result
 #        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 #
+
         return ia_client
 
         #Bogus functions for computed attributes
@@ -1485,7 +1487,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def get_operational_state(self, instrument_device_id):   # from Device
-        ia_client = self.obtain_agent_handle(instrument_device_id)
+        #ia_client = self.obtain_agent_handle(instrument_device_id) # todo: CAUSES ERRORS
         return "23"
 
     def get_last_command_status(self, instrument_device_id):
