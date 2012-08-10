@@ -133,6 +133,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 'stream_id':ctd_stream_id,
                 }
         }
+
         ctd_sim_pid = self.process_dispatcher.schedule_process(process_definition_id=ctd_sim_procdef_id, configuration=configuration)
 
         return ctd_sim_pid
@@ -175,7 +176,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         # after the queue has been created it is safe to activate the subscription
         self.pubsubclient.activate_subscription(subscription_id=salinity_subscription_id)
-
 
         #Start the input stream process
         if ctd_stream_id is not None:

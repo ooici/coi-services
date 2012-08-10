@@ -64,7 +64,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("In progress")
+    #@unittest.skip("In progress")
     def test_SA_transform_components(self):
 
         assertions = self.assertTrue
@@ -120,6 +120,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @attr('SMOKE')
+    #@unittest.skip("in progress")
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_transform_workflow(self):
 
@@ -178,6 +179,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
 
+
         #Start the output stream listener to monitor and collect messages
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
@@ -202,7 +204,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("in progress")
+    #@unittest.skip("in progress")
     def test_google_dt_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -267,7 +269,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("in progress")
+    #@unittest.skip("in progress")
     def test_mpl_graphs_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -332,7 +334,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("in progress")
+    #@unittest.skip("in progress")
     def test_multiple_workflow_instances(self):
 
         assertions = self.assertTrue

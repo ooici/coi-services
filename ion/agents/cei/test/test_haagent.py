@@ -109,7 +109,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.event_sub.start()
 
     def await_state_event(self, pid, state):
-        event = self.event_queue.get(timeout=10)
+        event = self.event_queue.get(timeout=30)
         log.debug("Got event: %s", event)
         self.assertTrue(event.origin.startswith(pid))
         self.assertEqual(event.state, state)
@@ -153,6 +153,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                 gevent.sleep(1)
         else:
             assert False, "HA Service took too long to get to state STEADY"
+
+        # verifies L4-CI-CEI-RQ122 and L4-CI-CEI-RQ124
 
         new_policy = {'preserve_n': 2}
         self.haa_client.reconfigure_policy(new_policy)

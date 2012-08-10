@@ -89,7 +89,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
     @attr('LOCOINT')
     #@patch.dict('pyon.ion.exchange.CFG', {'container':{'exchange':{'auto_register': False}}})
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    @unittest.skip("in progress")
+    #@unittest.skip("in progress")
     def test_visualization_queue(self):
 
         assertions = self.assertTrue
@@ -185,7 +185,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         subscriber.close()
 
-    @unittest.skip("in progress")
+    #@unittest.skip("in progress")
     def test_realtime_visualization(self):
         assertions = self.assertTrue
 
@@ -220,8 +220,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #TODO - find out what the actual return data type should be
         vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
 
-        print vis_data
-
         #Trying to continue to receive messages in the queue
         gevent.sleep(5.0)  # Send some messages - don't care how many
 
@@ -234,8 +232,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
             log.warning("cancelling process did not work")
         vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
 
-        print vis_data
-
         self.vis_client.terminate_realtime_visualization_data(vis_token)
 
         #Stop the workflow processes
@@ -245,7 +241,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.workflowclient.delete_workflow_definition(workflow_def_id)
 
 
-    @unittest.skip("in progress")
+    #@unittest.skip("in progress")
     def test_google_dt_overview_visualization(self):
 
         #Create the input data product
@@ -265,7 +261,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.validate_vis_service_google_dt_results(vis_data)
 
 
-    @unittest.skip("in progress")
+    #@unittest.skip("in progress")
     def test_mpl_graphs_overview_visualization(self):
 
         #Create the input data product
