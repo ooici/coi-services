@@ -13,6 +13,7 @@ pmsc = PubsubManagementServiceClient(node=cc.node)
 stream_id = pmsc.create_stream(name='pfoo')
 pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_data_producer',cls='ExampleDataProducer',config={'process':{'stream_id':stream_id}})
 
+
 '''
 
 # Inherit some old machinery for this example
