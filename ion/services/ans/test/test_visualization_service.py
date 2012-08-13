@@ -223,7 +223,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #Trying to continue to receive messages in the queue
         gevent.sleep(5.0)  # Send some messages - don't care how many
 
-
         #Turning off after everything - since it is more representative of an always on stream of data!
         #todo remove the try except
         try:

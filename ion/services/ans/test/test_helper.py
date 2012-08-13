@@ -387,7 +387,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
     def validate_google_dt_transform_results(self, results):
 
-        cc = self.container
         assertions = self.assertTrue
 
         # if its just one granule, wrap it up in a list so we can use the following for loop for a couple of cases
@@ -398,21 +397,11 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
             if isinstance(g,Granule):
 
-                tx = TaxyTool.load_from_granule(g)
-                rdt = RecordDictionaryTool.load_from_granule(g)
+                gdt = RecordDictionaryTool.load_from_granule(g)
 
-                gdt_data = get_safe(rdt, 'google_dt_components')
-
-                # IF this granule does not contains google dt, skip
-                if gdt_data == None:
-                    continue
-
-                gdt = gdt_data[0]
-
-                assertions(gdt['viz_product_type'] == 'google_dt' )
-                assertions(len(gdt['data_description']) >= 0) # Need to come up with a better check
-                assertions(len(gdt['data_content']) >= 0)
-
+                assertions(gdt['viz_product_type'][0] == 'google_dt' )
+                assertions(len(gdt['data_description'][0]) >= 0) # Need to come up with a better check
+                assertions(len(gdt['data_content'][0]) >= 0)
 
 
 

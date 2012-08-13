@@ -248,6 +248,8 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         #Stop the workflow processes
         self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
 
+
+        print " >>>>>>>>>>>>>>>> RESULT = ", results
         #Validate the data from each of the messages along the way
         self.validate_google_dt_transform_results(results)
 

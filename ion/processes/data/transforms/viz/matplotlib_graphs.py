@@ -12,8 +12,10 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from pyon.util.containers import get_safe
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
-from prototype.sci_data.constructor_apis import PointSupplementConstructor, RawSupplementConstructor
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
+import numpy as np
 
 import StringIO
 from numpy import array, append
@@ -37,8 +39,37 @@ class VizTransformMatplotlibGraphs(TransformFunction):
     outgoing_stream_def = SBE37_RAW_stream_definition()
     incoming_stream_def = SBE37_CDM_stream_definition()
 
-    def on_start(self):
-        super(VizTransformMatplotlibGraphs,self).on_start()
+    def __init__(self):
+        super(VizTransformMatplotlibGraphs, self).__init__()
+
+        ### Parameter dictionaries
+        self.define_parameter_dictionary()
+
+    def define_parameter_dictionary(self):
+        viz_product_type_ctxt = ParameterContext('viz_product_type', param_type=QuantityType(value_encoding=np.str))
+        viz_product_type_ctxt.uom = 'unknown'
+        viz_product_type_ctxt.fill_value = 0x0
+
+        image_obj_ctxt = ParameterContext('image_obj', param_type=QuantityType(value_encoding=np.int8))
+        image_obj_ctxt.uom = 'unknown'
+        image_obj_ctxt.fill_value = 0x0
+
+        image_name_ctxt = ParameterContext('img_name', param_type=QuantityType(value_encoding=np.str))
+        image_name_ctxt.uom = 'unknown'
+        image_name_ctxt.fill_value = 0x0
+
+        content_type_ctxt = ParameterContext('content_type', param_type=QuantityType(value_encoding=np.str))
+        content_type_ctxt.uom = 'unknown'
+        content_type_ctxt.fill_value = 0x0
+
+        # Define the parameter dictionary objects
+        self.mpl_paramdict = ParameterDictionary()
+        self.mpl_paramdict.add_context(viz_product_type_ctxt)
+        self.mpl_paramdict.add_context(image_obj_ctxt)
+        self.mpl_paramdict.add_context(image_name_ctxt)
+        self.mpl_paramdict.add_context(content_type_ctxt)
+
+        return
 
 
     def execute(self, granule):
@@ -129,16 +160,16 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         canvas.print_figure(imgInMem, format="png")
         imgInMem.seek(0)
 
-        # submit resulting table back using the out stream publisher
-        msg = {"viz_product_type": "matplotlib_graphs",
-               "image_obj": imgInMem.getvalue(),
-               "image_name": fileName,
-               "content_type": "image/png"}
+        # Create output dictionary from the param dict
+        out_rdt = RecordDictionaryTool(param_dictionary=self.mpl_paramdict)
 
+        # Prepare granule content
+        out_rdt["viz_product_type"] = numpy.array(["matplotlib_graphs"])
+        out_rdt["image_obj"] = numpy.array([imgInMem.getvalue()])
+        out_rdt["image_name"] = numpy.array([fileName])
+        out_rdt["content_type"] = numpy.array(["image/png"])
 
-        rdt['matplotlib_graphs'] = numpy.array([msg])
-        #Generate a list of the graph objects generated
-        return build_granule(data_producer_id='matplotlib_graphs_transform', taxonomy=tx, record_dictionary=rdt)
+        return build_granule(data_producer_id='matplotlib_graphs_transform', param_dictionary=self.mpl_paramdict, record_dictionary=out_rdt)
 
 
     # This method picks out a matplotlib line style based on an index provided. These styles are set in an order
