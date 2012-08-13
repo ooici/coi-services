@@ -6,6 +6,8 @@ __license__ = 'Apache 2.0'
 
 
 from interface.services.coi.iservice_management_service import BaseServiceManagementService
+from pyon.util.containers import is_basic_identifier
+from pyon.core.exception import NotFound, BadRequest
 
 class ServiceManagementService(BaseServiceManagementService):
 
@@ -19,7 +21,10 @@ class ServiceManagementService(BaseServiceManagementService):
         # ------------
         # {service_definition_id: ''}
         #
-        pass
+        if not is_basic_identifier(service_definition.name):
+            raise BadRequest("Invalid service_definition.name: " % service_definition.name)
+        service_definition_id, version = self.clients.resource_registry.create(service_definition)
+        return service_definition_id
 
     def update_service_definition(self, service_definition=None):
         """ Should receive a ServiceDefinition object
@@ -28,7 +33,9 @@ class ServiceManagementService(BaseServiceManagementService):
         # ------------
         # {success: true}
         #
-        pass
+        if not is_basic_identifier(service_definition.name):
+            raise BadRequest("Invalid service_definition name: " % service_definition.name)
+        return self.clients.resource_registry.update(service_definition)
 
     def read_service_definition(self, service_definition_id=''):
         """ Should return a ServiceDefinition object
@@ -37,7 +44,12 @@ class ServiceManagementService(BaseServiceManagementService):
         # ------------
         # service_definition: {}
         #
-        pass
+        if not service_definition_id:
+            raise BadRequest("The service_definition_id parameter is missing")
+        service_definition = self.clients.resource_registry.read(service_definition_id)
+        if not service_definition:
+            raise NotFound("Service_definition %s does not exist" % service_definition_id)
+        return service_definition
 
     def delete_service_definition(self, service_definition_id=''):
         """method docstring
@@ -46,15 +58,10 @@ class ServiceManagementService(BaseServiceManagementService):
         # ------------
         # {success: true}
         #
-        pass
-
-    def find_services(self, filters=None):
-        """ Should receive a ResourceFilter object
-        """
-        # Return Value
-        # ------------
-        # service_definition_list: []
-        #
-        pass
-
+        if not service_definition_id:
+            raise BadRequest("The service_definition_id parameter is missing")
+        service_definition = self.clients.resource_registry.read(service_definition_id)
+        if not service_definition:
+            raise NotFound("Service_definition %s does not exist" % service_definition_id)
+        return self.clients.resource_registry.delete(service_definition_id)
 
