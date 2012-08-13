@@ -10,7 +10,7 @@ from pyon.public import PRED, RT, IonObject, OT
 from mock import Mock
 from interface.services.coi.iobject_management_service import ObjectManagementServiceClient
 
-@attr('semantest', group='coi')
+@attr('INT', group='coi')
 class TestObjectManagementService(IonIntegrationTestCase):
 
     def setUp(self):

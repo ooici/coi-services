@@ -11,7 +11,7 @@ from interface.services.coi.iresource_management_service import ResourceManageme
 from interface.services.coi.iobject_management_service import ObjectManagementServiceClient
 from mock import Mock, patch
 
-@attr('semantest', group='coi')
+@attr('INT', group='coi')
 class TestResourceManagementService(IonIntegrationTestCase):
 
     def setUp(self):

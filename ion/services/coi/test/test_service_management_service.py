@@ -10,7 +10,7 @@ from pyon.public import RT, IonObject
 from interface.services.coi.iservice_management_service import ServiceManagementServiceClient
 from mock import Mock, patch
 
-@attr('semantest', group='coi')
+@attr('INT', group='coi')
 class TestServiceManagementService(IonIntegrationTestCase):
 
     def setUp(self):
