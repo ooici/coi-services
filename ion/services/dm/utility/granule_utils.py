@@ -125,6 +125,10 @@ class CoverageCraft(object):
 
     @classmethod
     def create_domains(cls):
+        '''
+        WARNING: This method is a wrapper intended only for tests, it should not be used in production code.
+        It probably will not align to most datasets.
+        '''
         tcrs = CRS([AxisTypeEnum.TIME])
         scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT, AxisTypeEnum.HEIGHT])
 
@@ -134,6 +138,10 @@ class CoverageCraft(object):
 
     @classmethod
     def create_parameters(cls):
+        '''
+        WARNING: This method is a wrapper intended only for tests, it should not be used in production code.
+        It probably will not align to most datasets.
+        '''
         pdict = ParameterDictionary()
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
         t_ctxt.reference_frame = AxisTypeEnum.TIME
