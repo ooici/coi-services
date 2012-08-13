@@ -24,6 +24,8 @@ import time
 import unittest
 from datetime import datetime
 import uuid
+import socket
+import re
 
 # 3rd party imports.
 import gevent
@@ -91,6 +93,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_command_errors
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_direct_access
 
 
 ###############################################################################
@@ -392,7 +395,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._data_greenlets.append(gl)
         sub._ready_event.wait(timeout=5)
         return gl
-                                 
+
     def _stop_data_subscribers(self):
         """
         Stop the data subscribers on cleanup.
@@ -401,7 +404,30 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             sub.stop()
         for gl in self._data_greenlets:
             gl.kill()
-        
+
+    ###############################################################################
+    # Socket listen.
+    ###############################################################################
+
+    def _socket_listen(self, s, prompt, timeout):
+
+        buf = ''
+        starttime = time.time()
+        while True:
+            try:
+                buf += s.recv(1024)
+                print '##### Listening, got: %s' % buf
+                if prompt and buf.find(prompt) != -1:
+                    break
+            except:
+                gevent.sleep(1)
+            
+            finally:
+                delta = time.time() - starttime
+                if delta > timeout:
+                    break
+        return buf            
+                
     ###############################################################################
     # Assert helpers.
     ###############################################################################
@@ -1310,12 +1336,119 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._async_event_result.get(timeout=2)
         self.assertEquals(len(self._events_received), 6)
         
-    @unittest.skip('Direct access test to be finished by adding the telnet client, manual for now.')
     def test_direct_access(self):
         """
         Test agent direct_access command. This causes creation of
         driver process and transition to direct access.
         """
-        pass
+
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
+                            #kwargs={'session_type': DirectAccessTypes.telnet,
+                            kwargs={'session_type':DirectAccessTypes.vsp,
+                            'session_timeout':600,
+                            'inactivity_timeout':600})
+        
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.DIRECT_ACCESS)
+                
+        log.info("GO_DIRECT_ACCESS retval=" + str(retval.result))
+
+        # {'status': 0, 'type_': 'AgentCommandResult', 'command': 'RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS',
+        # 'result': {'token': 'F2B6EED3-F926-4B3B-AE80-4F8DE79276F3', 'ip_address': 'Edwards-MacBook-Pro.local', 'port': 8000},
+        # 'ts_execute': '1344889063861', 'command_id': ''}
+        
+        host = retval.result['ip_address']
+        port = retval.result['port']
+        token = retval.result['token']
+        
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((host, port))
+        s.settimeout(0.0)
+        
+        s.sendall('ts\r\n')
+        buf = self._socket_listen(s, None, 3)
+
+        # CORRECT PATTERN TO MATCH IN RESPONSE BUFFER:
+        """
+        ts
+        
+        -0.1964,85.12299, 697.168,   39.5241, 1506.965, 01 Feb 2001, 01:01:00
+        """
+        
+        sample_pattern = r'^#? *(-?\d+\.\d+), *(-?\d+\.\d+), *(-?\d+\.\d+)'
+        sample_pattern += r'(, *(-?\d+\.\d+))?(, *(-?\d+\.\d+))?'
+        sample_pattern += r'(, *(\d+) +([a-zA-Z]+) +(\d+), *(\d+):(\d+):(\d+))?'
+        sample_pattern += r'(, *(\d+)-(\d+)-(\d+), *(\d+):(\d+):(\d+))?'
+        sample_regex = re.compile(sample_pattern)
+        lines = buf.split('\r\n')
+        
+        sample_count = 0
+        for x in lines:
+            if sample_regex.match(x):
+                sample_count += 1
+        self.assertEqual(sample_count, 1)            
+
+        s.sendall('ds\r\n')
+        buf = self._socket_listen(s, None, 3)
+
+        # CORRECT PATTERN TO MATCH IN RESPONSE BUFFER:
+        """
+        ds
+        SBE37-SMP V 2.6 SERIAL NO. 2165   01 Feb 2001  01:01:00
+        not logging: received stop command
+        sample interval = 23195 seconds
+        samplenumber = 0, free = 200000
+        do not transmit real-time data
+        do not output salinity with each sample
+        do not output sound velocity with each sample
+        do not store time with each sample
+        number of samples to average = 0
+        reference pressure = 0.0 db
+        serial sync mode disabled
+        wait time after serial sync sampling = 0 seconds
+        internal pump is installed
+        temperature = 7.54 deg C
+        WARNING: LOW BATTERY VOLTAGE!!
+        """
+
+        self.assertNotEqual(buf.find('SBE37-SMP'), -1)
+        self.assertNotEqual(buf.find('sample interval'), -1)
+        self.assertNotEqual(buf.find('samplenumber'), -1)
+        self.assertNotEqual(buf.find('number of samples to average'), -1)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_COMMAND)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+        
+        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        self.assertSampleDict(retval.result['parsed'])
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+
 
 

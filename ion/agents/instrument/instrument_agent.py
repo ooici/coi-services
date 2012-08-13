@@ -19,7 +19,6 @@ from pyon.agent.agent import ResourceAgentState
 from pyon.ion.stream import StreamPublisherRegistrar
 from pyon.util.containers import get_ion_ts
 
-
 # Pyon exceptions.
 from pyon.core.exception import IonException
 from pyon.core.exception import BadRequest
@@ -28,6 +27,9 @@ from pyon.core.exception import Timeout
 from pyon.core.exception import NotFound
 from pyon.core.exception import ServerError
 from pyon.core.exception import ResourceError
+
+# Standard imports.
+import socket
 
 # MI exceptions
 from mi.core.exceptions import InstrumentTimeoutException
@@ -42,6 +44,9 @@ from ion.agents.instrument.driver_process import DriverProcess
 from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.instrument_fsm import FSMStateError
 from ion.agents.instrument.instrument_fsm import FSMCommandUnknownError
+from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
+from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
+from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
 
 # MI imports
 from mi.core.instrument.instrument_driver import DriverEvent
@@ -482,16 +487,17 @@ class InstrumentAgent(ResourceAgent):
         next_state = None
         result = None
 
+                
         session_timeout = kwargs.get('session_timeout', 10)
         inactivity_timeout = kwargs.get('inactivity_timeout', 5)
         session_type = kwargs.get('session_type', None)
 
         if not session_type:
-            raise InstParameterError('Instrument parameter error attempting direct access: session_type not present') 
-
+            raise BadRequest('Instrument parameter error attempting direct access: session_type not present') 
 
         log.info("Instrument agent requested to start direct access mode: sessionTO=%d, inactivityTO=%d,  session_type=%s" 
                  %(session_timeout, inactivity_timeout, dir(DirectAccessTypes)[session_type]))
+        
         
         # get 'address' of host
         hostname = socket.gethostname()
@@ -500,6 +506,7 @@ class InstrumentAgent(ResourceAgent):
         log.debug("ip_address=" + str(ip_addresses))
         ip_address = ip_addresses[2][0]
         ip_address = hostname
+        
         # create a DA server instance (TODO: just telnet for now) and pass in callback method
         try:
             self._da_server = DirectAccessServer(session_type, 
@@ -510,15 +517,16 @@ class InstrumentAgent(ResourceAgent):
         except Exception as ex:
             log.warning("InstrumentAgent: failed to start DA Server <%s>" %str(ex))
             raise ex
-
+        
         # get the connection info from the DA server to return to the user
         port, token = self._da_server.get_connection_info()
         result = {'ip_address':ip_address, 'port':port, 'token':token}
         #next_state = InstrumentAgentState.DIRECT_ACCESS
-
+        
         # tell driver to start direct access mode
         # (dvr_result, next_state) = self._dvr_client.cmd_dvr('execute_start_direct_access')
-        (next_state, dvr_result) = self.execute_resource(DriverEvent.START_DIRECT)
+        #(next_state, dvr_result) = self.execute_resource(DriverEvent.START_DIRECT)
+        (next_state, dvr_result) = self._handler_execute_resource(DriverEvent.START_DIRECT)
         
         return (next_state, result)        
 
@@ -577,16 +585,13 @@ class InstrumentAgent(ResourceAgent):
         log.info("Instrument agent requested to stop direct access mode - %s" %self._da_session_close_reason)
         
         # tell driver to stop direct access mode
-        # (next_state, result) = self._dvr_client.cmd_dvr('execute_stop_direct_access')
-        (next_state, result) = self.execute_resource(DriverEvent.STOP_DIRECT)
+        (next_state, dvr_result) = self._handler_execute_resource(DriverEvent.STOP_DIRECT)
         
         # stop DA server
         if (self._da_server):
             self._da_server.stop()
             self._da_server = None
             
-        #next_state = InstrumentAgentState.COMMAND
-        
         # re-set the 'reason' to be the default
         self._da_session_close_reason = 'due to ION request'
         
@@ -737,8 +742,8 @@ class InstrumentAgent(ResourceAgent):
         """
         try:
             if (self._da_server):
-                if (value):
-                    self._da_server.send(value)
+                if (val):
+                    self._da_server.send(val)
                 else:
                     log.error('Instrument agent %s error %s processing driver event %s',
                               self._proc_name, '<no value present in event>', str(evt))
@@ -1018,6 +1023,6 @@ class InstrumentAgent(ResourceAgent):
             return
         log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
         # send the data to the driver
-        # self._dvr_client.cmd_dvr('execute_direct_access', data)
-        self.execute_resource(DriverEvent.EXECUTE_DIRECT, data)
+        self._dvr_client.cmd_dvr('execute_resource', DriverEvent.EXECUTE_DIRECT, data)
+        
         
