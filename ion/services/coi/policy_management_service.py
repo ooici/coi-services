@@ -671,7 +671,6 @@ class PolicyManagementService(BasePolicyManagementService):
         """For now, permanently deletes UserRole object with the specified
         id. Throws exception if id does not match any persisted UserRole.
 
-        @param user_role_id    str
         @throws NotFound    object with specified id does not exist
         """
         if not user_role_id:

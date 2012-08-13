@@ -4,6 +4,10 @@ __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
 from interface.services.coi.iresource_management_service import BaseResourceManagementService
+from pyon.util.containers import is_basic_identifier
+from pyon.core.exception import NotFound, BadRequest
+from pyon.public import PRED
+from exceptions import NotImplementedError
 
 class ResourceManagementService(BaseResourceManagementService):
 
@@ -11,14 +15,25 @@ class ResourceManagementService(BaseResourceManagementService):
     The Resource Management Service is the service that manages the Resource Types and Lifecycles associated with all Resources
     """
     
-    def create_resource_type(self, resource_type=None):
+    def create_resource_type(self, resource_type=None, object_id=""):
         """ Should receive a ResourceType object
         """
         # Return Value
         # ------------
         # {resource_type_id: ''}
         #
-        pass
+        if not is_basic_identifier(resource_type.name):
+            raise BadRequest("Invalid resource name: " % resource_type.name)
+        if not object_id:
+            raise BadRequest("Object_id is missing")
+
+        object_type= self.clients.resource_registry.read(object_id)
+        if resource_type.name != object_type.name:
+            raise BadRequest("Resource and object name don't match: %s - %s" (resource_type.name,object_type.name))
+
+        resource_id, version = self.clients.resource_registry.create(resource_type)
+        self.clients.resource_registry.create_association(resource_id, PRED.hasObjectType, object_id)
+        return resource_id
 
     def update_resource_type(self, resource_type=None):
         """ Should receive a ResourceType object
@@ -27,7 +42,7 @@ class ResourceManagementService(BaseResourceManagementService):
         # ------------
         # {success: true}
         #
-        pass
+        raise NotImplementedError("Currently, updating ResourceType is not supported")
 
     def read_resource_type(self, resource_type_id=''):
         """ Should return a ResourceType object
@@ -36,7 +51,10 @@ class ResourceManagementService(BaseResourceManagementService):
         # ------------
         # resource_type: {}
         #
-        pass
+        if not resource_type_id:
+            raise BadRequest("The resource_type_id parameter is missing")
+        resource_type = self.clients.resource_registry.read(resource_type_id)
+        return resource_type
 
     def delete_resource_type(self, resource_type_id=''):
         """method docstring
@@ -45,16 +63,13 @@ class ResourceManagementService(BaseResourceManagementService):
         # ------------
         # {success: true}
         #
-        pass
+        if not resource_type_id:
+            raise BadRequest("The resource_type_id parameter is missing")
 
-    def find_resource_types(self, filters=None):
-        """ Should receive a ResourceFilter object
-        """
-        # Return Value
-        # ------------
-        # resource_type_list: []
-        #
-        pass
+        resource_type = self.clients.resource_registry.read(resource_type_id)
+        if not resource_type:
+            raise NotFound("Resource type %s does not exist" % resource_type_id)
+        return self.clients.resource_registry.delete(resource_type_id)
 
     def create_resource_lifecycle(self, resource_lifecycle=None):
         """ Should receive a ResourceLifeCycle object

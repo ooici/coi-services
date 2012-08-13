@@ -125,6 +125,10 @@ class CoverageCraft(object):
 
     @classmethod
     def create_domains(cls):
+        '''
+        WARNING: This method is a wrapper intended only for tests, it should not be used in production code.
+        It probably will not align to most datasets.
+        '''
         tcrs = CRS([AxisTypeEnum.TIME])
         scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT, AxisTypeEnum.HEIGHT])
 
@@ -134,6 +138,10 @@ class CoverageCraft(object):
 
     @classmethod
     def create_parameters(cls):
+        '''
+        WARNING: This method is a wrapper intended only for tests, it should not be used in production code.
+        It probably will not align to most datasets.
+        '''
         pdict = ParameterDictionary()
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
         t_ctxt.reference_frame = AxisTypeEnum.TIME
@@ -178,6 +186,17 @@ class CoverageCraft(object):
         pres_ctxt.uom = 'Pascal'
         pres_ctxt.fill_value = 0x0
         pdict.add_context(pres_ctxt)
+
+        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=np.float32))
+        sal_ctxt.uom = 'PSU'
+        sal_ctxt.fill_value = 0x0
+        pdict.add_context(sal_ctxt)
+
+        sal_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=np.float32))
+        sal_ctxt.uom = 'PSU'
+        sal_ctxt.fill_value = 0x0
+        pdict.add_context(sal_ctxt)
+
 
         return pdict
         
