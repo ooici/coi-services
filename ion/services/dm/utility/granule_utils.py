@@ -192,11 +192,10 @@ class CoverageCraft(object):
         sal_ctxt.fill_value = 0x0
         pdict.add_context(sal_ctxt)
 
-        sal_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=np.float32))
-        sal_ctxt.uom = 'PSU'
-        sal_ctxt.fill_value = 0x0
-        pdict.add_context(sal_ctxt)
-
+        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=np.float32))
+        dens_ctxt.uom = 'unknown'
+        dens_ctxt.fill_value = 0x0
+        pdict.add_context(dens_ctxt)
 
         return pdict
         
