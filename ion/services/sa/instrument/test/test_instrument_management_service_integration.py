@@ -54,14 +54,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #stuff we control
 #        instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
         instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
-        instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel,
-                                                                  {"custom_attributes":
-                                                                        {"favorite_color": "attr desc goes here"}
-                                                                  }))
-        instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice,
-                                                                  {"custom_attributes":
-                                                                        {"favorite_color": "red"}
-                                                                  }))
+        instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel))
+        instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
         platform_agent_instance_id, _ =    self.RR.create(any_old(RT.PlatformAgentInstance))
         platform_agent_id, _ =             self.RR.create(any_old(RT.PlatformAgent))
         platform_device_id, _ =            self.RR.create(any_old(RT.PlatformDevice))
@@ -163,3 +157,21 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual("87", extended_instrument.computed.location_status_roll_up)
         self.assertEqual(['mon', 'tue', 'wed'], extended_instrument.computed.recent_events)
 
+
+    def test_custom_attributes(self):
+        """
+        check on custom attributes
+        """
+
+        instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel,
+                {"custom_attributes":
+                         {"favorite_color": "attr desc goes here"}
+            }))
+        instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice,
+                {"custom_attributes":
+                         {"favorite_color": "red",
+                          "bogus_attr": "should raise warning"
+                     }
+            }))
+
+        self.IMS.assign_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)

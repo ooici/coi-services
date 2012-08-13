@@ -1128,6 +1128,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def assign_instrument_model_to_instrument_device(self, instrument_model_id='', instrument_device_id=''):
+        instrument_model_obj  = self.instrument_model.read_one(instrument_model_id)
+        instrument_device_obj = self.instrument_device.read_one(instrument_device_id)
+
+        for k, v in instrument_device_obj.custom_attributes.iteritems():
+            if not k in instrument_model_obj.custom_attributes:
+                err_msg = ("InstrumentDevice '%s' contains custom attribute '%s' (value '%s'), but this attribute"
+                        + " is not defined by associated InstrumentModel '%s'") % (instrument_device_id,
+                                                                                   k, v,
+                                                                                   instrument_model_id)
+                #raise BadRequest(err_msg)
+                log.warn(err_msg)
+
         self.instrument_device.link_model(instrument_device_id, instrument_model_id)
 
     def unassign_instrument_model_from_instrument_device(self, instrument_model_id='', instrument_device_id=''):
