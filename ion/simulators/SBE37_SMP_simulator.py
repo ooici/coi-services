@@ -37,7 +37,7 @@ class sbe37(asyncore.dispatcher_with_send):
     interval = random.randrange(5, 32767)
     navg = 0
     store_time = False
-    tx_real_time = False
+    tx_real_time = True
     start_mmddyy = "010201"
     start_time = "010101"
     sync_wait = 0
