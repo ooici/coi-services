@@ -67,11 +67,11 @@ class VizTransformGoogleDT(TransformFunction):
 
         vardict = {}
         vardict['time'] = get_safe(rdt, 'time')
-        vardict['conductivity'] = get_safe(rdt, 'cond')
-        vardict['pressure'] = get_safe(rdt, 'pres')
+        vardict['conductivity'] = get_safe(rdt, 'conductivity')
+        vardict['pressure'] = get_safe(rdt, 'pressure')
         vardict['temperature'] = get_safe(rdt, 'temp')
 
-        vardict['longitude'] = get_safe(rdt, 'long')
+        vardict['longitude'] = get_safe(rdt, 'lon')
         vardict['latitude'] = get_safe(rdt, 'lat')
         vardict['height'] = get_safe(rdt, 'height')
         arrLen = len(vardict['time'])  # Figure out how many values are present in the granule

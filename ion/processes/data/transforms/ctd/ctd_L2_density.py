@@ -21,13 +21,19 @@ from seawater.gibbs import cte
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
+from ion.services.dm.utility.granule_utils import CoverageCraft
 import numpy as np
+
+craft = CoverageCraft
+sdom, tdom = craft.create_domains()
+sdom = sdom.dump()
+tdom = tdom.dump()
+parameter_dictionary = craft.create_parameters()
 
 class DensityTransform(TransformFunction):
     ''' A basic transform that receives input through a subscription,
@@ -42,63 +48,7 @@ class DensityTransform(TransformFunction):
     outgoing_stream_def = L2_density_stream_definition()
 
     def __init__(self):
-
-#        ### Taxonomies are defined before hand out of band... somehow.
-#        tx = TaxyTool()
-#        tx.add_taxonomy_set('density','long name for density')
-#        tx.add_taxonomy_set('lat','long name for latitude')
-#        tx.add_taxonomy_set('lon','long name for longitude')
-#        tx.add_taxonomy_set('height','long name for height')
-#        tx.add_taxonomy_set('time','long name for time')
-#        # This is an example of using groups it is not a normative statement about how to use groups
-#        tx.add_taxonomy_set('coordinates','This group contains coordinates...')
-#        tx.add_taxonomy_set('data','This group contains data...')
-
-        ### Parameter dictionaries
-        self.defining_parameter_dictionary()
-
-    def defining_parameter_dictionary(self):
-
-        # Define the parameter context objects
-
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 1970-01-01'
-        t_ctxt.fill_value = 0x0
-
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
-        lat_ctxt.reference_frame = AxisTypeEnum.LAT
-        lat_ctxt.uom = 'degree_north'
-        lat_ctxt.fill_value = 0e0
-
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
-        lon_ctxt.reference_frame = AxisTypeEnum.LON
-        lon_ctxt.uom = 'degree_east'
-        lon_ctxt.fill_value = 0e0
-
-        height_ctxt = ParameterContext('height', param_type=QuantityType(value_encoding=np.float32))
-        height_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        height_ctxt.uom = 'meters'
-        height_ctxt.fill_value = 0e0
-
-        dens_ctxt = ParameterContext('dens', param_type=QuantityType(value_encoding=np.float32))
-        dens_ctxt.uom = 'degree_Celsius'
-        dens_ctxt.fill_value = 0e0
-
-        data_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=np.int8))
-        data_ctxt.uom = 'byte'
-        data_ctxt.fill_value = 0x0
-
-        # Define the parameter dictionary objects
-
-        self.dens = ParameterDictionary()
-        self.dens.add_context(t_ctxt)
-        self.dens.add_context(lat_ctxt)
-        self.dens.add_context(lon_ctxt)
-        self.dens.add_context(height_ctxt)
-        self.dens.add_context(dens_ctxt)
-        self.dens.add_context(data_ctxt)
-
+        super(DensityTransform, self).__init__()
 
     def execute(self, granule):
         """Processes incoming data!!!!
@@ -110,13 +60,13 @@ class DensityTransform(TransformFunction):
 #        rdt1 = rdt['data']
 
         temperature = get_safe(rdt, 'temp')
-        conductivity = get_safe(rdt, 'cond')
-        density = get_safe(rdt, 'dens')
+        conductivity = get_safe(rdt, 'conductivity')
+        density = get_safe(rdt, 'density')
 
         longitude = get_safe(rdt, 'lon')
         latitude = get_safe(rdt, 'lat')
         time = get_safe(rdt, 'time')
-        height = get_safe(rdt, 'height')
+        depth = get_safe(rdt, 'depth')
 
 
         log.warn('Got conductivity: %s' % str(conductivity))
@@ -138,21 +88,18 @@ class DensityTransform(TransformFunction):
         ### the stream id is part of the metadata which much go in each stream granule - this is awkward to do at the
         ### application level like this!
 
-        root_rdt = RecordDictionaryTool(param_dictionary=self.dens)
-        #todo: use only flat dicts for now, may change later...
-#        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
-#        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
+        root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
         root_rdt['density'] = density
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
-        root_rdt['height'] = height
+        root_rdt['depth'] = depth
 
 #        root_rdt['coordinates'] = coord_rdt
 #        root_rdt['data'] = data_rdt
 
-        return build_granule(data_producer_id='ctd_L2_density', param_dictionary=self.dens, record_dictionary=root_rdt)
+        return build_granule(data_producer_id='ctd_L2_density', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
 
 
   

@@ -181,13 +181,13 @@ class FakeProcess(LocalContextMixin):
 #Refactored as stand alone method for starting an instrument agent for use in other tests, like governance
 #to do policy testing for resource agents
 #shenrie
-def start_fake_instrument_agent(container, stream_config={}, message_headers=None):
+def start_fake_instrument_agent(container, stream_config={}, resource_id=IA_RESOURCE_ID, resource_name=IA_NAME, message_headers=None):
 
     # Create agent config.
     agent_config = {
         'driver_config' : DVR_CONFIG,
         'stream_config' : stream_config,
-        'agent'         : {'resource_id': IA_RESOURCE_ID},
+        'agent'         : {'resource_id': resource_id},
         'test_mode' : True
     }
 
@@ -197,7 +197,7 @@ def start_fake_instrument_agent(container, stream_config={}, message_headers=Non
     container_client = ContainerAgentClient(node=container.node,
         name=container.name)
 
-    ia_pid = container_client.spawn_process(name=IA_NAME,
+    ia_pid = container_client.spawn_process(name=resource_name,
         module=IA_MOD,
         cls=IA_CLS,
         config=agent_config, headers=message_headers)
@@ -206,7 +206,7 @@ def start_fake_instrument_agent(container, stream_config={}, message_headers=Non
 
     # Start a resource agent client to talk with the instrument agent.
 
-    ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
+    ia_client = ResourceAgentClient(resource_id, process=FakeProcess())
     log.info('Got ia client %s.', str(ia_client))
 
     return ia_client

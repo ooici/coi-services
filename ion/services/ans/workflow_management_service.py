@@ -185,7 +185,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
             transform_dp_id = self.clients.data_product_management.create_data_product(transform_dp_obj, process_output_stream_def_id, parameter_dictionary)
             if wf_step.persist_process_output_data:
-                self.clients.data_product_management.activate_data_product_persistence(data_product_id=transform_dp_id, persist_data=wf_step.persist_process_output_data, persist_metadata=wf_step.persist_process_output_data)
+                self.clients.data_product_management.activate_data_product_persistence(data_product_id=transform_dp_id)
 
             #Associate the intermediate data products with the workflow
             self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProduct, transform_dp_id )

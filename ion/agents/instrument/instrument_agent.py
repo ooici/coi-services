@@ -12,7 +12,7 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 # Pyon imports
-from pyon.public import IonObject, log
+from pyon.public import IonObject, log, RT
 from pyon.agent.agent import ResourceAgent
 from pyon.core import exception as iex
 from pyon.util.containers import get_ion_ts
@@ -208,6 +208,9 @@ class InstrumentAgent(ResourceAgent):
         # Instrument agent internal parameters.
         ###############################################################################
 
+        #This is the type of Resource mamaged by this agent
+        self.resource_type = RT.InstrumentDevice
+
         # State machine start state, defaults to unconfigured.
         self._initial_state = initial_state
 
@@ -282,7 +285,7 @@ class InstrumentAgent(ResourceAgent):
         resource_id = get_safe(self.CFG, "agent.resource_id")
         if not self.resource_id:
             log.warn("InstrumentAgent.on_init(): agent has no resource_id in configuration")
-                
+
         # The registrar to create publishers.
         self._stream_registrar = StreamPublisherRegistrar(process=self,
                                                     container=self.container)

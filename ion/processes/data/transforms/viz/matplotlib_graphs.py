@@ -51,11 +51,11 @@ class VizTransformMatplotlibGraphs(TransformFunction):
 
         vardict = {}
         vardict['time'] = get_safe(rdt, 'time')
-        vardict['conductivity'] = get_safe(rdt, 'cond')
-        vardict['pressure'] = get_safe(rdt, 'pres')
+        vardict['conductivity'] = get_safe(rdt, 'conductivity')
+        vardict['pressure'] = get_safe(rdt, 'pressure')
         vardict['temperature'] = get_safe(rdt, 'temp')
 
-        vardict['longitude'] = get_safe(rdt, 'long')
+        vardict['longitude'] = get_safe(rdt, 'lon')
         vardict['latitude'] = get_safe(rdt, 'lat')
         vardict['height'] = get_safe(rdt, 'height')
         arrLen = len(vardict['time'])
@@ -82,7 +82,7 @@ class VizTransformMatplotlibGraphs(TransformFunction):
     def render_graphs(self, graph_data):
 
         # init Matplotlib
-        fig = Figure()
+        fig = Figure(figsize=(8,4), dpi=200, frameon=True)
         ax = fig.add_subplot(111)
         canvas = FigureCanvas(fig)
         imgInMem = StringIO.StringIO()
@@ -92,40 +92,62 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         xAxisVar = 'time'
         xAxisFloatData = graph_data[xAxisVar]
         rdt = RecordDictionaryTool(taxonomy=tx)
-        msgs = []
 
+        # Prepare the set of y axis variables that will be plotted. This needs to be smarter and passed as
+        # config variable to the transform
+        yAxisVars = []
         for varName, varData in graph_data.iteritems():
             if varName == 'time' or varName == 'height' or varName == 'longitude' or varName == 'latitude':
                 continue
+            yAxisVars.append(varName)
 
-            yAxisVar = varName
+        idx = 0
+        for varName in yAxisVars:
             yAxisFloatData = graph_data[varName]
 
             # Generate the plot
-            ax.plot(xAxisFloatData, yAxisFloatData, 'ro')
-            ax.set_xlabel(xAxisVar)
-            ax.set_ylabel(yAxisVar)
-            ax.set_title(yAxisVar + ' vs ' + xAxisVar)
-            ax.set_autoscale_on(False)
+            ax.plot(xAxisFloatData, yAxisFloatData, self.line_style(idx), label=varName)
+            idx += 1
 
-            # generate filename for the output image
-            fileName = yAxisVar + '_vs_' + xAxisVar + '.png'
-            # Save the figure to the in memory file
-            canvas.print_figure(imgInMem, format="png")
-            imgInMem.seek(0)
+        yAxisLabel = ""
+        # generate a filename for the output image
+        for varName in yAxisVars:
+            if yAxisLabel:
+                yAxisLabel = yAxisLabel + "-" + varName
+            else:
+                yAxisLabel = varName
 
-            # submit resulting table back using the out stream publisher
-            msg = {"viz_product_type": "matplotlib_graphs",
-                   "image_obj": imgInMem.getvalue(),
-                   "image_name": fileName}
+        fileName = yAxisLabel + '_vs_' + xAxisVar + '.png'
 
-            msgs.append(msg)
+        ax.set_xlabel(xAxisVar)
+        ax.set_ylabel(yAxisLabel)
+        ax.set_title(yAxisLabel + ' vs ' + xAxisVar)
+        ax.set_autoscale_on(False)
+        ax.legend(loc='upper left')
 
-            #clear the canvas for the next image
-            ax.clear()
+        # Save the figure to the in memory file
+        canvas.print_figure(imgInMem, format="png")
+        imgInMem.seek(0)
 
-        rdt['matplotlib_graphs'] = numpy.array([msgs])
+        # submit resulting table back using the out stream publisher
+        msg = {"viz_product_type": "matplotlib_graphs",
+               "image_obj": imgInMem.getvalue(),
+               "image_name": fileName,
+               "content_type": "image/png"}
+
+
+        rdt['matplotlib_graphs'] = numpy.array([msg])
         #Generate a list of the graph objects generated
         return build_granule(data_producer_id='matplotlib_graphs_transform', taxonomy=tx, record_dictionary=rdt)
 
 
+    # This method picks out a matplotlib line style based on an index provided. These styles are set in an order
+    # as a utility. No other reason
+    def line_style(self, index):
+
+        color = ['b','g','r','c','m','y','k','w']
+        stroke = ['-','--','-.',':','.',',','o','+','x','*']
+
+        style = color[index % len(color)] + stroke [(index / len(color)) % len(stroke)]
+
+        return style

@@ -61,6 +61,7 @@ from ion.agents.port.logger_process import EthernetDeviceLogger
 from ion.agents.instrument.driver_process import DriverProcessType
 from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverConnectionState
+from ion.agents.instrument.taxy_factory import get_taxonomy
 
 # Objects and clients.
 from interface.objects import AgentCommand
@@ -85,6 +86,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_errors
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_agent
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
@@ -188,7 +190,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
     """
     
     ############################################################################
-    # Setup, teardown, helpers.
+    # Setup, teardown.
     ############################################################################
         
     def setUp(self):
@@ -216,7 +218,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                                                      WORK_DIR)
         
         # Start port agent, add stop to cleanup.
-        self._pagent = None        
         self._start_pagent()
         self.addCleanup(self._support.stop_pagent)    
         
@@ -228,10 +229,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        # Setup stream config.
+        self._build_stream_config()
+        
         # Create agent config.
         agent_config = {
             'driver_config' : DVR_CONFIG,
-            'stream_config' : None,
+            'stream_config' : self._stream_config,
             'agent'         : {'resource_id': IA_RESOURCE_ID},
             'test_mode' : True
         }
@@ -254,6 +258,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                                               process=FakeProcess())
         log.info('Got ia client %s.', str(self._ia_client))        
         
+    ###############################################################################
+    # Port agent helpers.
+    ###############################################################################
+        
     def _start_pagent(self):
         """
         Construct and start the port agent.
@@ -268,6 +276,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'port' : port
         }
                         
+    ###############################################################################
+    # Event helpers.
+    ###############################################################################
+
     def _start_event_subscriber(self, type='ResourceAgentEvent', count=0):
         """
         Start a subscriber to the instrument agent events.
@@ -299,6 +311,100 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         self._event_subscriber.stop()
         self._event_subscriber = None
+
+    ###############################################################################
+    # Data stream helpers.
+    ###############################################################################
+
+    def _build_stream_config(self):
+        """
+        """
+        # Create a pubsub client to create streams.
+        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+                
+        # Create streams and subscriptions for each stream named in driver.
+        self._stream_config = {}
+
+        for stream_name in PACKET_CONFIG:
+            
+            # Create stream_id from stream_name.
+            stream_def = ctd_stream_definition(stream_id=None)
+            stream_def_id = pubsub_client.create_stream_definition(
+                                                    container=stream_def)        
+            stream_id = pubsub_client.create_stream(
+                        name=stream_name,
+                        stream_definition_id=stream_def_id,
+                        original=True,
+                        encoding='ION R2')
+
+            # Create stream config from taxonomy and id.
+            taxy = get_taxonomy(stream_name)
+            stream_config = dict(
+                id=stream_id,
+                taxonomy=taxy.dump()
+            )
+            self._stream_config[stream_name] = stream_config        
+
+    def _start_data_subscribers(self, count):
+        """
+        """
+        # Create a pubsub client to create streams.
+        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+                
+        # Create a stream subscriber registrar to create subscribers.
+        subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
+                                                container=self.container)
+
+        # Create streams and subscriptions for each stream named in driver.
+        self._data_subscribers = []
+        self._data_greenlets = []
+        self._samples_received = []
+        self._async_sample_result = AsyncResult()
+
+        # A callback for processing subscribed-to data.
+        def consume_data(message, headers):
+            log.info('Subscriber received data message: %s   %s.',
+                     str(message), str(headers))
+            self._samples_received.append(message)
+            if len(self._samples_received) == count:
+                self._async_sample_result.set()
+
+        for (stream_name, stream_config) in self._stream_config.iteritems():
+            
+            stream_id = stream_config['id']
+            
+            # Create subscriptions for each stream.
+            exchange_name = '%s_queue' % stream_name
+            sub = subscriber_registrar.create_subscriber(
+                exchange_name=exchange_name, callback=consume_data)
+            self._listen_data(sub)
+            self._data_subscribers.append(sub)
+            query = StreamQuery(stream_ids=[stream_id])
+            sub_id = pubsub_client.create_subscription(query=query,
+                    exchange_name=exchange_name, exchange_point='science_data')
+            pubsub_client.activate_subscription(sub_id)
+ 
+    def _listen_data(self, sub):
+        """
+        Pass in a subscriber here, this will make it listen in a background greenlet.
+        """
+        gl = spawn(sub.listen)
+        self._data_greenlets.append(gl)
+        sub._ready_event.wait(timeout=5)
+        return gl
+                                 
+    def _stop_data_subscribers(self):
+        """
+        Stop the data subscribers on cleanup.
+        """
+        for sub in self._data_subscribers:
+            sub.stop()
+        for gl in self._data_greenlets:
+            gl.kill()
+        
+    ###############################################################################
+    # Assert helpers.
+    ###############################################################################
         
     def assertSampleDict(self, val):
         """
@@ -373,6 +479,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
         
+        # Ping the agent.
+        retval = self._ia_client.ping_agent()
+        log.info(retval)
+
         # Initialize the agent.
         # The agent is spawned with a driver config, but you can pass one in
         # optinally with the initialize command. This validates the driver
@@ -382,6 +492,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Ping the driver proc.
+        retval = self._ia_client.ping_resource()
+        log.info(retval)
 
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.
@@ -446,7 +560,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         Test agent state transitions through execute agent interface.
         Verify agent state status as we go. Verify ResourceAgentStateEvents
-        are published.
+        are published. Verify agent and resource pings.
         """
 
         # Set up a subscriber to collect error events.
@@ -455,11 +569,22 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        # Ping the agent.
+        retval = self._ia_client.ping_agent()
+        log.info(retval)
+
+        with self.assertRaises(Conflict):
+            retval = self._ia_client.ping_resource()
     
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Ping the driver proc.
+        retval = self._ia_client.ping_resource()
+        log.info(retval)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
         retval = self._ia_client.execute_agent(cmd)
@@ -641,13 +766,49 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+    def test_get_set_agent(self):
+        """
+        Test instrument agent get and set interface, including errors.
+        """
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        # Test with a bad parameter name.
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.get_agent(['a bad param name'])
+
+        # Test with a bad parameter type.
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.get_agent([123])
+
+        retval = self._ia_client.get_agent(['example'])
+
+        with self.assertRaises(BadRequest):
+            self._ia_client.set_agent({'a bad param name' : 'newvalue'})
+
+        with self.assertRaises(BadRequest):
+            self._ia_client.set_agent({123 : 'newvalue'})
+
+        with self.assertRaises(BadRequest):
+            self._ia_client.set_agent({'example' : 999})
+
+        self._ia_client.set_agent({'example' : 'newvalue'})
+
+        retval = self._ia_client.get_agent(['example'])
+
+        self.assertEquals(retval['example'], 'newvalue')
+
     def test_poll(self):
         """
         Test observatory polling function thorugh execute resource interface.
         Verify ResourceAgentCommandEvents are published.
         """
+
+        # Start data subscribers.
+        self._start_data_subscribers(6)
+        self.addCleanup(self._stop_data_subscribers)    
         
-        # Set up a subscriber to collect error events.
+        # Set up a subscriber to collect command events.
         self._start_event_subscriber('ResourceAgentCommandEvent', 7)
         self.addCleanup(self._stop_event_subscriber)    
         
@@ -685,11 +846,19 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._async_event_result.get(timeout=2)
         self.assertEquals(len(self._events_received), 7)
                
+        self._async_sample_result.get(timeout=2)
+        self.assertEquals(len(self._samples_received), 6)
+               
     def test_autosample(self):
         """
         Test instrument driver execute interface to start and stop streaming
         mode. Verify ResourceAgentResourceStateEvents are publsihed.
         """
+        
+        # Start data subscribers.
+        self._start_data_subscribers(6)
+        self.addCleanup(self._stop_data_subscribers)    
+        
         # Set up a subscriber to collect error events.
         self._start_event_subscriber('ResourceAgentResourceStateEvent', 7)
         self.addCleanup(self._stop_event_subscriber)            
@@ -715,7 +884,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         
-        time.sleep(15)
+        gevent.sleep(15)
         
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
@@ -727,6 +896,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         self._async_event_result.get(timeout=2)
         self.assertGreaterEqual(len(self._events_received), 8)
+
+        self._async_sample_result.get(timeout=2)
+        self.assertGreaterEqual(len(self._samples_received), 6)
 
     def test_capabilities(self):
         """
@@ -747,7 +919,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.GO_DIRECT_ACCESS           
         ]
         
-        agt_pars_all = ['aparam1']
+        agt_pars_all = ['example']
         
         res_cmds_all =[
             SBE37ProtocolEvent.TEST,

@@ -65,10 +65,16 @@ class PlatformDeviceImpl(ResourceImpl):
     def unlink_model(self, platform_device_id='', platform_model_id=''):
         return self._unlink_resources(platform_device_id, PRED.hasModel, platform_model_id)
 
-    def link_device(self, platform_device_id='', instrument_device_id=''):
+    def link_instrument_device(self, platform_device_id='', instrument_device_id=''):
         return self._link_resources(platform_device_id, PRED.hasDevice, instrument_device_id)
 
-    def unlink_device(self, platform_device_id='', instrument_device_id=''):
+    def unlink_instrument_device(self, platform_device_id='', instrument_device_id=''):
+        return self._unlink_resources(platform_device_id, PRED.hasDevice, instrument_device_id)
+
+    def link_platform_device(self, platform_device_id='', child_platform_device_id=''):
+        return self._link_resources(platform_device_id, PRED.hasDevice, child_platform_device_id)
+
+    def unlink_platform_device(self, platform_device_id='', instrument_device_id=''):
         return self._unlink_resources(platform_device_id, PRED.hasDevice, instrument_device_id)
 
 
@@ -92,11 +98,17 @@ class PlatformDeviceImpl(ResourceImpl):
     def find_stemming_model(self, platform_device_id):
         return self._find_stemming(platform_device_id, PRED.hasModel, RT.PlatformModel)
 
-    def find_having_device(self, platform_device_id):
+    def find_having_instrument_device(self, instrument_device_id):
+        return self._find_having(PRED.hasDevice, instrument_device_id)
+
+    def find_stemming_instrument_device(self, platform_device_id):
+        return self._find_stemming(platform_device_id, PRED.hasDevice, RT.InstrumentDevice)
+
+    def find_having_platform_device(self, platform_device_id):
         return self._find_having(PRED.hasDevice, platform_device_id)
 
-    def find_stemming_device(self, platform_device_id):
-        return self._find_stemming(platform_device_id, PRED.hasDevice, RT.InstrumentDevice)
+    def find_stemming_platform_device(self, platform_device_id):
+        return self._find_stemming(platform_device_id, PRED.hasDevice, RT.PlatformDevice)
 
 
     # LIFECYCLE STATE PRECONDITIONS

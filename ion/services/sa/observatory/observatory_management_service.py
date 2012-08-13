@@ -534,8 +534,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #todo: re-use existing defintion?  how?
         log.info("Creating data process definition")
         dpd_obj = IonObject(RT.DataProcessDefinition,
-                            name='logical_transform',
-                            description='send the packet from the in stream to the out stream unchanged',
+                            name='SiteDataProduct', #as per Maurice.  todo: constant?
+                            description=site_id,    #as per Maurice.
                             module='ion.processes.data.transforms.logical_transform',
                             class_name='logical_transform',
                             process_source="For %s '%s'" % (sitetype, site_id))
@@ -882,10 +882,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         else:
             raise BadRequest("Expected a device type, got '%s'" % device_type)
 
-        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
-        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
-        if device_model not in site_models:
-            raise BadRequest("The site and device model types are incompatible")
+        # commented out as per Maurice, 8/7/12
+#        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
+#        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
+#        if device_model not in site_models:
+#            raise BadRequest("The site and device model types are incompatible")
 
         # check site/device pair.
         # this function re-checks the association as a side effect, so this error should NEVER happen

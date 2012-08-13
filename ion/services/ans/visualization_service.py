@@ -35,6 +35,7 @@ from pyon.ion.granule.record_dictionary import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
 from interface.objects import Granule
 from pyon.util.containers import get_safe
+from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
 
 # Google viz library for google charts
 import ion.services.ans.gviz_api as gviz_api
@@ -59,7 +60,7 @@ class VisualizationService(BaseVisualizationService):
         return
 
 
-    def initiate_realtime_visualization(self, data_product_id='', in_product_type='', query='', callback=""):
+    def initiate_realtime_visualization(self, data_product_id='', visualization_parameters=None, callback=""):
         """Initial request required to start a realtime chart for the specified data product. Returns a user specific token associated
         with the request that will be required for subsequent requests when polling data.
         
@@ -69,9 +70,16 @@ class VisualizationService(BaseVisualizationService):
         @param in_product_type str
         @param query        str
         @param callback     str
-        @retval query_token    str
         @throws NotFound    Throws if specified data product id or its visualization product does not exist
         """
+
+        query = None
+        in_product_type = ''
+        if visualization_parameters:
+            if visualization_parameters.has_key('query'):
+                query=visualization_parameters['query']
+            if visualization_parameters.has_key('in_product_type'):
+                in_product_type = visualization_parameters['in_product_type']
 
         # Perform a look up to check and see if the DP is indeed a realtime GDT stream
         if not data_product_id:
@@ -95,17 +103,7 @@ class VisualizationService(BaseVisualizationService):
             if len(workflow_def_ids) > 0:
                 workflow_def_id = workflow_def_ids[0]
             else:
-                # Build the workflow definition
-                workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_Google_DT',description='Convert stream data to Google Datatable')
-
-                #Add a transformation process definition
-                google_dt_procdef_id = self.create_google_dt_data_process_definition()
-                workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id)
-                workflow_def_obj.workflow_steps.append(workflow_step_obj)
-
-                #Create it in the resource registry
-                workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
-
+                workflow_def_id = self._create_google_dt_workflow_def()
 
             #Create and start the workflow
             workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, data_product_id, timeout=20)
@@ -122,9 +120,8 @@ class VisualizationService(BaseVisualizationService):
 
         # TODO check if is a real time GDT stream automatically
         if in_product_type == 'google_dt':
-
             # Retrieve the id of the OUTPUT stream from the out Data Product
-            stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, None, True)
+            stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)
             if not stream_ids:
                 raise Inconsistent("Could not find Stream Id for Data Product %s" % data_product_id)
 
@@ -302,8 +299,7 @@ class VisualizationService(BaseVisualizationService):
         self.container.ex_manager.delete_xn(xq)
 
 
-
-    def create_google_dt_data_process_definition(self):
+    def _create_google_dt_data_process_definition(self):
 
         #First look to see if it exists and if not, then create it
         dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
@@ -331,30 +327,48 @@ class VisualizationService(BaseVisualizationService):
         return procdef_id
 
 
-    def get_visualization_image(self, data_product_id=''):
+    def _create_google_dt_workflow_def(self):
+        # Check to see if the workflow defnition already exist
+        workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
 
-        images = None
+        if len(workflow_def_ids) > 0:
+            workflow_def_id = workflow_def_ids[0]
+        else:
+            # Build the workflow definition
+            workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_Google_DT',description='Convert stream data to Google Datatable')
 
-        return images
+            #Add a transformation process definition
+            google_dt_procdef_id = self._create_google_dt_data_process_definition()
+            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id)
+            workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+            #Create it in the resource registry
+            workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
+
+        return workflow_def_id
 
 
 
-    def get_visualization_data(self, data_product_id='', out_product_type='', query='', callback=''):
+    def get_visualization_data(self, data_product_id='', visualization_parameters={}, callback=''):
         """Retrieves the data for the specified DP and sends a token back which can be checked in
             a non-blocking fashion till data is ready
 
         @param data_product_id    str
-        @param query    str
-        @retval query_token  str
+        @param visualization_parameters    str
+        @param callback     str
+        @retval jsonp_visualization_data str
         @throws NotFound    object with specified id, query does not exist
         """
 
         # error check
-        if data_product_id == '' or out_product_type == '':
-            return None
+        if not data_product_id:
+            raise BadRequest("The data_product_id parameter is missing")
 
-        query_token = None
         gdt = None
+        query = None
+        if visualization_parameters:
+            if visualization_parameters.has_key('query'):
+                query=visualization_parameters['query']
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
@@ -368,62 +382,93 @@ class VisualizationService(BaseVisualizationService):
         if retrieved_granule == None:
             return None
 
-        if out_product_type == 'google_dt':
-            # send the granule through the transform to get the google datatable
-            gdt_transform = VizTransformGoogleDT()
-            gdt_data_granule = gdt_transform.execute(retrieved_granule)
 
-            gdt_rdt = RecordDictionaryTool.load_from_granule(gdt_data_granule)
-            gdt_components = get_safe(gdt_rdt, "google_dt_components")
-            temp_gdt_description = gdt_components[0]["data_description"]
-            temp_gdt_content = gdt_components[0]["data_content"]
+        # send the granule through the transform to get the google datatable
+        gdt_transform = VizTransformGoogleDT()
+        gdt_data_granule = gdt_transform.execute(retrieved_granule)
+        # send the granule through the transform to get the google datatable
+        #gdt_data_granule = self.data_retriever.retrieve(ds_ids[0], module="ion.processes.data.transforms.viz.google_dt", cls="VizTransformGoogleDT")
+        #if not gdt_data_granule:
+        #    return None
 
-
-            # adjust the 'float' time to datetime in the content
-            gdt_description = [('time', 'datetime', 'time')]
-            gdt_content = []
-            for idx in range(1,len(temp_gdt_description)):
-                gdt_description.append(temp_gdt_description[idx])
-
-            for tempTuple in temp_gdt_content:
-                # sometimes there are inexplicable empty tuples in the content. Drop them
-                if tempTuple == [] or len(tempTuple) == 0:
-                    continue
-
-                varTuple = []
-                varTuple.append(datetime.fromtimestamp(tempTuple[0]))
-                for idx in range(1,len(tempTuple)):
-                    varTuple.append(tempTuple[idx])
-                gdt_content.append(varTuple)
-
-            # now generate the Google datatable out of the description and content
-            gdt = gviz_api.DataTable(gdt_description)
-            gdt.LoadData(gdt_content)
+        gdt_rdt = RecordDictionaryTool.load_from_granule(gdt_data_granule)
+        gdt_components = get_safe(gdt_rdt, "google_dt_components")
+        temp_gdt_description = gdt_components[0]["data_description"]
+        temp_gdt_content = gdt_components[0]["data_content"]
 
 
-            # return the json version of the table
-            if callback == '':
-                return gdt.ToJSonResponse()
-            else:
-                return callback + "(\"" + gdt.ToJSonResponse() + "\")"
+        # adjust the 'float' time to datetime in the content
+        gdt_description = [('time', 'datetime', 'time')]
+        gdt_content = []
+        for idx in range(1,len(temp_gdt_description)):
+            gdt_description.append(temp_gdt_description[idx])
 
-        if out_product_type == 'matplotlib_graphs':
+        for tempTuple in temp_gdt_content:
+            # sometimes there are inexplicable empty tuples in the content. Drop them
+            if tempTuple == [] or len(tempTuple) == 0:
+                continue
 
-            mpl_transform = VizTransformMatplotlibGraphs()
-            mpl_data_granule = mpl_transform.execute(retrieved_granule)
+            varTuple = []
+            varTuple.append(datetime.fromtimestamp(tempTuple[0]))
+            for idx in range(1,len(tempTuple)):
+                varTuple.append(tempTuple[idx])
+            gdt_content.append(varTuple)
 
-            mpl_rdt = RecordDictionaryTool.load_from_granule(mpl_data_granule)
-            temp_mpl_graph_list = get_safe(mpl_rdt, "matplotlib_graphs")
-            mpl_graphs = temp_mpl_graph_list[0]
+        # now generate the Google datatable out of the description and content
+        gdt = gviz_api.DataTable(gdt_description)
+        gdt.LoadData(gdt_content)
 
-            # restructure the mpl graphs in to a simpler dict that will be passed through
-            ret_dict = {}
-            for graph in mpl_graphs:
-                ret_dict[graph['image_name']] = base64.encodestring(graph['image_obj'])
-
-            if callback == '':
-                return ret_dict
-            else:
-                return callback + "(" + simplejson.dumps(ret_dict) + ")"
+        # return the json version of the table
+        if callback == '':
+            return gdt.ToJSonResponse()
+        else:
+            return callback + "(\"" + gdt.ToJSonResponse() + "\")"
 
 
+
+    def get_visualization_image(self, data_product_id='', visualization_parameters={}, callback=''):
+
+        # Error check
+        if not data_product_id:
+            raise BadRequest("The data_product_id parameter is missing")
+
+        query = None
+        if visualization_parameters:
+            if visualization_parameters.has_key('query'):
+                query=visualization_parameters['query']
+
+        # get the dataset_id associated with the data_product. Need it to do the data retrieval
+        ds_ids,_ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+
+        if ds_ids == None or len(ds_ids) == 0:
+            return None
+
+        # Ideally just need the latest granule to figure out the list of images
+        #replay_granule = self.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
+        retrieved_granule = self.data_retriever.retrieve(ds_ids[0])
+        if retrieved_granule == None:
+            return None
+
+        mpl_transform = VizTransformMatplotlibGraphs()
+        mpl_data_granule = mpl_transform.execute(retrieved_granule)
+
+        #mpl_data_granule = self.data_retriever.retrieve(ds_ids[0], module="ion.processes.data.transforms.viz.matplotlib_graphs", cls="VizTransformMatplotlibGraphs")
+        #if not mpl_data_granule:
+        #    return None
+
+        mpl_rdt = RecordDictionaryTool.load_from_granule(mpl_data_granule)
+        temp_mpl_graph_list = get_safe(mpl_rdt, "matplotlib_graphs")
+        mpl_graph = temp_mpl_graph_list[0]
+
+        # restructure the mpl graphs in to a simpler dict that will be passed through
+        ret_dict = {}
+        ret_dict['content_type'] = mpl_graph['content_type']
+        ret_dict['image_name'] = mpl_graph['image_name']
+        # reason for encoding as base64 string is otherwise message pack complains about the bit stream
+        ret_dict['image_obj'] = base64.encodestring(mpl_graph['image_obj'])
+        #ret_dict['image_obj'] = mpl_graph['image_obj']
+
+        if callback == '':
+            return ret_dict
+        else:
+            return callback + "(" + simplejson.dumps(ret_dict) + ")"
