@@ -136,5 +136,4 @@ class VizTransformGoogleDT(TransformFunction):
         log.debug('Google DT transform: Sending a granule')
         out_granule = build_granule(data_producer_id='google_dt_transform', param_dictionary = self.gdt_paramdict, record_dictionary=out_rdt)
 
-        print " >>>>>>>>>>>>>>>   OUT_GRANULE = ", out_granule
         return out_granule
