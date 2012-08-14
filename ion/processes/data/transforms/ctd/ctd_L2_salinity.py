@@ -16,7 +16,6 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L2_densi
 
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -26,12 +25,6 @@ from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 import numpy as np
-
-craft = CoverageCraft
-sdom, tdom = craft.create_domains()
-sdom = sdom.dump()
-tdom = tdom.dump()
-parameter_dictionary = craft.create_parameters()
 
 class SalinityTransform(TransformFunction):
     '''
@@ -72,7 +65,7 @@ class SalinityTransform(TransformFunction):
 
         log.warn('Got salinity: %s' % str(salinity))
 
-
+        parameter_dictionary = self._create_parameter()
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
         root_rdt['salinity'] = salinity
@@ -87,3 +80,43 @@ class SalinityTransform(TransformFunction):
         return build_granule(data_producer_id='ctd_L2_salinity', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
 
 
+    def _create_parameter(self):
+
+        pdict = ParameterDictionary()
+
+        pdict = self._add_location_time_ctxt(pdict)
+
+        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=np.float32))
+        sal_ctxt.uom = 'PSU'
+        sal_ctxt.fill_value = 0x0
+        pdict.add_context(sal_ctxt)
+
+        return pdict
+
+    def _add_location_time_ctxt(self, pdict):
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 1970-01-01'
+        t_ctxt.fill_value = 0x0
+        pdict.add_context(t_ctxt)
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
+        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt.fill_value = 0e0
+        pdict.add_context(lat_ctxt)
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
+        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt.fill_value = 0e0
+        pdict.add_context(lon_ctxt)
+
+        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
+        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
+        depth_ctxt.uom = 'meters'
+        depth_ctxt.fill_value = 0e0
+        pdict.add_context(depth_ctxt)
+
+        return pdict
