@@ -16,13 +16,14 @@ from mock import patch
 from pyon.public import log, CFG
 from nose.plugins.attrib import attr
 
+import pyon.core.exception as pyex
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest
 from pyon.core.object import IonObjectSerializer
 from pyon.agent.agent import ResourceAgentClient
 from ion.agents.instrument.test.test_instrument_agent import TestInstrumentAgent, IA_RESOURCE_ID
 
-from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE
+from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
 
 # bin/nosetests -s -v ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway.test_initialize
 
@@ -56,38 +57,101 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
     """
     A test fixture for routing resource agent client requests through the service gateway.
     """
+    
+    # The resource agent interface replicated in this test fixture, redirected
+    # to gateway calls.
+    def negotiate(self, *args, **kwargs):
+        return self.gw_negotiate(IA_RESOURCE_ID, *args, **kwargs)
+
     def get_capabilities(self, *args, **kwargs):
         return self.gw_get_capabilities(IA_RESOURCE_ID, *args, **kwargs)
-
-    def execute(self, *args, **kwargs):
-        return self.gw_execute(IA_RESOURCE_ID, *args, **kwargs)
-
-    def get_param(self, *args, **kwargs):
-        return self.gw_get_param(IA_RESOURCE_ID, *args, **kwargs)
-
-    def set_param(self, *args, **kwargs):
-        return self.gw_set_param(IA_RESOURCE_ID, *args, **kwargs)
-
-    def emit(self, *args, **kwargs):
-        return NotImplemented()
-
+        
     def execute_agent(self, *args, **kwargs):
         return self.gw_execute_agent(IA_RESOURCE_ID, *args, **kwargs)
 
-    def get_agent_param(self, *args, **kwargs):
-        return self.gw_get_agent_param(IA_RESOURCE_ID, *args, **kwargs)
+    def get_agent(self, *args, **kwargs):
+        return self.gw_get_agent(IA_RESOURCE_ID, *args, **kwargs)
 
-    def set_agent_param(self, *args, **kwargs):
-        return self.gw_set_agent_param(IA_RESOURCE_ID, *args, **kwargs)
+    def set_agent(self, *args, **kwargs):
+        return self.gw_set_agent(IA_RESOURCE_ID, *args, **kwargs)
 
+    def get_agent_state(self, *args, **kwargs):
+        return self.gw_get_agent_state(IA_RESOURCE_ID, *args, **kwargs)
 
-    def gw_execute(self, resource_id, cmd, requester=None):
-        return self._gw_execute_cmd('execute', resource_id, cmd, requester)
+    def ping_agent(self, *args, **kwargs):
+        return self.gw_ping_agent(IA_RESOURCE_ID, *args, **kwargs)
 
-    def gw_execute_agent(self,resource_id, cmd, requester=None):
-        return self._gw_execute_cmd( 'execute_agent', resource_id, cmd, requester)
+    def execute_resource(self, *args, **kwargs):
+        return self.gw_execute_resource(IA_RESOURCE_ID, *args, **kwargs)
 
-    def _gw_execute_cmd(self, op, resource_id, cmd, requester=None):
+    def get_resource(self, *args, **kwargs):
+        return self.gw_get_resource(IA_RESOURCE_ID, *args, **kwargs)
+
+    def set_resource(self, *args, **kwargs):
+        return self.gw_set_resource(IA_RESOURCE_ID, *args, **kwargs)
+
+    def get_resource_state(self, *args, **kwargs):
+        return self.gw_get_resource_state(IA_RESOURCE_ID, *args, **kwargs)
+
+    def ping_resource(self, *args, **kwargs):
+        return self.gw_ping_resource(IA_RESOURCE_ID, *args, **kwargs)
+
+    def emit(self, *args, **kwargs):
+        return self.gw_emit(IA_RESOURCE_ID, *args, **kwargs)
+    
+    
+    # Interface gateway calls.
+    def gw_negotiate(self, resource_id="", sap_in=None, requester=None):
+        pass
+
+    # XXX    
+    def gw_get_capabilities(self, resource_id="", current_state=True, requester=None):
+        agent_get_capabilities_request = {  "agentRequest": {
+            "agentId": resource_id,
+            "agentOp": "get_capabilities",
+            "expiry": 0,
+            "params": {
+                "current_state": current_state}
+        }}
+
+        return _process_gateway_request(resource_id, "get_capabilities", agent_get_capabilities_request, requester)
+        
+    # XXX            
+    def gw_execute_agent(self, resource_id="", command=None, requester=None):
+        return self._gw_execute( 'execute_agent', resource_id, command, requester)
+    
+    # XXX    
+    def gw_get_agent(self, resource_id='', params=[], requester=None):
+        return self._gw_get('get_agent', resource_id, params, requester)
+    
+    def gw_set_agent(self, resource_id='', params={}, requester=None):
+        return self._gw_set('set_agent', resource_id, params, requester)
+    
+    def gw_get_agent_state(self, resource_id='', requester=None):
+        return self._gw_get_state('get_agent_state', resource_id, requester)
+    
+    def gw_ping_agent(self, resource_id="", requester=None):
+        return self._gw_ping('ping_agent', resource_id, requester)
+    
+    def gw_execute_resource(self, resource_id='', command=None, requester=None):
+        return self._gw_execute('execute_resource', resource_id, command, requester)
+    
+    def gw_get_resource(self, resource_id='', params=[], requester=None):
+        return self._gw_get('get_resource', resource_id, params, requester)
+    
+    def gw_set_resource(self, resource_id='', params={}, requester=None):
+        return self._gw_set('set_resource', resource_id, params, requester)
+    
+    def gw_get_resource_state(self, resource_id='', requester=None):
+        return self._gw_get_state('get_resource_state', resource_id, requester)
+    
+    def gw_ping_resource(self, resource_id='', requester=None):
+        return self._gw_ping('ping_resource', resource_id, requester)
+    
+    def gw_emit(self, requester=None):
+        pass
+    
+    def _gw_execute(self, op, resource_id, cmd, requester=None):
 
         agent_cmd_params = IonObjectSerializer().serialize(cmd)
 
@@ -105,59 +169,56 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
         ret_obj = IonObject('AgentCommandResult',ret_values)
         return ret_obj
 
-    def gw_get_capabilities(self, resource_id, capability_types, requester=None):
 
-
-        agent_get_capabilities_request = {  "agentRequest": {
-            "agentId": resource_id,
-            "agentOp": "get_capabilities",
-            "expiry": 0,
-            "params": {
-                "capability_types": capability_types}
-        }}
-
-        return _process_gateway_request(resource_id, "get_capabilities", agent_get_capabilities_request, requester)
-
-
-    def gw_get_param(self, resource_id,  name, requester=None):
-        return self._gw_get_param('get_param', resource_id, name, requester)
-
-    def gw_get_agent_param(self,resource_id,  name, requester=None):
-        return self._gw_get_param( 'get_agent_param', resource_id, name, requester)
-
-    def _gw_get_param(self, op, resource_id, name, requester=None):
+    def _gw_get(self, op, resource_id, params, requester=None):
 
         agent_get_param_request = {  "agentRequest": {
             "agentId": resource_id,
             "agentOp": op,
             "expiry": 0,
             "params": {
-                "name" : name
+                "params" : params
             }
         }}
 
         return _process_gateway_request(resource_id, op, agent_get_param_request, requester)
 
-    def gw_set_param(self, resource_id,  name, value='', requester=None):
-        return self._gw_set_param('set_param', resource_id, name, value, requester)
-
-    def gw_set_agent_param(self,resource_id,  name, value='', requester=None):
-        return self._gw_set_param( 'set_agent_param', resource_id, name, value, requester)
-
-    def _gw_set_param(self, op, resource_id,  name, value='', requester=None):
+    def _gw_set(self, op, resource_id,  params, requester=None):
 
         agent_set_param_request = {  "agentRequest": {
             "agentId": resource_id,
             "agentOp": op,
             "expiry": 0,
             "params": {
-                'name' : name,
-                'value': value
+                'params' : params
             }
         }}
 
         return _process_gateway_request(resource_id, op, agent_set_param_request, requester)
 
+    def _gw_get_state(self, op, resource_id, current_state, requester=None):
+
+        agent_get_state_request = {  "agentRequest": {
+            "agentId": resource_id,
+            "agentOp": op,
+            "expiry": 0,
+            "params": {
+                'current_state' : current_state
+            }
+        }}
+
+        return _process_gateway_request(resource_id, op, agent_get_state_request, requester)
+
+    def _gw_ping(self, op, resource_id, requester=None):
+
+        agent_ping_request = {  "agentRequest": {
+            "agentId": resource_id,
+            "agentOp": op,
+            "expiry": 0,
+            "params": {}
+        }}
+
+        return _process_gateway_request(resource_id, op, agent_ping_request, requester)
 
 
 def _agent_gateway_request(uri, payload):
@@ -211,7 +272,14 @@ def _process_gateway_request(resource_id, operation, json_request, requester):
 
     if response['data'].has_key(GATEWAY_ERROR):
         log.error(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
-        raise BadRequest(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
+        #raise BadRequest(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
+        ex_cls = response['data'][GATEWAY_ERROR][GATEWAY_ERROR_EXCEPTION]
+        ex_msg = response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE]
+        if hasattr(pyex, ex_cls):
+            raise getattr(pyex, ex_cls)(ex_msg)
+        
+        else:
+            raise Exception(ex_msg)
 
     try:
         if "type_" in response['data'][GATEWAY_RESPONSE]:

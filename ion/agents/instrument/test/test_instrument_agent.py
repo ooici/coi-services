@@ -69,6 +69,7 @@ from ion.agents.instrument.taxy_factory import get_taxonomy
 from interface.objects import AgentCommand
 from interface.objects import StreamQuery
 from interface.objects import CapabilityType
+from interface.objects import AgentCapability
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -182,6 +183,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
     id=''
     process_type = ''
+
 
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
@@ -956,6 +958,28 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 
         res_pars_all = PARAMS.keys()
         
+        
+        def sort_caps(caps_list):
+            agt_cmds = []
+            agt_pars = []
+            res_cmds = []
+            res_pars = []
+            
+            if len(caps_list)>0 and isinstance(caps_list[0], AgentCapability):
+                agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
+                agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
+                res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+                res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+            
+            elif len(caps_list)>0 and isinstance(caps_list[0], dict):
+                agt_cmds = [x['name'] for x in retval if x['cap_type']==CapabilityType.AGT_CMD]
+                agt_pars = [x['name'] for x in retval if x['cap_type']==CapabilityType.AGT_PAR]
+                res_cmds = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_CMD]
+                res_pars = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_PAR]
+            
+            return agt_cmds, agt_pars, res_cmds, res_pars
+             
+        
         ##################################################################
         # UNINITIALIZED
         ##################################################################
@@ -967,10 +991,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
         
         # Validate capabilities for state UNINITIALIZED.
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
         
         agt_cmds_uninitialized = [
             ResourceAgentEvent.INITIALIZE
@@ -984,11 +1005,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities(False)        
 
         # Validate all capabilities as read from state UNINITIALIZED.
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
-        
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+       
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, [])
@@ -1008,10 +1026,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
 
         # Validate capabilities for state INACTIVE.
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
                 
         agt_cmds_inactive = [
             ResourceAgentEvent.GO_ACTIVE,
@@ -1027,10 +1042,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities(False)        
  
          # Validate all capabilities as read from state INACTIVE.
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
  
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
@@ -1051,10 +1063,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
 
          # Validate capabilities for state IDLE.
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
 
         agt_cmds_idle = [
             ResourceAgentEvent.GO_INACTIVE,
@@ -1071,10 +1080,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities(False)        
         
          # Validate all capabilities as read from state IDLE.
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
         
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
@@ -1095,10 +1101,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
 
          # Validate capabilities of state COMMAND
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
 
         agt_cmds_command = [
             ResourceAgentEvent.CLEAR,
@@ -1123,10 +1126,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities(False)        
         
          # Validate all capabilities as read from state COMMAND
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]        
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
                 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
@@ -1147,10 +1147,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
 
          # Validate capabilities of state STREAMING
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
 
  
         agt_cmds_streaming = [
@@ -1171,10 +1168,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities(False)        
         
          # Validate all capabilities as read from state COMMAND
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]        
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
         
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
@@ -1197,10 +1191,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
 
          # Validate capabilities of state COMMAND
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
         
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
         self.assertItemsEqual(agt_pars, agt_pars_all)
@@ -1211,10 +1202,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities(False)        
         
          # Validate all capabilities as read from state COMMAND
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]        
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
         
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
@@ -1235,10 +1223,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
         
         # Validate capabilities for state UNINITIALIZED.
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
         
         self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
         self.assertItemsEqual(agt_pars, agt_pars_all)
@@ -1249,11 +1234,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities(False)        
 
         # Validate all capabilities as read from state UNINITIALIZED.
-        agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-        agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-        res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-        res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
-        
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+       
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, [])
