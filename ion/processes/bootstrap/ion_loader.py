@@ -16,6 +16,7 @@ from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.resource import get_restype_lcsm
 from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any, get_ion_ts
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 DEBUG = True
 
@@ -90,7 +91,7 @@ class IONLoader(ImmediateProcess):
                       #'IngestionConfiguration',
                       'DataProduct',
                       'DataProcess',
-                      'DataProductLink',
+                      #'DataProductLink',
                       'Attachment',
                       'WorkflowDefinition',
                       'Workflow',
@@ -616,16 +617,28 @@ class IONLoader(ImmediateProcess):
     def _load_DataProduct(self, row):
         strdef = row["stream_def_id"]
 
-        res_id = self._basic_resource_create(row, "DataProduct", "dp/",
-                                            "data_product_management", "create_data_product",
-                                            stream_definition_id=self.resource_ids[strdef])
+#        res_id = self._basic_resource_create(row, "DataProduct", "dp/",
+#                                            "data_product_management", "create_data_product",
+#                                            stream_definition_id=self.resource_ids[strdef])
+        res_obj = self._create_object_from_row("DataProduct", row, "dp/")
+
+        parameter_dictionary, tdom, sdom = self._create_parameter_dictionary(row["param_dict_type"])
+        res_obj.temporal_domain = tdom
+        res_obj.spatial_domain = sdom
+
+        log.debug("_load_DataProduct  res_obj %s" % str(res_obj))
 
         svc_client = self._get_service_client("data_product_management")
-        persist_metadata = self._get_typed_value(row["persist_metadata"], targettype="bool")
-        persist_data = self._get_typed_value(row["persist_data"], targettype="bool")
-        if persist_metadata or persist_data:
-            if not DEBUG:
-                svc_client.activate_data_product_persistence(res_id, persist_data, persist_metadata)
+
+        res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id='', parameter_dictionary = parameter_dictionary)
+
+        log.debug("_load_DataProduct  create_data_product %s" % str(res_id))
+
+        self._register_id(row[self.COL_ID], res_id)
+
+
+        if not DEBUG:
+            svc_client.activate_data_product_persistence(res_id)
 
         self._resource_advance_lcs(row, res_id, "DataProduct")
 
@@ -633,6 +646,7 @@ class IONLoader(ImmediateProcess):
         log.info("Loading DataProcess")
 
         dpd_id = self.resource_ids[row["data_process_definition_id"]]
+        log.debug("_load_DataProcess  data_product_def %s" % str(dpd_id))
         in_data_product_id = self.resource_ids[row["in_data_product_id"]]
         configuration = row["configuration"]
         if configuration:
@@ -659,8 +673,6 @@ class IONLoader(ImmediateProcess):
 
         dp_id = self.resource_ids[row["data_product_id"]]
         res_id = self.resource_ids[row["input_resource_id"]]
-
-        create_stream = self._get_typed_value(row["create_stream"], targettype="bool")
 
         svc_client = self._get_service_client("data_acquisition_management")
         svc_client.assign_data_product(res_id, dp_id)
@@ -1186,3 +1198,16 @@ class IONLoader(ImmediateProcess):
             self._add_ui_refassoc(obj.view_id, "hasUIViewGroup", refid)
             self._add_ui_refassoc(obj.group_id, "hasUIViewGroup", refid)
             self._add_ui_refassoc(obj.view_id, "hasUIGroup", obj.group_id)
+
+
+    def _create_parameter_dictionary(self, type):
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        return parameter_dictionary, tdom, sdom
+            
+            
