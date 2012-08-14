@@ -170,15 +170,15 @@ class RecordDictionaryToolTestCase(unittest.TestCase):
         )
 
         #TODO: Fix record_dictionary shape validation, then put this test back in
-#        # Test set invalid shape
-#        pres_array = numpy.random.standard_normal(90)
-#        with self.assertRaises(ValueError) as te:
-#            rdt['pres'] = pres_array
-#
-#        self.assertEquals(
-#            te.exception.message,
-#            '''Invalid array shape "(90,)" for name "pres"; Record dictionary defined shape is "(100,)"'''
-#        )
+        # Test set invalid shape
+        pres_array = numpy.random.standard_normal(90)
+        with self.assertRaises(ValueError) as te:
+            rdt['pres'] = pres_array
+
+        self.assertEquals(
+            te.exception.message,
+            '''Invalid array shape "(90,)" for name "pres"; Record dictionary defined shape is "(100,)"'''
+        )
 
 
         # make a new RDT for testing higher rank objects...
@@ -258,15 +258,15 @@ class RecordDictionaryToolTestCase(unittest.TestCase):
         )
 
         #TODO: Fix record_dictionary shape validation, then put this test back in
-#        # Test set invalid shape
-#        pres_array = numpy.random.standard_normal(90)
-#        with self.assertRaises(ValueError) as te:
-#            rdt2['pres'] = pres_array
-#
-#        self.assertEquals(
-#            te.exception.message,
-#            '''Invalid array shape "(90,)" for name "pres"; Record dictionary defined shape is "(100,)"'''
-#        )
+        # Test set invalid shape
+        pres_array = numpy.random.standard_normal(90)
+        with self.assertRaises(ValueError) as te:
+            rdt2['pres'] = pres_array
+
+        self.assertEquals(
+            te.exception.message,
+            '''Invalid array shape "(90,)" for name "pres"; Record dictionary defined shape is "(100,)"'''
+        )
 
 
         # make a new RDT for testing higher rank objects...
@@ -510,7 +510,6 @@ class RecordDictionaryToolTestCase(unittest.TestCase):
 
         self.assertIn('temp', self._rdt)
 
-    @unittest.skip('Pretty print not implemented at this time')
     def test_pretty_print(self):
         temp_array = numpy.random.standard_normal(100)
         cond_array = numpy.random.standard_normal(100)
@@ -522,7 +521,6 @@ class RecordDictionaryToolTestCase(unittest.TestCase):
 
         self.assertGreater(len(self._rdt_pdict.pretty_print()), 0)
 
-    @unittest.skip('Pretty print not implemented at this time')
     def test_pretty_print_with_taxonomy(self):
         temp_array = numpy.random.standard_normal(100)
         cond_array = numpy.random.standard_normal(100)
