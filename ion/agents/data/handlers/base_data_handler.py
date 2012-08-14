@@ -47,12 +47,13 @@ class BaseDataHandler(object):
         'POLLING_INTERVAL' : 3600,
         'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']
     }
-    _polling = False
-    _polling_glet = None
-    _dh_config = {}
-    _terminate_polling = None
 
     def __init__(self, stream_registrar, dh_config):
+        self._polling = False           #Moved these four variables so they're instance variables, not class variables
+        self._polling_glet = None
+        self._dh_config = {}
+        self._terminate_polling = None
+
         self._dh_config=dh_config
         self._stream_registrar = stream_registrar
 
@@ -183,7 +184,7 @@ class BaseDataHandler(object):
 
         @parameter args First argument can be a config dictionary
         """
-        log.warn('Executing acquire_data: args = {0}'.format(args))
+        log.debug('Executing acquire_data: args = {0}'.format(args))
 
         # Make a copy of the config to ensure no cross-pollution
         config = self._dh_config.copy()
@@ -633,10 +634,8 @@ class DummyDataHandler(BaseDataHandler):
         date_extraction_pattern = get_safe(config, 'ds_params.date_extraction_pattern')
 
         curr_list = list_file_info(base_url, list_pattern)
-        # Determine which files are new
-        log.warn('curr_list:{0}'.format(curr_list))
-        log.warn('old_list:{0}'.format(old_list))
 
+        # Determine which files are new
         new_list = [tuple(x) for x in curr_list if list(x) not in old_list]
 
         if len(new_list) is 0:
@@ -652,7 +651,7 @@ class DummyDataHandler(BaseDataHandler):
         ret['bounding_box'] = {}
         ret['vars'] = []
 
-        log.warn('constraints_for_new_request: {0}'.format(ret))
+        log.debug('constraints_for_new_request: {0}'.format(ret))
 
         return ret
 
