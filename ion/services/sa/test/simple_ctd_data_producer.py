@@ -5,7 +5,6 @@ from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.public import log
-from ion.services.dm.utility.granule_utils import CoverageCraft
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
@@ -14,12 +13,6 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 import numpy, gevent
 import random
 import time
-
-craft = CoverageCraft
-sdom, tdom = craft.create_domains()
-sdom = sdom.dump()
-tdom = tdom.dump()
-parameter_dictionary = craft.create_parameters()
 
 class SimpleCtdDataProducer(SimpleCtdPublisher):
     """
@@ -30,11 +23,14 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
     def on_start(self):
         super(SimpleCtdDataProducer,self).on_start()
 
+    def on_quit(self):
+        super(SimpleCtdDataProducer,self).on_quit()
+
     #overriding trigger function here to use new granule
     def _trigger_func(self, stream_id):
         log.debug("SimpleCtdDataProducer:_trigger_func ")
 
-
+        parameter_dictionary = self._create_parameter()
         rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 #        rdt0 = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 #        rdt1 = RecordDictionaryTool(param_dictionary=parameter_dictionary)
@@ -89,4 +85,50 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
 
             log.debug('SimpleCtdDataProducer: Sending %d values!' % length)
             self.publisher.publish(g)
+
+    def _create_parameter(self):
+
+        pdict = ParameterDictionary()
+
+        pdict = self._add_location_time_ctxt(pdict)
+
+        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.float32))
+        pres_ctxt.uom = 'Pascal'
+        pres_ctxt.fill_value = 0x0
+        pdict.add_context(pres_ctxt)
+
+        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.float32))
+        cond_ctxt.uom = 'unknown'
+        cond_ctxt.fill_value = 0e0
+        pdict.add_context(cond_ctxt)
+
+        return pdict
+
+    def _add_location_time_ctxt(self, pdict):
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 1970-01-01'
+        t_ctxt.fill_value = 0x0
+        pdict.add_context(t_ctxt)
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
+        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt.fill_value = 0e0
+        pdict.add_context(lat_ctxt)
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
+        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt.fill_value = 0e0
+        pdict.add_context(lon_ctxt)
+
+        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
+        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
+        depth_ctxt.uom = 'meters'
+        depth_ctxt.fill_value = 0e0
+        pdict.add_context(depth_ctxt)
+
+        return pdict
 
