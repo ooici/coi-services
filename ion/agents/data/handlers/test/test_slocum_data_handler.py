@@ -10,8 +10,9 @@
 from pyon.public import log
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
-from mock import patch, Mock, call, sentinel
+from mock import patch, Mock, call, sentinel, ANY
 import unittest
+import numpy
 
 from ion.agents.data.handlers.handler_utils import list_file_info
 from ion.agents.data.handlers.slocum_data_handler import SlocumDataHandler, SlocumParser
@@ -70,20 +71,33 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
             }
         }
         ret = SlocumDataHandler._constraints_for_new_request(config)
-        log.warn('test__constraints_for_new_request: {0}'.format(ret['new_files']))
+        log.debug('test__constraints_for_new_request: {0}'.format(ret['new_files']))
         self.assertEqual(ret['new_files'], list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern']))
 
-    @unittest.skip('Needs to be fixed by Chris')
-    def test__get_data(self):
+    #@unittest.skip('Needs to be fixed by Chris')
+    @patch('ion.agents.data.handlers.slocum_data_handler.RecordDictionaryTool')
+    @patch('ion.agents.data.handlers.slocum_data_handler.ParameterDictionary')
+    @patch('ion.agents.data.handlers.slocum_data_handler.build_granule')
+    def test__get_data(self, build_granule_mock, ParamDict_mock, RecordDictionaryTool_mock):
         config = {
             'constraints':{
                 'new_files':[
                     ('test_data/slocum/ru05-2012-021-0-0-sbd.dat', 1337261358.0, 521081),
                 ]
-            }
+            },
+            'param_dictionary':sentinel.pdict,
+            'data_producer_id':sentinel.dprod_id
         }
 
+        ParamDict_mock.load.return_value = sentinel.pdict_return_value
+        RecordDictionaryTool_mock.side_effect = lambda **kwargs: {}
+
         for x in SlocumDataHandler._get_data(config):
+            RecordDictionaryTool_mock.assert_called_with(param_dictionary=sentinel.pdict_return_value)
+            build_granule_mock.assert_called_with(data_producer_id=sentinel.dprod_id, record_dictionary=ANY, param_dictionary=sentinel.pdict_return_value)
+            cargs=build_granule_mock.call_args
+            self.assertIn('c_wpt_y_lmc', cargs[1]['record_dictionary'])
+            self.assertIsInstance(cargs[1]['record_dictionary']['c_wpt_y_lmc'], numpy.ndarray)
             log.debug(x)
 
     def test__constraints_for_historical_request(self):
@@ -103,6 +117,6 @@ class TestSlocumDataHandlerUnit(PyonTestCase):
             }
         }
         ret = SlocumDataHandler._constraints_for_historical_request(config)
-        log.warn('test_constraints_for_historical_request: {0}'.format(config))
+        log.debug('test_constraints_for_historical_request: {0}'.format(config))
         self.assertEqual(ret['new_files'], list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern']))
 
