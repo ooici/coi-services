@@ -76,7 +76,7 @@ class LoadSystemPolicy(ImmediateProcess):
                 <Resources>
                     <Resource>
                         <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">.</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">.*</AttributeValue>
                             <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ResourceMatch>
                     </Resource>
@@ -98,8 +98,8 @@ class LoadSystemPolicy(ImmediateProcess):
         </Rule>
         '''
 
-        policy_id = policy_client.create_common_service_access_policy( 'Org_Manager_Permit_Everything',
-            'A global Org policy rule that permits access to everything in the Org for a user with Org Manager or ION Manager role',
+        policy_id = policy_client.create_common_service_access_policy( 'ION_Manager_Permit_Everything',
+            'A global policy rule that permits access to everything with the ION Manager role',
             policy_text, headers=sa_user_header)
 
 ##############
@@ -176,7 +176,7 @@ class LoadSystemPolicy(ImmediateProcess):
         '''
 
         policy_id = policy_client.create_common_service_access_policy( 'Allowed_Anonymous_Service_Operations',
-            'A global Org policy rule which specifies operations that are allowed with anonymous access',
+            'A global policy rule which specifies operations that are allowed with anonymous access',
             policy_text, headers=sa_user_header)
 
 
@@ -207,7 +207,7 @@ class LoadSystemPolicy(ImmediateProcess):
         '''
 
         policy_id = policy_client.create_common_service_access_policy( 'Deny_Everything_For_Anonymous',
-            'A global Org policy rule that denies everything as the base policy rule for anonymous users',
+            'A global policy rule that denies everything as the base policy rule for anonymous users',
             policy_text, headers=sa_user_header)
 
 
