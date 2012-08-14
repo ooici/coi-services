@@ -617,25 +617,17 @@ class IONLoader(ImmediateProcess):
     def _load_DataProduct(self, row):
         strdef = row["stream_def_id"]
 
-#        res_id = self._basic_resource_create(row, "DataProduct", "dp/",
-#                                            "data_product_management", "create_data_product",
-#                                            stream_definition_id=self.resource_ids[strdef])
         res_obj = self._create_object_from_row("DataProduct", row, "dp/")
 
         parameter_dictionary, tdom, sdom = self._create_parameter_dictionary(row["param_dict_type"])
         res_obj.temporal_domain = tdom
         res_obj.spatial_domain = sdom
 
-        log.debug("_load_DataProduct  res_obj %s" % str(res_obj))
-
         svc_client = self._get_service_client("data_product_management")
 
         res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id='', parameter_dictionary = parameter_dictionary)
 
-        log.debug("_load_DataProduct  create_data_product %s" % str(res_id))
-
         self._register_id(row[self.COL_ID], res_id)
-
 
         if not DEBUG:
             svc_client.activate_data_product_persistence(res_id)
