@@ -102,7 +102,7 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
         cond_ctxt.fill_value = 0e0
         pdict.add_context(cond_ctxt)
 
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=numpy.float32))
         temp_ctxt.uom = 'degree_Celsius'
         temp_ctxt.fill_value = 0e0
         pdict.add_context(temp_ctxt)
