@@ -5,7 +5,7 @@ from gevent import queue
 from nose.plugins.attrib import attr
 from nose.plugins.skip import SkipTest
 
-from pyon.agent.agent import ResourceAgentClient
+from pyon.agent.simple_agent import SimpleResourceAgentClient
 from pyon.event.event import EventSubscriber
 from pyon.public import log
 from pyon.service.service import BaseService
@@ -88,7 +88,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
             cls="HighAvailabilityAgent", config=self._haa_config)
 
         # Start a resource agent client to talk with the instrument agent.
-        self._haa_pyon_client = ResourceAgentClient(self.resource_id, process=FakeProcess())
+        self._haa_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
         log.info('Got haa client %s.', str(self._haa_pyon_client))
 
         self.haa_client = HighAvailabilityAgentClient(self._haa_pyon_client)

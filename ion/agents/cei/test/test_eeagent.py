@@ -23,7 +23,7 @@ from pyon.util.context import LocalContextMixin
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import log
 from pyon.event.event import EventSubscriber
-from pyon.agent.agent import ResourceAgentClient
+from pyon.agent.simple_agent import SimpleResourceAgentClient
 
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessStateEnum
@@ -110,7 +110,7 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
         log.info('Agent pid=%s.', str(self._eea_pid))
 
         # Start a resource agent client to talk with the instrument agent.
-        self._eea_pyon_client = ResourceAgentClient(self.resource_id, process=FakeProcess())
+        self._eea_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
         log.info('Got eea client %s.', str(self._eea_pyon_client))
 
         self.eea_client = ExecutionEngineAgentClient(self._eea_pyon_client)
@@ -202,7 +202,7 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
         log.info('Agent pid=%s.', str(self._eea_pid))
 
         # Start a resource agent client to talk with the instrument agent.
-        self._eea_pyon_client = ResourceAgentClient(self.resource_id, process=FakeProcess())
+        self._eea_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
         log.info('Got eea client %s.', str(self._eea_pyon_client))
 
         self.eea_client = ExecutionEngineAgentClient(self._eea_pyon_client)
@@ -285,7 +285,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         log.info('Agent pid=%s.', str(self._eea_pid))
 
         # Start a resource agent client to talk with the instrument agent.
-        self._eea_pyon_client = ResourceAgentClient(self.resource_id, process=FakeProcess())
+        self._eea_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
         log.info('Got eea client %s.', str(self._eea_pyon_client))
 
         self.eea_client = ExecutionEngineAgentClient(self._eea_pyon_client)

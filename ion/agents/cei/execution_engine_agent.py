@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-from pyon.agent.agent import ResourceAgent
+from pyon.agent.simple_agent import SimpleResourceAgent
 from pyon.core.exception import Unauthorized, NotFound
 from pyon.core import bootstrap
 from pyon.public import IonObject, log
@@ -30,14 +30,14 @@ except ImportError:
 DEFAULT_HEARTBEAT = 5
 
 
-class ExecutionEngineAgent(ResourceAgent):
+class ExecutionEngineAgent(SimpleResourceAgent):
     """Agent to manage processes on a worker
 
     """
 
     def __init__(self):
         log.debug("ExecutionEngineAgent init")
-        ResourceAgent.__init__(self)
+        SimpleResourceAgent.__init__(self)
 
     def on_init(self):
         if not EEAgentCore:

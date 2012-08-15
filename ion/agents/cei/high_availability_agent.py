@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-from pyon.agent.agent import ResourceAgent
+from pyon.agent.simple_agent import SimpleResourceAgent
 from pyon.public import IonObject, log
 from pyon.util.containers import get_safe
 from pyon.net.endpoint import Publisher
@@ -29,14 +29,14 @@ except ImportError:
 DEFAULT_INTERVAL = 5
 
 
-class HighAvailabilityAgent(ResourceAgent):
+class HighAvailabilityAgent(SimpleResourceAgent):
     """Agent to manage high availability processes
 
     """
 
     def __init__(self):
         log.debug("HighAvailabilityAgent init")
-        ResourceAgent.__init__(self)
+        SimpleResourceAgent.__init__(self)
 
     def on_init(self):
         if not HighAvailabilityCore:
