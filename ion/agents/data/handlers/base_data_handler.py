@@ -50,6 +50,7 @@ class BaseDataHandler(object):
         self._polling_glet = None
         self._dh_config = {}
         self._terminate_polling = None
+
         self._params = {
             'POLLING_INTERVAL' : 3600,
             'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']
