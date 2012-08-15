@@ -34,6 +34,7 @@ import gevent
 from gevent.coros import Semaphore
 from gevent.event import Event
 import time
+import traceback
 
 class DataHandlerParameter(DriverParameter):
     """
@@ -43,19 +44,21 @@ class DataHandlerParameter(DriverParameter):
     PATCHABLE_CONFIG_KEYS = 'PATCHABLE_CONFIG_KEYS',
 
 class BaseDataHandler(object):
-    _params = {
-        'POLLING_INTERVAL' : 3600,
-        'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']
-    }
 
     def __init__(self, stream_registrar, dh_config):
         self._polling = False           #Moved these four variables so they're instance variables, not class variables
         self._polling_glet = None
         self._dh_config = {}
         self._terminate_polling = None
+        self._params = {
+            'POLLING_INTERVAL' : 3600,
+            'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']
+        }
 
         self._dh_config=dh_config
         self._stream_registrar = stream_registrar
+
+        self._semaphore=Semaphore()
 
     def set_event_callback(self, evt_callback):
         self._event_callback = evt_callback
@@ -153,7 +156,6 @@ class BaseDataHandler(object):
         """
         log.debug('Initializing DataHandler...')
         self._glet_queue = []
-        self._semaphore=Semaphore()
         return None
 
     def configure(self, *args, **kwargs):
@@ -380,7 +382,7 @@ class BaseDataHandler(object):
                 else:
                     log.debug('Found attachment: {0}'.format(attachment_obj))
         except NotFound:
-            raise InstrumentException('ExternalDsysatasetResource \'{0}\' not found'.format(res_id))
+            raise InstrumentException('ExternalDatasetResource \'{0}\' not found'.format(res_id))
 
     @classmethod
     def _update_new_data_check_attachment(cls, res_id, new_content):
@@ -636,7 +638,18 @@ class DummyDataHandler(BaseDataHandler):
         curr_list = list_file_info(base_url, list_pattern)
 
         # Determine which files are new
-        new_list = [tuple(x) for x in curr_list if list(x) not in old_list]
+        #Not exactly the prettiest method, but here goes:
+        #old_list comes in as a list of lists: [[]]
+        #curr_list comes in as a list of tuples: [()]
+        #each needs to be a set of tuples for set.difference to work properly
+        #set.difference returns a list of tuples that appear in curr_list but not old_list, providing the new
+        #files that are available
+
+        curr_set = set(tuple(x) for x in curr_list)
+        old_set = set(tuple(x) for x in old_list)
+
+        #new_list = [tuple(x) for x in curr_list if list(x) not in old_list] - removed because it wasn't working properly
+        new_list = list(curr_set.difference(old_set))
 
         if len(new_list) is 0:
             raise NoNewDataWarning()
