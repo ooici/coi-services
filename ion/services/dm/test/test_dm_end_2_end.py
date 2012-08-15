@@ -7,7 +7,6 @@
 '''
 from pyon.core.exception import Timeout
 from pyon.public import RT, log
-from pyon.net.endpoint import Subscriber
 from pyon.ion.stream import SimpleStreamPublisher, SimpleStreamSubscriber
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -20,8 +19,7 @@ from interface.objects import ProcessDefinition, Granule
 from pyon.util.containers import DotDict
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.net.endpoint import Publisher
-from ion.services.dm.utility.granule_utils import build_granule, RecordDictionaryTool, TaxyTool, CoverageCraft
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from gevent.event import Event
 from nose.plugins.attrib import attr
@@ -362,12 +360,13 @@ class TestDMEnd2End(IonIntegrationTestCase):
         query = {
             'start_time': 0,
             'end_time':   20,
+            'stride_time' : 2,
             'parameters': ['time','temp']
         }
         retrieved_data = self.data_retriever.retrieve(dataset_id=dataset_id,query=query)
 
         rdt = RecordDictionaryTool.load_from_granule(retrieved_data)
-        comp = np.arange(20) == rdt['time']
+        comp = np.arange(0,20,2) == rdt['time']
         self.assertTrue(comp.all(),'%s' % rdt.pretty_print())
         self.assertEquals(set(rdt.iterkeys()), set(['time','temp']))
 

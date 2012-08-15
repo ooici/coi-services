@@ -134,7 +134,12 @@ class DataRetrieverService(BaseDataRetrieverService):
         self.clients.resource_registry.delete(replay_id)
 
     def retrieve(self, dataset_id='', query=None, delivery_format=None, module='', cls='', kwargs=None):
-
+        '''
+        Query can have the following parameters:
+          start_time:  Beginning time value
+          end_time:    Ending time value
+          stride_time: The stride time
+        '''
         if query is None:
             query = {}
         if delivery_format is None:
@@ -150,6 +155,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay_instance.dataset_id = dataset_id
         replay_instance.start_time = query.get('start_time', None)
         replay_instance.end_time = query.get('end_time', None)
+        replay_instance.stride_time = query.get('stride_time', None)
         replay_instance.parameters = query.get('parameters',None)
         replay_instance.container = self.container
 

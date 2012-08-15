@@ -6,8 +6,8 @@
 @description Utilities for crafting granules into a coverage
 '''
 
-from ion.services.dm.utility.granule import TaxyTool, RecordDictionaryTool, build_granule 
-from pyon.util.arg_check import validate_equal
+from ion.services.dm.utility.granule import RecordDictionaryTool, build_granule 
+from pyon.util.arg_check import validate_is_instance
 from coverage_model.coverage import GridDomain, CRS, AxisTypeEnum, MutabilityEnum, GridShape, SimplexCoverage
 from coverage_model.parameter import ParameterContext, ParameterDictionary 
 from coverage_model.parameter_types import QuantityType
@@ -17,6 +17,7 @@ import netCDF4
 import time
 import datetime
 import numpy as np
+from numbers import Number
 '''
 Assuming all values are np.float64 except data which is int8
 '''
@@ -65,7 +66,7 @@ class CoverageCraft(object):
             self.coverage.set_parameter_values(param_name=k,tdoa=slice_, value=v)
 
 
-    def sync_rdt_with_coverage(self, coverage=None, tdoa=None, start_time=None, end_time=None, parameters=None):
+    def sync_rdt_with_coverage(self, coverage=None, tdoa=None, start_time=None, end_time=None, stride_time=None, parameters=None):
         '''
         Builds a granule based on the coverage
         '''
@@ -75,6 +76,14 @@ class CoverageCraft(object):
         slice_ = slice(None) # Defaults to all values
         if tdoa is not None and isinstance(tdoa,slice):
             slice_ = tdoa
+
+        elif stride_time is not None:
+            validate_is_instance(start_time, Number, 'start_time must be a number for striding.')
+            validate_is_instance(end_time, Number, 'end_time must be a number for striding.')
+            validate_is_instance(stride_time, Number, 'stride_time must be a number for striding.')
+            ugly_range = np.arange(start_time, end_time, stride_time)
+            idx_values = [self.get_relative_time(coverage,i) for i in ugly_range]
+            slice_ = [idx_values]
 
         elif not (start_time is None and end_time is None):
             uom = coverage.get_parameter_context('time').uom
@@ -90,7 +99,7 @@ class CoverageCraft(object):
                 end_idx   = self.get_relative_time(coverage,end_units)
                 log.info('End index: %s',  end_idx)
                 end_time = end_idx
-            slice_ = slice(start_time,end_time)
+            slice_ = slice(start_time,end_time,stride_time)
             log.info('Slice: %s', slice_)
 
         if parameters is not None:
@@ -192,11 +201,10 @@ class CoverageCraft(object):
         sal_ctxt.fill_value = 0x0
         pdict.add_context(sal_ctxt)
 
-        sal_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=np.float32))
-        sal_ctxt.uom = 'PSU'
-        sal_ctxt.fill_value = 0x0
-        pdict.add_context(sal_ctxt)
-
+        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=np.float32))
+        dens_ctxt.uom = 'unknown'
+        dens_ctxt.fill_value = 0x0
+        pdict.add_context(dens_ctxt)
 
         return pdict
         

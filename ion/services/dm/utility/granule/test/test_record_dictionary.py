@@ -169,16 +169,15 @@ class RecordDictionaryToolTestCase(unittest.TestCase):
             '''The rank of a value sequence array in a record dictionary must be greater than zero. Got name "temp" with rank "0"'''
         )
 
-        #TODO: Fix record_dictionary shape validation, then put this test back in
-#        # Test set invalid shape
-#        pres_array = numpy.random.standard_normal(90)
-#        with self.assertRaises(ValueError) as te:
-#            rdt['pres'] = pres_array
-#
-#        self.assertEquals(
-#            te.exception.message,
-#            '''Invalid array shape "(90,)" for name "pres"; Record dictionary defined shape is "(100,)"'''
-#        )
+        # Test set invalid shape
+        pres_array = numpy.random.standard_normal(90)
+        with self.assertRaises(ValueError) as te:
+            rdt['pres'] = pres_array
+
+        self.assertEquals(
+            te.exception.message,
+            '''Invalid array shape "(90,)" for name "pres"; Record dictionary defined shape is "(100,)"'''
+        )
 
 
         # make a new RDT for testing higher rank objects...
@@ -257,16 +256,15 @@ class RecordDictionaryToolTestCase(unittest.TestCase):
             '''The rank of a value sequence array in a record dictionary must be greater than zero. Got name "temp" with rank "0"'''
         )
 
-        #TODO: Fix record_dictionary shape validation, then put this test back in
-#        # Test set invalid shape
-#        pres_array = numpy.random.standard_normal(90)
-#        with self.assertRaises(ValueError) as te:
-#            rdt2['pres'] = pres_array
-#
-#        self.assertEquals(
-#            te.exception.message,
-#            '''Invalid array shape "(90,)" for name "pres"; Record dictionary defined shape is "(100,)"'''
-#        )
+        # Test set invalid shape
+        pres_array = numpy.random.standard_normal(90)
+        with self.assertRaises(ValueError) as te:
+            rdt2['pres'] = pres_array
+
+        self.assertEquals(
+            te.exception.message,
+            '''Invalid array shape "(90,)" for name "pres"; Record dictionary defined shape is "(100,)"'''
+        )
 
 
         # make a new RDT for testing higher rank objects...

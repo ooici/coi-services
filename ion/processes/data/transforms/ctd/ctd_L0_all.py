@@ -26,7 +26,6 @@ from prototype.sci_data.stream_parser import PointSupplementStreamParser
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
 #from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 #pmsc = PubsubManagementServiceClient(node=cc.node)
@@ -34,12 +33,6 @@ from ion.services.dm.utility.granule_utils import CoverageCraft
 #t_stream_id = pmsc.create_stream(name='temperature')
 #p_stream_id = pmsc.create_stream(name='pressure')
 #cc.spawn_process('l0_transform', 'ion.processes.data.transforms.ctd_L0_all','ctd_L0_all', config={'processes':{'publish_streams':{'conductivity':c_stream_id, 'temperature':t_stream_id, 'pressure': p_stream_id } } })
-
-craft = CoverageCraft
-sdom, tdom = craft.create_domains()
-sdom = sdom.dump()
-tdom = tdom.dump()
-parameter_dictionary = craft.create_parameters()
 
 class ctd_L0_all(TransformDataProcess):
     """Model for a TransformDataProcess
@@ -86,6 +79,10 @@ class ctd_L0_all(TransformDataProcess):
         log.warn('Got pressure: %s' % str(pressure))
         log.warn('Got temperature: %s' % str(temperature))
 
+        self.cond = self._create_parameter("conductivity")
+        self.pres = self._create_parameter("pressure")
+        self.temp = self._create_parameter("temp")
+
         g = self._build_granule_settings(self.cond, 'conductivity', conductivity, time, latitude, longitude, depth)
 
         # publish a granule
@@ -120,8 +117,56 @@ class ctd_L0_all(TransformDataProcess):
 
         return build_granule(data_producer_id='ctd_L0', param_dictionary=param_dictionary, record_dictionary=root_rdt)
 
+    def _create_parameter(self, name):
 
+        pdict = ParameterDictionary()
 
+        pdict = self._add_location_time_ctxt(pdict)
 
+        if name == 'conductivity':
+            cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.float32))
+            cond_ctxt.uom = 'unknown'
+            cond_ctxt.fill_value = 0e0
+            pdict.add_context(cond_ctxt)
 
-  
+        elif name == "pressure":
+            pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.float32))
+            pres_ctxt.uom = 'Pascal'
+            pres_ctxt.fill_value = 0x0
+            pdict.add_context(pres_ctxt)
+
+        elif name == "temp":
+            temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
+            temp_ctxt.uom = 'degree_Celsius'
+            temp_ctxt.fill_value = 0e0
+            pdict.add_context(temp_ctxt)
+
+        return pdict
+
+    def _add_location_time_ctxt(self, pdict):
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 1970-01-01'
+        t_ctxt.fill_value = 0x0
+        pdict.add_context(t_ctxt)
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
+        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt.fill_value = 0e0
+        pdict.add_context(lat_ctxt)
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
+        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt.fill_value = 0e0
+        pdict.add_context(lon_ctxt)
+
+        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
+        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
+        depth_ctxt.uom = 'meters'
+        depth_ctxt.fill_value = 0e0
+        pdict.add_context(depth_ctxt)
+
+        return pdict

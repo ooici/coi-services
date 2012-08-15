@@ -222,7 +222,7 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
             #'taxonomy':ttool.dump(),
             'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
-            'max_records':4,
+            'max_records':1,
         }
 
 
