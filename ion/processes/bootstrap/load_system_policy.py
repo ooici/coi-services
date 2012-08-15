@@ -11,9 +11,6 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 
-from ion.services.coi.service_gateway_service import get_role_message_headers
-
-
 from pyon.public import CFG, log, ImmediateProcess, iex, Container
 
 class LoadSystemPolicy(ImmediateProcess):
@@ -50,22 +47,67 @@ class LoadSystemPolicy(ImmediateProcess):
 
         id_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=calling_process )
 
-        system_actor = id_client.find_actor_identity_by_name(name=CFG.system.system_actor)
-        log.debug('system actor:' + system_actor._id)
+        system_actor = Container.instance.governance_controller.get_system_actor()
+        log.info('system actor:' + system_actor._id)
 
-        sa_header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
-        sa_user_header = {'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles }
+        sa_user_header = Container.instance.governance_controller.get_system_actor_header()
 
         policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
 
 
         timeout = 20
 
+
+##############
+        '''
+        This rule must be loaded before the Deny_Everything rule
+        '''
+
+        policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
+
+        policy_text = '''
+        <Rule RuleId="%s:" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">.*</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+            </Target>
+
+            <Condition>
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ION_MANAGER</AttributeValue>
+                        </Apply>
+                        <SubjectAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+            </Condition>
+
+        </Rule>
+        '''
+
+        policy_id = policy_client.create_common_service_access_policy( 'ION_Manager_Permit_Everything',
+            'A global policy rule that permits access to everything with the ION Manager role',
+            policy_text, headers=sa_user_header)
+
 ##############
 
-        """
-        This policy MUST BE LOADED FIRST!!!!!
-        """
+
+        '''
+        This rule must be loaded before the Deny_Everything rule
+        '''
 
         policy_text = '''
         <Rule RuleId="%s" Effect="Permit">
@@ -134,12 +176,13 @@ class LoadSystemPolicy(ImmediateProcess):
         '''
 
         policy_id = policy_client.create_common_service_access_policy( 'Allowed_Anonymous_Service_Operations',
-            'A global Org policy rule which specifies operations that are allowed with anonymous access',
+            'A global policy rule which specifies operations that are allowed with anonymous access',
             policy_text, headers=sa_user_header)
 
 
 
-##############
+###############
+
 
         policy_text = '''
         <Rule RuleId="%s" Effect="Deny">
@@ -157,51 +200,18 @@ class LoadSystemPolicy(ImmediateProcess):
                         </SubjectMatch>
                     </Subject>
                 </Subjects>
-
             </Target>
+
 
         </Rule>
         '''
 
-        policy_id = policy_client.create_common_service_access_policy( 'Anonymous_Deny_Everything',
-            'A global Org policy rule that denies anonymous access to everything in the Org as the base',
+        policy_id = policy_client.create_common_service_access_policy( 'Deny_Everything_For_Anonymous',
+            'A global policy rule that denies everything as the base policy rule for anonymous users',
             policy_text, headers=sa_user_header)
 
 
 ###############
-
-        policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
-
-        policy_text = '''
-        <Rule RuleId="%s:" Effect="Permit">
-            <Description>
-                %s
-            </Description>
-
-            <Target>
-
-            </Target>
-
-            <Condition>
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
-                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ION_MANAGER</AttributeValue>
-                        </Apply>
-                        <SubjectAttributeDesignator
-                             AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </Apply>
-            </Condition>
-
-        </Rule>
-        '''
-
-        policy_id = policy_client.create_common_service_access_policy( 'Org_Manager_Permit_Everything',
-            'A global Org policy rule that permits access to everything in the Org for a user with Org Manager or ION Manager role',
-            policy_text, headers=sa_user_header)
-
-##############
 
         policy_text = '''
            <Rule RuleId="%s" Effect="Permit">
@@ -329,6 +339,8 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_id = policy_client.create_service_access_policy('identity_management', 'IMS_Anonymous_Bootstrap',
             'Permit anonymous access to these operations in the Identity Management Service if called from the Bootstrap Service',
              policy_text, headers=sa_user_header)
+
+
 
 
 ##############
@@ -492,7 +504,7 @@ class LoadSystemPolicy(ImmediateProcess):
             </Target>
 
             <Condition>
-                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+               <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
@@ -510,4 +522,69 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Instrument_Operator_Role_Permitted',
             'Deny these operations in the Instrument Management Service if not the role of Instrument Operator',
              policy_text, headers=sa_user_header)
+
+
+        ##############
+
+
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Deny">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+               <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">InstrumentDevice</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+                <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">execute</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">set_param</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">set_agent_param</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+
+            </Target>
+
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
+                        </Apply>
+                        <SubjectAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+
+        </Rule> '''
+
+        #All resource_agents are kind of handled the same - but the resource-id in the rule is set to the specific type
+        policy_id = policy_client.create_service_access_policy('InstrumentDevice', 'RA_Instrument_Operator_Role_Permitted',
+            'Deny these operations in an instrument agent if not the role of Instrument Operator',
+            policy_text, headers=sa_user_header)
 

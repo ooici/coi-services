@@ -11,20 +11,17 @@ from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
 
-from datetime import datetime
-import numpy
 from ion.services.dm.utility.granule.granule import build_granule
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
-from prototype.sci_data.constructor_apis import PointSupplementConstructor, RawSupplementConstructor
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
+import numpy as np
 
 from pyon.util.containers import get_safe
 
-tx = TaxyTool()
-tx.add_taxonomy_set('google_dt_components','Google datatable')
 
 
 class VizTransformGoogleDT(TransformFunction):
@@ -50,9 +47,33 @@ class VizTransformGoogleDT(TransformFunction):
     outgoing_stream_def = SBE37_RAW_stream_definition()
     incoming_stream_def = SBE37_CDM_stream_definition()
 
-    def on_start(self):
-        super(VizTransformGoogleDT,self).on_start()
+    def __init__(self):
+        super(VizTransformGoogleDT, self).__init__()
 
+        ### Parameter dictionaries
+        self.define_parameter_dictionary()
+
+    def define_parameter_dictionary(self):
+        viz_product_type_ctxt = ParameterContext('viz_product_type', param_type=QuantityType(value_encoding=np.str))
+        viz_product_type_ctxt.uom = 'unknown'
+        viz_product_type_ctxt.fill_value = 0x0
+
+        data_description_ctxt = ParameterContext('data_description', param_type=QuantityType(value_encoding=np.int8))
+        data_description_ctxt.uom = 'unknown'
+        data_description_ctxt.fill_value = 0x0
+
+        data_content_ctxt = ParameterContext('data_content', param_type=QuantityType(value_encoding=np.int8))
+        data_content_ctxt.uom = 'unknown'
+        data_content_ctxt.fill_value = 0x0
+
+        # Define the parameter dictionary objects
+        self.gdt_paramdict = ParameterDictionary()
+        self.gdt_paramdict.add_context(viz_product_type_ctxt)
+        self.gdt_paramdict.add_context(data_description_ctxt)
+        self.gdt_paramdict.add_context(data_content_ctxt)
+
+        print " >>>>>>>>>>>>>>>>>   HERE    <<<<<<<<<<<<<<<<<<<"
+        return
 
     def execute(self, granule):
 
@@ -67,11 +88,11 @@ class VizTransformGoogleDT(TransformFunction):
 
         vardict = {}
         vardict['time'] = get_safe(rdt, 'time')
-        vardict['conductivity'] = get_safe(rdt, 'cond')
-        vardict['pressure'] = get_safe(rdt, 'pres')
+        vardict['conductivity'] = get_safe(rdt, 'conductivity')
+        vardict['pressure'] = get_safe(rdt, 'pressure')
         vardict['temperature'] = get_safe(rdt, 'temp')
 
-        vardict['longitude'] = get_safe(rdt, 'long')
+        vardict['longitude'] = get_safe(rdt, 'lon')
         vardict['latitude'] = get_safe(rdt, 'lat')
         vardict['height'] = get_safe(rdt, 'height')
         arrLen = len(vardict['time'])  # Figure out how many values are present in the granule
@@ -104,18 +125,15 @@ class VizTransformGoogleDT(TransformFunction):
             if len(varTuple) > 0:
                 dataTableContent.append(varTuple)
 
-        # submit the partial datatable to the viz service
-        out_rdt = RecordDictionaryTool(taxonomy=tx)
+        # Create output dictionary from the param dict
+        out_rdt = RecordDictionaryTool(param_dictionary=self.gdt_paramdict)
 
-        # submit resulting table back using the out stream publisher. The data_product_id is the input dp_id
-        # responsible for the incoming data
-        msg = {"viz_product_type": "google_dt",
-               "data_description": dataDescription,
-               "data_content": dataTableContent}
-
-        out_rdt['google_dt_components'] = numpy.array([msg])
+        # Prepare granule content
+        out_rdt['viz_product_type'] = np.array(['google_dt'])
+        out_rdt['data_description'] = np.array([dataDescription])
+        out_rdt['data_content'] = np.array([dataTableContent])
 
         log.debug('Google DT transform: Sending a granule')
-        out_granule = build_granule(data_producer_id='google_dt_transform', taxonomy=tx, record_dictionary=out_rdt)
+        out_granule = build_granule(data_producer_id='google_dt_transform', param_dictionary = self.gdt_paramdict, record_dictionary=out_rdt)
 
         return out_granule

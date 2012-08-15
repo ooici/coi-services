@@ -48,7 +48,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-#@unittest.skip('Not done yet.')
+@unittest.skip('Not done yet.')
 class TestBulkIngest(IonIntegrationTestCase):
 
     EDA_MOD = 'ion.agents.data.external_dataset_agent'
@@ -89,15 +89,35 @@ class TestBulkIngest(IonIntegrationTestCase):
 
         self._setup_resources()
 
-        #TG: Setup/configure the granule logger to log granules as they're published
-        dataset_agent_instance = self.dams_client.start_external_dataset_agent_instance(self.dataset_agent_instance_id)
+        self.agent_config = {
+            'driver_config' : self.DVR_CONFIG,
+            'stream_config' : {},
+            'agent'         : {'resource_id': self.EDA_RESOURCE_ID},
+            'test_mode' : True
+        }
 
-        log.debug("TestBulkIngest: dataset_agent_instance_id %s", str(dataset_agent_instance))
+        datasetagent_instance_obj = IonObject(RT.ExternalDatasetAgentInstance,  name='ExternalDatasetAgentInstance1', description='external data agent instance',
+                                     handler_module=self.EDA_MOD, handler_class=self.EDA_CLS,
+                                      dataset_driver_config=self.DVR_CONFIG, dataset_agent_config=self.agent_config )
+        self.dataset_agent_instance_id = self.dams_client.create_external_dataset_agent_instance(external_dataset_agent_instance=datasetagent_instance_obj,
+                                                                                            external_dataset_agent_id=self.datasetagent_id, external_dataset_id=self.EDA_RESOURCE_ID)
+
+
+        #TG: Setup/configure the granule logger to log granules as they're published
+        pid = self.dams_client.start_external_dataset_agent_instance(self.dataset_agent_instance_id)
+
+        dataset_agent_instance_obj= self.dams_client.read_external_dataset_agent_instance(self.dataset_agent_instance_id)
+        print 'TestBulkIngest: Dataset agent instance obj: = ', dataset_agent_instance_obj
+
 
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = None
-        self._ia_client = ResourceAgentClient(self.EDA_RESOURCE_ID,  process=FakeProcess())
-        log.debug('TestBulkIngest: Got ia client %s.', str(self._ia_client))
+        self._ia_client = ResourceAgentClient('datasetagentclient', name=pid,  process=FakeProcess())
+        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
+
+#        # Start a resource agent client to talk with the instrument agent.
+#        self._ia_client = None
+#        self._ia_client = ResourceAgentClient(self.EDA_RESOURCE_ID,  process=FakeProcess())
+#        log.debug('TestBulkIngest: Got ia client %s.', str(self._ia_client))
 
     def create_logger(self, name, stream_id=''):
 
@@ -143,9 +163,10 @@ class TestBulkIngest(IonIntegrationTestCase):
         pass
 
 
-#    @unittest.skip('Not done yet.')
+    @unittest.skip('Not done yet.')
     def test_slocum_data_ingest(self):
 
+        HIST_CONSTRAINTS_1 = {}
         # Test instrument driver execute interface to start and stop streaming mode.
         cmd = AgentCommand(command='get_current_state')
         retval = self._ia_client.execute_agent(cmd)
@@ -173,33 +194,51 @@ class TestBulkIngest(IonIntegrationTestCase):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
+
+
+
         # Make sure the polling interval is appropriate for a test
         params = {
             'POLLING_INTERVAL': 3
         }
         self._ia_client.set_param(params)
 
-        self._finished_count = 3
+        self._finished_count = 1
+
+        cmd = AgentCommand(command='acquire_data')
+        self._ia_client.execute(cmd)
 
         # Begin streaming.
-        cmd = AgentCommand(command='go_streaming')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.STREAMING)
+#        cmd = AgentCommand(command='go_streaming')
+#        retval = self._ia_client.execute_agent(cmd)
+#        cmd = AgentCommand(command='get_current_state')
+#        retval = self._ia_client.execute_agent(cmd)
+#        state = retval.result
+#        self.assertEqual(state, InstrumentAgentState.STREAMING)
+
+
+#        config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
+#
+#        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+#        config['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+#        config['constraints']=self.HIST_CONSTRAINTS_1
+#        cmd = AgentCommand(command='acquire_data', args=[config])
+#        reply = self._ia_client.execute(cmd)
+#        self.assertNotEqual(reply.status, 660)
+
 
         # Assert that data was received
         self._async_finished_result.get(timeout=15)
-        self.assertTrue(len(self._finished_events_received) >= 3)
+
+        self.assertTrue(len(self._finished_events_received) >= 1)
 
         # Halt streaming.
-        cmd = AgentCommand(command='go_observatory')
-        retval = self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command='get_current_state')
-        retval = self._ia_client.execute_agent(cmd)
-        state = retval.result
-        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
+#        cmd = AgentCommand(command='go_observatory')
+#        retval = self._ia_client.execute_agent(cmd)
+#        cmd = AgentCommand(command='get_current_state')
+#        retval = self._ia_client.execute_agent(cmd)
+#        state = retval.result
+#        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -210,8 +249,8 @@ class TestBulkIngest(IonIntegrationTestCase):
 
 
 
-#        replay_granule = self.data_retriever.retrieve_last_granule(self.dataset_id)
-#
+        replay_granule = self.data_retriever.retrieve_last_granule(self.dataset_id)
+
 #        rdt = RecordDictionaryTool.load_from_granule(replay_granule)
 #
 #        comp = rdt['date_pattern'] == numpy.arange(10) + 10
@@ -319,7 +358,7 @@ class TestBulkIngest(IonIntegrationTestCase):
 
         ## Create the dataset agent
         datasetagent_obj = IonObject(RT.ExternalDatasetAgent,  name='ExternalDatasetAgent1', description='external data agent', handler_module=self.EDA_MOD, handler_class=self.EDA_CLS )
-        datasetagent_id = self.dams_client.create_external_dataset_agent(external_dataset_agent=datasetagent_obj, external_dataset_model_id=dataset_model_id)
+        self.datasetagent_id = self.dams_client.create_external_dataset_agent(external_dataset_agent=datasetagent_obj, external_dataset_model_id=dataset_model_id)
 
         # Generate the data product and associate it to the ExternalDataset
         streamdef_id = self.pubsub_client.create_stream_definition(name="temp", description="temp")
@@ -345,23 +384,16 @@ class TestBulkIngest(IonIntegrationTestCase):
         self.dams_client.assign_data_product(input_resource_id=ds_id, data_product_id=self.dproduct_id)
 
         #save the incoming slocum data
-        #self.dataproductclient.activate_data_product_persistence(self.dproduct_id)
+        self.dataproductclient.activate_data_product_persistence(self.dproduct_id)
 
-        stream_id, assn = self.rrclient.find_objects(subject=self.dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
-        stream_id = stream_id[0]
+        stream_ids, assn = self.rrclient.find_objects(subject=self.dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        stream_id = stream_ids[0]
 
         dataset_id, assn = self.rrclient.find_objects(subject=self.dproduct_id, predicate=PRED.hasDataset, object_type=RT.Dataset, id_only=True)
         self.dataset_id = dataset_id[0]
 
         pid = self.create_logger('slocum_parsed_product', stream_id )
         self.loggerpids.append(pid)
-
-
-        # Create the logger for receiving publications
-        #self.create_stream_and_logger(name='slocum',stream_id=stream_id)
-        # Create agent config.
-        self.EDA_RESOURCE_ID = ds_id
-        self.EDA_NAME = ds_name
 
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
@@ -370,18 +402,13 @@ class TestBulkIngest(IonIntegrationTestCase):
             'data_producer_id':dproducer_id, #CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':20,
         }
-        self.agent_config = {
-            'driver_config' : self.DVR_CONFIG,
-            'stream_config' : {},
-            'agent'         : {'resource_id': self.EDA_RESOURCE_ID},
-            'test_mode' : True
-        }
 
-        datasetagent_instance_obj = IonObject(RT.ExternalDatasetAgentInstance,  name='ExternalDatasetAgentInstance1', description='external data agent instance',
-                                     handler_module=self.EDA_MOD, handler_class=self.EDA_CLS,
-                                      dataset_driver_config=self.DVR_CONFIG, dataset_agent_config=self.agent_config )
-        self.dataset_agent_instance_id = self.dams_client.create_external_dataset_agent_instance(external_dataset_agent_instance=datasetagent_instance_obj,
-                                                                                            external_dataset_agent_id=datasetagent_id, external_dataset_id=ds_id)
+        # Create the logger for receiving publications
+        #self.create_stream_and_logger(name='slocum',stream_id=stream_id)
+        # Create agent config.
+        self.EDA_RESOURCE_ID = ds_id
+        self.EDA_NAME = ds_name
+
 
 
 

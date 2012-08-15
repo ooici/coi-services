@@ -57,7 +57,7 @@ class sbe37(asyncore.dispatcher_with_send):
     interval = random.randrange(5, 32767)
     navg = 0
     store_time = False
-    tx_real_time = False
+    tx_real_time = True
     start_mmddyy = "010201"
     start_time = "010101"
     sync_wait = 0
@@ -178,7 +178,7 @@ class sbe37(asyncore.dispatcher_with_send):
 
     def handle_read(self):
         while True:
-            time.sleep(0.1)
+            time.sleep(0.01)
             start_time = datetime.datetime.strptime(self.start_mmddyy + " " + self.start_time, "%m%d%y %H%M%S")
             current_time = datetime.datetime.strptime(self.date + " " + self.time, "%m%d%y %H%M%S") + \
                            datetime.timedelta( seconds=( int(time.time()) - self.time_set_at) )

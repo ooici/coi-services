@@ -64,7 +64,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
+    #@unittest.skip("In progress")
     def test_SA_transform_components(self):
 
         assertions = self.assertTrue
@@ -120,9 +120,8 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @attr('SMOKE')
-    @unittest.skip("not working")
+    #@unittest.skip("in progress")
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
     def test_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -180,6 +179,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
 
+
         #Start the output stream listener to monitor and collect messages
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
@@ -204,7 +204,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
+    #@unittest.skip("in progress")
     def test_google_dt_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -249,7 +249,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
 
         #Validate the data from each of the messages along the way
-        self.validate_google_dt_results(results)
+        self.validate_google_dt_transform_results(results)
 
         # Check to see if ingestion worked. Extract the granules from data_retrieval.
         # First find the dataset associated with the output dp product
@@ -257,7 +257,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         retrieve_granule = self.data_retriever.retrieve(ds_ids[0])
 
         #Validate the data from each of the messages along the way
-        self.validate_google_dt_results(retrieve_granule)
+        self.validate_google_dt_transform_results(retrieve_granule)
 
         #Cleanup to make sure delete is correct.
         self.workflowclient.delete_workflow_definition(workflow_def_id)
@@ -269,7 +269,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
+    #@unittest.skip("in progress")
     def test_mpl_graphs_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -314,7 +314,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
 
         #Validate the data from each of the messages along the way
-        self.validate_mpl_graphs_results(results)
+        self.validate_mpl_graphs_transform_results(results)
 
         # Check to see if ingestion worked. Extract the granules from data_retrieval.
         # First find the dataset associated with the output dp product
@@ -323,7 +323,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         retrieve_granule = self.data_retriever.retrieve(ds_ids[0])
 
         #Validate the data from each of the messages along the way
-        self.validate_mpl_graphs_results(retrieve_granule)
+        self.validate_mpl_graphs_transform_results(retrieve_granule)
 
         #Cleanup to make sure delete is correct.
         self.workflowclient.delete_workflow_definition(workflow_def_id)
@@ -334,7 +334,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("Skipping for debugging ")
+    #@unittest.skip("in progress")
     def test_multiple_workflow_instances(self):
 
         assertions = self.assertTrue

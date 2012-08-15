@@ -123,8 +123,7 @@ class ScienceObjectCodecIntTest(IonIntegrationTestCase):
         self.sal_L2 = SalinityTransform()
 
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    @unittest.skip('This version of L0 Transforms are deprecated this test needs to be rewritten')
     def test_process(self):
         '''
         Test that packets are processed by the ctd_L0_all transform
@@ -132,6 +131,7 @@ class ScienceObjectCodecIntTest(IonIntegrationTestCase):
         length = 1
 
         packet = self.px_ctd._get_new_ctd_packet("STR_ID", length)
+        print packet
 
         log.info("Packet: %s" % packet)
 

@@ -30,12 +30,13 @@ from pyon.core.exception import BadRequest, Inconsistent
 
 import imghdr
 import gevent, numpy
+import simplejson
+import base64
 
 from interface.objects import Granule
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
-
 
 
 class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
@@ -96,7 +97,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product_id)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product_id, persist_data=False, persist_metadata=False)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product_id)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_id, PRED.hasStream, None, True)
@@ -132,6 +133,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 'stream_id':ctd_stream_id,
                 }
         }
+
         ctd_sim_pid = self.process_dispatcher.schedule_process(process_definition_id=ctd_sim_procdef_id, configuration=configuration)
 
         return ctd_sim_pid
@@ -174,7 +176,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         # after the queue has been created it is safe to activate the subscription
         self.pubsubclient.activate_subscription(subscription_id=salinity_subscription_id)
-
 
         #Start the input stream process
         if ctd_stream_id is not None:
@@ -334,9 +335,23 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         data_process_name = data_process_definition.name
 
         # Create the output data product of the transform
-        transform_dp_obj = IonObject(RT.DataProduct, name=data_process_name,description=data_process_definition.description)
-        transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id, persist_data=True, persist_metadata=True)
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        transform_dp_obj = IonObject(RT.DataProduct,
+            name=data_process_name,
+            description=data_process_definition.description,
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id, parameter_dictionary)
+
+        self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id)
 
         #last one out of the for loop is the output product id
         output_data_product_id = transform_dp_id
@@ -384,9 +399,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         return procdef_id
 
 
-    def validate_google_dt_results(self, results):
+    def validate_google_dt_transform_results(self, results):
 
-        cc = self.container
         assertions = self.assertTrue
 
         # if its just one granule, wrap it up in a list so we can use the following for loop for a couple of cases
@@ -397,21 +411,11 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
             if isinstance(g,Granule):
 
-                tx = TaxyTool.load_from_granule(g)
-                rdt = RecordDictionaryTool.load_from_granule(g)
+                gdt = RecordDictionaryTool.load_from_granule(g)
 
-                gdt_data = get_safe(rdt, 'google_dt_components')
-
-                # IF this granule does not contains google dt, skip
-                if gdt_data == None:
-                    continue
-
-                gdt = gdt_data[0]
-
-                assertions(gdt['viz_product_type'] == 'google_dt' )
-                assertions(len(gdt['data_description']) >= 0) # Need to come up with a better check
-                assertions(len(gdt['data_content']) >= 0)
-
+                assertions(gdt['viz_product_type'][0] == 'google_dt' )
+                assertions(len(gdt['data_description'][0]) >= 0) # Need to come up with a better check
+                assertions(len(gdt['data_content'][0]) >= 0)
 
 
 
@@ -442,7 +446,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         return procdef_id
 
-    def validate_mpl_graphs_results(self, results):
+    def validate_mpl_graphs_transform_results(self, results):
 
         cc = self.container
         assertions = self.assertTrue
@@ -470,7 +474,29 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                         continue
 
                     assertions(graph['viz_product_type'] == 'matplotlib_graphs' )
-                    # check to see if the list (numpy array) contians actual images
-                    assertions(imghdr.what(graph['image_name'], graph['image_obj']) == 'png')
+                    # check to see if the list (numpy array) contains actual images
+                    assertions(imghdr.what(graph['image_name'], h = graph['image_obj']) == 'png')
 
 
+
+    def validate_vis_service_google_dt_results(self, results):
+        assertions = self.assertTrue
+
+        assertions(results)
+        gdt_str = (results.lstrip("google.visualization.Query.setResponse(")).rstrip(")")
+
+        assertions(len(gdt_str) > 0)
+
+        return
+
+    def validate_vis_service_mpl_graphs_results(self, results):
+
+        assertions = self.assertTrue
+        assertions(results)
+
+        # check to see if the object passed is a dictionary with a valid image object in it
+        image_format = results["content_type"].lstrip("image/")
+
+        assertions(imghdr.what(results['image_name'], h = base64.decodestring(results['image_obj'])) == image_format)
+
+        return

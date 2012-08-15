@@ -267,7 +267,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # test activate and suspend data product persistence
         #------------------------------------------------------------------------------------------------
-        self.dpsc_cli.activate_data_product_persistence(dp_id, persist_data=True, persist_metadata=True)
+        self.dpsc_cli.activate_data_product_persistence(dp_id)
 
         #------------------------------------------------------------------------------------------------
         # test suspend data product persistence

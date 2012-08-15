@@ -28,19 +28,11 @@ from mock import patch
 import time
 import unittest
 import simplejson, urllib
-from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, get_role_message_headers
 
 
 def instrument_test_driver(container):
 
-    org_client = OrgManagementServiceClient(node=container.node)
-    id_client = IdentityManagementServiceClient(node=container.node)
-
-    system_actor = id_client.find_actor_identity_by_name(name=CFG.system.system_actor)
-    log.info('system actor:' + system_actor._id)
-
-    sa_header_roles = get_role_message_headers(org_client.find_all_roles_by_user(system_actor._id))
-
+    sa_user_header = container.governance_controller.get_system_actor_header()
 
     # Names of agent data streams to be configured.
     parsed_stream_name = 'ctd_parsed'
@@ -94,7 +86,7 @@ def instrument_test_driver(container):
             name=stream_name,
             stream_definition_id=stream_def_id,
             original=True,
-            encoding='ION R2', headers={'ion-actor-id': system_actor._id, 'ion-actor-roles': sa_header_roles })
+            encoding='ION R2', headers=sa_user_header)
         stream_config[stream_name] = stream_id
 
         # Create subscriptions for each stream.

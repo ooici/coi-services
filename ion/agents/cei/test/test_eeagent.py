@@ -497,7 +497,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         proc = get_proc_for_upid(state, u_pid)
 
         # Test wildcard
-        self._enable_code_download(whitelist=['localhost'])
+        self._enable_code_download(whitelist=['*'])
 
         response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
 

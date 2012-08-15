@@ -447,7 +447,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         next_state = SBE37ProtocolState.DIRECT_ACCESS
         next_agent_state = ResourceAgentState.DIRECT_ACCESS
 
-        return (next_state, result)
+        return (next_state, (next_agent_state, result))
 
     ########################################################################
     # Autosample handlers.
@@ -655,7 +655,7 @@ class SBE37Protocol(CommandResponseInstrumentProtocol):
         next_state = SBE37ProtocolState.COMMAND
         next_agent_state = ResourceAgentState.COMMAND
 
-        return (next_state, result)
+        return (next_state, (next_agent_state, result))
 
     ########################################################################
     # Private helpers.

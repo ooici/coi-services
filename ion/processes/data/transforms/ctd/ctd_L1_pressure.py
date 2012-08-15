@@ -17,7 +17,6 @@ from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
@@ -37,51 +36,7 @@ class CTDL1PressureTransform(TransformFunction):
     outgoing_stream_def = L1_pressure_stream_definition()
 
     def __init__(self):
-
-        ### Parameter dictionaries
-        self.defining_parameter_dictionary()
-
-    def defining_parameter_dictionary(self):
-
-        # Define the parameter context objects
-
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 1970-01-01'
-        t_ctxt.fill_value = 0x0
-
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
-        lat_ctxt.reference_frame = AxisTypeEnum.LAT
-        lat_ctxt.uom = 'degree_north'
-        lat_ctxt.fill_value = 0e0
-
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
-        lon_ctxt.reference_frame = AxisTypeEnum.LON
-        lon_ctxt.uom = 'degree_east'
-        lon_ctxt.fill_value = 0e0
-
-        height_ctxt = ParameterContext('height', param_type=QuantityType(value_encoding=np.float32))
-        height_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        height_ctxt.uom = 'meters'
-        height_ctxt.fill_value = 0e0
-
-        pres_ctxt = ParameterContext('pres', param_type=QuantityType(value_encoding=np.float32))
-        pres_ctxt.uom = 'degree_Celsius'
-        pres_ctxt.fill_value = 0e0
-
-        data_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=np.int8))
-        data_ctxt.uom = 'byte'
-        data_ctxt.fill_value = 0x0
-
-        # Define the parameter dictionary objects
-
-        self.pres = ParameterDictionary()
-        self.pres.add_context(t_ctxt)
-        self.pres.add_context(lat_ctxt)
-        self.pres.add_context(lon_ctxt)
-        self.pres.add_context(height_ctxt)
-        self.pres.add_context(pres_ctxt)
-        self.pres.add_context(data_ctxt)
+        super(CTDL1PressureTransform, self).__init__()
 
 
     def execute(self, granule):
@@ -93,12 +48,12 @@ class CTDL1PressureTransform(TransformFunction):
 #        rdt0 = rdt['coordinates']
 #        rdt1 = rdt['data']
 
-        pressure = get_safe(rdt, 'pres') #psd.get_values('conductivity')
+        pressure = get_safe(rdt, 'pressure') #psd.get_values('conductivity')
 
         longitude = get_safe(rdt, 'lon') # psd.get_values('longitude')
         latitude = get_safe(rdt, 'lat')  #psd.get_values('latitude')
         time = get_safe(rdt, 'time') # psd.get_values('time')
-        height = get_safe(rdt, 'height') # psd.get_values('time')
+        depth = get_safe(rdt, 'depth') # psd.get_values('time')
 
         log.warn('Got pressure: %s' % str(pressure))
 
@@ -125,23 +80,58 @@ class CTDL1PressureTransform(TransformFunction):
             #todo: get pressure range from metadata (if present) and include in calc
             scaled_pressure[i] = ( pressure[i])
 
-        root_rdt = RecordDictionaryTool(taxonomy=self.tx)
+        parameter_dictionary = self._create_parameter()
+        root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
-        #todo: use only flat dicts for now, may change later...
-#        data_rdt = RecordDictionaryTool(taxonomy=self.tx)
-#        coord_rdt = RecordDictionaryTool(taxonomy=self.tx)
-
-        root_rdt['pres'] = scaled_pressure
+        root_rdt['pressure'] = scaled_pressure
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
-        root_rdt['height'] = height
+        root_rdt['depth'] = depth
 
 #        root_rdt['coordinates'] = coord_rdt
 #        root_rdt['data'] = data_rdt
 
-        return build_granule(data_producer_id='ctd_L1_pressure', taxonomy=self.tx, record_dictionary=root_rdt)
+        return build_granule(data_producer_id='ctd_L1_pressure', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
 
-        return psc.close_stream_granule()
+    def _create_parameter(self):
 
-  
+        pdict = ParameterDictionary()
+
+        pdict = self._add_location_time_ctxt(pdict)
+
+        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.float32))
+        pres_ctxt.uom = 'Pascal'
+        pres_ctxt.fill_value = 0x0
+        pdict.add_context(pres_ctxt)
+
+        return pdict
+
+    def _add_location_time_ctxt(self, pdict):
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 1970-01-01'
+        t_ctxt.fill_value = 0x0
+        pdict.add_context(t_ctxt)
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
+        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt.fill_value = 0e0
+        pdict.add_context(lat_ctxt)
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
+        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt.fill_value = 0e0
+        pdict.add_context(lon_ctxt)
+
+        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
+        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
+        depth_ctxt.uom = 'meters'
+        depth_ctxt.fill_value = 0e0
+        pdict.add_context(depth_ctxt)
+
+        return pdict
+

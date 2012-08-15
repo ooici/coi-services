@@ -109,7 +109,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.event_sub.start()
 
     def await_state_event(self, pid, state):
-        event = self.event_queue.get(timeout=10)
+        event = self.event_queue.get(timeout=30)
         log.debug("Got event: %s", event)
         self.assertTrue(event.origin.startswith(pid))
         self.assertEqual(event.state, state)
@@ -121,8 +121,11 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         """
 
         base = self._base_procs
+        base_pids = [proc.process_id for proc in base]
         current = self.pd_cli.list_processes()
-        normal = [proc for proc in current if proc not in base]
+        current_pids = [proc.process_id for proc in current]
+        print "filtering base procs %s from %s" % (base_pids, current_pids)
+        normal = [proc for cproc in current if cproc.process_id not in base_pids]
         return normal
 
     @needs_epu
@@ -150,6 +153,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                 gevent.sleep(1)
         else:
             assert False, "HA Service took too long to get to state STEADY"
+
+        # verifies L4-CI-CEI-RQ122 and L4-CI-CEI-RQ124
 
         new_policy = {'preserve_n': 2}
         self.haa_client.reconfigure_policy(new_policy)

@@ -155,7 +155,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
@@ -180,7 +180,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
@@ -239,7 +239,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
                                                                                     parameter_dictionary)
 
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
 
         log.debug("TestDataProcessWithLookupTable: create output data product L0 pressure")
@@ -254,7 +254,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
                                                                                 outgoing_stream_l0_pressure_id,
                                                                                 parameter_dictionary)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("TestDataProcessWithLookupTable: create output data product L0 temperature")
 
@@ -270,7 +270,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
                                                                                     parameter_dictionary)
 
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id, persist_data=True, persist_metadata=True)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
         #-------------------------------

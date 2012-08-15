@@ -106,8 +106,20 @@ methods:
     out:
       result: str
     throws:
-      NotFount: if the resource does not utilize a specific state machine.
+      NotFound: if the resource does not utilize a specific state machine.
       ResourceError: if the resource failed while trying to get the state.
+
+  ping_resource:
+    docstring: |
+      Ping the resource.
+      @param resource_id The id of the resource agennt.
+      @retval A str containing a string representation of the resource and
+      timestamp.
+    in:
+      resource_id: ""
+    out:
+      result: str
+    throws:
       
   # -----------------
   # Resource monitor interface
@@ -169,6 +181,18 @@ methods:
       Return the current resource agent common state.
       @param resource_id The id of the resource agennt.
       @retval A str containing the current agent state.
+    in:
+      resource_id: ""
+    out:
+      result: str
+    throws:
+
+  ping_agent:
+    docstring: |
+      Ping the agent.
+      @param resource_id The id of the resource agennt.
+      @retval A str containing a string representation of the agent
+      and a timestamp.
     in:
       resource_id: ""
     out:

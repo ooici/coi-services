@@ -145,7 +145,7 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         self.damsclient.assign_data_product(input_resource_id=extDataset_id, data_product_id=data_product_id1)
 
         #todo fix the problem here....
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1, persist_data=True, persist_metadata=True)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
