@@ -20,19 +20,20 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 import string
-import time, datetime
+import time
 import gevent
 from gevent.timeout import Timeout
 from email.mime.text import MIMEText
 from gevent import Greenlet
 import elasticpy as ep
+from datetime import datetime
 
 from ion.services.dm.presentation.sms_providers import sms_providers
-from interface.objects import ProcessDefinition, IntervalTimer, TimeOfDayTimer, TimerSchedulerEntry
+from interface.objects import ProcessDefinition
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
-from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, FakeScheduler
+from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
 from ion.services.cei.scheduler_service import SchedulerService
 
 
@@ -63,10 +64,10 @@ class NotificationSubscription(object):
     def  __init__(self, notification_request=None, callback=None):
         self._res_obj = notification_request  # The Notification Request Resource Object
         self.subscriber = EventSubscriber(  origin=notification_request.origin,
-                                            origin_type = notification_request.origin_type,
-                                            event_type=notification_request.event_type,
-                                            sub_type=notification_request.event_subtype,
-                                            callback=callback)
+            origin_type = notification_request.origin_type,
+            event_type=notification_request.event_type,
+            sub_type=notification_request.event_subtype,
+            callback=callback)
         self.notification_subscription_id = None
 
     def set_notification_id(self, id_=None):
@@ -217,7 +218,7 @@ class EmailEventProcessor(EventProcessor):
             self.user_info[user.name] = {   'user_contact' : user.contact,
                                             'notifications' : [notification_subscription._res_obj],
                                             'notification_subscriptions' : { notification_subscription._res_obj._id :
-                                                                             notification_subscription}}
+                                                                                 notification_subscription}}
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
     def _add_callback_to_notification(self, notification_request=None, callback = None):
@@ -295,9 +296,30 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_publisher = EventPublisher()
 
-    def on_quit(self):
+        self.start_time = 0
 
-        pass
+        def process(event_msg, headers):
+            if event_msg.origin == 'batch_notification':
+                self.end_time = self.__now()
+                # run the process_batch() method
+                self.process_batch(start_time=self.start_time, end_time=self.end_time)
+                self.start_time = self.end_time
+
+        # the subscriber for the batch processing
+        '''
+        To trigger the batch notification, have the scheduler create a timer with event_origin = 'batch_notification'
+        '''
+        self.batch_processing_subscriber = EventSubscriber(
+            event_type="ResourceEvent",
+            callback=process
+        )
+        self.batch_processing_subscriber.start()
+
+    def __now(self):
+        '''
+        This method defines what the UNS uses as its "current" time
+        '''
+        return datetime.utcnow()
 
     def create_notification(self, notification=None, user_id=''):
         """
@@ -362,9 +384,9 @@ class UserNotificationService(BaseUserNotificationService):
         log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
 
         self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
-                                            origin="UserNotificationService",
-                                            description= "A notification has been created.",
-                                            notification_id = notification_id)
+            origin="UserNotificationService",
+            description= "A notification has been created.",
+            notification_id = notification_id)
 
         return notification_id
 
@@ -417,9 +439,9 @@ class UserNotificationService(BaseUserNotificationService):
         log.info("(update notification) Publishing ReloadUserInfoEvent for updated notification")
 
         self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
-                                            origin="UserNotificationService",
-                                            description= "A notification has been updated."
-                                            )
+            origin="UserNotificationService",
+            description= "A notification has been updated."
+        )
 
     def read_notification(self, notification_id=''):
         """Returns the NotificationRequest object for the specified notification id.
@@ -467,9 +489,9 @@ class UserNotificationService(BaseUserNotificationService):
         log.info("(delete notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
 
         self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
-                                            origin="UserNotificationService",
-                                            description= "A notification has been deleted.",
-                                            notification_id = notification_id)
+            origin="UserNotificationService",
+            description= "A notification has been deleted.",
+            notification_id = notification_id)
 
     def delete_notification_from_user_info(self, notification_id):
         '''
@@ -553,18 +575,18 @@ class UserNotificationService(BaseUserNotificationService):
         #--------------------------------------------------------------------------------
         def publish(message, headers):
             self.event_publisher._publish_event( event_msg = event,
-                                            origin=event.origin,
-                                            event_type = event.type_)
+                origin=event.origin,
+                event_type = event.type_)
             log.info("UNS published an event in response to a nod from the Scheduler Service.")
 
         event_subscriber = EventSubscriber( event_type = "ResourceEvent", callback=publish)
         event_subscriber.start()
 
         id = self.clients.scheduler.create_interval_timer(start_time= time.time(),
-                                                            interval=interval_timer_params['interval'],
-                                                            number_of_intervals=interval_timer_params['number_of_intervals'],
-                                                            event_origin=event.origin,
-                                                            event_subtype='')
+            interval=interval_timer_params['interval'],
+            number_of_intervals=interval_timer_params['number_of_intervals'],
+            event_origin=event.origin,
+            event_subtype='')
 
     def create_worker(self, number_of_workers=1):
         '''
@@ -673,22 +695,22 @@ class UserNotificationService(BaseUserNotificationService):
             # build the email from the event content
             msg_body += string.join(("\r\n",
                                      "Event %s: %s" %  (count, event),
-                                    "",
-                                    "Originator: %s" %  event.origin,
-                                    "",
-                                    "Description: %s" % event.description ,
-                                    "",
-                                    "Event time stamp: %s" %  event.ts_created,
-                                    "\r\n",
-                                    "------------------------"
-                                    "\r\n"))
+                                     "",
+                                     "Originator: %s" %  event.origin,
+                                     "",
+                                     "Description: %s" % event.description ,
+                                     "",
+                                     "Event time stamp: %s" %  event.ts_created,
+                                     "\r\n",
+                                     "------------------------"
+                                     "\r\n"))
             count += 1
 
-        msg_body += "You received this notification from ION because you asked to be " + \
-                    "notified about this event from this source. " + \
-                    "To modify or remove notifications about this event, " + \
-                    "please access My Notifications Settings in the ION Web UI. " + \
-                    "Do not reply to this email.  This email address is not monitored " + \
+        msg_body += "You received this notification from ION because you asked to be " +\
+                    "notified about this event from this source. " +\
+                    "To modify or remove notifications about this event, " +\
+                    "please access My Notifications Settings in the ION Web UI. " +\
+                    "Do not reply to this email.  This email address is not monitored " +\
                     "and the emails will not be read. \r\n "
 
 
@@ -697,9 +719,9 @@ class UserNotificationService(BaseUserNotificationService):
         msg_subject = "(SysName: " + get_sys_name() + ") ION event "
 
         self.send_batch_email(  msg_body = msg_body,
-                                msg_subject = msg_subject,
-                                msg_recipient=self.event_processor.user_info[user_name]['user_contact'].email,
-                                smtp_client=self.smtp_client )
+            msg_subject = msg_subject,
+            msg_recipient=self.event_processor.user_info[user_name]['user_contact'].email,
+            smtp_client=self.smtp_client )
 
     def send_batch_email(self, msg_body, msg_subject, msg_recipient, smtp_client):
         '''

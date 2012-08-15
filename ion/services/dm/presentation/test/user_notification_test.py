@@ -1138,3 +1138,33 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.unsc.publish_event(event=event, interval_timer_params = interval_timer_params )
 
+
+    @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_batch_notifications(self):
+        '''
+        Test how the UNS listens to timer events and through the call back runs the process_batch()
+        with the correct arguments.
+        '''
+        pass
+
+        #--------------------------------------------------------------------------------
+        # Set up the scheduler to publish events that should kick off process_batch()
+        #--------------------------------------------------------------------------------
+
+
+        #--------------------------------------------------------------------------------
+        # Assert that the unsc launched the process_batch() method at the correct intervals
+        #--------------------------------------------------------------------------------
+
+
+
+
+
+        #--------------------------------------------------------------------------------
+        # Assert that emails were sent
+        #--------------------------------------------------------------------------------
+
+
+
