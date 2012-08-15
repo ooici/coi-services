@@ -15,10 +15,12 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
+from interface.services.cei.ischeduler_service import SchedulerServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from interface.objects import UserInfo, DeliveryConfig
 from interface.objects import DeviceEvent
 from ion.services.cei.scheduler_service import SchedulerService
+from interface.services.cei.ischeduler_service import SchedulerServiceClient
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
@@ -241,6 +243,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient()
         self.imc = IdentityManagementServiceClient()
         self.discovery = DiscoveryServiceClient()
+        self.scheduler = SchedulerServiceClient()
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
@@ -1092,21 +1095,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(pids), 2)
 
     @attr('LOCOINT')
-    @unittest.skip('Need to incorporate latest changes to scheduler service')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_publish_event_on_time(self):
         '''
         Test the publish_event method of UNS
         '''
-
-        # Time out in 3 seconds
-        ss = SchedulerService()
-        interval_timer = ss.create_interval_timer(start_time= time.time(), interval=3,
-                                                    number_of_intervals=1,
-                                                    event_origin="origin_1",
-                                                    event_subtype='sub_type_1')
-        scheduler_entry = IonObject(RT.SchedulerEntry, {"entry": interval_timer})
+        interval_timer_params = {'interval':3,
+                                'number_of_intervals':4}
 
         #--------------------------------------------------------------------------------
         # Create an event object
@@ -1119,10 +1115,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Set up a subscriber to listen for that event
         #--------------------------------------------------------------------------------
-        ar = gevent.event.AsyncResult()
         def received_event(event, headers):
-#            log.debug("received the event in the test: %s" % event)
-            ar.set(event)
+            log.debug("received the event in the test: %s" % event)
+
+            #--------------------------------------------------------------------------------
+            # check that the event was published
+            #--------------------------------------------------------------------------------
+            self.assertEquals(event.origin, "origin_1")
+            self.assertEquals(event.type_, 'DeviceEvent')
+            self.assertEquals(event.origin_type, 'origin_type_1')
+            self.assertEquals(event.ts_created, 2)
+            self.assertEquals(event.sub_type, 'sub_type_1')
 
         event_subscriber = EventSubscriber( event_type = 'DeviceEvent',
                                             origin="origin_1",
@@ -1132,16 +1135,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Use the UNS publish_event
         #--------------------------------------------------------------------------------
-        self.unsc.publish_event(event=event, scheduler_entry=scheduler_entry)
 
-        event_in = ar.get(timeout=20)
-
-        #--------------------------------------------------------------------------------
-        # check that the event was published
-        #--------------------------------------------------------------------------------
-        self.assertEquals(event_in.origin, "origin_1")
-        self.assertEquals(event_in.type_, 'DeviceEvent')
-        self.assertEquals(event_in.origin_type, 'origin_type_1')
-        self.assertEquals(event_in.ts_created, 2)
-        self.assertEquals(event_in.sub_type, 'sub_type_1')
+        self.unsc.publish_event(event=event, interval_timer_params = interval_timer_params )
 

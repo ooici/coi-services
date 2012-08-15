@@ -17,6 +17,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 import string
 import time, datetime
@@ -293,7 +294,6 @@ class UserNotificationService(BaseUserNotificationService):
         self.datastore_manager = DatastoreManager()
 
         self.event_publisher = EventPublisher()
-        self.scheduler_service = SchedulerService()
 
     def on_quit(self):
 
@@ -540,15 +540,13 @@ class UserNotificationService(BaseUserNotificationService):
 
         return events
 
-    def publish_event(self, event=None, scheduler_entry= None):
+    def publish_event(self, event=None, interval_timer_params= None):
         '''
         Publish a general event at a certain time using the UNS
 
         @param event Event
-        @param scheduler_entry SchedulerEntry This object is created through Scheduler Service
+        @param interval_timer_params dict Ex: {'interval':3, 'number_of_intervals':4}
         '''
-
-        log.debug("UNS to publish on schedule the event: %s" % event)
 
         #--------------------------------------------------------------------------------
         # Set up a subscriber to get the nod from the scheduler to publish the event
@@ -562,8 +560,11 @@ class UserNotificationService(BaseUserNotificationService):
         event_subscriber = EventSubscriber( event_type = "ResourceEvent", callback=publish)
         event_subscriber.start()
 
-        # Use the scheduler to set up a timer
-        self.scheduler_service.create_timer(scheduler_entry)
+        id = self.clients.scheduler.create_interval_timer(start_time= time.time(),
+                                                            interval=interval_timer_params['interval'],
+                                                            number_of_intervals=interval_timer_params['number_of_intervals'],
+                                                            event_origin=event.origin,
+                                                            event_subtype='')
 
     def create_worker(self, number_of_workers=1):
         '''
