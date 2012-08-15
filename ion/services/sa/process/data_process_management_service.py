@@ -6,8 +6,9 @@
 """
 
 from pyon.util.log import log
+from pyon.util.ion_time import IonTime
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
-from pyon.public import   log, RT, PRED
+from pyon.public import   log, RT, PRED, OT
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.containers import create_unique_identifier
@@ -401,16 +402,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Delete the data process
         log.debug("DataProcessManagementService:delete_data_process the data_process")
 
-
-        # DEBUG DEBUG DEBUG
-#        objs, obj_assns = self.clients.resource_registry.find_objects(subject=data_process_id)
-#        for obj, obj_assn  in zip(objs, obj_assns):
-#            log.debug("DPrcsMS:delete_data_process data_process object DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
-#        objs, obj_assns = self.clients.resource_registry.find_subjects(object=data_process_id)
-#        for obj, obj_assn  in zip(objs, obj_assns):
-#            log.debug("DPrcsMS:delete_data_process data_process subject DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
-
-
         self.clients.resource_registry.delete(data_process_id)
         return
 
@@ -437,6 +428,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if len(transforms) != 1:
             raise BadRequest("Data Process should only have ONE Transform at this time" + str(transforms))
 
+        #update the producer context with the activation time and the configuration
+        # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
+        # todo: process_id, process_definition, schedule, configuration
+        producer_obj = self._get_process_producer(data_process_id)
+        if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
+            producer_obj.producer_context.activation_time = IonTime().to_string()
+            producer_obj.producer_context.execution_configuration = data_process_obj.configuration
+            self.clients.resource_registry.update(producer_obj)
+
         log.debug("DataProcessManagementService:activate_data_process call transform_management.activate_transform to activate the subscription (L4-CI-SA-RQ-181)")
         self.clients.transform_management.activate_transform(transforms[0])
         return
@@ -453,6 +453,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if len(transforms) != 1:
             raise BadRequest("Data Process should only have ONE Transform at this time" + str(transforms))
 
+        #update the producer context with the deactivation time
+        # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
+        producer_obj = self._get_process_producer(data_process_id)
+        if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
+            producer_obj.producer_context.deactivation_time = IonTime().to_string()
+            self.clients.resource_registry.update(producer_obj)
+
         log.debug("DataProcessManagementService:activate_data_process - transform_management.deactivate_transform")
         self.clients.transform_management.deactivate_transform(transforms[0])
         return
@@ -467,3 +474,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # TODO: Determine the proper input param
         pass
 
+    def _get_process_producer(self, data_process_id=""):
+        producer_objs, _ = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=False)
+        if not producer_objs:
+            raise NotFound("No Producers created for this Data Process " + str(data_process_id))
+        return producer_objs[0]

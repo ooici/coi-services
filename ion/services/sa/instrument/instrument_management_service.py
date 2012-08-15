@@ -18,6 +18,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.net.endpoint import RPCClient
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.log import log
+from pyon.util.ion_time import IonTime
 from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
@@ -335,14 +336,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         log.debug("activate_instrument: agent_config %s ", str(instrument_agent_instance_obj.agent_config))
 
-        pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
+        process_id, process_definition, schedule, configuration = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
                                                                schedule=None,
                                                                configuration=instrument_agent_instance_obj.agent_config)
-        log.debug("activate_instrument: schedule_process %s", pid)
+        log.debug("activate_instrument: schedule_process %s", process_id)
 
+        #update the producer context for provenance
+        #todo: should get the time from process dispatcher
+        producer_obj = self._get_instrument_producer(instrument_device_id)
+        if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
+            producer_obj.producer_context.activation_time =  IonTime().to_string()
+            producer_obj.producer_context.execution_configuration = configuration
+            self.clients.resource_registry.update(producer_obj)
 
         # add the process id and update the resource
-        instrument_agent_instance_obj.agent_process_id = pid
+        instrument_agent_instance_obj.agent_process_id = process_id
         self.update_instrument_agent_instance(instrument_agent_instance_obj)
 
         return
@@ -378,6 +386,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
 
+        instrument_device_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.InstrumentDevice, predicate=PRED.hasAgentInstance,
+                                                                          object=instrument_agent_instance_id, id_only=True)
+        if not instrument_device_ids:
+            raise NotFound("No Instrument Device resource associated with this Instrument Agent Instance: %s", str(instrument_agent_instance_id) )
+
         # Cancels the execution of the given process id.
         self.clients.process_dispatcher.cancel_process(instrument_agent_instance_obj.agent_process_id)
 
@@ -393,6 +406,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_instance_obj.agent_process_id = None
         instrument_agent_instance_obj.driver_config['pagent_pid'] = None
         self.clients.resource_registry.update(instrument_agent_instance_obj)
+
+        #update the producer context for provenance
+        producer_obj = self._get_instrument_producer(instrument_device_ids[0])
+        if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
+            producer_obj.producer_context.deactivation_time =  IonTime().to_string()
+            self.clients.resource_registry.update(producer_obj)
 
         return
 
@@ -793,8 +812,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-
-
+    def _get_instrument_producer(self, instrument_device_id=""):
+        producer_objs, _ = self.clients.resource_registry.find_objects(subject=instrument_device_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=False)
+        if not producer_objs:
+            raise NotFound("No Producers created for this Data Process " + str(data_process_id))
+        return producer_objs[0]
 
 
     ##########################################################################

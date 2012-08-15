@@ -380,8 +380,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return context
 
-
-
     def _find_producer_in_products(self, producer_id=''):
         # get the link to the inout DataProduct resource
         product_ids, _ = self.clients.resource_registry.find_objects(   subject=producer_id,
@@ -392,6 +390,17 @@ class DataProductManagementService(BaseDataProductManagementService):
             log.debug("DataProductManagementService:_find_producer_in_products: %s" % product_obj.name)
 
         return product_ids
+
+
+    def get_data_product_provenance_report(self, data_product_id=''):
+
+        # Retrieve information that characterizes how this data was produced
+        # Return in a dictionary
+
+        self.provenance_results = self.get_data_product_provenance(data_product_id)
+
+        return ""
+
 
     def create_data_product_version(self, data_product_id='', data_product_version=None):
         """Define a new version of an existing set of information that represent an inprovement in the quality or

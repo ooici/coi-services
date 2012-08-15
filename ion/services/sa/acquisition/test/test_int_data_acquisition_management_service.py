@@ -8,7 +8,7 @@
 
 #from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, log, IonObject
-from pyon.public import RT
+from pyon.public import RT, PRED
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
@@ -16,6 +16,7 @@ from pyon.util.context import LocalContextMixin
 from ion.services.sa.acquisition.data_acquisition_management_service import DataAcquisitionManagementService
 from interface.services.sa.idata_acquisition_management_service import IDataAcquisitionManagementService, DataAcquisitionManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from nose.plugins.attrib import attr
@@ -39,6 +40,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         self.client = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
+        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
 
     def tearDown(self):
         pass
@@ -210,47 +212,6 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
 
 
-    def test_register_process(self):
-        # Register a data process as a data producer in coordination with DM PubSub: create stream, register and create producer object
-
-
-        # set up initial instrument to register
-        process_obj = IonObject(RT.DataProcess, name='Proc1',description='a data process transform')
-        process_id, rev = self.rrclient.create(process_obj)
-
-        dataproduct_obj = IonObject(RT.DataProduct, name='DataProduct1',description='sample data product')
-        dataproduct_id, rev = self.rrclient.create(dataproduct_obj)
-
-
-        # test registering a new process
-        try:
-            ds_id = self.client.register_process(process_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data producer: %s" %ex)
-        print 'new data producer id = ', ds_id
-
-        # test assigning a data product to a process, no stream create
-        try:
-            self.client.assign_data_product(process_id, dataproduct_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data producer: %s" %ex)
-        except NotFound as ex:
-            self.fail("failed to create new data producer: %s" %ex)
-
-
-        # test UNassigning a data product from the data process, deleting the stream for the product
-        try:
-            self.client.unassign_data_product(process_id, dataproduct_id)
-        except BadRequest as ex:
-            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
-        except NotFound as ex:
-            self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
-
-        # test UNregistering a process
-        try:
-            ds_id = self.client.unregister_process(process_id)
-        except NotFound as ex:
-            self.fail("failed to unregister instrument producer: %s" %ex)
 
 
     #@unittest.skip('not ready')

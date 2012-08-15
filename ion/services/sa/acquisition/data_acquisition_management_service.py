@@ -10,7 +10,7 @@ and the relationships between them
 
 from interface.services.sa.idata_acquisition_management_service import BaseDataAcquisitionManagementService
 from pyon.core.exception import NotFound, BadRequest
-from pyon.public import CFG, IonObject, log, RT, LCS, PRED
+from pyon.public import CFG, IonObject, log, RT, LCS, PRED, OT
 
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
 
@@ -34,8 +34,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if data_set_obj is None:
             raise NotFound("External Data Set %s does not exist" % external_dataset_id)
 
+        #create a ExtDatasetProducerContext to hold the state of the this producer
+        producer_context_obj = IonObject(OT.ExtDatasetProducerContext)
+
         #create data producer resource and associate to this external_dataset_id
-        data_producer_obj = IonObject(RT.DataProducer,name=data_set_obj.name, description="primary producer resource for this data set", is_primary=True)
+        data_producer_obj = IonObject(RT.DataProducer,name=data_set_obj.name, description="primary producer resource for this data set",
+                                      producer_context=producer_context_obj, is_primary=True)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
 
         # Create association
@@ -73,14 +77,24 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if data_process_obj is None:
             raise NotFound("Data Process %s does not exist" % data_process_id)
 
+        #find the data process definition
+        data_process_def_objs, _ = self.clients.resource_registry.find_objects(subject=data_process_id,  predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition, id_only=False)
+        if not data_process_def_objs:
+            raise NotFound("Data Process Definition for Data Process %s does not exist" % data_process_id)
+
+        #create a DataProcessProducerContext to hold the state of the this producer
+        producer_context_obj = IonObject(OT.DataProcessProducerContext,  execution_configuration=data_process_obj.configuration, parameters=data_process_def_objs[0].parameters)
+
         #create data producer resource and associate to this data_process_id
-        data_producer_obj = IonObject(RT.DataProducer,name=data_process_obj.name, description="primary producer resource for this process", is_primary=True)
+        data_producer_obj = IonObject(RT.DataProducer,name=data_process_obj.name, description="primary producer resource for this process",
+                                      producer_context=producer_context_obj, is_primary=True)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
 
         # Create association
         self.clients.resource_registry.create_association(data_process_id, PRED.hasDataProducer, data_producer_id)
 
         return data_producer_id
+
 
     def unregister_process(self, data_process_id=''):
         """
@@ -97,16 +111,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             self.clients.resource_registry.delete_association(producer_assn)
             log.debug("DataAcquisitionManagementService:unregister_process  delete producer %s", str(producer))
 
-
-            # DEBUG DEBUG DEBUG
-
-#            objs, obj_assns = self.clients.resource_registry.find_objects(subject=producer)
-#            for obj, obj_assn  in zip(objs, obj_assns):
-#                log.debug("DAMS:unregister_process producer object DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
-#            objs, obj_assns = self.clients.resource_registry.find_subjects(object=producer)
-#            for obj, obj_assn  in zip(objs, obj_assns):
-#                log.debug("DAMS:unregister_process producer subject DEBUG OBJ:  %s   ASSOC:  %s ", str(obj), str(obj_assn))
-
             log.debug("DAMS:unregister_process delete producer: %s ", str(producer) )
             self.clients.resource_registry.delete(producer)
 
@@ -119,8 +123,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # retrieve the data_process object
         instrument_obj = self.clients.resource_registry.read(instrument_id)
 
+        #create a InstrumentProducerContext to hold the state of the this producer
+        producer_context_obj = IonObject(OT.InstrumentProducerContext)
+
         #create data producer resource and associate to this instrument_id
-        data_producer_obj = IonObject(RT.DataProducer,name=instrument_obj.name, description="primary producer resource for this instrument", is_primary=True)
+        data_producer_obj = IonObject(RT.DataProducer,name=instrument_obj.name, description="primary producer resource for this instrument",
+                                      producer_context=producer_context_obj, is_primary=True)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
         log.debug("register_instrument  data_producer_id %s" % data_producer_id)
 
