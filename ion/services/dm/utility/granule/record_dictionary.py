@@ -305,8 +305,6 @@ class RecordDictionaryTool(object):
         """
         @brief Pretty Print the record dictionary for debug or log purposes.
         """
-        pass
-
         fid = StringIO.StringIO()
         # Use string IO inside a try block in case of exceptions or a large return value.
         try:
@@ -325,7 +323,6 @@ class RecordDictionaryTool(object):
         return result
 
     def _pprint(self, fid, offset=None):
-        pass
         """
         Utility method for pretty print
         """
