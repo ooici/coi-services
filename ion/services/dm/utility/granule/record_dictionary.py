@@ -97,9 +97,9 @@ class RecordDictionaryTool(object):
                 if self._shp is None:
                     self._shp = vals.shape
 
-#                # Test new value sequence length
-#                if self._shp != vals.shape:
-#                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
+                # Test new value sequence length
+                if self._shp != vals.shape:
+                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
 
                 self._rd[self._param_dict.ord_from_key(param_name=name)] = vals
 
@@ -125,9 +125,9 @@ class RecordDictionaryTool(object):
                 if self._shp is None:
                     self._shp = vals.shape
 
-#                # Test new value sequence length
-#                if self._shp != vals.shape:
-#                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
+                # Test new value sequence length
+                if self._shp != vals.shape:
+                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
 
                 self._rd[self._tx.get_handle(name)] = vals
 
