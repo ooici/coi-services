@@ -1147,12 +1147,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         Test how the UNS listens to timer events and through the call back runs the process_batch()
         with the correct arguments.
         '''
-        pass
+
 
         #--------------------------------------------------------------------------------
-        # Set up the scheduler to publish events that should kick off process_batch()
+        # Set up the scheduler to publish daily events that should kick off process_batch()
         #--------------------------------------------------------------------------------
-
+        
 
         #--------------------------------------------------------------------------------
         # Assert that the unsc launched the process_batch() method at the correct intervals
