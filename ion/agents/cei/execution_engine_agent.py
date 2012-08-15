@@ -41,7 +41,7 @@ class ExecutionEngineAgent(ResourceAgent):
 
     def on_init(self):
         if not EEAgentCore:
-            msg = "EEAgentCore isn't available. Use production.cfg buildout"
+            msg = "EEAgentCore isn't available. Use autolaunch.cfg buildout"
             log.error(msg)
             return
         log.debug("ExecutionEngineAgent Pyon on_init")

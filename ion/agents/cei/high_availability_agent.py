@@ -40,7 +40,7 @@ class HighAvailabilityAgent(ResourceAgent):
 
     def on_init(self):
         if not HighAvailabilityCore:
-            msg = "HighAvailabilityCore isn't available. Use production.cfg buildout"
+            msg = "HighAvailabilityCore isn't available. Use autolaunch.cfg buildout"
             log.error(msg)
             return
         log.debug("HighAvailabilityCore Pyon on_init")
