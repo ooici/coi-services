@@ -296,11 +296,15 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_publisher = EventPublisher()
 
-        self.start_time = 0
+        self.start_time = UserNotificationService.makeEpochTime(self.__now())
 
         def process(event_msg, headers):
             if event_msg.origin == 'batch_notification':
-                self.end_time = self.__now()
+                self.end_time = UserNotificationService.makeEpochTime(self.__now())
+
+                log.warning("start_time : %s" % self.start_time)
+                log.warning("end_time: %s" % self.end_time)
+
                 # run the process_batch() method
                 self.process_batch(start_time=self.start_time, end_time=self.end_time)
                 self.start_time = self.end_time
@@ -632,14 +636,37 @@ class UserNotificationService(BaseUserNotificationService):
 
         return pids
 
+    @staticmethod
+    def makeEpochTime(date_time):
+        """
+        provides the seconds since epoch give a python datetime object.
 
-    def process_batch(self, start_time = 0, end_time = 10):
+        @param date_time: Python datetime object
+        @return: seconds_since_epoch:: int
+        """
+        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
+        #'2009-07-04 18:30:47'
+        pattern = '%Y-%m-%d %H:%M:%S'
+        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
+
+        return seconds_since_epoch
+
+
+    def process_batch(self, start_time = 0, end_time = 0):
         '''
         This method is launched when an process_batch event is received. The user info dictionary maintained
         by the User Notification Service is used to query the event repository for all events for a particular
         user that have occurred in a provided time interval, and then an email is sent to the user containing
         the digest of all the events.
         '''
+
+        print("came here")
+
+        print("Processing notifications that arrived between %s seconds and %s seconds" % (start_time, end_time))
+
+        if end_time <= start_time:
+            return
+
         for user_name, value in self.event_processor.user_info.iteritems():
 
             notifications = value['notifications']
@@ -676,6 +703,7 @@ class UserNotificationService(BaseUserNotificationService):
                     events_for_message.append(event_obj)
 
             log.debug("Found following events of interest to user, %s: %s" % (user_name, events_for_message))
+            print("Found following events of interest to user, %s: %s" % (user_name, events_for_message))
 
             # send a notification email to each user using a _send_email() method
             if events_for_message:
