@@ -60,6 +60,7 @@ class ReplayProcess(BaseReplayProcess):
         self.delivery_format = self.CFG.get_safe('process.delivery_format',{})
         self.start_time      = self.CFG.get_safe('process.query.start_time', None)
         self.end_time        = self.CFG.get_safe('process.query.end_time', None)
+        self.stride_time     = self.CFG.get_safe('process.query.stride_time', None)
         self.parameters      = self.CFG.get_safe('process.query.parameters',None)
         self.publishing      = Event()
 
@@ -78,7 +79,7 @@ class ReplayProcess(BaseReplayProcess):
         coverage = DatasetManagementService._get_coverage(self.dataset_id)
         crafter = CoverageCraft(coverage)
         #@todo: add bounds checking to ensure the dataset being retrieved is not too large
-        crafter.sync_rdt_with_coverage(start_time=self.start_time,end_time=self.end_time,parameters=self.parameters)
+        crafter.sync_rdt_with_coverage(start_time=self.start_time, end_time=self.end_time, stride_time=self.stride_time, parameters=self.parameters)
         granule = crafter.to_granule()
         return granule
 
