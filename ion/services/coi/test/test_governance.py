@@ -325,7 +325,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
         user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
         log.info( "user id=" + user_id)
         user_header = self.container.governance_controller.get_actor_header(user_id)
-        print user_header
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
@@ -334,7 +333,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Now enroll the user as a member of the Second Org
         self.org_client.enroll_member(org2_id,user_id, headers=self.sa_user_header)
         user_header = self.container.governance_controller.get_actor_header(user_id)
-        print user_header
 
         #Add a new Org boundary policy which deny's all anonymous access
         test_policy_id = self.pol_client.create_resource_access_policy( org2_id, 'Org_Test_Policy',
