@@ -10,8 +10,14 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-from ion.agents.instrument.exceptions import InstrumentStateException
+class FSMError(Exception):
+    pass
 
+class FSMStateError(FSMError):
+    pass
+
+class FSMCommandUnknownError(FSMError):
+    pass
 
 class InstrumentFSM():
     """
@@ -89,14 +95,15 @@ class InstrumentFSM():
         """        
         next_state = None
         result = None
-        
         if self.events.has(event):
             handler = self.state_handlers.get((self.current_state, event), None)
             if handler:
                 (next_state, result) = handler(*args, **kwargs)
             else:
-                raise InstrumentStateException('Command not handled in current state.')
-                
+                raise FSMStateError('Command not handled in current state.')
+        else:
+            raise FSMCommandUnknownError('Unknown command.')
+            
         #if next_state in self.states:
         if self.states.has(next_state):
             self._on_transition(next_state, *args, **kwargs)
