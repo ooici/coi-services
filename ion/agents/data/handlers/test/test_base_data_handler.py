@@ -47,11 +47,12 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
     @patch.object(BaseDataHandler, 'execute_acquire_data')
     @patch('ion.agents.data.handlers.base_data_handler.time')
-    @unittest.skip("not working")
+    @unittest.skip('')
     def test__poll(self, time_mock, execute_acquire_data_mock):
         self._stream_registrar = Mock()
-        dh_config = {'external_dataset_res_id' : 'external_ds' }
-        bdh=BaseDataHandler(self._stream_registrar, dh_config)
+        dh_config = {'external_dataset_res_id' : 'external_ds', 'stream_id' : 'test_stream_id' }
+        bdh = BaseDataHandler(self._stream_registrar, dh_config)
+        #bdh.initialize()
         bdh._params = {'POLLING_INTERVAL':1}
         glet = spawn(bdh._poll)
 
@@ -65,7 +66,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         glet.join(timeout=5)
 
-        self.assertTrue(execute_acquire_data_mock.call_count >= 1)
+        self.assertTrue(execute_acquire_data_mock.call_count >= 2)
 
     def test__publish_data_with_granules(self):
         publisher = Mock()
@@ -583,9 +584,8 @@ class TestDummyDataHandlerUnit(PyonTestCase):
         DummyDataHandler._init_acquisition_cycle(config)
         _init_acquisition_cycle_mock.assert_called_once_with(config)
 
-    @unittest.skip('Needs refactoring due to changes to DummyDataHandler')
-    @patch('ion.agents.data.handlers.handler_utils.get_time_from_filename')
-    @patch('ion.agents.data.handlers.handler_utils.list_file_info')
+    @patch('ion.agents.data.handlers.base_data_handler.get_time_from_filename')
+    @patch('ion.agents.data.handlers.base_data_handler.list_file_info')
     def test__constraints_for_new_request(self, list_file_info_mock, get_time_from_filename_mock):
         max_rec = 10
         config = {
