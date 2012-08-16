@@ -144,10 +144,6 @@ class InstrumentAgent(ResourceAgent):
         machine.
         """
 
-        self.resource_id = get_safe(self.CFG, "agent.resource_id")
-        if not self.resource_id:
-            log.warn("InstrumentAgent.on_init(): agent has no resource_id in configuration")
-        
         # Set the driver config from the agent config if present.
         self._dvr_config = self.CFG.get('driver_config', None)
         
