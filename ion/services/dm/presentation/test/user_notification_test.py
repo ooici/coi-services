@@ -15,10 +15,12 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
+from interface.services.cei.ischeduler_service import SchedulerServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from interface.objects import UserInfo, DeliveryConfig
 from interface.objects import DeviceEvent
 from ion.services.cei.scheduler_service import SchedulerService
+from interface.services.cei.ischeduler_service import SchedulerServiceClient
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
@@ -29,10 +31,12 @@ from interface.objects import NotificationRequest
 from ion.services.dm.inventory.index_management_service import IndexManagementService
 from ion.services.dm.presentation.user_notification_service import EmailEventProcessor
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
-import os, time
+import os, time, uuid
 from gevent import event, queue
 from gevent.timeout import Timeout
 import elasticpy as ep
+from datetime import datetime, timedelta
+from sets import Set
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
@@ -241,6 +245,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient()
         self.imc = IdentityManagementServiceClient()
         self.discovery = DiscoveryServiceClient()
+        self.scheduler = SchedulerServiceClient()
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
@@ -663,10 +668,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_batch_notifications(self):
+    def test_process_batch(self):
         '''
-        Test that batch notifications work
+        Test that the process_batch() method works
         '''
+
+
+        test_start_time = UserNotificationIntTest.makeEpochTime(datetime.utcnow())
+        test_end_time = UserNotificationIntTest.makeEpochTime(datetime.utcnow() + timedelta(seconds=10))
 
         #--------------------------------------------------------------------------------------
         # Publish events corresponding to the notification requests just made
@@ -679,12 +688,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # this part of code is in the beginning to allow enough time for the events_index creation
 
         for i in xrange(10):
-            event_publisher.publish_event( ts_created= i ,
+
+            t = self.__now()
+            t = UserNotificationIntTest.makeEpochTime(t)
+
+            event_publisher.publish_event( ts_created= t ,
                 origin="instrument_1",
                 origin_type="type_1",
                 event_type='ResourceLifecycleEvent')
 
-            event_publisher.publish_event( ts_created= i ,
+            event_publisher.publish_event( ts_created= t ,
                 origin="instrument_3",
                 origin_type="type_3",
                 event_type='ResourceLifecycleEvent')
@@ -758,8 +771,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Do a process_batch() in order to start the batch notifications machinery
         #--------------------------------------------------------------------------------------
 
-        test_start_time = 5
-        test_end_time = 8
         self.unsc.process_batch(start_time=test_start_time, end_time= test_end_time)
 
         #--------------------------------------------------------------------------------------
@@ -1092,21 +1103,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(pids), 2)
 
     @attr('LOCOINT')
-    @unittest.skip('Need to incorporate latest changes to scheduler service')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_publish_event_on_time(self):
         '''
         Test the publish_event method of UNS
         '''
-
-        # Time out in 3 seconds
-        ss = SchedulerService()
-        interval_timer = ss.create_interval_timer(start_time= time.time(), interval=3,
-                                                    number_of_intervals=1,
-                                                    event_origin="origin_1",
-                                                    event_subtype='sub_type_1')
-        scheduler_entry = IonObject(RT.SchedulerEntry, {"entry": interval_timer})
+        interval_timer_params = {'interval':3,
+                                'number_of_intervals':4}
 
         #--------------------------------------------------------------------------------
         # Create an event object
@@ -1119,10 +1123,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Set up a subscriber to listen for that event
         #--------------------------------------------------------------------------------
-        ar = gevent.event.AsyncResult()
         def received_event(event, headers):
-#            log.debug("received the event in the test: %s" % event)
-            ar.set(event)
+            log.debug("received the event in the test: %s" % event)
+
+            #--------------------------------------------------------------------------------
+            # check that the event was published
+            #--------------------------------------------------------------------------------
+            self.assertEquals(event.origin, "origin_1")
+            self.assertEquals(event.type_, 'DeviceEvent')
+            self.assertEquals(event.origin_type, 'origin_type_1')
+            self.assertEquals(event.ts_created, 2)
+            self.assertEquals(event.sub_type, 'sub_type_1')
 
         event_subscriber = EventSubscriber( event_type = 'DeviceEvent',
                                             origin="origin_1",
@@ -1132,16 +1143,162 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Use the UNS publish_event
         #--------------------------------------------------------------------------------
-        self.unsc.publish_event(event=event, scheduler_entry=scheduler_entry)
 
-        event_in = ar.get(timeout=20)
+        self.unsc.publish_event(event=event, interval_timer_params = interval_timer_params )
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_batch_notifications(self):
+        '''
+        Test how the UNS listens to timer events and through the call back runs the process_batch()
+        with the correct arguments.
+        '''
+
+        #--------------------------------------------------------------------------------------------
+        # The operator sets up the process_batch_key. The UNS will listen for scheduler created
+        # timer events with origin = process_batch_key
+        #--------------------------------------------------------------------------------------------
+        # generate a uuid
+        newkey = 'batch_processing_' + str(uuid.uuid4())
+        self.unsc.set_process_batch_key(process_batch_key = newkey)
 
         #--------------------------------------------------------------------------------
-        # check that the event was published
+        # Set up a time for the scheduler to trigger timer events
         #--------------------------------------------------------------------------------
-        self.assertEquals(event_in.origin, "origin_1")
-        self.assertEquals(event_in.type_, 'DeviceEvent')
-        self.assertEquals(event_in.origin_type, 'origin_type_1')
-        self.assertEquals(event_in.ts_created, 2)
-        self.assertEquals(event_in.sub_type, 'sub_type_1')
+        # Trigger the timer event 10 seconds later from now
+        now = datetime.utcnow() + timedelta(seconds=15)
+        times_of_day =[{'hour': str(now.hour),'minute' : str(now.minute), 'second':str(now.second) }]
 
+        #--------------------------------------------------------------------------------
+        # Publish the events that the user will later be notified about
+        #--------------------------------------------------------------------------------
+        event_publisher = EventPublisher()
+
+        # this part of code is in the beginning to allow enough time for the events_index creation
+        number_event_published = 0
+        times_of_events_published = Set()
+
+        for i in xrange(3):
+
+            t = self.__now()
+            t = UserNotificationIntTest.makeEpochTime(t)
+
+            event_publisher.publish_event( ts_created= t ,
+                origin="instrument_1",
+                origin_type="type_1",
+                event_type='ResourceLifecycleEvent')
+
+            event_publisher.publish_event( ts_created= t ,
+                origin="instrument_2",
+                origin_type="type_2",
+                event_type='ResourceLifecycleEvent')
+
+            times_of_events_published.add(t)
+            number_event_published += 2
+            time.sleep(1)
+            log.warning("Published events of origins = instrument_1, instrument_2 with ts_created: %s" % t)
+
+
+        #----------------------------------------------------------------------------------------
+        # Create users and get the user_ids
+        #----------------------------------------------------------------------------------------
+
+        # user_1
+        user_1 = UserInfo()
+        user_1.name = 'user_1'
+        user_1.contact.email = 'user_1@gmail.com'
+
+        # this part of code is in the beginning to allow enough time for the users_index creation
+
+        user_id_1, _ = self.rrc.create(user_1)
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects -- Remember to put names
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(   name = "notification_1",
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(   name = "notification_2",
+            origin="instrument_2",
+            origin_type="type_2",
+            event_type='ResourceLifecycleEvent')
+
+        #--------------------------------------------------------------------------------------
+        # Create a notification using UNS. This should cause the user_info to be updated
+        #--------------------------------------------------------------------------------------
+
+        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
+        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_1)
+
+
+        #--------------------------------------------------------------------------------
+        # Set up the scheduler to publish daily events that should kick off process_batch()
+        #--------------------------------------------------------------------------------
+        ss = SchedulerService()
+        id = ss.create_time_of_day_timer(   times_of_day=times_of_day,
+                                            expires=time.time()+25200+60,
+                                            event_origin= newkey,
+                                            event_subtype="")
+
+        #--------------------------------------------------------------------------------
+        # Assert that emails were sent
+        #--------------------------------------------------------------------------------
+
+        proc = self.container.proc_manager.procs_by_name['user_notification']
+
+        ar_1 = gevent.event.AsyncResult()
+        ar_2 = gevent.event.AsyncResult()
+
+        def send_email(events_for_message, user_name):
+            log.warning("(in asyncresult) events_for_message: %s" % events_for_message)
+            ar_1.set(events_for_message)
+            ar_2.set(user_name)
+
+        proc.format_and_send_email = send_email
+
+        events_for_message = ar_1.get(timeout=20)
+        user_name = ar_2.get(timeout=20)
+
+        log.warning("user_name: %s" % user_name)
+
+        origins_of_events = Set()
+        times = Set()
+
+        for event in events_for_message:
+            origins_of_events.add(event.origin)
+            times.add(event.ts_created)
+
+        #--------------------------------------------------------------------------------
+        # Make assertions on the events mentioned in the formatted email
+        #--------------------------------------------------------------------------------
+
+        self.assertEquals(len(events_for_message), number_event_published)
+        self.assertEquals(times, times_of_events_published)
+        self.assertEquals(origins_of_events, Set(['instrument_1', 'instrument_2']))
+
+    def __now(self):
+        '''
+        This method defines what the UNS uses as its "current" time
+        '''
+        return datetime.utcnow()
+
+
+    @staticmethod
+    def makeEpochTime(date_time):
+        """
+        provides the seconds since epoch give a python datetime object.
+
+        @param date_time: Python datetime object
+        @return: seconds_since_epoch:: int
+        """
+        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
+        #'2009-07-04 18:30:47'
+        pattern = '%Y-%m-%d %H:%M:%S'
+        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
+
+        return seconds_since_epoch
