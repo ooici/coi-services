@@ -298,8 +298,23 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.start_time = UserNotificationService.makeEpochTime(self.__now())
 
+    def __now(self):
+        '''
+        This method defines what the UNS uses as its "current" time
+        '''
+        return datetime.utcnow()
+
+    def set_process_batch_key(self, process_batch_key = ''):
+        '''
+        This method allows an operator to set the process_batch_key, a string.
+        Once this method is used by the operator, the UNS will start listening for timer events
+        published by the scheduler with origin = process_batch_key.
+        '''
+
+        log.warning("process_batch_key= %s" % process_batch_key)
+
         def process(event_msg, headers):
-            if event_msg.origin == 'batch_notification':
+            if event_msg.origin == process_batch_key:
                 self.end_time = UserNotificationService.makeEpochTime(self.__now())
 
                 log.warning("start_time : %s" % self.start_time)
@@ -311,19 +326,13 @@ class UserNotificationService(BaseUserNotificationService):
 
         # the subscriber for the batch processing
         '''
-        To trigger the batch notification, have the scheduler create a timer with event_origin = 'batch_notification'
+        To trigger the batch notification, have the scheduler create a timer with event_origin = process_batch_key
         '''
         self.batch_processing_subscriber = EventSubscriber(
             event_type="ResourceEvent",
             callback=process
         )
         self.batch_processing_subscriber.start()
-
-    def __now(self):
-        '''
-        This method defines what the UNS uses as its "current" time
-        '''
-        return datetime.utcnow()
 
     def create_notification(self, notification=None, user_id=''):
         """

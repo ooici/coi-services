@@ -31,11 +31,12 @@ from interface.objects import NotificationRequest
 from ion.services.dm.inventory.index_management_service import IndexManagementService
 from ion.services.dm.presentation.user_notification_service import EmailEventProcessor
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
-import os, time
+import os, time, uuid
 from gevent import event, queue
 from gevent.timeout import Timeout
 import elasticpy as ep
 from datetime import datetime, timedelta
+from sets import Set
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
@@ -1155,6 +1156,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         with the correct arguments.
         '''
 
+        #--------------------------------------------------------------------------------------------
+        # The operator sets up the process_batch_key. The UNS will listen for scheduler created
+        # timer events with origin = process_batch_key
+        #--------------------------------------------------------------------------------------------
+        # generate a uuid
+        newkey = 'batch_processing_' + str(uuid.uuid4())
+        self.unsc.set_process_batch_key(process_batch_key = newkey)
+
         #--------------------------------------------------------------------------------
         # Set up a time for the scheduler to trigger timer events
         #--------------------------------------------------------------------------------
@@ -1169,6 +1178,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # this part of code is in the beginning to allow enough time for the events_index creation
         number_event_published = 0
+        times_of_events_published = Set()
 
         for i in xrange(3):
 
@@ -1185,11 +1195,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 origin_type="type_2",
                 event_type='ResourceLifecycleEvent')
 
-            time.sleep(1)
-
+            times_of_events_published.add(t)
             number_event_published += 2
-
+            time.sleep(1)
             log.warning("Published events of origins = instrument_1, instrument_2 with ts_created: %s" % t)
+
 
         #----------------------------------------------------------------------------------------
         # Create users and get the user_ids
@@ -1203,12 +1213,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # this part of code is in the beginning to allow enough time for the users_index creation
 
         user_id_1, _ = self.rrc.create(user_1)
-
-        #--------------------------------------------------------------------------------------
-        # Grab the UNS process
-        #--------------------------------------------------------------------------------------
-
-        proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects -- Remember to put names
@@ -1238,17 +1242,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         ss = SchedulerService()
         id = ss.create_time_of_day_timer(   times_of_day=times_of_day,
                                             expires=time.time()+25200+60,
-                                            event_origin='batch_notification',
+                                            event_origin= newkey,
                                             event_subtype="")
-
-        #--------------------------------------------------------------------------------
-        # Assert that the unsc launched the process_batch() method
-        #--------------------------------------------------------------------------------
-
-#        gevent.sleep(20)
-
-        log.warning("reached here in time: %s" % UserNotificationIntTest.makeEpochTime(self.__now()))
-
 
         #--------------------------------------------------------------------------------
         # Assert that emails were sent
@@ -1258,67 +1253,33 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         ar_1 = gevent.event.AsyncResult()
         ar_2 = gevent.event.AsyncResult()
-        ar_3 = gevent.event.AsyncResult()
 
-        def send_email(sender, recipient, msg):
-            log.warning("(in asyncresult) sender: %s" % sender)
-            log.warning("(in asyncresult) recipient: %s" % recipient)
-            log.warning("(in asyncresult) msg: %s" % msg)
-            log.warning
-            ar_1.set(sender)
-            ar_2.set(recipient)
-            ar_3.set(msg)
+        def send_email(events_for_message, user_name):
+            log.warning("(in asyncresult) events_for_message: %s" % events_for_message)
+            ar_1.set(events_for_message)
+            ar_2.set(user_name)
 
+        proc.format_and_send_email = send_email
 
-        proc.smtp_client.sendmail = send_email
+        events_for_message = ar_1.get(timeout=20)
+        user_name = ar_2.get(timeout=20)
 
-        sender = ar_1.get(timeout=20)
-        recipient = ar_2.get(timeout=20)
-        msg = ar_3.get(timeout=20)
+        log.warning("user_name: %s" % user_name)
 
-        self.assertEquals(sender, 'me@email.com' )
-        self.assertEquals(recipient, 'user_1@gmail.com')
+        origins_of_events = Set()
+        times = Set()
 
-        #------------
+        for event in events_for_message:
+            origins_of_events.add(event.origin)
+            times.add(event.ts_created)
 
+        #--------------------------------------------------------------------------------
+        # Make assertions on the events mentioned in the formatted email
+        #--------------------------------------------------------------------------------
 
-        # check that the number of events in the formatted email is the same as the number of events published in that
-        # time interval
-
-        msg_parts = msg.split("------------------------")
-        msg_parts = msg_parts.remove(msg_parts[0])
-        msg_parts = msg_parts.pop()
-
-        for msg_part in msg_parts:
-            msg_part.strip()
-
-        log.warning("msg_parts: %s" % msg_parts)
-
-        self.assertEquals(len(msg_parts), number_event_published )
-
-
-        #-------------
-
-        lines = msg.split("\r\n")
-
-        maps = []
-
-        for line in lines:
-
-            maps.extend(line.split(','))
-
-        event_time = ''
-        for map in maps:
-            fields = map.split(":")
-
-            log.warning("obtained fields: %s" % fields)
-
-#            if fields[0].find("ts_created") > -1:
-#                event_time = int(fields[1].strip(" "))
-#                break
-
-
-
+        self.assertEquals(len(events_for_message), number_event_published)
+        self.assertEquals(times, times_of_events_published)
+        self.assertEquals(origins_of_events, Set(['instrument_1', 'instrument_2']))
 
     def __now(self):
         '''
