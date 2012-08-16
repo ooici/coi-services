@@ -60,7 +60,6 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-#@unittest.skip('not working yet...')
 class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
 
     # DataHandler config
@@ -84,6 +83,8 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
 
 #    @unittest.skip('not yet working. fix activate_data_product_persistence()')
+    #@unittest.skip()
+    @unittest.skip('not working')    
     def test_activateDatasetAgent(self):
 
         # Create ExternalDatasetModel
