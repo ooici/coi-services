@@ -508,7 +508,6 @@ class RecordDictionaryToolTestCase(unittest.TestCase):
 
         self.assertIn('temp', self._rdt)
 
-    @unittest.skip('Pretty print not implemented at this time')
     def test_pretty_print(self):
         temp_array = numpy.random.standard_normal(100)
         cond_array = numpy.random.standard_normal(100)
@@ -520,7 +519,6 @@ class RecordDictionaryToolTestCase(unittest.TestCase):
 
         self.assertGreater(len(self._rdt_pdict.pretty_print()), 0)
 
-    @unittest.skip('Pretty print not implemented at this time')
     def test_pretty_print_with_taxonomy(self):
         temp_array = numpy.random.standard_normal(100)
         cond_array = numpy.random.standard_normal(100)
