@@ -48,7 +48,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='process')
 class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
     def setUp(self):

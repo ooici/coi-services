@@ -97,9 +97,9 @@ class RecordDictionaryTool(object):
                 if self._shp is None:
                     self._shp = vals.shape
 
-#                # Test new value sequence length
-#                if self._shp != vals.shape:
-#                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
+                # Test new value sequence length
+                if self._shp != vals.shape:
+                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
 
                 self._rd[self._param_dict.ord_from_key(param_name=name)] = vals
 
@@ -125,9 +125,10 @@ class RecordDictionaryTool(object):
                 if self._shp is None:
                     self._shp = vals.shape
 
-#                # Test new value sequence length
-#                if self._shp != vals.shape:
-#                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
+                # Test new value sequence length
+
+                if self._shp != vals.shape:
+                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
 
                 self._rd[self._tx.get_handle(name)] = vals
 
@@ -305,34 +306,31 @@ class RecordDictionaryTool(object):
         """
         @brief Pretty Print the record dictionary for debug or log purposes.
         """
-        pass
+        fid = StringIO.StringIO()
+        # Use string IO inside a try block in case of exceptions or a large return value.
+        try:
+            fid.write('Start Pretty Print Record Dictionary:\n')
+            self._pprint(fid,offset='')
+            fid.write('End of Pretty Print')
+        except Exception, ex:
+            log.exception('Unexpected Exception in Pretty Print Wrapper!')
+            fid.write('Exception! %s' % ex)
 
-#        fid = StringIO.StringIO()
-#        # Use string IO inside a try block in case of exceptions or a large return value.
-#        try:
-#            fid.write('Start Pretty Print Record Dictionary:\n')
-#            self._pprint(fid,offset='')
-#            fid.write('End of Pretty Print')
-#        except Exception, ex:
-#            log.exception('Unexpected Exception in Pretty Print Wrapper!')
-#            fid.write('Exception! %s' % ex)
-#
-#        finally:
-#            result = fid.getvalue()
-#            fid.close()
-#
-#
-#        return result
+        finally:
+            result = fid.getvalue()
+            fid.close()
+
+
+        return result
 
     def _pprint(self, fid, offset=None):
-        pass
-#        """
-#        Utility method for pretty print
-#        """
-#        for k, v in self.iteritems():
-#            if isinstance(v, RecordDictionaryTool):
-#                fid.write('= %sRDT nick named "%s" contains:\n' % (offset,k))
-#                new_offset = offset + '+ '
-#                v._pprint(fid, offset=new_offset)
-#            else:
-#                fid.write('= %sRDT nick name: "%s"\n= %svalues: %s\n' % (offset,k, offset, repr(v)))
+        """
+        Utility method for pretty print
+        """
+        for k, v in self.iteritems():
+            if isinstance(v, RecordDictionaryTool):
+                fid.write('= %sRDT nick named "%s" contains:\n' % (offset,k))
+                new_offset = offset + '+ '
+                v._pprint(fid, offset=new_offset)
+            else:
+                fid.write('= %sRDT nick name: "%s"\n= %svalues: %s\n' % (offset,k, offset, repr(v)))

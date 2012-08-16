@@ -132,12 +132,12 @@ class ExternalDatasetAgentTestBase(object):
         Initialize test members.
         """
 
-#        log.warn('Starting the container')
+        #log.warn('Starting the container')
         # Start container.
         self._start_container()
 
         # Bring up services in a deploy file
-#        log.warn('Starting the rel')
+        #log.warn('Starting the rel')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Create a pubsub client to create streams.
@@ -309,11 +309,11 @@ class ExternalDatasetAgentTestBase(object):
 
         self._finished_count = 3
 
-        log.info('Send an unconstrained request for data (\'new data\')')
+        log.warn('Send an unconstrained request for data (\'new data\')')
         cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
 
-        log.info('Send a second unconstrained request for data (\'new data\'), should be rejected')
+        log.warn('Send a second unconstrained request for data (\'new data\'), should be rejected')
         cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
 
@@ -414,7 +414,6 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-    @unittest.skip('not working')
     def test_streaming(self):
         # Test instrument driver execute interface to start and stop streaming mode.
         cmd = AgentCommand(command='get_current_state')
@@ -874,7 +873,6 @@ class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestC
             }
 
 @attr('INT_EXPERIMENTAL', group='eoi')
-@unittest.skip("ion.agents.data.handlers.base_data_handler.DummyDataHandler._acquire_data complains still!")
 class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     # DataHandler config
     DVR_CONFIG = {

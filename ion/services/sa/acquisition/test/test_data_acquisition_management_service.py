@@ -89,13 +89,13 @@ class TestDataAcquisitionManagement(PyonTestCase):
         self.mock_delete.assert_called_once_with('111')
 
 
-    def test_register_process(self):
-        self.mock_read.return_value = self.data_process
-        self.mock_create.return_value = ('111', 'bla')
-        self.mock_create.return_value = ('222', 'bla')
-        self.mock_create_association.return_value = ['333', 1]
-
-        self.data_acquisition_mgmt_service.register_process('111')
+#    def test_register_process(self):
+#        self.mock_read.return_value = self.data_process
+#        self.mock_create.return_value = ('111', 'bla')
+#        self.mock_create.return_value = ('222', 'bla')
+#        self.mock_create_association.return_value = ['333', 1]
+#
+#        self.data_acquisition_mgmt_service.register_process('111')
 
         #self.mock_read.assert_called_once_with('111', '')
         #self.mock_create_association.assert_called_once_with('111', PRED.hasDataProducer, '222', None)
@@ -111,13 +111,13 @@ class TestDataAcquisitionManagement(PyonTestCase):
         self.assertEqual(ex.message, 'Data Process bad does not exist')
         self.mock_read.assert_called_once_with('bad', '')
 
-    def test_register_data_set(self):
-        self.mock_read.return_value = self.data_process
-        self.mock_create.return_value = ('111', 'bla')
-        self.mock_create.return_value = ('222', 'bla')
-        self.mock_create_association.return_value = ['333', 1]
-
-        self.data_acquisition_mgmt_service.register_external_data_set('111')
+#    def test_register_data_set(self):
+#        self.mock_read.return_value = self.data_process
+#        self.mock_create.return_value = ('111', 'bla')
+#        self.mock_create.return_value = ('222', 'bla')
+#        self.mock_create_association.return_value = ['333', 1]
+#
+#        self.data_acquisition_mgmt_service.register_external_data_set('111')
 
         #self.mock_read.assert_called_once_with('111', '')
         #self.mock_create_association.assert_called_once_with('111', PRED.hasDataProducer, '222', None)
@@ -133,11 +133,11 @@ class TestDataAcquisitionManagement(PyonTestCase):
         self.assertEqual(ex.message, 'External Data Set bad does not exist')
         self.mock_read.assert_called_once_with('bad', '')
 
-    def test_register_instrument(self):
-        self.mock_read.return_value = self.instrument
-        self.mock_create.return_value = ('111', 'bla')
-        self.mock_create.return_value = ('222', 'bla')
-        self.mock_create_association.return_value = ['333', 1]
-
-        self.data_acquisition_mgmt_service.register_instrument('111')
+#    def test_register_instrument(self):
+#        self.mock_read.return_value = self.instrument
+#        self.mock_create.return_value = ('111', 'bla')
+#        self.mock_create.return_value = ('222', 'bla')
+#        self.mock_create_association.return_value = ['333', 1]
+#
+#        self.data_acquisition_mgmt_service.register_instrument('111')
 

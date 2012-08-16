@@ -7,7 +7,7 @@
 '''
 
 from pyon.util.unit_test import PyonTestCase
-from ion.services.dm.utility.granule_utils import CoverageCraft, RecordDictionaryTool, build_granule, TaxyTool 
+from ion.services.dm.utility.granule_utils import CoverageCraft, RecordDictionaryTool, build_granule
 from nose.plugins.attrib import attr
 
 import numpy as np
