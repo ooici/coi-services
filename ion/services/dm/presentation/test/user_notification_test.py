@@ -1158,8 +1158,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Set up a time for the scheduler to trigger timer events
         #--------------------------------------------------------------------------------
-        # Trigger the timer event 3 seconds later from now
-        now = datetime.utcnow() + timedelta(seconds=10)
+        # Trigger the timer event 10 seconds later from now
+        now = datetime.utcnow() + timedelta(seconds=15)
         times_of_day =[{'hour': str(now.hour),'minute' : str(now.minute), 'second':str(now.second) }]
 
         #--------------------------------------------------------------------------------
@@ -1168,8 +1168,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_publisher = EventPublisher()
 
         # this part of code is in the beginning to allow enough time for the events_index creation
+        number_event_published = 0
 
-        for i in xrange(10):
+        for i in xrange(3):
 
             t = self.__now()
             t = UserNotificationIntTest.makeEpochTime(t)
@@ -1183,6 +1184,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 origin="instrument_2",
                 origin_type="type_2",
                 event_type='ResourceLifecycleEvent')
+
+            time.sleep(1)
+
+            number_event_published += 2
+
+            log.warning("Published events of origins = instrument_1, instrument_2 with ts_created: %s" % t)
 
         #----------------------------------------------------------------------------------------
         # Create users and get the user_ids
@@ -1238,13 +1245,79 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Assert that the unsc launched the process_batch() method
         #--------------------------------------------------------------------------------
 
+#        gevent.sleep(20)
 
-
+        log.warning("reached here in time: %s" % UserNotificationIntTest.makeEpochTime(self.__now()))
 
 
         #--------------------------------------------------------------------------------
         # Assert that emails were sent
         #--------------------------------------------------------------------------------
+
+        proc = self.container.proc_manager.procs_by_name['user_notification']
+
+        ar_1 = gevent.event.AsyncResult()
+        ar_2 = gevent.event.AsyncResult()
+        ar_3 = gevent.event.AsyncResult()
+
+        def send_email(sender, recipient, msg):
+            log.warning("(in asyncresult) sender: %s" % sender)
+            log.warning("(in asyncresult) recipient: %s" % recipient)
+            log.warning("(in asyncresult) msg: %s" % msg)
+            log.warning
+            ar_1.set(sender)
+            ar_2.set(recipient)
+            ar_3.set(msg)
+
+
+        proc.smtp_client.sendmail = send_email
+
+        sender = ar_1.get(timeout=20)
+        recipient = ar_2.get(timeout=20)
+        msg = ar_3.get(timeout=20)
+
+        self.assertEquals(sender, 'me@email.com' )
+        self.assertEquals(recipient, 'user_1@gmail.com')
+
+        #------------
+
+
+        # check that the number of events in the formatted email is the same as the number of events published in that
+        # time interval
+
+        msg_parts = msg.split("------------------------")
+        msg_parts = msg_parts.remove(msg_parts[0])
+        msg_parts = msg_parts.pop()
+
+        for msg_part in msg_parts:
+            msg_part.strip()
+
+        log.warning("msg_parts: %s" % msg_parts)
+
+        self.assertEquals(len(msg_parts), number_event_published )
+
+
+        #-------------
+
+        lines = msg.split("\r\n")
+
+        maps = []
+
+        for line in lines:
+
+            maps.extend(line.split(','))
+
+        event_time = ''
+        for map in maps:
+            fields = map.split(":")
+
+            log.warning("obtained fields: %s" % fields)
+
+#            if fields[0].find("ts_created") > -1:
+#                event_time = int(fields[1].strip(" "))
+#                break
+
+
 
 
     def __now(self):

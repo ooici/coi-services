@@ -660,16 +660,20 @@ class UserNotificationService(BaseUserNotificationService):
         the digest of all the events.
         '''
 
-        print("came here")
+        log.warning("Processing notifications that arrived between %s seconds and %s seconds" % (start_time, end_time))
 
-        print("Processing notifications that arrived between %s seconds and %s seconds" % (start_time, end_time))
+        log.warning("(In process batch) time now: %s" % UserNotificationService.makeEpochTime(self.__now()))
 
         if end_time <= start_time:
             return
 
+        log.warning("self.event_processor.user_info: %s" % self.event_processor.user_info)
+
         for user_name, value in self.event_processor.user_info.iteritems():
 
             notifications = value['notifications']
+
+            log.warning("notifications of interest: %s" % notifications)
 
             events_for_message = []
 
@@ -694,8 +698,12 @@ class UserNotificationService(BaseUserNotificationService):
 
                 search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
 
+                log.warning("search_string: %s" % search_string)
+
                 # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
+
+                log.warning ("ret_vals: %s" % ret_vals)
 
                 for event_id in ret_vals:
                     datastore = self.datastore_manager.get_datastore('events')
@@ -703,7 +711,7 @@ class UserNotificationService(BaseUserNotificationService):
                     events_for_message.append(event_obj)
 
             log.debug("Found following events of interest to user, %s: %s" % (user_name, events_for_message))
-            print("Found following events of interest to user, %s: %s" % (user_name, events_for_message))
+            log.warning("Found following events of interest to user, %s: %s" % (user_name, events_for_message))
 
             # send a notification email to each user using a _send_email() method
             if events_for_message:
