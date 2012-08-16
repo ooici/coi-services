@@ -84,6 +84,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 
 # TODO chagne the path following the refactor.
+# bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_resource_states
 # bin/nosetests -s -v ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
