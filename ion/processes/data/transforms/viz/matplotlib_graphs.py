@@ -46,6 +46,8 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         self.define_parameter_dictionary()
 
     def define_parameter_dictionary(self):
+
+        """
         viz_product_type_ctxt = ParameterContext('viz_product_type', param_type=QuantityType(value_encoding=np.str))
         viz_product_type_ctxt.uom = 'unknown'
         viz_product_type_ctxt.fill_value = 0x0
@@ -54,7 +56,7 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         image_obj_ctxt.uom = 'unknown'
         image_obj_ctxt.fill_value = 0x0
 
-        image_name_ctxt = ParameterContext('img_name', param_type=QuantityType(value_encoding=np.str))
+        image_name_ctxt = ParameterContext('image_name', param_type=QuantityType(value_encoding=np.str))
         image_name_ctxt.uom = 'unknown'
         image_name_ctxt.fill_value = 0x0
 
@@ -68,8 +70,15 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         self.mpl_paramdict.add_context(image_obj_ctxt)
         self.mpl_paramdict.add_context(image_name_ctxt)
         self.mpl_paramdict.add_context(content_type_ctxt)
+        """
 
-        return
+        mpl_graph_ctxt = ParameterContext('mpl_graph', param_type=QuantityType(value_encoding=np.int8))
+        mpl_graph_ctxt.uom = 'unknown'
+        mpl_graph_ctxt.fill_value = 0x0
+
+        # Define the parameter dictionary objects
+        self.mpl_paramdict = ParameterDictionary()
+        self.mpl_paramdict.add_context(mpl_graph_ctxt)
 
 
     def execute(self, granule):
@@ -164,11 +173,13 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         out_rdt = RecordDictionaryTool(param_dictionary=self.mpl_paramdict)
 
         # Prepare granule content
-        out_rdt["viz_product_type"] = numpy.array(["matplotlib_graphs"])
-        out_rdt["image_obj"] = numpy.array([imgInMem.getvalue()])
-        out_rdt["image_name"] = numpy.array([fileName])
-        out_rdt["content_type"] = numpy.array(["image/png"])
+        out_dict = {}
+        out_dict["viz_product_type"] = "matplotlib_graphs"
+        out_dict["image_obj"] = imgInMem.getvalue()
+        out_dict["image_name"] = fileName
+        out_dict["content_type"] = "image/png"
 
+        out_rdt["mpl_graph"] = np.array([out_dict])
         return build_granule(data_producer_id='matplotlib_graphs_transform', param_dictionary=self.mpl_paramdict, record_dictionary=out_rdt)
 
 

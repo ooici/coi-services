@@ -54,7 +54,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
-        self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
+        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
         self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
         self.vis_client = VisualizationServiceClient(node=self.container.node)
@@ -413,7 +413,12 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
                 gdt = RecordDictionaryTool.load_from_granule(g)
 
-                assertions(gdt['viz_product_type'][0] == 'google_dt' )
+                viz_product_type = get_safe(gdt, "viz_product_type")
+
+                if not viz_product_type:
+                    continue
+
+                assertions( viz_product_type == 'google_dt' )
                 assertions(len(gdt['data_description'][0]) >= 0) # Need to come up with a better check
                 assertions(len(gdt['data_content'][0]) >= 0)
 
@@ -457,8 +462,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         for g in results:
             if isinstance(g,Granule):
-
-                tx = TaxyTool.load_from_granule(g)
                 rdt = RecordDictionaryTool.load_from_granule(g)
 
                 graphs = get_safe(rdt, 'matplotlib_graphs')

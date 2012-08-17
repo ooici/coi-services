@@ -54,6 +54,7 @@ class VizTransformGoogleDT(TransformFunction):
         self.define_parameter_dictionary()
 
     def define_parameter_dictionary(self):
+        """
         viz_product_type_ctxt = ParameterContext('viz_product_type', param_type=QuantityType(value_encoding=np.str))
         viz_product_type_ctxt.uom = 'unknown'
         viz_product_type_ctxt.fill_value = 0x0
@@ -71,9 +72,15 @@ class VizTransformGoogleDT(TransformFunction):
         self.gdt_paramdict.add_context(viz_product_type_ctxt)
         self.gdt_paramdict.add_context(data_description_ctxt)
         self.gdt_paramdict.add_context(data_content_ctxt)
+        """
 
-        print " >>>>>>>>>>>>>>>>>   HERE    <<<<<<<<<<<<<<<<<<<"
-        return
+        gdt_components_ctxt = ParameterContext('google_dt_components', param_type=QuantityType(value_encoding=np.int8))
+        gdt_components_ctxt.uom = 'unknown'
+        gdt_components_ctxt.fill_value = 0x0
+
+        # Define the parameter dictionary objects
+        self.gdt_paramdict = ParameterDictionary()
+        self.gdt_paramdict.add_context(gdt_components_ctxt)
 
     def execute(self, granule):
 
@@ -129,11 +136,13 @@ class VizTransformGoogleDT(TransformFunction):
         out_rdt = RecordDictionaryTool(param_dictionary=self.gdt_paramdict)
 
         # Prepare granule content
-        out_rdt['viz_product_type'] = np.array(['google_dt'])
-        out_rdt['data_description'] = np.array([dataDescription])
-        out_rdt['data_content'] = np.array([dataTableContent])
+        out_dict = {"viz_product_type" : "google_dt",
+                    "data_description" : dataDescription,
+                    "data_content" : dataTableContent}
+
+        out_rdt["google_dt_components"] = np.array([out_dict])
 
         log.debug('Google DT transform: Sending a granule')
-        out_granule = build_granule(data_producer_id='google_dt_transform', param_dictionary = self.gdt_paramdict, record_dictionary=out_rdt)
 
+        out_granule = build_granule(data_producer_id='google_dt_transform', param_dictionary = self.gdt_paramdict, record_dictionary=out_rdt)
         return out_granule

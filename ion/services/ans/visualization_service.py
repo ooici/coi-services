@@ -30,8 +30,7 @@ from gevent.greenlet import Greenlet
 from interface.services.ans.ivisualization_service import BaseVisualizationService
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
 from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphs
-from pyon.ion.granule.taxonomy import TaxyTool
-from pyon.ion.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
 from interface.objects import Granule
 from pyon.util.containers import get_safe
@@ -349,7 +348,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
-    def get_visualization_data(self, data_product_id='', visualization_parameters={}, callback=''):
+    def get_visualization_data(self, data_product_id='', visualization_parameters=None, callback=''):
         """Retrieves the data for the specified DP and sends a token back which can be checked in
             a non-blocking fashion till data is ready
 
@@ -374,7 +373,7 @@ class VisualizationService(BaseVisualizationService):
         ds_ids,_ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
 
         if ds_ids == None or len(ds_ids) == 0:
-            return None
+            raise NotFound("Could not find dataset associated with data product")
 
         # Ideally just need the latest granule to figure out the list of images
         #replay_granule = self.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
@@ -382,20 +381,14 @@ class VisualizationService(BaseVisualizationService):
         if retrieved_granule == None:
             return None
 
-
         # send the granule through the transform to get the google datatable
         gdt_transform = VizTransformGoogleDT()
         gdt_data_granule = gdt_transform.execute(retrieved_granule)
-        # send the granule through the transform to get the google datatable
-        #gdt_data_granule = self.data_retriever.retrieve(ds_ids[0], module="ion.processes.data.transforms.viz.google_dt", cls="VizTransformGoogleDT")
-        #if not gdt_data_granule:
-        #    return None
 
         gdt_rdt = RecordDictionaryTool.load_from_granule(gdt_data_granule)
-        gdt_components = get_safe(gdt_rdt, "google_dt_components")
-        temp_gdt_description = gdt_components[0]["data_description"]
-        temp_gdt_content = gdt_components[0]["data_content"]
-
+        gdt_components = gdt_rdt["google_dt_components"][0]
+        temp_gdt_description = gdt_components["data_description"]
+        temp_gdt_content = gdt_components["data_content"]
 
         # adjust the 'float' time to datetime in the content
         gdt_description = [('time', 'datetime', 'time')]
@@ -426,7 +419,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
-    def get_visualization_image(self, data_product_id='', visualization_parameters={}, callback=''):
+    def get_visualization_image(self, data_product_id='', visualization_parameters=None, callback=''):
 
         # Error check
         if not data_product_id:
@@ -457,8 +450,8 @@ class VisualizationService(BaseVisualizationService):
         #    return None
 
         mpl_rdt = RecordDictionaryTool.load_from_granule(mpl_data_granule)
-        temp_mpl_graph_list = get_safe(mpl_rdt, "matplotlib_graphs")
-        mpl_graph = temp_mpl_graph_list[0]
+        mpl_graphs = get_safe(mpl_rdt, "mpl_graph")
+        mpl_graph = mpl_graphs[0]
 
         # restructure the mpl graphs in to a simpler dict that will be passed through
         ret_dict = {}
