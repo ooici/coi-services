@@ -48,7 +48,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-@unittest.skip('Not done yet.')
+#@unittest.skip('Not done yet.')
 class TestBulkIngest(IonIntegrationTestCase):
 
     EDA_MOD = 'ion.agents.data.external_dataset_agent'
@@ -114,10 +114,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         self._ia_client = ResourceAgentClient('datasetagentclient', name=pid,  process=FakeProcess())
         log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
 
-#        # Start a resource agent client to talk with the instrument agent.
-#        self._ia_client = None
-#        self._ia_client = ResourceAgentClient(self.EDA_RESOURCE_ID,  process=FakeProcess())
-#        log.debug('TestBulkIngest: Got ia client %s.', str(self._ia_client))
+
 
     def create_logger(self, name, stream_id=''):
 
@@ -163,7 +160,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         pass
 
 
-    @unittest.skip('Not done yet.')
+    #@unittest.skip('Not done yet.')
     def test_slocum_data_ingest(self):
 
         HIST_CONSTRAINTS_1 = {}
@@ -208,37 +205,10 @@ class TestBulkIngest(IonIntegrationTestCase):
         cmd = AgentCommand(command='acquire_data')
         self._ia_client.execute(cmd)
 
-        # Begin streaming.
-#        cmd = AgentCommand(command='go_streaming')
-#        retval = self._ia_client.execute_agent(cmd)
-#        cmd = AgentCommand(command='get_current_state')
-#        retval = self._ia_client.execute_agent(cmd)
-#        state = retval.result
-#        self.assertEqual(state, InstrumentAgentState.STREAMING)
-
-
-#        config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
-#
-#        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-#        config['stream_id'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
-#        config['constraints']=self.HIST_CONSTRAINTS_1
-#        cmd = AgentCommand(command='acquire_data', args=[config])
-#        reply = self._ia_client.execute(cmd)
-#        self.assertNotEqual(reply.status, 660)
-
-
         # Assert that data was received
         self._async_finished_result.get(timeout=15)
 
         self.assertTrue(len(self._finished_events_received) >= 1)
-
-        # Halt streaming.
-#        cmd = AgentCommand(command='go_observatory')
-#        retval = self._ia_client.execute_agent(cmd)
-#        cmd = AgentCommand(command='get_current_state')
-#        retval = self._ia_client.execute_agent(cmd)
-#        state = retval.result
-#        self.assertEqual(state, InstrumentAgentState.OBSERVATORY)
 
         cmd = AgentCommand(command='reset')
         retval = self._ia_client.execute_agent(cmd)
@@ -248,8 +218,8 @@ class TestBulkIngest(IonIntegrationTestCase):
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
 
-
-        replay_granule = self.data_retriever.retrieve_last_granule(self.dataset_id)
+        #todo enable after Luke's mor to retrieve, right now must have the Time axis called 'time'
+#        replay_granule = self.data_retriever.retrieve_last_granule(self.dataset_id)
 
 #        rdt = RecordDictionaryTool.load_from_granule(replay_granule)
 #
@@ -379,7 +349,7 @@ class TestBulkIngest(IonIntegrationTestCase):
 
         self.dproduct_id = self.dataproductclient.create_data_product(data_product=dprod,
                                                                 stream_definition_id=streamdef_id,
-                                                                parameter_dictionary= parameter_dictionary)
+                                                                parameter_dictionary= parameter_dictionary.dump())
 
         self.dams_client.assign_data_product(input_resource_id=ds_id, data_product_id=self.dproduct_id)
 
@@ -416,6 +386,13 @@ class TestBulkIngest(IonIntegrationTestCase):
 
         pdict = ParameterDictionary()
 
+
+#        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
+#        t_ctxt.reference_frame = AxisTypeEnum.TIME
+#        t_ctxt.uom = 'seconds since 1970-01-01'
+#        t_ctxt.fill_value = 0x0
+#        pdict.add_context(t_ctxt)
+
         t_ctxt = ParameterContext('c_wpt_y_lmc', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         t_ctxt.uom = 'unknown'
         pdict.add_context(t_ctxt)
@@ -433,6 +410,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         pdict.add_context(t_ctxt)
 
         t_ctxt = ParameterContext('sci_m_present_time', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
         t_ctxt.uom = 'unknown'
         pdict.add_context(t_ctxt)
 
