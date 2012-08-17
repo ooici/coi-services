@@ -35,7 +35,7 @@ class CoverageCraft(object):
             if granule is not None:
                 self.sync_with_granule(granule)
             else:
-                self.sync_rdt_with_coverage()
+                self.rdt = RecordDictionaryTool(param_dictionary=self.coverage.parameter_dictionary)
         self.pdict = self.coverage.parameter_dictionary
 
 
@@ -86,7 +86,8 @@ class CoverageCraft(object):
             slice_ = [idx_values]
 
         elif not (start_time is None and end_time is None):
-            uom = coverage.get_parameter_context('time').uom
+            time_var = coverage._temporal_param_name
+            uom = coverage.get_parameter_context(time_var).uom
             if start_time is not None:
                 start_units = self.ts_to_units(uom,start_time)
                 log.info('Units: %s', start_units)
@@ -214,11 +215,12 @@ class CoverageCraft(object):
         Determines the relative time in the coverage model based on a given time
         The time must match the coverage's time units
         '''
-        pc = coverage.get_parameter_context('time')
+        time_name = coverage._temporal_param_name
+        pc = coverage.get_parameter_context(time_name)
         units = pc.uom
         if 'iso' in units:
             return None # Not sure how to implement this....  How do you compare iso strings effectively?
-        values = coverage.get_parameter_values('time')
+        values = coverage.get_parameter_values(time_name)
         return cls.find_nearest(values,time)
        
     @classmethod
