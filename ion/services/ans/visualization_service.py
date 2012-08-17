@@ -15,7 +15,7 @@ Note:
 from pyon.public import IonObject, RT, log, PRED, StreamSubscriberRegistrar, StreamPublisherRegistrar, Container
 from pyon.util.containers import create_unique_identifier, get_safe
 from interface.objects import StreamQuery
-from pyon.core.exception import Inconsistent, BadRequest
+from pyon.core.exception import Inconsistent, BadRequest, NotFound
 from datetime import datetime
 
 import simplejson
@@ -41,22 +41,6 @@ import ion.services.ans.gviz_api as gviz_api
 
 
 class VisualizationService(BaseVisualizationService):
-
-    def on_start(self):
-
-        # init services needed
-        self.rrclient = self.clients.resource_registry
-        self.pubsubclient =  self.clients.pubsub_management
-        self.workflowclient = self.clients.workflow_management
-        self.tmsclient = self.clients.transform_management
-        self.data_retriever = self.clients.data_retriever
-        self.dataprocessclient = self.clients.data_process_management
-
-        return
-
-    def on_stop(self):
-
-        return
 
 
     def initiate_realtime_visualization(self, data_product_id='', visualization_parameters=None, callback=""):
@@ -97,7 +81,7 @@ class VisualizationService(BaseVisualizationService):
         if in_product_type == '':
 
             # Check to see if the workflow defnition already exist
-            workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+            workflow_def_ids,_ = self.clients.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
 
             if len(workflow_def_ids) > 0:
                 workflow_def_id = workflow_def_ids[0]
@@ -105,22 +89,22 @@ class VisualizationService(BaseVisualizationService):
                 workflow_def_id = self._create_google_dt_workflow_def()
 
             #Create and start the workflow
-            workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, data_product_id, timeout=20)
+            workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_def_id, data_product_id, timeout=20)
 
             # detect the output data product of the workflow
-            workflow_dp_ids,_ = self.rrclient.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
+            workflow_dp_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
             if len(workflow_dp_ids) != 1:
                 raise ValueError("Workflow Data Product ids representing output DP must contain exactly one entry")
 
             # find associated stream id with the output
-            workflow_output_stream_ids, _ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasStream, None, True)
+            workflow_output_stream_ids, _ = self.clients.resource_registry.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasStream, None, True)
             data_product_stream_id = workflow_output_stream_ids
 
 
         # TODO check if is a real time GDT stream automatically
         if in_product_type == 'google_dt':
             # Retrieve the id of the OUTPUT stream from the out Data Product
-            stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)
+            stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, None, True)
             if not stream_ids:
                 raise Inconsistent("Could not find Stream Id for Data Product %s" % data_product_id)
 
@@ -132,7 +116,7 @@ class VisualizationService(BaseVisualizationService):
 
         xq = self.container.ex_manager.create_xn_queue(query_token)
 
-        subscription_id = self.pubsubclient.create_subscription(
+        subscription_id = self.clients.pubsub_management.create_subscription(
             query=StreamQuery(data_product_stream_id),
             exchange_name = query_token,
             exchange_point = 'science_data',
@@ -301,34 +285,31 @@ class VisualizationService(BaseVisualizationService):
     def _create_google_dt_data_process_definition(self):
 
         #First look to see if it exists and if not, then create it
-        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
+        dpd,_ = self.clients.resource_registry.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
         if len(dpd) > 0:
             return dpd[0]
 
         # Data Process Definition
         log.debug("Create data process definition GoogleDtTransform")
         dpd_obj = IonObject(RT.DataProcessDefinition,
-            name='google_dt_transform',
-            description='Convert data streams to Google DataTables',
-            module='ion.processes.data.transforms.viz.google_dt',
-            class_name='VizTransformGoogleDT',
-            process_source='VizTransformGoogleDT source code here...')
-        try:
-            procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-        except Exception as ex:
-            self.fail("failed to create new VizTransformGoogleDT data process definition: %s" %ex)
+        name='google_dt_transform',
+        description='Convert data streams to Google DataTables',
+        module='ion.processes.data.transforms.viz.google_dt',
+        class_name='VizTransformGoogleDT',
+        process_source='VizTransformGoogleDT source code here...')
 
+        procdef_id = self.clients.data_process_management.create_data_process_definition(dpd_obj)
 
         # create a stream definition for the data from the
-        stream_def_id = self.pubsubclient.create_stream_definition(container=VizTransformGoogleDT.outgoing_stream_def, name='VizTransformGoogleDT')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
+        stream_def_id = self.clients.pubsub_management.create_stream_definition(container=VizTransformGoogleDT.outgoing_stream_def, name='VizTransformGoogleDT')
+        self.clients.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
 
         return procdef_id
 
 
     def _create_google_dt_workflow_def(self):
         # Check to see if the workflow defnition already exist
-        workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+        workflow_def_ids,_ = self.clients.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
 
         if len(workflow_def_ids) > 0:
             workflow_def_id = workflow_def_ids[0]
@@ -342,7 +323,7 @@ class VisualizationService(BaseVisualizationService):
             workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
             #Create it in the resource registry
-            workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
+            workflow_def_id = self.clients.workflow_management.create_workflow_definition(workflow_def_obj)
 
         return workflow_def_id
 
@@ -370,15 +351,15 @@ class VisualizationService(BaseVisualizationService):
                 query=visualization_parameters['query']
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
-        ds_ids,_ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+        ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
 
-        if ds_ids == None or len(ds_ids) == 0:
+        if ds_ids is None or not ds_ids:
             raise NotFound("Could not find dataset associated with data product")
 
         # Ideally just need the latest granule to figure out the list of images
-        #replay_granule = self.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-        retrieved_granule = self.data_retriever.retrieve(ds_ids[0])
-        if retrieved_granule == None:
+        #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
+        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0])
+        if retrieved_granule is None:
             return None
 
         # send the granule through the transform to get the google datatable
@@ -401,7 +382,7 @@ class VisualizationService(BaseVisualizationService):
             if tempTuple == [] or len(tempTuple) == 0:
                 continue
 
-            varTuple = []
+            varTuple = list()
             varTuple.append(datetime.fromtimestamp(tempTuple[0]))
             for idx in range(1,len(tempTuple)):
                 varTuple.append(tempTuple[idx])
@@ -431,21 +412,21 @@ class VisualizationService(BaseVisualizationService):
                 query=visualization_parameters['query']
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
-        ds_ids,_ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+        ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
 
-        if ds_ids == None or len(ds_ids) == 0:
+        if ds_ids is None or not ds_ids:
             return None
 
         # Ideally just need the latest granule to figure out the list of images
-        #replay_granule = self.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-        retrieved_granule = self.data_retriever.retrieve(ds_ids[0])
-        if retrieved_granule == None:
+        #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
+        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0])
+        if retrieved_granule is None:
             return None
 
         mpl_transform = VizTransformMatplotlibGraphs()
         mpl_data_granule = mpl_transform.execute(retrieved_granule)
 
-        #mpl_data_granule = self.data_retriever.retrieve(ds_ids[0], module="ion.processes.data.transforms.viz.matplotlib_graphs", cls="VizTransformMatplotlibGraphs")
+        #mpl_data_granule = self.clients.data_retriever.retrieve(ds_ids[0], module="ion.processes.data.transforms.viz.matplotlib_graphs", cls="VizTransformMatplotlibGraphs")
         #if not mpl_data_granule:
         #    return None
 
@@ -454,7 +435,7 @@ class VisualizationService(BaseVisualizationService):
         mpl_graph = mpl_graphs[0]
 
         # restructure the mpl graphs in to a simpler dict that will be passed through
-        ret_dict = {}
+        ret_dict = dict()
         ret_dict['content_type'] = mpl_graph['content_type']
         ret_dict['image_name'] = mpl_graph['image_name']
         # reason for encoding as base64 string is otherwise message pack complains about the bit stream
