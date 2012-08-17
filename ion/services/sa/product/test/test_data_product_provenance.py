@@ -441,8 +441,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L2_Density data_process return")
 
 
-
-
         provenance_dict = self.dpmsclient.get_data_product_provenance(ctd_l2_density_output_dp_id)
         log.debug("TestDataProductProvenance: provenance_dict  %s", str(provenance_dict))
 
@@ -455,3 +453,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         density_dict = (provenance_dict[str(ctd_l2_density_output_dp_id)])
         self.assertEquals(density_dict['producer'], l2_density_all_data_process_id)
+
+
+        results = self.dpmsclient.get_data_product_provenance_report(ctd_l2_density_output_dp_id)

@@ -325,71 +325,11 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(data_product, "Should have got a non empty data product")
 
         # todo: get the start time of this data product
-        self._find_producers(data_product_id)
+        self.data_product._find_producers(data_product_id, self.provenance_results)
 
         return self.provenance_results
 
-    def _find_producers(self, data_product_id=''):
-        source_ids = []
-        # get the link to the DataProducer resource
-        log.debug("DataProductManagementService:_find_producers start %s" % str(data_product_id))
-        producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
-        for producer_id in producer_ids:
-            # get the link to that resources parent DataProducer
-            parent_ids, _ = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasParent, id_only=True)
-            for parent_id in parent_ids:
-                # get the producer that this DataProducer represents
-                nxt_producer_ids, _ = self.clients.resource_registry.find_subjects( predicate=PRED.hasDataProducer, object=parent_id, id_only=True)
-                for nxt_producer_id in nxt_producer_ids:
-                    nxt_producer_obj = self.clients.resource_registry.read(nxt_producer_id)
-                    log.debug("DataProductManagementService:_find_producers nxt_producer %s" % nxt_producer_obj.name)
-                    #todo: check the type of resource; instrument, data process or extDataset'
-                    #todo: check if this is a SiteDataProduct name=SiteDataProduct and desc=site_id
-                    inputs_to_nxt_producer = self._find_producer_in_products(nxt_producer_id)
-                    log.debug("DataProductManagementService:_find_producers inputs_to_nxt_producer %s", str(inputs_to_nxt_producer))
-                    self.provenance_results[data_product_id] = { 'producerctx':self._extract_producer_context(nxt_producer_id) , 'producer': nxt_producer_id, 'inputs': inputs_to_nxt_producer }
-                    log.debug("DataProductManagementService:_find_producers self.provenance_results %s", str(self.provenance_results))
-                    for input in inputs_to_nxt_producer:
-                        self._find_producers(input)
-        log.debug("DataProductManagementService:_find_producers: %s" % str(source_ids))
-        return
 
-    def _extract_producer_context(self, producer_id=''):
-
-        producer_obj = self.clients.resource_registry.read(producer_id)
-        producertype = type(producer_obj).__name__
-
-        context = {}
-        if RT.DataProcess == producertype :
-            context['DataProcess'] = str(producer_obj)
-            data_proc_def_objs, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition)
-            for data_proc_def_obj in data_proc_def_objs:
-                proc_def_type = type(data_proc_def_obj).__name__
-                if RT.DataProcessDefinition == proc_def_type :
-                    context['DataProcessDefinition'] = str(data_proc_def_obj)
-                if RT.ProcessDefinition == proc_def_type :
-                    context['ProcessDefinition'] = str(data_proc_def_obj)
-            transform_objs, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasTransform, object_type=RT.Transform)
-            if transform_objs:
-               context['Transform'] = str(transform_objs[0])
-        if RT.InstrumentDevice == producertype :
-            context['InstrumentDevice'] = str(producer_obj)
-            inst_model_objs, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasModel, object_type=RT.InstrumentModel)
-            if inst_model_objs:
-                context['InstrumentModel'] = str(inst_model_objs[0])
-
-        return context
-
-    def _find_producer_in_products(self, producer_id=''):
-        # get the link to the inout DataProduct resource
-        product_ids, _ = self.clients.resource_registry.find_objects(   subject=producer_id,
-                                                                            predicate=PRED.hasInputProduct,
-                                                                            id_only=True)
-        for product_id in product_ids:
-            product_obj = self.read_data_product(product_id)
-            log.debug("DataProductManagementService:_find_producer_in_products: %s" % product_obj.name)
-
-        return product_ids
 
 
     def get_data_product_provenance_report(self, data_product_id=''):
@@ -399,7 +339,11 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         self.provenance_results = self.get_data_product_provenance(data_product_id)
 
-        return ""
+        results = ''
+
+        results = self.data_product._write_product_provenance_report(data_product_id, self.provenance_results)
+
+        return results
 
 
     def create_data_product_version(self, data_product_id='', data_product_version=None):
