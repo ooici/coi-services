@@ -48,6 +48,7 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.pd_service.container['spawn_process'] = Mock()
         self.pd_service.container['id'] = 'mock_container_id'
         self.pd_service.container['proc_manager'] = DotDict()
+        self.pd_service.container['resource_registry'] = Mock()
         self.pd_service.container.proc_manager['terminate_process'] = Mock()
         self.pd_service.container.proc_manager['procs'] = {}
 
@@ -133,6 +134,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.pd_service.container['spawn_process'] = Mock()
         self.pd_service.container['id'] = 'mock_container_id'
         self.pd_service.container['proc_manager'] = DotDict()
+        self.pd_service.container['resource_registry'] = Mock()
         self.pd_service.container.proc_manager['terminate_process'] = Mock()
         self.pd_service.container.proc_manager['procs'] = {}
 
@@ -158,6 +160,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         # replace the core and matchmaker with mocks
         self.pd_service.backend.beat_subscriber = self.mock_beat_subscriber = Mock()
         self.assertIsInstance(self.pd_service.backend, PDNativeBackend)
+        self.pd_service.backend.rr = self.mock_rr = Mock()
 
         self.event_pub = Mock()
         self.pd_service.backend.event_pub = self.event_pub
@@ -289,6 +292,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         pd_id = self.pd_service.create_process_definition(definition)
         assert self.mock_core.create_definition.called
         self.assertTrue(pd_id)
+        assert self.mock_rr.create.called_once_with(definition, object_id=pd_id)
 
         self.mock_core.describe_definition.return_value = dict(name="someprocess",
             executable=executable)
@@ -300,6 +304,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         self.pd_service.delete_process_definition("someprocess")
         assert self.mock_core.remove_definition.called
+        assert self.mock_rr.delete.called_once_with(pd_id)
 
     def test_read_process(self):
 
@@ -339,12 +344,15 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
     """
     def setUp(self):
         self.pd_service = ProcessDispatcherService()
+        self.pd_service.container = DotDict()
+        self.pd_service.container['resource_registry'] = Mock()
 
         pdcfg = dict(uri="amqp://hello", topic="pd", exchange="123")
         self.pd_service.CFG = DotDict()
         self.pd_service.CFG['process_dispatcher_bridge'] = pdcfg
         self.pd_service.init()
         self.assertIsInstance(self.pd_service.backend, PDBridgeBackend)
+        self.pd_service.backend.rr = self.mock_rr = Mock()
 
         self.event_pub = Mock()
         self.pd_service.backend.event_pub = self.event_pub
@@ -428,6 +436,7 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         pd_id = self.pd_service.create_process_definition(definition)
         assert self.mock_dashi.call.called
         self.assertTrue(pd_id)
+        assert self.mock_rr.create.called_once_with(definition, object_id=pd_id)
 
         self.mock_dashi.call.reset_mock()
         self.mock_dashi.call.return_value = dict(name="someprocess",
@@ -441,6 +450,7 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         self.mock_dashi.call.reset_mock()
         self.pd_service.delete_process_definition("someprocess")
         assert self.mock_dashi.call.called
+        assert self.mock_rr.delete.called_once_with(pd_id)
 
     def test_read_process(self):
 

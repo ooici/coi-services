@@ -82,7 +82,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         # are switched to the Pyon PD implementation.
         if pd_bridge_conf:
             log.debug("Using Process Dispatcher Bridge backend -- requires running CEI services.")
-            self.backend = PDBridgeBackend(pd_bridge_conf)
+            self.backend = PDBridgeBackend(pd_bridge_conf, self)
 
         elif not pd_backend_name or pd_backend_name == "container":
             log.debug("Using Process Dispatcher container backend -- spawns processes in local container")
@@ -480,6 +480,9 @@ class PDNativeBackend(object):
         self.beat_subscriber = HeartbeatSubscriber(heartbeat_queue,
             callback=self._heartbeat_callback, node=service.container.node)
 
+        # use the container RR instance -- talks directly to couchdb
+        self.rr = service.container.resource_registry
+
     def initialize(self):
 
         # start consuming domain subscription messages from the dashi EPUM
@@ -536,7 +539,7 @@ class PDNativeBackend(object):
             definition.executable, name=definition.name,
             description=definition.description)
 
-        #TODO mirror to RR when available
+        self.rr.create(definition, object_id=definition_id)
 
         return definition_id
 
@@ -544,15 +547,14 @@ class PDNativeBackend(object):
         definition = self.core.describe_definition(definition_id)
         if not definition:
             raise NotFound("process definition %s unknown" % definition_id)
-        return ProcessDefinition(name=definition.get('name'),
-            description=definition.get('description'),
-            definition_type=definition.get('definition_type'),
-            executable=definition.get('executable'))
+        return _ion_process_definition_from_core(definition)
 
     def delete_definition(self, definition_id):
-        return self.core.remove_definition(definition_id)
 
-        #TODO mirror to RR when available
+        self.core.remove_definition(definition_id)
+
+        # also delete in RR
+        self.rr.delete(definition_id)
 
     def spawn(self, name, definition, schedule, configuration):
 
@@ -618,7 +620,7 @@ class PDBridgeBackend(object):
     This is deprecated but we are leaving it around for the time being.
     """
 
-    def __init__(self, conf):
+    def __init__(self, conf, service):
         self.dashi = None
         self.consumer_thread = None
 
@@ -635,6 +637,9 @@ class PDBridgeBackend(object):
         self.pd_process_subscribers = [(self.dashi_name, "process_state")]
 
         self.event_pub = EventPublisher()
+
+        # use the container RR instance -- talks directly to couchdb
+        self.rr = service.container.resource_registry
 
     def initialize(self):
         self.dashi = self._init_dashi()
@@ -692,6 +697,8 @@ class PDBridgeBackend(object):
             description=definition.description)
         self.dashi.call(self.topic, "create_definition", args=args)
 
+        self.rr.create(definition, object_id=definition_id)
+
         return definition_id
 
     def read_definition(self, definition_id):
@@ -699,14 +706,13 @@ class PDBridgeBackend(object):
             definition_id=definition_id)
         if not definition:
             raise NotFound("process definition %s unknown" % definition_id)
-        return ProcessDefinition(name=definition.get('name'),
-            description=definition.get('description'),
-            definition_type=definition.get('definition_type'),
-            executable=definition.get('executable'))
+        return _ion_process_definition_from_core(definition)
 
     def delete_definition(self, definition_id):
-        return self.dashi.call(self.topic, "remove_definition",
+        self.dashi.call(self.topic, "remove_definition",
             definition_id=definition_id)
+
+        self.rr.delete(definition_id)
 
     def spawn(self, name, definition, schedule, configuration):
 
@@ -780,6 +786,11 @@ def _ion_process_from_core(core_process):
 
     return process
 
+def _ion_process_definition_from_core(core_process_definition):
+    return ProcessDefinition(name=core_process_definition.get('name'),
+        description=core_process_definition.get('description'),
+        definition_type=core_process_definition.get('definition_type'),
+        executable=core_process_definition.get('executable'))
 
 def get_dashi(*args, **kwargs):
     try:
