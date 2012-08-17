@@ -636,6 +636,10 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.assertEqual(proc.process_id, pid)
         self.assertEqual(proc.process_configuration, configuration)
 
+        # kill the process for good
+        self.pd_cli.cancel_process(pid)
+        self.await_state_event(pid, ProcessStateEnum.TERMINATE)
+
     def test_schedule_bad_config(self):
 
         process_schedule = ProcessSchedule()

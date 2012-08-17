@@ -663,6 +663,8 @@ class PDBridgeBackend(object):
         # handle incoming process state updates from the real PD service.
         # some states map to ION events while others are ignored.
 
+        log.debug("Got process state: %s", process)
+
         process_id = None
         state = None
         if process:
@@ -682,6 +684,7 @@ class PDBridgeBackend(object):
         if ion_process_state is _PD_IGNORED_STATE:
             return
 
+        log.debug("Sending process state event: %s -> %s", process_id, ion_process_state)
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=process_id, origin_type="DispatchedProcess",
             state=ion_process_state)
