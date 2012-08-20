@@ -61,19 +61,11 @@ class DensityTransform(TransformFunction):
         time = get_safe(rdt, 'time')
         depth = get_safe(rdt, 'depth')
 
-
-        log.warn('Got conductivity: %s' % str(conductivity))
-        log.warn('Got density: %s' % str(density))
-        log.warn('Got temperature: %s' % str(temperature))
-
-
         sp = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=density)
 
         sa = SA_from_SP(sp, density, longitude, latitude)
 
         density = rho(sa, temperature, density)
-
-        log.warn('Got density: %s' % str(density))
 
         # Use the constructor to put data into a granule
         #psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])

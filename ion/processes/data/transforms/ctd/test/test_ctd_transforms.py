@@ -131,8 +131,6 @@ class ScienceObjectCodecIntTest(IonIntegrationTestCase):
         length = 1
 
         packet = self.px_ctd._get_new_ctd_packet("STR_ID", length)
-        print packet
-
         log.info("Packet: %s" % packet)
 
         self.tx_L0.process(packet)

@@ -48,9 +48,6 @@ class SalinityDoubler(TransformFunction):
 
         salinity *= 2.0
 
-        print ('Doubled salinity: %s' % str(salinity))
-
-
         # Use the constructor to put data into a granule
 #        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
 #
