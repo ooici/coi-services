@@ -469,6 +469,13 @@ class DataProductManagementService(BaseDataProductManagementService):
     #
     ############################
 
+
+
+    def get_data_product_extension(self, data_product_id='', ext_associations=None, ext_exclude=None):
+        #Returns an DataProductExtension object containing additional related information
+
+        pass
+
     def get_earliest_data_datetime(self, data_product_id=''):
         # Returns the datetime of the earliest values in the data product
 
