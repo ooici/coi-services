@@ -75,10 +75,6 @@ class ctd_L0_all(TransformDataProcess):
         time = get_safe(rdt, 'time') # psd.get_values('time')
         depth = get_safe(rdt, 'depth') # psd.get_values('time')
 
-        log.warn('Got conductivity: %s' % str(conductivity))
-        log.warn('Got pressure: %s' % str(pressure))
-        log.warn('Got temperature: %s' % str(temperature))
-
         self.cond = self._create_parameter("conductivity")
         self.pres = self._create_parameter("pressure")
         self.temp = self._create_parameter("temp")
