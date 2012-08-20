@@ -60,9 +60,6 @@ class CTDL1TemperatureTransform(TransformFunction):
         time = get_safe(rdt, 'time')
         depth = get_safe(rdt, 'depth')
 
-        log.warn('Got temperature: %s' % str(temperature))
-
-
         # The L1 temperature data product algorithm takes the L0 temperature data product and converts it into Celcius.
         # Once the hexadecimal string is converted to decimal, only scaling (dividing by a factor and adding an offset) is
         # required to produce the correct decimal representation of the data in Celsius.

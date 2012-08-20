@@ -38,7 +38,6 @@ class CTDL1PressureTransform(TransformFunction):
     def __init__(self):
         super(CTDL1PressureTransform, self).__init__()
 
-
     def execute(self, granule):
         """Processes incoming data!!!!
         """
@@ -54,9 +53,6 @@ class CTDL1PressureTransform(TransformFunction):
         latitude = get_safe(rdt, 'lat')  #psd.get_values('latitude')
         time = get_safe(rdt, 'time') # psd.get_values('time')
         depth = get_safe(rdt, 'depth') # psd.get_values('time')
-
-        log.warn('Got pressure: %s' % str(pressure))
-
 
         # L1
         # 1) The algorithm input is the L0 pressure data product (p_hex) and, in the case of the SBE 37IM, the pressure range (P_rng) from metadata.
