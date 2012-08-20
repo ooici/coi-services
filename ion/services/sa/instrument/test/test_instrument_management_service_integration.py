@@ -11,7 +11,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, PRED, LCS
+from pyon.public import RT, PRED, OT, LCS
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
@@ -143,24 +143,50 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
 
-        self.assertEqual("1.1", extended_instrument.computed.firmware_version)
-        self.assertEqual("42", extended_instrument.computed.last_data_received_time)
-        #self.assertRaises(NotFound, extended_instrument.computed.operational_state)
-        self.assertEqual("23", extended_instrument.computed.operational_state)
-        self.assertEqual("34", extended_instrument.computed.last_command_status)
-        self.assertEqual("45", extended_instrument.computed.last_command_date)
-        self.assertEqual("56", extended_instrument.computed.last_command)
-        self.assertEqual("67", extended_instrument.computed.last_commanded_by)
-        self.assertEqual("78", extended_instrument.computed.power_status_roll_up)
-        self.assertEqual("89", extended_instrument.computed.communications_status_roll_up)
-        self.assertEqual("98", extended_instrument.computed.data_status_roll_up)
-        self.assertEqual("87", extended_instrument.computed.location_status_roll_up)
-        self.assertEqual(['mon', 'tue', 'wed'], extended_instrument.computed.recent_events)
+        #none of these will work because there is no agent
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.firmware_version.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.last_data_received_time.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.operational_state.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.last_command_status.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.last_command_date.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.last_command.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.last_commanded_by.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.power_status_roll_up.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.communications_status_roll_up.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.data_status_roll_up.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.location_status_roll_up.status)
+        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+                         extended_instrument.computed.recent_events.status)
+
+
+        #        self.assertEqual("23", extended_instrument.computed.firmware_version)
+#        self.assertEqual("42", extended_instrument.computed.last_data_received_time)
+#        self.assertEqual("23", extended_instrument.computed.operational_state)
+#        self.assertEqual("34", extended_instrument.computed.last_command_status)
+#        self.assertEqual("45", extended_instrument.computed.last_command_date)
+#        self.assertEqual("56", extended_instrument.computed.last_command)
+#        self.assertEqual("67", extended_instrument.computed.last_commanded_by)
+#        self.assertEqual("78", extended_instrument.computed.power_status_roll_up)
+#        self.assertEqual("89", extended_instrument.computed.communications_status_roll_up)
+#        self.assertEqual("98", extended_instrument.computed.data_status_roll_up)
+#        self.assertEqual("87", extended_instrument.computed.location_status_roll_up)
+#        self.assertEqual(['mon', 'tue', 'wed'], extended_instrument.computed.recent_events)
 
 
     def test_custom_attributes(self):
         """
-        check on custom attributes
+        Test assignment of custom attributes
         """
 
         instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel,

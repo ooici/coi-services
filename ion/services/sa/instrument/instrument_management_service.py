@@ -1496,8 +1496,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     # TODO: this causes a problem because an instrument agent must be running in order to look up extended attributes.
-    def obtain_agent_handle(self, instrument_devivce_id):
-        ia_client = ResourceAgentClient(instrument_devivce_id,  process=self)
+    def obtain_agent_handle(self, instrument_device_id):
+        ia_client = ResourceAgentClient(instrument_device_id,  process=self)
 
 
 #       #todo: any validation?
@@ -1509,48 +1509,113 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return ia_client
 
-        #Bogus functions for computed attributes
+    def obtain_agent_calculation(self, instrument_device_id, result_container):
+        ret = IonObject(OT.ComputedValue)
+        a_client = None
+        try:
+            a_client = self.obtain_agent_handle(instrument_device_id)
+            ret.status = OT.ComputedValueAvailabilityEnum.PROVIDED
+            ret.result = IonObject(result_container)
+        except NotFound:
+            ret.status = OT.ComputedValueAvailabilityEnum.NOTAVAILABLE
+            ret.reason = "Could not connect to instrument agent instance -- may not be running"
+        except Exception as e:
+            raise e
+
+        return a_client, ret
+
+    #functions for computed attributes -- currently bogus values returned
+
     def get_firmware_version(self, instrument_device_id):
-        return "1.1"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.FloatWrap)
+        if ia_client:
+            ret.result.value = 1.1 #todo: use ia_client
+        return ret
+
 
     def get_location(self, instrument_device_id):
-        return IonObject(OT.GeospatialBounds)
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.GeospatialBoundsWrap)
+        if ia_client:
+            ret.result.value = IonObject(OT.GeospatialBounds)  #todo: use ia_client
+        return ret
+
 
     def get_last_data_received_time(self, instrument_device_id):
-        return "42"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
+        if ia_client:
+            ret.result.value = 42 #todo: use ia_client
+        return ret
 
 
     def get_operational_state(self, instrument_device_id):   # from Device
-        #ia_client = self.obtain_agent_handle(instrument_device_id) # todo: CAUSES ERRORS
-        return "23"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
+        if ia_client:
+            ret.result.value = 23 #todo: use ia_client
+        return ret
 
     def get_last_command_status(self, instrument_device_id):
-        return "34"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
+        if ia_client:
+            ret.result.value = 34 #todo: use ia_client
+        return ret
 
     def get_last_command_date(self, instrument_device_id):
-        return "45"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
+        if ia_client:
+            ret.result.value = 45 #todo: use ia_client
+        return ret
 
     def get_last_command(self, instrument_device_id):
-        return "56"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
+        if ia_client:
+            ret.result.value = 56 #todo: use ia_client
+        return ret
 
     def get_last_commanded_by(self, instrument_device_id):
-        return "67"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
+        if ia_client:
+            ret.result.value = 67 #todo: use ia_client
+        return ret
 
     def get_power_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
-        return "78"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
+        if ia_client:
+            ret.result.value = 78 #todo: use ia_client
+        return ret
 
     def get_communications_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
-        return "89"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
+        if ia_client:
+            ret.result.value = 89 #todo: use ia_client
+        return ret
 
     def get_data_status_roll_up(self, instrument_device_id): # BLACK, RED, GREEN, YELLOW
-        return "98"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
+        if ia_client:
+            ret.result.value = 98 #todo: use ia_client
+        return ret
 
     def get_location_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
-        return "87"
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
+        if ia_client:
+            ret.result.value = 87 #todo: use ia_client
+        return ret
 
     def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
-        return ['mon', 'tue', 'wed']
+        ret = IonObject(OT.ComputedValue)
 
+        try:
+            ret.status = OT.ComputedValueAvailabilityEnum.PROVIDED
+            #todo: try to get the last however long of data to parse through
+            ret.result = IonObject(OT.ListWrap)
+            ret.result.value = ["monday", "tuesday", "wednesday"]
+        except NotFound:
+            ret.status = OT.ComputedValueAvailabilityEnum.NOTAVAILABLE
+            ret.reason = "Could not retrieve device stream -- may not be configured et"
+        except Exception as e:
+            raise e
+
+        return ret
 
 
     def get_platform_device_extension(self, platform_device_id='', ext_associations=None, ext_exclude=None):
