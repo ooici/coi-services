@@ -35,9 +35,9 @@ class CTDL1PressureTransform(TransformDataProcess):
     incoming_stream_def = L0_pressure_stream_definition()
     outgoing_stream_def = L1_pressure_stream_definition()
 
-    def __init__(self):
+    def on_start(self):
+        super(CTDL1PressureTransform, self).on_start()
         self.pres_stream = self.CFG.process.publish_streams.pressure
-        super(CTDL1PressureTransform, self).__init__()
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L1_pressure.recv_packet: {0}'.format(msg))

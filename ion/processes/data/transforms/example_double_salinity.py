@@ -3,8 +3,8 @@
 @description Example Transform to double salinity
 '''
 from prototype.sci_data.stream_defs import L2_practical_salinity_stream_definition
-
-from pyon.ion.transform import TransformFunction
+from pyon.util.log import log
+from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
 from coverage_model.parameter import ParameterContext, ParameterDictionary
@@ -14,15 +14,27 @@ from coverage_model.basic_types import AxisTypeEnum
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
-import numpy
+import numpy, re
 
-class SalinityDoubler(TransformFunction):
+class SalinityDoubler(TransformDataProcess):
 
     outgoing_stream_def = L2_practical_salinity_stream_definition()
-
     incoming_stream_def = L2_practical_salinity_stream_definition()
 
-    def execute(self, granule):
+    def on_start(self):
+        super(SalinityDoubler, self).on_start()
+        self.sal_stream = self.CFG.process.publish_streams.salinity
+
+    def recv_packet(self, msg, headers):
+        log.warn('ctd_L2_salinity.recv_packet: {0}'.format(msg))
+        stream_id = headers['routing_key']
+        stream_id = re.sub(r'\.data', '', stream_id)
+        self.receive_msg(msg, stream_id)
+
+    def publish(self, msg, stream_id):
+        self.publisher.publish(msg=msg, stream_id=stream_id)
+
+    def receive_msg(self, granule, stream_id):
         """
         Example process to double the salinity value
         """
@@ -36,17 +48,6 @@ class SalinityDoubler(TransformFunction):
         latitude = get_safe(rdt, 'lat')
         time = get_safe(rdt, 'time')
         depth = get_safe(rdt, 'depth')
-#        #  pull data from a granule
-#        psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=granule)
-#
-#        longitude = psd.get_values('longitude')
-#        latitude = psd.get_values('latitude')
-#        depth = psd.get_values('depth')
-#        time = psd.get_values('time')
-
-#        salinity = psd.get_values('salinity')
-
-        salinity *= 2.0
 
         # Use the constructor to put data into a granule
 #        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
@@ -59,16 +60,14 @@ class SalinityDoubler(TransformFunction):
         parameter_dictionary = self._create_parameter()
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
-        root_rdt['salinity'] = salinity
+        root_rdt['salinity'] = ctd_L2_salinity_algorithm.execute(salinity)
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
         root_rdt['depth'] = depth
 
-        #root_rdt['coordinates'] = coord_rdt
-        #root_rdt['data'] = data_rdt
-
-        return build_granule(data_producer_id='ctd_L2_salinity', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
+        g = build_granule(data_producer_id='ctd_L2_salinity', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
+        self.publish(msg=g, stream_id=self.sal_stream)
 
     def _create_parameter(self):
 
@@ -110,3 +109,9 @@ class SalinityDoubler(TransformFunction):
         pdict.add_context(depth_ctxt)
 
         return pdict
+
+class ctd_L2_salinity_algorithm(TransformAlgorithm):
+
+    @staticmethod
+    def execute(*args, **kwargs):
+        return 2*args[0]

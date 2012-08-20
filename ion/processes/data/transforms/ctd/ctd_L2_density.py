@@ -41,9 +41,9 @@ class DensityTransform(TransformDataProcess):
     incoming_stream_def = SBE37_CDM_stream_definition()
     outgoing_stream_def = L2_density_stream_definition()
 
-    def __init__(self):
+    def on_start(self):
+        super(DensityTransform, self).on_start()
         self.dens_stream = self.CFG.process.publish_streams.density
-        super(DensityTransform, self).__init__()
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L2_desnity.recv_packet: {0}'.format(msg))

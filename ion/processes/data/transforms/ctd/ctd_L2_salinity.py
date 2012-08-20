@@ -38,9 +38,9 @@ class SalinityTransform(TransformDataProcess):
     outgoing_stream_def = L2_practical_salinity_stream_definition()
     incoming_stream_def = SBE37_CDM_stream_definition()
 
-    def __init__(self):
+    def on_start(self):
+        super(SalinityTransform, self).on_start()
         self.sal_stream = self.CFG.process.publish_streams.salinity
-        super(SalinityTransform, self).__init__()
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L2_salinity.recv_packet: {0}'.format(msg))

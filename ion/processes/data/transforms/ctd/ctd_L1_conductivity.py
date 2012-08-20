@@ -35,9 +35,9 @@ class CTDL1ConductivityTransform(TransformDataProcess):
     incoming_stream_def = L0_conductivity_stream_definition()
     #outgoing_stream_def = L1_conductivity_stream_definition()
 
-    def __init__(self):
+    def on_start(self):
+        super(CTDL1ConductivityTransform, self).on_start()
         self.cond_stream = self.CFG.process.publish_streams.conductivity
-        super(CTDL1ConductivityTransform, self).__init__()
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L1_conductivity.recv_packet: {0}'.format(msg))

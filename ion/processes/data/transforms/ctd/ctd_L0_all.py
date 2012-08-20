@@ -42,17 +42,17 @@ class ctd_L0_all(TransformDataProcess):
 
     incoming_stream_def = SBE37_CDM_stream_definition()
 
-    def __init__(self):
+    # Make the stream definitions of the transform class attributes
+
+    #outgoing_stream_pressure = L0_pressure_stream_definition()
+    #outgoing_stream_temperature = L0_temperature_stream_definition()
+    #outgoing_stream_conductivity = L0_conductivity_stream_definition()
+
+    def on_start(self):
+        super(ctd_L0_all, self).on_start()
         self.cond_stream = self.CFG.process.publish_streams.conductivity
         self.temp_stream = self.CFG.process.publish_streams.temperature
         self.pres_stream = self.CFG.process.publish_streams.pressure
-        super(ctd_L0_all, self).__init__()
-
-        # Make the stream definitions of the transform class attributes
-
-        #outgoing_stream_pressure = L0_pressure_stream_definition()
-        #outgoing_stream_temperature = L0_temperature_stream_definition()
-        #outgoing_stream_conductivity = L0_conductivity_stream_definition()
 
     def recv_packet(self, msg, headers):
         stream_id = headers['routing_key']
