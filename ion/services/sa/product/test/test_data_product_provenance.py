@@ -16,7 +16,7 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RA
 from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
-from interface.objects import HdfStorage, CouchStorage, DataProduct, LastUpdate
+from interface.objects import  ContactInformation
 
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
@@ -355,16 +355,38 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         log.debug("TestDataProductProvenance: create output data product L2 Density")
 
+#        ctd_l2_density_output_dp_obj = IonObject(   RT.DataProduct,
+#                                                    name='L2_Density',
+#                                                    description='transform output pressure',
+#                                                    temporal_domain = tdom,
+#                                                    spatial_domain = sdom)
+#
+#        ctd_l2_density_output_dp_id = self.dpmsclient.create_data_product(ctd_l2_density_output_dp_obj,
+#                                                                            outgoing_stream_l2_density_id,
+#                                                                            parameter_dictionary)
+
+        contactInfo = ContactInformation()
+        contactInfo.first_name = "Bill"
+        contactInfo.name = "Smith"
+        contactInfo.address = "111 First St"
+        contactInfo.city = "San Diego"
+        contactInfo.email = "bill@yahoo.com"
+        contactInfo.phone = "858-555-6666"
+        contactInfo.country = "USA"
+        contactInfo.state = "CA"
+
         ctd_l2_density_output_dp_obj = IonObject(   RT.DataProduct,
                                                     name='L2_Density',
                                                     description='transform output pressure',
+                                                    point_of_contact_list = [contactInfo],
+                                                    iso_topic_category = "my_iso_topic_category_here",
+                                                    quality_control_level = "1",
                                                     temporal_domain = tdom,
                                                     spatial_domain = sdom)
 
         ctd_l2_density_output_dp_id = self.dpmsclient.create_data_product(ctd_l2_density_output_dp_obj,
                                                                             outgoing_stream_l2_density_id,
                                                                             parameter_dictionary)
-
 
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
@@ -452,7 +474,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         self.assertTrue (provenance_dict[str(ctd_l0_temperature_output_dp_id)])
 
         density_dict = (provenance_dict[str(ctd_l2_density_output_dp_id)])
-        self.assertEquals(density_dict['producer'], l2_density_all_data_process_id)
+        self.assertEquals(density_dict['producer'], [l2_density_all_data_process_id])
 
 
         results = self.dpmsclient.get_data_product_provenance_report(ctd_l2_density_output_dp_id)
