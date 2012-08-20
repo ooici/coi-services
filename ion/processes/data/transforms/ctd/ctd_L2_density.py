@@ -4,7 +4,8 @@
 @description Transforms CTD parsed data into L2 product for density
 '''
 
-from pyon.ion.transform import TransformFunction
+import re
+from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
@@ -28,7 +29,7 @@ from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 import numpy as np
 
-class DensityTransform(TransformFunction):
+class DensityTransform(TransformDataProcess):
     ''' A basic transform that receives input through a subscription,
     parses the input from a CTD, extracts the conductivity, density and Temperature value and calculates density
     according to the defined algorithm. If the transform
@@ -41,31 +42,31 @@ class DensityTransform(TransformFunction):
     outgoing_stream_def = L2_density_stream_definition()
 
     def __init__(self):
+        self.dens_stream = self.CFG.process.publish_streams.density
         super(DensityTransform, self).__init__()
 
-    def execute(self, granule):
+    def recv_packet(self, msg, headers):
+        log.warn('ctd_L2_desnity.recv_packet: {0}'.format(msg))
+        stream_id = headers['routing_key']
+        stream_id = re.sub(r'\.data', '', stream_id)
+        self.receive_msg(msg, stream_id)
+
+    def publish(self, msg, stream_id):
+        self.publisher.publish(msg=msg, stream_id=stream_id)
+
+    def receive_msg(self, granule, stream_id):
         """Processes incoming data!!!!
         """
-
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        #todo: use only flat dicts for now, may change later...
-#        rdt0 = rdt['coordinates']
-#        rdt1 = rdt['data']
 
         temperature = get_safe(rdt, 'temp')
         conductivity = get_safe(rdt, 'conductivity')
-        density = get_safe(rdt, 'density')
+        pressure = get_safe(rdt, 'pres') #psd.get_values('pressure')
 
         longitude = get_safe(rdt, 'lon')
         latitude = get_safe(rdt, 'lat')
         time = get_safe(rdt, 'time')
         depth = get_safe(rdt, 'depth')
-
-        sp = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=density)
-
-        sa = SA_from_SP(sp, density, longitude, latitude)
-
-        density = rho(sa, temperature, density)
 
         # Use the constructor to put data into a granule
         #psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
@@ -76,16 +77,14 @@ class DensityTransform(TransformFunction):
         parameter_dictionary = self._create_parameter()
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
-        root_rdt['density'] = density
+        root_rdt['density'] = ctd_L2_density_algorithm.execute(conductivity, pressure, temperature, longitude, latitude)
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
         root_rdt['depth'] = depth
 
-#        root_rdt['coordinates'] = coord_rdt
-#        root_rdt['data'] = data_rdt
-
-        return build_granule(data_producer_id='ctd_L2_density', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
+        g = build_granule(data_producer_id='ctd_L2_density', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
+        self.publish(msg=g, stream_id=self.dens_stream)
 
 
     def _create_parameter(self):
@@ -128,3 +127,16 @@ class DensityTransform(TransformFunction):
         pdict.add_context(depth_ctxt)
 
         return pdict
+
+class ctd_L2_density_algorithm(TransformAlgorithm):
+
+    @staticmethod
+    def execute(*args, **kwargs):
+        cond = args[0]
+        pres = args[1]
+        temp = args[2]
+        lon = args[3]
+        lat = args[4]
+        sp = SP_from_cndr(r=cond/cte.C3515, t=temp, p=pres)
+        sa = SA_from_SP(sp, pres, lon, lat)
+        return rho(sa, temp, pres)

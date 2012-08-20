@@ -4,7 +4,7 @@
 @description Transforms CTD parsed data into L0 streams
 '''
 
-from pyon.ion.transform import TransformFunction, TransformDataProcess
+from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
@@ -18,6 +18,7 @@ import numpy as np
 import uuid
 from pyon.core.bootstrap import get_sys_name
 from pyon.net.transport import NameTrio
+import re
 
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 #from prototype.sci_data.constructor_apis import PointSupplementConstructor
@@ -42,7 +43,9 @@ class ctd_L0_all(TransformDataProcess):
     incoming_stream_def = SBE37_CDM_stream_definition()
 
     def __init__(self):
-
+        self.cond_stream = self.CFG.process.publish_streams.conductivity
+        self.temp_stream = self.CFG.process.publish_streams.temperature
+        self.pres_stream = self.CFG.process.publish_streams.pressure
         super(ctd_L0_all, self).__init__()
 
         # Make the stream definitions of the transform class attributes
@@ -51,20 +54,24 @@ class ctd_L0_all(TransformDataProcess):
         #outgoing_stream_temperature = L0_temperature_stream_definition()
         #outgoing_stream_conductivity = L0_conductivity_stream_definition()
 
-        self.publisher = Publisher(to_name=NameTrio(get_sys_name(), str(uuid.uuid4())[0:6]))
+    def recv_packet(self, msg, headers):
+        stream_id = headers['routing_key']
+        stream_id = re.sub(r'\.data', '', stream_id)
+        self.receive_msg(msg, stream_id)
 
+    def publish(self, msg, stream_id):
+        self.publisher.publish(msg=msg, stream_id=stream_id)
 
-    def process(self, packet):
+    def receive_msg(self, packet, stream_id):
 
         """Processes incoming data!!!!
         """
+        if packet == {}:
+            return
 
         # Use the PointSupplementStreamParser to pull data from a granule
         #psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=packet)
         rdt = RecordDictionaryTool.load_from_granule(packet)
-        #todo: use only flat dicts for now, may change later...
-#        rdt0 = rdt['coordinates']
-#        rdt1 = rdt['data']
 
         conductivity = get_safe(rdt, 'conductivity') #psd.get_values('conductivity')
         pressure = get_safe(rdt, 'pressure') #psd.get_values('pressure')
@@ -75,27 +82,27 @@ class ctd_L0_all(TransformDataProcess):
         time = get_safe(rdt, 'time') # psd.get_values('time')
         depth = get_safe(rdt, 'depth') # psd.get_values('time')
 
+        # Apply the algorithm
+        conductivity = ctd_L0_algorithm.execute(conductivity)
+        pressure = ctd_L0_algorithm.execute(pressure)
+        temperature = ctd_L0_algorithm.execute(temperature)
+
+        # create parameter settings
         self.cond = self._create_parameter("conductivity")
         self.pres = self._create_parameter("pressure")
         self.temp = self._create_parameter("temp")
 
+        # build the granule for conductivity
         g = self._build_granule_settings(self.cond, 'conductivity', conductivity, time, latitude, longitude, depth)
+        self.publish(msg= g, stream_id=self.cond_stream)
 
-        # publish a granule
-        self.cond_publisher = self.publisher
-        self.cond_publisher.publish(g)
-
+        # build the granule for temperature
         g = self._build_granule_settings(self.temp, 'temp', temperature, time, latitude, longitude, depth)
+        self.publish(msg= g, stream_id=self.temp_stream)
 
-        # publish a granule
-        self.temp_publisher = self.publisher
-        self.temp_publisher.publish(g)
-
+        # build the granule for pressure
         g = self._build_granule_settings(self.pres, 'pressure', pressure, time, latitude, longitude, depth)
-
-        # publish a granule
-        self.pres_publisher = self.publisher
-        self.pres_publisher.publish(g)
+        self.publish(msg= g, stream_id=self.pres_stream)
 
     def _build_granule_settings(self, param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, depth=None):
 
@@ -166,3 +173,10 @@ class ctd_L0_all(TransformDataProcess):
         pdict.add_context(depth_ctxt)
 
         return pdict
+
+
+class ctd_L0_algorithm(TransformAlgorithm):
+
+    @staticmethod
+    def execute(*args, **kwargs):
+        return args[0]

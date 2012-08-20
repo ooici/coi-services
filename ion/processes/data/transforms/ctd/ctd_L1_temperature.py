@@ -3,8 +3,8 @@
 @file ion/processes/data/transforms/ctd/ctd_L1_temperature.py
 @description Transforms CTD parsed data into L1 product for temperature
 '''
-
-from pyon.ion.transform import TransformFunction
+import re
+from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
@@ -28,7 +28,7 @@ from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 import numpy as np
 
-class CTDL1TemperatureTransform(TransformFunction):
+class CTDL1TemperatureTransform(TransformDataProcess):
     ''' A basic transform that receives input through a subscription,
     parses the input from a CTD, extracts the temperature vaule and scales it accroding to
     the defined algorithm. If the transform
@@ -42,51 +42,41 @@ class CTDL1TemperatureTransform(TransformFunction):
 
 
     def __init__(self):
+        self.temp_stream = self.CFG.process.publish_streams.temperature
         super(CTDL1TemperatureTransform, self).__init__()
 
-    def execute(self, granule):
+    def recv_packet(self, msg, headers):
+        log.warn('ctd_L1_temperature.recv_packet: {0}'.format(msg))
+        stream_id = headers['routing_key']
+        stream_id = re.sub(r'\.data', '', stream_id)
+        self.receive_msg(msg, stream_id)
+
+    def publish(self, msg, stream_id):
+        self.publisher.publish(msg=msg, stream_id=stream_id)
+
+    def receive_msg(self, granule, stream_id):
         """Processes incoming data!!!!
         """
 
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        #todo: use only flat dicts for now, may change later...
-#        rdt0 = rdt['coordinates']
-#        rdt1 = rdt['data']
 
         temperature = get_safe(rdt, 'temp')
-
         longitude = get_safe(rdt, 'lon')
         latitude = get_safe(rdt, 'lat')
         time = get_safe(rdt, 'time')
         depth = get_safe(rdt, 'depth')
 
-        # The L1 temperature data product algorithm takes the L0 temperature data product and converts it into Celcius.
-        # Once the hexadecimal string is converted to decimal, only scaling (dividing by a factor and adding an offset) is
-        # required to produce the correct decimal representation of the data in Celsius.
-        # The scaling function differs by CTD make/model as described below.
-        #    SBE 37IM, Output Format 0
-        #    1) Standard conversion from 5-character hex string (Thex) to decimal (tdec)
-        #    2) Scaling: T [C] = (tdec / 10,000) - 10
-
         parameter_dictionary = self._create_parameter()
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
-        scaled_temperature = temperature
-
-        for i in xrange(len(temperature)):
-            scaled_temperature[i] = ( temperature[i] / 10000.0) - 10
-
-        root_rdt['temp'] = scaled_temperature
+        root_rdt['temp'] = ctd_L1_temperature_algorithm.execute(temperature)
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
         root_rdt['depth'] = depth
 
-        #todo: use only flat dicts for now, may change later...
-#        root_rdt['coordinates'] = coord_rdt
-#        root_rdt['data'] = data_rdt
-
-        return build_granule(data_producer_id='ctd_L1_temperature', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
+        g = build_granule(data_producer_id='ctd_L1_temperature', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
+        self.publish(msg=g, stream_id=self.temp_stream)
 
     def _create_parameter(self):
 
@@ -128,3 +118,19 @@ class CTDL1TemperatureTransform(TransformFunction):
         pdict.add_context(depth_ctxt)
 
         return pdict
+
+class ctd_L1_temperature_algorithm(TransformAlgorithm):
+    '''
+    The L1 temperature data product algorithm takes the L0 temperature data product and converts it into Celcius.
+    Once the hexadecimal string is converted to decimal, only scaling (dividing by a factor and adding an offset) is
+    required to produce the correct decimal representation of the data in Celsius.
+    The scaling function differs by CTD make/model as described below.
+        SBE 37IM, Output Format 0
+        1) Standard conversion from 5-character hex string (Thex) to decimal (tdec)
+        2) Scaling: T [C] = (tdec / 10,000) - 10
+    '''
+
+    @staticmethod
+    def execute(*args, **kwargs):
+        print args[0]
+        return (args[0] / 10000.0) - 10

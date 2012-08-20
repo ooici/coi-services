@@ -5,13 +5,13 @@
 @description Transforms CTD parsed data into L1 product for conductivity
 '''
 
-from pyon.ion.transform import TransformFunction, TransformDataProcess
+from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
 import numpy as np
 from prototype.sci_data.stream_defs import L0_conductivity_stream_definition #, L1_conductivity_stream_definition
-
+import re
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 #from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
@@ -23,7 +23,7 @@ from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 
-class CTDL1ConductivityTransform(TransformFunction):
+class CTDL1ConductivityTransform(TransformDataProcess):
     ''' A basic transform that receives input through a subscription,
     parses the input from a CTD, extracts the conductivity value and scales it according to
     the defined algorithm. If the transform
@@ -36,47 +36,42 @@ class CTDL1ConductivityTransform(TransformFunction):
     #outgoing_stream_def = L1_conductivity_stream_definition()
 
     def __init__(self):
+        self.cond_stream = self.CFG.process.publish_streams.conductivity
         super(CTDL1ConductivityTransform, self).__init__()
 
-    def execute(self, granule):
+    def recv_packet(self, msg, headers):
+        log.warn('ctd_L1_conductivity.recv_packet: {0}'.format(msg))
+        stream_id = headers['routing_key']
+        stream_id = re.sub(r'\.data', '', stream_id)
+        self.receive_msg(msg, stream_id)
+
+    def publish(self, msg, stream_id):
+        self.publisher.publish(msg=msg, stream_id=stream_id)
+
+    def receive_msg(self, granule, stream_id):
         """Processes incoming data!!!!
         """
+
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        #todo: use only flat dicts for now, may change later...
-#        rdt0 = rdt['coordinates']
-#        rdt1 = rdt['data']
 
-        conductivity = get_safe(rdt, 'conductivity') #psd.get_values('conductivity')
-
-        longitude = get_safe(rdt, 'lon') # psd.get_values('longitude')
-        latitude = get_safe(rdt, 'lat')  #psd.get_values('latitude')
-        time = get_safe(rdt, 'time') # psd.get_values('time')
-        depth = get_safe(rdt, 'depth') # psd.get_values('time')
+        conductivity = get_safe(rdt, 'conductivity')
+        longitude = get_safe(rdt, 'lon')
+        latitude = get_safe(rdt, 'lat')
+        time = get_safe(rdt, 'time')
+        depth = get_safe(rdt, 'depth')
 
         parameter_dictionary = self._create_parameter()
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
-        scaled_conductivity = conductivity
-
-        for i in xrange(len(conductivity)):
-            scaled_conductivity[i] = (conductivity[i] / 100000.0) - 0.5
-
-        root_rdt['conductivity'] = scaled_conductivity
+        root_rdt['conductivity'] = ctd_L1_conductivity_algorithm.execute(conductivity)
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
         root_rdt['depth'] = depth
 
-#        root_rdt['coordinates'] = coord_rdt
-#        root_rdt['data'] = data_rdt
+        g = build_granule(data_producer_id='ctd_L1_conductivity', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
+        self.publish(msg=g, stream_id=self.cond_stream)
 
-        return build_granule(data_producer_id='ctd_L1_conductivity', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
-
-#        # The L1 conductivity data product algorithm takes the L0 conductivity data product and converts it
-#        # into Siemens per meter (S/m)
-#        #    SBE 37IM Output Format 0
-#        #    1) Standard conversion from 5-character hex string to decimal
-#        #    2)Scaling
 #        # Use the constructor to put data into a granule
 #        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
 #        ### Assumes the config argument for output streams is known and there is only one 'output'.
@@ -131,4 +126,15 @@ class CTDL1ConductivityTransform(TransformFunction):
 
         return pdict
 
-  
+class ctd_L1_conductivity_algorithm(TransformAlgorithm):
+    '''
+        The L1 conductivity data product algorithm takes the L0 conductivity data product and converts it
+        into Siemens per meter (S/m)
+            SBE 37IM Output Format 0
+            1) Standard conversion from 5-character hex string to decimal
+            2)Scaling
+    '''
+
+    @staticmethod
+    def execute(*args, **kwargs):
+        return (args[0] / 100000.0) - 0.5

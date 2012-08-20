@@ -70,7 +70,7 @@ class ctd_L1_pressure(TransformDataProcess):
         time = get_safe(rdt, 'time')
 
         rdt2 = RecordDictionaryTool(rdt._tx)
-        rdt2['pres'] = ctd_L1_cpressure_algorithm.execute(pressure)
+        rdt2['pres'] = ctd_L1_pressure_algorithm.execute(pressure)
         rdt2['lat'] = latitude
         rdt2['lon'] = longitude
         rdt2['time'] = time
