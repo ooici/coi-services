@@ -8,8 +8,82 @@ from interface.services.dm.ipreservation_management_service import BasePreservat
 from interface.objects import PersistenceSystem, PersistentArchive, PersistenceType, PersistenceInstance, DataStore, DataStoreType
 from pyon.public import RT, PRED, log
 from pyon.core.exception import NotFound
+from pyon.util.arg_check import validate_is_instance, validate_equal
+from pyon.datastore.datastore import DataStore
+from interface.objects import File
+from pyon.util.file_sys import FileSystem, FS
+from pyon.core.exception import BadRequest
+from pyon.util.ion_time import IonTime
+from hashlib import sha224
 
 class PreservationManagementService(BasePreservationManagementService):
+
+    def on_start(self):
+        self.datastore_name = self.CFG.get_safe('process.datastore_name', 'filesystem')
+        self.ds = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.FILESYSTEM)
+
+
+    def persist_file(self, file_data='', digest='', metadata=None):
+        validate_is_instance(file_data,basestring, "File or binary data must be a string.")
+        validate_is_instance(metadata,File)
+
+        if self.list_files(metadata.name + metadata.extension):
+            raise BadRequest('%s already exists.' % metadata.name + metadata.extension)
+
+        digest_ = sha224(file_data).hexdigest()
+        if digest:
+            validate_equal(digest,digest_,"The provided digest does not match the file's digest. Ensure you are using sha224.")
+        else:
+            digest = digest_
+
+        extension = metadata.extension
+        url = FileSystem.get_hierarchical_url(FS.CACHE, digest, extension)
+        try:
+            with open(url,'w+b') as f:
+                f.write(file_data)
+                f.close()
+        except Exception:
+            log.exception('Failed to write %s', url)
+            raise BadRequest('Could not successfully write file data')
+        if metadata.name[0] != '/':
+            metadata.name = '/' + metadata.name
+        metadata.url = url
+        metadata.digest = digest
+        metadata.created_date = IonTime().to_string()
+        metadata.modified_date = IonTime().to_string()
+        metadata.size = len(file_data)
+
+        doc_id, rev_id = self.ds.create(metadata)
+        return doc_id
+
+    def list_files(self, file_path=''):
+        file_path = file_path or '/'
+        if file_path[-1] == '/':
+            opts={
+                'start_key' : [file_path], 
+                'end_key'   : [file_path[:-1] + '$']
+            }
+        else:
+            opts = {
+                'start_key': [file_path],
+                'end_key' : [file_path,{}]
+            }
+        retval = {}
+        for i in self.ds.query_view('catalog/files_by_name', opts=opts):
+            retval[i['id']] = i['key']
+        return retval
+
+    def read_file(self, file_id='', cluster_id=''):
+        metadata = self.ds.read(file_id)
+        url = metadata.url
+        try:
+            with open(url,'r+b') as f:
+                #@TODO WRAP THIS BECAUSE THIS IS A BAD IDEA!!!!
+                file_data = f.read()
+        except Exception:
+            log.exception('Failed to read %s', url)
+            raise BadRequest('Could not successfully read file data.')
+        return file_data, metadata.digest
 
     def create_couch_cluster(self, name='', description='', replicas=1, partitions=1):
         """Create a PersistenceSystem resource describing a couch cluster.
