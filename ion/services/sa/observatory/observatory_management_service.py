@@ -145,7 +145,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return org_id
 
 
-    def create_observatory(self, observatory=None):
+    def create_observatory(self, observatory=None, org_id=""):
         """Create a Observatory resource. An observatory  is coupled
         with one Org. The Org is created and associated as part of this call.
 
@@ -157,6 +157,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         # create the marine facility
         observatory_id = self.observatory.create_one(observatory)
+
+        if org_id:
+            self.assign_resource_to_observatory_org(observatory_id, org_id)
 
         return observatory_id
 
