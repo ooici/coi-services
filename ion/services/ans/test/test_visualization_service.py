@@ -59,7 +59,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
-        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
@@ -67,6 +66,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
         self.vis_client = VisualizationServiceClient(node=self.container.node)
+        self.ingestion_management = IngestionManagementServiceClient(node=self.container.node)
 
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
@@ -219,6 +219,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #TODO - find out what the actual return data type should be
         vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
+        if (vis_data):
+            self.validate_google_dt_transform_results(vis_data)
 
         #Trying to continue to receive messages in the queue
         gevent.sleep(5.0)  # Send some messages - don't care how many
@@ -230,6 +232,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         except:
             log.warning("cancelling process did not work")
         vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
+
+        if vis_data:
+            self.validate_google_dt_transform_results(vis_data)
 
         self.vis_client.terminate_realtime_visualization_data(vis_token)
 
@@ -245,6 +250,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
+
+        # start producing data
         ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 
         # Generate some data for a few seconds

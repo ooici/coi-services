@@ -57,13 +57,7 @@ class SalinityTransform(TransformFunction):
         time = get_safe(rdt, 'time')
         depth = get_safe(rdt, 'depth')
 
-        log.warn('Got conductivity: %s' % str(conductivity))
-        log.warn('Got pres: %s' % str(pres))
-        log.warn('Got temperature: %s' % str(temperature))
-
         salinity = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pres)
-
-        log.warn('Got salinity: %s' % str(salinity))
 
         parameter_dictionary = self._create_parameter()
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)

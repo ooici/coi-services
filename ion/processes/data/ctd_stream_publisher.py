@@ -157,9 +157,6 @@ class SimpleCtdPublisher(TransformStreamPublisher):
         tvar = numpy.array([self.last_time + i for i in xrange(1,length+1)]) 
         self.last_time = max(tvar)
 
-        log.warn('Got time: %s' % str(tvar))
-        log.warn('Got t: %s' % str(t))
-
         rdt['time'] = tvar
         rdt['lat'] = lat
         rdt['lon'] = lon

@@ -53,8 +53,6 @@ class CTDL1ConductivityTransform(TransformFunction):
         time = get_safe(rdt, 'time') # psd.get_values('time')
         depth = get_safe(rdt, 'depth') # psd.get_values('time')
 
-        log.warn('CTDL1ConductivityTransform: Got conductivity: %s' % str(conductivity))
-
         parameter_dictionary = self._create_parameter()
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
