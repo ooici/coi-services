@@ -160,7 +160,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         pass
 
 
-    #@unittest.skip('Not done yet.')
+    @unittest.skip('Update to agent refactor.')
     def test_slocum_data_ingest(self):
 
         HIST_CONSTRAINTS_1 = {}
