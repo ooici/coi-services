@@ -97,7 +97,6 @@ class TransformManagementService(BaseTransformManagementService):
 
         configuration['process'] = dict({
             'name':transform_name,
-            'type':'stream_process',
             'listen_name':listen_name,
             'transform_id':transform_id
         })
