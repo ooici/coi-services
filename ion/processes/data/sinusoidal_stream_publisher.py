@@ -88,7 +88,7 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
             g = build_granule(data_producer_id=stream_id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
 
             log.info('SinusoidalCtdPublisher sending 1 record!')
-            self.publisher.publish(g)
+            self.publisher.publish(g, self.stream_id)
 
             time.sleep(1.0)
 
