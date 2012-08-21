@@ -23,14 +23,13 @@ class ResourceManagementService(BaseResourceManagementService):
         # {resource_type_id: ''}
         #
         if not is_basic_identifier(resource_type.name):
-            raise BadRequest("Invalid resource name: " % resource_type.name)
+            raise BadRequest("Invalid resource name: %s " % resource_type.name)
         if not object_id:
             raise BadRequest("Object_id is missing")
 
         object_type= self.clients.resource_registry.read(object_id)
         if resource_type.name != object_type.name:
             raise BadRequest("Resource and object name don't match: %s - %s" (resource_type.name,object_type.name))
-
         resource_id, version = self.clients.resource_registry.create(resource_type)
         self.clients.resource_registry.create_association(resource_id, PRED.hasObjectType, object_id)
         return resource_id
@@ -53,10 +52,9 @@ class ResourceManagementService(BaseResourceManagementService):
         #
         if not resource_type_id:
             raise BadRequest("The resource_type_id parameter is missing")
-        resource_type = self.clients.resource_registry.read(resource_type_id)
-        return resource_type
+        return self.clients.resource_registry.read(resource_type_id)
 
-    def delete_resource_type(self, resource_type_id=''):
+    def delete_resource_type(self, resource_type_id='', object_type_id=''):
         """method docstring
         """
         # Return Value
@@ -65,10 +63,10 @@ class ResourceManagementService(BaseResourceManagementService):
         #
         if not resource_type_id:
             raise BadRequest("The resource_type_id parameter is missing")
-
-        resource_type = self.clients.resource_registry.read(resource_type_id)
-        if not resource_type:
-            raise NotFound("Resource type %s does not exist" % resource_type_id)
+        if not object_type_id:
+            raise BadRequest("The object_type_id parameter is missing")
+        association_id = self.clients.resource_registry.get_association(resource_type_id, PRED.hasObjectType, object_type_id)
+        self.clients.resource_registry.delete_association(association_id)
         return self.clients.resource_registry.delete(resource_type_id)
 
     def create_resource_lifecycle(self, resource_lifecycle=None):
@@ -78,7 +76,7 @@ class ResourceManagementService(BaseResourceManagementService):
         # ------------
         # {resource_lifecycle_id: ''}
         #
-        pass
+        raise NotImplementedError("Currently not supported")
 
     def update_resource_lifecycle(self, resource_lifecycle=None):
         """ Should receive a ResourceLifeCycle object
@@ -87,7 +85,7 @@ class ResourceManagementService(BaseResourceManagementService):
         # ------------
         # {success: true}
         #
-        pass
+        raise NotImplementedError("Currently not supported")
 
     def read_resource_lifecycle(self, resource_lifecycle_id=''):
         """ Should return a ResourceLifeCycle object
@@ -96,7 +94,7 @@ class ResourceManagementService(BaseResourceManagementService):
         # ------------
         # resource_lifecycle: {}
         #
-        pass
+        raise NotImplementedError("Currently not supported")
 
     def delete_resource_lifecycle(self, resource_lifecycle_id=''):
         """method docstring
@@ -105,5 +103,5 @@ class ResourceManagementService(BaseResourceManagementService):
         # ------------
         # {success: true}
         #
-        pass
+        raise NotImplementedError("Currently not supported")
 
