@@ -332,6 +332,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             configuration=configuration
         )
 
+        # need to do this....
+        transform_res = self.clients.resource_registry.read(transform_id)
+        transform_res.process_id =  pid
+        self.clients.resource_registry.update(transform_res)
         # ------------------------------------------------------------------------------------
         # Handle Resources
         # ------------------------------------------------------------------------------------
@@ -471,7 +475,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
 
         # get the transform resource (also verifies it's existence before continuing)
-        transform_res = self.read_transform(transform_id=transform_id)
+        transform_res = self.clients.resource_registry.read(object_id=transform_id,rev_id='')
+
         pid = transform_res.process_id
 
         # get the resources
