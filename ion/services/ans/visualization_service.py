@@ -146,7 +146,6 @@ class VisualizationService(BaseVisualizationService):
 
             if isinstance(message_data,Granule):
 
-                tx = TaxyTool.load_from_granule(message_data)
                 rdt = RecordDictionaryTool.load_from_granule(message_data)
 
                 gdt_components = get_safe(rdt, 'google_dt_components')
