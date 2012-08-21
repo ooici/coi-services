@@ -459,3 +459,36 @@ class DataProductManagementService(BaseDataProductManagementService):
             except NotFound:
                 continue
         return retval
+
+
+
+
+    ############################
+    #
+    #  EXTENDED RESOURCES
+    #
+    ############################
+
+
+
+    def get_data_product_extension(self, data_product_id='', ext_associations=None, ext_exclude=None):
+        #Returns an DataProductExtension object containing additional related information
+
+        pass
+
+    def get_earliest_data_datetime(self, data_product_id=''):
+        # Returns the datetime of the earliest values in the data product
+
+        pass
+
+
+    def get_product_download_size_estimated(self, data_product_id=''):
+        # Returns the size of the full data product if downloaded/presented in a given presentation form
+
+        pass
+
+    def get_product_storage_size_estimated(self, data_product_id=''):
+        # Returns the storage size occupied by the data content of the resource, in bytes.
+
+        pass
+

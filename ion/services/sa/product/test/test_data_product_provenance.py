@@ -378,7 +378,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         ctd_l2_density_output_dp_obj = IonObject(   RT.DataProduct,
                                                     name='L2_Density',
                                                     description='transform output pressure',
-                                                    point_of_contact_list = [contactInfo],
+                                                    contacts = [contactInfo],
                                                     iso_topic_category = "my_iso_topic_category_here",
                                                     quality_control_level = "1",
                                                     temporal_domain = tdom,

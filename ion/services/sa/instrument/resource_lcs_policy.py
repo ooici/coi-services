@@ -198,6 +198,21 @@ class ModelPolicy(ResourceLCSPolicy):
 
 class DevicePolicy(ResourceLCSPolicy):
 
+    def invalid_custom_attrs(self, device_id, model_id):
+        model_obj  = self.RR.read(model_id)
+        device_obj = self.RR.read(device_id)
+
+        bad = {}
+        for k, v in device_obj.custom_attributes.iteritems():
+            if not k in model_obj.custom_attributes:
+                bad[k] = v
+
+        if {} == bad:
+            return ""
+        else:
+            return "Device contains custom attributes undefined by associated model: %s" % str(bad)
+
+
     def lce_precondition_plan(self, device_id):
         obj = self.RR.read(device_id)
 
@@ -222,6 +237,11 @@ class DevicePolicy(ResourceLCSPolicy):
             if not self._resource_lcstate_in(models[0], [LCS.DEPLOYED]):
                 return self._make_fail("Device's associated model is not in '%s'" % LCS.DEPLOYED)
 
+            #validate custom fields
+            bad = self.invalid_custom_attrs(device_id, models[0])
+            if "" != bad:
+                return self._make_fail(bad)
+
             return self._has_keyworded_attachment(device_id, KeywordFlag.VENDOR_TEST_RESULTS)
 
         if RT.PlatformDevice == device_type:
@@ -230,6 +250,11 @@ class DevicePolicy(ResourceLCSPolicy):
                 return self._make_fail("Device has no associated model")
             if not self._resource_lcstate_in(models[0], [LCS.DEPLOYED]):
                 return self._make_fail("Device's associated model is not in '%s'" % LCS.DEPLOYED)
+
+            #validate custom fields
+            bad = self.invalid_custom_attrs(device_id, models[0])
+            if "" != bad:
+                return self._make_fail(bad)
 
             return self._has_keyworded_attachment(device_id, KeywordFlag.VENDOR_TEST_RESULTS)
 

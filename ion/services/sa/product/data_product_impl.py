@@ -195,7 +195,7 @@ class DataProductImpl(ResourceSimpleImpl):
         # Contacts List
         log.debug("DataProductManagementService:provenance_report  Contacts List" )
         contactlist = etree.SubElement(data_product_tag, "ContactList")
-        for contact in product_obj.point_of_contact_list:
+        for contact in product_obj.contacts:
             log.debug("DataProductManagementService:provenance_report  Contacts List contact %s", str(contact) )
             contacttag = etree.SubElement(contactlist, "Contact")
             first_name = etree.SubElement(contacttag, "first_name")
