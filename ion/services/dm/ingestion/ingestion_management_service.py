@@ -9,7 +9,7 @@ from pyon.public import PRED, RT
 from pyon.util.arg_check import validate_is_instance, validate_true
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
 from interface.objects import IngestionConfiguration, IngestionQueue, StreamQuery
-
+from pyon.core.exception import BadRequest
 
 class IngestionManagementService(BaseIngestionManagementService):
 
