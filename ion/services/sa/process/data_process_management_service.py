@@ -13,7 +13,8 @@ from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.containers import create_unique_identifier
 from interface.objects import ProcessDefinition, StreamQuery
-
+from pyon.core.object import IonObjectSerializer, IonObjectBase
+from interface.objects import Transform
 from ion.services.sa.instrument.data_process_impl import DataProcessImpl
 
 
@@ -276,7 +277,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - process_definition_id: "   +  str(process_definition_id) )
         log.debug("DataProcessManagementService:create_data_process - data_process_id: "   +  str(data_process_id) )
 
-        transform_id = self.clients.transform_management.create_transform( name=data_process_id, description=data_process_id,
+        transform_id = self.create_transform( name=data_process_id, description=data_process_id,
                            in_subscription_id=input_subscription_id,
                            out_streams=output_stream_dict,
                            process_definition_id=process_definition_id,
@@ -292,6 +293,71 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return data_process_id
 
+    def create_transform(self,
+                         name='',
+                         description='',
+                         in_subscription_id='',
+                         out_streams=None,
+                         process_definition_id='',
+                         configuration=None):
+
+        """Creates the transform and registers it with the resource registry
+        @param process_definition_id The process definition contains the module and class of the process to be spawned
+        @param in_subscription_id The subscription id corresponding to the input subscription
+        @param out_stream_id The stream id for the output
+        @param configuration {}
+
+        @return The transform_id to the transform
+        """
+
+        # ------------------------------------------------------------------------------------
+        # Resources and Initial Configs
+        # ------------------------------------------------------------------------------------
+        # Transform Resource for association management and pid
+        transform_res = Transform(name=name, description=description)
+        transform_id, _ = self.clients.resource_registry.create(transform_res)
+
+        # ------------------------------------------------------------------------------------
+        # Spawn Configuration and Parameters
+        # ------------------------------------------------------------------------------------
+        subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
+
+        configuration['process'] = dict({
+            'name':name,
+            'listen_name':subscription.exchange_name,
+            'transform_id':transform_id
+        })
+        configuration['process']['publish_streams'] = out_streams
+        stream_ids = list(v for k,v in out_streams.iteritems())
+
+        # ------------------------------------------------------------------------------------
+        # Process Spawning
+        # ------------------------------------------------------------------------------------
+        # Spawn the process
+        pid = self.clients.process_dispatcher.schedule_process(
+            process_definition_id=process_definition_id,
+            configuration=configuration
+        )
+
+        # ------------------------------------------------------------------------------------
+        # Handle Resources
+        # ------------------------------------------------------------------------------------
+
+        self.clients.resource_registry.create_association(transform_id,PRED.hasProcessDefinition,process_definition_id)
+        self.clients.resource_registry.create_association(transform_id,PRED.hasSubscription,in_subscription_id)
+        for stream_id in stream_ids:
+            self.clients.resource_registry.create_association(transform_id,PRED.hasOutStream,stream_id)
+
+        return transform_id
+
+    def _strip_types(self, obj):
+        if not isinstance(obj, dict):
+            return
+        for k,v in obj.iteritems():
+            if isinstance(v,dict):
+                self._strip_types(v)
+        if "type_" in obj:
+            del obj['type_']
 
     def _find_lookup_tables(self, resource_id="", configuration=None):
         #check if resource has lookup tables attached
