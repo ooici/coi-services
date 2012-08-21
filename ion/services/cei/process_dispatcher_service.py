@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from pyon.agent.agent import ResourceAgentClient
+from pyon.agent.simple_agent import SimpleResourceAgentClient
 from pyon.net.endpoint import Subscriber
 
 __author__ = 'Stephen P. Henrie, Michael Meisinger'
@@ -402,7 +402,7 @@ class AnyEEAgentClient(object):
         self.process = process
 
     def _get_client_for_eeagent(self, resource_id):
-        resource_client = ResourceAgentClient(resource_id, process=self.process)
+        resource_client = SimpleResourceAgentClient(resource_id, process=self.process)
         return ExecutionEngineAgentClient(resource_client)
 
     def launch_process(self, eeagent, upid, round, run_type, parameters):
