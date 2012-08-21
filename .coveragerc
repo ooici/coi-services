@@ -4,12 +4,7 @@ source =
     examples
 omit =
     */test/*
-
-[report]
-
-omit =
     examples/*
     */core/containerui*
-
 [html]
 directory = coverage_results
