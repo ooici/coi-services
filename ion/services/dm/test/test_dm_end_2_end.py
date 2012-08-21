@@ -21,6 +21,7 @@ from ion.services.dm.ingestion.test.ingestion_management_test import IngestionMa
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
 from gevent.event import Event
 from nose.plugins.attrib import attr
 
@@ -121,7 +122,15 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertIsInstance(msg,Granule,'Message is improperly formatted. (%s)' % type(msg))
         self.event.set()
 
+    def make_file_data(self):
+        from interface.objects import File
+        data = 'hello world\n'
+        meta = File(name='/examples/hello', extension='.txt')
+        return {'body': data, 'meta':meta}
 
+    def publish_file(self, stream_id):
+        publisher = SimpleStreamPublisher.new_publisher(self.container, 'science_data', stream_id)
+        publisher.publish(self.make_file_data())
         
     def wait_until_we_have_enough_granules(self, dataset_id='',granules=4):
         datastore = self.get_datastore(dataset_id)
@@ -391,4 +400,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
         comp = rdt['time'] == np.arange(0,40)
         self.assertTrue(comp.all(), 'Uh-oh: %s' % rdt['time'])
 
+    def test_binary_ingestion(self):
+        stream_id = self.pubsub_management.create_stream()
+        config_id = self.get_ingestion_config()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id='', ingestion_type=IngestionManagementService.BINARY_INGESTION)
 
+        self.publish_file(stream_id) 

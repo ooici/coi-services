@@ -10,8 +10,12 @@ from pyon.util.arg_check import validate_is_instance, validate_true
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
 from interface.objects import IngestionConfiguration, IngestionQueue, StreamQuery
 from pyon.core.exception import BadRequest
-
+from pyon.util.log import log
 class IngestionManagementService(BaseIngestionManagementService):
+    SCIENCE_INGESTION = 'SCIDATA'
+    BINARY_INGESTION  = 'BINARY'
+
+    INGESTION_TYPES   = [SCIENCE_INGESTION, BINARY_INGESTION]
 
     def create_ingestion_configuration(self,name='', exchange_point_id='', queues=None):
         validate_is_instance(queues,list,'The queues parameter is not a proper list.')
@@ -49,38 +53,62 @@ class IngestionManagementService(BaseIngestionManagementService):
 
     # --- 
 
-    def persist_data_stream(self, stream_id='', ingestion_configuration_id='', dataset_id=''):
-        # Figure out which MIME or xpath in the stream definition belongs where
-
-        # Just going to use the first queue for now
-
+    def persist_data_stream(self, stream_id='', ingestion_configuration_id='', dataset_id='', ingestion_type=''):
+        #--------------------------------------------------------------------------------
+        # Validate that the method call was indeed valid
+        #--------------------------------------------------------------------------------
         validate_is_instance(stream_id,basestring, 'stream_id %s is not a valid string' % stream_id)
-        validate_true(dataset_id,'Clients must specify the dataset to persist')
+        validate_true(dataset_id or (ingestion_type == self.BINARY_INGESTION),'Clients must specify the dataset to persist')
+        if not ingestion_type:
+            ingestion_type = self.SCIENCE_INGESTION
 
         ingestion_config = self.read_ingestion_configuration(ingestion_configuration_id)
         if self.is_persisted(stream_id):
             raise BadRequest('This stream is already being persisted')
-        stream = self.clients.pubsub_management.read_stream(stream_id)
-        stream.persisted = True
-        self.clients.pubsub_management.update_stream(stream)
+        #--------------------------------------------------------------------------------
+        # Set up the stream subscriptions and associations for this stream and its ingestion_type
+        #--------------------------------------------------------------------------------
+        if self.setup_queues(ingestion_config, stream_id, dataset_id, ingestion_type):
+            stream = self.clients.pubsub_management.read_stream(stream_id)
+            stream.persisted = True
+            self.clients.pubsub_management.update_stream(stream)
 
-        ingestion_queue = self._determine_queue(stream_id, ingestion_config.queues)
 
-        subscription_id = self.clients.pubsub_management.create_subscription(
-            query=StreamQuery(stream_ids=[stream_id]),
-            exchange_name=ingestion_queue.name,
-            exchange_point=ingestion_config.exchange_point
-        )
-
-        self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)
-
-        self.clients.resource_registry.create_association(
-            subject=ingestion_configuration_id,
-            predicate=PRED.hasSubscription,
-            object=subscription_id
-        )
-        self._existing_dataset(stream_id,dataset_id)
         return dataset_id
+
+    def setup_queues(self, ingestion_config, stream_id, dataset_id, ingestion_type):
+        #--------------------------------------------------------------------------------
+        # Iterate through each queue, check to make sure it's a supported type
+        # and it's the queue we're trying to set up
+        #--------------------------------------------------------------------------------
+        for queue in ingestion_config.queues:
+            if queue.type == ingestion_type:
+                if queue.type not in self.INGESTION_TYPES:
+                    log.error('Unknown ingestion queue type: %s', queue.type)
+                    return False
+                # Make the subscription from the stream to this queue
+                subscription_id = self.clients.pubsub_management.create_subscription(
+                    query = StreamQuery(stream_ids=[stream_id]),
+                    exchange_name = queue.name,
+                    exchange_point = ingestion_config.exchange_point
+                )
+                self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)
+                
+                # Associate the subscription witht he ingestion config which ensures no dangling resources
+                self.clients.resource_registry.create_association(
+                    subject=ingestion_config._id,
+                    predicate=PRED.hasSubscription,
+                    object=subscription_id
+                )
+                if queue.type == self.SCIENCE_INGESTION: # 'SCIDATA'
+                    self._existing_dataset(stream_id, dataset_id)
+
+                elif queue.type == self.BINARY_INGESTION: # 'BINARY'
+                    pass
+                return True
+
+        return False
+
 
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
         subscriptions, assocs = self.clients.resource_registry.find_objects(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
