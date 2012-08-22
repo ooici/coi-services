@@ -250,7 +250,9 @@ class PDLocalBackend(object):
         self.container = container
         self.event_pub = EventPublisher()
         self._processes = []
-        self.rr = ResourceRegistryServiceClient(node=self.container.node)
+
+        # use the container RR instance -- talks directly to couchdb
+        self.rr = container.resource_registry
 
     def initialize(self):
         pass
