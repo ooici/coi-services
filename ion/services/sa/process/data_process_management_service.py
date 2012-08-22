@@ -273,7 +273,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - process_definition_id: "   +  str(process_definition_id) )
         log.debug("DataProcessManagementService:create_data_process - data_process_id: "   +  str(data_process_id) )
 
-        transform_id = self.create_transform( name=data_process_id, description=data_process_id,
+        transform_id = self._create_transform( name=data_process_id, description=data_process_id,
                            in_subscription_id=input_subscription_id,
                            out_streams=output_stream_dict,
                            process_definition_id=process_definition_id,
@@ -286,7 +286,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return data_process_id
 
-    def create_transform(self,
+    def _create_transform(self,
                          name='',
                          description='',
                          in_subscription_id='',
@@ -413,7 +413,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(transform_assoc)
 
             log.debug("DataProcessManagementService:delete_data_process  delete transform")
-            self.delete_transform(transform)
+            self._delete_transform(transform)
 
 
         # Delete the output stream, but not the output product
@@ -468,7 +468,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.delete(data_process_id)
         return
 
-    def delete_transform(self, transform_id=''):
+    def _delete_transform(self, transform_id=''):
         """Deletes and stops an existing transform process
         @param transform_id The unique transform identifier
         @throws NotFound when a transform doesn't exist
