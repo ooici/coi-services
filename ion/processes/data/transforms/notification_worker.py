@@ -8,7 +8,6 @@
 '''
 
 from pyon.public import log, RT
-from pyon.ion.transform import TransformDataProcess
 from pyon.util.async import spawn
 from pyon.core.exception import BadRequest, NotFound
 from pyon.ion.process import SimpleProcess

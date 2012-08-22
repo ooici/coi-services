@@ -6,7 +6,7 @@
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.core.exception import NotFound
 from pyon.public import log
-from pyon.ion.transform import TransformDataProcess
+from pyon.ion.transforma import TransformDataProcess
 from pyon.datastore.datastore import DataStore
 from pyon.util.file_sys import FileSystem
 from interface.objects import StreamGranuleContainer, LastUpdate
@@ -47,10 +47,10 @@ class LastUpdateCache(TransformDataProcess):
 
 
 
-    def process(self, packet):
+    def recv_packet(self, msg, headers):
 
         if isinstance(packet,StreamGranuleContainer):
-            granule = packet
+            granule = msg
             lu = self.db._ion_object_to_persistence_dict(self.get_last_value(granule))
             try:
                 doc = self.db.read_doc(granule.stream_resource_id)
@@ -67,7 +67,7 @@ class LastUpdateCache(TransformDataProcess):
 
 
         else:
-            log.info('Unknown packet type %s' % str(type(packet)))
+            log.info('Unknown packet type %s' % str(type(msg)))
 
         return
 
