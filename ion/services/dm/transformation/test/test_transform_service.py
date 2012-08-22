@@ -82,6 +82,7 @@ class TransformManagementServiceTest(PyonTestCase):
 
     # test a create transform with identical names here
 
+#    @unittest.skip("new trans")
     def test_create_transform_full_config(self):
         # mocks
         proc_def = DotDict()
@@ -110,7 +111,6 @@ class TransformManagementServiceTest(PyonTestCase):
         out_config = {
             'process':{
                 'name':'test_transform',
-                'type':'stream_process',
                 'listen_name':'input_stream_id',
                 'publish_streams':{'output':'mock_output_stream_id'},
                 'transform_id': 'transform_id'
@@ -157,7 +157,6 @@ class TransformManagementServiceTest(PyonTestCase):
         out_config = {
             'process':{
                 'name':'test_transform',
-                'type':'stream_process',
                 'listen_name':'input_stream_id',
                 'publish_streams':{'output':'mock_output_stream_id'},
                 'transform_id': 'transform_id'
@@ -199,7 +198,6 @@ class TransformManagementServiceTest(PyonTestCase):
         out_config = {
             'process':{
                 'name':'test_transform',
-                'type':'stream_process',
                 'listen_name':'input_stream_id',
                 'transform_id': 'transform_id'
             },
