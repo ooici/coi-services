@@ -1578,24 +1578,39 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return ret
 
     def get_power_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        #todo: listen for events/streams from instrument agent -- there will be alarms
+
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
         if ia_client:
             ret.result.value = 78 #todo: use ia_client
         return ret
 
     def get_communications_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        #todo: following algorithm:
+        # if telemetry agent exists:
+        #     get comms schedule from telemetry agent (tbd)
+        #     figure out when last transmission was expected
+        #     see if any events/errors/data have come from the device at that time
+        # else:
+        #      ping device
+
+
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
         if ia_client:
             ret.result.value = 89 #todo: use ia_client
         return ret
 
     def get_data_status_roll_up(self, instrument_device_id): # BLACK, RED, GREEN, YELLOW
+        #todo: listen for events/streams from instrument agent -- there will be alarms
+
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
         if ia_client:
             ret.result.value = 98 #todo: use ia_client
         return ret
 
     def get_location_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        #todo: listen for events/streams from instrument agent -- there will be alarms
+
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
         if ia_client:
             ret.result.value = 87 #todo: use ia_client
