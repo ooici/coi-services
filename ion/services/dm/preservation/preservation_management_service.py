@@ -37,6 +37,9 @@ class PreservationManagementService(BasePreservationManagementService):
             digest = digest_
 
         extension = metadata.extension
+        if '.' in metadata.name:
+            t = metadata.name.split('.')
+            metadata.name, metadata.extension = ('.'.join(t[:-1]), '.' + t[-1])
         url = FileSystem.get_hierarchical_url(FS.CACHE, digest, extension)
         try:
             with open(url,'w+b') as f:
@@ -69,7 +72,7 @@ class PreservationManagementService(BasePreservationManagementService):
                 'end_key' : [file_path,{}]
             }
         retval = {}
-        for i in self.ds.query_view('catalog/files_by_name', opts=opts):
+        for i in self.ds.query_view('catalog/file_by_name', opts=opts):
             retval[i['id']] = i['key']
         return retval
 

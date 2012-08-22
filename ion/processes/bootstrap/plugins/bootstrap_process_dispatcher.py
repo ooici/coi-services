@@ -5,6 +5,7 @@ from pyon.util.containers import DotDict
 
 from interface.objects import ProcessDefinition
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceProcessClient
+from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 
 
 class BootstrapProcessDispatcher(BootstrapPlugin):
@@ -29,6 +30,9 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
 
         replay_module       = config.get_safe('bootstrap.processes.replay.module', 'ion.processes.data.replay.replay_process')
         replay_class        = config.get_safe('bootstrap.processes.replay.class' , 'ReplayProcess')
+
+        binary_replay_module = config.get_safe('bootstrap.processes.bin_replay.module', 'ion.processes.data.replay.binary_replay')
+        binary_replay_class  = config.get_safe('bootstrap.processes.bin_replay.class', 'BinaryReplayProcess')
 
         process_definition = ProcessDefinition(
             name='ingestion_worker_process',
@@ -61,10 +65,15 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         for i in xrange(bin_workers):
             pds_client.schedule_process(process_definition_id=bin_procdef_id, configuration=config)
 
-        process_definition = ProcessDefinition(name='data_replay_process', description='Process for the replay of datasets')
+        process_definition = ProcessDefinition(name=DataRetrieverService.REPLAY_TYPES[DataRetrieverService.SCIENCE_REPLAY], description='Process for the replay of datasets')
         process_definition.executable['module']= replay_module
         process_definition.executable['class'] = replay_class
         pds_client.create_process_definition(process_definition=process_definition)
 
+        process_definition = ProcessDefinition(name=DataRetrieverService.REPLAY_TYPES[DataRetrieverService.BINARY_REPLAY], description='Process for the replay of binary file data.')
+        process_definition.executable['module']= binary_replay_module
+        process_definition.executable['class'] = binary_replay_class
+        pds_client.create_process_definition(process_definition=process_definition)
+    
     def on_restart(self, process, config, **kwargs):
         pass
