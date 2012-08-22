@@ -25,6 +25,7 @@ from pyon.public import PRED,RT,Container, log, IonObject, StreamPublisherRegist
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from prototype.sci_data.stream_defs import ctd_stream_packet, ctd_stream_definition
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 #Instrument related imports
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
@@ -102,12 +103,23 @@ class VisStreamLauncher(ImmediateProcess):
             ctd_stream_def = SBE37_CDM_stream_definition()
             ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
 
-            print 'Creating new CDM data product with a stream definition'
-            dp_obj = IonObject(RT.DataProduct,name=self.data_source_name,description='ctd stream test')
-            data_product_id = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
+            craft = CoverageCraft
+            sdom, tdom = craft.create_domains()
+            sdom = sdom.dump()
+            tdom = tdom.dump()
+            parameter_dictionary = craft.create_parameters()
+            parameter_dictionary = parameter_dictionary.dump()
+
+            dp_obj = IonObject(RT.DataProduct,
+                name=self.data_source_name,
+                description='Example ctd stream',
+                temporal_domain = tdom,
+                spatial_domain = sdom)
+
+            data_product_id = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
             self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id)
-            self.dpclient.activate_data_product_persistence(data_product_id=data_product_id, persist_data=True, persist_metadata=True)
+            #self.dpclient.activate_data_product_persistence(data_product_id=data_product_id)
 
             print '>>>>>>>>>>>> New dp_id = ', data_product_id
 
