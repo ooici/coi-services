@@ -107,7 +107,6 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-#@unittest.skip("not ready")
 class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
     def setUp(self):
@@ -168,7 +167,6 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
         return procdef_id
 
-    #    @unittest.skip('test not working')
     def test_createTransformsThenPublishGranules(self):
 
         #-------------------------------
@@ -583,13 +581,12 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
         log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process return")
 
-
         #-------------------------------
         # L1 Conductivity: Create the data process
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L1 Conductivity data_process start")
         try:
-            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_conductivity_dprocdef_id, [ctd_l0_conductivity_output_dp_id], {'output':ctd_l1_conductivity_output_dp_id})
+            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_conductivity_dprocdef_id, [ctd_l0_conductivity_output_dp_id], {'conductivity':ctd_l1_conductivity_output_dp_id})
             self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -602,7 +599,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process start")
         try:
-            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, [ctd_l0_pressure_output_dp_id], {'output':ctd_l1_pressure_output_dp_id})
+            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, [ctd_l0_pressure_output_dp_id], {'pressure':ctd_l1_pressure_output_dp_id})
             self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -616,7 +613,8 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process start")
         try:
-            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, [ctd_l0_temperature_output_dp_id], {'output':ctd_l1_temperature_output_dp_id})
+            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, [ctd_l0_temperature_output_dp_id], { 'temperature': ctd_l1_temperature_output_dp_id})
+
             self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -630,7 +628,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L2_salinity data_process start")
         try:
-            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, [ctd_parsed_data_product], {'output':ctd_l2_salinity_output_dp_id})
+            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, [ctd_parsed_data_product], {'salinity':ctd_l2_salinity_output_dp_id})
             self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -642,7 +640,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L2_Density data_process start")
         try:
-            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_density_dprocdef_id, [ctd_parsed_data_product], {'output':ctd_l2_density_output_dp_id})
+            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_density_dprocdef_id, [ctd_parsed_data_product], {'density':ctd_l2_density_output_dp_id})
             self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
