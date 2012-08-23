@@ -3,7 +3,7 @@
 import unittest, os
 from nose.plugins.attrib import attr
 
-from pyon.public import CFG, RT, LCS, PRED,IonObject
+from pyon.public import CFG, RT, LCS, PRED,IonObject, log
 from pyon.core.exception import BadRequest, Inconsistent
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -138,7 +138,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         #Add a transformation process definition
         salinity_doubler_dprocdef_id = self.create_salinity_doubler_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id, output_data_product_name=workflow_data_product_name)
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id, output_data_product_name=workflow_data_product_name, persist_process_output_data=True)
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -192,6 +192,8 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         #Validate the data from each of the messages along the way
         self.validate_messages(results)
+
+        log.debug("Checking to see if dataset id = %s, was persisted...." % dataset_id)
 
         #validate that the data was persisted and can be retrieved
         self.validate_data_ingest_retrieve(dataset_id)
