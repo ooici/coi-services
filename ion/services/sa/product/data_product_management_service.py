@@ -243,15 +243,9 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         log.debug("Found the following datasets for the data product: %s" % dataset_ids)
         for dataset_id in dataset_ids:
-
-            try:
-                dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
-                    ingestion_configuration_id=ingestion_configuration_id,
-                    dataset_id=dataset_id)
-            except BadRequest:
-                log.warning("Activate data product may have resulted in a duplicate attempt to associate a stream to a dataset")
-                log.warning("Please note that creating a data product calls the create_dataset() method which already makes an association")
-
+            dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
+                                                    ingestion_configuration_id=ingestion_configuration_id,
+                                                    dataset_id=dataset_id)
             log.debug("activate_data_product_persistence: dataset_id = %s"  % str(dataset_id))
 
             # link data set to data product
