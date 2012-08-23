@@ -194,7 +194,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Add a transformation process definition
         google_dt_procdef_id = self.create_google_dt_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_process_output_data=True)
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_process_output_data=False)
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry

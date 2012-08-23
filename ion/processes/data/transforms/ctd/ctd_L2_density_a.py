@@ -46,13 +46,6 @@ from seawater.gibbs import cte
 #xn2.bind(d_stream_id + '.data', xp2)
 class ctd_L2_density(TransformDataProcess):
 
-    def init(self):
-        self._tx = TaxyTool()
-        self._tx.add_taxonomy_set('dens','long name for density')
-        self._tx.add_taxonomy_set('lat','long name for latitude')
-        self._tx.add_taxonomy_set('lon','long name for longitude')
-        self._tx.add_taxonomy_set('time','long name for time')
-
     def __init__(self):
         self.dens_stream = self.CFG.process.publish_streams.density
         super(ctd_L2_density, self).__init__()

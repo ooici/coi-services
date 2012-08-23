@@ -131,7 +131,6 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         # For the simple case of testing, lets plot all time variant variables one at a time
         xAxisVar = 'time'
         xAxisFloatData = graph_data[xAxisVar]
-        rdt = RecordDictionaryTool(taxonomy=tx)
 
         # Prepare the set of y axis variables that will be plotted. This needs to be smarter and passed as
         # config variable to the transform
