@@ -48,8 +48,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         data_product_id, rev = self.clients.resource_registry.create(data_product)
 
-        log.debug("data product id: %s" % data_product_id)
-
         #--------------------------------------------------------------------------------
         # Register - create and store the default DataProductVersion resource using provided metadata
         #--------------------------------------------------------------------------------
@@ -63,7 +61,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         #-----------------------------------------------------------------------------------------------
         #Create the stream and a dataset if a stream definition is provided
         #-----------------------------------------------------------------------------------------------
-        log.debug("DataProductManagementService:create_data_product: stream definition id = %s" % stream_definition_id)
 
         #if stream_definition_id:
         stream_id = self.clients.pubsub_management.create_stream(name=data_product.name,
@@ -82,9 +79,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                                         temporal_domain=data_product.temporal_domain,
                                                                         spatial_domain=data_product.spatial_domain)
 
-        log.debug("DataProductManagementService:create_data_product: data_set_id = %s" % str(data_set_id))
         data_set_obj = self.clients.dataset_management.read_dataset(data_set_id)
-        log.debug("DataProductManagementService:create_data_product: data_set_obj = %s" % str(data_set_obj))
 
         # link dataset with data product. This creates the association in the resource registry
         self.data_product.link_data_set(data_product_id=data_product_id, data_set_id=data_set_id)
@@ -100,8 +95,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Retrieve all metadata for a specific data product
         # Return data product resource
 
-        log.debug("DataProductManagementService:read_data_product: %s" % str(data_product_id))
-
         result = self.data_product.read_one(data_product_id)
 
         return result
@@ -115,8 +108,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws NotFound    object with specified id does not exist
         """
         validate_is_instance(data_product, DataProduct)
-
-        log.debug("DataProductManagementService:update_data_product: %s" % str(data_product))
 
         self.data_product.update_one(data_product)
 
@@ -132,7 +123,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         producer_ids = self.data_product.find_stemming_data_producer(data_product_id)
 
         for producer_id in producer_ids:
-            log.debug("DataProductManagementService:delete_data_product unassigning data producers: %s")
             self.clients.data_acquisition_management.unassign_data_product(producer_id, data_product_id)
 
 
@@ -220,7 +210,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest('Data Product %s must have one stream associated' % str(data_product_id))
 
         stream_id = streams[0]._id
-        log.debug("activate_data_product_persistence: stream = %s"  % str(stream_id))
+        log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
 
 
 
@@ -232,8 +222,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         else:
             ingestion_configuration_id = self.clients.ingestion_management.list_ingestion_configurations(id_only=True)[0]
 
-        log.debug("ingestion_configuration_id for data product: %s" % ingestion_configuration_id)
-
         #--------------------------------------------------------------------------------
         # persist the data stream using the ingestion config id and stream id
         #--------------------------------------------------------------------------------
@@ -241,15 +229,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         # find datasets for the data product
         dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
 
-        log.debug("Found the following datasets for the data product: %s" % dataset_ids)
+        log.debug("Found the following datasets: %s, for the data product: %s" % (dataset_ids, data_product_id))
+
         for dataset_id in dataset_ids:
             dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
                                                     ingestion_configuration_id=ingestion_configuration_id,
                                                     dataset_id=dataset_id)
-            log.debug("activate_data_product_persistence: dataset_id = %s"  % str(dataset_id))
-
-            # link data set to data product
-            #self.data_product.link_data_set(data_product_id, dataset_id)
+            log.debug("Activating data product persistence for dataset_id: %s"  % str(dataset_id))
 
         #--------------------------------------------------------------------------------
         # todo: dataset_configuration_obj contains the ingest config for now...
