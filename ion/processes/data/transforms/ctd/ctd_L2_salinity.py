@@ -41,9 +41,11 @@ class SalinityTransform(TransformDataProcess):
     def on_start(self):
         super(SalinityTransform, self).on_start()
 
-        self.sal_stream = self.CFG.process.publish_streams.output
-        if not self.sal_stream:
+        if self.CFG.process.publish_streams.has_key('salinity'):
             self.sal_stream = self.CFG.process.publish_streams.salinity
+        elif self.CFG.process.publish_streams.has_key('output'):
+            self.sal_stream = self.CFG.process.publish_streams.output
+
         log.debug("Got salinity stream id: %s" % self.sal_stream)
 
     def recv_packet(self, msg, headers):
