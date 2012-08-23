@@ -24,9 +24,9 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
 from gevent.event import Event
 from nose.plugins.attrib import attr
+from pyon.ion.exchange import ExchangeNameQueue
 
 import gevent
-
 import time
 import numpy as np
 
@@ -49,6 +49,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.exchange_point_name  = 'science_data'       
 
         self.purge_queues()
+        self.queue_buffer         = []
 
     def purge_queues(self):
         xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
@@ -60,7 +61,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
         for pid in self.pids:
             self.process_dispatcher.cancel_process(pid)
         IngestionManagementIntTest.clean_subscriptions()
-
+        for queue in self.queue_buffer:
+            if isinstance(queue, ExchangeNameQueue):
+                queue.delete()
         
 
     def launch_producer(self, stream_id=''):
@@ -124,8 +127,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
     def make_file_data(self):
         from interface.objects import File
+        import uuid
         data = 'hello world\n'
-        meta = File(name='/examples/hello', extension='.txt')
+        rand = str(uuid.uuid4())[:8]
+        meta = File(name='/examples/' + rand + '.txt', group_id='example1')
         return {'body': data, 'meta':meta}
 
     def publish_file(self, stream_id):
@@ -147,6 +152,21 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 done = True
 
             now = time.time()
+
+
+    def wait_until_we_have_enough_files(self):
+        datastore = self.container.datastore_manager.get_datastore('filesystem', DataStore.DS_PROFILE.FILESYSTEM)
+
+        now = time.time()
+        timeout = now + 10
+        done = False
+        while not done:
+            if now >= timeout:
+                raise Timeout('Files are not populating in time.')
+            if len(datastore.query_view('catalog/file_by_owner')) >= 1:
+                done = True
+            now = time.time()
+
 
     def create_dataset(self):
         craft = CoverageCraft
@@ -401,8 +421,42 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(comp.all(), 'Uh-oh: %s' % rdt['time'])
 
     def test_binary_ingestion(self):
+        #--------------------------------------------------------------------------------
+        # Set up the ingestion subscriptions
+        #--------------------------------------------------------------------------------
+        success   = gevent.event.Event()
         stream_id = self.pubsub_management.create_stream()
         config_id = self.get_ingestion_config()
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id='', ingestion_type=IngestionManagementService.BINARY_INGESTION)
 
+
+        #--------------------------------------------------------------------------------
+        # Get the datastore to beat the race conditions
+        #--------------------------------------------------------------------------------
         self.publish_file(stream_id) 
+        
+       
+        def notice(m,h):
+            log.info( 'received: %s' , m)
+            success.set()
+        query =  {
+           'file_stream_id': stream_id,
+           'file_group_id':  'example1'
+        }
+        replay_id, stream_id = self.data_retriever.define_replay('', query, replay_type='BINARY')
+
+        from pyon.ion.stream import SimpleStreamSubscriber
+
+        sub = SimpleStreamSubscriber.new_subscriber(self.container, 'test_binary_ingestion', notice)
+        self.queue_buffer.append(sub.xn)
+        sub.start()
+
+        xp = self.container.ex_manager.create_xp('science_data')
+        sub.xn.bind('%s.data' % stream_id, xp)
+
+        self.wait_until_we_have_enough_files()
+
+        self.data_retriever.start_replay(replay_id)
+        self.assertTrue(success.wait(10))
+
+

@@ -14,12 +14,14 @@ from ion.services.dm.ingestion.ingestion_management_service import IngestionMana
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.objects import IngestionQueue, Subscription
+from interface.objects import IngestionQueue, Subscription, IngestionConfiguration
 from mock import Mock
 from nose.plugins.attrib import attr
 
 @attr('UNIT', group='dm')
 class IngestionManagementUnitTest(PyonTestCase):
+    SCIENCE_INGESTION = IngestionManagementService.SCIENCE_INGESTION
+    BINARY_INGESTION  = IngestionManagementService.BINARY_INGESTION
     def setUp(self):
         
         mock_clients = self._create_service_mock('ingestion_management')
@@ -79,31 +81,37 @@ class IngestionManagementUnitTest(PyonTestCase):
         self.rr_delete.assert_called_once_with('test')
 
     def test_persist_data_stream(self):
-        ingestval = DotDict()
-        ingestval.queues = None
-        ingestval.exchange_point = 'test'
-
-        queueval = DotDict()
-        queueval.name = 'test'
-        queueval.datastore_name = 'test'
-
-        testval = 'dataset_id'
+        config = IngestionConfiguration()
 
         self.ingestion_management.read_ingestion_configuration = Mock()
-        self.ingestion_management.read_ingestion_configuration.return_value = ingestval
-        self.ingestion_management._determine_queue = Mock()
-        self.ingestion_management._determine_queue.return_value = queueval
-        self.pubsub_read.return_value = DotDict({'persisted':False})
+        self.ingestion_management.read_ingestion_configuration.return_value = config
 
-        self.ingestion_management._existing_dataset = Mock()
+        self.ingestion_management.is_persisted = Mock()
+        self.ingestion_management.is_persisted.return_value = False
+
+        self.ingestion_management.setup_queues = Mock()
+        self.ingestion_management.setup_queues.return_value = True
+
+        self.pubsub_read.return_value = DotDict(persisted=False)
 
         retval = self.ingestion_management.persist_data_stream('stream_id', 'config_id', 'dataset_id')
 
-        self.assertTrue(self.pubsub_act_sub.call_count)
-        self.assertTrue(self.pubsub_create_sub.call_count)
-        self.assertTrue(self.rr_create_assoc.call_count)
+        self.assertEquals(retval,'dataset_id')
 
-        self.assertTrue(retval == testval)
+    def test_setup_queues(self):
+        ingestion_config = IngestionConfiguration()
+        ingestion_config.queues = [IngestionQueue(type=self.SCIENCE_INGESTION)]
+        setattr(ingestion_config,'_id','config_id')
+
+        self.pubsub_create_sub.return_value = 'subscription_id'
+
+        self.ingestion_management._existing_dataset = Mock()
+
+        retval = self.ingestion_management.setup_queues(ingestion_config, 'stream_id', 'dataset_id', self.SCIENCE_INGESTION)
+
+        self.assertTrue(retval)
+
+        self.ingestion_management._existing_dataset.assert_called_once_with('stream_id','dataset_id')
 
     def test_unpersist_data_stream(self):
 

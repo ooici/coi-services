@@ -81,6 +81,8 @@ class DataRetrieverService(BaseDataRetrieverService):
         #--------------------------------------------------------------------------------
         if replay_type == self.SCIENCE_REPLAY:
             replay, config=self.replay_data_process(dataset_id, query, delivery_format, replay_stream_id)
+        elif replay_type == self.BINARY_REPLAY:
+            replay, config=self.replay_binary_process(query,delivery_format,replay_stream_id)
         
         pid = self.clients.process_dispatcher.schedule_process(
             process_definition_id=self.process_definition_id,

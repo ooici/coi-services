@@ -9,7 +9,7 @@ from interface.objects import PersistenceSystem, PersistentArchive, PersistenceT
 from pyon.public import RT, PRED, log
 from pyon.core.exception import NotFound
 from pyon.util.arg_check import validate_is_instance, validate_equal
-from pyon.datastore.datastore import DataStore
+from pyon.datastore.datastore import DataStore as DS
 from interface.objects import File
 from pyon.util.file_sys import FileSystem, FS
 from pyon.core.exception import BadRequest
@@ -20,7 +20,7 @@ class PreservationManagementService(BasePreservationManagementService):
 
     def on_start(self):
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'filesystem')
-        self.ds = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.FILESYSTEM)
+        self.ds = self.container.datastore_manager.get_datastore(self.datastore_name, DS.DS_PROFILE.FILESYSTEM)
 
 
     def persist_file(self, file_data='', digest='', metadata=None):

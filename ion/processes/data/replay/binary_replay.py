@@ -8,7 +8,7 @@
 
 from interface.services.dm.ireplay_process import BaseReplayProcess
 from interface.services.dm.ipreservation_management_service import PreservationManagementServiceClient
-
+from pyon.util.log import log
 from gevent.event import Event
 import gevent
 class BinaryReplayProcess(BaseReplayProcess):
@@ -49,17 +49,18 @@ class BinaryReplayProcess(BaseReplayProcess):
 
         return
 
-    def execute_replay(self):
+    def execute_replay(self): #pragma no cover
         if self.publishing.is_set():
             return False
         gevent.spawn(self.replay)
         return True
 
-    def replay(self):
+    def replay(self): # pragma no cover
         self.publishing.set()
         for file_packet in self.execute_retrieve():
             self.output.publish({'body':file_packet})
-            self.output.publish({})
+            log.info('Publishing file')
+        self.output.publish({})
         self.publishing.clear()
         return True
 
