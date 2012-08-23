@@ -153,10 +153,19 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.ems_client = ExchangeManagementServiceProcessClient(node=self.container.node, process=process)
 
+        #Get info on the ION System Actor
         self.system_actor = self.container.governance_controller.get_system_actor()
         log.info('system actor:' + self.system_actor._id)
 
         self.sa_user_header = self.container.governance_controller.get_system_actor_header()
+
+        #Create a Actor which represents an originator like a web server.
+        apache_obj = IonObject(RT.ActorIdentity, name='ApacheWebServer', description='Represents a non user actor like an apache web server')
+        apache_actor_id,_ = self.rr_client.create(apache_obj, headers=self.sa_user_header)
+        self.apache_actor = self.rr_client.read(apache_actor_id)
+
+        self.apache_actor_header = self.container.governance_controller.get_actor_header(self.apache_actor._id)
+
 
         self.ion_org = self.org_client.find_org()
 
@@ -169,6 +178,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.pol_client.delete_policy(policy._id, headers=self.sa_user_header)
 
         gevent.sleep(1)  # Wait for events to be fired and policy updated
+
+        #Clean up the non user actor
+        self.rr_client.delete(self.apache_actor._id, headers=self.sa_user_header)
+
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -322,14 +335,24 @@ class TestGovernanceInt(IonIntegrationTestCase):
         org2 = self.org_client.find_org(ORG2)
         self.assertEqual(org2_id, org2._id)
 
-        #Create a new user
-        user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
+        #First try to get a list of Users by hitting the RR anonymously - should be allowed.
+        users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
+        self.assertEqual(len(users),2) #Should include the ION System Actor and non-user actor from setup as well.
+
+        #Create a new user - should be denied for anonymous access
+        with self.assertRaises(Unauthorized) as cm:
+            user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
+        self.assertIn( 'identity_management(signon) has been denied',cm.exception.message)
+
+
+        #now try creating a new user with a valid actor
+        user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
         log.info( "user id=" + user_id)
         user_header = self.container.governance_controller.get_actor_header(user_id)
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
-        self.assertEqual(len(users),2) #Should include the ION System Actor as well.
+        self.assertEqual(len(users),3) #Should include the ION System Actor and non-user actor from setup as well.
 
         #Now enroll the user as a member of the Second Org
         self.org_client.enroll_member(org2_id,user_id, headers=self.sa_user_header)
@@ -354,7 +377,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now try to hit the RR with a real user and should noe bw allowed
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=user_header)
-        self.assertEqual(len(users),2) #Should include the ION System Actor as well.
+        self.assertEqual(len(users),3) #Should include the ION System Actor and non-user actor from setup as well.
 
         #TODO - figure out how to right a XACML rule to be a member of the specific Org as well
 
@@ -382,8 +405,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
             myorg = self.org_client.read_org()
         self.assertTrue(cm.exception.message == 'The org_id parameter is missing')
 
+        #Create a new user - should be denied for anonymous access
+        with self.assertRaises(Unauthorized) as cm:
+            user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
+        self.assertIn( 'identity_management(signon) has been denied',cm.exception.message)
 
-        user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
+        #Now create user with proper credentials
+        user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
         log.info( "user id=" + user_id)
         user_header = self.container.governance_controller.get_actor_header(user_id)
 
@@ -413,7 +441,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn( 'org_management(find_enrolled_users) has been denied',cm.exception.message)
 
         users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.sa_user_header)
-        self.assertEqual(len(users),2)
+        self.assertEqual(len(users),3)  # WIll include the ION system actor and the non user actor from setup
 
         ## test_org_roles and policies
 
@@ -648,8 +676,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
             retval = ia_client.get_agent_state()
         self.assertIn('(get_agent_state) has been denied',cm.exception.message)
 
+        #Create a new user - should be denied for anonymous access
+        with self.assertRaises(Unauthorized) as cm:
+            user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
+        self.assertIn( 'identity_management(signon) has been denied',cm.exception.message)
+
         #Create user
-        user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
+        user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
         log.debug( "user id=" + user_id)
 
         user_header = self.container.governance_controller.get_actor_header(user_id)

@@ -141,12 +141,6 @@ class LoadSystemPolicy(ImmediateProcess):
                         </ActionMatch>
                     </Action>
                     <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">signon</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">request*</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
@@ -206,9 +200,61 @@ class LoadSystemPolicy(ImmediateProcess):
 
 
 
-
 ##############
 
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">identity_management</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+                <Actions>
+
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">signon</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+
+
+            </Target>
+
+
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                        <SubjectAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </Apply>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+        </Rule> '''
+
+        policy_id = policy_client.create_service_access_policy('identity_management', 'IDS_Permitted_Non_Anonymous',
+            'Permit these operations in the Identity Management Service is the user is not anonymous',
+            policy_text, headers=sa_user_header)
+
+
+
+##############
 
         policy_text = '''
             <Rule RuleId="%s" Effect="Permit">
@@ -323,7 +369,6 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_id = policy_client.create_service_access_policy('org_management', 'OMS_Org_Manager_Role_Permitted',
             'Permit these operations in the Org Management Service for the role of Org Manager',
             policy_text, headers=sa_user_header)
-
 
 
 ##############
@@ -445,6 +490,14 @@ class LoadSystemPolicy(ImmediateProcess):
                                  DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </SubjectMatch>
                     </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
                 </Subjects>
 
             </Target>
@@ -487,6 +540,14 @@ class LoadSystemPolicy(ImmediateProcess):
                     <Subject>
                         <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
                             <SubjectAttributeDesignator
                                  AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
                                  DataType="http://www.w3.org/2001/XMLSchema#string"/>
