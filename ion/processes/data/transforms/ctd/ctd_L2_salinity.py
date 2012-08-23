@@ -40,7 +40,11 @@ class SalinityTransform(TransformDataProcess):
 
     def on_start(self):
         super(SalinityTransform, self).on_start()
-        self.sal_stream = self.CFG.process.publish_streams.salinity
+
+        self.sal_stream = self.CFG.process.publish_streams.output
+        if not self.sal_stream:
+            self.sal_stream = self.CFG.process.publish_streams.salinity
+        log.debug("Got salinity stream id: %s" % self.sal_stream)
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L2_salinity.recv_packet: {0}'.format(msg))
