@@ -79,7 +79,12 @@ class IngestionManagementService(BaseIngestionManagementService):
             predicate=PRED.hasSubscription,
             object=subscription_id
         )
-        self._existing_dataset(stream_id,dataset_id)
+
+        assocs = self.clients.resource_registry.find_associations(subject=dataset_id, predicate=PRED.hasStream, object=stream_id)
+
+        if not assocs:
+            self._existing_dataset(stream_id,dataset_id)
+
         return dataset_id
 
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):

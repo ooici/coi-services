@@ -59,6 +59,7 @@ from ion.agents.port.port_agent_process import PortAgentProcess
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
+from interface.objects import ComputedValueAvailability
 
 INSTRUMENT_AGENT_MANIFEST_FILE = "MANIFEST.csv"
  
@@ -1514,10 +1515,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         a_client = None
         try:
             a_client = self.obtain_agent_handle(instrument_device_id)
-            ret.status = OT.ComputedValueAvailabilityEnum.PROVIDED
+            ret.status = ComputedValueAvailability.PROVIDED
             ret.result = IonObject(result_container)
         except NotFound:
-            ret.status = OT.ComputedValueAvailabilityEnum.NOTAVAILABLE
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "Could not connect to instrument agent instance -- may not be running"
         except Exception as e:
             raise e
@@ -1578,24 +1579,39 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return ret
 
     def get_power_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        #todo: listen for events/streams from instrument agent -- there will be alarms
+
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
         if ia_client:
             ret.result.value = 78 #todo: use ia_client
         return ret
 
     def get_communications_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        #todo: following algorithm:
+        # if telemetry agent exists:
+        #     get comms schedule from telemetry agent (tbd)
+        #     figure out when last transmission was expected
+        #     see if any events/errors/data have come from the device at that time
+        # else:
+        #      ping device
+
+
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
         if ia_client:
             ret.result.value = 89 #todo: use ia_client
         return ret
 
     def get_data_status_roll_up(self, instrument_device_id): # BLACK, RED, GREEN, YELLOW
+        #todo: listen for events/streams from instrument agent -- there will be alarms
+
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
         if ia_client:
             ret.result.value = 98 #todo: use ia_client
         return ret
 
     def get_location_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        #todo: listen for events/streams from instrument agent -- there will be alarms
+
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.IntWrap)
         if ia_client:
             ret.result.value = 87 #todo: use ia_client
@@ -1605,12 +1621,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         ret = IonObject(OT.ComputedValue)
 
         try:
-            ret.status = OT.ComputedValueAvailabilityEnum.PROVIDED
+            ret.status = ComputedValueAvailability.PROVIDED
             #todo: try to get the last however long of data to parse through
             ret.result = IonObject(OT.ListWrap)
             ret.result.value = ["monday", "tuesday", "wednesday"]
         except NotFound:
-            ret.status = OT.ComputedValueAvailabilityEnum.NOTAVAILABLE
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "Could not retrieve device stream -- may not be configured et"
         except Exception as e:
             raise e

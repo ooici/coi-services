@@ -72,6 +72,8 @@ class CTDL1ConductivityTransform(TransformDataProcess):
         g = build_granule(data_producer_id='ctd_L1_conductivity', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
         self.publish(msg=g, stream_id=self.cond_stream)
 
+        return g
+
 #        # Use the constructor to put data into a granule
 #        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
 #        ### Assumes the config argument for output streams is known and there is only one 'output'.

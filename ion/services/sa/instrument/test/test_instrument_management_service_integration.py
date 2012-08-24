@@ -8,6 +8,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
 from interface.services.sa.iinstrument_management_service import IInstrumentManagementService, InstrumentManagementServiceClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
+from interface.objects import ComputedValueAvailability
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict
@@ -144,30 +145,32 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_instrument.sensor_devices))
 
         #none of these will work because there is no agent
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.firmware_version.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.last_data_received_time.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.operational_state.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.last_command_status.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.last_command_date.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.last_command.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.last_commanded_by.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.power_status_roll_up.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.communications_status_roll_up.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.data_status_roll_up.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.location_status_roll_up.status)
-        self.assertEqual(OT.ComputedValueAvailabilityEnum.NOTAVAILABLE,
+
+        self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_instrument.computed.recent_events.status)
+        self.assertEqual(["monday", "tuesday", "wednesday"], extended_instrument.computed.recent_events.result.value)
 
 
         #        self.assertEqual("23", extended_instrument.computed.firmware_version)
