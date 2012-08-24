@@ -104,8 +104,6 @@ class ctd_L0_all(TransformDataProcess):
         g = self._build_granule_settings(self.pres, 'pressure', pressure, time, latitude, longitude, depth)
         self.publish(msg= g, stream_id=self.pres_stream)
 
-        return g
-
     def _build_granule_settings(self, param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, depth=None):
 
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
