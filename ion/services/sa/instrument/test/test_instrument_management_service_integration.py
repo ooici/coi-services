@@ -170,11 +170,11 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_instrument.computed.recent_events.status)
-        self.assertEqual(["monday", "tuesday", "wednesday"], extended_instrument.computed.recent_events.result.value)
+        self.assertEqual(["monday", "tuesday", "wednesday"], extended_instrument.computed.recent_events.value)
 
 
         #        self.assertEqual("23", extended_instrument.computed.firmware_version)
-#        self.assertEqual("42", extended_instrument.computed.last_data_received_time)
+#        self.assertEqual("42.2", extended_instrument.computed.last_data_received_time)
 #        self.assertEqual("23", extended_instrument.computed.operational_state)
 #        self.assertEqual("34", extended_instrument.computed.last_command_status)
 #        self.assertEqual("45", extended_instrument.computed.last_command_date)
