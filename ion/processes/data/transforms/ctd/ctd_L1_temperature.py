@@ -78,6 +78,8 @@ class CTDL1TemperatureTransform(TransformDataProcess):
         g = build_granule(data_producer_id='ctd_L1_temperature', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
         self.publish(msg=g, stream_id=self.temp_stream)
 
+        return g
+
     def _create_parameter(self):
 
         pdict = ParameterDictionary()
