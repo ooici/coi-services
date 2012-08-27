@@ -3,7 +3,7 @@
 __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
 
-from pyon.util.log import log
+from pyon.public import  log, IonObject
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from interface.objects import DataProduct, DataProductVersion
@@ -48,15 +48,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         data_product_id, rev = self.clients.resource_registry.create(data_product)
 
-        #--------------------------------------------------------------------------------
-        # Register - create and store the default DataProductVersion resource using provided metadata
-        #--------------------------------------------------------------------------------
-        #create the initial/default data product version
-        data_product_version = DataProductVersion()
-        data_product_version.name = data_product.name
-        data_product_version.description = data_product.description
-        dpv_id, rev = self.clients.resource_registry.create(data_product_version)
-        self.clients.resource_registry.create_association( subject=data_product_id, predicate=PRED.hasVersion, object=dpv_id)
 
         #-----------------------------------------------------------------------------------------------
         #Create the stream and a dataset if a stream definition is provided
@@ -69,7 +60,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # Associate the Stream with the main Data Product and with the default data product version
         self.data_product.link_stream(data_product_id, stream_id)
-        self.clients.resource_registry.create_association( subject=dpv_id, predicate=PRED.hasStream, object=stream_id)
 
 
         # create a dataset...
@@ -83,7 +73,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # link dataset with data product. This creates the association in the resource registry
         self.data_product.link_data_set(data_product_id=data_product_id, data_set_id=data_set_id)
-        self.clients.resource_registry.create_association( subject=dpv_id, predicate=PRED.hasDataset, object=data_set_id)
 
         # Return the id of the new data product
         return data_product_id
@@ -326,84 +315,58 @@ class DataProductManagementService(BaseDataProductManagementService):
         return results
 
 
-    def create_data_product_version(self, data_product_id='', data_product_version=None):
-        """Define a new version of an existing set of information that represent an inprovement in the quality or
-        understanding of the information. Only creates the second and higher versions of a DataProduct.
-        The first version is implicit in the crate_data_product() operation.
-
-        @param data_product_id    str
-        @param data_product_version    DataProductVersion
-        @retval data_product_version_id    str
-        @throws BadRequest    if object does not have _id or _rev attribute
-        @throws NotFound    object with specified id does not exist
+    def create_data_product_collection(self, data_product_id='', collection_name='', collection_description=''):
+        """Define a  set of an existing data products that represent an improvement in the quality or
+        understanding of the information.
         """
         validate_is_not_none(data_product_id, 'A data product identifier must be passed to create a data product version')
-        validate_is_not_none(data_product_version, 'A data product version (ion object) must be passed to create a data product version')
 
-        data_product_version_id, rev = self.clients.resource_registry.create(data_product_version)
-        self.clients.resource_registry.create_association( subject=data_product_id, predicate=PRED.hasVersion, object=data_product_version_id)
+        dpv = DataProductVersion()
+        dpv.name = 'base'
+        dpv.description = 'the base version on which subsequent versions are built'
+        dpv.data_product_id = data_product_id
+
+        dp_collection_obj = IonObject(RT.DataProductCollection, name=collection_name, description=collection_description, version_list=[dpv])
+
+        data_product_collection_id, rev = self.clients.resource_registry.create(dp_collection_obj)
+        self.clients.resource_registry.create_association( subject=data_product_collection_id, predicate=PRED.hasVersion, object=data_product_id)
+
+        return data_product_collection_id
 
 
-        #-----------------------------------------------------------------------------------------------
-        #Create the stream and a dataset for the new version
-        #-----------------------------------------------------------------------------------------------
-        stream_id = self.clients.pubsub_management.create_stream(name=data_product_version.name,
-                                                                description=data_product_version.description)
 
-        # Associate the Stream with the main Data Product and with the default data product version
-        self.clients.resource_registry.create_association( subject=data_product_version_id, predicate=PRED.hasStream, object=stream_id)
-
-        #get the parameter_dictionary assoc with the original dataset
-        dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, object_type=RT.DataSet, id_only=True)
-        if not dataset_ids:
-            raise BadRequest('No Dataset associated with the DataProduct %s' % str(data_product_id))
-
-        log.debug("DataProductManagementService:create_data_product_version base_dataset_id: %s", str(dataset_ids[0]))
-        base_dataset_obj = self.clients.dataset_management.read_dataset(str(dataset_ids[0]))
-        log.debug("DataProductManagementService:create_data_product_version base_dataset_obj: %s" % str(base_dataset_obj))
-
-        # create a dataset for this version. must have same parameter dictionary and spatial/temporal domain as original data product.
-        data_set_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
-                                                                        stream_id=stream_id,
-                                                                        parameter_dict=base_dataset_obj.parameter_dictionary,
-                                                                        temporal_domain=base_dataset_obj.temporal_domain,
-                                                                        spatial_domain=base_dataset_obj.spatial_domain)
-        self.clients.resource_registry.create_association(subject=data_product_version_id, predicate=PRED.hasDataset, object=data_set_id)
-
-        return data_product_version_id
-
-    def update_data_product_version(self, data_product_version=None):
+    def update_data_product_collection(self, data_product_collection=None):
         """@todo document this interface!!!
 
         @param data_product    DataProductVersion
         @throws NotFound    object with specified id does not exist
         """
 
-        validate_is_not_none(data_product_version, "Should not pass in a None object")
+        validate_is_not_none(data_product_collection, "Should not pass in a None object")
 
-        log.debug("DataProductManagementService:update_data_product_version: %s" % str(data_product_version))
+        log.debug("DataProductManagementService:update_data_product_version: %s" % str(data_product_collection))
 
-        self.clients.resource_registry.update(data_product_version)
+        self.clients.resource_registry.update(data_product_collection)
 
         #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
 
         return
 
-    def read_data_product_version(self, data_product_version_id=''):
+    def read_data_product_collection(self, data_product_collection_id=''):
         """Retrieve data product information
 
         @param data_product_version_id    str
         @retval data_product    DataProductVersion
         """
-        log.debug("DataProductManagementService:read_data_product_version: %s" % str(data_product_version_id))
+        log.debug("DataProductManagementService:read_data_product_version: %s" % str(data_product_collection_id))
 
-        result = self.clients.resource_registry.read(data_product_version_id)
+        result = self.clients.resource_registry.read(data_product_collection_id)
 
         validate_is_not_none(result, "Should not have returned an empty result")
 
         return result
 
-    def delete_data_product_version(self, data_product_version_id=''):
+    def delete_data_product_collection(self, data_product_collection_id=''):
         """Remove a version of an data product.
 
         @param data_product_version_id    str
@@ -411,6 +374,54 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws NotFound    object with specified id does not exist
         """
         pass
+
+    def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
+
+
+        dp_collection_obj =self.clients.resource_registry.read(data_product_collection_id)
+        log.debug("DataProductManagementService:data_product_collection_id: %s" % str(dp_collection_obj))
+
+        new_data_product_obj = self.clients.resource_registry.read(data_product_id)
+        log.debug("DataProductManagementService:data_product_id: %s" % str(new_data_product_obj))
+
+        #base_data_product_obj = self.clients.resource_registry.read(dp_collection_obj.version_list[0])
+
+
+        #todo: validate that the parameter dict, spatial/temporal domain match the base data product
+
+
+        dpv = DataProductVersion()
+        dpv.name = version_name
+        dpv.description = version_description
+        dpv.data_product_id = data_product_id
+
+        dp_collection_obj.version_list.append(dpv)
+
+        self.clients.resource_registry.update(dp_collection_obj)
+
+        self.clients.resource_registry.create_association( subject=data_product_collection_id, predicate=PRED.hasVersion, object=data_product_id)
+
+        return
+
+    def get_current_version(self, data_product_collection_id=''):
+
+        data_product_collection_obj = self.clients.resource_registry.read(data_product_collection_id)
+
+        count = len (data_product_collection_obj.version_list)
+
+
+        dpv_obj = data_product_collection_obj.version_list[count - 1]
+        log.debug("DataProductManagementService:data_product_collection.version_list: %s" % str(dpv_obj))
+
+        return dpv_obj.data_product_id
+
+    def get_base_version(self, data_product_collection_id=''):
+
+        data_product_collection_obj = self.clients.resource_registry.read(data_product_collection_id)
+
+        dpv_obj = data_product_collection_obj.version_list[0]
+
+        return dpv_obj.data_product_id
 
 
     def execute_data_product_lifecycle(self, data_product_id="", lifecycle_event=""):

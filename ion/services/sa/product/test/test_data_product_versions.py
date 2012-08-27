@@ -77,42 +77,37 @@ class TestDataProductVersions(IonIntegrationTestCase):
         dp_id = self.client.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
         log.debug( 'new dp_id = %s', str(dp_id))
 
+        dpc_id = self.client.create_data_product_collection( data_product_id=dp_id, collection_name='firstCollection', collection_description='collection desc')
+
         #test that the links exist
-        version_ids, _ = self.rrclient.find_objects(subject=dp_id, predicate=PRED.hasVersion, id_only=True)
+        version_ids, _ = self.rrclient.find_objects(subject=dpc_id, predicate=PRED.hasVersion, id_only=True)
         log.debug( 'version_ids = %s', str(version_ids))
 
-        stream_ids, _ = self.rrclient.find_objects(subject=version_ids[0], predicate=PRED.hasStream, id_only=True)
-        if not stream_ids:
-            self.fail("failed to assoc new data product version with data product stream")
 
         # test creating a subsequent data product version which will update the data product pointers
 
+        dp2_obj = IonObject(RT.DataProduct,
+            name='DP2',
+            description='a second dp',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
 
-        dpv_obj = IonObject(RT.DataProductVersion,
-            name='DPV2',
-            description='some new dp version')
+        dp2_id = self.client.create_data_product(dp2_obj, ctd_stream_def_id, parameter_dictionary)
+        log.debug( 'second dp_id = %s', str(dp2_id))
 
-        dpv2_id = self.client.create_data_product_version(dp_id, dpv_obj)
-        log.debug( 'new dpv_id = %s', str(dpv2_id))
 
+
+        self.client.add_data_product_version_to_collection(data_product_id=dp2_id, data_product_collection_id=dpc_id, version_name='second version', version_description='desc' )
 
         #test that the links exist
-        version_ids, _ = self.rrclient.find_objects(subject=dp_id, predicate=PRED.hasVersion, id_only=True)
+        version_ids, _ = self.rrclient.find_objects(subject=dpc_id, predicate=PRED.hasVersion, id_only=True)
         if len(version_ids) != 2:
             self.fail("data product should have two versions")
 
-        stream_ids = self.rrclient.find_objects(subject=dpv2_id, predicate=PRED.hasStream, id_only=True)
-        if not stream_ids:
-            self.fail("failed to assoc second data product version with a stream")
-
-        dataset_ids = self.rrclient.find_objects(subject=dpv2_id, predicate=PRED.hasDataset, id_only=True)
-        if not dataset_ids:
-            self.fail("failed to assoc second data product version with a dataset")
-
-        dp_stream_ids, _ = self.rrclient.find_objects(subject=dp_id, predicate=PRED.hasStream, id_only=True)
-        if not dp_stream_ids:
-            self.fail("the data product is not assoc with a stream")
-
+        recent_version_id = self.client.get_current_version(dpc_id)
+        self.assertEquals(recent_version_id, dp2_id )
+        base_version_id = self.client.get_base_version(dpc_id)
+        self.assertEquals(base_version_id, dp_id )
 
 
     @unittest.skip('not working')
