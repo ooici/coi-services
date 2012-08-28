@@ -14,9 +14,19 @@ from pyon.util.arg_check import validate_is_instance, validate_true
 from ion.processes.data.replay.replay_process import ReplayProcess
 from pyon.public import PRED, RT
 from pyon.util.containers import for_name
+from pyon.util.log import log
 
 
 class DataRetrieverService(BaseDataRetrieverService):
+    SCIENCE_REPLAY = 'SCIDATA'
+    BINARY_REPLAY  = 'BINARY'
+
+    REPLAY_TYPES = {
+        SCIENCE_REPLAY : 'data_replay_process',
+        BINARY_REPLAY  : 'binary_replay_process'
+    }
+
+
 
     def __init__(self, *args, **kwargs):
         super(DataRetrieverService,self).__init__(*args,**kwargs)
@@ -41,7 +51,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         super(DataRetrieverService,self).on_quit()
 
 
-    def define_replay(self, dataset_id='', query=None, delivery_format=None):
+    def define_replay(self, dataset_id='', query=None, delivery_format=None, replay_type=''):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         query: 
           start_time: 0    The beginning timestamp
@@ -49,45 +59,31 @@ class DataRetrieverService(BaseDataRetrieverService):
           parameters: []   The list of parameters which match the coverages parameters
         '''
 
-        if not dataset_id:
+        if not dataset_id and replay_type != self.BINARY_REPLAY:
             raise BadRequest('(Data Retriever Service %s): No dataset provided.' % self.name)
 
+        if not replay_type:
+            replay_type = self.SCIENCE_REPLAY
+        if replay_type not in self.REPLAY_TYPES:
+            replay_type = self.SCIENCE_REPLAY
+
         if self.process_definition_id is None:
-            res, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name='data_replay_process',id_only=True)
+            res, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name=self.REPLAY_TYPES[replay_type],id_only=True)
             if not len(res):
+                log.error('Failed to find replay process for replay_type: %s', replay_type)
                 raise BadRequest('No replay process defined.')
             self.process_definition_id = res[0]
 
-        dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
-        datastore_name = dataset.datastore_name
-        delivery_format = delivery_format or {}
-
-        view_name = dataset.view_name
-        key_id = dataset.primary_view_key
-        # Make a new definition container
-
         replay_stream_id = self.clients.pubsub_management.create_stream()
 
-        replay = Replay()
-        replay.delivery_format = delivery_format
-
-        replay.process_id = 'null'
-
-        replay_id, rev = self.clients.resource_registry.create(replay)
-        replay._id = replay_id
-        replay._rev = rev
-        config = {'process':{
-            'query':query,
-            'datastore_name':datastore_name,
-            'dataset_id':dataset_id,
-            'view_name':view_name,
-            'key_id':key_id,
-            'delivery_format':delivery_format,
-            'publish_streams':{'output':replay_stream_id}
-            }
-        }
-
-
+        #--------------------------------------------------------------------------------
+        # Begin the Decision tree for the various types of replay
+        #--------------------------------------------------------------------------------
+        if replay_type == self.SCIENCE_REPLAY:
+            replay, config=self.replay_data_process(dataset_id, query, delivery_format, replay_stream_id)
+        elif replay_type == self.BINARY_REPLAY:
+            replay, config=self.replay_binary_process(query,delivery_format,replay_stream_id)
+        
         pid = self.clients.process_dispatcher.schedule_process(
             process_definition_id=self.process_definition_id,
             configuration=config
@@ -96,8 +92,8 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay.process_id = pid
 
         self.clients.resource_registry.update(replay)
-        self.clients.resource_registry.create_association(replay_id, PRED.hasStream, replay_stream_id)
-        return replay_id, replay_stream_id
+        self.clients.resource_registry.create_association(replay._id, PRED.hasStream, replay_stream_id)
+        return replay._id, replay_stream_id
 
     def delete_replay(self,replay_id=''):
         assocs = self.clients.resource_registry.find_associations(subject=replay_id,predicate=PRED.hasStream)
@@ -171,6 +167,57 @@ class DataRetrieverService(BaseDataRetrieverService):
 
     def retrieve_last_data_point(self, dataset_id=''):
         return ReplayProcess.get_last_values(dataset_id)
+
+
+    def replay_data_process(self, dataset_id, query, delivery_format, replay_stream_id):
+        dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
+        datastore_name = dataset.datastore_name
+        delivery_format = delivery_format or {}
+
+        view_name = dataset.view_name
+        key_id = dataset.primary_view_key
+        # Make a new definition container
+
+
+        replay = Replay()
+        replay.delivery_format = delivery_format
+        replay.type = self.SCIENCE_REPLAY
+
+        replay.process_id = 'null'
+
+        replay_id, rev = self.clients.resource_registry.create(replay)
+        replay._id = replay_id
+        replay._rev = rev
+        config = {'process':{
+            'query':query,
+            'datastore_name':datastore_name,
+            'dataset_id':dataset_id,
+            'view_name':view_name,
+            'key_id':key_id,
+            'delivery_format':delivery_format,
+            'publish_streams':{'output':replay_stream_id}
+            }
+        }
+        return replay, config
+
+    def replay_binary_process(self, query, delivery_format, replay_stream_id):
+        delivery_format = delivery_format or {}
+        replay = Replay()
+        replay.delivery_format = delivery_format
+        replay.type = self.BINARY_REPLAY
+
+        replay.process_id = 'null'
+
+        replay_id, rev = self.clients.resource_registry.create(replay)
+        replay._id = replay_id
+        replay._rev = rev
+        config = {'process':{
+            'query':query,
+            'delivery_format': delivery_format,
+            'publish_streams':{'output':replay_stream_id}
+            }
+        }
+        return replay, config
     
     @classmethod
     def _transform_data(binding, data, module, cls, kwargs={}):
