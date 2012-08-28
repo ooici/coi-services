@@ -94,7 +94,7 @@ class IngestionManagementService(BaseIngestionManagementService):
                 )
                 self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)
                 
-                # Associate the subscription witht he ingestion config which ensures no dangling resources
+                # Associate the subscription with the ingestion config which ensures no dangling resources
                 self.clients.resource_registry.create_association(
                     subject=ingestion_config._id,
                     predicate=PRED.hasSubscription,
@@ -140,7 +140,9 @@ class IngestionManagementService(BaseIngestionManagementService):
         return queues[0]
 
     def _existing_dataset(self,stream_id='', dataset_id=''):
-        self.clients.dataset_management.add_stream(dataset_id,stream_id)
+        assocs = self.clients.resource_registry.find_associations(subject=dataset_id, predicate=PRED.hasStream)
+        if not assocs:
+            self.clients.dataset_management.add_stream(dataset_id,stream_id)
 
 
 
