@@ -50,6 +50,10 @@ class ctd_L0_all(TransformDataProcess):
 
     def on_start(self):
         super(ctd_L0_all, self).on_start()
+
+        if self.CFG.process.publish_streams.has_key('output'):
+            raise AssertionError("For CTD transforms, please send the stream_id using a special keyword (ex: conductivity) instead of \'output \'")
+
         self.cond_stream = self.CFG.process.publish_streams.conductivity
         self.temp_stream = self.CFG.process.publish_streams.temperature
         self.pres_stream = self.CFG.process.publish_streams.pressure
