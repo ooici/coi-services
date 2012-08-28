@@ -8,6 +8,7 @@ import ast
 import csv
 import uuid
 import json
+import re
 
 from interface import objects
 
@@ -29,7 +30,7 @@ class IONLoader(ImmediateProcess):
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadooi=True
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadui=True
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadooi path=res/preload/lca_demo scenario=LCA_DEMO_PRE
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/lca_demo
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
     """
 
     COL_SCENARIO = "Scenario"
@@ -893,20 +894,20 @@ class IONLoader(ImmediateProcess):
     # ---------------------------------------------------------------------------
 
     def delete_ui(self):
+
         resource_types = [
-            'UIInternalResourceType',
+            'UIGraphicType',
+            'UIGraphic',
             'UIInformationLevel',
-            'UIScreenLabel',
-            'UIAttribute',
-            'UIBlock',
-            'UIGroup',
-            'UIRepresentation',
             'UIResourceType',
-            'UIView',
-            'UIBlockAttribute',
-            'UIBlockRepresentation',
-            'UIGroupBlock',
-            'UIViewGroup']
+            #'UIObjectType',
+            'UIResourceAttribute',
+            'UIScreenElement',
+            'UIScreenLabel',
+            'UIState',
+            'UIWidget',
+            'UIScreenElementInformationElement',
+            'UIEmbeddedScreenElement']
 
         res_ids = []
 
@@ -934,22 +935,22 @@ class IONLoader(ImmediateProcess):
         if not path:
             raise iex.BadRequest("Must provide path")
 
-        path = path + "/ui_assets"
+        path = path + "/ui_assets1"
         log.info("Start parsing UI assets from path=%s" % path)
+
         categories = [
-            ('Internal Resource Type.csv', 'InternalResourceType'),
-            ('Resource.csv', 'ResourceType'),
+            ('Graphic Type.csv', 'GraphicType'),
+            ('Graphic.csv', 'Graphic'),
             ('Information Level.csv', 'InformationLevel'),
-            ('Attribute.csv', 'Attribute'),
-            ('Block.csv', 'Block'),
-            ('Group.csv', 'Group'),
-            ('Representation.csv', 'Representation'),
-            ('View.csv', 'View'),
+            ('Resource Type.csv', 'ResourceType'),
+            #('ObjectType.csv', 'ObjectType'),
+            ('Resource Attribute.csv', 'ResourceAttribute'),
+            ('Screen Element.csv', 'ScreenElement'),
             ('Screen Label.csv', 'ScreenLabel'),
-            ('_jt_Block_Attribute.csv', 'BlockAttribute'),
-            ('_jt_Block_Representation.csv', 'BlockRepresentation'),
-            ('_jt_Group_Block.csv', 'GroupBlock'),
-            ('_jt_View_Group.csv', 'ViewGroup'),
+            ('State.csv', 'State'),
+            ('Widget.csv', 'Widget'),
+            ('_jt_ScreenElement_InformationElement.csv', 'ScreenElementInformationElement'),
+            ('_jt_ScreenElement_ScreenElement.csv', 'EmbeddedScreenElement'),
             ]
 
         self.uiid_prefix = uuid.uuid4().hex[:9] + "_"
@@ -957,6 +958,7 @@ class IONLoader(ImmediateProcess):
         self.ui_obj_by_id = {}
         self.ref_assocs = []
         self.ui_assocs = []
+        self.warnings = []
 
         for filename, category in categories:
             row_do, row_skip = 0, 0
@@ -973,17 +975,94 @@ class IONLoader(ImmediateProcess):
             except IOError, ioe:
                 log.warn("UI category file %s error: %s" % (filename, str(ioe)))
 
-            log.info("Loaded UI category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
+            log.info("Loaded UI category %s: %d rows valid, %d rows skipped" % (category, row_do, row_skip))
+
+        # Perform some consistency checking on imported objects
+        ui_checks = [
+            ('illegal_char', None, None),
+
+            ('required', ['*', 'name'], {'ignore_types': ['UIScreenElementInformationElement', 'UIEmbeddedScreenElement','UIScreenLabel']}),
+            ('required', ['UIScreenElementInformationElement', 'information_element_type'], None),
+
+            ('ref_exists', ['UIGraphic', 'graphic_type_id', ['UIGraphicType']], None),
+            ('ref_exists', ['UIScreenElement', 'screen_label_id', ['UIScreenLabel']], {'required':False}),
+            ('ref_exists', ['UIResourceAttribute', 'resource_type_id', ['UIResourceType']], None),
+            ('ref_exists', ['UIResourceAttribute', 'default_widget_id', ['UIWidget']], None),
+            ('ref_exists', ['UIResourceAttribute', 'base_attribute_id', ['UIResourceAttribute']], {'required':False}),
+            ('ref_exists', ['UIResourceAttribute', 'object_type_id', ['UIObjectType']], {'required':False}),
+            ('ref_exists', ['UIScreenElement','widget_id', ['UIWidget']], None),
+            ('ref_exists', ['UIScreenElement','screen_label_id', ['UIScreenLabel']], {'required':False}),
+            ('ref_exists', ['UIScreenElement','state_id', ['UIState']], {'required':False}),
+            ('ref_exists', ['UIScreenElementInformationElement', 'screen_element_id', ['UIScreenElement']], None),
+            ('ref_exists', ['UIScreenElementInformationElement', 'information_element_id', ['UIResourceAttribute','UIResourceType']], None),
+            ('ref_exists', ['UIEmbeddedScreenElement', 'embedding_screen_element_id', ['UIScreenElement']], None),
+            ('ref_exists', ['UIEmbeddedScreenElement', 'embedded_screen_element_id', ['UIScreenElement']], None),
+            ('ref_exists', ['UIEmbeddedScreenElement', 'graphic_id', ['UIGraphic']], {'required':False}),
+            ('ref_exists', ['UIEmbeddedScreenElement', 'screen_label_id', ['UIScreenLabel']], {'required':False}),
+
+        ]
+        for check, ckargs, ckkwargs in ui_checks:
+            ckargs = [] if ckargs is None else ckargs
+            ckkwargs = {} if ckkwargs is None else ckkwargs
+            checkfunc = getattr(self, "_checkui_%s" % check)
+            checkfunc(*ckargs, **ckkwargs)
+
+        if self.warnings:
+            log.warn("WARNINGS:\n%s", "\n".join(["%s: %s" % (a, b) for a, b in self.warnings]))
 
         try:
             ds = DatastoreManager.get_datastore_instance("resources")
             self._finalize_uirefs(ds)
             res = ds.create_mult(self.ui_obj_by_id.values(), allow_ids=True)
-            log.info("Loaded %s UI resource objects into resource registry" % (len(res)))
+            log.info("Stored %s UI resource objects into resource registry" % (len(res)))
             res = ds.create_mult(self.ui_assocs)
-            log.info("Loaded %s UI resource associations into resource registry" % (len(res)))
+            log.info("Stored %s UI resource associations into resource registry" % (len(res)))
         except Exception as ex:
             log.exception("load error err=%s" % (str(ex)))
+
+    def _checkui_illegal_char(self):
+        for obj in self.ui_objs.values():
+            for attr_name, attr_value in obj.__dict__.iteritems():
+                match_char = 'a-zA-Z0-9_:&/,"@%= \^\-\(\)\$\.!\[\]\{\}\'\*\#\?'
+                if attr_value and not re.match('^[' + match_char + ']*$', str(attr_value)):
+                    new_attr = re.sub('[^' + match_char + ']', '', attr_value)
+                    setattr(obj, attr_name, new_attr)
+                    msg = "illegal_char: %s.%s contains invalid chars" % (obj._get_type(), attr_name)
+                    self.warnings.append((obj.uirefid, msg))
+
+    def _checkui_required(self, type_name, *args, **kwargs):
+        drop = kwargs.get('drop', True)
+        ignore_types = kwargs.get('ignore_types', [])
+        droplist = []
+        for obj in self.ui_objs.values():
+            if (type_name == "*" and obj._get_type() not in ignore_types) or obj._get_type() == type_name:
+                for attr in args:
+                    ref_attr = getattr(obj, attr)
+                    if not ref_attr:
+                        msg = "required: %s.%s is empty. Drop=%s" % (obj._get_type(), attr, drop)
+                        if drop:
+                            droplist.append(obj.uirefid)
+                        self.warnings.append((obj.uirefid, msg))
+        for dropobj in droplist:
+            del self.ui_objs[dropobj]
+
+    def _checkui_ref_exists(self, type_name, attr, target_types, **kwargs):
+        required = kwargs.get('required', True)
+        for obj in self.ui_objs.values():
+            if obj._get_type() == type_name:
+                ref_attr = getattr(obj, attr)
+                if not ref_attr and not required:
+                    # Empty is ok if not required
+                    pass
+                elif not ref_attr in self.ui_objs:
+                    msg = "ref_exists: %s.%s not a valid object reference (value=%s)" % (obj._get_type(), attr, ref_attr)
+                    self.warnings.append((obj.uirefid, msg))
+                else:
+                    target_obj = self.ui_objs[ref_attr]
+                    if target_obj._get_type() not in target_types:
+                        msg = "ref_exists: %s.%s not a valid object type (id=%s, type=%s)" % (obj._get_type(), attr, ref_attr, target_obj._get_type())
+                        self.warnings.append((obj.uirefid, msg))
+
 
     def _add_ui_object(self, refid, obj):
         while refid in self.ui_objs:
@@ -1043,153 +1122,117 @@ class IONLoader(ImmediateProcess):
         obj_fields = {}
         for obj_attr, row_attr in mapping.iteritems():
             row_val = row[row_attr]
+
             obj_fields[obj_attr] = row_val
             if obj_attr == "uirefid":
                 refid = row_val
 
         obj = IonObject(objtype, **obj_fields)
 
-        if 'name' in obj_attr and not obj.name:
-            log.warn("Ignoring object with no name: %s" % obj)
-        else:
-            if auto_add:
-                self._add_ui_object(refid, obj)
+#        if 'name' in obj_attr and not obj.name:
+#            log.warn("Ignoring object with no name: %s" % obj)
+#        else:
+        if auto_add:
+            self._add_ui_object(refid, obj)
 
         return refid, obj
 
-    def _loadui_InternalResourceType(self, row):
-        refid, obj = self._build_ui_resource(row, "UIInternalResourceType",
-                {'uirefid':'__pk_InternalResourceType_ID',
+    def _loadui_GraphicType(self, row):
+        refid, obj = self._build_ui_resource(row, "UIGraphicType",
+                {'uirefid':'__pk_GraphicType_ID',
                  'name':'Name',
-                 'internal_resource_superclass':'Internal Resource Superclass',
-                 'alignment_status':'Alignment Status'})
+                 'description':'Description'})
 
-        self._add_ui_refassoc(refid, "hasUISupertype", obj.internal_resource_superclass)
-
-    def _loadui_ResourceType(self, row):
-        refid, obj = self._build_ui_resource(row, "UIResourceType",
-                {'uirefid':'__pk_Resource_ID',
+    def _loadui_Graphic(self, row):
+        refid, obj = self._build_ui_resource(row, "UIGraphic",
+                {'uirefid':'__pk_Graphic_ID',
+                 'graphic_type_id':'_fk_GraphicType_ID',
                  'name':'Name',
-                 'screen_label_id':'_fk_ScreenLabel_ID'})
+                 'description':'Description',
+                 'filename':'Filename'})
 
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
+        self._add_ui_refassoc(refid, "hasUIGraphicType", obj.graphic_type_id)
 
     def _loadui_InformationLevel(self, row):
         refid, obj = self._build_ui_resource(row, "UIInformationLevel",
                 {'uirefid':'__pk_InformationLevel_ID',
                  'level':'Level',
+                 'name':'Level',
+                 'description':'Description'})
+
+    def _loadui_ResourceType(self, row):
+        refid, obj = self._build_ui_resource(row, "UIResourceType",
+                {'uirefid':'__pk_ResourceType_ID',
+                 'name':'Name',
+                 'ci_id':'CI ID'})
+
+    def _loadui_ObjectType(self, row):
+        refid, obj = self._build_ui_resource(row, "UIObjectType",
+                {'uirefid':'__pk_ObjectType_ID',
+                 'name':'Name',
+                 'ci_id':'CI ID'})
+
+    def _loadui_ResourceAttribute(self, row):
+        refid, obj = self._build_ui_resource(row, "UIResourceAttribute",
+                {'uirefid':'__pk_ResourceAttribute_ID',
+                 'name':'Name',
+                 'information_level':'Information Level',
+                 'object_type_id':'_fk_ObjectType_ID',
+                 'resource_type_id':'_fk_ResourceType_ID',
+                 'base_attribute_id':'Base Attribute',
+                 'ci_id':'CI ID',
+                 'default_widget_id':'Default Widget ID',
+                 'description':'Description'})
+
+    def _loadui_ScreenElement(self, row):
+        refid, obj = self._build_ui_resource(row, "UIScreenElement",
+                {'uirefid':'__pk_ScreenElement_ID',
+                 'graphic_id':'_fk_Graphic_ID',
+                 'helptag_id':'_fk_HelpTag_ID',
+                 'message_string_id':'_fk_MessageString_ID',
+                 'screen_label_id':'_fk_ScreenLabel_ID',
+                 'state_id':'_fk_State_ID',
+                 'widget_id':'_fk_Widget_ID',
+                 'default_value':'Default Value',
+                 'name':'Name',
                  'description':'Description'})
 
     def _loadui_ScreenLabel(self, row):
         refid, obj = self._build_ui_resource(row, "UIScreenLabel",
                 {'uirefid':'__pk_ScreenLabel_ID',
+                 'name':'Name',
+                 'description':'Description',
                  'text':'Text',
                  'abbreviation':'Abbreviation'})
 
-    def _loadui_Attribute(self, row):
-        refid, obj = self._build_ui_resource(row, "UIAttribute",
-                {'uirefid':'__pk_Attribute_ID',
+    def _loadui_State(self, row):
+        refid, obj = self._build_ui_resource(row, "UIState",
+                {'uirefid':'__pk_State_ID',
                  'name':'Name',
-                 'information_level_id':'_fk_InformationLevel_ID',
-                 'screen_label_id':'_fk_ScreenLabel_ID',
-                 'internal_resource_type_id':'_fk_InternalResourceType_ID',
-                 'value_generation':'Value Generation',
-                 'alignment_status':'Alignment Status'})
+                 'description':'Description'})
 
-        # TODO: Only accepted attributes, only Value (not Computed)
-
-    def _loadui_View(self, row):
-        refid, obj = self._build_ui_resource(row, "UIView",
-                {'uirefid':'__pk_View_ID',
+    def _loadui_Widget(self, row):
+        refid, obj = self._build_ui_resource(row, "UIWidget",
+                {'uirefid':'__pk_Widget_ID',
                  'name':'Name',
-                 'description':'Description',
-                 'screen_label_id':'_fk_ScreenLabel_ID'})
+                 'description':'Description'})
 
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
+    def _loadui_ScreenElementInformationElement(self, row):
+        refid, obj = self._build_ui_resource(row, "UIScreenElementInformationElement",
+                {'uirefid':'__pk_jt_ScreenElement_InformationElement_ID',
+                 'information_element_id':'_fk_InformationElement_ID',
+                 'screen_element_id':'_fk_ScreenElement_ID',
+                 'information_element_type':'Information Element Type'})
 
-    def _loadui_Group(self, row):
-        refid, obj = self._build_ui_resource(row, "UIGroup",
-                {'uirefid':'__pk_Group_ID',
-                 'name':'Name',
-                 'description':'Description',
-                 'screen_label_id':'_fk_ScreenLabel_ID'})
-
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
-
-    def _loadui_Block(self, row):
-        refid, obj = self._build_ui_resource(row, "UIBlock",
-                {'uirefid':'__pk_Block_ID',
-                 'name':'Name',
-                 'resource_id':'_fk_Resource_ID',
-                 'group_id':'_fk_Group_ID',
-                 'screen_label_id':'_fk_ScreenLabel_ID'})
-
-        self._add_ui_refassoc(refid, "hasUIResource", obj.resource_id)
-        self._add_ui_refassoc(refid, "hasUIGroup", obj.group_id)
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
-
-    def _loadui_Representation(self, row):
-        refid, obj = self._build_ui_resource(row, "UIRepresentation",
-                {'uirefid':'__pk_Representation_ID',
-                 'name':'Name',
-                 'description':'Description',
-                 'screen_label_id':'_fk_ScreenLabel_ID'})
-
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
-
-    def _loadui_BlockAttribute(self, row):
-        refid, obj = self._build_ui_resource(row, "UIBlockAttribute",
-                {'uirefid':'__pk_jt_Block_Attribute',
-                 'block_id':'_fk_Block_ID',
-                 'attribute_id':'_fk_Attribute_ID',
+    def _loadui_EmbeddedScreenElement(self, row):
+        refid, obj = self._build_ui_resource(row, "UIEmbeddedScreenElement",
+                {'uirefid':'__pk_jt_ScreenElement_ScreenElement_ID',
+                 'graphic_id':'_fk_Graphic_ID #override',
+                 'information_level':'Embedding Information Level',
+                 'embedded_screen_element_id':'_fk_ScreenElement_ID #embedded',
+                 'embedding_screen_element_id':'_fk_ScreenElement_ID #embedding',
+                 'screen_label_id':'_fk_ScreenLabel_ID #override',
                  'position':'Position'})
-
-        if not obj.block_id or not obj.attribute_id:
-            log.warn("Ignoring UIBlockAttribute: Both FK must be set")
-        else:
-            self._add_ui_refassoc(obj.attribute_id, "hasUIBlockAttribute", refid)
-            self._add_ui_refassoc(obj.block_id, "hasUIBlockAttribute", refid)
-            self._add_ui_refassoc(obj.block_id, "hasUIAttribute", obj.attribute_id)
-
-    def _loadui_BlockRepresentation(self, row):
-        refid, obj = self._build_ui_resource(row, "UIBlockRepresentation",
-                {'uirefid':'__pk_jt_Block_Representation',
-                 'block_id':'_fk_Block_ID',
-                 'representation_id':'_fk_Representation_ID'})
-
-        if not obj.block_id or not obj.representation_id:
-            log.warn("Ignoring UIBlockRepresentation: Both FK must be set")
-        else:
-            self._add_ui_refassoc(obj.block_id, "hasUIBlockRepresentation", refid)
-            self._add_ui_refassoc(obj.representation_id, "hasUIBlockRepresentation", refid)
-            self._add_ui_refassoc(obj.block_id, "hasUIRepresentation", obj.representation_id)
-
-    def _loadui_GroupBlock(self, row):
-        refid, obj = self._build_ui_resource(row, "UIGroupBlock",
-                {'uirefid':'__pk_jt_Group_Block_ID',
-                 'block_id':'_fk_Block_ID',
-                 'group_id':'_fk_Group_ID'})
-
-        if not obj.block_id or not obj.group_id:
-            log.warn("Ignoring UIGroupBlock: Both FK must be set")
-        else:
-            self._add_ui_refassoc(obj.group_id, "hasUIGroupBlock", refid)
-            self._add_ui_refassoc(obj.block_id, "hasUIGroupBlock", refid)
-            self._add_ui_refassoc(obj.group_id, "hasUIBlock", obj.block_id)
-
-
-    def _loadui_ViewGroup(self, row):
-        refid, obj = self._build_ui_resource(row, "UIViewGroup",
-                {'uirefid':'__pk_jt_View_Group_ID',
-                 'view_id':'_fk_View_ID',
-                 'group_id':'_fk_Group_ID'})
-
-        if not obj.view_id or not obj.group_id:
-            log.warn("Ignoring UIViewGroup: Both FK must be set")
-        else:
-            self._add_ui_refassoc(obj.view_id, "hasUIViewGroup", refid)
-            self._add_ui_refassoc(obj.group_id, "hasUIViewGroup", refid)
-            self._add_ui_refassoc(obj.view_id, "hasUIGroup", obj.group_id)
 
 
     def _create_parameter_dictionary(self, type):
@@ -1201,5 +1244,3 @@ class IONLoader(ImmediateProcess):
         parameter_dictionary = parameter_dictionary.dump()
 
         return parameter_dictionary, tdom, sdom
-            
-            
