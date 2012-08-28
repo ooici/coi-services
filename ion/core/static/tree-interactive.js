@@ -60,7 +60,7 @@ function update(source) {
 
     // Normalize for fixed-depth.
     // 180 per level
-    nodes.forEach(function(d) { d.y = d.depth * 180; });
+    nodes.forEach(function(d) { d.y = d.depth * 360; });
 
     // Update the nodes...
     var node = vis.selectAll("g.node")
@@ -82,7 +82,7 @@ function update(source) {
 
     hlink.append("text")
         .attr("x", function(d) { return d.children || d._children ? -10 : 10; })
-        .attr("dy", ".35em")
+        .attr("dy", "0.85em")
         .attr("text-anchor", function(d) { return d.children || d._children ? "end" : "start"; })
         .text(function(d) { return d.name; })
         .style("fill-opacity", 1e-6);
