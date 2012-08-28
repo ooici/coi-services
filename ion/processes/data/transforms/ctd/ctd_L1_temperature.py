@@ -43,7 +43,12 @@ class CTDL1TemperatureTransform(TransformDataProcess):
 
     def on_start(self):
         super(CTDL1TemperatureTransform, self).on_start()
-        self.temp_stream = self.CFG.process.publish_streams.temperature
+
+        if self.CFG.process.publish_streams.has_key('temperature'):
+            self.temp_stream = self.CFG.process.publish_streams.temperature
+        elif self.CFG.process.publish_streams.has_key('output'):
+            self.temp_stream = self.CFG.process.publish_streams.output
+
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L1_temperature.recv_packet: {0}'.format(msg))
