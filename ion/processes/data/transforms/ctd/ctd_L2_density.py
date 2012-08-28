@@ -43,7 +43,11 @@ class DensityTransform(TransformDataProcess):
 
     def on_start(self):
         super(DensityTransform, self).on_start()
-        self.dens_stream = self.CFG.process.publish_streams.density
+
+        if self.CFG.process.publish_streams.has_key('density'):
+            self.dens_stream = self.CFG.process.publish_streams.density
+        elif self.CFG.process.publish_streams.has_key('output'):
+            self.dens_stream = self.CFG.process.publish_streams.output
 
     def recv_packet(self, msg, headers):
         log.warn('ctd_L2_desnity.recv_packet: {0}'.format(msg))

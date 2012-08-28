@@ -24,9 +24,11 @@ class SalinityDoubler(TransformDataProcess):
     def on_start(self):
         super(SalinityDoubler, self).on_start()
 
-        self.sal_stream = self.CFG.process.publish_streams.output
-        if not self.sal_stream:
+        if self.CFG.process.publish_streams.has_key('salinity'):
             self.sal_stream = self.CFG.process.publish_streams.salinity
+        elif self.CFG.process.publish_streams.has_key('output'):
+            self.sal_stream = self.CFG.process.publish_streams.output
+
         log.debug("Got stream_id for salinity doubler: %s" % self.sal_stream)
 
     def recv_packet(self, msg, headers):
