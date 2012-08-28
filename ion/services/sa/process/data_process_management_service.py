@@ -15,6 +15,7 @@ from pyon.util.containers import create_unique_identifier
 from interface.objects import ProcessDefinition, StreamQuery
 from pyon.core.object import IonObjectSerializer, IonObjectBase
 from interface.objects import Transform
+from pyon.util.containers import DotDict
 from ion.services.sa.instrument.data_process_impl import DataProcessImpl
 
 
@@ -158,7 +159,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                   inform)
 
         if configuration is None:
-            configuration = {}
+            configuration = DotDict()
 
         if in_data_product_ids is None:
             in_data_product_ids = []
@@ -171,6 +172,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_def_obj = self.read_data_process_definition(data_process_definition_id)
 
         data_process_name = create_unique_identifier("process_" + data_process_def_obj.name)
+        configuration.process.queue_name = data_process_name
 
         self.data_process = IonObject(RT.DataProcess, name=data_process_name)
         data_process_id, version = self.clients.resource_registry.create(self.data_process)
@@ -317,7 +319,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         configuration['process'] = dict({
             'name':name,
-            'listen_name':subscription.exchange_name,
+            'queue_name':subscription.exchange_name,
             'transform_id':transform_id
         })
         configuration['process']['publish_streams'] = out_streams
