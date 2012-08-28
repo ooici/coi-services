@@ -46,8 +46,8 @@ class NotificationWorker(SimpleProcess):
             self.user_info = self.load_user_info()
             self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
 
-            log.info("On start up, notification workers loaded the following user_info dictionary: %s" % self.user_info)
-            log.info("The calculated reverse user info: %s" % self.reverse_user_info )
+            log.debug("On start up, notification workers loaded the following user_info dictionary: %s" % self.user_info)
+            log.debug("The calculated reverse user info: %s" % self.reverse_user_info )
 
         except NotFound as exc:
             if exc.message.find('users_index') > -1:
@@ -65,7 +65,7 @@ class NotificationWorker(SimpleProcess):
             '''
 
             notification_id =  event_msg.notification_id
-            log.info("(Notification worker received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
+            log.debug("(Notification worker received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
 
             try:
                 self.user_info = self.load_user_info()
@@ -107,8 +107,8 @@ class NotificationWorker(SimpleProcess):
         if self.reverse_user_info:
             users = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
 
-        log.info("Type of event received by notification worker: %s" % msg.type_)
-        log.info("Notification worker deduced the following users were interested in the event: %s" % users )
+        log.debug("Type of event received by notification worker: %s" % msg.type_)
+        log.debug("Notification worker deduced the following users were interested in the event: %s" % users )
 
         #------------------------------------------------------------------------------------
         # Send email to the users
