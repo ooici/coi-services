@@ -61,6 +61,14 @@ class ServiceGatewayService(BaseServiceGatewayService):
 
         #retain a pointer to this object for use in ProcessRPC calls
         global service_gateway_instance
+
+        ######
+        # to prevent cascading failure, here's an attempted hack
+        if service_gateway_instance is not None and service_gateway_instance.http_server is not None:
+            service_gateway_instance.http_server.stop()
+        # end hack
+        ######
+
         service_gateway_instance = self
 
         self.server_hostname = self.CFG.get_safe('container.service_gateway.web_server.hostname', DEFAULT_WEB_SERVER_HOSTNAME)

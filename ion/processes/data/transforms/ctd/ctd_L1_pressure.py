@@ -80,6 +80,8 @@ class CTDL1PressureTransform(TransformDataProcess):
         g = build_granule(data_producer_id='ctd_L1_pressure', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
         self.publish(msg=g, stream_id=self.pres_stream)
 
+        return g
+
     def _create_parameter(self):
 
         pdict = ParameterDictionary()

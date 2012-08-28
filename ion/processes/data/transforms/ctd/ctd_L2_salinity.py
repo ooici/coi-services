@@ -41,9 +41,11 @@ class SalinityTransform(TransformDataProcess):
     def on_start(self):
         super(SalinityTransform, self).on_start()
 
-        self.sal_stream = self.CFG.process.publish_streams.output
-        if not self.sal_stream:
+        if self.CFG.process.publish_streams.has_key('salinity'):
             self.sal_stream = self.CFG.process.publish_streams.salinity
+        elif self.CFG.process.publish_streams.has_key('output'):
+            self.sal_stream = self.CFG.process.publish_streams.output
+
         log.debug("Got salinity stream id: %s" % self.sal_stream)
 
     def recv_packet(self, msg, headers):
@@ -80,6 +82,8 @@ class SalinityTransform(TransformDataProcess):
 
         g = build_granule(data_producer_id='ctd_L2_salinity', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
         self.publish(msg=g, stream_id=self.sal_stream)
+
+        return g
 
     def _create_parameter(self):
 
