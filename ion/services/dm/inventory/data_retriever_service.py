@@ -48,11 +48,11 @@ class DataRetrieverService(BaseDataRetrieverService):
         if replay_type not in self.REPLAY_TYPES:
             replay_type = self.SCIENCE_REPLAY
 
-        res, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name=self.REPLAY_TYPES[replay_type],id_only=False)
+        res, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name=self.REPLAY_TYPES[replay_type],id_only=True)
         if not len(res):
             log.error('Failed to find replay process for replay_type: %s', replay_type)
             raise BadRequest('No replay process defined.')
-        process_definition_id = res[0]._id
+        process_definition_id = res[0]
 
         replay_stream_id = self.clients.pubsub_management.create_stream()
 

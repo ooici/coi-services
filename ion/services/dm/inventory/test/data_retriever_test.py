@@ -35,13 +35,14 @@ class DataRetrieverUnitTest(PyonTestCase):
         self.rr_delete = mock_clients.resource_registry.delete
         self.rr_delete_association = mock_clients.resource_registry.delete_association
         self.rr_find_assocs = mock_clients.resource_registry.find_associations
+        self.rr_find_resources = mock_clients.resource_registry.find_resources
 
         self.pd_schedule = mock_clients.process_dispatcher.schedule_process
 
     def test_define_replay(self):
         with self.assertRaises(BadRequest):
             self.data_retriever.define_replay()
-        self.data_retriever.process_definition_id = 'fakeprocid'
+        self.rr_find_resources.return_value = ('fakeproc', '')
 
         dataset = DotDict()
         dataset.datastore_name = 'testdatastore'
