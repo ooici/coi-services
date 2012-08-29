@@ -12,6 +12,8 @@ and the relationships between them
 from interface.services.dm.ipubsub_management_service import\
     BasePubsubManagementService
 from pyon.core.exception import NotFound, BadRequest
+from pyon.util.containers import create_unique_identifier
+from pyon.util.arg_check import validate_is_instance
 from pyon.public import RT, PRED, log
 from pyon.public import CFG
 from interface.objects import Stream, StreamQuery, ExchangeQuery, StreamRoute, StreamDefinition
@@ -22,110 +24,13 @@ from interface.objects import Subscription, SubscriptionTypeEnum
 
 
 class PubsubManagementService(BasePubsubManagementService):
-    '''Implementation of IPubsubManagementService. This class uses resource registry client
-        to create streams and subscriptions.
-    '''
-
-
-
-    def __init__(self, *args, **kwargs):
-        BasePubsubManagementService.__init__(self,*args,**kwargs)
-
-        xs_dot_xp = CFG.core_xps.science_data
-        try:
-            self.XS, xp_base = xs_dot_xp.split('.')
-            self.XP = xp_base #'.'.join([bootstrap.get_sys_name(), xp_base])
-        except ValueError:
-            raise StandardError('Invalid CFG for core_xps.science_data: "%s"; must have "xs.xp" structure' % xs_dot_xp)
-
-    def create_stream_definition(self, container=None, name='', description=''):
-        """
-        @brief Create a new stream definition which may be used to publish on one or more streams
-        @param container is a stream definition container object
-
-        @param container    StreamDefinitionContainer
-        @retval stream_definition_id    str
-        """
-        stream_definition = StreamDefinition(container=container, name=name, description=description)
-        stream_def_id, rev = self.clients.resource_registry.create(stream_definition)
-
-        return stream_def_id
-
-    def find_stream_definition(self, stream_id='', id_only=True):
-        """@brief Retrieves a stream definition from an existing stream_id
-        @param stream_id Stream ID
-        @param id_only True if you only want the stream definition id
-        @return stream definition object
-
-        @param stream_id    str
-        @param id_only    bool
-        @retval stream_definition    str
-        @throws NotFound    if there is no association
-        """
-
-        retval = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition, id_only=id_only)
-        if len(retval) != 2:
-            raise NotFound('Desired stream definition not found.')
-        if len(retval[0]) < 1:
-            raise NotFound('Desired stream definition not found.')
-        return retval[0][0]
-
-    def update_stream_definition(self, stream_definition=None):
-        """Update an existing stream definition
-
-        @param stream_definition    StreamDefinition
-        @retval success    bool
-        """
-        id, rev = self.clients.resource_registry.update(stream_definition)
-        #@todo will this throw a not found in the client if the op failed?
-
-
-    def read_stream_definition(self, stream_definition_id=''):
-        """Get an existing stream definition.
-
-        @param stream_definition_id    str
-        @retval stream_definition    StreamDefinition
-        @throws NotFound    if stream_definition_id doesn't exist
-        """
-        stream_definition = self.clients.resource_registry.read(stream_definition_id)
-        if stream_definition is None:
-            raise NotFound("StreamDefinition %s does not exist" % stream_definition_id)
-        return stream_definition
-
-    def delete_stream_definition(self, stream_definition_id=''):
-        """Delete an existing stream definition.
-
-        @param stream_definition_id    str
-        @throws NotFound    if stream_definition_id doesn't exist
-        """
-        stream_definition = self.clients.resource_registry.read(stream_definition_id)
-        if stream_definition is None:
-            raise NotFound("StreamDefinition %s does not exist" % stream_definition_id)
-
-        self.clients.resource_registry.delete(stream_definition_id)
-
-    def create_stream(self,encoding='', original=True, stream_definition_id='', name='', description='', url=''):
-        '''@brief Creates a new stream. The id string returned is the ID of the new stream in the resource registry.
-        @param encoding the encoding for data on this stream
-        @param original is the data on this stream from a source or a transform
-        @param stream_definition a predefined stream definition type for this stream
-        @param name (optional) the name of the stream
-        @param description (optional) the description of the stream
-        @param url (optional) the url where data from this stream can be found (Not implemented)
-
-        @retval stream_id    str
-        '''
-        log.debug("Creating stream object")
-
-        stream_obj = Stream(name=name, description=description)
-        stream_obj.original = original
-        stream_obj.encoding = encoding
-
-        stream_obj.url = url
-        stream_id, rev = self.clients.resource_registry.create(stream_obj)
-
-        if stream_definition_id != '':
-            self.clients.resource_registry.create_association(stream_id, PRED.hasStreamDefinition, stream_definition_id)
+    def create_stream(self, name='', description='', definition=None):
+        if definition:
+            validate_is_instance(definition,StreamDefinition)
+        stream = Stream(name=name or create_unique_identifier('stream'), description=description)
+        stream.definition = definition
+        stream.url = '' # For now we're not using URLs
+        stream_id, rev = self.clients.resource_registry.create(stream)
 
         return stream_id
 
@@ -154,6 +59,7 @@ class PubsubManagementService(BasePubsubManagementService):
         stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %s does not exist" % stream_id)
+        validate_is_instance(stream_obj,Stream)
         return stream_obj
 
     def delete_stream(self, stream_id=''):
@@ -169,6 +75,7 @@ class PubsubManagementService(BasePubsubManagementService):
         stream_obj = self.clients.resource_registry.read(stream_id)
         if stream_obj is None:
             raise NotFound("Stream %s does not exist" % stream_id)
+        validate_is_instance(stream_obj,Stream, 'Can not delete non-stream object.')
 
         self.clients.resource_registry.delete(stream_id)
 
@@ -408,6 +315,10 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.update(object=subscription_obj)
 
         return True
+
+    def get_stream_route(self, subscription_id):
+        subscription = self.read_subscription(subscription_id)
+
 
     def register_consumer(self, exchange_name=''):
         '''
