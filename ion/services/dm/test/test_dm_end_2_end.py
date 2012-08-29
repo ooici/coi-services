@@ -68,23 +68,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
     def launch_producer(self, stream_id=''):
         #--------------------------------------------------------------------------------
-        # Create the process definition for the producer
-        #--------------------------------------------------------------------------------
-        producer_definition = ProcessDefinition(name='Example Data Producer')
-        producer_definition.executable = {
-            'module':'ion.processes.data.example_data_producer',
-            'class' :'BetterDataProducer'
-        }
-
-        process_definition_id = self.process_dispatcher.create_process_definition(process_definition=producer_definition)
-        
-        #--------------------------------------------------------------------------------
         # Launch the producer
         #--------------------------------------------------------------------------------
 
-        config = DotDict()
-        config.process.stream_id =  stream_id
-        pid = self.process_dispatcher.schedule_process(process_definition_id=process_definition_id, configuration=config)
+        pid = self.container.spawn_process('better_data_producer', 'ion.processes.data.example_data_producer', 'BetterDataProducer', {'process':{'stream_id':stream_id}})
+
         self.pids.append(pid)
 
     def get_ingestion_config(self):

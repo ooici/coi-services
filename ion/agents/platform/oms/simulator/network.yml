@@ -1,0 +1,84 @@
+#
+# network definition for the mock OMS object
+#
+
+network:
+- platform_id: platA
+  ports:
+    - port_id: portA_1
+      ip: ipA_1
+    - port_id: portA_2
+      ip: ipA_2
+  attrs:
+  - attr_id: fooA
+    monitorCycleSeconds: 5
+    units: xyz
+    value: dummy_value_fooA
+  - attr_id: bazA
+    monitorCycleSeconds: 5
+    units: xyz
+  subplatforms:
+    - platform_id: platA1
+      ports:
+        - port_id: portA1_1
+          ip: ipA1_1
+      attrs:
+      - attr_id: fooA1
+        monitorCycleSeconds: 5
+        units: xyz
+      - attr_id: bazA1
+        monitorCycleSeconds: 5
+        units: xyz
+      subplatforms:
+      - platform_id: platA1a
+        ports:
+          - port_id: portA1a_1
+            ip: ipA1a_1
+      - platform_id: platA1b
+        ports:
+          - port_id: portA1b_1
+            ip: ipA1b_1
+        attrs:
+        - attr_id: fooA1b
+          monitorCycleSeconds: 5
+          units: xyz
+        subplatforms:
+        - platform_id: platA1b1
+          ports:
+            - port_id: portA1b1_1
+              ip: ipA1b1_1
+          attrs:
+          - attr_id: bazA1b1
+            monitorCycleSeconds: 5
+            units: xyz
+        - platform_id: platA1b2
+          ports:
+            - port_id: portA1b2_1
+              ip: ipA1b2_1
+          attrs:
+          - attr_id: bazA1b2
+            monitorCycleSeconds: 5
+            units: xyz
+            value: dummy_value_bazA1b2
+
+- platform_id: platB
+  ports:
+    - port_id: portB_1
+      ip: ipB_1
+  attrs:
+  - attr_id: fooB
+    monitorCycleSeconds: 5
+    units: xyz
+  subplatforms:
+  - platform_id: platB1
+    ports:
+      - port_id: portB1_1
+        ip: ipB1_1
+    attrs:
+    - attr_id: bazB1
+      monitorCycleSeconds: 5
+      units: xyz
+  - platform_id: platB2
+    ports:
+      - port_id: portB2_1
+        ip: ipB2_1

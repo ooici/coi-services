@@ -1,0 +1,54 @@
+platform agent framework
+
+2012-08-29:
+Ongoing internal refactoring to move network creation functionality from
+PlatformNetworkBuilder to PlatformAgent itself, and to simplify the design.
+
+
+2012-08-21:
+Adjustments done to follow changes in recent agent refactoring.
+All tests passing again as before.
+
+2012-08-20:
+Latest run of tests before merging with agent refactoring:
+
+platform-agent branched out from master's commit
+4fd1e54f908519fbcab2604ea81090e79410be4e (8/1/12):
+    $ bin/nosetests -va UNIT -a INT  ion/agents/platform
+    test_aa_ping (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ac_getPlatformMap (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ad_getPlatformAttributeNames (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ae_getPlatformAttributeValues (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_af_getPlatformAttributeInfos (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ag_getPlatformPorts (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ah_getPortInfo (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ai_setUpPort (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_aj_turnOnPort (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ak_turnOffPort (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_aa_ping (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ac_getPlatformMap (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ad_getPlatformAttributeNames (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ae_getPlatformAttributeValues (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_af_getPlatformAttributeInfos (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ag_getPlatformPorts (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ah_getPortInfo (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ai_setUpPort (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_aj_turnOnPort (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ak_turnOffPort (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test (ion.agents.platform.oms.test.test_oms_platform_driver.TestOmsPlatformDriver) ... ok
+    test_build_platform_agent_client_network (ion.agents.platform.oms.test.test_oms_platform_network_builder.Test) ... ok
+    test_go_active_and_run (ion.agents.platform.test.test_platform_agent.TestPlatformAgent) ... ok
+
+    ----------------------------------------------------------------------
+    Ran 23 tests in 53.403s
+
+    OK
+
+
+
+- CI side maintains information about the platform topology for a given
+  network (RSN). In general, the possible "sources" to obtain the topology are:
+  - some CI resource registry
+  - a deployment file (like r2deploy.yml)
+  - the actual network, which, in the case of RSN, is the platform map provided
+    by the OMS xml/rpc interface.
