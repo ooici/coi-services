@@ -15,6 +15,7 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.util.containers import create_valid_identifier
 from pyon.event.event import EventPublisher
 from pyon.core import bootstrap
+from couchdb.http import ResourceConflict, ResourceNotFound
 
 try:
     from epu.processdispatcher.core import ProcessDispatcherCore
@@ -403,9 +404,26 @@ class AnyEEAgentClient(object):
     def __init__(self, process):
         self.process = process
 
-    def _get_client_for_eeagent(self, resource_id):
-        resource_client = SimpleResourceAgentClient(resource_id, process=self.process)
-        return ExecutionEngineAgentClient(resource_client)
+    def _get_client_for_eeagent(self, resource_id, attempts=10):
+        exception = None
+        for i in range(0, attempts):
+            try:
+                resource_client = SimpleResourceAgentClient(resource_id, process=self.process)
+                return ExecutionEngineAgentClient(resource_client)
+            except (NotFound, ResourceNotFound), e:
+                # This exception catches a race condition, where:
+                # 1. EEagent spawns and starts heartbeater
+                # 2. heartbeat gets sent
+                # 3. PD recieves heartbeat and tries to send a message but EEAgent,
+                #    hasn't been registered yet
+                #
+                # So, we try it a few times hoping that it'll come up
+                log.exception("Couldn't get eeagent client")
+                gevent.sleep(1)
+                exception = e
+        else:
+            raise exception
+
 
     def launch_process(self, eeagent, upid, round, run_type, parameters):
         client = self._get_client_for_eeagent(eeagent)
@@ -530,7 +548,16 @@ class PDNativeBackend(object):
             log.warn("Invalid EEAgent heartbeat received. Missing: %s -- %s", e, heartbeat)
             return
 
-        self.core.ee_heartbeart(resource_id, beat)
+        try:
+            self.core.ee_heartbeart(resource_id, beat)
+        except (NotFound, ResourceNotFound):
+            # This exception catches a race condition, where:
+            # 1. EEagent spawns and starts heartbeater
+            # 2. heartbeat gets sent
+            # 3. PD recieves heartbeat and tries to send a message but EEAgent,
+            #    hasn't been registered yet
+            log.exception("Problem processing heartbeat from eeagent")
+
 
     def create_definition(self, definition, definition_id=None):
         """
