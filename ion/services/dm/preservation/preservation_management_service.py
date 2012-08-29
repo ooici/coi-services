@@ -20,10 +20,9 @@ class PreservationManagementService(BasePreservationManagementService):
 
     def on_start(self):
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'filesystem')
-        self.ds = self.container.datastore_manager.get_datastore(self.datastore_name, DS.DS_PROFILE.FILESYSTEM)
-
 
     def persist_file(self, file_data='', digest='', metadata=None):
+        ds = self.container.datastore_manager.get_datastore(self.datastore_name, DS.DS_PROFILE.FILESYSTEM)
         validate_is_instance(file_data,basestring, "File or binary data must be a string.")
         validate_is_instance(metadata,File)
 
@@ -56,10 +55,11 @@ class PreservationManagementService(BasePreservationManagementService):
         metadata.modified_date = IonTime().to_string()
         metadata.size = len(file_data)
 
-        doc_id, rev_id = self.ds.create(metadata)
+        doc_id, rev_id = ds.create(metadata)
         return doc_id
 
     def list_files(self, file_path=''):
+        ds = self.container.datastore_manager.get_datastore(self.datastore_name, DS.DS_PROFILE.FILESYSTEM)
         file_path = file_path or '/'
         if file_path[-1] == '/':
             opts={
@@ -72,12 +72,13 @@ class PreservationManagementService(BasePreservationManagementService):
                 'end_key' : [file_path,{}]
             }
         retval = {}
-        for i in self.ds.query_view('catalog/file_by_name', opts=opts):
+        for i in ds.query_view('catalog/file_by_name', opts=opts):
             retval[i['id']] = i['key']
         return retval
 
     def read_file(self, file_id='', cluster_id=''):
-        metadata = self.ds.read(file_id)
+        ds = self.container.datastore_manager.get_datastore(self.datastore_name, DS.DS_PROFILE.FILESYSTEM)
+        metadata = ds.read(file_id)
         url = metadata.url
         try:
             with open(url,'r+b') as f:
