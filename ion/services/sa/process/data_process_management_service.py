@@ -157,6 +157,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                  "To create output Product: "+str(out_data_products)
         log.debug("DataProcessManagementService:create_data_process()\n" +
                   inform)
+        log.critical('configuration: %s', configuration)
 
         if configuration is None:
             configuration = DotDict()
@@ -170,6 +171,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Create and store a new DataProcess with the resource registry
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry")
         data_process_def_obj = self.read_data_process_definition(data_process_definition_id)
+        log.critical('Create data process: %s', data_process_def_obj.name)
 
         data_process_name = create_unique_identifier("process_" + data_process_def_obj.name)
         configuration.process.queue_name = data_process_name
@@ -248,9 +250,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 raise NotFound("No Stream created for this IN Data Product " + str(in_data_product_id))
             if len(stream_ids) != 1:
                 raise BadRequest("IN Data Product should only have ONE stream at this time" + str(in_data_product_id))
-            log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data product:  %s  in_stream_id: %s ", str(in_data_product_id),  str(stream_ids[0]))
+            log.critical("DataProcessManagementService:create_data_process - get the stream associated with this IN data product:  %s  in_stream_id: %s ", str(in_data_product_id),  str(stream_ids[0]))
             in_stream_ids.append(stream_ids[0])
-
+        log.critical('in_stream_ids: %s', in_stream_ids)
         # create a subscription to the input stream
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
 
@@ -317,10 +319,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # ------------------------------------------------------------------------------------
         subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
 
+        log.critical('subscription: %s', subscription.__dict__)
         configuration['process'] = dict({
             'name':name,
             'queue_name':subscription.exchange_name,
-            'transform_id':transform_id
+            'transform_id':transform_id,
+            'output_streams' : out_streams.values()
         })
         configuration['process']['publish_streams'] = out_streams
         stream_ids = list(v for k,v in out_streams.iteritems())
