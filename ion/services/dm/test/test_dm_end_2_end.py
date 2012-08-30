@@ -25,6 +25,8 @@ from ion.services.dm.ingestion.ingestion_management_service import IngestionMana
 from gevent.event import Event
 from nose.plugins.attrib import attr
 from pyon.ion.exchange import ExchangeNameQueue
+import unittest
+import os
 
 import gevent
 import time
@@ -408,6 +410,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         comp = rdt['time'] == np.arange(0,40)
         self.assertTrue(comp.all(), 'Uh-oh: %s' % rdt['time'])
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_binary_ingestion(self):
         #--------------------------------------------------------------------------------
         # Set up the ingestion subscriptions
