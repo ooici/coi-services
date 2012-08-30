@@ -209,6 +209,11 @@ class TestPlatformAgent(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
+    def _go_inactive(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE)
+        retval = self._pa_client.execute_agent(cmd)
+        self._assert_state(PlatformAgentState.INACTIVE)
+
     def _add_subplatform_id(self, subplatform_id):
         kwargs = dict(subplatform_id=subplatform_id)
         cmd = AgentCommand(command=PlatformAgentEvent.ADD_SUBPLATFORM, kwargs=kwargs)
@@ -229,9 +234,10 @@ class TestPlatformAgent(IonIntegrationTestCase):
         log.info("sleeping...")
         sleep(15)
 
-        # retrieve subplatform IDs
+        # retrieve sub-platform IDs and verify against expected
         out_subplat_ids = self._get_subplatform_ids()
         log.info("get_subplatform_ids's retval = %s" % str(out_subplat_ids))
         self.assertEquals(SUBPLATFORM_IDS, out_subplat_ids)
 
+        self._go_inactive()
         self._reset()
