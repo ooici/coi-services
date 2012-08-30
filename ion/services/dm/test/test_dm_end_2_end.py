@@ -25,6 +25,8 @@ from ion.services.dm.ingestion.ingestion_management_service import IngestionMana
 from gevent.event import Event
 from nose.plugins.attrib import attr
 from pyon.ion.exchange import ExchangeNameQueue
+import unittest
+import os
 
 import gevent
 import time
@@ -59,7 +61,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
     def tearDown(self):
         self.purge_queues()
         for pid in self.pids:
-            self.process_dispatcher.cancel_process(pid)
+            self.container.proc_manager.terminate_process(pid)
         IngestionManagementIntTest.clean_subscriptions()
         for queue in self.queue_buffer:
             if isinstance(queue, ExchangeNameQueue):
@@ -255,7 +257,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.wait_until_we_have_enough_granules(dataset_id,4)
         
-
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
         #--------------------------------------------------------------------------------
@@ -291,6 +292,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         subscriber.stop()
 
         self.assertTrue(not fail, 'Failed to validate the data.')
+        self.data_retriever.cancel_replay(replay_id)
 
 
     def test_replay_by_time(self):
@@ -409,6 +411,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(comp.all(), 'Uh-oh: %s' % rdt['time'])
 
     def test_binary_ingestion(self):
+        # Force the datastore to be created
+
+        datastore = self.container.datastore_manager.get_datastore('filesystem', DataStore.DS_PROFILE.FILESYSTEM)
         #--------------------------------------------------------------------------------
         # Set up the ingestion subscriptions
         #--------------------------------------------------------------------------------
@@ -446,5 +451,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.data_retriever.start_replay(replay_id)
         self.assertTrue(success.wait(10))
+        self.data_retriever.cancel_replay(replay_id)
 
 

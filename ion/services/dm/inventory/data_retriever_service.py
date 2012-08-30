@@ -27,25 +27,6 @@ class DataRetrieverService(BaseDataRetrieverService):
     }
 
 
-
-    def __init__(self, *args, **kwargs):
-        super(DataRetrieverService,self).__init__(*args,**kwargs)
-
-        self.process_definition_id = None
-
-
-    def on_start(self): #pragma no cover
-        super(DataRetrieverService,self).on_start()
-
-        res_list, _ = self.clients.resource_registry.find_resources(
-            restype=RT.ProcessDefinition,
-            name='data_replay_process',
-            id_only=True)
-
-        if len(res_list):
-            self.process_definition_id = res_list[0]
-
-
     def on_quit(self): #pragma no cover
         #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
         super(DataRetrieverService,self).on_quit()
@@ -67,12 +48,11 @@ class DataRetrieverService(BaseDataRetrieverService):
         if replay_type not in self.REPLAY_TYPES:
             replay_type = self.SCIENCE_REPLAY
 
-        if self.process_definition_id is None:
-            res, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name=self.REPLAY_TYPES[replay_type],id_only=True)
-            if not len(res):
-                log.error('Failed to find replay process for replay_type: %s', replay_type)
-                raise BadRequest('No replay process defined.')
-            self.process_definition_id = res[0]
+        res, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name=self.REPLAY_TYPES[replay_type],id_only=True)
+        if not len(res):
+            log.error('Failed to find replay process for replay_type: %s', replay_type)
+            raise BadRequest('No replay process defined.')
+        process_definition_id = res[0]
 
         replay_stream_id = self.clients.pubsub_management.create_stream()
 
@@ -85,7 +65,7 @@ class DataRetrieverService(BaseDataRetrieverService):
             replay, config=self.replay_binary_process(query,delivery_format,replay_stream_id)
         
         pid = self.clients.process_dispatcher.schedule_process(
-            process_definition_id=self.process_definition_id,
+            process_definition_id=process_definition_id,
             configuration=config
         )
 

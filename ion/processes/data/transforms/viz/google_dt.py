@@ -21,10 +21,9 @@ from coverage_model.basic_types import AxisTypeEnum
 import numpy as np
 
 from pyon.util.containers import get_safe
+from pyon.ion.transforma import TransformDataProcess
 
-
-
-class VizTransformGoogleDT(TransformFunction):
+class VizTransformGoogleDT(TransformDataProcess):
 
     """
     This class is used for  converting incoming data from CDM format to JSON style Google DataTables
@@ -52,6 +51,15 @@ class VizTransformGoogleDT(TransformFunction):
 
         ### Parameter dictionaries
         self.define_parameter_dictionary()
+
+
+
+    def recv_packet(self, packet, header):
+        log.critical('Received packet')
+        for stream_id in self.CFG.get_safe('process.output_streams',[]):
+            self.publisher.publish(self.execute(packet), stream_id=stream_id)
+            log.critical('Publishing on: %s', stream_id)
+
 
     def define_parameter_dictionary(self):
         """

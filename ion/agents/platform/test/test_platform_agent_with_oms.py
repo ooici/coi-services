@@ -22,6 +22,7 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
+from ion.agents.platform.platform_agent import set_container_client
 
 from interface.objects import StreamQuery
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -38,9 +39,11 @@ import os
 from nose.plugins.attrib import attr
 
 
-# The ID of the root platform for this test. This platform ID should be
-# defined in network.yml, which is used by the OMS simulator.
-PLATFORM_ID = 'platA1b2'
+# The ID of the root platform for this test and the IDs of its sub-platforms.
+# These Ids should correspond to corresponding entries in network.yml,
+# which is used by the OMS simulator.
+PLATFORM_ID = 'platA1'
+SUBPLATFORM_IDS = ['platA1a', 'platA1b']
 
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
@@ -67,7 +70,6 @@ class FakeProcess(LocalContextMixin):
     name = ''
     id=''
     process_type = ''
-
 
 
 @unittest.skipIf(os.getenv('OMS') is None, "Define OMS to include this test")
@@ -102,6 +104,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
         log.info("TestPlatformAgent.setup(): starting agent")
         container_client = ContainerAgentClient(node=self.container.node,
                                                 name=self.container.name)
+        set_container_client(container_client)
         self._pa_pid = container_client.spawn_process(name=PA_NAME,
                                                       module=PA_MOD,
                                                       cls=PA_CLS,
@@ -216,8 +219,6 @@ class TestPlatformAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command=PlatformAgentEvent.GET_SUBPLATFORM_IDS)
         retval = self._pa_client.execute_agent(cmd)
         self.assertIsInstance(retval.result, list)
-        for pair in retval.result:
-            self.assertIsInstance(pair, (tuple, list))
         return retval.result
 
     def test_go_active_and_run(self):
@@ -228,15 +229,9 @@ class TestPlatformAgent(IonIntegrationTestCase):
         log.info("sleeping...")
         sleep(15)
 
-        # add some subplatforms, that is, the IDs:
-        in_subplat_ids = ['subplat_id1', 'subplat_id2']
-        for subplatform_id in in_subplat_ids:
-            self._add_subplatform_id(subplatform_id)
-
-        # retrieve those added subplatform IDs
+        # retrieve subplatform IDs
         out_subplat_ids = self._get_subplatform_ids()
-        only_plat_ids = [pair[0] for pair in out_subplat_ids]
         log.info("get_subplatform_ids's retval = %s" % str(out_subplat_ids))
-        self.assertEquals(in_subplat_ids, only_plat_ids)
+        self.assertEquals(SUBPLATFORM_IDS, out_subplat_ids)
 
         self._reset()
