@@ -845,10 +845,30 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create notification workers
         #--------------------------------------------------------------------------------------
 
-        pids = self.unsc.create_worker(number_of_workers=1)
-        self.assertEquals(len(pids), 1)
+        '''
+        Since notification workers are being created in bootstrap, we dont need to generate any here
+        '''
+#        pids = self.unsc.create_worker(number_of_workers=1)
+#        self.assertEquals(len(pids), 1)
 
-        proc1 = self.container.proc_manager.procs_by_name[pids[0]]
+        #--------------------------------------------------------------------------------------
+        # Get the list of notification worker processes existing in the container
+        # This will enable us to get the fake smtp client objects they are using,
+        # which in turn will allow us to check what the notification emails they are sending
+        #--------------------------------------------------------------------------------------
+
+        procs = []
+
+        for process_name in self.container.proc_manager.procs.iterkeys():
+            # if the process is a notification worker process, add its pid to the list of pids
+            if process_name.find("notification_worker") != -1:
+                proc = self.container.proc_manager.procs[process_name]
+
+                log.debug("Got the following notification worker process with name: %s, process: %s" % (process_name, proc))
+
+                procs.append(proc)
+
+        log.debug("Got the list of processes: %s" % procs)
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects -- Remember to put names
@@ -894,36 +914,40 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Check that the workers processed the events
         #--------------------------------------------------------------------------------------
 
+        email_sent_by_a_worker = False
+        worker_that_sent_email = None
+        for proc in procs:
+            if not proc.smtp_client.sent_mail.empty():
+                email_sent_by_a_worker = True
+                worker_that_sent_email = proc
+                break
+
+        log.debug("Was email sent by any worker?: %s" % email_sent_by_a_worker)
+
         # check fake smtp client for emails sent
-        self.assertFalse(proc1.smtp_client.sent_mail.empty())
+        self.assertTrue(email_sent_by_a_worker)
 
-        email_list = []
+        email_tuple = None
+        if email_sent_by_a_worker:
+            email_tuple = worker_that_sent_email.smtp_client.sent_mail.get()
 
-        while not proc1.smtp_client.sent_mail.empty():
-            email_tuple = proc1.smtp_client.sent_mail.get()
-            email_list.append(email_tuple)
+        # Parse the email sent and check and make assertions about email body. Make assertions about the sender and recipient
+        msg_sender, msg_recipient, msg = email_tuple
 
-        # check that one user got the email
-        self.assertEquals(len(email_list), 1)
+        self.assertEquals(msg_sender, CFG.get_safe('server.smtp.sender') )
+        self.assertTrue(msg_recipient in ['user_1@gmail.com', 'user_2@gmail.com'])
 
-        for email_tuple in email_list:
-            msg_sender, msg_recipient, msg = email_tuple
+        maps = msg.split(",")
 
-            self.assertEquals(msg_sender, CFG.get_safe('server.smtp.sender') )
-            self.assertTrue(msg_recipient in ['user_1@gmail.com', 'user_2@gmail.com'])
+        event_time = ''
+        for map in maps:
+            fields = map.split(":")
+            if fields[0].find("Time stamp") > -1:
+                event_time = int(fields[1].strip(" "))
+                break
 
-            maps = []
-            maps = msg.split(",")
-
-            event_time = ''
-            for map in maps:
-                fields = map.split(":")
-                if fields[0].find("Time stamp") > -1:
-                    event_time = int(fields[1].strip(" "))
-                    break
-
-            # Check that the event sent in the email had time within the user specified range
-            self.assertEquals(event_time, 5)
+        # Check that the event sent in the email had time within the user specified range
+        self.assertEquals(event_time, 5)
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
