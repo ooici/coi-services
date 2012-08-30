@@ -20,6 +20,9 @@ class PreservationManagementService(BasePreservationManagementService):
 
     def on_start(self):
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'filesystem')
+        # Load the datastore in init
+        ds = self.container.datastore_manager.get_datastore(self.datastore_name, DS.DS_PROFILE.FILESYSTEM)
+
 
     def persist_file(self, file_data='', digest='', metadata=None):
         ds = self.container.datastore_manager.get_datastore(self.datastore_name, DS.DS_PROFILE.FILESYSTEM)

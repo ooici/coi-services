@@ -10,6 +10,7 @@ from nose.plugins.attrib import attr
 from pyon.util.int_test import IonIntegrationTestCase
 from interface.objects import File
 from interface.services.dm.ipreservation_management_service import PreservationManagementServiceClient
+from pyon.datastore.datastore import DataStore
 import unittest
 import hashlib
 
@@ -21,6 +22,7 @@ class FilePersistenceIntTest(IonIntegrationTestCase):
         self.preservation_management = PreservationManagementServiceClient()
 
     def test_simple_file_persist(self):
+        datastore = self.container.datastore_manager.get_datastore('filesystem', DataStore.DS_PROFILE.FILESYSTEM)
         example_data = 'hello world\n'
         digest = hashlib.sha224(example_data).hexdigest()
         metadata = File(name='/examples/hello',extension='.txt')
