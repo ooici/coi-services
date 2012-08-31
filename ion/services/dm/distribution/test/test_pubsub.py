@@ -7,10 +7,11 @@
 '''
 from pyon.public import PRED, RT, StreamSubscriberRegistrar, StreamPublisherRegistrar
 from pyon.net.endpoint import Subscriber,Publisher
-from pyon.ion.stream import SimpleStreamSubscriber, SimpleStreamPublisher
+from pyon.ion.stream import SimpleStreamSubscriber, SimpleStreamPublisher, SimpleStreamRouteSubscriber, SimpleStreamRoutePublisher
 import gevent
 from mock import Mock
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.objects import StreamRoute
 from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from pyon.core.exception import NotFound, BadRequest
 from pyon.util.int_test import IonIntegrationTestCase
@@ -20,6 +21,7 @@ import unittest
 from interface.objects import StreamQuery, ExchangeQuery, SubscriptionTypeEnum, StreamDefinition, StreamDefinitionContainer, Subscription
 from pyon.util.containers import DotDict
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
+from gevent.event import Event
 import logging
 
 @attr('UNIT', group='dm1')
@@ -581,7 +583,14 @@ class PubSubIntTest(IonIntegrationTestCase):
         self.pubsub_cli.delete_subscription(self.exchange_subscription_id)
         self.pubsub_cli.delete_stream(self.ctd_stream1_id)
         self.pubsub_cli.delete_stream(self.ctd_stream2_id)
+        self.delete_queues()
         super(PubSubIntTest,self).tearDown()
+
+    def delete_queues(self):
+        xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
+        xn.delete()
+        xn = self.container.ex_manager.create_xn_queue(self.exchange2_name)
+        xn.delete()
 
     def purge_queues(self):
         xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
@@ -811,3 +820,50 @@ class PubSubIntTest(IonIntegrationTestCase):
     @unittest.skip("Nothing to test")
     def test_unbind_unbound_subscription(self):
         pass
+
+
+    def test_get_stream_route_for_stream(self):
+      test_stream = self.pubsub_cli.create_stream()
+      stream_route = self.pubsub_cli.get_stream_route_for_stream(test_stream, 'test_exchange')
+      self.assertIsInstance(stream_route,StreamRoute)
+      self.assertEquals(stream_route.routing_key, '%s.data' % test_stream)
+      self.assertEquals(stream_route.exchange_point, 'test_exchange')
+
+    def test_simple_publisher(self):
+        self.event = Event()
+        def verify(m,h):
+            if m=='hi':
+                self.event.set()
+
+        test_subscriber = SimpleStreamSubscriber.new_subscriber(self.container, 'test_queue', verify)
+        test_subscriber.start()
+
+        stream_id = self.pubsub_cli.create_stream()
+
+        subscription_id = self.pubsub_cli.create_subscription(query=StreamQuery([stream_id]), exchange_point='test_exchange', exchange_name='test_queue')
+        self.pubsub_cli.activate_subscription(subscription_id)
+
+        #--------------------------------------------------------------------------------
+        # Publishing with the stream route
+        #--------------------------------------------------------------------------------
+
+        stream_route = self.pubsub_cli.get_stream_route_for_stream(stream_id, 'test_exchange')
+        publisher = SimpleStreamRoutePublisher.new_publisher(self.container, stream_route)
+
+        publisher.publish('hi')
+
+        self.assertTrue(self.event.wait(10))
+
+        self.pubsub_cli.deactivate_subscription(subscription_id)
+        self.pubsub_cli.delete_subscription(subscription_id)
+        self.pubsub_cli.delete_stream(stream_id)
+
+        xn = self.container.ex_manager.create_xn_queue('test_queue')
+        xn.delete()
+
+        xp = self.container.ex_manager.create_xp('test_exchange')
+        xp.delete()
+
+
+
+    

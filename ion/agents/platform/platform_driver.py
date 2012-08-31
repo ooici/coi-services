@@ -41,14 +41,14 @@ class PlatformDriver(object):
     A platform driver handles a particular platform in a platform network.
     """
 
-    #
-    # PRELIMINARY
-    #
-
     def __init__(self, platform_id):
 
         self._platform_id = platform_id
         self._send_event = None
+
+        # the root NNode defining the platform network rooted at the platform
+        # identified by self._platform_id
+        self._nnode = None
 
     def set_event_listener(self, evt_recv):
         """
@@ -62,9 +62,18 @@ class PlatformDriver(object):
     def go_active(self):
         """
         To be implemented by subclass.
-        Establish communication with external platform.
+        Establish communication with external platform and assigns self._nnode.
         """
         raise NotImplemented()
+
+    def get_subplatform_ids(self):
+        """
+        Gets the IDs of the subplatforms of this driver's associated
+        platform. This is based on self._nnode, which should have been
+        assigned by a call to go_active.
+        """
+        assert self._nnode is not None, "go_active should have been called first"
+        return self._nnode.subplatforms.keys()
 
     def start_resource_monitoring(self):
         """
@@ -83,15 +92,15 @@ class PlatformDriver(object):
 
     def destroy(self):
         """
-        To be implemented by subclass.
-        Stops all activity done by the driver.
+        Stops all activity done by the driver. In this base class,
+        this method calls self.stop_resource_monitoring()
         """
-        raise NotImplemented()
+        self.stop_resource_monitoring()
 
     def _notify_driver_event(self, driver_event):
         """
-        Convenience for subclasses to send a driver event to corresponding
-        platform agent.
+        Convenience method for subclasses to send a driver event to
+        corresponding platform agent.
 
         @param driver_event a DriverEvent object.
         """
