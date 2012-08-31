@@ -21,8 +21,13 @@ import StringIO
 from numpy import array, append
 
 # Matplotlib related imports
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-from matplotlib.figure import Figure
+# Need try/catch because of weird import error
+try:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+    from matplotlib.figure import Figure
+except:
+    import sys
+    print >> sys.stderr, "Cannot import matplotlib"
 
 tx = TaxyTool()
 tx.add_taxonomy_set('matplotlib_graphs','Matplotlib generated graphs for a particular data product')

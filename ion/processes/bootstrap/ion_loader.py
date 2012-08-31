@@ -6,16 +6,15 @@ __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 
 import ast
 import csv
-import uuid
-import json
+
 
 from interface import objects
 
 from pyon.core.bootstrap import get_service_registry
-from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.resource import get_restype_lcsm
 from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any, get_ion_ts
+from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import CoverageCraft
 
 DEBUG = True
@@ -25,11 +24,13 @@ class IONLoader(ImmediateProcess):
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
 
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadooi=True
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadui=True
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadooi path=res/preload/lca_demo scenario=LCA_DEMO_PRE
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/lca_demo
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
+
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadui=True
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadooi path=res/preload/r2_ioc scenario=R2_DEMO
     """
 
     COL_SCENARIO = "Scenario"
@@ -41,6 +42,7 @@ class IONLoader(ImmediateProcess):
     ID_ORG_ION = "ORG_ION"
 
     def on_start(self):
+        self.ui_loader = UILoader(self)
 
         global DEBUG
         op = self.CFG.get("op", None)
@@ -49,6 +51,7 @@ class IONLoader(ImmediateProcess):
         DEBUG = self.CFG.get("debug", False)
         self.loadooi = self.CFG.get("loadooi", False)
         self.loadui = self.CFG.get("loadui", False)
+        self.exportui = self.CFG.get("exportui", False)
 
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, path, scenario))
         if op:
@@ -57,9 +60,11 @@ class IONLoader(ImmediateProcess):
             elif op == "loadooi":
                 self.extract_ooi_assets(path)
             elif op == "loadui":
-                self.load_ui(path)
+                self.ui_loader.load_ui(path)
+                if self.exportui:
+                    self.ui_loader.export_ui_specs('ui_specs.json')
             elif op == "deleteui":
-                self.delete_ui()
+                self.ui_loader.delete_ui()
             else:
                 raise iex.BadRequest("Operation unknown")
         else:
@@ -108,7 +113,7 @@ class IONLoader(ImmediateProcess):
             self.extract_ooi_assets(path)
 
         if self.loadui:
-            self.load_ui(path)
+            self.ui_loader.load_ui(path)
 
         for category in categories:
             row_do, row_skip = 0, 0
@@ -123,7 +128,7 @@ class IONLoader(ImmediateProcess):
             log.info("Loading category %s from file %s", category, filename)
             try:
                 with open(filename, "rb") as csvfile:
-                    reader = self._get_csv_reader(csvfile)
+                    reader = csv.DictReader(csvfile, delimiter=',')
                     for row in reader:
                         # Check if scenario applies
                         rowsc = row[self.COL_SCENARIO]
@@ -138,12 +143,6 @@ class IONLoader(ImmediateProcess):
                 log.warn("Resource category file %s error: %s" % (filename, str(ioe)))
 
             log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
-
-    def _get_csv_reader(self, csvfile):
-        #determine type of csv
-        #dialect = csv.Sniffer().sniff(csvfile.read(1024))
-        #csvfile.seek(0)
-        return csv.DictReader(csvfile, delimiter=',')
 
     def _create_object_from_row(self, objtype, row, prefix=''):
         log.info("Create object type=%s, prefix=%s" % (objtype, prefix))
@@ -781,7 +780,7 @@ class IONLoader(ImmediateProcess):
                     for i in xrange(9):
                         # Skip the first rows, because they are garbage
                         csvfile.readline()
-                    reader = self._get_csv_reader(csvfile)
+                    reader = csv.DictReader(csvfile, delimiter=',')
                     for row in reader:
                         row_do += 1
 
@@ -890,308 +889,6 @@ class IONLoader(ImmediateProcess):
         li['port_min_depth'] = row["PortMinDepth"]
         li['port_max_depth'] = row["PortMaxDepth"]
 
-    # ---------------------------------------------------------------------------
-
-    def delete_ui(self):
-        resource_types = [
-            'UIInternalResourceType',
-            'UIInformationLevel',
-            'UIScreenLabel',
-            'UIAttribute',
-            'UIBlock',
-            'UIGroup',
-            'UIRepresentation',
-            'UIResourceType',
-            'UIView',
-            'UIBlockAttribute',
-            'UIBlockRepresentation',
-            'UIGroupBlock',
-            'UIViewGroup']
-
-        res_ids = []
-
-        for restype in resource_types:
-            res_is_list, _ = self.container.resource_registry.find_resources(restype, id_only=True)
-            res_ids.extend(res_is_list)
-            log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
-
-        ds = DatastoreManager.get_datastore_instance("resources")
-        docs = ds.read_doc_mult(res_ids)
-
-        for doc in docs:
-            doc['_deleted'] = True
-
-        ds.create_doc_mult(docs, allow_ids=True)
-
-
-    def load_ui(self, path):
-        """@brief Entry point to the import/generation capabilities from the FileMakerPro database
-        CVS files to ION resource objects.
-        """
-        # Delete old UI objects first
-        self.delete_ui()
-
-        if not path:
-            raise iex.BadRequest("Must provide path")
-
-        path = path + "/ui_assets"
-        log.info("Start parsing UI assets from path=%s" % path)
-        categories = [
-            ('Internal Resource Type.csv', 'InternalResourceType'),
-            ('Resource.csv', 'ResourceType'),
-            ('Information Level.csv', 'InformationLevel'),
-            ('Attribute.csv', 'Attribute'),
-            ('Block.csv', 'Block'),
-            ('Group.csv', 'Group'),
-            ('Representation.csv', 'Representation'),
-            ('View.csv', 'View'),
-            ('Screen Label.csv', 'ScreenLabel'),
-            ('_jt_Block_Attribute.csv', 'BlockAttribute'),
-            ('_jt_Block_Representation.csv', 'BlockRepresentation'),
-            ('_jt_Group_Block.csv', 'GroupBlock'),
-            ('_jt_View_Group.csv', 'ViewGroup'),
-            ]
-
-        self.uiid_prefix = uuid.uuid4().hex[:9] + "_"
-        self.ui_objs = {}
-        self.ui_obj_by_id = {}
-        self.ref_assocs = []
-        self.ui_assocs = []
-
-        for filename, category in categories:
-            row_do, row_skip = 0, 0
-
-            catfunc = getattr(self, "_loadui_%s" % category)
-            filename = "%s/%s" % (path, filename)
-            log.info("Loading UI category %s from file %s" % (category, filename))
-            try:
-                with open(filename, "rb") as csvfile:
-                    reader = self._get_csv_reader(csvfile)
-                    for row in reader:
-                        catfunc(row)
-                        row_do += 1
-            except IOError, ioe:
-                log.warn("UI category file %s error: %s" % (filename, str(ioe)))
-
-            log.info("Loaded UI category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
-
-        try:
-            ds = DatastoreManager.get_datastore_instance("resources")
-            self._finalize_uirefs(ds)
-            res = ds.create_mult(self.ui_obj_by_id.values(), allow_ids=True)
-            log.info("Loaded %s UI resource objects into resource registry" % (len(res)))
-            res = ds.create_mult(self.ui_assocs)
-            log.info("Loaded %s UI resource associations into resource registry" % (len(res)))
-        except Exception as ex:
-            log.exception("load error err=%s" % (str(ex)))
-
-    def _add_ui_object(self, refid, obj):
-        while refid in self.ui_objs:
-            log.warn("Object duplicate id=%s, obj=%s" % (refid, obj))
-            refid = refid + "!"
-
-        if not refid:
-            log.warn("Object has no UI refid: %s" % obj)
-        else:
-            self.ui_objs[refid] = obj
-
-    def _add_ui_refassoc(self, sub_refid, predicate, obj_refid):
-        # Create a pre-association based on UI refids (not object IDs)
-        if not sub_refid or not obj_refid:
-            log.warn("Association not complete: %s (%s) -> %s" % (sub_refid, predicate, obj_refid))
-        else:
-            refassoc = (sub_refid, predicate, obj_refid)
-            self.ref_assocs.append(refassoc)
-
-    def _get_uiid(self, refid):
-        return refid
-
-    def _finalize_uirefs(self, ds):
-        # Create real resource IDs
-        for obj in self.ui_objs.values():
-            oid = self.uiid_prefix + obj.uirefid
-            obj._id = oid
-            self.ui_obj_by_id[oid] = obj
-
-            # Change references for all known UI objects
-            for attr in obj.__dict__:
-                if attr != 'uirefid' and getattr(obj, attr) in self.ui_objs:
-                    setattr(obj, attr, self.uiid_prefix + getattr(obj, attr))
-            try:
-                json.dumps(obj.__dict__.copy())
-            except Exception as ex:
-                log.exception("Object %s problem" % obj)
-
-        # Resolve associations to real resource IDs
-        for refassoc in self.ref_assocs:
-            sub_refid, pred, obj_refid = refassoc
-            try:
-                subo = self.ui_objs[sub_refid]
-                objo = self.ui_objs[obj_refid]
-                assoc = objects.Association(at="",
-                    s=subo._id, st=subo._get_type(), srv="",
-                    p=pred,
-                    o=objo._id, ot=objo._get_type(), orv="",
-                    ts=get_ion_ts())
-
-                self.ui_assocs.append(assoc)
-            except Exception as ex:
-                log.warn("Cannot create association for subject=%s pred=%s object=%s: %s" % (sub_refid, pred, obj_refid, ex))
-
-    def _build_ui_resource(self, row, objtype, mapping, auto_add=True):
-        refid = None
-        obj_fields = {}
-        for obj_attr, row_attr in mapping.iteritems():
-            row_val = row[row_attr]
-            obj_fields[obj_attr] = row_val
-            if obj_attr == "uirefid":
-                refid = row_val
-
-        obj = IonObject(objtype, **obj_fields)
-
-        if 'name' in obj_attr and not obj.name:
-            log.warn("Ignoring object with no name: %s" % obj)
-        else:
-            if auto_add:
-                self._add_ui_object(refid, obj)
-
-        return refid, obj
-
-    def _loadui_InternalResourceType(self, row):
-        refid, obj = self._build_ui_resource(row, "UIInternalResourceType",
-                {'uirefid':'__pk_InternalResourceType_ID',
-                 'name':'Name',
-                 'internal_resource_superclass':'Internal Resource Superclass',
-                 'alignment_status':'Alignment Status'})
-
-        self._add_ui_refassoc(refid, "hasUISupertype", obj.internal_resource_superclass)
-
-    def _loadui_ResourceType(self, row):
-        refid, obj = self._build_ui_resource(row, "UIResourceType",
-                {'uirefid':'__pk_Resource_ID',
-                 'name':'Name',
-                 'screen_label_id':'_fk_ScreenLabel_ID'})
-
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
-
-    def _loadui_InformationLevel(self, row):
-        refid, obj = self._build_ui_resource(row, "UIInformationLevel",
-                {'uirefid':'__pk_InformationLevel_ID',
-                 'level':'Level',
-                 'description':'Description'})
-
-    def _loadui_ScreenLabel(self, row):
-        refid, obj = self._build_ui_resource(row, "UIScreenLabel",
-                {'uirefid':'__pk_ScreenLabel_ID',
-                 'text':'Text',
-                 'abbreviation':'Abbreviation'})
-
-    def _loadui_Attribute(self, row):
-        refid, obj = self._build_ui_resource(row, "UIAttribute",
-                {'uirefid':'__pk_Attribute_ID',
-                 'name':'Name',
-                 'information_level_id':'_fk_InformationLevel_ID',
-                 'screen_label_id':'_fk_ScreenLabel_ID',
-                 'internal_resource_type_id':'_fk_InternalResourceType_ID',
-                 'value_generation':'Value Generation',
-                 'alignment_status':'Alignment Status'})
-
-        # TODO: Only accepted attributes, only Value (not Computed)
-
-    def _loadui_View(self, row):
-        refid, obj = self._build_ui_resource(row, "UIView",
-                {'uirefid':'__pk_View_ID',
-                 'name':'Name',
-                 'description':'Description',
-                 'screen_label_id':'_fk_ScreenLabel_ID'})
-
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
-
-    def _loadui_Group(self, row):
-        refid, obj = self._build_ui_resource(row, "UIGroup",
-                {'uirefid':'__pk_Group_ID',
-                 'name':'Name',
-                 'description':'Description',
-                 'screen_label_id':'_fk_ScreenLabel_ID'})
-
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
-
-    def _loadui_Block(self, row):
-        refid, obj = self._build_ui_resource(row, "UIBlock",
-                {'uirefid':'__pk_Block_ID',
-                 'name':'Name',
-                 'resource_id':'_fk_Resource_ID',
-                 'group_id':'_fk_Group_ID',
-                 'screen_label_id':'_fk_ScreenLabel_ID'})
-
-        self._add_ui_refassoc(refid, "hasUIResource", obj.resource_id)
-        self._add_ui_refassoc(refid, "hasUIGroup", obj.group_id)
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
-
-    def _loadui_Representation(self, row):
-        refid, obj = self._build_ui_resource(row, "UIRepresentation",
-                {'uirefid':'__pk_Representation_ID',
-                 'name':'Name',
-                 'description':'Description',
-                 'screen_label_id':'_fk_ScreenLabel_ID'})
-
-        self._add_ui_refassoc(refid, "hasUIScreenLabel", obj.screen_label_id)
-
-    def _loadui_BlockAttribute(self, row):
-        refid, obj = self._build_ui_resource(row, "UIBlockAttribute",
-                {'uirefid':'__pk_jt_Block_Attribute',
-                 'block_id':'_fk_Block_ID',
-                 'attribute_id':'_fk_Attribute_ID',
-                 'position':'Position'})
-
-        if not obj.block_id or not obj.attribute_id:
-            log.warn("Ignoring UIBlockAttribute: Both FK must be set")
-        else:
-            self._add_ui_refassoc(obj.attribute_id, "hasUIBlockAttribute", refid)
-            self._add_ui_refassoc(obj.block_id, "hasUIBlockAttribute", refid)
-            self._add_ui_refassoc(obj.block_id, "hasUIAttribute", obj.attribute_id)
-
-    def _loadui_BlockRepresentation(self, row):
-        refid, obj = self._build_ui_resource(row, "UIBlockRepresentation",
-                {'uirefid':'__pk_jt_Block_Representation',
-                 'block_id':'_fk_Block_ID',
-                 'representation_id':'_fk_Representation_ID'})
-
-        if not obj.block_id or not obj.representation_id:
-            log.warn("Ignoring UIBlockRepresentation: Both FK must be set")
-        else:
-            self._add_ui_refassoc(obj.block_id, "hasUIBlockRepresentation", refid)
-            self._add_ui_refassoc(obj.representation_id, "hasUIBlockRepresentation", refid)
-            self._add_ui_refassoc(obj.block_id, "hasUIRepresentation", obj.representation_id)
-
-    def _loadui_GroupBlock(self, row):
-        refid, obj = self._build_ui_resource(row, "UIGroupBlock",
-                {'uirefid':'__pk_jt_Group_Block_ID',
-                 'block_id':'_fk_Block_ID',
-                 'group_id':'_fk_Group_ID'})
-
-        if not obj.block_id or not obj.group_id:
-            log.warn("Ignoring UIGroupBlock: Both FK must be set")
-        else:
-            self._add_ui_refassoc(obj.group_id, "hasUIGroupBlock", refid)
-            self._add_ui_refassoc(obj.block_id, "hasUIGroupBlock", refid)
-            self._add_ui_refassoc(obj.group_id, "hasUIBlock", obj.block_id)
-
-
-    def _loadui_ViewGroup(self, row):
-        refid, obj = self._build_ui_resource(row, "UIViewGroup",
-                {'uirefid':'__pk_jt_View_Group_ID',
-                 'view_id':'_fk_View_ID',
-                 'group_id':'_fk_Group_ID'})
-
-        if not obj.view_id or not obj.group_id:
-            log.warn("Ignoring UIViewGroup: Both FK must be set")
-        else:
-            self._add_ui_refassoc(obj.view_id, "hasUIViewGroup", refid)
-            self._add_ui_refassoc(obj.group_id, "hasUIViewGroup", refid)
-            self._add_ui_refassoc(obj.view_id, "hasUIGroup", obj.group_id)
-
-
     def _create_parameter_dictionary(self, type):
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
@@ -1201,5 +898,3 @@ class IONLoader(ImmediateProcess):
         parameter_dictionary = parameter_dictionary.dump()
 
         return parameter_dictionary, tdom, sdom
-            
-            
