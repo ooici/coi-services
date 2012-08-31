@@ -207,6 +207,21 @@ class PubsubManagementService(BasePubsubManagementService):
         result = filter(containsProducer, objects)
         return result
 
+    def get_stream_route_for_stream(self, stream_id='', exchange_point=''):
+        '''
+        @brief Returns StreamRoute object for a given stream and exchange point
+        @param stream_id identifier for the stream
+        @param exchange_point name of the exchange point
+        @retval StreamRoute object
+        '''
+        if not exchange_point:
+            exchange_point = 'science_data'
+        # Verifies the stream
+        self.read_stream(stream_id)
+        route_obj = StreamRoute(exchange_point=exchange_point, routing_key='%s.data' % stream_id)
+        return route_obj
+
+
     def find_streams_by_consumer(self, consumer_id=''):
         '''
         Not implemented here.
