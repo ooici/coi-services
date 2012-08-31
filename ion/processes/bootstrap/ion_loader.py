@@ -6,14 +6,11 @@ __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 
 import ast
 import csv
-import uuid
-import json
-import re
+
 
 from interface import objects
 
 from pyon.core.bootstrap import get_service_registry
-from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.resource import get_restype_lcsm
 from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any, get_ion_ts
@@ -27,11 +24,13 @@ class IONLoader(ImmediateProcess):
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
 
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadooi=True
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/lca_demo scenario=LCA_DEMO_PRE loadui=True
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadooi path=res/preload/lca_demo scenario=LCA_DEMO_PRE
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
+
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadui=True
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadooi path=res/preload/r2_ioc scenario=R2_DEMO
     """
 
     COL_SCENARIO = "Scenario"
@@ -52,6 +51,7 @@ class IONLoader(ImmediateProcess):
         DEBUG = self.CFG.get("debug", False)
         self.loadooi = self.CFG.get("loadooi", False)
         self.loadui = self.CFG.get("loadui", False)
+        self.exportui = self.CFG.get("exportui", False)
 
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, path, scenario))
         if op:
@@ -61,10 +61,10 @@ class IONLoader(ImmediateProcess):
                 self.extract_ooi_assets(path)
             elif op == "loadui":
                 self.ui_loader.load_ui(path)
+                if self.exportui:
+                    self.ui_loader.export_ui_specs('ui_specs.json')
             elif op == "deleteui":
                 self.ui_loader.delete_ui()
-            elif op == "getui":
-                self.ui_loader.get_ui_files(path)
             else:
                 raise iex.BadRequest("Operation unknown")
         else:
@@ -128,7 +128,7 @@ class IONLoader(ImmediateProcess):
             log.info("Loading category %s from file %s", category, filename)
             try:
                 with open(filename, "rb") as csvfile:
-                    reader = self._get_csv_reader(csvfile)
+                    reader = csv.DictReader(csvfile, delimiter=',')
                     for row in reader:
                         # Check if scenario applies
                         rowsc = row[self.COL_SCENARIO]
@@ -143,12 +143,6 @@ class IONLoader(ImmediateProcess):
                 log.warn("Resource category file %s error: %s" % (filename, str(ioe)))
 
             log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
-
-    def _get_csv_reader(self, csvfile):
-        #determine type of csv
-        #dialect = csv.Sniffer().sniff(csvfile.read(1024))
-        #csvfile.seek(0)
-        return csv.DictReader(csvfile, delimiter=',')
 
     def _create_object_from_row(self, objtype, row, prefix=''):
         log.info("Create object type=%s, prefix=%s" % (objtype, prefix))
@@ -786,7 +780,7 @@ class IONLoader(ImmediateProcess):
                     for i in xrange(9):
                         # Skip the first rows, because they are garbage
                         csvfile.readline()
-                    reader = self._get_csv_reader(csvfile)
+                    reader = csv.DictReader(csvfile, delimiter=',')
                     for row in reader:
                         row_do += 1
 
