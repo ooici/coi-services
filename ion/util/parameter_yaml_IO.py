@@ -11,7 +11,7 @@ Usage:
 from ion.util.parameter_yaml_IO import dump_param_contexts_to_yml, get_param_dict
 dump_param_contexts_to_yml()
 
-pdict = get_param_dict('CTDParamDict')
+pdict = get_param_dict('sample_param_dict')
 pdict_as_python_dictionary = pdict.dump()
 
 '''
@@ -44,7 +44,7 @@ def build_contexts():
     sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=np.float32))
     sal_ctxt.uom = 'PSU'
     sal_ctxt.fill_value = 0x0
-    contexts.append(pres_ctxt)
+    contexts.append(sal_ctxt)
 
     temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
     temp_ctxt.uom = 'degree_Celsius'
@@ -115,7 +115,7 @@ def get_param_dict(param_dict_name = None):
     # validate that the context names mentioned in the parameter dictionary def in yml are correct
     for name in context_names:
         if not param_context_dict.has_key(name):
-            raise AssertionError('The parameter dict has a context that does not exist in the parameter context defs specified in yml.')
+            raise AssertionError('The parameter dict has a context that does not exist in the parameter context defs specified in yml: %s' % name)
 
     pdict = ParameterDictionary()
 
