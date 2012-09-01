@@ -500,7 +500,7 @@ class UILoader(object):
             if obj._get_type() == "UIWidget":
                 widget_dict = dict(
                     name=obj.name,
-                    wid=obj.uirefid,
+                    #wid=obj.uirefid,
                     elements=[])
                 if verbose:
                     widget_dict['desc'] = obj.description
@@ -532,7 +532,7 @@ class UILoader(object):
             elif obj._get_type() == "UIScreenElement":
                 # Add object to elements dict
                 element_dict = dict(
-                    elid=obj.uirefid,
+                    #elid=obj.uirefid,
                     name=obj.name,
                     wid=obj.widget_id,
                     gfx=obj.graphic_id,
@@ -555,7 +555,7 @@ class UILoader(object):
                     element_dict['desc'] = obj.description
                 elements[obj.uirefid] = element_dict
 
-        # Pass 3: Build embedded screen elements and associating, information elements
+        # Pass 3: Build embedded screen elements and associate information elements
         for obj in ui_objs.values():
             if obj._get_type() == "UIEmbeddedScreenElement":
                 parent = elements.get(obj.embedding_screen_element_id, None)
@@ -570,7 +570,7 @@ class UILoader(object):
                     continue
 
                 embed_dict = dict(
-                    elid=child['elid'],
+                    elid=obj.embedded_screen_element_id,
                     wid=child['wid'],
                     ogfx=obj.override_graphic_id,
                     olevel=obj.override_information_level,
@@ -580,6 +580,7 @@ class UILoader(object):
                 if verbose:
                     embed_dict['dpath_desc'] = obj.data_path_description
                 parent['embed'].append(embed_dict)
+
             elif obj._get_type() == "UIScreenElementInformationElement":
                 element = elements.get(obj.screen_element_id, None)
                 if not element:
@@ -602,18 +603,39 @@ class UILoader(object):
                 elif info._get_type() == 'UIResourceAttribute':
                     info_dict['ie_type'] = 'RA'
                     info_dict['ie_level'] = info.information_level
-                    # May want to resolve the following into a name
-                    info_dict['ie_ot'] = info.object_type_id
-                    info_dict['ie_rt'] = info.resource_type_id
                     info_dict['ie_wid'] = info.default_widget_id
-
+                    ot_name = ''
+                    if info.object_type_id:
+                        ot = ui_objs.get(info.object_type_id, None)
+                        if not ot:
+                            msg = "UIScreenElementInformationElement object type %s for resource attribute %s not found" % (info.object_type_id, info.uirefid)
+                            warnings.append((obj.uirefid, msg))
+                        else:
+                            ot_name = ot.name
+                    info_dict['ie_ot'] = ot_name
+                    rt_name = ''
+                    if info.resource_type_id:
+                        rt = ui_objs.get(info.resource_type_id, None)
+                        if not rt:
+                            msg = "UIScreenElementInformationElement resource type %s for resource attribute %s not found" % (info.object_type_id, info.uirefid)
+                            warnings.append((obj.uirefid, msg))
+                        else:
+                            rt_name = rt.name
+                    info_dict['ie_rt'] = rt_name
                 elif info._get_type() == 'UIObjectType':
                     info_dict['ie_type'] = 'OT'
                 elif info._get_type() == 'UIObjectField':
                     info_dict['ie_type'] = 'OF'
                     info_dict['ie_level'] = info.information_level
-                    # May want to resolve the following into a name
-                    info_dict['ie_ot'] = info.object_type_id
+                    ot_name = ''
+                    if info.object_type_id:
+                        ot = ui_objs.get(info.object_type_id, None)
+                        if not ot:
+                            msg = "UIScreenElementInformationElement object type %s for object field %s not found" % (info.object_type_id, info.uirefid)
+                            warnings.append((obj.uirefid, msg))
+                        else:
+                            ot_name = ot.name
+                    info_dict['ie_ot'] = ot_name
 
                 if verbose:
                     info_dict['ie_desc'] = obj.description
@@ -624,13 +646,14 @@ class UILoader(object):
                 widgets[obj.widget_id]['elements'].append(obj.uirefid)
 
 
-            # Pass 4: Sort of embeds and removal of unnecessary attributes (elements)
+        # Pass 4: Sort of embeds and removal of unnecessary attributes (elements)
         for element in elements.values():
             if element['embed']:
                 element['embed'] = sorted(element['embed'], key=lambda obj: obj['pos'])
             else:
                 if strip:
                     del element['embed']
+        # Strip unreferenced in embedding
 
 
         # Root entry point: Resource types to blocks
