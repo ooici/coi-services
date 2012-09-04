@@ -35,7 +35,7 @@ import signal
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
 
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from coverage_model.parameter import ParameterDictionary, ParameterContext
 
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
 from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
@@ -186,6 +186,69 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return
 
+    # TODO: TEMP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    def _create_parameter(self, name):
+
+        pdict = ParameterDictionary()
+
+        pdict = self._add_location_time_ctxt(pdict)
+
+        if name == 'ctd':
+            cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.float32))
+            cond_ctxt.uom = 'unknown'
+            cond_ctxt.fill_value = 0e0
+            pdict.add_context(cond_ctxt)
+
+            pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.float32))
+            pres_ctxt.uom = 'Pascal'
+            pres_ctxt.fill_value = 0x0
+            pdict.add_context(pres_ctxt)
+
+            temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
+            temp_ctxt.uom = 'degree_Celsius'
+            temp_ctxt.fill_value = 0e0
+            pdict.add_context(temp_ctxt)
+
+        elif name == "raw":
+            raw_ctxt = ParameterContext('raw', param_type=QuantityType(value_encoding=np.int64))
+            raw_ctxt.reference_frame = 'unknown'
+            raw_ctxt.uom = 'bytes'
+            raw_ctxt.fill_value = 0e0
+            pdict.add_context(raw_ctxt)
+
+        return pdict
+
+    # TODO: TEMP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    def _add_location_time_ctxt(self, pdict):
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 1970-01-01'
+        t_ctxt.fill_value = 0x0
+        pdict.add_context(t_ctxt)
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
+        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt.fill_value = 0e0
+        pdict.add_context(lat_ctxt)
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
+        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt.fill_value = 0e0
+        pdict.add_context(lon_ctxt)
+
+        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
+        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
+        depth_ctxt.uom = 'meters'
+        depth_ctxt.fill_value = 0e0
+        pdict.add_context(depth_ctxt)
+
+        return pdict
+
+
+
     def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
         Agent instance must first be created and associated with a instrument device
@@ -217,6 +280,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_model_id = model_objs[0]
         log.debug("activate_instrument:instrument_model %s" % str(instrument_model_id))
 
+        #retrive the stream info for this model
+        streams_dict = model_objs[0].custom_attributes['streams']
+        if not streams_dict:
+            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(model_objs[0]) )
 
         #retrieve the associated instrument agent
         agent_objs = self.instrument_agent.find_having_model(instrument_model_id)
@@ -246,8 +313,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not process_def_obj:
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
-
         out_streams = {}
+        out_streams_and_param_dicts = {}
         #retrieve the output products
         data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id,
                                                                           PRED.hasOutputProduct,
@@ -266,6 +333,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             if len(stream_ids) > 1:
                 raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
 
+            #get the  parameter dictionary for this stream
+            dataset_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasDataset, RT.Dataset, True)
+            #One data set per product ...for now.
+            if not dataset_ids:
+                raise NotFound("No Dataset attached to this Data Product " + str(product_id))
+            if len(dataset_ids) > 1:
+                raise Inconsistent("Data Product should only have ONE Dataset" + str(product_id))
+
+            dataset_param_dict_flat = self.clients.dataset_management.get_dataset_parameters(dataset_ids[0])
+
+            out_streams_and_param_dicts[stream_ids[0]] = dataset_param_dict_flat
+
             # retrieve the stream
             stream_obj = self.clients.resource_registry.read(stream_ids[0])
             if not stream_obj:
@@ -283,40 +362,38 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise NotFound("Stream %s is not CTD raw or parsed" % stream_obj.name)
         log.debug("activate_instrument:output stream config: %s"  +  str(out_streams))
 
-        #todo: move this up and out
-        # Create taxonomies for both parsed and raw
-        ParsedTax = TaxyTool()
-        ParsedTax.add_taxonomy_set('temp', 't', 'long name for temp')
-        ParsedTax.add_taxonomy_set('cond', 'c', 'long name for cond')
-        ParsedTax.add_taxonomy_set('pres', 'p', 'long name for pres')
-        ParsedTax.add_taxonomy_set('lat','long name for latitude')
-        ParsedTax.add_taxonomy_set('lon','long name for longitude')
-        ParsedTax.add_taxonomy_set('time','long name for time')
-        ParsedTax.add_taxonomy_set('height','long name for height')
-        # This is an example of using groups it is not a normative statement about how to use groups
-        ParsedTax.add_taxonomy_set('coordinates','This group contains coordinates...')
-        ParsedTax.add_taxonomy_set('data','This group contains data...')
+        # todo: use parameter dictionary repository
+        # Create parameter dictionaries for both parsed and raw
+        ctd_param_dict = self._create_parameter('ctd')
+        raw_param_dict = self._create_parameter('raw')
 
 
-        RawTax = TaxyTool()
-        RawTax.add_taxonomy_set('blob','bytes in an array')
-        RawTax.add_taxonomy_set('lat','long name for latitude')
-        RawTax.add_taxonomy_set('lon','long name for longitude')
-        RawTax.add_taxonomy_set('time','long name for time')
-        RawTax.add_taxonomy_set('height','long name for height')
-        RawTax.add_taxonomy_set('coordinates','This group contains coordinates...')
-        RawTax.add_taxonomy_set('data','This group contains data...')
+        #loop thru the defined streams for this device model and construct the stream config object
+        stream_config_too = {}
+        for stream_tag in streams_dict.iterkeys():
+            log.debug("Model stream config: stream tag:   %s param dict name: %s", str(stream_tag), str(streams_dict[stream_tag]) )
 
+            model_param_dict = ParameterDictionary.load_from_tag(out_streams_and_param_dicts[streams_dict[stream_tag]])
+
+            # inflate the param dict and compare it against the param dicts that are attached to the data products for this device
+            param_dict_for_model = ParameterDictionary.load(streams_dict[stream_tag])
+            for product_stream_id in out_streams_and_param_dicts.iterkeys():
+                product_param_dict = ParameterDictionary.load(out_streams_and_param_dicts[product_stream_id])
+                if product_param_dict == model_param_dict:
+                    #get the streamroute object from pubsub by passing the stream_id
+                    stream_route = self.clients.pubsub_management.get_stream_route_for_stream(stream_id=product_stream_id, exchange_point='science_data')
+                    stream_config_too[stream_tag] = {'stream_route': stream_route, 'parameter_dictionary':out_streams_and_param_dicts[product_stream_id]}
+
+            if len(streams_dict) != len(stream_config_too):
+                raise Inconsistent("Stream configuration for agent is not valid: " + str(stream_config_too))
 
         stream_info = {
-            'parsed' : { 'id': out_streams['parsed'], 'taxonomy': ParsedTax.dump() },
-            'raw' : { 'id': out_streams['raw'], 'taxonomy': RawTax.dump()}
+            'parsed' : { out_streams['parsed']:ctd_param_dict.dump() },
+            'raw' : { out_streams['raw']:raw_param_dict.dump()}
         }
-
 
         self._start_pagent(instrument_agent_instance_id)
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
-
 
         # Create driver config.
         instrument_agent_instance_obj.driver_config = {
@@ -826,7 +903,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #
     ##########################################################################
 
-    def create_platform_agent_instance(self, platform_agent_instance=None):
+    def create_platform_agent_instance(self, platform_agent_instance=None, platform_agent_id="", platform_device_id=""):
         """
         create a new instance
         @param platform_agent_instance the object to be created as a resource
@@ -834,7 +911,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.platform_agent_instance.create_one(platform_agent_instance)
+        #validate inputs
+        self.read_platform_agent(platform_agent_id)
+        self.read_platform_device(platform_device_id)
+
+        platform_agent_instance_id = self.instrument_agent_instance.create_one(platform_agent_instance)
+
+        self.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
+
+        self.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
+        log.debug("create_platform_agent_instance: device %s now connected to platform agent instance %s ", str(platform_device_id),  str(platform_agent_instance_id))
+
+        return platform_agent_instance_id
 
     def update_platform_agent_instance(self, platform_agent_instance=None):
         """
@@ -884,6 +972,22 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
+
+        platform_agent_id = self.platform_agent.create_one(platform_agent)
+
+        # Create the process definition to launch the agent
+        process_definition = ProcessDefinition()
+        process_definition.executable['module']='ion.agents.instrument.platform_agent'
+        process_definition.executable['class'] = 'PLatformAgent'
+        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+        log.debug("create_platform_agent: create_process_definition id %s"  +  str(process_definition_id))
+
+        #associate the agent and the process def
+        self.clients.resource_registry.create_association(platform_agent_id,  PRED.hasProcessDefinition, process_definition_id)
+
+        return platform_agent_id
+
+
         return self.platform_agent.create_one(platform_agent)
 
     def update_platform_agent(self, platform_agent=None):
