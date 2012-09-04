@@ -7,11 +7,12 @@
 '''
 
 from interface.services.dm.ipubsub_management_service import BasePubsubManagementService
-from interface.objects import StreamDefinition, Stream, Subscription, StreamRoute, Topic
-from pyon.util.arg_check import validate_true, validate_is_instance, validate_is_not_none
+from interface.objects import StreamDefinition, Stream, Subscription, Topic
+from pyon.util.arg_check import validate_true, validate_is_instance, validate_is_not_none, validate_false
 from pyon.core.exception import Conflict, BadRequest
 from pyon.public import RT, PRED
 from pyon.util.containers import create_unique_identifier
+from pyon.util.log import log
 
 
 class PubsubManagementService(BasePubsubManagementService):
@@ -56,10 +57,12 @@ class PubsubManagementService(BasePubsubManagementService):
         
         # Get topic names and topics
         topic_names = []
+        associated_topics = []
         for topic_id in topic_ids:
             topic = self.read_topic(topic_id)
             if topic.exchange_point == exchange_point:
                 topic_names.append(self._sanitize(topic.name))
+                associated_topics.append(topic_id)
 
         stream = Stream(name=name, description=description)
         routing_key = '.'.join([self._sanitize(name)] + topic_names + ['stream'])
@@ -76,7 +79,7 @@ class PubsubManagementService(BasePubsubManagementService):
         if stream_definition_id: #@Todo: what if the stream has no definition?!
             self._associate_stream_with_definition(stream_id, stream_definition_id)
 
-        for topic_id in topic_ids:
+        for topic_id in associated_topics:
             self._associate_topic_with_stream(topic_id, stream_id)
 
         return stream_id
@@ -92,13 +95,11 @@ class PubsubManagementService(BasePubsubManagementService):
 
         self.clients.resource_registry.delete(stream_id)
 
-        subscriptions, assocs = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasSubscription)
+        subscriptions, assocs = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasSubscription, id_only=True)
         if subscriptions:
             raise BadRequest('Can not delete the stream while there are remaining subscriptions')
 
-        objects, assocs = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc)
+        self._deassociate_stream(stream_id)
 
         return True
 
@@ -150,10 +151,50 @@ class PubsubManagementService(BasePubsubManagementService):
         return subscription
 
     def activate_subscription(self, subscription_id=''):
-        pass
+
+        validate_false(self.subscription_is_active(subscription_id), 'Subscription is already active.')
+
+        subscription = self.read_subscription(subscription_id)
+
+        streams, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, subject_type=RT.Stream, predicate=PRED.hasSubscription,id_only=False)
+        topics, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, subject_type=RT.Topic, predicate=PRED.hasSubscription,id_only=False)
+        for stream in streams:
+            log.info('%s -> %s', stream.name, subscription.exchange_name)
+            self._bind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
+
+        for exchange_point in subscription.exchange_points:
+            log.info('Exchange %s -> %s', exchange_point, subscription.exchange_name)
+            self._bind(exchange_point, subscription.exchange_name, '*')
+
+        for topic in topics:
+            log.info('Topic %s -> %s', topic.name, subscription.exchange_name)
+            self._bind(topic.exchange_point, subscription.exchange_name, '#.%s.#' % self._sanitize(topic.name))
+
+        subscription.activated = True
+        self.clients.resource_registry.update(subscription)
 
     def deactivate_subscription(self, subscription_id=''):
-        pass
+        validate_true(self.subscription_is_active(subscription_id), 'Subscription is not active.')
+
+        subscription = self.read_subscription(subscription_id)
+
+        streams, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, subject_type=RT.Stream, predicate=PRED.hasSubscription,id_only=False)
+        topics, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, subject_type=RT.Topic, predicate=PRED.hasSubscription,id_only=False)
+        for stream in streams:
+            log.info('%s -X-> %s', stream.name, subscription.exchange_name)
+            self._unbind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
+
+        for exchange_point in subscription.exchange_points:
+            log.info('Exchange %s -X-> %s', exchange_point, subscription.exchange_name)
+            self._unbind(exchange_point, subscription.exchange_name, '*')
+
+        for topic in topics:
+            log.info('Topic %s -X-> %s', topic.name, subscription.exchange_name)
+            self._unbind(topic.exchange_point, subscription.exchange_name, '#.%s.#' % self._sanitize(topic.name))
+
+        subscription.activated = False
+        self.clients.resource_registry.update(subscription)
+
 
     def delete_subscription(self, subscription_id=''):
         if self.subscription_is_active(subscription_id):
@@ -216,22 +257,38 @@ class PubsubManagementService(BasePubsubManagementService):
 
     #--------------------------------------------------------------------------------
     
-    def _bind(self, subscription=None):
-        pass
+    def _bind(self, exchange_point, exchange_name, binding_key):
+        xp = self.container.ex_manager.create_xp(exchange_point)
+        xn = self.container.ex_manager.create_xn_queue(exchange_name)
+        xn.bind(binding_key, xp)
 
-    def _unbind(self, subscription=None):
-        pass
+    def _unbind(self, exchange_point, exchange_name, binding_key):
+        xp = self.container.ex_manager.create_xp(exchange_point)
+        xn = self.container.ex_manager.create_xn_queue(exchange_name)
+        xn.unbind(binding_key, xp)
+    
+    #--------------------------------------------------------------------------------
 
     def _sanitize(self, topic_name=''):
         import re
         topic_name = topic_name.lower()
         topic_name = re.sub(r'\s', '', topic_name)
-        topic_name = topic_name[:8]
+        topic_name = topic_name[:24]
 
         return topic_name
 
     def _associate_topic_with_stream(self, topic_id,stream_id):
-        pass
+        self.clients.resource_registry.create_association(subject=stream_id, predicate=PRED.hasTopic, object=topic_id)
+
+    def _deassociate_stream(self,stream_id):
+        objects, assocs = self.clients.resource_registry.find_objects(subject=stream_id, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+    def _deassociate_subscription(self, subscription_id):
+        subjects, assocs = self.clients.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
 
     def _associate_stream_with_definition(self, stream_id,stream_definition_id):
         self.clients.resource_registry.create_association(subject=stream_id, predicate=PRED.hasStreamDefinition, object=stream_definition_id)
@@ -240,7 +297,7 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.create_association(subject=stream_id, predicate=PRED.hasSubscription, object=subscription_id)
 
     def _associate_topic_with_subscription(self, topic_id, subscription_id):
-        self.clients.resource_registry.create_association(subject=topic_id, prediacte=PRED.hasSubscription, object=topic_id)
+        self.clients.resource_registry.create_association(subject=topic_id, predicate=PRED.hasSubscription, object=subscription_id)
 
 
 
