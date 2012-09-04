@@ -22,6 +22,7 @@ from pyon.util.ion_time import IonTime
 from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
+import pickle
 import gevent
 import base64
 import zipfile
@@ -60,6 +61,7 @@ from ion.agents.port.port_agent_process import PortAgentProcess
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 from interface.objects import ComputedValueAvailability
+from ion.util.parameter_yaml_IO import get_param_dict
 
 INSTRUMENT_AGENT_MANIFEST_FILE = "MANIFEST.csv"
  
@@ -257,7 +259,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
 
-        log.debug("activate_instrument: initial agent_config %s ", str(instrument_agent_instance_obj))
+        log.debug("start_instrument_agent_instance: initial agent_config %s ", str(instrument_agent_instance_obj))
 
         #if there is a agent pid then assume that a drive is already started
         if instrument_agent_instance_obj.agent_process_id:
@@ -291,7 +293,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentModel '%s', got %d" %
                            (str(instrument_model_id), len(agent_objs)))
         instrument_agent_id = agent_objs[0]._id
-        log.debug("Got instrument agent '%s'" % instrument_agent_id)
+        log.debug("start_instrument_agent_instance: Got instrument agent '%s'" % instrument_agent_id)
 
 
         #retrieve the associated process definition
@@ -306,7 +308,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         process_definition_id = process_def_ids[0]
-        log.debug("activate_instrument: agent process definition %s"  +  str(process_definition_id))
+        log.debug("start_instrument_agent_instance: agent process definition %s"  +  str(process_definition_id))
 
         # retrieve the process definition information
         process_def_obj = self.clients.resource_registry.read(process_definition_id)
@@ -326,7 +328,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         for product_id in data_product_ids:
             stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
 
-            log.debug("activate_instrument:output stream ids: %s"  +  str(stream_ids))
+            log.debug("start_instrument_agent_instance:output stream ids: %s"  +  str(stream_ids))
             #One stream per product ...for now.
             if not stream_ids:
                 raise NotFound("No Stream  attached to this Data Product " + str(product_id))
@@ -345,52 +347,30 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             out_streams_and_param_dicts[stream_ids[0]] = dataset_param_dict_flat
 
-            # retrieve the stream
-            stream_obj = self.clients.resource_registry.read(stream_ids[0])
-            if not stream_obj:
-                raise NotFound("Stream %s does not exist" % stream_ids[0])
-
-            #todo  - Replace this hack: look in the data product name for 'raw' or 'parsed'
-
-            if stream_obj.name.lower().find('parsed') > -1 :
-                out_streams['parsed'] = stream_ids[0]
-                log.debug("activate_instrument:parsed %s ", str(stream_ids[0]) )
-            elif stream_obj.name.lower().find('raw') > -1:
-                out_streams['raw'] = stream_ids[0]
-                log.debug("activate_instrument:raw %s ", str(stream_ids[0]) )
-            else:
-                raise NotFound("Stream %s is not CTD raw or parsed" % stream_obj.name)
-        log.debug("activate_instrument:output stream config: %s"  +  str(out_streams))
-
-        # todo: use parameter dictionary repository
-        # Create parameter dictionaries for both parsed and raw
-        ctd_param_dict = self._create_parameter('ctd')
-        raw_param_dict = self._create_parameter('raw')
-
-
         #loop thru the defined streams for this device model and construct the stream config object
         stream_config_too = {}
         for stream_tag in streams_dict.iterkeys():
-            log.debug("Model stream config: stream tag:   %s param dict name: %s", str(stream_tag), str(streams_dict[stream_tag]) )
+            log.debug("start_instrument_agent_instance Model stream config: stream tag:   %s param dict name: %s", str(stream_tag), str(streams_dict[stream_tag]) )
 
-            model_param_dict = ParameterDictionary.load_from_tag(out_streams_and_param_dicts[streams_dict[stream_tag]])
+            model_param_dict = get_param_dict(streams_dict[stream_tag]) #ParameterDictionary.load_from_tag(out_streams_and_param_dicts[streams_dict[stream_tag]])
+            log.debug("start_instrument_agent_instance: model_param_dict : %s", str(model_param_dict.dump()))
 
             # inflate the param dict and compare it against the param dicts that are attached to the data products for this device
-            param_dict_for_model = ParameterDictionary.load(streams_dict[stream_tag])
+            #param_dict_for_model = ParameterDictionary.load(streams_dict[stream_tag])
             for product_stream_id in out_streams_and_param_dicts.iterkeys():
+                log.debug("start_instrument_agent_instance: product_stream_id : %s", str(product_stream_id))
+                log.debug("start_instrument_agent_instance: product_param_dict : %s", str(out_streams_and_param_dicts[product_stream_id]))
                 product_param_dict = ParameterDictionary.load(out_streams_and_param_dicts[product_stream_id])
                 if product_param_dict == model_param_dict:
                     #get the streamroute object from pubsub by passing the stream_id
                     stream_route = self.clients.pubsub_management.get_stream_route_for_stream(stream_id=product_stream_id, exchange_point='science_data')
-                    stream_config_too[stream_tag] = {'stream_route': stream_route, 'parameter_dictionary':out_streams_and_param_dicts[product_stream_id]}
+                    stream_config_too[stream_tag] = {'stream_route': pickle.dumps(stream_route), 'parameter_dictionary':out_streams_and_param_dicts[product_stream_id]}
+                    log.debug("start_instrument_agent_instance: stream_config in progress:   %s ", str(stream_config_too) )
 
-            if len(streams_dict) != len(stream_config_too):
-                raise Inconsistent("Stream configuration for agent is not valid: " + str(stream_config_too))
+        if len(streams_dict) != len(stream_config_too):
+            raise Inconsistent("Stream configuration for agent is not valid: " + str(stream_config_too))
 
-        stream_info = {
-            'parsed' : { out_streams['parsed']:ctd_param_dict.dump() },
-            'raw' : { out_streams['raw']:raw_param_dict.dump()}
-        }
+        log.debug("start_instrument_agent_instance: stream_config:   %s ", str(stream_config_too) )
 
         self._start_pagent(instrument_agent_instance_id)
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
@@ -406,28 +386,29 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         }
 
         # Create agent config.
-        instrument_agent_instance_obj.agent_config = {
+        agent_config = {
             'driver_config' : instrument_agent_instance_obj.driver_config,
-            'stream_config' : stream_info,
+            'stream_config' : stream_config_too,
             'agent'         : {'resource_id': instrument_device_id}
         }
 
-        log.debug("activate_instrument: agent_config %s ", str(instrument_agent_instance_obj.agent_config))
+        log.debug("start_instrument_agent_instance: agent_config %s ", str(instrument_agent_instance_obj.agent_config))
 
-        process_id, process_definition, schedule, configuration = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
+        process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
                                                                schedule=None,
-                                                               configuration=instrument_agent_instance_obj.agent_config)
-        log.debug("activate_instrument: schedule_process %s", process_id)
+                                                               configuration=agent_config)
+        log.debug("start_instrument_agent_instance: schedule_process %s", process_id)
 
         #update the producer context for provenance
         #todo: should get the time from process dispatcher
-        producer_obj = self._get_instrument_producer(instrument_device_id)
-        if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
-            producer_obj.producer_context.activation_time =  IonTime().to_string()
-            producer_obj.producer_context.execution_configuration = configuration
-            self.clients.resource_registry.update(producer_obj)
+#        producer_obj = self._get_instrument_producer(instrument_device_id)
+#        if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
+#            producer_obj.producer_context.activation_time =  IonTime().to_string()
+#            producer_obj.producer_context.execution_configuration = configuration
+#            self.clients.resource_registry.update(producer_obj)
 
         # add the process id and update the resource
+        instrument_agent_instance_obj.agent_config = agent_config
         instrument_agent_instance_obj.agent_process_id = process_id
         self.update_instrument_agent_instance(instrument_agent_instance_obj)
 
