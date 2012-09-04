@@ -715,7 +715,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                           egg_filename)
 
         log.debug("executing scp: '%s' to %s" % (tempfilename, remotefilename))
-        scp_retval = subprocess.call(["scp", "-q", "-o", "PasswordAuthentication=no", 
+        scp_retval = subprocess.call(["scp", "-q", "-o", "PasswordAuthentication=no",
+                                      "-o", "StrictHostKeyChecking=no",
                                       tempfilename, remotefilename])
         
         if 0 != scp_retval:
