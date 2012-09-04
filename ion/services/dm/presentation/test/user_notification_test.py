@@ -302,6 +302,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_type="ReloadUserInfoEvent",
             callback=reload_event_received)
         reload_event_subscriber.start()
+        self.addCleanup(reload_event_subscriber.stop)
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects
@@ -1144,10 +1145,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             sub_type= 'sub_type_1',
             ts_created = 2)
 
+        # create async result to wait on in test
+        ar = gevent.event.AsyncResult()
+
         #--------------------------------------------------------------------------------
         # Set up a subscriber to listen for that event
         #--------------------------------------------------------------------------------
-        def received_event(event, headers):
+        def received_event(result, event, headers):
             log.debug("received the event in the test: %s" % event)
 
             #--------------------------------------------------------------------------------
@@ -1159,16 +1163,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertEquals(event.ts_created, 2)
             self.assertEquals(event.sub_type, 'sub_type_1')
 
+            result.set(True)
+
         event_subscriber = EventSubscriber( event_type = 'DeviceEvent',
                                             origin="origin_1",
-                                            callback=received_event)
+                                            callback=lambda m, h: received_event(ar, m, h))
         event_subscriber.start()
+        self.addCleanup(event_subscriber.stop)
 
         #--------------------------------------------------------------------------------
         # Use the UNS publish_event
         #--------------------------------------------------------------------------------
 
         self.unsc.publish_event(event=event, interval_timer_params = interval_timer_params )
+
+        ar.wait(timeout=10)
 
 
     @attr('LOCOINT')
@@ -1264,10 +1273,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Set up the scheduler to publish daily events that should kick off process_batch()
         #--------------------------------------------------------------------------------
         ss = SchedulerService()
-        id = ss.create_time_of_day_timer(   times_of_day=times_of_day,
-                                            expires=time.time()+25200+60,
-                                            event_origin= newkey,
-                                            event_subtype="")
+        sid = ss.create_time_of_day_timer(   times_of_day=times_of_day,
+                                             expires=time.time()+25200+60,
+                                             event_origin= newkey,
+                                             event_subtype="")
+        def cleanup_timer(schedule_service, schedule_id):
+            """
+            Do a friendly cancel of the scheduled event.
+            If it fails, it's ok.
+            """
+            try:
+                schedule_service.cancel_timer(schedule_id)
+            except:
+                log.warn("Couldn't cancel")
+
+        self.addCleanup(cleanup_timer, ss, sid)
 
         #--------------------------------------------------------------------------------
         # Assert that emails were sent
