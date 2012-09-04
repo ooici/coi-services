@@ -18,9 +18,14 @@ from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
 
-from ion.services.sa.test.helpers import any_old
+from pyon.agent.agent import ResourceAgentClient
+from interface.objects import AgentCommand
+from interface.objects import ProcessDefinition
 
+from ion.agents.platform.platform_agent import PlatformAgentState
+from ion.agents.platform.platform_agent import PlatformAgentEvent
 
+import os
 
 # The ID of the root platform for this test and the IDs of its sub-platforms.
 # These Ids should correspond to corresponding entries in network.yml,
@@ -134,3 +139,29 @@ class TestOmsLaunch(IonIntegrationTestCase):
         platform_agent_instance_id = self.imsclient.create_platform_agent_instance(platform_agent_instance_obj, platformA_agent_id, platformA_device_id)
 
 
+
+        #-------------------------------
+        # Launch Platform A AgentInstance, connect to the resource agent client
+        #-------------------------------
+        self.imsclient.start_platform_agent_instance(platform_agent_instance_id=platform_agent_instance_id)
+
+        platform_agent_instance_obj= self.imsclient.read_instrument_agent_instance(platform_agent_instance_id)
+        print 'test_oms_create_and_launch: Platform agent instance obj: = ', platform_agent_instance_obj
+
+        # Start a resource agent client to talk with the instrument agent.
+        self._pa_client = ResourceAgentClient('paclient', name=platform_agent_instance_obj.agent_process_id,  process=FakeProcess())
+        log.debug(" test_oms_create_and_launch:: got pa client %s", str(self._pa_client))
+
+#        DVR_CONFIG = {
+#            'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
+#            'dvr_cls': 'OmsPlatformDriver',
+#            'oms_uri': 'embsimulator'
+#        }
+#
+#        PLATFORM_CONFIG = {
+#            'platform_id': platformA_device_id,
+#            'driver_config': DVR_CONFIG
+#        }
+#
+#        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
+#        retval = self._pa_client.execute_agent(cmd)

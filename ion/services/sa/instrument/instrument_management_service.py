@@ -955,6 +955,109 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
+    def start_platform_agent_instance(self, platform_agent_instance_id=''):
+        """
+        Agent instance must first be created and associated with a platform device
+        Launch the platform agent instance and return the id
+        """
+        platform_agent_instance_obj = self.clients.resource_registry.read(platform_agent_instance_id)
+
+        log.debug("start_platform_agent_instance: initial agent_config %s ", str(platform_agent_instance_obj))
+
+        #if there is a agent pid then assume that a drive is already started
+        if platform_agent_instance_obj.agent_process_id:
+            raise BadRequest("Platform Agent Instance already running for this device pid: %s" %
+                             str(platform_agent_instance_obj.agent_process_id))
+
+        #retrieve the associated platform device
+        platform_device_objs, _  = self.clients.resource_registry.find_subjects(subject_type=RT.PlatformDevice, predicate=PRED.hasAgentInstance, object=platform_agent_instance_id, id_only=False )
+        if 1 != len(platform_device_objs):
+            raise BadRequest("Expected 1 PlatformDevice attached to  PlatformAgentInstance '%s', got %d" %
+                             (str(platform_agent_instance_id), len(platform_device_objs)))
+        platform_device_id = platform_device_objs[0]._id
+        log.debug("start_platform_agent_instance: device is %s connected to platform agent instance %s (L4-CI-SA-RQ-363)", str(platform_device_id),  str(platform_agent_instance_id))
+
+        #retrieve the platform model
+        platform_models_objs, _  = self.clients.resource_registry.find_objects(subject=platform_device_id, predicate=PRED.hasModel, object_type=RT.PlatformModel, id_only=False )
+        if 1 != len(platform_models_objs):
+            raise BadRequest("Expected 1 PlatformDevice attached to  PlatformAgentInstance '%s', got %d" %
+                             (str(platform_device_id), len(platform_models_objs)))
+        platform_model_id = platform_models_objs[0]
+        log.debug("start_platform_agent_instance:platform_model %s" % str(platform_model_id))
+
+        #retrive the stream info for this model
+        #todo: add stream info to the platofrom model create
+#        streams_dict = platform_models_objs[0].custom_attributes['streams']
+#        if not streams_dict:
+#            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(platform_models_objs[0]) )
+
+        #retrieve the associated platform agent
+        platform_agent_objs, _  = self.clients.resource_registry.find_objects(subject=platform_agent_instance_id, predicate=PRED.hasAgentDefinition, object_type=RT.PlatformAgent, id_only=False )
+        if 1 != len(platform_agent_objs):
+            raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentAgentInstance '%s', got %d" %
+                           (str(platform_agent_instance_id), len(platform_agent_objs)))
+        platform_agent_id = platform_agent_objs[0]._id
+        log.debug("Got platform agent '%s'" % platform_agent_id)
+
+
+        #retrieve the associated process definition
+        #todo: this association is not in the diagram... is it ok?
+        process_def_ids, _ = self.clients.resource_registry.find_objects(platform_agent_id,
+                                                                         PRED.hasProcessDefinition,
+                                                                         RT.ProcessDefinition,
+                                                                         True)
+        if 1 != len(process_def_ids):
+            raise BadRequest("Expected 1 ProcessDefinition attached to PlatformAgent '%s', got %d" %
+                           (str(platform_agent_id), len(process_def_ids)))
+
+
+        process_definition_id = process_def_ids[0]
+        log.debug("start_platform_agent_instance: agent process definition %s"  +  str(process_definition_id))
+
+        # retrieve the process definition information
+        process_def_obj = self.clients.resource_registry.read(process_definition_id)
+        if not process_def_obj:
+            raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
+
+
+        #todo: get the streams and create the stream config
+        stream_config = {}
+
+
+        # Create driver config.
+        platform_agent_instance_obj.driver_config = {
+
+        }
+
+        # Create agent config.
+        agent_config = {
+            'agent'         : {'resource_id': platform_device_id},
+            'stream_config' : stream_config,
+            'test_mode' : True
+        }
+
+
+        log.debug("start_platform_agent_instance: agent_config %s ", str(platform_agent_instance_obj.agent_config))
+
+        process_id= self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
+                                                               schedule=None,
+                                                               configuration=agent_config)
+        log.debug("start_platform_agent_instance: schedule_process %s", process_id)
+
+        #update the producer context for provenance
+        #todo: should get the time from process dispatcher
+
+
+        # add the process id and update the resource
+        platform_agent_instance_obj.agent_config = agent_config
+        platform_agent_instance_obj.agent_process_id = process_id
+        self.update_instrument_agent_instance(platform_agent_instance_obj)
+
+        return
+
+    def stop_platform_agent_instance(self, platform_agent_instance_id=''):
+
+        pass
 
 
     ##########################################################################
@@ -977,8 +1080,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
-        process_definition.executable['module']='ion.agents.instrument.platform_agent'
-        process_definition.executable['class'] = 'PLatformAgent'
+        process_definition.executable['module']='ion.agents.platform.platform_agent'
+        process_definition.executable['class'] = 'PlatformAgent'
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
         log.debug("create_platform_agent: create_process_definition id %s"  +  str(process_definition_id))
 
@@ -987,8 +1090,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return platform_agent_id
 
-
-        return self.platform_agent.create_one(platform_agent)
 
     def update_platform_agent(self, platform_agent=None):
         """
@@ -1020,6 +1121,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         self.platform_agent.advance_lcs(platform_agent_id, LCE.RETIRE)
         #return self.platform_agent.delete_one(platform_agent_id)
+
+
 
 
     ##########################################################################
