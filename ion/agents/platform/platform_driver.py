@@ -59,6 +59,16 @@ class PlatformDriver(object):
         """
         self._send_event = evt_recv
 
+    def ping(self):
+        """
+        To be implemented by subclass.
+        Verifies communication with external platform returning "PONG" if
+        this verification completes OK.
+
+        @retval "PONG"
+        """
+        raise NotImplemented()
+
     def go_active(self):
         """
         To be implemented by subclass.

@@ -127,7 +127,42 @@ attributeNames = [
 
 # Main program
 if __name__ == "__main__":
+
+    def gen_diagrams(name, nnode):
+        dot_name = '%s.dot' % name
+        pml_name = '%s.puml' % name
+        file(dot_name, 'w').write(nnode.diagram(style="dot"))
+        file(pml_name, 'w').write(nnode.diagram(style="plantuml"))
+        print "topology =\n%s" % nnode.dump(only_topology=True)
+        try:
+            dot_cmd = 'dot -Tpng %s.dot -o %s.png' % (name,name)
+            open_cmd = 'open %s.png' % name
+            import subprocess
+            subprocess.call(dot_cmd.split())
+            subprocess.call(open_cmd.split())
+        except Exception, e:
+            print "error generating diagrams: %s" % str(e)
+
     uri = os.getenv('OMS', "http://alice:1234@10.180.80.10:9021/")
+
+    #####
+    import re
+    if re.search('simulator', uri):
+        from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
+        oms = OmsClientFactory.create_instance(uri)
+        print "ping() = %s"  % oms.ping()
+        map = oms.getPlatformMap()
+        print "getPlatformMap() = %s" % map
+        nodes = NNode.create_network(map)
+        if not '' in nodes:
+            print "platform map does not include '' to indicate root platforms."
+        else:
+            dummy_root = nodes['']
+            gen_diagrams('sim_topology', dummy_root)
+        sys.exit()
+    #####
+
+
     proxy = xmlrpclib.ServerProxy(uri)
 
     retval = proxy.hello.ping()
@@ -141,9 +176,7 @@ if __name__ == "__main__":
         print "platform map does not include '' to indicate root platforms."
     else:
         dummy_root = nodes['']
-        file('oms_topology.dot', 'w').write(dummy_root.diagram(style="dot"))
-        file('oms_topology.puml', 'w').write(dummy_root.diagram(style="plantuml"))
-        print "topology =\n%s" % dummy_root.dump(only_topology=True)
+        gen_diagrams('oms_topology', dummy_root)
 
     #
     # The following calls were related with the old prototype. May be adjusted

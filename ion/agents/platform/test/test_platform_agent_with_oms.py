@@ -13,6 +13,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
+from pyon.core.exception import ServerError
 from pyon.util.context import LocalContextMixin
 
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -193,6 +194,22 @@ class TestPlatformAgent(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
+    def _ping_agent(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
+        retval = self._pa_client.execute_agent(cmd)
+        self.assertEquals("PONG", retval.result)
+
+    def _ping_resource(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.PING_RESOURCE)
+        if self._get_state() == PlatformAgentState.UNINITIALIZED:
+            # should get ServerError: "Command not handled in current state"
+            with self.assertRaises(ServerError):
+                self._pa_client.execute_agent(cmd)
+        else:
+            # In all other states the command should be accepted:
+            retval = self._pa_client.execute_agent(cmd)
+            self.assertEquals("PONG", retval.result)
+
     def _initialize(self):
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
@@ -209,6 +226,11 @@ class TestPlatformAgent(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
+    def _go_inactive(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE)
+        retval = self._pa_client.execute_agent(cmd)
+        self._assert_state(PlatformAgentState.INACTIVE)
+
     def _add_subplatform_id(self, subplatform_id):
         kwargs = dict(subplatform_id=subplatform_id)
         cmd = AgentCommand(command=PlatformAgentEvent.ADD_SUBPLATFORM, kwargs=kwargs)
@@ -222,16 +244,24 @@ class TestPlatformAgent(IonIntegrationTestCase):
         return retval.result
 
     def test_go_active_and_run(self):
+
+        self._ping_agent()
+        self._ping_resource()
+
         self._initialize()
         self._go_active()
         self._run()
 
+        self._ping_agent()
+        self._ping_resource()
+
         log.info("sleeping...")
         sleep(15)
 
-        # retrieve subplatform IDs
+        # retrieve sub-platform IDs and verify against expected
         out_subplat_ids = self._get_subplatform_ids()
         log.info("get_subplatform_ids's retval = %s" % str(out_subplat_ids))
         self.assertEquals(SUBPLATFORM_IDS, out_subplat_ids)
 
+        self._go_inactive()
         self._reset()
