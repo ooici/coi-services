@@ -268,7 +268,7 @@ class PlatformAgent(ResourceAgent):
         self._construct_packet_factories()
         self._start_resource_monitoring()
 
-    def _start_resource_monitoring(self, also_subplatforms=True):
+    def _start_resource_monitoring(self):
         """
         Calls self._plat_driver.start_resource_monitoring()
         """
