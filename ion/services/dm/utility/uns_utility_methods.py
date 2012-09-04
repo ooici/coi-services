@@ -209,7 +209,7 @@ def check_user_notification_interest(event, reverse_user_info):
 
     return users
 
-def calculate_reverse_user_info(user_info = {}):
+def calculate_reverse_user_info(user_info=None):
     '''
     Calculate a reverse user info... used by the notification workers and the UNS
 
@@ -286,3 +286,4 @@ def calculate_reverse_user_info(user_info = {}):
                 reverse_user_info['event_origin_type'] = dict_4
 
     return reverse_user_info
+
