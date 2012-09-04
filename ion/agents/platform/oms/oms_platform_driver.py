@@ -52,6 +52,20 @@ class OmsPlatformDriver(PlatformDriver):
         # _monitors: dict { attr_id: OmsResourceMonitor }
         self._monitors = {}
 
+    def ping(self):
+        """
+        Verifies communication with external platform returning "PONG" if
+        this verification completes OK.
+
+        @retval "PONG" iff all OK.
+        """
+        log.info("pinging OMS...")
+        oms_response = self._oms.ping()
+        if oms_response is not None and oms_response.upper() == "PONG":
+            return "PONG"
+        else:
+            return oms_response
+
     def go_active(self):
 
         log.info("%r: go_active: pinging..." % self._platform_id)
