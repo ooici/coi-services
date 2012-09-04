@@ -115,9 +115,9 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.assertEqual(event.state, state)
         return event
 
-    def get_procs(self):
-        """returns a normalized set of procs (removes the ones that were there
-        at setup time)
+    def get_running_procs(self):
+        """returns a normalized set of running procs (removes the ones that 
+        were there at setup time)
         """
 
         base = self._base_procs
@@ -125,7 +125,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         current = self.pd_cli.list_processes()
         current_pids = [proc.process_id for proc in current]
         print "filtering base procs %s from %s" % (base_pids, current_pids)
-        normal = [proc for cproc in current if cproc.process_id not in base_pids]
+        normal = [cproc for cproc in current if cproc.process_id not in base_pids and cproc.process_state == ProcessStateEnum.SPAWN]
         return normal
 
     @needs_epu
@@ -142,7 +142,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.subscribe_events(None)
         self.await_state_event("test", ProcessStateEnum.SPAWN)
 
-        self.assertEqual(len(self.get_procs()), 1)
+        self.assertEqual(len(self.get_running_procs()), 1)
 
         for i in range(0, 5):
             status = self.haa_client.status().result
@@ -161,16 +161,17 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.await_state_event("test", ProcessStateEnum.SPAWN)
 
-        self.assertEqual(len(self.get_procs()), 2)
+        self.assertEqual(len(self.get_running_procs()), 2)
 
         new_policy = {'preserve_n': 1}
         self.haa_client.reconfigure_policy(new_policy)
 
         self.await_state_event("test", ProcessStateEnum.TERMINATE)
-        self.assertEqual(len(self.get_procs()), 1)
+
+        self.assertEqual(len(self.get_running_procs()), 1)
 
         new_policy = {'preserve_n': 0}
         self.haa_client.reconfigure_policy(new_policy)
 
         self.await_state_event("test", ProcessStateEnum.TERMINATE)
-        self.assertEqual(len(self.get_procs()), 0)
+        self.assertEqual(len(self.get_running_procs()), 0)
