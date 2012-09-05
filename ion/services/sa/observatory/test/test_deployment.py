@@ -123,8 +123,7 @@ class TestDeployment(IonIntegrationTestCase):
 
         #assign data products appropriately
         #set up stream (this would be preload)
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.psmsclient.create_stream_definition(container=ctd_stream_def)
+        ctd_stream_def_id = self.psmsclient.create_stream_definition(name='SBE37_CDM')
 
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()

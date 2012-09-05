@@ -64,8 +64,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         # Create CTD Parsed as the initial data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data')
 
 
         log.debug('Creating new CDM data product with a stream definition')
@@ -288,7 +287,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             self.fail("failed to create new SalinityTransform data process definition: %s" %ex)
 
         # create a stream definition for the data from the salinity Transform
-        sal_stream_def_id = self.pubsubclient.create_stream_definition(container=SalinityTransform.outgoing_stream_def,  name='Salinity')
+        sal_stream_def_id = self.pubsubclient.create_stream_definition(name='Salinity')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id )
 
         return ctd_L2_salinity_dprocdef_id
@@ -315,7 +314,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
         # create a stream definition for the data from the salinity Transform
-        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(container=SalinityDoubler.outgoing_stream_def,  name='SalinityDoubler')
+        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(name='SalinityDoubler')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id )
 
         return salinity_doubler_dprocdef_id
@@ -393,7 +392,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
         # create a stream definition for the data from the
-        stream_def_id = self.pubsubclient.create_stream_definition(container=VizTransformGoogleDT.outgoing_stream_def,  name='VizTransformGoogleDT')
+        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformGoogleDT')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
 
         return procdef_id
@@ -446,7 +445,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
         # create a stream definition for the data
-        stream_def_id = self.pubsubclient.create_stream_definition(container=VizTransformMatplotlibGraphs.outgoing_stream_def,  name='VizTransformMatplotlibGraphs')
+        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformMatplotlibGraphs')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
 
         return procdef_id

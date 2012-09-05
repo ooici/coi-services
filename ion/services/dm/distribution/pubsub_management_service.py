@@ -25,9 +25,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         if not name: create_unique_identifier()
 
-        validate_is_not_none(parameter_dictionary,'Parameter Dictionary can not be empty')
-
-        stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description)
+        stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary or {}, stream_type=stream_type, name=name, description=description)
         stream_definition_id,_  = self.clients.resource_registry.create(stream_definition)
 
         return stream_definition_id

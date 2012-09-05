@@ -137,8 +137,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
         # Create CTD Parsed as the first data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def)
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM')
 
         print 'test_createTransformsThenActivateInstrument: new Stream Definition id = ', ctd_stream_def_id
 

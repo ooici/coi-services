@@ -100,8 +100,7 @@ class VisStreamLauncher(ImmediateProcess):
             self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
 
             # create a stream definition for the data from the ctd simulator
-            ctd_stream_def = SBE37_CDM_stream_definition()
-            ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
+            ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_CDM')
 
             craft = CoverageCraft
             sdom, tdom = craft.create_domains()

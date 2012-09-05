@@ -100,8 +100,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         log.debug("TestIntDataProcessMgmtServiceMultiOut  data_producer_id %s" % data_producer_id)
 
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = ctd_stream_definition()
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data')
 
         self.dataprocessclient.assign_input_stream_definition_to_data_process_definition(ctd_stream_def_id, dprocdef_id )
 
@@ -141,16 +140,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Output Data Product
         #-------------------------------
 
-        outgoing_stream_conductivity = L0_conductivity_stream_definition()
-        outgoing_stream_conductivity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_conductivity, name='conductivity')
+        outgoing_stream_conductivity_id = self.pubsubclient.create_stream_definition(name='conductivity')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_conductivity_id, dprocdef_id )
 
-        outgoing_stream_pressure = L0_pressure_stream_definition()
-        outgoing_stream_pressure_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_pressure, name='pressure')
+        outgoing_stream_pressure_id = self.pubsubclient.create_stream_definition(name='pressure')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_pressure_id, dprocdef_id )
 
-        outgoing_stream_temperature = L0_temperature_stream_definition()
-        outgoing_stream_temperature_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_temperature, name='temperature')
+        outgoing_stream_temperature_id = self.pubsubclient.create_stream_definition(name='temperature')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_temperature_id, dprocdef_id )
 
 
@@ -263,8 +259,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create CTD Parsed as the first data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE32_CDM')
 
         print 'test_createDataProcessUsingSim: new Stream Definition id = ', instDevice_id
 
@@ -300,8 +295,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create CTD Raw as the second data product
         #-------------------------------
         print 'test_createDataProcessUsingSim: Creating new RAW data product with a stream definition'
-        raw_stream_def = SBE37_RAW_stream_definition()
-        raw_stream_def_id = self.pubsubclient.create_stream_definition(container=raw_stream_def)
+        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW')
 
 
         dp_obj = IonObject(RT.DataProduct,
@@ -341,16 +335,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l0_conductivity = L0_conductivity_stream_definition()
-        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_conductivity, name='L0_Conductivity')
+        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id )
 
-        outgoing_stream_l0_pressure = L0_pressure_stream_definition()
-        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_pressure, name='L0_Pressure')
+        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id )
 
-        outgoing_stream_l0_temperature = L0_temperature_stream_definition()
-        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_temperature, name='L0_Temperature')
+        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id )
 
 

@@ -118,8 +118,7 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         dproducer_id = self.damsclient.register_external_data_set(extDataset_id)
 
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def)
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM')
 
         log.debug("TestExternalDatasetAgentMgmt: new Stream Definition id = %s", str(ctd_stream_def_id))
 

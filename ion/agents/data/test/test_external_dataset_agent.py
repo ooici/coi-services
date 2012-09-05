@@ -962,7 +962,6 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
 
         # Generate the data product and associate it to the ExternalDataset
-
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
         sdom = sdom.dump()

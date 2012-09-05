@@ -496,9 +496,7 @@ class IONLoader(ImmediateProcess):
         sd_container = creator_func()
 
         svc_client = self._get_service_client("pubsub_management")
-        res_id = svc_client.create_stream_definition(container=sd_container,
-                                        name=res_obj.name,
-                                        description=res_obj.description)
+        res_id = svc_client.create_stream_definition( name=res_obj.name, description=res_obj.description)
 
         self._register_id(row[self.COL_ID], res_id)
 

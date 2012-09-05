@@ -56,10 +56,9 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # Create the environment
         #------------------------------------------
 
-        definition = SBE37_CDM_stream_definition()
         datastore_name = CACHE_DATASTORE_NAME
         self.db = self.container.datastore_manager.get_datastore(datastore_name)
-        self.stream_def_id = self.pubsubcli.create_stream_definition(container=definition)
+        self.stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM')
 
         self.process_definitions  = {}
         ingestion_worker_definition = ProcessDefinition(name='ingestion worker')
@@ -118,8 +117,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # create a stream definition for the data from the ctd simulator
         #------------------------------------------------------------------------------------------------
-        ctd_stream_def = ctd_stream_definition()
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='Simulated CTD data')
         log.debug("Created stream def id %s" % ctd_stream_def_id)
 
         #------------------------------------------------------------------------------------------------
@@ -226,8 +224,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # create a stream definition for the data from the ctd simulator
         #------------------------------------------------------------------------------------------------
-        ctd_stream_def = ctd_stream_definition()
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='Simulated CTD data')
         log.debug("Created stream def id %s" % ctd_stream_def_id)
 
         #------------------------------------------------------------------------------------------------

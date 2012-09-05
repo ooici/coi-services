@@ -349,14 +349,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         for stream_name in PACKET_CONFIG:
             
             # Create stream_id from stream_name.
-            stream_def = ctd_stream_definition(stream_id=None)
-            stream_def_id = pubsub_client.create_stream_definition(
-                                                    container=stream_def)        
-            stream_id = pubsub_client.create_stream(
-                        name=stream_name,
-                        stream_definition_id=stream_def_id,
-                        original=True,
-                        encoding='ION R2')
+            stream_id = pubsub_client.create_stream(name=stream_name, exchange_point='science_data')
 
             # Create stream config from taxonomy and id.
             taxy = get_taxonomy(stream_name)

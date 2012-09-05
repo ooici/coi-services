@@ -433,8 +433,7 @@ class TestAssembly(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # create a stream definition for the data from the ctd simulator
         #------------------------------------------------------------------------------------------------
-        ctd_stream_def = ctd_stream_definition()
-        ctd_stream_def_id = self.client.PSMS.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data')
         log.debug("Created stream def id %s" % ctd_stream_def_id)
 
         #create data products for instrument data
