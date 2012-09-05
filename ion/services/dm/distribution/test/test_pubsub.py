@@ -12,7 +12,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.exception import NotFound
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.ion.stream import SimpleStreamSubscriber
+from pyon.ion.stream import SimpleStreamSubscriber, SimpleStreamRoutePublisher
 from pyon.public import PRED
 
 from gevent.event import Event
@@ -30,17 +30,31 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.pubsub_management = PubsubManagementServiceClient()
         self.resource_registry = ResourceRegistryServiceClient()
 
+
+        self.queue_cleanup = list()
+        self.exchange_cleanup = list()
+
+    def tearDown(self):
+        for queue in self.queue_cleanup:
+            xn = self.container.ex_manager.create_xn_queue(queue)
+            xn.delete()
+        for exchange in self.exchange_cleanup:
+            xp = self.container.ex_manager.create_xp(exchange)
+            xp.delete()
+
     def test_stream_def_crud(self):
         stream_definition_id = self.pubsub_management.create_stream_definition('test_definition', parameter_dictionary={1:1}, stream_type='stream')
-
         stream_definition = self.pubsub_management.read_stream_definition(stream_definition_id)
-
         self.assertEquals(stream_definition.name,'test_definition')
-
         self.pubsub_management.delete_stream_definition(stream_definition_id)
-
         with self.assertRaises(NotFound):
             self.pubsub_management.read_stream_definition(stream_definition_id)
+
+    def publish_on_stream(self, stream_id, msg):
+        stream = self.pubsub_management.read_stream(stream_id)
+        stream_route = stream.stream_route
+        publisher = SimpleStreamRoutePublisher.new_publisher(self.container, stream_route)
+        publisher.publish(msg)
 
     def test_stream_crud(self):
         stream_def_id = self.pubsub_management.create_stream_definition('test_definition', parameter_dictionary={1:1}, stream_type='stream')
@@ -88,6 +102,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         subs, assocs = self.resource_registry.find_objects(subject=stream_id,predicate=PRED.hasSubscription,id_only=True)
         self.assertFalse(len(subs))
 
+        self.pubsub_management.delete_stream(stream_id)
+        self.pubsub_management.delete_stream_definition(stream_def_id)
+
     def test_topic_crud(self):
 
         topic_id = self.pubsub_management.create_topic(name='test_topic', exchange_point='test_xp')
@@ -114,22 +131,79 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
         sub1 = SimpleStreamSubscriber.new_subscriber(self.container, 'sub1', subscriber1)
         sub1.start()
+        self.queue_cleanup.append(sub1.xn.queue)
 
         sub2 = SimpleStreamSubscriber.new_subscriber(self.container, 'sub2', subscriber2)
         sub2.start()
+        self.queue_cleanup.append(sub2.xn.queue)
 
         log_topic = self.pubsub_management.create_topic('instrument_logs', exchange_point='instruments')
-
         science_topic = self.pubsub_management.create_topic('science_data', exchange_point='instruments')
-
         events_topic = self.pubsub_management.create_topic('notifications', exchange_point='events')
+
 
         log_stream = self.pubsub_management.create_stream('instrument1-logs', topic_ids=[log_topic], exchange_point='instruments')
         ctd_stream = self.pubsub_management.create_stream('instrument1-ctd', topic_ids=[science_topic], exchange_point='instruments')
         event_stream = self.pubsub_management.create_stream('notifications', topic_ids=[events_topic], exchange_point='events')
-
         raw_stream = self.pubsub_management.create_stream('temp', exchange_point='global.data')
+        self.exchange_cleanup.extend(['instruments','events','global.data'])
+
+
+        subscription1 = self.pubsub_management.create_subscription('subscription1', stream_ids=[log_stream,event_stream], exchange_name='sub1')
+        subscription2 = self.pubsub_management.create_subscription('subscription2', exchange_points=['global.data'], stream_ids=[ctd_stream], exchange_name='sub2')
+
+        self.pubsub_management.activate_subscription(subscription1)
+        self.pubsub_management.activate_subscription(subscription2)
+
+        self.publish_on_stream(log_stream, 1)
+        self.assertTrue(self.sub1_sat.wait(4))
+        self.assertFalse(self.sub2_sat.is_set())
+
+        self.publish_on_stream(raw_stream,1)
+        self.assertTrue(self.sub1_sat.wait(4))
+
+        sub1.stop()
+        sub2.stop()
 
 
 
+    def test_topic_craziness(self):
 
+        self.sub1_sat = Event()
+
+        def subscriber1(m,h):
+            self.sub1_sat.set()
+
+        sub1 = SimpleStreamSubscriber.new_subscriber(self.container, 'sub1', subscriber1)
+        sub1.start()
+        self.queue_cleanup.append(sub1.xn.queue)
+
+        topic1 = self.pubsub_management.create_topic('topic1', exchange_point='xp1')
+        topic2 = self.pubsub_management.create_topic('topic2', exchange_point='xp2', parent_topic_id=topic1)
+        topic3 = self.pubsub_management.create_topic('topic3', exchange_point='xp2', parent_topic_id=topic1)
+        topic4 = self.pubsub_management.create_topic('topic4', exchange_point='xp3', parent_topic_id=topic2)
+        topic5 = self.pubsub_management.create_topic('topic5', exchange_point='xp3', parent_topic_id=topic2)
+        topic6 = self.pubsub_management.create_topic('topic6', exchange_point='xp3', parent_topic_id=topic3)
+        topic7 = self.pubsub_management.create_topic('topic7', exchange_point='xp3', parent_topic_id=topic3)
+
+        self.exchange_cleanup.extend(['xp1','xp2','xp3'])
+        
+        stream_id = self.pubsub_management.create_stream('trickle stream', topic_ids=[topic1], exchange_point='xp1')
+
+        subscription = self.pubsub_management.create_subscription('sub1', topic_ids=[topic7])
+        self.pubsub_management.activate_subscription(subscription)
+
+        self.publish_on_stream(stream_id,1)
+
+        self.assertTrue(self.sub1_sat.wait(3))
+        self.pubsub_management.deactivate_subscription(subscription)
+        sub1.stop()
+        self.pubsub_management.delete_subscription(subscription)
+
+        self.pubsub_management.delete_topic(topic7)
+        self.pubsub_management.delete_topic(topic6)
+        self.pubsub_management.delete_topic(topic5)
+        self.pubsub_management.delete_topic(topic4)
+        self.pubsub_management.delete_topic(topic3)
+        self.pubsub_management.delete_topic(topic2)
+        self.pubsub_management.delete_topic(topic1)

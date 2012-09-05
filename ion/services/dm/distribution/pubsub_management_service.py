@@ -13,7 +13,7 @@ from pyon.core.exception import Conflict, BadRequest
 from pyon.public import RT, PRED
 from pyon.util.containers import create_unique_identifier
 from pyon.util.log import log
-
+from collections import deque
 
 class PubsubManagementService(BasePubsubManagementService):
 
@@ -113,6 +113,7 @@ class PubsubManagementService(BasePubsubManagementService):
         exchange_points = exchange_points or []
         topic_ids       = topic_ids or []
 
+        exchange_name = exchange_name or name
         validate_true(exchange_name, 'Clients must provide an exchange name')
 
         if not name: name = create_unique_identifier()
@@ -157,7 +158,18 @@ class PubsubManagementService(BasePubsubManagementService):
         subscription = self.read_subscription(subscription_id)
 
         streams, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, subject_type=RT.Stream, predicate=PRED.hasSubscription,id_only=False)
-        topics, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, subject_type=RT.Topic, predicate=PRED.hasSubscription,id_only=False)
+        topic_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasTopic, id_only=True)
+
+        topic_topology = set()
+        topics = []
+
+        for topic_id in topic_ids:
+            topic_tree = self._parent_topics(topic_id)
+            topic_topology = topic_topology.union(topic_tree)
+
+        if topic_topology:
+            topics = self.clients.resource_registry.read_mult(object_ids=list(topic_topology))
+
         for stream in streams:
             log.info('%s -> %s', stream.name, subscription.exchange_name)
             self._bind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
@@ -179,7 +191,16 @@ class PubsubManagementService(BasePubsubManagementService):
         subscription = self.read_subscription(subscription_id)
 
         streams, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, subject_type=RT.Stream, predicate=PRED.hasSubscription,id_only=False)
-        topics, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, subject_type=RT.Topic, predicate=PRED.hasSubscription,id_only=False)
+        topic_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasTopic, id_only=True)
+
+        topic_topology = set()
+
+        for topic_id in topic_ids:
+            topic_tree = self._parent_topics(topic_id)
+            topic_topology = topic_topology.union(topic_tree)
+
+        topics = self.clients.resource_registry.read_mult(object_ids=list(topic_topology))
+
         for stream in streams:
             log.info('%s -X-> %s', stream.name, subscription.exchange_name)
             self._unbind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
@@ -196,30 +217,26 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.update(subscription)
 
 
+
     def delete_subscription(self, subscription_id=''):
         if self.subscription_is_active(subscription_id):
             raise BadRequest('Clients can not delete an active subscription.')
 
-        streams, assocs = self.clients.resource_registry.find_subjects(object=subscription_id,predicate=PRED.hasSubscription)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc)
-
-        topics, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc)
+        self._deassociate_subscription(subscription_id)
 
         self.clients.resource_registry.delete(subscription_id)
         return True
 
     #--------------------------------------------------------------------------------
 
-    def create_topic(self, name='', exchange_point='', description=''):
+    def create_topic(self, name='', exchange_point='', parent_topic_id='', description=''):
         validate_true(exchange_point, 'An exchange point must be provided for the topic')
         name = name or create_unique_identifier()
-
         topic = Topic(name=name, description=description, exchange_point=exchange_point)
-
         topic_id, rev = self.clients.resource_registry.create(topic)
+
+        if parent_topic_id:
+            self._associate_topic_with_topic(parent_topic_id, topic_id)
 
         return topic_id
 
@@ -229,7 +246,11 @@ class PubsubManagementService(BasePubsubManagementService):
         return topic
 
     def delete_topic(self, topic_id=''):
+        if self._has_child_topics(topic_id):
+            raise BadRequest('Can not remove a parent topic, delete the children topics first')
         self.read_topic(topic_id)
+
+        self._deassociate_topic(topic_id)
         self.clients.resource_registry.delete(topic_id)
         return True
 
@@ -255,6 +276,9 @@ class PubsubManagementService(BasePubsubManagementService):
         subjects, assocs =self.clients.resource_registry.find_subjects(object=stream_definition_id, predicate=PRED.hasStreamDefinition, id_only=id_only)
         return subjects
 
+    def find_topics_by_topic(self, topic_id='', id_only=False):
+        topics, assocs = self.clients.resource_registry.find_objects(subject=topic_id, predicate=PRED.hasTopic,id_only=id_only)
+        return topics
     #--------------------------------------------------------------------------------
     
     def _bind(self, exchange_point, exchange_name, binding_key):
@@ -286,7 +310,11 @@ class PubsubManagementService(BasePubsubManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
     def _deassociate_subscription(self, subscription_id):
-        subjects, assocs = self.clients.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        subjects, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+        objects, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasTopic, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
@@ -297,7 +325,58 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.create_association(subject=stream_id, predicate=PRED.hasSubscription, object=subscription_id)
 
     def _associate_topic_with_subscription(self, topic_id, subscription_id):
-        self.clients.resource_registry.create_association(subject=topic_id, predicate=PRED.hasSubscription, object=subscription_id)
+        self.clients.resource_registry.create_association(subject=subscription_id, predicate=PRED.hasTopic, object=topic_id)
 
+    def _associate_topic_with_topic(self, parent_topic_id, child_topic_id):
+        self.clients.resource_registry.create_association(subject=parent_topic_id, predicate=PRED.hasTopic, object=child_topic_id)
 
+    def _deassociate_topic(self, topic_id):
+        parents, assocs = self.clients.resource_registry.find_subjects(object=topic_id, predicate=PRED.hasTopic, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
 
+    def _has_child_topics(self, topic_id):
+        objects, assocs = self.clients.resource_registry.find_objects(subject=topic_id, predicate=PRED.hasTopic, id_only=True)
+        return bool(len(objects))
+
+    def _parent_topics(self, topic_id):
+        visited_topics = deque([topic_id])
+        traversal_queue = deque()
+
+        def edges(topic_ids=[]):
+            edges = set()
+            for topic_id in topic_ids:
+                edges = edges.union(self.clients.resource_registry.find_subjects(object=topic_id, predicate=PRED.hasTopic, subject_type=RT.Topic, id_only=True)[0])
+            return edges
+
+        done=False
+        t = None
+        while not done:
+            t = traversal_queue or deque(visited_topics)
+            traversal_queue = deque()
+            for e in edges(t):
+                if not e in visited_topics:
+                    visited_topics.append(e)
+                    traversal_queue.append(e)
+                if not len(traversal_queue): done = True
+        return list(visited_topics)
+
+    def _traverse_topics(self, topic_id):
+
+        def edges(topic_ids=[]):
+            return self.clients.resource_registry.find_associations_mult(subjects=topic_ids, id_only=True)[0]
+
+        visited_topics = deque([topic_id] + edges([topic_id]))
+        traversal_queue = deque()
+        done=False
+        t = None
+        while not done:
+            t = traversal_queue or deque(visited_topics)
+            traversal_queue = deque()
+            for e in edges(t):
+                if not e in visited_topics:
+                    visited_topics.append(e)
+                    traversal_queue.append(e)
+            if not len(traversal_queue): done = True
+
+        return list(visited_topics)
