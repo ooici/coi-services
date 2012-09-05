@@ -138,7 +138,7 @@ class UILoader(object):
                         log.info("Loading UI category %s from retrieved file %s" % (category, fname))
                         csvfile = self.files[fname]
                         # This is a hack to be able to read from string
-                        csvfile = csvfile.split(os.linesep)
+                        csvfile = csvfile.splitlines()
                         reader = csv.DictReader(csvfile, delimiter=',')
                         for row in reader:
                             catfunc(row)
