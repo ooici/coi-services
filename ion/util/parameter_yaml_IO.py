@@ -75,6 +75,12 @@ def build_contexts():
     depth_ctxt.fill_value = 0e0
     contexts.append(depth_ctxt)
 
+    binary_ctxt = ParameterContext('binary', param_type=QuantityType(value_encoding=np.int64))
+    binary_ctxt.reference_frame = 'unknown'
+    binary_ctxt.uom = 'unknown'
+    binary_ctxt.fill_value = 0e0
+    contexts.append(binary_ctxt)
+
     return contexts
 
 def dump_param_contexts_to_yml():
