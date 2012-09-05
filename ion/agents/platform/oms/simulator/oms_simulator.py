@@ -112,9 +112,7 @@ class OmsSimulator(OmsClient):
                            platform ID indicating the desired attributes per
                            platform.
         @param from_time NTP v4 compliant string; time from which the values
-                         are requested. For a given attribute, its value is
-                         reported only if from_time < ts, where ts is the
-                         timestamp of the value.
+                         are requested.
 
         @retval {platform_id: {attrName : [(attrValue, timestamp), ...], ...}, ...}
                 dict indexed by platform ID with (value, timestamp) pairs for
@@ -130,17 +128,11 @@ class OmsSimulator(OmsClient):
                     if attrName in attrs:
                         attr = attrs[attrName]
                         val = attr._value
-                        #
-                        # TODO determine how to handle attribute with no value:
-                        # should it be reported back with some special
-                        # "no-value" mark? just do not report it?
-                        # For now, we only report attributes with actual value.
-                        #
-                        if val is None:
-                            continue
 
-                        if from_time < timestamp:
+                        if val is not None and from_time < timestamp:
                             vals[attrName] = (val, timestamp)
+                        else:
+                            vals[attrName] = ('', '')
                     else:
                         vals[attrName] = INVALID_ATTRIBUTE_NAME_RESPONSE
                 retval[platform_id] = vals

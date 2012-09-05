@@ -1,5 +1,9 @@
 platform agent framework
 
+2012-09-04:
+Add operations (ping-agent, ping-resource, get-resource).
+Adjust some operations according to changes in the interface spec.
+
 2012-08-29:
 Ongoing internal refactoring to move network creation functionality from
 PlatformNetworkBuilder to PlatformAgent itself, and to simplify the design.
