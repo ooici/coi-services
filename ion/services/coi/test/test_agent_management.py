@@ -29,7 +29,26 @@ class TestAgentManagementService(IonIntegrationTestCase):
         log.warn("Capabilities: %s", cap_list)
         self.assertTrue(type(cap_list) is list)
 
-        res = self.ams.get_resource(rid1, params=['object_size'])
-        log.warn("Get result: %s", res)
+        get_res = self.ams.get_resource(rid1, params=['object_size'])
+        log.warn("Get result: %s", get_res)
+
+        self.ams.set_resource(rid1, params={'description': 'NEWDESC'})
+        res_obj = self.rr.read(rid1)
+        self.assertEquals(res_obj.description, 'NEWDESC')
 
         self.rr.delete(rid1)
+
+        # Test CRUD
+        rid2 = self.ams.create_resource(IonObject('Resource', name='res2'))
+        res_obj = self.rr.read(rid2)
+        self.assertEquals(res_obj.name, 'res2')
+
+        res_obj.description = 'DESC2'
+        self.ams.update_resource(res_obj)
+        res_obj = self.rr.read(rid2)
+        self.assertEquals(res_obj.description, 'DESC2')
+
+        res_obj2 = self.ams.read_resource(rid2)
+        self.assertEquals(res_obj.description, res_obj2.description)
+
+        self.ams.delete_resource(rid2)
