@@ -35,16 +35,18 @@ from gevent import spawn
 from gevent.event import AsyncResult
 from gevent import sleep
 
+import time
 import unittest
 import os
 from nose.plugins.attrib import attr
 
 
 # The ID of the root platform for this test and the IDs of its sub-platforms.
-# These Ids should correspond to corresponding entries in network.yml,
+# These Ids and names should correspond to corresponding entries in network.yml,
 # which is used by the OMS simulator.
 PLATFORM_ID = 'platA1'
 SUBPLATFORM_IDS = ['platA1a', 'platA1b']
+ATTR_NAMES = ['fooA1', 'bazA1']
 
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
@@ -210,9 +212,20 @@ class TestPlatformAgent(IonIntegrationTestCase):
             retval = self._pa_client.execute_agent(cmd)
             self.assertEquals("PONG", retval.result)
 
+    def _get_resource(self):
+        kwargs = dict(attr_names=ATTR_NAMES, from_time=time.time())
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
+        retval = self._pa_client.execute_agent(cmd)
+        attr_values = retval.result
+        log.info("get_resource result: %s" % str(attr_values))
+        self.assertIsInstance(attr_values, dict)
+        for attr_name in ATTR_NAMES:
+            self.assertTrue(attr_name in attr_values)
+
     def _initialize(self):
+        kwargs = dict(plat_config=PLATFORM_CONFIG)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
-        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
+        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
         retval = self._pa_client.execute_agent(cmd)
         self._assert_state(PlatformAgentState.INACTIVE)
 
@@ -254,6 +267,8 @@ class TestPlatformAgent(IonIntegrationTestCase):
 
         self._ping_agent()
         self._ping_resource()
+
+        self._get_resource()
 
         log.info("sleeping...")
         sleep(15)

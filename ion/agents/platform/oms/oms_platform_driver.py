@@ -58,25 +58,29 @@ class OmsPlatformDriver(PlatformDriver):
         this verification completes OK.
 
         @retval "PONG" iff all OK.
+        @raise PlatformConnectionException Cannot ping external platform or
+               got unexpected response.
         """
-        log.info("pinging OMS...")
-        oms_response = self._oms.ping()
-        if oms_response is not None and oms_response.upper() == "PONG":
-            return "PONG"
-        else:
-            return oms_response
-
-    def go_active(self):
-
-        log.info("%r: go_active: pinging..." % self._platform_id)
+        log.info("%r: pinging OMS..." % self._platform_id)
         try:
             retval = self._oms.hello.ping()
         except Exception, e:
             raise PlatformConnectionException("Cannot ping %s" % str(e))
 
-        if retval is None or retval.lower() != "pong":
-            raise PlatformConnectionException(
-                "Unexpected ping response: %r" % retval)
+        if retval is None or retval.upper() != "PONG":
+            raise PlatformConnectionException("Unexpected ping response: %r" % retval)
+
+        return "PONG"
+
+    def go_active(self):
+        """
+        Establish communication with external platform and assigns self._nnode.
+
+        @raise PlatformConnectionException
+        """
+
+        log.info("%r: going active.." % self._platform_id)
+        self.ping()
 
         log.info("%r: getting platform map..." % self._platform_id)
         try:
@@ -100,6 +104,21 @@ class OmsPlatformDriver(PlatformDriver):
 
         self._nnode = nodes[self._platform_id]
         log.info("%r: _nnode:\n %s" % (self._platform_id, self._nnode.dump()))
+
+    def get_attribute_values(self, attr_names, from_time):
+        """
+        """
+        platAttrMap = {self._platform_id: attr_names}
+        retval = self._oms.getPlatformAttributeValues(platAttrMap, from_time)
+        log.info("getPlatformAttributeValues = %s" % retval)
+
+
+        if not self._platform_id in retval:
+            raise PlatformException("Unexpected: response does not include "
+                                    "requested platform '%s'" % self._platform_id)
+
+        attr_values = retval[self._platform_id]
+        return attr_values
 
     def start_resource_monitoring(self):
         """

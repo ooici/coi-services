@@ -66,6 +66,7 @@ class PlatformDriver(object):
         this verification completes OK.
 
         @retval "PONG"
+        @raise PlatformConnectionException
         """
         raise NotImplemented()
 
@@ -73,6 +74,22 @@ class PlatformDriver(object):
         """
         To be implemented by subclass.
         Establish communication with external platform and assigns self._nnode.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplemented()
+
+    def get_attribute_values(self, attr_names, from_time):
+        """
+        To be implemented by subclass.
+        Returns the values for specific attributes since a given time.
+
+        @param attr_names [attrName, ...] desired attributes
+        @param from_time NTP v4 compliant string; time from which the values are requested
+
+        @retval {attrName : [(attrValue, timestamp), ...], ...}
+                dict indexed by attribute name with list of (value, timestamp)
+                pairs. Timestamps are NTP v4 compliant strings
         """
         raise NotImplemented()
 

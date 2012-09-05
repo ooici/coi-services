@@ -20,6 +20,9 @@ from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
 from pyon.util.context import LocalContextMixin
 
+# Pyon exceptions.
+from pyon.core.exception import BadRequest
+
 from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException
@@ -633,6 +636,31 @@ class PlatformAgent(ResourceAgent):
     # Resource interface and common resource event handlers.
     ##############################################################
 
+    def _handler_get_resource(self, *args, **kwargs):
+        """
+        """
+        log.info("%r/%s args=%s kwargs=%s" % (
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+
+        attr_names = kwargs.get('attr_names', None)
+        if attr_names is None:
+            raise BadRequest('get_resource missing attr_names argument.')
+
+        from_time = kwargs.get('from_time', None)
+        if from_time is None:
+            raise BadRequest('get_resource missing from_time argument.')
+
+        try:
+            result = self._plat_driver.get_attribute_values(attr_names, from_time)
+
+            next_state = self.get_agent_state()
+
+        except Exception as ex:
+            log.error("erorr in get_attribute_values %s" % str(ex))
+            raise
+
+        return (next_state, result)
+
     def _handler_ping_agent(self, *args, **kwargs):
         """
         Pings the agent.
@@ -702,5 +730,6 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
 #        ...
 
