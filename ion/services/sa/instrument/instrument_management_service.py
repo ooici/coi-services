@@ -19,6 +19,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.log import log
 from pyon.util.ion_time import IonTime
+from pyon.core.object import ion_serializer
 from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
@@ -55,13 +56,13 @@ from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
-from ion.agents.port.logger_process import EthernetDeviceLogger
 from ion.agents.port.port_agent_process import PortAgentProcess
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 from interface.objects import ComputedValueAvailability
 from ion.util.parameter_yaml_IO import get_param_dict
+
 
 INSTRUMENT_AGENT_MANIFEST_FILE = "MANIFEST.csv"
  
@@ -325,6 +326,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not data_product_ids:
             raise NotFound("No output Data Products attached to this Instrument Device " + str(instrument_device_id))
 
+        #retrieve the streams assoc with each defined output product
         for product_id in data_product_ids:
             stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
 
@@ -364,7 +366,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 if product_param_dict == model_param_dict:
                     #get the streamroute object from pubsub by passing the stream_id
                     stream_route = self.clients.pubsub_management.get_stream_route_for_stream(stream_id=product_stream_id, exchange_point='science_data')
-                    stream_config_too[stream_tag] = {'stream_route': pickle.dumps(stream_route), 'parameter_dictionary':out_streams_and_param_dicts[product_stream_id]}
+                    log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
+                    stream_route_flat = ion_serializer.serialize(stream_route)
+                    stream_config_too[stream_tag] = {'stream_route': str(stream_route_flat), 'parameter_dictionary':out_streams_and_param_dicts[product_stream_id]}
                     log.debug("start_instrument_agent_instance: stream_config in progress:   %s ", str(stream_config_too) )
 
         if len(streams_dict) != len(stream_config_too):
@@ -1039,7 +1043,23 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def stop_platform_agent_instance(self, platform_agent_instance_id=''):
 
-        pass
+        """
+        Deactivate the platform agent instance
+        """
+        platform_agent_instance_obj = self.clients.resource_registry.read(platform_agent_instance_id)
+
+        platform_device_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.PlatformDevice, predicate=PRED.hasAgentInstance,
+                                                                          object=platform_agent_instance_id, id_only=True)
+        if not platform_device_ids:
+            raise NotFound("No Platform Device resource associated with this Platform Agent Instance: %s", str(platform_agent_instance_id) )
+
+        # Cancels the execution of the given process id.
+        self.clients.process_dispatcher.cancel_process(platform_agent_instance_obj.agent_process_id)
+
+
+        #reset the process ids.
+        platform_agent_instance_obj.agent_process_id = None
+        self.clients.resource_registry.update(platform_agent_instance_obj)
 
 
     ##########################################################################

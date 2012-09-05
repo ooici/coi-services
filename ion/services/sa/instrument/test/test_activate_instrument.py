@@ -40,6 +40,8 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 
 from pyon.agent.agent import ResourceAgentClient
+from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentEvent
 
 from ion.services.dm.utility.granule_utils import CoverageCraft
 from ion.util.parameter_yaml_IO import get_param_dict
@@ -60,7 +62,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='foo')
+@attr('HARDWARE', group='sa')
 #@unittest.skip('run locally only')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
@@ -363,6 +365,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #self._ia_client = ResourceAgentClient('123xyz', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
         self._ia_client = ResourceAgentClient(instDevice_id,  process=FakeProcess())
         log.debug("test_activateInstrumentSample: got ia client %s", str(self._ia_client))
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
 
 #        cmd = AgentCommand(command='initialize')
 #        retval = self._ia_client.execute_agent(cmd)
