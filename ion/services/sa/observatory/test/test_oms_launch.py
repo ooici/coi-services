@@ -111,7 +111,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
             platformModel_id = self.imsclient.create_platform_model(platformModel_obj)
         except BadRequest as ex:
             self.fail("failed to create new PLatformModel: %s" %ex)
-        log.debug( 'new PLatformModel id = %s ', platformModel_id)
+        log.debug( 'new PlatformModel id = %s ', platformModel_id)
 
 
 
@@ -412,16 +412,24 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self._pa_client = ResourceAgentClient('paclient', name=platformSS_agent_instance_obj.agent_process_id,  process=FakeProcess())
         log.debug(" test_oms_create_and_launch:: got pa client %s", str(self._pa_client))
 
-#        DVR_CONFIG = {
-#            'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
-#            'dvr_cls': 'OmsPlatformDriver',
-#            'oms_uri': 'embsimulator'
-#        }
-#
-#        PLATFORM_CONFIG = {
-#            'platform_id': platformA_device_id,
-#            'driver_config': DVR_CONFIG
-#        }
-#
-#        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
-#        retval = self._pa_client.execute_agent(cmd)
+        DVR_CONFIG = {
+            'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
+            'dvr_cls': 'OmsPlatformDriver',
+            'oms_uri': 'embsimulator'
+        }
+
+        PLATFORM_CONFIG = {
+            'platform_id': platformA_device_id,
+            'driver_config': DVR_CONFIG
+        }
+
+        #cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG)) 
+        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT, kwargs=dict(plat_config=PLATFORM_CONFIG))
+        retval = self._pa_client.execute_agent(cmd)
+        log.debug( 'ShoreSide Platform PING_AGENT = %s ', str(retval) )
+
+
+        #-------------------------------
+        # Stop Platform SS AgentInstance,
+        #-------------------------------
+        self.imsclient.stop_platform_agent_instance(platform_agent_instance_id=platformSS_agent_instance_id)
