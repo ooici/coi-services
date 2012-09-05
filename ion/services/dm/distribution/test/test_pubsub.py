@@ -16,6 +16,7 @@ from pyon.ion.stream import SimpleStreamSubscriber, SimpleStreamRoutePublisher
 from pyon.public import PRED
 
 from gevent.event import Event
+from gevent.queue import Queue
 
 @attr('UNIT',group='dm')
 class PubsubManagementUnitTest(PyonTestCase):
@@ -91,15 +92,15 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         stream_id = self.pubsub_management.create_stream(name='test_stream', exchange_point='test_exchange', stream_definition_id=stream_def_id)
         subscription_id = self.pubsub_management.create_subscription(name='test subscription', stream_ids=[stream_id], exchange_name='test_queue')
 
-        subs, assocs = self.resource_registry.find_objects(subject=stream_id,predicate=PRED.hasSubscription,id_only=True)
-        self.assertEquals(subs,[subscription_id])
+        subs, assocs = self.resource_registry.find_objects(subject=subscription_id,predicate=PRED.hasStream,id_only=True)
+        self.assertEquals(subs,[stream_id])
 
         subscription = self.pubsub_management.read_subscription(subscription_id)
         self.assertEquals(subscription.exchange_name, 'test_queue')
 
         self.pubsub_management.delete_subscription(subscription_id)
         
-        subs, assocs = self.resource_registry.find_objects(subject=stream_id,predicate=PRED.hasSubscription,id_only=True)
+        subs, assocs = self.resource_registry.find_objects(subject=subscription_id,predicate=PRED.hasStream,id_only=True)
         self.assertFalse(len(subs))
 
         self.pubsub_management.delete_stream(stream_id)
@@ -166,10 +167,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         sub2.stop()
 
 
-
     def test_topic_craziness(self):
 
-        self.sub1_sat = Event()
+        self.msg_queue = Queue()
 
         def subscriber1(m,h):
             self.sub1_sat.set()
@@ -179,18 +179,25 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.queue_cleanup.append(sub1.xn.queue)
 
         topic1 = self.pubsub_management.create_topic('topic1', exchange_point='xp1')
-        topic2 = self.pubsub_management.create_topic('topic2', exchange_point='xp2', parent_topic_id=topic1)
-        topic3 = self.pubsub_management.create_topic('topic3', exchange_point='xp2', parent_topic_id=topic1)
-        topic4 = self.pubsub_management.create_topic('topic4', exchange_point='xp3', parent_topic_id=topic2)
-        topic5 = self.pubsub_management.create_topic('topic5', exchange_point='xp3', parent_topic_id=topic2)
-        topic6 = self.pubsub_management.create_topic('topic6', exchange_point='xp3', parent_topic_id=topic3)
-        topic7 = self.pubsub_management.create_topic('topic7', exchange_point='xp3', parent_topic_id=topic3)
+        topic2 = self.pubsub_management.create_topic('topic2', exchange_point='xp1', parent_topic_id=topic1)
+        topic3 = self.pubsub_management.create_topic('topic3', exchange_point='xp1', parent_topic_id=topic1)
+        topic4 = self.pubsub_management.create_topic('topic4', exchange_point='xp1', parent_topic_id=topic2)
+        topic5 = self.pubsub_management.create_topic('topic5', exchange_point='xp1', parent_topic_id=topic2)
+        topic6 = self.pubsub_management.create_topic('topic6', exchange_point='xp1', parent_topic_id=topic3)
+        topic7 = self.pubsub_management.create_topic('topic7', exchange_point='xp1', parent_topic_id=topic3)
 
-        self.exchange_cleanup.extend(['xp1','xp2','xp3'])
+        # Tree 2
+        topic8 = self.pubsub_management.create_topic('topic8', exchange_point='xp2')
+        topic9 = self.pubsub_management.create_topic('topic9', exchange_point='xp2', parent_topic_id=topic8)
+        topic10 = self.pubsub_management.create_topic('topic10', exchange_point='xp2', parent_topic_id=topic9)
+        topic11 = self.pubsub_management.create_topic('topic11', exchange_point='xp2', parent_topic_id=topic9)
+        topic12 = self.pubsub_management.create_topic('topic12', exchange_point='xp2', parent_topic_id=topic11)
+        topic13 = self.pubsub_management.create_topic('topic13', exchange_point='xp2', parent_topic_id=topic11)
+        self.exchange_cleanup.extend(['xp1','xp2'])
         
-        stream_id = self.pubsub_management.create_stream('trickle stream', topic_ids=[topic1], exchange_point='xp1')
+        stream_id = self.pubsub_management.create_stream('trickle stream', topic_ids=[topic7, topic4, topic5], exchange_point='xp1')
 
-        subscription = self.pubsub_management.create_subscription('sub1', topic_ids=[topic7])
+        subscription = self.pubsub_management.create_subscription('sub1', topic_ids=[topic1])
         self.pubsub_management.activate_subscription(subscription)
 
         self.publish_on_stream(stream_id,1)
