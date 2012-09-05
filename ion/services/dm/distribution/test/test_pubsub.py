@@ -16,7 +16,7 @@ from pyon.ion.stream import SimpleStreamSubscriber, SimpleStreamRoutePublisher
 from pyon.public import PRED
 
 from gevent.event import Event
-from gevent.queue import Queue
+from gevent.queue import Queue, Empty
 
 @attr('UNIT',group='dm')
 class PubsubManagementUnitTest(PyonTestCase):
@@ -172,7 +172,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.msg_queue = Queue()
 
         def subscriber1(m,h):
-            self.sub1_sat.set()
+            self.msg_queue.put(m)
 
         sub1 = SimpleStreamSubscriber.new_subscriber(self.container, 'sub1', subscriber1)
         sub1.start()
@@ -195,18 +195,77 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         topic13 = self.pubsub_management.create_topic('topic13', exchange_point='xp2', parent_topic_id=topic11)
         self.exchange_cleanup.extend(['xp1','xp2'])
         
-        stream_id = self.pubsub_management.create_stream('trickle stream', topic_ids=[topic7, topic4, topic5], exchange_point='xp1')
+        stream1_id = self.pubsub_management.create_stream('stream1', topic_ids=[topic7, topic4, topic5], exchange_point='xp1')
+        stream2_id = self.pubsub_management.create_stream('stream2', topic_ids=[topic8], exchange_point='xp2')
+        stream3_id = self.pubsub_management.create_stream('stream3', topic_ids=[topic10,topic13], exchange_point='xp2')
+        stream4_id = self.pubsub_management.create_stream('stream4', topic_ids=[topic9], exchange_point='xp2')
+        stream5_id = self.pubsub_management.create_stream('stream5', topic_ids=[topic11], exchange_point='xp2')
 
-        subscription = self.pubsub_management.create_subscription('sub1', topic_ids=[topic1])
-        self.pubsub_management.activate_subscription(subscription)
+        subscription1 = self.pubsub_management.create_subscription('sub1', topic_ids=[topic1])
+        subscription2 = self.pubsub_management.create_subscription('sub2', topic_ids=[topic8], exchange_name='sub1')
+        subscription3 = self.pubsub_management.create_subscription('sub3', topic_ids=[topic9], exchange_name='sub1')
+        subscription4 = self.pubsub_management.create_subscription('sub4', topic_ids=[topic10,topic13, topic11], exchange_name='sub1')
+        #--------------------------------------------------------------------------------
+        self.pubsub_management.activate_subscription(subscription1)
 
-        self.publish_on_stream(stream_id,1)
+        self.publish_on_stream(stream1_id,1)
 
-        self.assertTrue(self.sub1_sat.wait(3))
-        self.pubsub_management.deactivate_subscription(subscription)
+        self.assertEquals(self.msg_queue.get(timeout=10), 1)
+        with self.assertRaises(Empty):
+            self.msg_queue.get(timeout=0.1)
+
+
+        self.pubsub_management.deactivate_subscription(subscription1)
+        self.pubsub_management.delete_subscription(subscription1)
+        #--------------------------------------------------------------------------------
+        self.pubsub_management.activate_subscription(subscription2)
+        
+        self.publish_on_stream(stream2_id,2)
+        self.assertEquals(self.msg_queue.get(timeout=10), 2)
+        with self.assertRaises(Empty):
+            self.msg_queue.get(timeout=0.1)
+
+        self.pubsub_management.deactivate_subscription(subscription2)
+        self.pubsub_management.delete_subscription(subscription2)
+
+        #--------------------------------------------------------------------------------
+        self.pubsub_management.activate_subscription(subscription3)
+
+        self.publish_on_stream(stream2_id, 3)
+        with self.assertRaises(Empty):
+            self.msg_queue.get(timeout=0.3)
+
+        self.publish_on_stream(stream3_id, 4)
+        self.assertEquals(self.msg_queue.get(timeout=10),4)
+
+
+        self.pubsub_management.deactivate_subscription(subscription3)
+        self.pubsub_management.delete_subscription(subscription3)
+
+        #--------------------------------------------------------------------------------
+        self.pubsub_management.activate_subscription(subscription4)
+
+        self.publish_on_stream(stream4_id, 5)
+        with self.assertRaises(Empty):
+            self.msg_queue.get(timeout=0.3)
+
+        self.publish_on_stream(stream5_id, 6)
+        self.assertEquals(self.msg_queue.get(timeout=10),6)
+        with self.assertRaises(Empty):
+            self.msg_queue.get(timeout=0.3)
+
+        self.pubsub_management.deactivate_subscription(subscription4)
+        self.pubsub_management.delete_subscription(subscription4)
+        
+        #--------------------------------------------------------------------------------
         sub1.stop()
-        self.pubsub_management.delete_subscription(subscription)
 
+        self.pubsub_management.delete_topic(topic13)
+        self.pubsub_management.delete_topic(topic12)
+        self.pubsub_management.delete_topic(topic11)
+        self.pubsub_management.delete_topic(topic10)
+        self.pubsub_management.delete_topic(topic9)
+        self.pubsub_management.delete_topic(topic8)
         self.pubsub_management.delete_topic(topic7)
         self.pubsub_management.delete_topic(topic6)
         self.pubsub_management.delete_topic(topic5)
@@ -214,3 +273,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.pubsub_management.delete_topic(topic3)
         self.pubsub_management.delete_topic(topic2)
         self.pubsub_management.delete_topic(topic1)
+
+        self.pubsub_management.delete_stream(stream1_id)
+        self.pubsub_management.delete_stream(stream2_id)
+        self.pubsub_management.delete_stream(stream3_id)
+        self.pubsub_management.delete_stream(stream4_id)
+        self.pubsub_management.delete_stream(stream5_id)

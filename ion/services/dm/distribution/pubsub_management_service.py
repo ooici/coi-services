@@ -50,7 +50,6 @@ class PubsubManagementService(BasePubsubManagementService):
             raise Conflict('The named stream already exists')
 
         topic_ids = topic_ids or []
-        topic_ids = self._root_topics(topic_ids)
 
         if not name: name = create_unique_identifier()
 
@@ -380,65 +379,5 @@ class PubsubManagementService(BasePubsubManagementService):
             if not len(traversal_queue): done = True
 
         return list(visited_topics)
-
-    def _common_parent(self,topic1_id, topic2_id):
-        tree1 = self._parent_topics(topic1_id)
-        tree1.reverse()
-
-        tree2 = self._parent_topics(topic2_id)
-        tree2.reverse()
-
-        parent_id = None
-        for i in xrange(min(len(tree1), len(tree2))):
-            if tree1[i] == tree2[i]:
-                parent_id = tree1[i]
-        return parent_id
-
-    def _root_topics(self, topics=[]):
-
-        def in_common(a,b):
-            common = None
-            for i in xrange(min(len(a), len(b))):
-                if a[i] == b[i]:
-                    common = i
-            return common
-
-        trees      = []
-        root_nodes = []
-        
-        for topic in topics:
-            tree = self._parent_topics(topic)
-            tree.reverse()
-            trees.append(tree)
-        trees.sort()
-
-        trees = deque(trees)
-
-        done = False
-        while not done and len(trees):
-            if len(trees) == 1:
-                root_nodes.append(trees.pop()[-1])
-                done = True
-            else:
-                a = trees.pop()
-                b = trees.pop()
-                c = in_common(a,b)
-                if c is not None:
-                    trees.append(a[:c+1])
-                else:
-                    trees.append(b)
-                    root_nodes.append(a[-1])
-
-        return root_nodes
-
-                
-
-
-
-
-
-
-
-
 
 
