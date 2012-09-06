@@ -52,11 +52,8 @@ class CoverageCraft(object):
             return
         start_index = self.coverage.num_timesteps 
         elements = self.rdt._shp[0]
-        if start_index == 1:
-            start_index = 0
-            self.coverage.insert_timesteps(elements - 1)
-        else:
-            self.coverage.insert_timesteps(elements)
+        if not elements: return
+        self.coverage.insert_timesteps(elements)
 
         for k,v in self.rdt.iteritems():
             log.info("key: %s" , k)

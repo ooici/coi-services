@@ -11,6 +11,7 @@ import re
 import os
 import requests
 import urllib
+import time
 
 from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.identifier import create_unique_resource_id
@@ -176,16 +177,27 @@ class UILoader(object):
 
     def _get_ui_files(self, path):
         dirurl = path or self.DEFAULT_UISPEC_LOCATION
+        if not dirurl.endswith("/"):
+            dirurl += "/"
         log.info("Accessing UI specs URL: %s", dirurl)
         dirpage = requests.get(dirurl).text
-        csvfiles = re.findall('(?:href|HREF)="(.+?\.csv)"', dirpage)
+        csvfiles = re.findall('(?:href|HREF)="([-%/\w]+\.csv)"', dirpage)
         log.debug("Found %s csvfiles: %s", len(csvfiles), csvfiles)
+
+        #tmp_dir = "./ui_export/%s" % int(time.time())
+        #if not os.path.exists(tmp_dir):
+        #    os.makedirs(tmp_dir)
+
+        s = requests.session()
         for file in csvfiles:
             file = file.rsplit('/', 1)[-1]
-            csvurl = self.DEFAULT_UISPEC_LOCATION + file
-            content = requests.get(csvurl).content
+            csvurl = dirurl + file
+            log.info("Trying download %s", csvurl)
+            content = s.get(csvurl).content
             self.files[urllib.unquote(file)] = content
-            log.info("Downloaded %s, size=%s", file, len(content))
+            log.info("Downloaded %s, size=%s", csvurl, len(content))
+        #    with open("%s/%s" % (tmp_dir, urllib.unquote(file)), "wb") as f:
+        #        f.write(content)
 
     def _perform_ui_checks(self):
         # Perform some consistency checking on imported objects
@@ -488,6 +500,7 @@ class UILoader(object):
         graphics = {}       # Dict of graphics
         helptags = {}       # Dict of help tags
         msgstrs = {}        # Dict of message strings
+        restypes = {}       # Dict of resource types
 
         # Pass 1: Load UI resources by type from resource registry
         for rt in self.UI_RESOURCE_TYPES:
@@ -530,6 +543,13 @@ class UILoader(object):
                 if verbose:
                     elem_dict['desc'] = obj.description
                 msgstrs[obj.uirefid] = elem_dict
+            elif obj._get_type() == "UIResourceType":
+                elem_dict = dict(
+                    name=obj.name,
+                    super=obj.resource_supertype_id)
+                if verbose:
+                    elem_dict['desc'] = obj.description
+                restypes[obj.uirefid] = elem_dict
             elif obj._get_type() == "UIScreenElement":
                 # Add object to elements dict
                 element_dict = dict(
@@ -575,9 +595,17 @@ class UILoader(object):
                     wid=child['wid'],
                     ogfx=obj.override_graphic_id,
                     olevel=obj.override_information_level,
-                    olabel=obj.override_screen_label_id,
                     pos=obj.position,
                     dpath=obj.data_path)
+                if obj.override_screen_label_id:
+                    label = ui_objs.get(obj.override_screen_label_id, None)
+                    if not label:
+                        msg = "UIEmbeddedScreenElement override label %s not in screen labels" % (obj.override_screen_label_id)
+                        warnings.append((obj.uirefid, msg))
+                    else:
+                        label_text = label.text
+                element_dict['olabel'] = label_text
+
                 if verbose:
                     embed_dict['dpath_desc'] = obj.data_path_description
                 parent['embed'].append(embed_dict)
@@ -653,12 +681,8 @@ class UILoader(object):
                 element['embed'] = sorted(element['embed'], key=lambda obj: obj['pos'])
             else:
                 if strip:
+                    # Strip unreferenced in embedding
                     del element['embed']
-        # Strip unreferenced in embedding
-
-
-        # Root entry point: Resource types to blocks
-        restypes = {}
 
         # Build the resulting structure
         ui_specs = {}   # The resulting data structure
@@ -667,6 +691,7 @@ class UILoader(object):
         ui_specs['graphics'] = graphics
         ui_specs['helptags'] = helptags
         ui_specs['msgstrings'] = msgstrs
+        ui_specs['restypes'] = restypes
         if verbose:
             ui_specs['objects'] = ui_objs
 
