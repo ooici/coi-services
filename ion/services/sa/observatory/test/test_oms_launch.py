@@ -61,7 +61,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='foome')
 class TestOmsLaunch(IonIntegrationTestCase):
 
     def setUp(self):
@@ -158,6 +158,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformADevice platform device')
         platformA_device_id = self.imsclient.create_platform_device(platformA_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA_device_id)
+        self.rrclient.create_association(subject=platformSS_device_id, predicate=PRED.hasDevice, object=platformA_device_id)
 
         platformA_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformAAgent',
@@ -186,6 +187,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformA1Device platform device')
         platformA1_device_id = self.imsclient.create_platform_device(platformA1_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1_device_id)
+        self.rrclient.create_association(subject=platformA_device_id, predicate=PRED.hasDevice, object=platformA1_device_id)
 
         platformA1_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformA1Agent',
@@ -215,6 +217,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformA1aDevice platform device')
         platformA1a_device_id = self.imsclient.create_platform_device(platformA1a_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1a_device_id)
+        self.rrclient.create_association(subject=platformA1_device_id, predicate=PRED.hasDevice, object=platformA1a_device_id)
 
         platformA1a_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformA1aAgent',
@@ -243,6 +246,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformA1bDevice platform device')
         platformA1b_device_id = self.imsclient.create_platform_device(platformA1b_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1b_device_id)
+        self.rrclient.create_association(subject=platformA1_device_id, predicate=PRED.hasDevice, object=platformA1b_device_id)
 
         platformA1b_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformA1bAgent',
@@ -271,6 +275,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformA1b1Device platform device')
         platformA1b1_device_id = self.imsclient.create_platform_device(platformA1b1_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1b1_device_id)
+        self.rrclient.create_association(subject=platformA1b_device_id, predicate=PRED.hasDevice, object=platformA1b1_device_id)
 
         platformA1b1_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformA1b1Agent',
@@ -299,6 +304,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformA1b2Device platform device')
         platformA1b2_device_id = self.imsclient.create_platform_device(platformA1b2_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1b2_device_id)
+        self.rrclient.create_association(subject=platformA1b_device_id, predicate=PRED.hasDevice, object=platformA1b2_device_id)
 
         platformA1b2_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformA1b2Agent',
@@ -328,6 +334,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformBDevice platform device')
         platformB_device_id = self.imsclient.create_platform_device(platformB_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformB_device_id)
+        self.rrclient.create_association(subject=platformSS_device_id, predicate=PRED.hasDevice, object=platformB_device_id)
 
         platformB_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformBAgent',
@@ -357,6 +364,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformB1Device platform device')
         platformB1_device_id = self.imsclient.create_platform_device(platformB1_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformB1_device_id)
+        self.rrclient.create_association(subject=platformB_device_id, predicate=PRED.hasDevice, object=platformB1_device_id)
 
         platformB1_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformB1Agent',
@@ -387,6 +395,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformB2Device platform device')
         platformB2_device_id = self.imsclient.create_platform_device(platformB2_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformB2_device_id)
+        self.rrclient.create_association(subject=platformB_device_id, predicate=PRED.hasDevice, object=platformB2_device_id)
 
         platformB2_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformB2Agent',
