@@ -41,7 +41,8 @@ class DirectoryService(BaseDirectoryService):
 
     def reset_ui_specs(self, url=''):
         url = url or self.CFG.get_safe("service.directory.default_uispecs_url")
-        if type(url) is not str or not url.startswith("http"):
+        #if type(url) is not str or not url.startswith("http"):
+        if type(url) is not str:
             raise BadRequest("URL not valid: %s" % url)
 
         ui_loader = UILoader(self)
