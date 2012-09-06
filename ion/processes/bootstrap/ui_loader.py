@@ -178,9 +178,10 @@ class UILoader(object):
         dirurl = path or self.DEFAULT_UISPEC_LOCATION
         log.info("Accessing UI specs URL: %s", dirurl)
         dirpage = requests.get(dirurl).text
-        csvfiles = re.findall('href="(.+?\.csv)"', dirpage)
+        csvfiles = re.findall('(?:href|HREF)="(.+?\.csv)"', dirpage)
         log.debug("Found %s csvfiles: %s", len(csvfiles), csvfiles)
         for file in csvfiles:
+            file = file.rsplit('/', 1)[-1]
             csvurl = self.DEFAULT_UISPEC_LOCATION + file
             content = requests.get(csvurl).content
             self.files[urllib.unquote(file)] = content
