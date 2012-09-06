@@ -7,18 +7,13 @@
 '''
 
 from pyon.ion.transforma import TransformStreamListener
-from pyon.util.file_sys import FileSystem, FS
 from interface.services.dm.ipreservation_management_service import PreservationManagementServiceClient
 from pyon.util.log import log
-import collections
-import re
 class BlobIngestionWorker(TransformStreamListener):
     def __init__(self):
         super(BlobIngestionWorker,self).__init__()
     
-    def recv_packet(self, msg, headers):
-        stream_id = headers['routing_key']
-        stream_id = re.sub(r'\.data', '', stream_id)
+    def recv_packet(self, msg, stream_route, stream_id):
         return self.persist(msg,stream_id)
 
     def persist(self, packet, stream_id):
