@@ -205,7 +205,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
             process_id = str(process_definition.name or "process") + uuid.uuid4().hex
             process_id = create_valid_identifier(process_id, ws_sub='_')
 
-        return self.backend.spawn(process_id, process_definition, schedule, configuration)
+        return self.backend.spawn(process_id, process_definition_id, schedule, configuration)
 
     def cancel_process(self, process_id=''):
         """Cancels the execution of the given process id.
@@ -273,7 +273,9 @@ class PDLocalBackend(object):
     def delete_definition(self, definition_id):
         return self.rr.delete(definition_id)
 
-    def spawn(self, name, definition, schedule, configuration):
+    def spawn(self, name, definition_id, schedule, configuration):
+
+        definition = self.read_definition(definition_id)
 
         module = definition.executable['module']
         cls = definition.executable['class']
@@ -490,11 +492,13 @@ class PDNativeBackend(object):
 
         self.eeagent_client = AnyEEAgentClient(service)
 
+        run_type = 'pyon'
+
         self.core = ProcessDispatcherCore(self.store, self.registry,
             self.eeagent_client, self.notifier)
         self.matchmaker = PDMatchmaker(self.store, self.eeagent_client,
             self.registry, epum_client, self.notifier, dashi_name,
-            domain_definition_id, base_domain_config)
+            domain_definition_id, base_domain_config, run_type)
 
         heartbeat_queue = conf.get('heartbeat_queue', DEFAULT_HEARTBEAT_QUEUE)
         self.beat_subscriber = HeartbeatSubscriber(heartbeat_queue,
@@ -587,10 +591,7 @@ class PDNativeBackend(object):
         # also delete in RR
         self.rr.delete(definition_id)
 
-    def spawn(self, name, definition, schedule, configuration):
-
-        module = definition.executable['module']
-        cls = definition.executable['class']
+    def spawn(self, name, definition_id, schedule, configuration):
 
         # note: not doing anything with schedule mode yet: the backend PD
         # service doesn't fully support it.
@@ -613,20 +614,12 @@ class PDNativeBackend(object):
                 queueing_mode = ProcessQueueingMode._str_map.get(schedule.queueing_mode)
             if hasattr(schedule, 'restart_mode') and schedule.restart_mode:
                 restart_mode = ProcessRestartMode._str_map.get(schedule.restart_mode)
-        print queueing_mode
 
-        parameters = {'name': name, 'module': module, 'cls': cls}
-        if configuration:
-            parameters['config'] = configuration
-
-        spec = dict(run_type="pyon", parameters=parameters)
-
-        log.debug("calling core: %s", self.core.dispatch_process)
-        self.core.dispatch_process(None, upid=name, spec=spec,
+        self.core.schedule_process(None, upid=name, definition_id=definition_id,
             subscribers=None, constraints=constraints,
             node_exclusive=node_exclusive, queueing_mode=queueing_mode,
             execution_engine_id=execution_engine_id,
-            restart_mode=restart_mode)
+            restart_mode=restart_mode, configuration=configuration)
 
         return name
 
@@ -748,10 +741,7 @@ class PDBridgeBackend(object):
 
         self.rr.delete(definition_id)
 
-    def spawn(self, name, definition, schedule, configuration):
-
-        module = definition.executable['module']
-        cls = definition.executable['class']
+    def spawn(self, name, definition_id, schedule, configuration):
 
         # note: not doing anything with schedule mode yet: the backend PD
         # service doesn't fully support it.
@@ -765,14 +755,10 @@ class PDBridgeBackend(object):
         # warning: this spec will change in the near future.
 
         config = configuration or {}
-        app = dict(name=name, version="0,1", processapp=(name, module, cls),
-            config=config)
-        rel = dict(type="release", name=name, version="0.1", apps=[app])
-        spec = dict(run_type="pyon_single", parameters=dict(rel=rel))
 
-        proc = self.dashi.call(self.topic, "dispatch_process",
-            upid=name, spec=spec, subscribers=self.pd_process_subscribers,
-            constraints=constraints)
+        proc = self.dashi.call(self.topic, "schedule_process",
+            upid=name, definition_id=definition_id, subscribers=self.pd_process_subscribers,
+            constraints=constraints, configuration=config)
 
         log.debug("Dashi Process Dispatcher returned process: %s", proc)
 
@@ -801,7 +787,7 @@ class PDBridgeBackend(object):
 
 def _ion_process_from_core(core_process):
     try:
-        config = core_process['spec']['parameters']['config']
+        config = core_process['configuration']
     except KeyError:
         config = {}
 
