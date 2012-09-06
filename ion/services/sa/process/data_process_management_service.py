@@ -17,6 +17,7 @@ from pyon.core.object import IonObjectSerializer, IonObjectBase
 from interface.objects import Transform
 from pyon.util.containers import DotDict
 from ion.services.sa.instrument.data_process_impl import DataProcessImpl
+from pyon.util.arg_check import validate_is_not_none
 
 
 class DataProcessManagementService(BaseDataProcessManagementService):
@@ -43,7 +44,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         result, _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, data_process_definition.name, True)
 
-        assert result, "A data process definition named '%s' already exists" % data_process_definition.name
+        assert not result, "A data process definition named '%s' already exists" % data_process_definition.name
 
         #todo: determine validation checks for a data process def
         data_process_definition_id, version = self.clients.resource_registry.create(data_process_definition)
@@ -93,6 +94,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         stream_definition_obj = self.clients.resource_registry.read(stream_definition_id)
         data_process_definition_obj = self.clients.resource_registry.read(data_process_definition_id)
 
+        validate_is_not_none(stream_definition_obj, "No stream definition object found for stream definition id: %s" % stream_definition_id)
+        validate_is_not_none(data_process_definition_obj, "No data process definition object found for data process" \
+                                                          " definition id: %s" % data_process_definition_id)
+
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasInputStreamDefinition,  stream_definition_id)
 
     def unassign_input_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
@@ -105,8 +110,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
         associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasInputStreamDefinition, stream_definition_id, id_only=True)
-        if not associations:
-            raise NotFound("No Input Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
+        validate_is_not_none(associations, "No Input Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
+
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
@@ -116,6 +121,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Verify that both ids are valid, RR will throw if not found
         stream_definition_obj = self.clients.resource_registry.read(stream_definition_id)
         data_process_definition_obj = self.clients.resource_registry.read(data_process_definition_id)
+
+        validate_is_not_none(stream_definition_obj, "No stream definition object found for stream definition id: %s" % stream_definition_id)
+        validate_is_not_none(data_process_definition_obj, "No data process definition object found for data process"\
+                                                          " definition id: %s" % data_process_definition_id)
 
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasStreamDefinition,  stream_definition_id)
 
@@ -129,8 +138,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
         associations = self.clients.resource_registry.find_associations(data_process_definition_id, PRED.hasStreamDefinition, stream_definition_id, id_only=True)
-        if not associations:
-            raise NotFound("No Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
+
+        validate_is_not_none(associations, "No Stream Definitions associated with data process definition ID " + str(data_process_definition_id))
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
@@ -158,8 +167,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #---------------------------------------------------------------------------------------
 
         configuration = configuration or DotDict()
-        assert input_data_product_ids, "No input data products passed in"
-        assert output_data_products, "No output data products passed in"
+        validate_is_not_none( input_data_product_ids, "No input data products passed in")
+        validate_is_not_none( output_data_products, "No output data products passed in")
 
         #---------------------------------------------------------------------------------------
         # Read the data process definition
@@ -309,8 +318,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             # Get the stream associated with this IN data product
             stream_ids, _ = self.clients.resource_registry.find_objects(input_data_product_id, PRED.hasStream, RT.Stream, True)
 
-            assert stream_ids, "No Stream created for this IN Data Product " + str(input_data_product_id)
-            assert len(stream_ids) != 1, "Input Data Product should only have ONE stream" + str(input_data_product_id)
+            validate_is_not_none( stream_ids, "No Stream created for this IN Data Product " + str(input_data_product_id))
+            validate_is_not_none( len(stream_ids) != 1, "Input Data Product should only have ONE stream" + str(input_data_product_id))
 
             input_stream_ids.append(stream_ids[0])
 
@@ -343,7 +352,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             process_definition_id=process_definition_id,
             configuration=configuration
         )
-        assert pid, "Process could not be spawned"
+        validate_is_not_none( pid, "Process could not be spawned")
 
         return pid
 

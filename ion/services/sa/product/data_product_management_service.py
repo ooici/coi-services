@@ -69,8 +69,6 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                                         temporal_domain=data_product.temporal_domain,
                                                                         spatial_domain=data_product.spatial_domain)
 
-        data_set_obj = self.clients.dataset_management.read_dataset(data_set_id)
-
         # link dataset with data product. This creates the association in the resource registry
         self.data_product.link_data_set(data_product_id=data_product_id, data_set_id=data_set_id)
 
@@ -84,9 +82,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Retrieve all metadata for a specific data product
         # Return data product resource
 
-        result = self.data_product.read_one(data_product_id)
+        data_product = self.data_product.read_one(data_product_id)
 
-        return result
+        return data_product
 
 
     def update_data_product(self, data_product=None):
@@ -101,9 +99,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.data_product.update_one(data_product)
 
         #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
-
-        return
-
 
     def delete_data_product(self, data_product_id=''):
 
@@ -133,15 +128,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         for dataset_id in dataset_ids:
             self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
 
-        #        # delete the hasOutputDataProduct associations link
-        #        dp_assocs = self.clients.resource_registry.find_associations(data_product_id, PRED.hasOutputProduct)
-        #        for dp_assoc in dp_assocs:
-        #            self.clients.resource_registry.delete_association(dp_assoc)
-        #        # delete the hasInputDataProduct associations link
-        #        dp_assocs = self.clients.resource_registry.find_associations(data_product_id, PRED.hasInputProduct)
-        #        for dp_assoc in dp_assocs:
-        #            self.clients.resource_registry.delete_association(dp_assoc)
-
         #--------------------------------------------------------------------------------
         # Delete the data product
         #--------------------------------------------------------------------------------
@@ -152,13 +138,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         if data_product_obj.lcstate != LCS.RETIRED:
             self.data_product.delete_one(data_product_id)
 
-        #self.clients.resource_registry.delete(data_product_id)
-        #self.clients.resource_registry.set_lifecycle_state(data_product_id, LCS.RETIRED)
-        return
-
     def hard_delete_data_product(self, data_product_id=''):
-
-        return
+        pass
 
 
     def find_data_products(self, filters=None):
@@ -243,8 +224,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        log.debug("suspend_data_product_persistence: data_product_id = %s"  % str(data_product_id))
-
         #--------------------------------------------------------------------------------
         # retrieve the data_process object
         #--------------------------------------------------------------------------------
@@ -256,22 +235,15 @@ class DataProductManagementService(BaseDataProductManagementService):
         if data_product_obj.dataset_configuration_id is None:
             raise NotFound("Data Product %s dataset configuration does not exist" % data_product_id)
 
-        log.debug("Data product: %s" % data_product_obj)
-
         #--------------------------------------------------------------------------------
         # get the Stream associated with this data product; if no stream then create one, if multiple streams then Throw
         #streams = self.data_product.find_stemming_stream(data_product_id)
         #--------------------------------------------------------------------------------
         stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
-        if not stream_ids:
-            raise BadRequest('Data Product %s must have one stream associated' % str(data_product_id))
+        validate_is_not_none(stream_ids, 'Data Product %s must have one stream associated' % str(data_product_id))
 
         for stream_id in stream_ids:
-            log.debug("suspend_data_product_persistence: stream = %s"  % str(stream_id))
-            log.debug("data_product_obj.dataset_configuration_id: %s" % data_product_obj.dataset_configuration_id)
-
             ret = self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=data_product_obj.dataset_configuration_id)
-            log.debug("suspend_data_product_persistence: deactivate = %s"  % str(ret))
 
         #--------------------------------------------------------------------------------
         # detach the dataset from this data product
@@ -288,8 +260,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         self.provenance_results = {}
 
-        log.debug("DataProductManagementService:get_data_product_provenance: %s" % str(data_product_id))
-
         data_product = self.data_product.read_one(data_product_id)
         validate_is_not_none(data_product, "Should have got a non empty data product")
 
@@ -297,9 +267,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.data_product._find_producers(data_product_id, self.provenance_results)
 
         return self.provenance_results
-
-
-
 
     def get_data_product_provenance_report(self, data_product_id=''):
 
@@ -344,8 +311,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         validate_is_not_none(data_product_collection, "Should not pass in a None object")
 
-        log.debug("DataProductManagementService:update_data_product_version: %s" % str(data_product_collection))
-
         self.clients.resource_registry.update(data_product_collection)
 
         #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
@@ -358,8 +323,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product_version_id    str
         @retval data_product    DataProductVersion
         """
-        log.debug("DataProductManagementService:read_data_product_version: %s" % str(data_product_collection_id))
-
         result = self.clients.resource_registry.read(data_product_collection_id)
 
         validate_is_not_none(result, "Should not have returned an empty result")
@@ -379,10 +342,8 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         dp_collection_obj =self.clients.resource_registry.read(data_product_collection_id)
-        log.debug("DataProductManagementService:data_product_collection_id: %s" % str(dp_collection_obj))
 
         new_data_product_obj = self.clients.resource_registry.read(data_product_id)
-        log.debug("DataProductManagementService:data_product_id: %s" % str(new_data_product_obj))
 
         #base_data_product_obj = self.clients.resource_registry.read(dp_collection_obj.version_list[0])
 
@@ -411,7 +372,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         dpv_obj = data_product_collection_obj.version_list[count - 1]
-        log.debug("DataProductManagementService:data_product_collection.version_list: %s" % str(dpv_obj))
 
         return dpv_obj.data_product_id
 
