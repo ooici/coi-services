@@ -88,22 +88,22 @@ class OmsPlatformDriver(PlatformDriver):
         except Exception, e:
             raise PlatformConnectionException("error getting platform map %s" % str(e))
 
-        self._build_network_definition(map)
+        def build_network_definition(map):
+            """
+            Returns the root NNode according to self._platform_id and the OMS'
+            getPlatformMap response.
+            """
+            nodes = NNode.create_network(map)
+            if not self._platform_id in nodes:
+                raise PlatformException(
+                    "platform map does not contain entry for %r" % self._platform_id)
 
-        log.info("%r: go_active completed ok." % self._platform_id)
+            return nodes[self._platform_id]
 
-    def _build_network_definition(self, map):
-        """
-        Assigns self._nnode according to self._platform_id and the OMS'
-        getPlatformMap response.
-        """
-        nodes = NNode.create_network(map)
-        if not self._platform_id in nodes:
-            raise PlatformException(
-                "platform map does not contain entry for %r" % self._platform_id)
+        self._nnode = build_network_definition(map)
 
-        self._nnode = nodes[self._platform_id]
-        log.info("%r: _nnode:\n %s" % (self._platform_id, self._nnode.dump()))
+        log.info("%r: go_active completed ok. _nnode:\n %s" % (
+                 self._platform_id, self._nnode.dump()))
 
     def get_attribute_values(self, attr_names, from_time):
         """
@@ -181,3 +181,52 @@ class OmsPlatformDriver(PlatformDriver):
         for resmon in self._monitors.itervalues():
             resmon.stop()
         self._monitors.clear()
+
+
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.public import PRED, RT
+
+class OmsPlatformDriverRR(OmsPlatformDriver):
+    """
+    An ad hoc subclass to start coding against the RR -- preliminary.
+    """
+
+    def go_active(self):
+        """
+        Uses the RR to retrieve the associations defining the platform topology
+
+        @raise PlatformConnectionException
+        """
+
+        log.info("%r: going active.." % self._platform_id)
+
+        # just following RR-client creation in ExternalDatasetAgent
+        rrclient = ResourceRegistryServiceClient()
+
+        log.info("%r: build_network_definition using RR..." % self._platform_id)
+
+        def build_network_definition(platform_id):
+            """
+            Returns the root NNode for the given platform_id with its
+            children according to associations retrived from the RR.
+            """
+
+            nnode = NNode(platform_id)
+
+            subplatform_ids, _ = rrclient.find_objects(platform_id,
+                                                       PRED.hasDevice,
+                                                       RT.Device,
+                                                       id_only=True)
+            log.debug('Found associated subplatform_ids %r: %s' % (
+                platform_id, subplatform_ids))
+
+            for subplatform_id in subplatform_ids:
+                sub_nnode = build_network_definition(subplatform_id)
+                nnode.add_subplatform(sub_nnode)
+
+            return nnode
+
+        self._nnode = build_network_definition(self._platform_id)
+
+        log.info("%r: go_active completed ok. _nnode:\n %s" % (
+                 self._platform_id, self._nnode.dump()))

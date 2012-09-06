@@ -36,7 +36,7 @@ SUBPLATFORM_IDS = ['platA1a', 'platA1b']
 
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
-    'dvr_cls': 'OmsPlatformDriver',
+    'dvr_cls': 'OmsPlatformDriverRR',
     'oms_uri':  'foo'               # os.getenv('OMS', 'embsimulator'),
 }
 
@@ -410,6 +410,16 @@ class TestOmsLaunch(IonIntegrationTestCase):
         
         
         #-------------------------------
+        # quick local test of retrieving associations:
+        objs, assocs = self.rrclient.find_objects(platformSS_device_id, PRED.hasDevice, RT.Device)
+        log.debug('Found associated devices for %r: objs=%s, assocs=%s' % (
+            platformSS_device_id, objs, assocs))
+        objs, assocs = self.rrclient.find_objects(platformA_device_id, PRED.hasDevice, RT.Device)
+        log.debug('Found associated devices for %r: objs=%s, assocs=%s' % (
+            platformA_device_id, objs, assocs))
+        #-------------------------------
+
+        #-------------------------------
         # Launch Platform SS AgentInstance, connect to the resource agent client
         #-------------------------------
         self.imsclient.start_platform_agent_instance(platform_agent_instance_id=platformSS_agent_instance_id)
@@ -421,9 +431,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self._pa_client = ResourceAgentClient('paclient', name=platformSS_agent_instance_obj.agent_process_id,  process=FakeProcess())
         log.debug(" test_oms_create_and_launch:: got pa client %s", str(self._pa_client))
 
+        #
+        # TODO NOTE: OmsPlatformDriverRR is an interim class while we do the
+        # initial tests of querying the RR for the associations:
         DVR_CONFIG = {
             'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
-            'dvr_cls': 'OmsPlatformDriver',
+            'dvr_cls': 'OmsPlatformDriverRR',
             'oms_uri': 'embsimulator'
         }
 
@@ -432,10 +445,14 @@ class TestOmsLaunch(IonIntegrationTestCase):
             'driver_config': DVR_CONFIG
         }
 
-        #cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG)) 
-        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT, kwargs=dict(plat_config=PLATFORM_CONFIG))
+        # PING_AGENT can be issued before INITIALIZE
+        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
         retval = self._pa_client.execute_agent(cmd)
         log.debug( 'ShoreSide Platform PING_AGENT = %s ', str(retval) )
+
+        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
+        retval = self._pa_client.execute_agent(cmd)
+        log.debug( 'ShoreSide Platform INITIALIZE = %s ', str(retval) )
 
 
         #-------------------------------
