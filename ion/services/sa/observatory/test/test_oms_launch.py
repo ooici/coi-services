@@ -61,7 +61,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='foome')
+@attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
     def setUp(self):
