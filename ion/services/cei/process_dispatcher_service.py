@@ -262,9 +262,7 @@ class PDLocalBackend(object):
         pass
 
     def create_definition(self, definition, definition_id=None):
-        if definition_id:
-            raise BadRequest("specifying process definition IDs is not supported in local backend")
-        pd_id, version = self.rr.create(definition)
+        pd_id, version = self.rr.create(definition, object_id=definition_id)
         return pd_id
 
     def read_definition(self, definition_id):
