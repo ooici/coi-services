@@ -7,7 +7,7 @@
 @description Implementation of the UserNotificationService
 '''
 
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.core.exception import BadRequest, IonException
 from pyon.public import RT, PRED, get_sys_name, Container, CFG
 from pyon.util.async import spawn
 from pyon.util.log import log
@@ -261,6 +261,11 @@ class UserNotificationService(BaseUserNotificationService):
     A service that provides users with an API for CRUD methods for notifications.
     """
 
+    def __init__(self, *args, **kwargs):
+        self._subscribers = []
+        self._schedule_ids = []
+        BaseUserNotificationService.__init__(self, *args, **kwargs)
+
     def on_start(self):
 
         #---------------------------------------------------------------------------------------------------
@@ -298,6 +303,21 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.start_time = UserNotificationService.makeEpochTime(self.__now())
 
+    def on_quit(self):
+        """
+        Handles stop/terminate.
+
+        Cleans up subscribers spawned here, terminates any scheduled tasks to the scheduler.
+        """
+        for sub in self._subscribers:
+            sub.stop()
+
+        for sid in self._schedule_ids:
+            try:
+                self.clients.scheduler.cancel_timer(sid)
+            except IonException as ex:
+                log.info("Ignoring exception while cancelling schedule id (%s): %s: %s", sid, ex.__class__.__name__, ex)
+
     def __now(self):
         '''
         This method defines what the UNS uses as its "current" time
@@ -314,15 +334,16 @@ class UserNotificationService(BaseUserNotificationService):
         log.warning("process_batch_key= %s" % process_batch_key)
 
         def process(event_msg, headers):
-            if event_msg.origin == process_batch_key:
-                self.end_time = UserNotificationService.makeEpochTime(self.__now())
+            assert event_msg.origin == process_batch_key
 
-                log.warning("start_time : %s" % self.start_time)
-                log.warning("end_time: %s" % self.end_time)
+            self.end_time = UserNotificationService.makeEpochTime(self.__now())
 
-                # run the process_batch() method
-                self.process_batch(start_time=self.start_time, end_time=self.end_time)
-                self.start_time = self.end_time
+            log.warning("start_time : %s" % self.start_time)
+            log.warning("end_time: %s" % self.end_time)
+
+            # run the process_batch() method
+            self.process_batch(start_time=self.start_time, end_time=self.end_time)
+            self.start_time = self.end_time
 
         # the subscriber for the batch processing
         '''
@@ -330,9 +351,11 @@ class UserNotificationService(BaseUserNotificationService):
         '''
         self.batch_processing_subscriber = EventSubscriber(
             event_type="ResourceEvent",
+            origin=process_batch_key,
             callback=process
         )
         self.batch_processing_subscriber.start()
+        self._subscribers.append(self.batch_processing_subscriber)
 
     def create_notification(self, notification=None, user_id=''):
         """
@@ -594,12 +617,14 @@ class UserNotificationService(BaseUserNotificationService):
 
         event_subscriber = EventSubscriber( event_type = "ResourceEvent", callback=publish)
         event_subscriber.start()
+        self._subscribers.append(event_subscriber)      # for cleanup later
 
-        id = self.clients.scheduler.create_interval_timer(start_time= time.time(),
-            interval=interval_timer_params['interval'],
-            number_of_intervals=interval_timer_params['number_of_intervals'],
-            event_origin=event.origin,
-            event_subtype='')
+        sid = self.clients.scheduler.create_interval_timer(start_time= time.time(),
+                                                           interval=interval_timer_params['interval'],
+                                                           number_of_intervals=interval_timer_params['number_of_intervals'],
+                                                           event_origin=event.origin,
+                                                           event_subtype='')
+        self._schedule_ids.append(sid)
 
     def create_worker(self, number_of_workers=1):
         '''
