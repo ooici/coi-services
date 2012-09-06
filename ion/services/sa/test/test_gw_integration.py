@@ -52,15 +52,15 @@ class TestLCAServiceGateway(IonIntegrationTestCase):
         self.client.IMS  = InstrumentManagementServiceClient(node=self.container.node)
         self.client.OMS  = ObservatoryManagementServiceClient(node=self.container.node)
 
-    @unittest.skip('service GW gives AttributeError(hostname)')
-    def test_just_the_setup(self):
-        return
+    #@unittest.skip('service GW gives AttributeError(hostname)')
+    #def test_just_the_setup(self):
+    #    return
 
-    @unittest.skip('example test')
+    #@unittest.skip('example test')
     def test_gw_example(self):
         gw_ims_create_instrument_fn = self.funkify(self.client.IMS, "create_instrument_device")
         
-        gw_ims_create_instrument_fn(self.any_old(RT.InstrumentDevice))
+        gw_ims_create_instrument_fn(instrument_device=self.any_old(RT.InstrumentDevice))
 
 
 
