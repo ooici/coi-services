@@ -1,5 +1,5 @@
 from pyon.public import Container, log, IonObject
-from interface.objects import CouchStorage, ProcessDefinition, StreamQuery
+from interface.objects import CouchStorage, ProcessDefinition
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform

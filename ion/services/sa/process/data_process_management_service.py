@@ -12,7 +12,7 @@ from pyon.public import   log, RT, PRED, OT
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.containers import create_unique_identifier
-from interface.objects import ProcessDefinition, StreamQuery
+from interface.objects import ProcessDefinition
 from pyon.core.object import IonObjectSerializer, IonObjectBase
 from interface.objects import Transform
 from pyon.util.containers import DotDict

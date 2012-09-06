@@ -84,7 +84,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         log.info('Stream %s: %s', name, routing_key)
 
-        return stream_id
+        return stream_id, stream.stream_route
 
 
     def read_stream(self, stream_id=''):
@@ -283,6 +283,7 @@ class PubsubManagementService(BasePubsubManagementService):
     def find_topics_by_topic(self, topic_id='', id_only=False):
         topics, assocs = self.clients.resource_registry.find_objects(subject=topic_id, predicate=PRED.hasTopic,id_only=id_only)
         return topics
+    
     #--------------------------------------------------------------------------------
     
     def _bind(self, exchange_point, exchange_name, binding_key):

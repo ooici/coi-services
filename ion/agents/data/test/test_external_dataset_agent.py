@@ -194,7 +194,7 @@ class ExternalDatasetAgentTestBase(object):
 
     def create_stream_and_logger(self, name, stream_id=''):
         if not stream_id or stream_id is '':
-            stream_id = self._pubsub_client.create_stream(name=name, encoding='ION R2')
+            stream_id = self._pubsub_client.create_stream(name=name, exchange_point='science_data')
 
         pid = self._container_client.spawn_process(
             name=name+'_logger',

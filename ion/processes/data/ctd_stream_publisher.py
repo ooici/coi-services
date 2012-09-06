@@ -46,8 +46,6 @@ from coverage_model.basic_types import AxisTypeEnum
 
 class SimpleCtdPublisher(TransformStreamPublisher):
     def on_start(self):
-        self.exchange_point = self.CFG.get_safe('process.exchange_point', 'science_data')
-        self.CFG.process.exchange_point = self.exchange_point
         super(SimpleCtdPublisher,self).on_start()
         self.stream_id = self.CFG.get_safe('process.stream_id',{})
         self.interval  = self.CFG.get_safe('process.interval', 1.0)
@@ -57,7 +55,7 @@ class SimpleCtdPublisher(TransformStreamPublisher):
         if not self.stream_id:
 
             pubsub_cli = PubsubManagementServiceClient()
-            self.stream_id = pubsub_cli.create_stream( name='Example CTD Data')
+            self.stream_id = pubsub_cli.create_stream( name='Example CTD Data', exchange_point=self.exchange_point)
 
         self.greenlet = gevent.spawn(self._trigger_func, self.stream_id)
         self.finished = gevent.event.Event()

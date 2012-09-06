@@ -61,7 +61,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('test_definition', parameter_dictionary={1:1}, stream_type='stream')
         topic_id = self.pubsub_management.create_topic(name='test_topic', exchange_point='test_exchange')
         topic2_id = self.pubsub_management.create_topic(name='another_topic', exchange_point='outside')
-        stream_id = self.pubsub_management.create_stream(name='test_stream', topic_ids=[topic_id, topic2_id], exchange_point='test_exchange', stream_definition_id=stream_def_id)
+        stream_id, route = self.pubsub_management.create_stream(name='test_stream', topic_ids=[topic_id, topic2_id], exchange_point='test_exchange', stream_definition_id=stream_def_id)
 
         topics, assocs = self.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasTopic, id_only=True)
         self.assertEquals(topics,[topic_id])
@@ -89,7 +89,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
     def test_subscription_crud(self):
         stream_def_id = self.pubsub_management.create_stream_definition('test_definition', parameter_dictionary={1:1}, stream_type='stream')
-        stream_id = self.pubsub_management.create_stream(name='test_stream', exchange_point='test_exchange', stream_definition_id=stream_def_id)
+        stream_id, route = self.pubsub_management.create_stream(name='test_stream', exchange_point='test_exchange', stream_definition_id=stream_def_id)
         subscription_id = self.pubsub_management.create_subscription(name='test subscription', stream_ids=[stream_id], exchange_name='test_queue')
 
         subs, assocs = self.resource_registry.find_objects(subject=subscription_id,predicate=PRED.hasStream,id_only=True)
@@ -143,10 +143,10 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         events_topic = self.pubsub_management.create_topic('notifications', exchange_point='events')
 
 
-        log_stream = self.pubsub_management.create_stream('instrument1-logs', topic_ids=[log_topic], exchange_point='instruments')
-        ctd_stream = self.pubsub_management.create_stream('instrument1-ctd', topic_ids=[science_topic], exchange_point='instruments')
-        event_stream = self.pubsub_management.create_stream('notifications', topic_ids=[events_topic], exchange_point='events')
-        raw_stream = self.pubsub_management.create_stream('temp', exchange_point='global.data')
+        log_stream, route = self.pubsub_management.create_stream('instrument1-logs', topic_ids=[log_topic], exchange_point='instruments')
+        ctd_stream, route = self.pubsub_management.create_stream('instrument1-ctd', topic_ids=[science_topic], exchange_point='instruments')
+        event_stream, route = self.pubsub_management.create_stream('notifications', topic_ids=[events_topic], exchange_point='events')
+        raw_stream, route = self.pubsub_management.create_stream('temp', exchange_point='global.data')
         self.exchange_cleanup.extend(['instruments','events','global.data'])
 
 
@@ -195,11 +195,11 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         topic13 = self.pubsub_management.create_topic('topic13', exchange_point='xp2', parent_topic_id=topic11)
         self.exchange_cleanup.extend(['xp1','xp2'])
         
-        stream1_id = self.pubsub_management.create_stream('stream1', topic_ids=[topic7, topic4, topic5], exchange_point='xp1')
-        stream2_id = self.pubsub_management.create_stream('stream2', topic_ids=[topic8], exchange_point='xp2')
-        stream3_id = self.pubsub_management.create_stream('stream3', topic_ids=[topic10,topic13], exchange_point='xp2')
-        stream4_id = self.pubsub_management.create_stream('stream4', topic_ids=[topic9], exchange_point='xp2')
-        stream5_id = self.pubsub_management.create_stream('stream5', topic_ids=[topic11], exchange_point='xp2')
+        stream1_id, route = self.pubsub_management.create_stream('stream1', topic_ids=[topic7, topic4, topic5], exchange_point='xp1')
+        stream2_id, route = self.pubsub_management.create_stream('stream2', topic_ids=[topic8], exchange_point='xp2')
+        stream3_id, route = self.pubsub_management.create_stream('stream3', topic_ids=[topic10,topic13], exchange_point='xp2')
+        stream4_id, route = self.pubsub_management.create_stream('stream4', topic_ids=[topic9], exchange_point='xp2')
+        stream5_id, route = self.pubsub_management.create_stream('stream5', topic_ids=[topic11], exchange_point='xp2')
 
         subscription1 = self.pubsub_management.create_subscription('sub1', topic_ids=[topic1])
         subscription2 = self.pubsub_management.create_subscription('sub2', topic_ids=[topic8], exchange_name='sub1')
