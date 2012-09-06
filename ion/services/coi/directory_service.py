@@ -5,6 +5,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.core.exception import BadRequest
 from pyon.ion.directory import Directory
+from pyon.public import RT, log
 from ion.processes.bootstrap.ui_loader import UILoader
 
 from interface.services.coi.idirectory_service import BaseDirectoryService
@@ -51,7 +52,16 @@ class DirectoryService(BaseDirectoryService):
         return ui_loader.warnings
 
     def get_ui_specs(self, user_id='', language=''):
-        ui_loader = UILoader(self)
-        ui_specs = ui_loader.get_ui_specs(user_id=user_id, language=language)
 
-        return ui_specs
+        obj_list,_ = self.container.resource_registry.find_resources(restype=RT.UISpec, name="ION UI Specs", id_only=False)
+        if obj_list:
+            spec_obj = obj_list[0]
+            log.info("get_ui_specs(): Found existing UISpec")
+            return spec_obj
+        else:
+            return None
+#        # Legacy implementation: use UI objects
+#        ui_loader = UILoader(self)
+#        ui_specs = ui_loader.get_ui_specs(user_id=user_id, language=language)
+#
+#        return ui_specs

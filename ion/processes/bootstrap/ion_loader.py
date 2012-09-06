@@ -60,9 +60,8 @@ class IONLoader(ImmediateProcess):
             elif op == "loadooi":
                 self.extract_ooi_assets(path)
             elif op == "loadui":
-                self.ui_loader.load_ui(path)
-                if self.exportui:
-                    self.ui_loader.export_ui_specs('ui_specs.json')
+                specs_path = 'ui_specs.json' if self.exportui else None
+                self.ui_loader.load_ui(path, specs_path=specs_path)
             elif op == "deleteui":
                 self.ui_loader.delete_ui()
             else:
