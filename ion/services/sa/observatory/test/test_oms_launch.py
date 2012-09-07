@@ -65,7 +65,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@unittest.skip("Failing on buildbot")
+#@unittest.skip("Failing on buildbot")
 @attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
@@ -157,6 +157,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         platformSS_agent_instance_id = self.imsclient.create_platform_agent_instance(platformSS_agent_instance_obj, platformSS_agent_id, platformSS_device_id)
 
 
+        topology = {}
 
         #-------------------------------
         # Platform A
@@ -185,6 +186,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         platformA_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformAAgentInstance', description="PlatformAAgentInstance",
                                           driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platformA_agent_instance_id = self.imsclient.create_platform_agent_instance(platformA_agent_instance_obj, platformA_agent_id, platformA_device_id)
+
 
 
         #-------------------------------
@@ -275,6 +277,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         platformA1b_agent_instance_id = self.imsclient.create_platform_agent_instance(platformA1b_agent_instance_obj, platformA1b_agent_id, platformA1b_device_id)
 
 
+        topology[platformA_agent_id] = [platformA1a_agent_id, platformA1b_agent_id]
+
         #-------------------------------
         # Platform A1b1
         #-------------------------------
@@ -332,7 +336,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                           driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platformA1b2_agent_instance_id = self.imsclient.create_platform_agent_instance(platformA1b2_agent_instance_obj, platformA1b2_agent_id, platformA1b2_device_id)
         
-        
+        topology[platformA1b_agent_id] = [platformA1b1_agent_id, platformA1b2_agent_id]
         
         #-------------------------------
         # Platform B
@@ -362,7 +366,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                           driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platformB_agent_instance_id = self.imsclient.create_platform_agent_instance(platformB_agent_instance_obj, platformB_agent_id, platformB_device_id)
 
-
+        topology[platformSS_agent_id] = [platformA_agent_id, platformB_agent_id]
         
         #-------------------------------
         # Platform B1
@@ -422,7 +426,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         platformB2_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformB2AgentInstance', description="PlatformB2AgentInstance",
                                           driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platformB2_agent_instance_id = self.imsclient.create_platform_agent_instance(platformB2_agent_instance_obj, platformB2_agent_id, platformB2_device_id) 
-        
+
+        topology[platformB_agent_id] = [platformB1_agent_id, platformB2_agent_id]
         
         #-------------------------------
         # quick local test of retrieving associations:
@@ -454,8 +459,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         PLATFORM_CONFIG = {
             'platform_id': platformSS_device_id,
-#            'platform_id': platformA_device_id,
-            'driver_config': DVR_CONFIG
+            'platform_agent_id': platformSS_agent_id,
+            'driver_config': DVR_CONFIG,
+            'platform_topology' : topology
         }
 
         # PING_AGENT can be issued before INITIALIZE
