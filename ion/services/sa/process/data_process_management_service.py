@@ -194,12 +194,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_name = create_unique_identifier("process_" + data_process_definition.name)
         self.data_process = IonObject(RT.DataProcess, name=data_process_name)
 
-        log.debug("data process name: %s" % data_process_name)
-
         # update the queue name to be passed in via the config
         configuration.process.queue_name = data_process_name
-
-        log.debug("in create_data_process: configuration: %s" % configuration)
 
         # register the data process
         data_process_id, version = self.clients.resource_registry.create(self.data_process)
@@ -252,8 +248,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             output_stream_dict[name] = stream_ids[0]
 
-#        log.debug("out_put_stream_dict: %s" % output_stream_dict)
-
         #------------------------------------------------------------------------------------------------------------------------------------------
         #Check for attached objects and put them into the configuration
         #------------------------------------------------------------------------------------------------------------------------------------------
@@ -303,9 +297,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_obj.input_subscription_id = input_subscription_id
         self.clients.resource_registry.update(data_process_obj)
 
-        log.debug("out_put_stream_dict: %s" % output_stream_dict)
-        log.debug("in create_data_process: configuration: %s" % configuration)
-
         # Launch the process
         pid = self._start_process(  name = data_process_id,
                                     in_subscription_id = input_subscription_id,
@@ -342,12 +333,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                          process_definition_id,
                          configuration):
 
-        log.debug("in _start_process() 1: configuration: %s" % configuration)
         subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
 
         configuration = configuration or DotDict()
-
-        log.debug("in _start_process() 2: configuration: %s" % configuration)
 
         configuration['process'] = dict({
             'name':name,
@@ -410,11 +398,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return
 
     def read_data_process(self, data_process_id=""):
+
         data_proc_obj = self.clients.resource_registry.read(data_process_id)
         return data_proc_obj
 
 
     def delete_data_process(self, data_process_id=""):
+
         # Delete the specified DataProcessDefinition object
         data_process_obj = self.read_data_process(data_process_id)
 
@@ -425,7 +415,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # Delete the output stream, but not the output product
         out_products, out_product_assns = self.clients.resource_registry.find_objects(data_process_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        # for each output product connected to this tranform, delete the stream, streamdef
+        # for each output product connected to this process, delete the stream, streamdef
+
         for out_product, out_product_assn in zip(out_products, out_product_assns) :
 
             self.clients.resource_registry.delete_association(out_product_assn)
@@ -447,25 +438,29 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             #unassign the data product to the producer
             self.clients.data_acquisition_management.unassign_data_product(data_process_id, out_product)
 
+
         # Delete the input products link
         inprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasInputProduct)
         for inprod_association in inprod_associations:
             self.clients.resource_registry.delete_association(inprod_association)
 
 
-
         # Deactivate and delete the input subscription
-        self.clients.pubsub_management.deactivate_subscription()(data_process_obj.input_subscription_id)
-        self.clients.pubsub_management.delete_subscription(data_process_obj.input_subscription_id)
+
+        input_subscription_id = data_process_obj.input_subscription_id
+        subscription_obj = self.clients.pubsub_management.read_subscription(input_subscription_id)
+
+        if subscription_obj.is_active:
+            self.clients.pubsub_management.deactivate_subscription(input_subscription_id)
+
+        self.clients.pubsub_management.delete_subscription(input_subscription_id)
         data_process_obj.input_subscription_id = None
 
         #unregister the data process in DataAcquisitionMgmtSvc
         self.clients.data_acquisition_management.unregister_process(data_process_id)
 
-
         # Delete the data process
         self.clients.resource_registry.delete(data_process_id)
-        return
 
     def find_data_process(self, filters=None):
         """
@@ -484,15 +479,18 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.clients.pubsub_management.activate_subscription(input_subscription_id)
 
-#        #find the Transform
 #        #update the producer context with the activation time and the configuration
-#        # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
-#        # todo: process_id, process_definition, schedule, configuration
-#        producer_obj = self._get_process_producer(data_process_id)
-#        if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
-#            producer_obj.producer_context.activation_time = IonTime().to_string()
-#            producer_obj.producer_context.execution_configuration = data_process_obj.configuration
-#            self.clients.resource_registry.update(producer_obj)
+
+
+        # todo: update the setting of this context with the return vals from process_dispatcher:schedule_process after convert
+        # todo: process_id, process_definition, schedule, configuration
+
+        producer_obj = self._get_process_producer(data_process_id)
+        if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
+            producer_obj.producer_context.activation_time = IonTime().to_string()
+            producer_obj.producer_context.execution_configuration = data_process_obj.configuration
+            self.clients.resource_registry.update(producer_obj)
+
 #
 #        subscription_ids, _ = self.clients.resource_registry.find_objects(transforms[0],
 #            PRED.hasSubscription, RT.Subscription, True)
@@ -509,13 +507,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.clients.pubsub_management.deactivate_subscription(input_subscription_id)
 
-#        #update the producer context with the deactivation time
-#        # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
-#        producer_obj = self._get_process_producer(data_process_id)
-#        if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
-#            producer_obj.producer_context.deactivation_time = IonTime().to_string()
-#            self.clients.resource_registry.update(producer_obj)
-#
+        #update the producer context with the deactivation time
+        # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
+        producer_obj = self._get_process_producer(data_process_id)
+        if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
+            producer_obj.producer_context.deactivation_time = IonTime().to_string()
+            self.clients.resource_registry.update(producer_obj)
+
 #        subscription_ids, _ = self.clients.resource_registry.find_objects(transforms[0],
 #            PRED.hasSubscription, RT.Subscription, True)
 #        if len(subscription_ids) < 1:
