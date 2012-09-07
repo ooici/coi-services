@@ -439,7 +439,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         #create data products for instrument data
 
-        log.debug('test_createDataProduct: Creating new data product w/o a stream definition: %s' % ctd_stream_def_id)
+        log.debug('Creating new data product w/o a stream definition: %s' % ctd_stream_def_id)
 
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
@@ -459,7 +459,6 @@ class TestAssembly(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
         #------------------------------------------------------------------------------------------------
-        log.debug("parameter dictionary: %s" % parameter_dictionary)
 
         inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
         log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)

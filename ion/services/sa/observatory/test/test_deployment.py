@@ -199,7 +199,6 @@ class TestDeployment(IonIntegrationTestCase):
         instrument_model_id = self.imsclient.create_instrument_model(instrument_model_obj)
         self.imsclient.assign_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)
         self.omsclient.assign_instrument_model_to_instrument_site(instrument_model_id, instrument_site_id)
-        #self.rrclient.create_association(instrument_site_id, PRED.hasModel, instrument_model_id)
 
         #----------------------------------------------------------------------------------------------------
         # Create a deployment object
