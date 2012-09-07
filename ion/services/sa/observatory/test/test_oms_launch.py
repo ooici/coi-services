@@ -26,6 +26,10 @@ from interface.objects import ProcessDefinition
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 
+from interface.services.icontainer_agent import ContainerAgentClient
+from ion.agents.platform.platform_agent import set_container_client
+from ion.agents.platform.platform_agent import set_rr_client
+
 import os
 
 # The ID of the root platform for this test and the IDs of its sub-platforms.
@@ -36,7 +40,7 @@ SUBPLATFORM_IDS = ['platA1a', 'platA1b']
 
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
-    'dvr_cls': 'OmsPlatformDriverRR',
+    'dvr_cls': 'OmsPlatformDriver',
     'oms_uri':  'foo'               # os.getenv('OMS', 'embsimulator'),
 }
 
@@ -79,6 +83,16 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.omsclient = ObservatoryManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
+
+
+        #----------------------------------------------
+        # TODO appropriate mechanism in PA code to access these components.
+        # FOr now, we use these hacks to pass them from here
+        container_client = ContainerAgentClient(node=self.container.node,
+                                                name=self.container.name)
+        set_container_client(container_client)
+        set_rr_client(self.rrclient)
+        #----------------------------------------------
 
 
 
@@ -411,12 +425,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
         
         #-------------------------------
         # quick local test of retrieving associations:
-        objs, assocs = self.rrclient.find_objects(platformSS_device_id, PRED.hasDevice, RT.Device)
-        log.debug('Found associated devices for %r: objs=%s, assocs=%s' % (
-            platformSS_device_id, objs, assocs))
-        objs, assocs = self.rrclient.find_objects(platformA_device_id, PRED.hasDevice, RT.Device)
-        log.debug('Found associated devices for %r: objs=%s, assocs=%s' % (
-            platformA_device_id, objs, assocs))
+        objs, assocs = self.rrclient.find_objects(platformSS_device_id, PRED.hasDevice, RT.PlatformDevice, id_only=True)
+        log.debug('Found associated devices for platformSS_device_id=%r: objs=%s, assocs=%s' % (platformSS_device_id, objs, assocs))
+        for obj in objs: log.debug("Retrieved object=%s" % obj)
+        objs, assocs = self.rrclient.find_objects(platformA_device_id, PRED.hasDevice)
+        log.debug('Found associated devices for platformA_device_id=%r: objs=%s, assocs=%s' % (platformA_device_id, objs, assocs))
+        for obj in objs: log.debug("Retrieved object._id=%s" % obj._id)
         #-------------------------------
 
         #-------------------------------
@@ -431,17 +445,15 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self._pa_client = ResourceAgentClient('paclient', name=platformSS_agent_instance_obj.agent_process_id,  process=FakeProcess())
         log.debug(" test_oms_create_and_launch:: got pa client %s", str(self._pa_client))
 
-        #
-        # TODO NOTE: OmsPlatformDriverRR is an interim class while we do the
-        # initial tests of querying the RR for the associations:
         DVR_CONFIG = {
             'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
-            'dvr_cls': 'OmsPlatformDriverRR',
+            'dvr_cls': 'OmsPlatformDriver',
             'oms_uri': 'embsimulator'
         }
 
         PLATFORM_CONFIG = {
-            'platform_id': platformA_device_id,
+            'platform_id': platformSS_device_id,
+#            'platform_id': platformA_device_id,
             'driver_config': DVR_CONFIG
         }
 
@@ -450,6 +462,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd)
         log.debug( 'ShoreSide Platform PING_AGENT = %s ', str(retval) )
 
+        # INITIALIZE should trigger the creation of the whole platform
+        # hierarchy rooted at PLATFORM_CONFIG['platform_id']
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
         retval = self._pa_client.execute_agent(cmd)
         log.debug( 'ShoreSide Platform INITIALIZE = %s ', str(retval) )

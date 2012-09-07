@@ -13,6 +13,9 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.public import PRED, RT
+
 from ion.agents.platform.platform_driver import PlatformDriver
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.exceptions import PlatformDriverException
@@ -74,12 +77,53 @@ class OmsPlatformDriver(PlatformDriver):
 
     def go_active(self):
         """
-        Establish communication with external platform and assigns self._nnode.
+        Main task here is to determine the topology of platforms
+        rooted here then assigning the corresponding definition to self._nnode.
 
         @raise PlatformConnectionException
         """
 
         log.info("%r: going active.." % self._platform_id)
+
+        if self._rr_client:
+            self._nnode = self._build_network_definition_using_rr()
+        else:
+            self._nnode = self._build_network_definition_using_oms()
+
+        log.info("%r: go_active completed ok. _nnode:\n%s" % (
+                 self._platform_id, self._nnode.dump()))
+
+    def _build_network_definition_using_rr(self):
+        log.info("%r: _build_network_definition_using_rr..." % self._platform_id)
+
+        def build_network_definition(platform_id, platform_name=None):
+            """
+            Returns the root NNode for the given platform_id with its
+            children according to associations retrieved from the RR.
+            """
+            nnode = NNode(platform_id)
+            nnode.set_name(platform_name)
+
+            subplatform_objs, _ = self._rr_client.find_objects(platform_id,
+                                                       PRED.hasDevice,
+                                                       RT.PlatformDevice)
+            log.debug('Found associated subplatform_objs for %r: %s' % (
+                platform_id, subplatform_objs))
+
+            for subplatform_obj in subplatform_objs:
+                subplatform_id = subplatform_obj._id
+                subplatform_name = subplatform_obj.name
+                sub_nnode = build_network_definition(subplatform_id, subplatform_name)
+                nnode.add_subplatform(sub_nnode)
+
+            return nnode
+
+        plat_obj = self._rr_client.read(object_id=self._platform_id)
+        name = plat_obj.name if plat_obj else None
+        return build_network_definition(self._platform_id, name)
+
+    def _build_network_definition_using_oms(self):
+        log.info("%r: _build_network_definition_using_oms.." % self._platform_id)
         self.ping()
 
         log.info("%r: getting platform map..." % self._platform_id)
@@ -100,10 +144,7 @@ class OmsPlatformDriver(PlatformDriver):
 
             return nodes[self._platform_id]
 
-        self._nnode = build_network_definition(map)
-
-        log.info("%r: go_active completed ok. _nnode:\n %s" % (
-                 self._platform_id, self._nnode.dump()))
+        return build_network_definition(map)
 
     def get_attribute_values(self, attr_names, from_time):
         """
@@ -181,52 +222,3 @@ class OmsPlatformDriver(PlatformDriver):
         for resmon in self._monitors.itervalues():
             resmon.stop()
         self._monitors.clear()
-
-
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.public import PRED, RT
-
-class OmsPlatformDriverRR(OmsPlatformDriver):
-    """
-    An ad hoc subclass to start coding against the RR -- preliminary.
-    """
-
-    def go_active(self):
-        """
-        Uses the RR to retrieve the associations defining the platform topology
-
-        @raise PlatformConnectionException
-        """
-
-        log.info("%r: going active.." % self._platform_id)
-
-        # just following RR-client creation in ExternalDatasetAgent
-        rrclient = ResourceRegistryServiceClient()
-
-        log.info("%r: build_network_definition using RR..." % self._platform_id)
-
-        def build_network_definition(platform_id):
-            """
-            Returns the root NNode for the given platform_id with its
-            children according to associations retrived from the RR.
-            """
-
-            nnode = NNode(platform_id)
-
-            subplatform_ids, _ = rrclient.find_objects(platform_id,
-                                                       PRED.hasDevice,
-                                                       RT.Device,
-                                                       id_only=True)
-            log.debug('Found associated subplatform_ids %r: %s' % (
-                platform_id, subplatform_ids))
-
-            for subplatform_id in subplatform_ids:
-                sub_nnode = build_network_definition(subplatform_id)
-                nnode.add_subplatform(sub_nnode)
-
-            return nnode
-
-        self._nnode = build_network_definition(self._platform_id)
-
-        log.info("%r: go_active completed ok. _nnode:\n %s" % (
-                 self._platform_id, self._nnode.dump()))

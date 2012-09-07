@@ -50,6 +50,17 @@ class PlatformDriver(object):
         # identified by self._platform_id
         self._nnode = None
 
+        # the ResourceRegistryClient object to be used for certain queries
+        # TODO NOTE this is provision la while the appropriate mechanism to
+        # access the RR is determined.
+        self._rr_client = None
+
+    def set_rr_client(self, rr_client):
+        """
+        Sets the ResourceRegistryClient
+        """
+        self._rr_client = rr_client
+
     def set_event_listener(self, evt_recv):
         """
         (to support similar setting in instrument-agent:
@@ -73,7 +84,8 @@ class PlatformDriver(object):
     def go_active(self):
         """
         To be implemented by subclass.
-        Establish communication with external platform and assigns self._nnode.
+        Main task here is to determine the topology of platforms
+        rooted here then assigning the corresponding definition to self._nnode.
 
         @raise PlatformConnectionException
         """
