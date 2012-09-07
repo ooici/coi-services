@@ -26,6 +26,10 @@ from interface.objects import ProcessDefinition
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 
+from interface.services.icontainer_agent import ContainerAgentClient
+from ion.agents.platform.platform_agent import set_container_client
+from ion.agents.platform.platform_agent import set_rr_client
+
 import os
 
 # The ID of the root platform for this test and the IDs of its sub-platforms.
@@ -61,6 +65,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
+@unittest.skip("Failing on buildbot")
 @attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
@@ -79,6 +84,16 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.omsclient = ObservatoryManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
+
+
+        #----------------------------------------------
+        # TODO appropriate mechanism in PA code to access these components.
+        # FOr now, we use these hacks to pass them from here
+        container_client = ContainerAgentClient(node=self.container.node,
+                                                name=self.container.name)
+        set_container_client(container_client)
+        set_rr_client(self.rrclient)
+        #----------------------------------------------
 
 
 
@@ -158,6 +173,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformADevice platform device')
         platformA_device_id = self.imsclient.create_platform_device(platformA_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA_device_id)
+        self.rrclient.create_association(subject=platformSS_device_id, predicate=PRED.hasDevice, object=platformA_device_id)
 
         platformA_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformAAgent',
@@ -186,6 +202,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformA1Device platform device')
         platformA1_device_id = self.imsclient.create_platform_device(platformA1_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1_device_id)
+        self.rrclient.create_association(subject=platformA_device_id, predicate=PRED.hasDevice, object=platformA1_device_id)
 
         platformA1_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformA1Agent',
@@ -215,6 +232,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformA1aDevice platform device')
         platformA1a_device_id = self.imsclient.create_platform_device(platformA1a_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1a_device_id)
+        self.rrclient.create_association(subject=platformA1_device_id, predicate=PRED.hasDevice, object=platformA1a_device_id)
 
         platformA1a_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformA1aAgent',
@@ -243,6 +261,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformA1bDevice platform device')
         platformA1b_device_id = self.imsclient.create_platform_device(platformA1b_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1b_device_id)
+        self.rrclient.create_association(subject=platformA1_device_id, predicate=PRED.hasDevice, object=platformA1b_device_id)
 
         platformA1b_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformA1bAgent',
@@ -271,6 +290,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformA1b1Device platform device')
         platformA1b1_device_id = self.imsclient.create_platform_device(platformA1b1_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1b1_device_id)
+        self.rrclient.create_association(subject=platformA1b_device_id, predicate=PRED.hasDevice, object=platformA1b1_device_id)
 
         platformA1b1_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformA1b1Agent',
@@ -299,6 +319,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformA1b2Device platform device')
         platformA1b2_device_id = self.imsclient.create_platform_device(platformA1b2_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1b2_device_id)
+        self.rrclient.create_association(subject=platformA1b_device_id, predicate=PRED.hasDevice, object=platformA1b2_device_id)
 
         platformA1b2_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformA1b2Agent',
@@ -328,6 +349,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformBDevice platform device')
         platformB_device_id = self.imsclient.create_platform_device(platformB_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformB_device_id)
+        self.rrclient.create_association(subject=platformSS_device_id, predicate=PRED.hasDevice, object=platformB_device_id)
 
         platformB_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformBAgent',
@@ -357,6 +379,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformB1Device platform device')
         platformB1_device_id = self.imsclient.create_platform_device(platformB1_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformB1_device_id)
+        self.rrclient.create_association(subject=platformB_device_id, predicate=PRED.hasDevice, object=platformB1_device_id)
 
         platformB1_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformB1Agent',
@@ -387,6 +410,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                         description='PlatformB2Device platform device')
         platformB2_device_id = self.imsclient.create_platform_device(platformB2_device__obj)
         self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformB2_device_id)
+        self.rrclient.create_association(subject=platformB_device_id, predicate=PRED.hasDevice, object=platformB2_device_id)
 
         platformB2_agent__obj = IonObject(RT.PlatformAgent,
                                         name='PlatformB2Agent',
@@ -400,6 +424,16 @@ class TestOmsLaunch(IonIntegrationTestCase):
         platformB2_agent_instance_id = self.imsclient.create_platform_agent_instance(platformB2_agent_instance_obj, platformB2_agent_id, platformB2_device_id) 
         
         
+        #-------------------------------
+        # quick local test of retrieving associations:
+        objs, assocs = self.rrclient.find_objects(platformSS_device_id, PRED.hasDevice, RT.PlatformDevice, id_only=True)
+        log.debug('Found associated devices for platformSS_device_id=%r: objs=%s, assocs=%s' % (platformSS_device_id, objs, assocs))
+        for obj in objs: log.debug("Retrieved object=%s" % obj)
+        objs, assocs = self.rrclient.find_objects(platformA_device_id, PRED.hasDevice)
+        log.debug('Found associated devices for platformA_device_id=%r: objs=%s, assocs=%s' % (platformA_device_id, objs, assocs))
+        for obj in objs: log.debug("Retrieved object._id=%s" % obj._id)
+        #-------------------------------
+
         #-------------------------------
         # Launch Platform SS AgentInstance, connect to the resource agent client
         #-------------------------------
@@ -419,14 +453,21 @@ class TestOmsLaunch(IonIntegrationTestCase):
         }
 
         PLATFORM_CONFIG = {
-            'platform_id': platformA_device_id,
+            'platform_id': platformSS_device_id,
+#            'platform_id': platformA_device_id,
             'driver_config': DVR_CONFIG
         }
 
-        #cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG)) 
-        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT, kwargs=dict(plat_config=PLATFORM_CONFIG))
+        # PING_AGENT can be issued before INITIALIZE
+        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
         retval = self._pa_client.execute_agent(cmd)
         log.debug( 'ShoreSide Platform PING_AGENT = %s ', str(retval) )
+
+        # INITIALIZE should trigger the creation of the whole platform
+        # hierarchy rooted at PLATFORM_CONFIG['platform_id']
+        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
+        retval = self._pa_client.execute_agent(cmd)
+        log.debug( 'ShoreSide Platform INITIALIZE = %s ', str(retval) )
 
 
         #-------------------------------

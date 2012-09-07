@@ -11,10 +11,11 @@ import re
 import os
 import requests
 import urllib
+import time
 
 from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.identifier import create_unique_resource_id
-from pyon.public import log, iex, IonObject
+from pyon.public import log, iex, IonObject, RT
 from pyon.util.containers import get_ion_ts
 
 from interface import objects
@@ -24,6 +25,7 @@ class UILoader(object):
     DEFAULT_UISPEC_LOCATION = "https://userexperience.oceanobservatories.org/database-exports/"
 
     UI_RESOURCE_TYPES = [
+        'UISpec',
         'UIGraphicType',
         'UIGraphic',
         'UIInformationLevel',
@@ -58,7 +60,7 @@ class UILoader(object):
         for restype in self.UI_RESOURCE_TYPES:
             res_is_list, _ = self.container.resource_registry.find_resources(restype, id_only=True)
             res_ids.extend(res_is_list)
-            log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
+            #log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
 
         ds = DatastoreManager.get_datastore_instance("resources")
         docs = ds.read_doc_mult(res_ids)
@@ -72,7 +74,7 @@ class UILoader(object):
         log.info("Deleted %s UI resources and associations", len(docs))
 
 
-    def load_ui(self, path, replace=True):
+    def load_ui(self, path, replace=True, specs_only=True, specs_path=None):
         """
         @brief Import UI definitions from the FileMakerPro database exported CVS files
                 to ION resource objects.
@@ -138,7 +140,7 @@ class UILoader(object):
                         log.info("Loading UI category %s from retrieved file %s" % (category, fname))
                         csvfile = self.files[fname]
                         # This is a hack to be able to read from string
-                        csvfile = csvfile.split(os.linesep)
+                        csvfile = csvfile.splitlines()
                         reader = csv.DictReader(csvfile, delimiter=',')
                         for row in reader:
                             catfunc(row)
@@ -165,26 +167,57 @@ class UILoader(object):
             self.delete_ui()
 
         try:
-            ds = DatastoreManager.get_datastore_instance("resources")
-            self._finalize_uirefs(ds)
-            res = ds.create_mult(self.ui_obj_by_id.values(), allow_ids=True)
-            log.info("Stored %s UI resource objects into resource registry" % (len(res)))
-            res = ds.create_mult(self.ui_assocs)
-            log.info("Stored %s UI resource associations into resource registry" % (len(res)))
+            if specs_only:
+                # Only write one UISpec resource, not a multitude of UIResource objects for each entry
+                specs = self.get_ui_specs(ui_objs=self.ui_objs)
+                obj_list,_ = self.container.resource_registry.find_resources(restype=RT.UISpec, name="ION UI Specs", id_only=False)
+                if obj_list:
+                    spec_obj = obj_list[0]
+                    spec_obj.spec = specs
+                    self.container.resource_registry.update(spec_obj)
+                else:
+                    spec_obj = IonObject('UISpec', name="ION UI Specs", spec=specs)
+                    res_id = self.container.resource_registry.create(spec_obj)
+                spec_size = len(json.dumps(spec_obj.spec))
+                log.info("Wrote UISpec object, size=%s", spec_size)
+
+                if specs_path:
+                    self.export_ui_specs(specs_path, specs=specs)
+            else:
+                # Write the full set of UIResource objects
+                self._finalize_uirefs()
+                ds = DatastoreManager.get_datastore_instance("resources")
+                res = ds.create_mult(self.ui_obj_by_id.values(), allow_ids=True)
+                log.info("Stored %s UI resource objects into resource registry" % (len(res)))
+                res = ds.create_mult(self.ui_assocs)
+                log.info("Stored %s UI resource associations into resource registry" % (len(res)))
         except Exception as ex:
             log.exception("Store in resource registry error err=%s" % (str(ex)))
 
+
     def _get_ui_files(self, path):
         dirurl = path or self.DEFAULT_UISPEC_LOCATION
+        if not dirurl.endswith("/"):
+            dirurl += "/"
         log.info("Accessing UI specs URL: %s", dirurl)
         dirpage = requests.get(dirurl).text
-        csvfiles = re.findall('href="(.+?\.csv)"', dirpage)
+        csvfiles = re.findall('(?:href|HREF)="([-%/\w]+\.csv)"', dirpage)
         log.debug("Found %s csvfiles: %s", len(csvfiles), csvfiles)
+
+        #tmp_dir = "./ui_export/%s" % int(time.time())
+        #if not os.path.exists(tmp_dir):
+        #    os.makedirs(tmp_dir)
+
+        s = requests.session()
         for file in csvfiles:
-            csvurl = self.DEFAULT_UISPEC_LOCATION + file
-            content = requests.get(csvurl).content
+            file = file.rsplit('/', 1)[-1]
+            csvurl = dirurl + file
+            #log.info("Trying download %s", csvurl)
+            content = s.get(csvurl).content
             self.files[urllib.unquote(file)] = content
-            log.info("Downloaded %s, size=%s", file, len(content))
+            log.info("Downloaded %s, size=%s", csvurl, len(content))
+        #    with open("%s/%s" % (tmp_dir, urllib.unquote(file)), "wb") as f:
+        #        f.write(content)
 
     def _perform_ui_checks(self):
         # Perform some consistency checking on imported objects
@@ -306,7 +339,7 @@ class UILoader(object):
     def _get_uiid(self, refid):
         return refid
 
-    def _finalize_uirefs(self, ds):
+    def _finalize_uirefs(self):
         # Create real resource IDs
         for obj in self.ui_objs.values():
             #oid = self.uiid_prefix + obj.uirefid
@@ -461,39 +494,46 @@ class UILoader(object):
 
     # -------------------------------------------------------------------------
 
-    def export_ui_specs(self, filename):
+    def export_ui_specs(self, filename, specs=None):
         """
         @brief Retrieve UI specs from resource registry, extract UI specs
                 and save as JSON file
         """
         try:
-            ui_specs = self.get_ui_specs()
+            if not specs:
+                ui_specs = self.get_ui_specs()
+            else:
+                ui_specs = specs
             json_specs = json.dumps(ui_specs)
-            log.info("Generated JSON ui specs, len=%s", len(json_specs))
+            log.info("Generated JSON UI specs, len=%s", len(json_specs))
             with open(filename, 'w') as f:
                 f.write(json_specs)
         except IOError as ioe:
             log.exception("Cannot save UIspecs json")
             raise BadRequest('IOError: %s' % repr(ioe))
 
-    def get_ui_specs(self, user_id='', language='', verbose=False, strip=False):
+    def get_ui_specs(self, user_id='', language='', verbose=False, strip=False, ui_objs=None):
         rr = self.container.resource_registry
 
         warnings = []       # Warning strings
-        ui_objs = {}        # Dict of all found UI objects
         widgets = {}        # Dict of widget types containing widgets
         widgets_names = {}  # Mapping of widget name to id
         elements = {}       # Dict of screen elements
         graphics = {}       # Dict of graphics
         helptags = {}       # Dict of help tags
         msgstrs = {}        # Dict of message strings
+        restypes = {}       # Dict of resource types
 
         # Pass 1: Load UI resources by type from resource registry
-        for rt in self.UI_RESOURCE_TYPES:
-            res_list,_ = rr.find_resources(rt, id_only=False)
-            log.info("Found %s UI resources of type %s", len(res_list), rt)
-            for obj in res_list:
-                ui_objs[obj.uirefid] = obj
+        if ui_objs is None:
+            ui_objs = {}
+            for rt in self.UI_RESOURCE_TYPES:
+                res_list,_ = rr.find_resources(rt, id_only=False)
+                log.info("Found %s UI resources of type %s", len(res_list), rt)
+                for obj in res_list:
+                    ui_objs[obj.uirefid] = obj
+        else:
+            log.info("get_ui_specs() working with %s UI objects", len(ui_objs))
 
         # Pass 2: Perform initial binning of UI resources objects by type
         for obj in ui_objs.values():
@@ -529,6 +569,13 @@ class UILoader(object):
                 if verbose:
                     elem_dict['desc'] = obj.description
                 msgstrs[obj.uirefid] = elem_dict
+            elif obj._get_type() == "UIResourceType":
+                elem_dict = dict(
+                    name=obj.name,
+                    super=obj.resource_supertype_id)
+                if verbose:
+                    elem_dict['desc'] = obj.description
+                restypes[obj.uirefid] = elem_dict
             elif obj._get_type() == "UIScreenElement":
                 # Add object to elements dict
                 element_dict = dict(
@@ -574,9 +621,17 @@ class UILoader(object):
                     wid=child['wid'],
                     ogfx=obj.override_graphic_id,
                     olevel=obj.override_information_level,
-                    olabel=obj.override_screen_label_id,
                     pos=obj.position,
                     dpath=obj.data_path)
+                if obj.override_screen_label_id:
+                    label = ui_objs.get(obj.override_screen_label_id, None)
+                    if not label:
+                        msg = "UIEmbeddedScreenElement override label %s not in screen labels" % (obj.override_screen_label_id)
+                        warnings.append((obj.uirefid, msg))
+                    else:
+                        label_text = label.text
+                element_dict['olabel'] = label_text
+
                 if verbose:
                     embed_dict['dpath_desc'] = obj.data_path_description
                 parent['embed'].append(embed_dict)
@@ -652,12 +707,8 @@ class UILoader(object):
                 element['embed'] = sorted(element['embed'], key=lambda obj: obj['pos'])
             else:
                 if strip:
+                    # Strip unreferenced in embedding
                     del element['embed']
-        # Strip unreferenced in embedding
-
-
-        # Root entry point: Resource types to blocks
-        restypes = {}
 
         # Build the resulting structure
         ui_specs = {}   # The resulting data structure
@@ -666,6 +717,7 @@ class UILoader(object):
         ui_specs['graphics'] = graphics
         ui_specs['helptags'] = helptags
         ui_specs['msgstrings'] = msgstrs
+        ui_specs['restypes'] = restypes
         if verbose:
             ui_specs['objects'] = ui_objs
 

@@ -82,10 +82,14 @@ class NNode(object):
 
     def __init__(self, platform_id):
         self._platform_id = platform_id
+        self._name = None
         self._ports = {}
         self._attrs = {}
         self._subplatforms = {}
         self._parent = None
+
+    def set_name(self, name):
+        self._name = name
 
     def add_port(self, port):
         if port.port_id in self._ports:
@@ -120,6 +124,10 @@ class NNode(object):
         return self._platform_id
 
     @property
+    def name(self):
+        return self._name
+
+    @property
     def ports(self):
         return self._ports
 
@@ -146,7 +154,10 @@ class NNode(object):
         pn._parent = self
 
     def __str__(self):
-        s = "--%s--\n"         % self.platform_id
+        s = "--%s" % self.platform_id
+        if self.name:
+            s += "/%s" % self.name
+        s += "--\n"
         s += "ports=%s\n"      % list(self.ports.itervalues())
         s += "attrs=%s\n"      % list(self.attrs.itervalues())
         return s

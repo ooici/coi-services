@@ -35,14 +35,24 @@ from ion.agents.platform.test.adhoc import adhoc_get_packet_factories
 
 from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
-#
+#--------------------------------
 # hack: we need to know the container_client so we can spawn subplatform agents.
 # TODO how to properly handle this?
-#
 _container_client = None
 def set_container_client(container_client):
+    log.debug("HACK: container_client provided directly: %s" % str(container_client))
     global _container_client
     _container_client = container_client
+
+
+#--------------------------------
+# hack: provide ResourceRegistryClient object that we can pass to the driver
+# TODO how to properly access the ResourceRegistry from the driver?
+_rr_client = None
+def set_rr_client(rr_client):
+    log.debug("HACK: rr_client provided directly: %s" % str(rr_client))
+    global _rr_client
+    _rr_client = rr_client
 
 
 class PlatformAgentState(ResourceAgentState):
@@ -238,6 +248,10 @@ class PlatformAgent(ResourceAgent):
 
         self._plat_driver = driver
         self._plat_driver.set_event_listener(self.evt_recv)
+
+        if _rr_client:
+            self._plat_driver.set_rr_client(_rr_client)
+
         log.info("%r: driver created: %s" % (
             self._platform_id, str(driver)))
 
