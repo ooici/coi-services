@@ -147,18 +147,18 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     # ------------------------------------------------------------------------------------------------
     # Working with DataProcess
 
-    def create_data_process(self, data_process_definition_id='', input_data_product_ids=None, output_data_products=None, configuration=None):
+    def create_data_process(self, data_process_definition_id='', in_data_product_ids=None, out_data_products=None, configuration=None):
         """
         @param  data_process_definition_id: Object with definition of the
                     process to apply to the input data product
-        @param  input_data_product_ids: ID of the input data products
-        @param  output_data_products: list of IDs of the output data products
+        @param  in_data_product_ids: ID of the input data products
+        @param  out_data_products: list of IDs of the output data products
         @retval data_process_id: ID of the newly created data process object
         """
 
-        inform = "Input Data Product:       "+str(input_data_product_ids)+\
+        inform = "Input Data Product:       "+str(in_data_product_ids)+\
                  "Transformed by:           "+str(data_process_definition_id)+\
-                 "To create output Product: "+str(output_data_products)
+                 "To create output Product: "+str(out_data_products)
         log.debug("DataProcessManagementService:create_data_process() method called with parameters:\n" +
                   inform)
 
@@ -167,8 +167,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #---------------------------------------------------------------------------------------
 
         configuration = configuration or DotDict()
-        validate_is_not_none( input_data_product_ids, "No input data products passed in")
-        validate_is_not_none( output_data_products, "No output data products passed in")
+        validate_is_not_none( in_data_product_ids, "No input data products passed in")
+        validate_is_not_none( out_data_products, "No output data products passed in")
 
         #---------------------------------------------------------------------------------------
         # Read the data process definition
@@ -194,8 +194,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_name = create_unique_identifier("process_" + data_process_definition.name)
         self.data_process = IonObject(RT.DataProcess, name=data_process_name)
 
+        log.debug("data process name: %s" % data_process_name)
+
         # update the queue name to be passed in via the config
         configuration.process.queue_name = data_process_name
+
+        log.debug("in create_data_process: configuration: %s" % configuration)
 
         # register the data process
         data_process_id, version = self.clients.resource_registry.create(self.data_process)
@@ -204,8 +208,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Make the necessary associations, registering
         #---------------------------------------------------------------------------------------
 
+        #todo check if this assoc is needed?
         # Associate the data process with the data process definition
-        self.clients.resource_registry.create_association(data_process_id,  PRED.hasDataProcessDefinition, data_process_definition_id)
+        self.clients.resource_registry.create_association(data_process_id,  PRED.hasProcessDefinition, data_process_definition_id)
 
         # Register the data process instance as a data producer with DataAcquisitionMgmtSvc
         data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
@@ -217,10 +222,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #---------------------------------------------------------------------------------------
         output_stream_dict = {}
 
-        if output_data_products is None:
+        if out_data_products is None:
             raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
 
-        for name, output_data_product_id in output_data_products.iteritems():
+        for name, output_data_product_id in out_data_products.iteritems():
 
             # check that the product is not already associated with a producer
             producer_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
@@ -247,22 +252,23 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             output_stream_dict[name] = stream_ids[0]
 
+#        log.debug("out_put_stream_dict: %s" % output_stream_dict)
+
         #------------------------------------------------------------------------------------------------------------------------------------------
         #Check for attached objects and put them into the configuration
         #------------------------------------------------------------------------------------------------------------------------------------------
 
-
         # check for attachments in data process definition
         configuration = self._find_lookup_tables(data_process_definition_id, configuration)
 
-        for  input_data_product_id in input_data_product_ids:
+        for  in_data_product_id in in_data_product_ids:
 
-            self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, input_data_product_id)
+            self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
             log.debug("Associate data process workflows with source data products %s "
-                      "hasInputProducts  %s   (L4-CI-SA-RQ-260)", str(data_process_id), str(input_data_product_ids))
+                      "hasInputProducts  %s   (L4-CI-SA-RQ-260)", str(data_process_id), str(in_data_product_ids))
 
             #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
-            instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, input_data_product_id, True)
+            instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
 
             for instdevice_id in instdevice_ids:
                 log.debug("Instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
@@ -282,7 +288,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Get the input stream from the input_data_product, which should already be associated with a stream via the Data Producer
         #------------------------------------------------------------------------------------------------------------------------------------------
 
-        input_stream_ids = self._get_input_stream_ids(input_data_product_ids)
+        input_stream_ids = self._get_input_stream_ids(in_data_product_ids)
 
         #------------------------------------------------------------------------------------------------------------------------------------------
         # Create subscription to the input stream
@@ -297,45 +303,51 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_obj.input_subscription_id = input_subscription_id
         self.clients.resource_registry.update(data_process_obj)
 
+        log.debug("out_put_stream_dict: %s" % output_stream_dict)
+        log.debug("in create_data_process: configuration: %s" % configuration)
+
         # Launch the process
-        pid = self._start_process( name = data_process_id,
-                                            description = data_process_id,
-                                            in_subscription_id = input_subscription_id,
-                                            out_streams = output_stream_dict,
-                                            process_definition_id = process_definition_id,
-                                            data_process_definition = data_process_definition,
-                                            configuration = configuration)
+        pid = self._start_process(  name = data_process_id,
+                                    in_subscription_id = input_subscription_id,
+                                    out_streams = output_stream_dict,
+                                    process_definition_id = process_definition_id,
+                                    configuration = configuration)
 
         return data_process_id
 
-    def _get_input_stream_ids(self, input_data_product_ids = None):
+    def _get_input_stream_ids(self, in_data_product_ids = None):
 
         input_stream_ids = []
 
+        #------------------------------------------------------------------------------------------------------------------------------------------
         # get the streams associated with this IN data products
-        for  input_data_product_id in input_data_product_ids:
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        for  in_data_product_id in in_data_product_ids:
 
-            # Get the stream associated with this IN data product
-            stream_ids, _ = self.clients.resource_registry.find_objects(input_data_product_id, PRED.hasStream, RT.Stream, True)
+            # Get the stream associated with this input data product
+            stream_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, PRED.hasStream, RT.Stream, True)
 
-            validate_is_not_none( stream_ids, "No Stream created for this IN Data Product " + str(input_data_product_id))
-            validate_is_not_none( len(stream_ids) != 1, "Input Data Product should only have ONE stream" + str(input_data_product_id))
+            validate_is_not_none( stream_ids, "No Stream created for this input Data Product " + str(in_data_product_id))
+            validate_is_not_none( len(stream_ids) != 1, "Input Data Product should only have ONE stream" + str(in_data_product_id))
 
+            # We take for now one stream_id associated with each input data product
             input_stream_ids.append(stream_ids[0])
 
-            return input_stream_ids
+        return input_stream_ids
 
 
-    def _start_process(self,
-                         name='',
-                         description='',
-                         in_subscription_id='',
-                         out_streams=None,
-                         process_definition_id = process_definition_id,
-                         data_process_definition='',
-                         configuration=None):
+    def _start_process(self,name,
+                         in_subscription_id,
+                         out_streams,
+                         process_definition_id,
+                         configuration):
 
+        log.debug("in _start_process() 1: configuration: %s" % configuration)
         subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
+
+        configuration = configuration or DotDict()
+
+        log.debug("in _start_process() 2: configuration: %s" % configuration)
 
         configuration['process'] = dict({
             'name':name,
@@ -367,15 +379,22 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def _find_lookup_tables(self, resource_id="", configuration=None):
         #check if resource has lookup tables attached
+
+        configuration = configuration or DotDict()
+
         attachment_objs, _ = self.clients.resource_registry.find_objects(resource_id, PRED.hasAttachment, RT.Attachment, False)
+
         for attachment_obj in attachment_objs:
+
             words = set(attachment_obj.keywords)
+
             if 'DataProcessInput' in words:
                 configuration[attachment_obj.name] = attachment_obj.content
                 log.debug("Lookup table, %s, found in attachment %s", (attachment_obj.content, attachment_obj.name))
             else:
                 log.debug("NO lookup table in attachment %s", attachment_obj.name)
-            return configuration
+
+        return configuration
 
     def update_data_process_inputs(self, data_process_id="", input_stream_ids=None):
 
