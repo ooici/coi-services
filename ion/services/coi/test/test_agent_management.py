@@ -8,7 +8,17 @@ from pyon.core.exception import BadRequest
 from pyon.public import IonObject, log
 from pyon.util.int_test import IonIntegrationTestCase
 
-from interface.services.coi.iagent_management_service import AgentManagementServiceClient
+from interface.services.coi.iagent_management_service import AgentManagementServiceProcessClient
+
+from pyon.util.context import LocalContextMixin
+
+class FakeProcess(LocalContextMixin):
+    """
+    A fake process used because the test case is not an ion process.
+    """
+    name = ''
+    id=''
+    process_type = ''
 
 @attr('INT', group='ams')
 class TestAgentManagementService(IonIntegrationTestCase):
@@ -20,7 +30,9 @@ class TestAgentManagementService(IonIntegrationTestCase):
 
         # Now create client to service
         self.rr = self.container.resource_registry
-        self.ams = AgentManagementServiceClient(node=self.container.node)
+        fp = FakeProcess()
+
+        self.ams = AgentManagementServiceProcessClient(process=fp)
 
     def test_agent_interface(self):
         rid1,_ = self.rr.create(IonObject('Resource', name='res1'))

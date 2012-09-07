@@ -121,16 +121,18 @@ class AgentManagementService(BaseAgentManagementService):
         @throws BadRequest    if object passed has _id or _rev attribute
         """
         if not isinstance(resource, Resource):
-            raise BadRequest("Can only create resources, not type %s", type(resource))
+            raise BadRequest("Can only create resources, not type %s" % type(resource))
 
         res_type = resource._get_type()
         res_interface = self._get_type_interface(res_type)
 
         if not 'create' in res_interface:
-            raise BadRequest("Resource type %s does not support: CREATE", res_type)
+            raise BadRequest("Resource type %s does not support: CREATE" % res_type)
 
-        res_id = self._call_crud(res_interface['create'], resource, None, res_type)
-        return res_id
+        res = self._call_crud(res_interface['create'], resource, None, res_type)
+        if type(res) in (list,tuple):
+            res = res[0]
+        return res
 
     def update_resource(self, resource=None):
         """Updates an existing resource via the configured service operation.
@@ -141,13 +143,13 @@ class AgentManagementService(BaseAgentManagementService):
         @throws Conflict    object not based on latest persisted object version
         """
         if not isinstance(resource, Resource):
-            raise BadRequest("Can only update resources, not type %s", type(resource))
+            raise BadRequest("Can only update resources, not type %s" % type(resource))
 
         res_type = resource._get_type()
         res_interface = self._get_type_interface(res_type)
 
         if not 'update' in res_interface:
-            raise BadRequest("Resource type %s does not support: UPDATE", res_type)
+            raise BadRequest("Resource type %s does not support: UPDATE" % res_type)
 
         self._call_crud(res_interface['update'], resource, None, res_type)
 
@@ -162,7 +164,7 @@ class AgentManagementService(BaseAgentManagementService):
         res_interface = self._get_type_interface(res_type)
 
         if not 'read' in res_interface:
-            raise BadRequest("Resource type %s does not support: READ", res_type)
+            raise BadRequest("Resource type %s does not support: READ" % res_type)
 
         res_obj = self._call_crud(res_interface['read'], None, resource_id, res_type)
         return res_obj
@@ -177,7 +179,7 @@ class AgentManagementService(BaseAgentManagementService):
         res_interface = self._get_type_interface(res_type)
 
         if not 'delete' in res_interface:
-            raise BadRequest("Resource type %s does not support: DELETE", res_type)
+            raise BadRequest("Resource type %s does not support: DELETE" % res_type)
 
         self._call_crud(res_interface['delete'], None, resource_id, res_type)
 
@@ -353,7 +355,7 @@ class AgentManagementService(BaseAgentManagementService):
             rac = ResourceAgentClient(resource_id=resource_id)
             return rac.ping_resource(resource_id=resource_id)
 
-        raise BadRequest("Not implemented for resource type %s", res_type)
+        raise BadRequest("Not implemented for resource type %s" % res_type)
 
 
     def execute_agent(self, resource_id='', command=None):
@@ -375,7 +377,7 @@ class AgentManagementService(BaseAgentManagementService):
             rac = ResourceAgentClient(resource_id=resource_id)
             return rac.execute_agent(resource_id=resource_id, command=command)
 
-        raise BadRequest("Not implemented for resource type %s", res_type)
+        raise BadRequest("Not implemented for resource type %s" % res_type)
 
     def get_agent(self, resource_id='', params=None):
         """Return the value of the given agent parameters.
@@ -396,7 +398,7 @@ class AgentManagementService(BaseAgentManagementService):
             rac = ResourceAgentClient(resource_id=resource_id)
             return rac.get_agent(resource_id=resource_id, params=params)
 
-        raise BadRequest("Not implemented for resource type %s", res_type)
+        raise BadRequest("Not implemented for resource type %s" % res_type)
 
     def set_agent(self, resource_id='', params=None):
         """Set the value of the given agent parameters.
@@ -415,7 +417,7 @@ class AgentManagementService(BaseAgentManagementService):
             rac = ResourceAgentClient(resource_id=resource_id)
             return rac.set_agent(resource_id=resource_id, params=params)
 
-        raise BadRequest("Not implemented for resource type %s", res_type)
+        raise BadRequest("Not implemented for resource type %s" % res_type)
 
     def get_agent_state(self, resource_id=''):
         """Return the current resource agent common state.
@@ -430,7 +432,7 @@ class AgentManagementService(BaseAgentManagementService):
             rac = ResourceAgentClient(resource_id=resource_id)
             return rac.get_agent_state(resource_id=resource_id)
 
-        raise BadRequest("Not implemented for resource type %s", res_type)
+        raise BadRequest("Not implemented for resource type %s" % res_type)
 
     def ping_agent(self, resource_id=''):
         """Ping the agent.
@@ -446,7 +448,7 @@ class AgentManagementService(BaseAgentManagementService):
             rac = ResourceAgentClient(resource_id=resource_id)
             return rac.ping_agent(resource_id=resource_id)
 
-        raise BadRequest("Not implemented for resource type %s", res_type)
+        raise BadRequest("Not implemented for resource type %s" % res_type)
 
     # -----------------------------------------------------------------
 
@@ -486,12 +488,15 @@ class AgentManagementService(BaseAgentManagementService):
             type_interface = self.agent_interface.get(rt, None)
             if not type_interface:
                 continue
-            params = type_interface.get('params', None)
-            if params and isinstance(params, dict):
-                res_interface['params'].update(params)
-            cmds = type_interface.get('commands', None)
-            if cmds and isinstance(cmds, dict):
-                res_interface['commands'].update(cmds)
+            for tpar, tval in type_interface.iteritems():
+                if tpar in res_interface:
+                    rval = res_interface[tpar]
+                    if isinstance(rval, dict):
+                        rval.update(tval)
+                    else:
+                        res_interface[tpar] = tval
+                else:
+                    res_interface[tpar] = dict(tval) if isinstance(tval, dict) else tval
 
         return res_interface
 
@@ -524,13 +529,14 @@ class AgentManagementService(BaseAgentManagementService):
                     else:
                         func = named_any(func_name)
                 elif func_type == "serviceop":
-                    svc_name, svc_op = func_name('.', 1)
-                    svc_client_cls = get_safe(get_service_registry(), "%s.client" % svc_name, None)
-                    if svc_client_cls:
-                        svc_client = svc_client_cls(proc=self)
-                        func = getattr(svc_client, svc_op)
-                    else:
+                    svc_name, svc_op = func_name.split('.', 1)
+                    try:
+                        svc_client_cls = get_service_registry().get_service_by_name(svc_name).client
+                    except Exception as ex:
                         log.error("No service client found for service: %s", svc_name)
+                    else:
+                        svc_client = svc_client_cls(process=self)
+                        func = getattr(svc_client, svc_op)
 
                 if not func:
                     return None
@@ -550,7 +556,7 @@ class AgentManagementService(BaseAgentManagementService):
                 log.error("Unknown call target expression: %s", target)
 
         except Exception as ex:
-            log.exception("_call_target exception: %r")
+            log.exception("_call_target exception")
             return None
 
 
