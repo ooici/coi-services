@@ -12,7 +12,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.exception import NotFound
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.ion.stream import SimpleStreamSubscriber, SimpleStreamRoutePublisher
+from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from pyon.public import PRED
 
 from gevent.event import Event
@@ -27,7 +27,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
     def setUp(self):
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/pubsub.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.pubsub_management = PubsubManagementServiceClient()
         self.resource_registry = ResourceRegistryServiceClient()
 
@@ -54,7 +54,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
     def publish_on_stream(self, stream_id, msg):
         stream = self.pubsub_management.read_stream(stream_id)
         stream_route = stream.stream_route
-        publisher = SimpleStreamRoutePublisher.new_publisher(self.container, stream_route)
+        publisher = StandaloneStreamPublisher(stream_id=stream_id, stream_route=stream_route)
         publisher.publish(msg)
 
     def test_stream_crud(self):
@@ -124,19 +124,19 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.sub1_sat = Event()
         self.sub2_sat = Event()
 
-        def subscriber1(m,h):
+        def subscriber1(m,r,s):
             self.sub1_sat.set()
 
-        def subscriber2(m,h):
+        def subscriber2(m,r,s):
             self.sub2_sat.set()
 
-        sub1 = SimpleStreamSubscriber.new_subscriber(self.container, 'sub1', subscriber1)
-        sub1.start()
+        sub1 = StandaloneStreamSubscriber('sub1', subscriber1)
         self.queue_cleanup.append(sub1.xn.queue)
+        sub1.start()
 
-        sub2 = SimpleStreamSubscriber.new_subscriber(self.container, 'sub2', subscriber2)
-        sub2.start()
+        sub2 = StandaloneStreamSubscriber('sub2', subscriber2)
         self.queue_cleanup.append(sub2.xn.queue)
+        sub2.start()
 
         log_topic = self.pubsub_management.create_topic('instrument_logs', exchange_point='instruments')
         science_topic = self.pubsub_management.create_topic('science_data', exchange_point='instruments')
@@ -171,12 +171,12 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
         self.msg_queue = Queue()
 
-        def subscriber1(m,h):
+        def subscriber1(m,r,s):
             self.msg_queue.put(m)
 
-        sub1 = SimpleStreamSubscriber.new_subscriber(self.container, 'sub1', subscriber1)
-        sub1.start()
+        sub1 = StandaloneStreamSubscriber('sub1', subscriber1)
         self.queue_cleanup.append(sub1.xn.queue)
+        sub1.start()
 
         topic1 = self.pubsub_management.create_topic('topic1', exchange_point='xp1')
         topic2 = self.pubsub_management.create_topic('topic2', exchange_point='xp1', parent_topic_id=topic1)
