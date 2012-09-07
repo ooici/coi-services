@@ -104,6 +104,26 @@ class PubsubManagementService(BasePubsubManagementService):
 
         return True
 
+    def persist_stream(self, stream_id=''):
+        stream = self.read_stream(stream_id)
+        if stream.persisted:
+            raise BadRequest('Stream is already persisted.')
+        stream.persisted = True
+        self.clients.resource_registry.update(stream)
+        return True
+
+    def unpersist_stream(self, stream_id=''):
+        stream = self.read_stream(stream_id)
+        if not stream.persisted:
+            raise BadRequest('Stream is not persisted.')
+        stream.persisted = False
+        self.clients.resource_registry.update(stream)
+        return True
+
+    def is_persisted(self, stream_id=''):
+        stream = self.read_stream(stream_id)
+        return stream.persisted
+
     #--------------------------------------------------------------------------------
     
     def create_subscription(self, name='', stream_ids=None, exchange_points=None, topic_ids=None, exchange_name='', credentials=None, description=''):

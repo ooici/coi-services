@@ -39,7 +39,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         log.debug('Created datastore %s', self.datastore_name)
-        self.subscriber.start()
 
 
     def on_quit(self): #pragma no cover
@@ -97,6 +96,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             return
         # Message validation
         validate_is_instance(msg,Granule,'Incoming message is not compatible with this ingestion worker')
+        log.info('Received incoming granule from route: %s and stream_id: %s', stream_route, stream_id)
         granule = msg
         self.add_granule(stream_id, granule)
         self.persist_meta(stream_id, granule)

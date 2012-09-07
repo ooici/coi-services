@@ -69,9 +69,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         # Set up the stream subscriptions and associations for this stream and its ingestion_type
         #--------------------------------------------------------------------------------
         if self.setup_queues(ingestion_config, stream_id, dataset_id, ingestion_type):
-            stream = self.clients.pubsub_management.read_stream(stream_id)
-            stream.persisted = True
-            self.clients.pubsub_management.update_stream(stream)
+            self.clients.pubsub_management.persist_stream(stream_id)
 
 
         return dataset_id
@@ -87,11 +85,7 @@ class IngestionManagementService(BaseIngestionManagementService):
                     log.error('Unknown ingestion queue type: %s', queue.type)
                     return False
                 # Make the subscription from the stream to this queue
-                subscription_id = self.clients.pubsub_management.create_subscription(
-                    query = StreamQuery(stream_ids=[stream_id]),
-                    exchange_name = queue.name,
-                    exchange_point = ingestion_config.exchange_point
-                )
+                subscription_id = self.clients.pubsub_management.create_subscription(stream_ids=[stream_id], exchange_name=queue.name, name=queue.name)
                 self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)
                 
                 # Associate the subscription with the ingestion config which ensures no dangling resources
@@ -113,9 +107,7 @@ class IngestionManagementService(BaseIngestionManagementService):
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
         subscriptions, assocs = self.clients.resource_registry.find_objects(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
 
-        stream = self.clients.pubsub_management.read_stream(stream_id)
-        stream.persisted = False
-        self.clients.pubsub_management.update_stream(stream)
+        self.clients.pubsub_management.unpersist_stream(stream_id)
 
         for i in xrange(len(subscriptions)):
             subscription = subscriptions[i]
@@ -132,8 +124,7 @@ class IngestionManagementService(BaseIngestionManagementService):
             self.clients.dataset_management.remove_stream(dataset_id, stream_id)
 
     def is_persisted(self, stream_id=''):
-        stream = self.clients.pubsub_management.read_stream(stream_id)
-        return stream.persisted
+        return self.clients.pubsub_management.is_persisted(stream_id)
 
     def _determine_queue(self,stream_id='', queues=[]):
         # For now just return the first queue until stream definition is defined
