@@ -156,9 +156,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @retval data_process_id: ID of the newly created data process object
         """
 
-        inform = "Input Data Product:       "+str(in_data_product_ids)+\
-                 "Transformed by:           "+str(data_process_definition_id)+\
-                 "To create output Product: "+str(out_data_products)
+        inform = "Input Data Product: "+str(in_data_product_ids)+\
+                 "\nTransformed by: "+str(data_process_definition_id)+\
+                 "\nTo create output Product: "+str(out_data_products) + "\n"
         log.debug("DataProcessManagementService:create_data_process() method called with parameters:\n" +
                   inform)
 
@@ -167,6 +167,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #---------------------------------------------------------------------------------------
 
         configuration = configuration or DotDict()
+
         validate_is_not_none( in_data_product_ids, "No input data products passed in")
         validate_is_not_none( out_data_products, "No output data products passed in")
 
@@ -334,12 +335,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                          configuration):
 
         subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
+        queue_name = subscription.exchange_name
 
         configuration = configuration or DotDict()
 
         configuration['process'] = dict({
             'name':name,
-            'queue_name':subscription.exchange_name,
+            'queue_name': queue_name,
             'output_streams' : out_streams.values()
         })
         configuration['process']['publish_streams'] = out_streams

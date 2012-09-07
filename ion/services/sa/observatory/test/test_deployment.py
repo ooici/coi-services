@@ -95,7 +95,10 @@ class TestDeployment(IonIntegrationTestCase):
     #@unittest.skip("targeting")
     def test_activate_deployment(self):
 
-        #create a deployment with metadata and an initial site and device
+        #-------------------------------------------------------------------------------------
+        # Create platform site, platform device, platform model
+        #-------------------------------------------------------------------------------------
+
         platform_site__obj = IonObject(RT.PlatformSite,
                                         name='PlatformSite1',
                                         description='test platform site')
@@ -110,21 +113,36 @@ class TestDeployment(IonIntegrationTestCase):
                                         name='PlatformModel1',
                                         description='test platform model')
         model_id = self.imsclient.create_platform_model(platform_model__obj)
+
+        #-------------------------------------------------------------------------------------
+        # Assign platform model to platform device and site
+        #-------------------------------------------------------------------------------------
+
         self.imsclient.assign_platform_model_to_platform_device(model_id, platform_device_id)
         self.omsclient.assign_platform_model_to_platform_site(model_id, site_id)
 
 
+        #-------------------------------------------------------------------------------------
+        # Create instrument site
+        #-------------------------------------------------------------------------------------
 
-        #create a deployment with metadata and an initial site and device
         instrument_site_obj = IonObject(RT.InstrumentSite,
                                         name='InstrumentSite1',
                                         description='test instrument site')
         instrument_site_id = self.omsclient.create_instrument_site(instrument_site_obj, site_id)
 
-        #assign data products appropriately
-        #set up stream (this would be preload)
+        #-------------------------------------------------------------------------------------
+        # Set up input and output streams (this would be preload)
+        #-------------------------------------------------------------------------------------
         ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.psmsclient.create_stream_definition(container=ctd_stream_def)
+        in_ctd_stream_def_id = self.psmsclient.create_stream_definition(container=ctd_stream_def)
+        out_ctd_stream_def_id = self.psmsclient.create_stream_definition(container=ctd_stream_def)
+
+
+
+        #----------------------------------------------------------------------------------------------------
+        # Using CoverageCraft to create spatial and temporal domain for tests and finally a data product
+        #----------------------------------------------------------------------------------------------------
 
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
@@ -133,15 +151,25 @@ class TestDeployment(IonIntegrationTestCase):
         parameter_dictionary = craft.create_parameters()
         parameter_dictionary = parameter_dictionary.dump()
 
-        dp_obj = IonObject(RT.DataProduct,
-            name='DP1',
-            description='some new dp',
+        out_dp_obj = IonObject(RT.DataProduct,
+            name='Output Data Product',
+            description='Output Data Product',
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        log_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
-        self.omsclient.create_site_data_product(instrument_site_id, log_data_product_id)
+        out_log_data_product_id = self.dmpsclient.create_data_product(out_dp_obj, out_ctd_stream_def_id, parameter_dictionary)
 
+        #----------------------------------------------------------------------------------------------------
+        # Start the transform (a logical transform) that acts as an instrument site
+        #----------------------------------------------------------------------------------------------------
+
+        self.omsclient.create_site_data_product(    site_id= instrument_site_id,
+                                                    data_product_id =  out_log_data_product_id)
+
+
+        #----------------------------------------------------------------------------------------------------
+        # Create an instrument device
+        #----------------------------------------------------------------------------------------------------
 
         instrument_device_obj = IonObject(RT.InstrumentDevice,
                                         name='InstrumentDevice1',
@@ -156,12 +184,14 @@ class TestDeployment(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        inst_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        inst_data_product_id = self.dmpsclient.create_data_product(dp_obj, out_ctd_stream_def_id, parameter_dictionary)
 
         #assign data products appropriately
         self.damsclient.assign_data_product(input_resource_id=instrument_device_id,
                                             data_product_id=inst_data_product_id)
-
+        #----------------------------------------------------------------------------------------------------
+        # Create an instrument model
+        #----------------------------------------------------------------------------------------------------
 
         instrument_model_obj = IonObject(RT.InstrumentModel,
                                         name='InstrumentModel1',
@@ -170,6 +200,10 @@ class TestDeployment(IonIntegrationTestCase):
         self.imsclient.assign_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)
         self.omsclient.assign_instrument_model_to_instrument_site(instrument_model_id, instrument_site_id)
         #self.rrclient.create_association(instrument_site_id, PRED.hasModel, instrument_model_id)
+
+        #----------------------------------------------------------------------------------------------------
+        # Create a deployment object
+        #----------------------------------------------------------------------------------------------------
 
         deployment_obj = IonObject(RT.Deployment,
                                         name='TestDeployment',
