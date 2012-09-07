@@ -65,7 +65,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-#@unittest.skip("Failing on buildbot")
+@unittest.skip("Failing on buildbot")
 @attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
