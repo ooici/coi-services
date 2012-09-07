@@ -140,11 +140,7 @@ class UILoader(object):
                         log.info("Loading UI category %s from retrieved file %s" % (category, fname))
                         csvfile = self.files[fname]
                         # This is a hack to be able to read from string
-<<<<<<< HEAD
                         csvfile = csvfile.splitlines()
-=======
-                        csvfile.split(os.linesep)
->>>>>>> Improved AMS agent interface
                         reader = csv.DictReader(csvfile, delimiter=',')
                         for row in reader:
                             catfunc(row)
