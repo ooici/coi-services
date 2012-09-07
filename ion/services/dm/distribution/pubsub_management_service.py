@@ -219,8 +219,12 @@ class PubsubManagementService(BasePubsubManagementService):
         for topic_id in topic_ids:
             topic_tree = self._child_topics(topic_id)
             topic_topology = topic_topology.union(topic_tree)
-
-        topics = self.clients.resource_registry.read_mult(object_ids=list(topic_topology))
+        
+        if topic_topology:
+            topics = self.clients.resource_registry.read_mult(object_ids=list(topic_topology))
+            for topic in topics:
+                log.info('Topic %s -X-> %s', topic.name, subscription.exchange_name)
+                self._unbind(topic.exchange_point, subscription.exchange_name, '#.%s.#' % self._sanitize(topic.name))
 
         for stream in streams:
             log.info('%s -X-> %s', stream.name, subscription.exchange_name)
@@ -230,9 +234,6 @@ class PubsubManagementService(BasePubsubManagementService):
             log.info('Exchange %s -X-> %s', exchange_point, subscription.exchange_name)
             self._unbind(exchange_point, subscription.exchange_name, '*')
 
-        for topic in topics:
-            log.info('Topic %s -X-> %s', topic.name, subscription.exchange_name)
-            self._unbind(topic.exchange_point, subscription.exchange_name, '#.%s.#' % self._sanitize(topic.name))
 
         subscription.activated = False
         self.clients.resource_registry.update(subscription)

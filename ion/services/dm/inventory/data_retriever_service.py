@@ -32,7 +32,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         super(DataRetrieverService,self).on_quit()
 
 
-    def define_replay(self, dataset_id='', query=None, delivery_format=None, replay_type=''):
+    def define_replay(self, dataset_id='', query=None, delivery_format=None, replay_type='', stream_id=''):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         query: 
           start_time: 0    The beginning timestamp
@@ -42,6 +42,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         if not dataset_id and replay_type != self.BINARY_REPLAY:
             raise BadRequest('(Data Retriever Service %s): No dataset provided.' % self.name)
+        validate_true(stream_id, 'No stream_id provided')
 
         if not replay_type:
             replay_type = self.SCIENCE_REPLAY
@@ -54,7 +55,7 @@ class DataRetrieverService(BaseDataRetrieverService):
             raise BadRequest('No replay process defined.')
         process_definition_id = res[0]
 
-        replay_stream_id = self.clients.pubsub_management.create_stream()
+        replay_stream_id = stream_id
 
         #--------------------------------------------------------------------------------
         # Begin the Decision tree for the various types of replay
@@ -73,7 +74,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.update(replay)
         self.clients.resource_registry.create_association(replay._id, PRED.hasStream, replay_stream_id)
-        return replay._id, replay_stream_id
+        return replay._id
 
     def delete_replay(self,replay_id=''):
         assocs = self.clients.resource_registry.find_associations(subject=replay_id,predicate=PRED.hasStream)

@@ -7,7 +7,7 @@
 '''
 from pyon.core.exception import Timeout
 from pyon.public import RT, log
-from pyon.ion.stream import SimpleStreamPublisher, SimpleStreamSubscriber
+from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -88,8 +88,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         return ingest_configs[0]
 
 
-    def publish_hifi(self,stream_id, offset=0):
-        pub = SimpleStreamPublisher.new_publisher(self.container,self.exchange_point_name,stream_id)
+    def publish_hifi(self,stream_id,stream_route,offset=0):
+        pub = StandaloneStreamPublisher(stream_id, stream_route)
 
         black_box = CoverageCraft()
         black_box.rdt['time'] = np.arange(10) + (offset * 10)
@@ -123,8 +123,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         meta = File(name='/examples/' + rand + '.txt', group_id='example1')
         return {'body': data, 'meta':meta}
 
-    def publish_file(self, stream_id):
-        publisher = SimpleStreamPublisher.new_publisher(self.container, 'science_data', stream_id)
+    def publish_file(self, stream_id, stream_route):
+        publisher = StandaloneStreamPublisher(stream_id,stream_route)
         publisher.publish(self.make_file_data())
         
     def wait_until_we_have_enough_granules(self, dataset_id='',granules=4):
@@ -171,7 +171,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def test_coverage_ingest(self):
-        stream_id = self.pubsub_management.create_stream()
+        stream_id, stream_route = self.pubsub_management.create_stream('test_coverage_ingest', exchange_point=self.exchange_point_name)
         dataset_id = self.create_dataset()
         # I freaking hate this bug
         self.get_datastore(dataset_id)
@@ -186,7 +186,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         black_box.sync_with_granule()
         granule = black_box.to_granule()
 
-        publisher = SimpleStreamPublisher.new_publisher(self.container,self.exchange_point_name, stream_id)
+        publisher = StandaloneStreamPublisher(stream_id, stream_route)
         publisher.publish(granule)
 
         self.wait_until_we_have_enough_granules(dataset_id,1)
@@ -234,7 +234,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         # Set up a stream and have a mock instrument (producer) send data
         #--------------------------------------------------------------------------------
 
-        stream_id = self.pubsub_management.create_stream()
+        stream_id, route = self.pubsub_management.create_stream('producer', exchange_point=self.exchange_point_name)
 
         self.launch_producer(stream_id)
 
@@ -418,7 +418,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         # Set up the ingestion subscriptions
         #--------------------------------------------------------------------------------
         success   = gevent.event.Event()
-        stream_id = self.pubsub_management.create_stream()
+        stream_id, stream_route = self.pubsub_management.create_stream('test_stream',exchange_point=self.exchange_point_name)
         config_id = self.get_ingestion_config()
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id='', ingestion_type=IngestionManagementService.BINARY_INGESTION)
 
@@ -426,26 +426,25 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Get the datastore to beat the race conditions
         #--------------------------------------------------------------------------------
-        self.publish_file(stream_id) 
+        self.publish_file(stream_id, stream_route) 
         
        
-        def notice(m,h):
+        def notice(m,r,s):
             log.info( 'received: %s' , m)
             success.set()
         query =  {
            'file_stream_id': stream_id,
            'file_group_id':  'example1'
         }
-        replay_id, stream_id = self.data_retriever.define_replay('', query, replay_type='BINARY')
+        stream_id, route = self.pubsub_management.create_stream('replay_stream', exchange_point=self.exchange_point_name)
+        replay_id = self.data_retriever.define_replay('', query, stream_id=stream_id, replay_type='BINARY')
 
-        from pyon.ion.stream import SimpleStreamSubscriber
-
-        sub = SimpleStreamSubscriber.new_subscriber(self.container, 'test_binary_ingestion', notice)
+        sub = StandaloneStreamSubscriber('test_binary_ingestion', notice)
         self.queue_buffer.append(sub.xn)
         sub.start()
 
         xp = self.container.ex_manager.create_xp('science_data')
-        sub.xn.bind('%s.data' % stream_id, xp)
+        sub.xn.bind(route.routing_key,xp)
 
         self.wait_until_we_have_enough_files()
 

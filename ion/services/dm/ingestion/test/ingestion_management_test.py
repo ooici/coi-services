@@ -16,6 +16,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.objects import IngestionQueue, Subscription, IngestionConfiguration
 from mock import Mock
+from pyon.util.log import log
 from nose.plugins.attrib import attr
 
 @attr('UNIT', group='dm')
@@ -165,15 +166,14 @@ class IngestionManagementIntTest(IonIntegrationTestCase):
         rr     = ResourceRegistryServiceClient()
         ingestion_config_ids = ingestion_management.list_ingestion_configurations(id_only=True)
         for ic in ingestion_config_ids:
-
-            assocs = rr.find_associations(subject=ic, predicate=PRED.hasSubscription, id_only=False)
-            for assoc in assocs:
+            subscription_ids, assocs = rr.find_objects(subject=ic, predicate=PRED.hasSubscription, id_only=True)
+            for subscription_id, assoc in zip(subscription_ids, assocs):
                 rr.delete_association(assoc)
                 try:
-                    pubsub.deactivate_subscription(assoc.o)
+                    pubsub.deactivate_subscription(subscription_id)
                 except:
-                    pass
-                pubsub.delete_subscription(assoc.o)
+                    log.exception("Unable to decativate subscription: %s", subscription_id)
+                pubsub.delete_subscription(subscription_id)
 
 
     def create_ingest_config(self):
