@@ -26,10 +26,6 @@ from interface.objects import ProcessDefinition
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 
-from interface.services.icontainer_agent import ContainerAgentClient
-from ion.agents.platform.platform_agent import set_container_client
-from ion.agents.platform.platform_agent import set_rr_client
-
 import os
 
 # The ID of the root platform for this test and the IDs of its sub-platforms.
@@ -84,16 +80,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.omsclient = ObservatoryManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
-
-
-        #----------------------------------------------
-        # TODO appropriate mechanism in PA code to access these components.
-        # FOr now, we use these hacks to pass them from here
-        container_client = ContainerAgentClient(node=self.container.node,
-                                                name=self.container.name)
-        set_container_client(container_client)
-        set_rr_client(self.rrclient)
-        #----------------------------------------------
 
 
 
@@ -458,10 +444,10 @@ class TestOmsLaunch(IonIntegrationTestCase):
         }
 
         PLATFORM_CONFIG = {
-            'platform_id': platformSS_device_id,
-            'platform_agent_id': platformSS_agent_id,
+            'platform_id': platformSS_agent_id,
+            'platform_topology' : topology,
             'driver_config': DVR_CONFIG,
-            'platform_topology' : topology
+            'container_name': self.container.name,
         }
 
         # PING_AGENT can be issued before INITIALIZE

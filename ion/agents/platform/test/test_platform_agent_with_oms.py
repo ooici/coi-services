@@ -23,7 +23,6 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
-from ion.agents.platform.platform_agent import set_container_client
 
 from interface.objects import StreamQuery
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -56,7 +55,8 @@ DVR_CONFIG = {
 
 PLATFORM_CONFIG = {
     'platform_id': PLATFORM_ID,
-    'driver_config': DVR_CONFIG
+    'driver_config': DVR_CONFIG,
+    'container_name': None,  # determined in setUp
 }
 
 # Agent parameters.
@@ -86,6 +86,8 @@ class TestPlatformAgent(IonIntegrationTestCase):
         # Bring up services in a deploy file (no need to message)
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        PLATFORM_CONFIG['container_name'] = self.container.name
+
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.
         self._no_samples = None
@@ -107,7 +109,6 @@ class TestPlatformAgent(IonIntegrationTestCase):
         log.info("TestPlatformAgent.setup(): starting agent")
         container_client = ContainerAgentClient(node=self.container.node,
                                                 name=self.container.name)
-        set_container_client(container_client)
         self._pa_pid = container_client.spawn_process(name=PA_NAME,
                                                       module=PA_MOD,
                                                       cls=PA_CLS,
