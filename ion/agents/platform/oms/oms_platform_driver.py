@@ -30,14 +30,16 @@ class OmsPlatformDriver(PlatformDriver):
     Base class for OMS platform drivers.
     """
 
-    def __init__(self, platform_id, driver_config):
+    def __init__(self, platform_id, driver_config, parent_platform_id=None):
         """
         Creates an OmsPlatformDriver instance.
 
         @param platform_id Corresponding platform ID
         @param driver_config with required 'oms_uri' entry.
+        @param parent_platform_id Platform ID of my parent, if any.
+                    This is mainly used for diagnostic purposes
         """
-        PlatformDriver.__init__(self, platform_id)
+        PlatformDriver.__init__(self, platform_id, driver_config, parent_platform_id)
 
         if not 'oms_uri' in driver_config:
             raise PlatformDriverException(msg="driver_config does not indicate 'oms_uri'")
@@ -83,7 +85,13 @@ class OmsPlatformDriver(PlatformDriver):
         @raise PlatformConnectionException
         """
 
+        # NOTE: The following log.info DOES NOT show up when running a test
+        # with the pycc plugin (--with-pycc)!  (noticed with test_oms_launch).
         log.info("%r: going active.." % self._platform_id)
+
+        # note, we ping the OMS here regardless of the source for the network
+        # definition:
+        self.ping()
 
         if self._topology:
             self._nnode = self._build_network_definition_using_topology()
@@ -93,7 +101,43 @@ class OmsPlatformDriver(PlatformDriver):
         log.info("%r: go_active completed ok. _nnode:\n%s" % (
                  self._platform_id, self._nnode.dump()))
 
+        self.__gen_diagram()
+
+    def __gen_diagram(self):
+        """
+        Convenience method for testing/debugging.
+        Generates a dot diagram iff the environment variable GEN_DIAG is
+        defined and this driver corresponds to the root of the network
+        (determined by not having a parent platform ID).
+        """
+        try:
+            import os, tempfile, subprocess
+            if os.getenv("GEN_DIAG", None) is None:
+                return
+            if self._parent_platform_id:
+                # I'm not the root of the network
+                return
+
+            # I'm the root of the network
+            name = self._platform_id
+            base_name = '%s/%s' % (tempfile.gettempdir(), name)
+            dot_name = '%s.dot' % base_name
+            png_name = '%s.png' % base_name
+            print 'generating diagram %r' % dot_name
+            file(dot_name, 'w').write(self._nnode.diagram(style="dot"))
+            print 'generating png %r' % png_name
+            dot_cmd = 'dot -Tpng %s -o %s' % (dot_name, png_name)
+            subprocess.call(dot_cmd.split())
+            print 'opening %r' % png_name
+            open_cmd = 'open %s' % png_name
+            subprocess.call(open_cmd.split())
+        except Exception, e:
+            print "error generating or opening diagram: %s" % str(e)
+
     def _build_network_definition_using_topology(self):
+        """
+        Uses self._topology to build the network definition.
+        """
         log.info("%r: _build_network_definition_using_topology: %s" % (
             self._platform_id, self._topology))
 
@@ -117,10 +161,10 @@ class OmsPlatformDriver(PlatformDriver):
         return build(self._platform_id, children)
 
     def _build_network_definition_using_oms(self):
+        """
+        Uses OMS to build the network definition.
+        """
         log.info("%r: _build_network_definition_using_oms.." % self._platform_id)
-        self.ping()
-
-        log.info("%r: getting platform map..." % self._platform_id)
         try:
             map = self._oms.config.getPlatformMap()
         except Exception, e:
@@ -169,10 +213,19 @@ class OmsPlatformDriver(PlatformDriver):
         # - aggregate groups of attributes according to rate of monitoring
         # - start a greenlet for each attr grouping
 
-        log.info("%r: starting resource monitoring" % self._platform_id)
+        log.info("%r: getting platform attributes" % self._platform_id)
 
         # get names of attributes associated with my platform
         attr_names = self._oms.getPlatformAttributeNames(self._platform_id)
+
+        log.info("%r: getPlatformAttributeNames=%s" % (
+            self._platform_id, attr_names))
+
+        if not isinstance(attr_names, list):
+            log.info("%r: NOT starting resource monitoring" % self._platform_id)
+            return
+
+        log.info("%r: starting resource monitoring" % self._platform_id)
 
         # get info associated with these attributes
         platAttrMap = {self._platform_id: attr_names}

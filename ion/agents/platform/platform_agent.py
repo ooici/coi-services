@@ -37,6 +37,8 @@ from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
 from interface.services.icontainer_agent import ContainerAgentClient
 
+# TODO clean up log-and-throw anti-idiom in several places which is used
+# because the exception alone does not show up in the logs!
 
 class PlatformAgentState(ResourceAgentState):
     """
@@ -98,6 +100,10 @@ class PlatformAgent(ResourceAgent):
         self._platform_id = None
         self._topology = None
         self._plat_driver = None
+
+        # Platform ID of my parent, if any. This is mainly used for diagnostic
+        # purposes
+        self._parent_platform_id = None
 
         # Dictionary of data stream IDs for data publishing. Constructed
         # by stream_config agent config member during process on_init.
@@ -172,6 +178,11 @@ class PlatformAgent(ResourceAgent):
         if 'platform_topology' in self._plat_config:
             self._topology = self._plat_config['platform_topology']
 
+        ppid = self._plat_config.get('parent_platform_id', None)
+        if ppid:
+            self._parent_platform_id = ppid
+            log.info("_parent_platform_id set to: %s" % self._parent_platform_id)
+
     def _set_container_client(self):
         log.debug("%r: setting container client using: %r" % (
             self._platform_id, str(self._container_name)))
@@ -239,11 +250,9 @@ class PlatformAgent(ResourceAgent):
         try:
             module = __import__(driver_module, fromlist=[driver_class])
             classobj = getattr(module, driver_class)
-            driver = classobj(self._platform_id, driver_config)
+            driver = classobj(self._platform_id, driver_config, self._parent_platform_id)
 
         except Exception as e:
-            # TODO log-and-throw is considered an anti-pattern, but the
-            # exception alone does not show up in the logs!
             msg = '%r: could not import/construct driver: module=%s, class=%s' % (
                 self._platform_id, driver_module, driver_class)
             log.error("%s; reason=%s" % (msg, str(e)))
@@ -373,7 +382,8 @@ class PlatformAgent(ResourceAgent):
         log.info("%r: launching subplatform %r" % (
             self._platform_id, subplatform_id))
 
-        pa_resource_id = get_resource_id(subplatform_id)
+#        pa_resource_id = get_resource_id(subplatform_id)
+        pa_resource_id = subplatform_id
         pa_name = 'PlatformAgent_%s' % subplatform_id
         pa_module = 'ion.agents.platform.platform_agent'
         pa_class = 'PlatformAgent'
@@ -410,6 +420,7 @@ class PlatformAgent(ResourceAgent):
         platform_config = {
             'platform_id': subplatform_id,
             'platform_topology' : self._topology,
+            'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],
             'container_name': self._container_name,
         }

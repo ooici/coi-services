@@ -41,9 +41,18 @@ class PlatformDriver(object):
     A platform driver handles a particular platform in a platform network.
     """
 
-    def __init__(self, platform_id):
+    def __init__(self, platform_id, driver_config, parent_platform_id=None):
+        """
+        @param platform_id ID of my associated platform.
+        @param driver_config Driver configuration.
+        @param parent_platform_id Platform ID of my parent, if any.
+                    This is mainly used for diagnostic purposes
+        """
 
         self._platform_id = platform_id
+        self._driver_config = driver_config
+        self._parent_platform_id = parent_platform_id
+
         self._send_event = None
 
         # The dictionary defining the platform topology. If this dictionary is
@@ -59,7 +68,6 @@ class PlatformDriver(object):
     def set_topology(self, topology):
         """
         Sets the platform topology.
-         my ID).
         """
         log.info("set_topology: %s" % str(topology))
         self._topology = topology

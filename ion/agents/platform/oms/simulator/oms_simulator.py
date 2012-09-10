@@ -29,6 +29,8 @@ VALID_PORT_ATTRIBUTES = [
 
 INVALID_PLATFORM_ID_RESPONSE = 'INVALID-PLATFORM-ID'
 INVALID_ATTRIBUTE_NAME_RESPONSE = ('INVALID-ATTRIBUTE-NAME', '')
+INVALID_PORT_ID_RESPONSE = 'INVALID-PORT-ID'
+
 
 class OmsSimulator(OmsClient):
     """
@@ -40,6 +42,8 @@ class OmsSimulator(OmsClient):
 
         pyobj = yaml.load(file(yaml_filename))
         assert 'network' in pyobj
+        self._idp = {}
+        self._dummy_root = None
         self._build_network(pyobj)
 
     def _build_network(self, pyobj):
@@ -72,7 +76,7 @@ class OmsSimulator(OmsClient):
                     build_node(subplat, pn)
             return pn
 
-        self._idp = {}
+        self._idp.clear()
         self._dummy_root = create_node(platform_id='')
 
         for platObj in pyobj["network"]:
@@ -97,6 +101,9 @@ class OmsSimulator(OmsClient):
         @param platform_id Platform ID
         @retval [attrName, ...]
         """
+        if platform_id not in self._idp:
+            return INVALID_PLATFORM_ID_RESPONSE
+
         return list(self._idp[platform_id].attrs.iterkeys())
 
     def dump(self):
@@ -166,25 +173,33 @@ class OmsSimulator(OmsClient):
                         ret_infos[attrName] = "INVALID-ATTRIBUTE-NAME"
                 retval[platform_id] = ret_infos
             else:
-                retval[platform_id] = "INVALID-PLATFORM-ID"
+                retval[platform_id] = INVALID_PLATFORM_ID_RESPONSE
 
         return retval
 
     def getPlatformPorts(self, platform_id):
-        assert platform_id in self._idp
+        if platform_id not in self._idp:
+            return INVALID_PLATFORM_ID_RESPONSE
+
         return list(self._idp[platform_id].ports.iterkeys())
 
     def getPortInfo(self, platform_id, port_id):
-        assert platform_id in self._idp
-#        ports = self._idp[platform_id].ports
-#        assert port_id in ports
-#        return ports[port_id]
+        if platform_id not in self._idp:
+            return INVALID_PLATFORM_ID_RESPONSE
+
+        if port_id not in self._idp[platform_id].ports :
+            return INVALID_PORT_ID_RESPONSE
 
         port_comms = self._idp[platform_id].get_port(port_id).comms
         return port_comms
 
     def setUpPort(self, platform_id, port_id, attributes):
-        assert platform_id in self._idp
+        if platform_id not in self._idp:
+            return INVALID_PLATFORM_ID_RESPONSE
+
+        if port_id not in self._idp[platform_id].ports :
+            return INVALID_PORT_ID_RESPONSE
+
         port_attrs = self._idp[platform_id].get_port(port_id).attrs
 
         # retval will contain the attributes that were set
@@ -200,7 +215,12 @@ class OmsSimulator(OmsClient):
         return retval
 
     def turnOnPort(self, platform_id, port_id):
-        assert platform_id in self._idp
+        if platform_id not in self._idp:
+            return INVALID_PLATFORM_ID_RESPONSE
+
+        if port_id not in self._idp[platform_id].ports :
+            return INVALID_PORT_ID_RESPONSE
+
         port = self._idp[platform_id].get_port(port_id)
         if port._on:
             log.warn("port %s in platform %s already turned on." % (port_id, platform_id))
@@ -210,7 +230,12 @@ class OmsSimulator(OmsClient):
         return port._on
 
     def turnOffPort(self, platform_id, port_id):
-        assert platform_id in self._idp
+        if platform_id not in self._idp:
+            return INVALID_PLATFORM_ID_RESPONSE
+
+        if port_id not in self._idp[platform_id].ports :
+            return INVALID_PORT_ID_RESPONSE
+
         port = self._idp[platform_id].get_port(port_id)
         if not port._on:
             log.warn("port %s in platform %s already turned off." % (port_id, platform_id))

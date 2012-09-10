@@ -397,6 +397,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         #-------------------------------
         # Launch Platform SS AgentInstance, connect to the resource agent client
         #-------------------------------
+        print("start_platform_agent_instance: %s" % platformSS_agent_instance_id)
         self.imsclient.start_platform_agent_instance(platform_agent_instance_id=platformSS_agent_instance_id)
 
         platformSS_agent_instance_obj= self.imsclient.read_instrument_agent_instance(platformSS_agent_instance_id)
@@ -419,6 +420,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
             'container_name': self.container.name,
         }
 
+        print("Root PLATFORM_CONFIG = %s" % PLATFORM_CONFIG)
+
         # PING_AGENT can be issued before INITIALIZE
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
         retval = self._pa_client.execute_agent(cmd)
@@ -429,6 +432,23 @@ class TestOmsLaunch(IonIntegrationTestCase):
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
         retval = self._pa_client.execute_agent(cmd)
         log.debug( 'ShoreSide Platform INITIALIZE = %s ', str(retval) )
+
+
+        # GO_ACTIVE
+        cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE)
+        retval = self._pa_client.execute_agent(cmd)
+        log.debug( 'ShoreSide Platform GO_ACTIVE = %s ', str(retval) )
+
+        # RUN
+        cmd = AgentCommand(command=PlatformAgentEvent.RUN)
+        retval = self._pa_client.execute_agent(cmd)
+        log.debug( 'ShoreSide Platform RUN = %s ', str(retval) )
+
+        # TODO: here we could sleep for a little bit to let the resource
+        # monitoring work for a while. But not done yet because the
+        # definition of streams is not yet included. See
+        # test_platform_agent_with_oms.py for a test that includes this.
+
 
 
         #-------------------------------
