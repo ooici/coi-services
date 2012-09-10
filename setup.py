@@ -25,7 +25,7 @@ setup(  name = 'coi-services',
         keywords = ['ooici','ioncore', 'pyon', 'coi'],
         packages = find_packages(),
         dependency_links = [
-            'http://sddevrepo.oceanobservatories.org/releases/'
+            'http://sddevrepo.oceanobservatories.org/releases/',
             'https://github.com/ooici/coverage-model/tarball/master#egg=coverage-model',
             'https://github.com/ooici/marine-integrations/tarball/master#egg=marine_integrations-1.0',
             'https://github.com/ooici/pyon/tarball/v0.1.7#egg=pyon-1.0'
