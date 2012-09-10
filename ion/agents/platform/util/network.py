@@ -211,7 +211,7 @@ class NNode(object):
 
         if parent_str:
             for sub_platform in self.subplatforms.itervalues():
-                body += "\t%s %s %s\n" % (parent_str,
+                body += '\t"%s" %s "%s"\n' % (parent_str,
                                           arrow,
                                           sub_platform.platform_id)
 
@@ -221,7 +221,7 @@ class NNode(object):
         result = body
         if root:
             if style == "dot":
-                result = "digraph G {\n%s}\n" % body
+                result = 'digraph G {\n\t"%s"\n%s}\n' % (self.platform_id, body)
             elif style == "plantuml":
                 result = "%s\n" % body
 
