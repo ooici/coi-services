@@ -28,29 +28,6 @@ from ion.agents.platform.platform_agent import PlatformAgentEvent
 
 import os
 
-# The ID of the root platform for this test and the IDs of its sub-platforms.
-# These Ids should correspond to corresponding entries in network.yml,
-# which is used by the OMS simulator.
-PLATFORM_ID = 'platA1'
-SUBPLATFORM_IDS = ['platA1a', 'platA1b']
-
-DVR_CONFIG = {
-    'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
-    'dvr_cls': 'OmsPlatformDriver',
-    'oms_uri':  'foo'               # os.getenv('OMS', 'embsimulator'),
-}
-
-PLATFORM_CONFIG = {
-    'platform_id': PLATFORM_ID,
-    'driver_config': DVR_CONFIG
-}
-
-# Agent parameters.
-PA_RESOURCE_ID = 'oms_platform_agent_001'
-PA_NAME = 'OmsPlatformAgent001'
-PA_MOD = 'ion.agents.platform.platform_agent'
-PA_CLS = 'PlatformAgent'
-
 
 class FakeProcess(LocalContextMixin):
     """
@@ -95,14 +72,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self._stream_config = {}
         self._samples_received = []
         self._data_subscribers = []
-
-
-        agent_config = {
-            'agent'         : {'resource_id': PA_RESOURCE_ID},
-            'stream_config' : self._stream_config,
-            'test_mode' : True
-        }
-
 
 
 
