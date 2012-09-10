@@ -31,7 +31,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.data_product   = DataProductImpl(self.clients)
 
 
-    def create_data_product(self, data_product=None, stream_definition_id='',exchange_point='', parameter_dictionary = None):
+    def create_data_product(self, data_product=None, stream_definition_id='', parameter_dictionary=None, exchange_point=''):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
@@ -88,6 +88,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Return data product resource
 
         result = self.data_product.read_one(data_product_id)
+        validate_is_instance(result,DataProduct)
 
         return result
 
@@ -122,10 +123,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # remove stream associations
         #--------------------------------------------------------------------------------
-        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
-
-        for stream_id in stream_ids:
-            self.data_product.unlink_stream(data_product_id=data_product_id, stream_id=stream_id)
+        streams = self.remove_streams(data_product_id)
 
 
         #--------------------------------------------------------------------------------
@@ -134,6 +132,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
 
         for dataset_id in dataset_ids:
+            for stream in streams:
+                log.info('Removing stream from dataset: %s', stream)
+                self.dataset_management.remove_stream(stream)
             self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
 
         #        # delete the hasOutputDataProduct associations link
@@ -150,8 +151,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         data_product_obj = self.read_data_product(data_product_id)
 
-        validate_is_instance(data_product_obj, DataProduct)
-
         if data_product_obj.lcstate != LCS.RETIRED:
             self.data_product.delete_one(data_product_id)
 
@@ -162,6 +161,19 @@ class DataProductManagementService(BaseDataProductManagementService):
     def hard_delete_data_product(self, data_product_id=''):
 
         return
+
+    def remove_streams(self, data_product_id=''):
+        streams, assocs = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        datasets, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+        for dataset in datasets:
+            for stream, assoc in zip(streams,assocs):
+                self.clients.resource_registry.delete_association(assoc)
+                self.clients.pubsub_management.delete_stream(stream)
+                self.clients.dataset_management.remove_stream(dataset, stream)
+
+        
+
+        return streams
 
 
     def find_data_products(self, filters=None):

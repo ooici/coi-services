@@ -28,7 +28,6 @@ from pyon.util.int_test import IonIntegrationTestCase
 from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 import gevent
-import unittest
 from interface.objects import HdfStorage, CouchStorage
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.agent.agent import ResourceAgentClient
@@ -124,7 +123,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
                                     temporal_domain = tdom,
                                     spatial_domain = sdom)
 
-        input_dp_id = self.dataproductclient.create_data_product(input_dp_obj, ctd_stream_def_id, parameter_dictionary)
+        input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj, stream_definition_id=ctd_stream_def_id, parameter_dictionary=parameter_dictionary,exchange_point='test')
 
         self.damsclient.assign_data_product(instrument_id, input_dp_id)
 
@@ -203,7 +202,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_1)
         #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_2)
         #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_3)
-
 
 
 

@@ -8,6 +8,7 @@
 from pyon.util.log import log
 from pyon.util.ion_time import IonTime
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from pyon.public import   log, RT, PRED, OT
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
@@ -257,26 +258,21 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.critical('in_stream_ids: %s', in_stream_ids)
         # create a subscription to the input stream
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
-
         input_subscription_id = self.clients.pubsub_management.create_subscription(name=data_process_name, stream_ids=in_stream_ids)
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(input_subscription_id))
 
+        log.info("Adding the subscription id to the resource for clean up later.")
         # add the subscription id to the resource for clean up later
-        data_process_obj = self.clients.resource_registry.read(data_process_id)
-        data_process_obj.input_subscription_id = input_subscription_id
-        self.clients.resource_registry.update(data_process_obj)
+        self.data_process.input_subscription_id = input_subscription_id
 
         procdef_ids,_ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
         if not procdef_ids:
             raise BadRequest("Cannot find associated ProcessDefinition for DataProcessDefinition id=%s" % data_process_definition_id)
         process_definition_id = procdef_ids[0]
 
-        # Launch the transform process
-        log.debug("DataProcessManagementService:create_data_process - Launch the  transform process: ")
-        log.debug("DataProcessManagementService:create_data_process - input_subscription_id: "   +  str(input_subscription_id) )
-        log.debug("DataProcessManagementService:create_data_process - out_stream_id: "   +  str(output_stream_dict) )
-        log.debug("DataProcessManagementService:create_data_process - process_definition_id: "   +  str(process_definition_id) )
-        log.debug("DataProcessManagementService:create_data_process - data_process_id: "   +  str(data_process_id) )
+        log.info("Launching the process")
+        debug_str = "\n\tQueue Name: %s\n\tOutput Streams: %s\n\tProcess Definition ID: %s\n\tConfiguration: %s" % (data_process_name, output_stream_dict, process_definition_id, configuration)
+        log.debug(debug_str)
 
         pid = self._launch_process(
                            queue_name=data_process_name,
@@ -287,9 +283,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.pubsub_management.activate_subscription(input_subscription_id)
 
         log.debug("DataProcessManagementService:create_data_process - pid: %s", pid)
-
-        data_process_obj.process_id = pid
-        self.clients.resource_registry.update(data_process_obj)
+        self.data_process.process_id = pid
+        log.debug("Updating data_process with pid: %s", pid)
+        self.clients.resource_registry.update(self.data_process)
 
         return data_process_id
 
@@ -380,48 +376,36 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             log.debug("DataProcessManagementService:delete_data_process  delete data process definition assoc")
             self.clients.resource_registry.delete_association(dpd_assn_id)
 
-        # Delete the transform
-        # delete the transform associations link first
-        for transform, transform_assoc in zip(transforms, transform_assocs):
-            log.debug("DataProcessManagementService:delete_data_process  delete transform assocs")
-            self.clients.resource_registry.delete_association(transform_assoc)
-
-            log.debug("DataProcessManagementService:delete_data_process  delete transform")
-            self._delete_transform(transform)
+        self._stop_process(data_process_obj)
 
 
-        # Delete the output stream, but not the output product
-        out_products, out_product_assns = self.clients.resource_registry.find_objects(data_process_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        # for each output product connected to this tranform, delete the stream, streamdef
-        for out_product, out_product_assn in zip(out_products, out_product_assns) :
+        #--------------------------------------------------------------------------------
+        # Finalize the Data Products by Removing streams associated with the dataset and product
+        #--------------------------------------------------------------------------------
 
-            self.clients.resource_registry.delete_association(out_product_assn)
+        out_products, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
+        for out_product, assoc in zip(out_products, assocs):
+            data_product_management = DataProductManagementServiceClient()
+            data_product_management.remove_streams(out_product)
+            self.clients.resource_registry.delete_association(assoc)
 
-            out_streams, out_stream_assns = self.clients.resource_registry.find_objects(out_product, PRED.hasStream, RT.Stream, True)
-            for out_stream, out_stream_assn in zip(out_streams, out_stream_assns):
-
-                # delete the stream  assoc to the stream definition
-                streamdefs, streamdef_assns = self.clients.resource_registry.find_objects(subject=out_stream, predicate=PRED.hasStreamDefinition, id_only=True)
-                log.debug("DataProcessManagementService:delete_data_process  delete streamdef and assocs")
-                for streamdef, streamdef_assn  in zip(streamdefs, streamdef_assns):
-                    self.clients.resource_registry.delete_association(streamdef_assn)
-
-                # delete the connector first then the stream
-                log.debug("DataProcessManagementService:delete_data_process  delete stream assocs")
-                self.clients.resource_registry.delete_association(out_stream_assn)
-
-                log.debug("DataProcessManagementService:delete_data_process  delete outstream: %s", str(out_stream))
-
-                self.clients.pubsub_management.delete_stream(out_stream)
-
-            #unassign the data product to the producer
             self.clients.data_acquisition_management.unassign_data_product(data_process_id, out_product)
+
+
+
 
         # Delete the input products link
         inprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasInputProduct)
         for inprod_association in inprod_associations:
             log.debug("DataProcessManagementService:delete_data_process  delete inprod assocs")
             self.clients.resource_registry.delete_association(inprod_association)
+
+
+        try:
+            self.deactivate_data_process(data_process_id=data_process_id)
+            log.warn('Deleteing activated data process...')
+        except BadRequest:
+            pass
 
 
 
@@ -442,51 +426,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.delete(data_process_id)
         return
 
-    def _delete_transform(self, transform_id=''):
-        """Deletes and stops an existing transform process
-        @param transform_id The unique transform identifier
-        @throws NotFound when a transform doesn't exist
-        """
-
-        # get the transform resource (also verifies it's existence before continuing)
-        transform_res = self.clients.resource_registry.read(object_id=transform_id,rev_id='')
-
-        pid = transform_res.process_id
-
-        # get the resources
-        process_definition_ids, _ = self.clients.resource_registry.find_objects(transform_id,
-            PRED.hasProcessDefinition, RT.ProcessDefinition, True)
-        in_subscription_ids, _ = self.clients.resource_registry.find_objects(transform_id,
-            PRED.hasSubscription, RT.Subscription, True)
-        out_stream_ids, _ = self.clients.resource_registry.find_objects(transform_id,
-            PRED.hasOutStream, RT.Stream, True)
-
-        # build a list of all the ids above
-        id_list = process_definition_ids + in_subscription_ids + out_stream_ids
-
-        # stop the transform process
-
-        #@note: terminate_process does not raise or confirm if there termination was successful or not
-
+    def _stop_process(self, data_process):
+        pid = data_process.process_id
         self.clients.process_dispatcher.cancel_process(pid)
 
-        log.debug('(%s): Terminated Process (%s)' % (self.name,pid))
-
-
-        # delete the associations
-        for predicate in [PRED.hasProcessDefinition, PRED.hasSubscription, PRED.hasOutStream]:
-            associations = self.clients.resource_registry.find_associations(transform_id,predicate)
-            for association in associations:
-                self.clients.resource_registry.delete_association(association)
-
-
-        #@todo: should I delete the resources, or should dpms?
-
-        # iterate through the list and delete each
-        #for res_id in id_list:
-        #    self.clients.resource_registry.delete(res_id)
-
-        self.clients.resource_registry.delete(transform_id)
 
     def find_data_process(self, filters=None):
         """
@@ -502,42 +445,24 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         data_process_obj = self.read_data_process(data_process_id)
 
-        #find the Transform
-        log.debug("DataProcessManagementService:activate_data_process - get the transform associated with this data process")
-        transforms, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
-        if not transforms:
-            raise NotFound("No Transform created for this Data Process " + str(transforms))
-        if len(transforms) != 1:
-            raise BadRequest("Data Process should only have ONE Transform at this time" + str(transforms))
 
         #update the producer context with the activation time and the configuration
         # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
         # todo: process_id, process_definition, schedule, configuration
+
         producer_obj = self._get_process_producer(data_process_id)
         if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
             producer_obj.producer_context.activation_time = IonTime().to_string()
             producer_obj.producer_context.execution_configuration = data_process_obj.configuration
             self.clients.resource_registry.update(producer_obj)
 
-        subscription_ids, _ = self.clients.resource_registry.find_objects(transforms[0],
-            PRED.hasSubscription, RT.Subscription, True)
-        if len(subscription_ids) < 1:
-            raise NotFound
-
-        for subscription_id in subscription_ids:
-            self.clients.pubsub_management.activate_subscription(subscription_id)
+        subscription_id = data_process_obj.input_subscription_id
+        self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)
 
     def deactivate_data_process(self, data_process_id=""):
 
         data_process_obj = self.read_data_process(data_process_id)
 
-        #find the Transform
-        log.debug("DataProcessManagementService:deactivate_data_process - get the transform associated with this data process")
-        transforms, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
-        if not transforms:
-            raise NotFound("No Transform created for this Data Process " + str(transforms))
-        if len(transforms) != 1:
-            raise BadRequest("Data Process should only have ONE Transform at this time" + str(transforms))
 
         #update the producer context with the deactivation time
         # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
@@ -546,13 +471,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             producer_obj.producer_context.deactivation_time = IonTime().to_string()
             self.clients.resource_registry.update(producer_obj)
 
-        subscription_ids, _ = self.clients.resource_registry.find_objects(transforms[0],
-            PRED.hasSubscription, RT.Subscription, True)
-        if len(subscription_ids) < 1:
-            raise NotFound
+        subscription_id = data_process_obj.input_subscription_id
+        self.clients.pubsub_management.deactivate_subscription(subscription_id=subscription_id)
 
-        for subscription_id in subscription_ids:
-            self.clients.pubsub_management.deactivate_subscription(subscription_id)
 
 
     def attach_process(self, process=''):
