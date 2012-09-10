@@ -26,34 +26,7 @@ from interface.objects import ProcessDefinition
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 
-from interface.services.icontainer_agent import ContainerAgentClient
-from ion.agents.platform.platform_agent import set_container_client
-from ion.agents.platform.platform_agent import set_rr_client
-
 import os
-
-# The ID of the root platform for this test and the IDs of its sub-platforms.
-# These Ids should correspond to corresponding entries in network.yml,
-# which is used by the OMS simulator.
-PLATFORM_ID = 'platA1'
-SUBPLATFORM_IDS = ['platA1a', 'platA1b']
-
-DVR_CONFIG = {
-    'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
-    'dvr_cls': 'OmsPlatformDriver',
-    'oms_uri':  'foo'               # os.getenv('OMS', 'embsimulator'),
-}
-
-PLATFORM_CONFIG = {
-    'platform_id': PLATFORM_ID,
-    'driver_config': DVR_CONFIG
-}
-
-# Agent parameters.
-PA_RESOURCE_ID = 'oms_platform_agent_001'
-PA_NAME = 'OmsPlatformAgent001'
-PA_MOD = 'ion.agents.platform.platform_agent'
-PA_CLS = 'PlatformAgent'
 
 
 class FakeProcess(LocalContextMixin):
@@ -65,7 +38,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@unittest.skip("Failing on buildbot")
+#@unittest.skip("Failing on buildbot")
 @attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
@@ -86,16 +59,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
 
 
-        #----------------------------------------------
-        # TODO appropriate mechanism in PA code to access these components.
-        # FOr now, we use these hacks to pass them from here
-        container_client = ContainerAgentClient(node=self.container.node,
-                                                name=self.container.name)
-        set_container_client(container_client)
-        set_rr_client(self.rrclient)
-        #----------------------------------------------
-
-
 
     #@unittest.skip('targeting')
     def test_oms_create_and_launch(self):
@@ -109,14 +72,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self._stream_config = {}
         self._samples_received = []
         self._data_subscribers = []
-
-
-        agent_config = {
-            'agent'         : {'resource_id': PA_RESOURCE_ID},
-            'stream_config' : self._stream_config,
-            'test_mode' : True
-        }
-
 
 
 
@@ -458,10 +413,10 @@ class TestOmsLaunch(IonIntegrationTestCase):
         }
 
         PLATFORM_CONFIG = {
-            'platform_id': platformSS_device_id,
-            'platform_agent_id': platformSS_agent_id,
+            'platform_id': platformSS_agent_id,
+            'platform_topology' : topology,
             'driver_config': DVR_CONFIG,
-            'platform_topology' : topology
+            'container_name': self.container.name,
         }
 
         # PING_AGENT can be issued before INITIALIZE

@@ -46,20 +46,23 @@ class PlatformDriver(object):
         self._platform_id = platform_id
         self._send_event = None
 
-        # the root NNode defining the platform network rooted at the platform
-        # identified by self._platform_id
+        # The dictionary defining the platform topology. If this dictionary is
+        # not given, then other mechanism (eg., direct access to the external
+        # platform system) is used to retrieve the information.
+        self._topology = None
+
+        # The root NNode defining the platform network rooted at the platform
+        # identified by self._platform_id. This _nnode is constructed by the
+        # driver based on _topology (if given) or other source of information.
         self._nnode = None
 
-        # the ResourceRegistryClient object to be used for certain queries
-        # TODO NOTE this is provision la while the appropriate mechanism to
-        # access the RR is determined.
-        self._rr_client = None
-
-    def set_rr_client(self, rr_client):
+    def set_topology(self, topology):
         """
-        Sets the ResourceRegistryClient
+        Sets the platform topology.
+         my ID).
         """
-        self._rr_client = rr_client
+        log.info("set_topology: %s" % str(topology))
+        self._topology = topology
 
     def set_event_listener(self, evt_recv):
         """

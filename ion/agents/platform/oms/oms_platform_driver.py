@@ -68,10 +68,10 @@ class OmsPlatformDriver(PlatformDriver):
         try:
             retval = self._oms.hello.ping()
         except Exception, e:
-            raise PlatformConnectionException("Cannot ping %s" % str(e))
+            raise PlatformConnectionException(msg="Cannot ping %s" % str(e))
 
         if retval is None or retval.upper() != "PONG":
-            raise PlatformConnectionException("Unexpected ping response: %r" % retval)
+            raise PlatformConnectionException(msg="Unexpected ping response: %r" % retval)
 
         return "PONG"
 
@@ -85,42 +85,36 @@ class OmsPlatformDriver(PlatformDriver):
 
         log.info("%r: going active.." % self._platform_id)
 
-        if self._rr_client:
-            self._nnode = self._build_network_definition_using_rr()
+        if self._topology:
+            self._nnode = self._build_network_definition_using_topology()
         else:
             self._nnode = self._build_network_definition_using_oms()
 
         log.info("%r: go_active completed ok. _nnode:\n%s" % (
                  self._platform_id, self._nnode.dump()))
 
-    def _build_network_definition_using_rr(self):
-        log.info("%r: _build_network_definition_using_rr..." % self._platform_id)
+    def _build_network_definition_using_topology(self):
+        log.info("%r: _build_network_definition_using_topology: %s" % (
+            self._platform_id, self._topology))
 
-        def build_network_definition(platform_id, platform_name=None):
+        def build(platform_id, children):
             """
             Returns the root NNode for the given platform_id with its
-            children according to associations retrieved from the RR.
+            children according to the given list.
             """
             nnode = NNode(platform_id)
-            nnode.set_name(platform_name)
 
-            subplatform_objs, _ = self._rr_client.find_objects(platform_id,
-                                                       PRED.hasDevice,
-                                                       RT.PlatformDevice)
-            log.debug('Found associated subplatform_objs for %r: %s' % (
-                platform_id, subplatform_objs))
+            log.debug('Created NNode for %r' % platform_id)
 
-            for subplatform_obj in subplatform_objs:
-                subplatform_id = subplatform_obj._id
-                subplatform_name = subplatform_obj.name
-                sub_nnode = build_network_definition(subplatform_id, subplatform_name)
+            for subplatform_id in children:
+                subplatform_children = self._topology.get(subplatform_id, [])
+                sub_nnode = build(subplatform_id, subplatform_children)
                 nnode.add_subplatform(sub_nnode)
 
             return nnode
 
-        plat_obj = self._rr_client.read(object_id=self._platform_id)
-        name = plat_obj.name if plat_obj else None
-        return build_network_definition(self._platform_id, name)
+        children = self._topology.get(self._platform_id, [])
+        return build(self._platform_id, children)
 
     def _build_network_definition_using_oms(self):
         log.info("%r: _build_network_definition_using_oms.." % self._platform_id)
@@ -130,7 +124,10 @@ class OmsPlatformDriver(PlatformDriver):
         try:
             map = self._oms.config.getPlatformMap()
         except Exception, e:
-            raise PlatformConnectionException("error getting platform map %s" % str(e))
+            log.info("%r: error getting platform map %s" % (self._platform_id, str(e)))
+            raise PlatformConnectionException(msg="error getting platform map %s" % str(e))
+
+        log.info("%r: got platform map %s" % (self._platform_id, str(map)))
 
         def build_network_definition(map):
             """
@@ -139,8 +136,9 @@ class OmsPlatformDriver(PlatformDriver):
             """
             nodes = NNode.create_network(map)
             if not self._platform_id in nodes:
-                raise PlatformException(
-                    "platform map does not contain entry for %r" % self._platform_id)
+                msg = "platform map does not contain entry for %r" % self._platform_id
+                log.error(msg)
+                raise PlatformException(msg=msg)
 
             return nodes[self._platform_id]
 
