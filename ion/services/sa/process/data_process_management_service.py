@@ -178,6 +178,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.data_process = IonObject(RT.DataProcess, name=data_process_name)
         data_process_id, version = self.clients.resource_registry.create(self.data_process)
+        self.data_process._id = data_process_id
+        self.data_process._rev = version
         log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: %s" +  str(data_process_id))
 
 
@@ -256,8 +258,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # create a subscription to the input stream
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
 
-        query = StreamQuery(stream_ids=in_stream_ids)
-        input_subscription_id = self.clients.pubsub_management.create_subscription(query=query, exchange_name=data_process_name)
+        input_subscription_id = self.clients.pubsub_management.create_subscription(name=data_process_name, stream_ids=in_stream_ids)
         log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(input_subscription_id))
 
         # add the subscription id to the resource for clean up later
@@ -277,57 +278,35 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("DataProcessManagementService:create_data_process - process_definition_id: "   +  str(process_definition_id) )
         log.debug("DataProcessManagementService:create_data_process - data_process_id: "   +  str(data_process_id) )
 
-        transform_id = self._create_transform( name=data_process_id, description=data_process_id,
-                           in_subscription_id=input_subscription_id,
+        pid = self._launch_process(
+                           queue_name=data_process_name,
                            out_streams=output_stream_dict,
                            process_definition_id=process_definition_id,
                            configuration=configuration)
 
-        log.debug("DataProcessManagementService:create_data_process - transform_id: "   +  str(transform_id) )
+        self.clients.pubsub_management.activate_subscription(input_subscription_id)
 
-        self.clients.resource_registry.create_association(data_process_id, PRED.hasTransform, transform_id)
-        log.debug("DataProcessManagementService:create_data_process - Launch the first transform process   transform_id"  +  str(transform_id))
+        log.debug("DataProcessManagementService:create_data_process - pid: %s", pid)
+
+        data_process_obj.process_id = pid
+        self.clients.resource_registry.update(data_process_obj)
 
         return data_process_id
 
-    def _create_transform(self,
-                         name='',
-                         description='',
-                         in_subscription_id='',
-                         out_streams=None,
-                         process_definition_id='',
-                         configuration=None):
-
-        """Creates the transform and registers it with the resource registry
-        @param process_definition_id The process definition contains the module and class of the process to be spawned
-        @param in_subscription_id The subscription id corresponding to the input subscription
-        @param out_stream_id The stream id for the output
-        @param configuration {}
-
-        @return The transform_id to the transform
+    def _launch_process(self, queue_name='', out_streams=None, process_definition_id='', configuration=None):
         """
-
-        # ------------------------------------------------------------------------------------
-        # Resources and Initial Configs
-        # ------------------------------------------------------------------------------------
-        # Transform Resource for association management and pid
-        transform_res = Transform(name=name, description=description)
-        transform_id, _ = self.clients.resource_registry.create(transform_res)
+        Launches the process
+        """
 
         # ------------------------------------------------------------------------------------
         # Spawn Configuration and Parameters
         # ------------------------------------------------------------------------------------
-        subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
 
-        log.critical('subscription: %s', subscription.__dict__)
-        configuration['process'] = dict({
-            'name':name,
-            'queue_name':subscription.exchange_name,
-            'transform_id':transform_id,
-            'output_streams' : out_streams.values()
-        })
+        configuration['process'] = {
+            'queue_name':queue_name,
+            'publish_streams' : out_streams
+        }
         configuration['process']['publish_streams'] = out_streams
-        stream_ids = list(v for k,v in out_streams.iteritems())
 
         # ------------------------------------------------------------------------------------
         # Process Spawning
@@ -338,29 +317,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             configuration=configuration
         )
 
-        # need to do this....
-        transform_res = self.clients.resource_registry.read(transform_id)
-        transform_res.process_id =  pid
-        self.clients.resource_registry.update(transform_res)
-        # ------------------------------------------------------------------------------------
-        # Handle Resources
-        # ------------------------------------------------------------------------------------
+        return pid
 
-        self.clients.resource_registry.create_association(transform_id,PRED.hasProcessDefinition,process_definition_id)
-        self.clients.resource_registry.create_association(transform_id,PRED.hasSubscription,in_subscription_id)
-        for stream_id in stream_ids:
-            self.clients.resource_registry.create_association(transform_id,PRED.hasOutStream,stream_id)
 
-        return transform_id
-
-    def _strip_types(self, obj):
-        if not isinstance(obj, dict):
-            return
-        for k,v in obj.iteritems():
-            if isinstance(v,dict):
-                self._strip_types(v)
-        if "type_" in obj:
-            del obj['type_']
 
     def _find_lookup_tables(self, resource_id="", configuration=None):
         #check if resource has lookup tables attached
@@ -376,16 +335,26 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
     def update_data_process_inputs(self, data_process_id="", in_stream_ids=None):
-        if None == in_stream_ids:
-            in_data_product_ids_by_streamdef = []
+        #@TODO: INPUT STREAM VALIDATION
 
         # first - get the data process
         data_process_obj = self.clients.resource_registry.read(data_process_id)
+        subscription_id = data_process_obj.input_subscription_id
+        was_active = False 
+        # get rid of all the current streams
+        try:
+            self.clients.pubsub_management.deactivate_subscription(subscription_id)
+            was_active = True
 
-        query = StreamQuery(stream_ids=in_stream_ids)
+        except BadRequest:
+            pass # The subscription wasn't active
 
-        self.clients.pubsub_management.update_subscription(data_process_obj.input_subscription_id, query)
+        self.clients.pubsub_management.delete_subscription(subscription_id)
 
+        subscription_id = self.clients.pubsub_management.create_subscription(data_process_obj.name, stream_ids=in_stream_ids)
+        if was_active:
+            self.clients.pubsub_management.activate_subscription(subscription_id)
+            
 
     def update_data_process(self,):
         #todo: What are valid ways to update a data process?.
@@ -412,7 +381,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(dpd_assn_id)
 
         # Delete the transform
-        transforms, transform_assocs = self.clients.resource_registry.find_objects(data_process_id, PRED.hasTransform, RT.Transform, True)
         # delete the transform associations link first
         for transform, transform_assoc in zip(transforms, transform_assocs):
             log.debug("DataProcessManagementService:delete_data_process  delete transform assocs")

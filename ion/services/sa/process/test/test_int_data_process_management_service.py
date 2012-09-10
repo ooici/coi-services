@@ -20,14 +20,13 @@ from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from pyon.public import Container, log, IonObject
 from pyon.util.containers import DotDict
-from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar, StreamSubscriberRegistrar
+from pyon.public import CFG, RT, LCS, PRED 
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.context import LocalContextMixin
 import time
 from pyon.util.int_test import IonIntegrationTestCase
 from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from interface.objects import StreamQuery, ExchangeQuery
 import gevent
 import unittest
 from interface.objects import HdfStorage, CouchStorage

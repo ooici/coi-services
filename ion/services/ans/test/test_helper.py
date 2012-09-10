@@ -22,7 +22,6 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 
 from pyon.public import log
 
-from pyon.public import StreamSubscriberRegistrar
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import CFG, RT, LCS, PRED

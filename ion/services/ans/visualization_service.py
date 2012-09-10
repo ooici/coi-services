@@ -12,7 +12,7 @@ Note:
 
 # Pyon imports
 # Note pyon imports need to be first for monkey patching to occur
-from pyon.public import IonObject, RT, log, PRED, StreamSubscriberRegistrar, StreamPublisherRegistrar, Container
+from pyon.public import IonObject, RT, log, PRED
 from pyon.util.containers import create_unique_identifier, get_safe
 from pyon.core.exception import Inconsistent, BadRequest, NotFound
 from datetime import datetime

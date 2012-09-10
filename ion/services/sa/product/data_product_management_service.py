@@ -31,7 +31,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.data_product   = DataProductImpl(self.clients)
 
 
-    def create_data_product(self, data_product=None, stream_definition_id='', parameter_dictionary = None):
+    def create_data_product(self, data_product=None, stream_definition_id='',exchange_point='', parameter_dictionary = None):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
@@ -42,6 +42,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(parameter_dictionary, 'A parameter dictionary must be passed to register a data product')
         validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to register a data product')
         validate_is_not_none(data_product, 'A data product (ion object) must be passed to register a data product')
+        exchange_point = exchange_point or 'science_data'
 
         #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
@@ -54,7 +55,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         #-----------------------------------------------------------------------------------------------
 
         #if stream_definition_id:
-        stream_id = self.clients.pubsub_management.create_stream(name=data_product.name,
+        #@todo: What about topics?
+
+        stream_id,route = self.clients.pubsub_management.create_stream(name=data_product.name,
+                                                                exchange_point=exchange_point,
                                                                 description=data_product.description,
                                                                 stream_definition_id=stream_definition_id)
 
@@ -69,7 +73,6 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                                         temporal_domain=data_product.temporal_domain,
                                                                         spatial_domain=data_product.spatial_domain)
 
-        data_set_obj = self.clients.dataset_management.read_dataset(data_set_id)
 
         # link dataset with data product. This creates the association in the resource registry
         self.data_product.link_data_set(data_product_id=data_product_id, data_set_id=data_set_id)
