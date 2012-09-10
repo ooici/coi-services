@@ -280,7 +280,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                            process_definition_id=process_definition_id,
                            configuration=configuration)
 
-        self.clients.pubsub_management.activate_subscription(input_subscription_id)
+
 
         log.debug("DataProcessManagementService:create_data_process - pid: %s", pid)
         self.data_process.process_id = pid

@@ -7,8 +7,8 @@
 '''
 
 from nose.plugins.attrib import attr
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.objects import AttachmentType
+from pyon.core.exception import BadRequest
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -16,25 +16,11 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from pyon.public import Container, log, IonObject
-from pyon.util.containers import DotDict
-from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar, StreamSubscriberRegistrar
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.public import log, IonObject
+from pyon.public import RT, PRED
 from pyon.util.context import LocalContextMixin
-import time
 from pyon.util.int_test import IonIntegrationTestCase
-from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from interface.objects import StreamQuery, ExchangeQuery
-import gevent
-import unittest
-from interface.objects import HdfStorage, CouchStorage
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
-from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
 from ion.services.dm.utility.granule_utils import CoverageCraft
 
 import base64
@@ -121,7 +107,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = driver_config,
                                           comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
-        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
+        self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
 
 
