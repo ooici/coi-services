@@ -45,7 +45,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='foob')
 #@unittest.skip('run locally only')
 class TestGranulePublish(IonIntegrationTestCase):
 
@@ -124,7 +124,7 @@ class TestGranulePublish(IonIntegrationTestCase):
         publisher = SimpleStreamRoutePublisher.new_publisher(self.container, stream_route)
 
         # this is one sample from the ctd driver
-        tomato = {"driver_timestamp": 3555971105.1268806, "instrument_id": "ABC-123", "pkt_format_id": "JSON_Data", "pkt_version": 1, "preferred_timestamp": "driver_timestamp", "quality_flag": "ok", "stream_name": "parsed", "values": [{"value": 22.9304, "value_id": "temp"}, {"value": 51.57381, "value_id": "cond"}, {"value": 915.551, "value_id": "depth"}]}
+        tomato = {"driver_timestamp": 3555971105.1268806, "instrument_id": "ABC-123", "pkt_format_id": "JSON_Data", "pkt_version": 1, "preferred_timestamp": "driver_timestamp", "quality_flag": "ok", "stream_name": "parsed", "values": [{"value": 22.9304, "value_id": "temp"}, {"value": 51.57381, "value_id": "conductivity"}, {"value": 915.551, "value_id": "depth"}]}
 
         for value in tomato['values']:
             log.debug("test_granule_publish: Looping tomato values  key: %s    val: %s ", str(value['value']), str(value['value_id']))
