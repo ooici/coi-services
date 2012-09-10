@@ -160,7 +160,7 @@ class UILoader(object):
 
         # This is the latest point to bail
         if self.abort:
-            raise iex.Inconsistent("UI specs load error and/or inconsistent")
+            raise iex.Inconsistent("UI specs load error and/or inconsistent - ABORT")
 
         if replace:
             # Delete old UI objects first
@@ -377,8 +377,7 @@ class UILoader(object):
                 {'uirefid':'__pk_Graphic_ID',
                  'graphic_type_id':'_fk_GraphicType_ID',
                  'name':'Name',
-                 'description':'Description',
-                 'filename':'Filename'})
+                 'description':'Description'})
 
     def _loadui_InformationLevel(self, row):
         refid, obj = self._build_ui_resource(row, "UIInformationLevel",
@@ -550,8 +549,7 @@ class UILoader(object):
             elif obj._get_type() == "UIGraphic":
                 graphic_dict = dict(
                     name=obj.name,
-                    gtype=obj.graphic_type_id,
-                    file=obj.filename)
+                    gtype=obj.graphic_type_id)
                 if verbose:
                     graphic_dict['desc'] = obj.description
                 graphics[obj.uirefid] = graphic_dict
