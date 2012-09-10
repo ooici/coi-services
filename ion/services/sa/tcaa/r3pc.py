@@ -41,32 +41,45 @@ class R3PCTestBehavior(object):
         self.type = type
         self.delay = delay
 
-
+"""
+ok
+test_client_restart (ion.services.sa.tcaa.test.test_r3pc.TestR3PCSocket) ... ok
+test_delay_long (ion.services.sa.tcaa.test.test_r3pc.TestR3PCSocket) ... Traceback (most recent call last):
+  File "/opt/cache/gevent-0.13.7-py2.7-linux-x86_64.egg/gevent/greenlet.py", line 390, in run
+    result = self._run(*self.args, **self.kwargs)
+  File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_pycc/build/ion/services/sa/tcaa/r3pc.py", line 79, in server_loop
+    self._start_sock()
+  File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_pycc/build/ion/services/sa/tcaa/r3pc.py", line 157, in _start_sock
+    self._server.bind(self._endpoint)
+  File "socket.pyx", line 390, in zmq.core.socket.Socket.bind (zmq/core/socket.c:3613)
+ZMQError: Address already in use
+<Greenlet at 0x9bac910: server_loop> failed with ZMQError
+"""
 
 class R3PCSocketError(Exception): pass
 
 class R3PCServer(object):
     """
     """
-    def __init__(self, callback=None, close_callback=None, timeout=10, sleep=.1, host='*', port=7979):
+    def __init__(self, callback=None, close_callback=None):
         """
         """
         self._context = zmq.Context(1)
-        self._host = host
-        self._port = port
-        self._endpoint = 'tcp://%s:%i' % (host, port)
         self._greenlet = None
         self._server = None
         self._callback = callback or self._default_callback
         self._close_callback = close_callback or self._default_close_callback
-        self._sleep = sleep
-        self._timeout = timeout
         self.recv_count = 0
         self.test_behaviors = {}
         
-    def start(self):
+    def start(self, host='*', port=7979, timeout=10, sleep=.1):
         """
         """
+        self._host = host
+        self._port = port
+        self._endpoint = 'tcp://%s:%i' % (host, port)        
+        self._sleep = sleep
+        self._timeout = timeout
 
         def server_loop():
             """
@@ -147,6 +160,7 @@ class R3PCServer(object):
         self._greenlet = gevent.spawn(server_loop)
         self._start_evt.get()
         self._start_evt = None
+        return self._port
 
     def _start_sock(self):
         """
@@ -154,7 +168,14 @@ class R3PCServer(object):
         log.debug('Constructing zmq rep server socket.')
         self._server = self._context.socket(zmq.REP)
         log.debug('Binding server socket to endpoint: %s', self._endpoint)
-        self._server.bind(self._endpoint)
+        if self._port == 0:
+            addr = 'tcp://%s' % self._host
+            port = self._server.bind_to_random_port(addr)
+            self._port = port
+            self._endpoint = 'tcp://%s:%i' % (self._host, port)
+            log.debug('Server bound to random port: %s', self._endpoint)
+        else:
+            self._server.bind(self._endpoint)
         if self._start_evt:
             self._start_evt.set()
     
@@ -170,9 +191,10 @@ class R3PCServer(object):
     def stop(self):
         """
         """
-        self._greenlet.kill()
-        self._greenlet.join()
-        self._greenlet = None
+        if self._greenlet:
+            self._greenlet.kill()
+            self._greenlet.join()
+            self._greenlet = None
         self._stop_sock()
     
     def done(self):
@@ -194,27 +216,27 @@ class R3PCServer(object):
 class R3PCClient(object):
     """
     """
-    def __init__(self, callback=None, close_callback=None, timeout=3, sleep=.1, host='localhost', port=7979, retries=3):
+    def __init__(self, callback=None, close_callback=None):
         """
         """
         self._context = zmq.Context(1)
-        self._host = host
-        self._port = port
-        self._endpoint = 'tcp://%s:%i' % (host, port)
         self._greenlet = None
         self._queue = []
-        self._retries = retries
-        self._timeout = timeout
         self._callback = callback or self._default_callback
         self._close_callback = close_callback or self._default_close_callback
-        self._sleep = sleep
         self._client = None
         self.send_count = 0
         self.test_behaviors = {}
 
-    def start(self):
+    def start(self, host='localhost', port=7979, timeout=3, sleep=.1, retries=3):
         """
         """
+        self._host = host
+        self._port = port
+        self._endpoint = 'tcp://%s:%i' % (host, port)
+        self._timeout = timeout
+        self._sleep = sleep
+        self._retries = retries
 
         def client_loop():
             """
@@ -331,9 +353,10 @@ class R3PCClient(object):
     def stop(self):
         """
         """
-        self._greenlet.kill()
-        self._greenlet.join()
-        self._greenlet = None
+        if self._greenlet:
+            self._greenlet.kill()
+            self._greenlet.join()
+            self._greenlet = None
         self._stop_sock()
     
     def enqueue(self, msg):

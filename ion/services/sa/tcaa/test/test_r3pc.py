@@ -35,10 +35,12 @@ from ion.services.sa.tcaa.r3pc import R3PCTestBehavior
 
 
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_something
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_something_else
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_normal
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_delay_momentary
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_delay_long
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_delay_msg_lost
 
-@unittest.skip('Socket unavailable on buildbot.')
+#@unittest.skip('Socket unavailable on buildbot.')
 @attr('INT', group='sa')
 class TestR3PCSocket(IonIntegrationTestCase):
     """
@@ -98,14 +100,19 @@ class TestR3PCSocket(IonIntegrationTestCase):
         """
         self._server = R3PCServer(self.consume_req, self.server_close)
         self._client = R3PCClient(self.consume_ack, self.client_close)
+        self.addCleanup(self._server.stop)
+        self.addCleanup(self._client.stop)
         
-        self._server.start()
-        self._client.start()
+        port = self._server.start('*', 0)
+        self._client.start('localhost', port)
 
         self.enqueue_all()
         
         self._req_recv_evt.get(timeout=15)
         self._ack_recv_evt.get(timeout=15)
+
+        self._client.stop()
+        self._server.stop()
 
         self.assertDictEqual(self._req_sent, self._req_recv)
         self.assertEqual(len(self._ack_recv), self._no_requests)
@@ -115,18 +122,23 @@ class TestR3PCSocket(IonIntegrationTestCase):
         """
         self._server = R3PCServer(self.consume_req, self.server_close)
         self._client = R3PCClient(self.consume_ack, self.client_close)
+        self.addCleanup(self._server.stop)
+        self.addCleanup(self._client.stop)
 
         self._server.test_behaviors = {
             25 : R3PCTestBehavior(R3PCTestBehavior.delay, 5)
         }
         
-        self._server.start()
-        self._client.start()
+        port = self._server.start('*', 0)
+        self._client.start('localhost', port)
 
         self.enqueue_all()
                 
         self._req_recv_evt.get(timeout=15)
         self._ack_recv_evt.get(timeout=15)
+
+        self._client.stop()
+        self._server.stop()
 
         self.assertDictEqual(self._req_sent, self._req_recv)
         self.assertEqual(len(self._ack_recv), self._no_requests)
@@ -137,71 +149,26 @@ class TestR3PCSocket(IonIntegrationTestCase):
         """        
         self._server = R3PCServer(self.consume_req, self.server_close)
         self._client = R3PCClient(self.consume_ack, self.client_close)
+        self.addCleanup(self._server.stop)
+        self.addCleanup(self._client.stop)
 
         self._server.test_behaviors = {
             25 : R3PCTestBehavior(R3PCTestBehavior.delay, 12)
         }
         
-        self._server.start()
-        self._client.start()
+        port = self._server.start('*', 0)
+        self._client.start('localhost', port)
 
         self.enqueue_all()
 
         self._client_close_evt.get(timeout=15)
-        self._client.start()
+        self._client.start('localhost', port)
 
         self._req_recv_evt.get(timeout=15)
         self._ack_recv_evt.get(timeout=15)
 
-        self.assertDictEqual(self._req_sent, self._req_recv)
-        self.assertEqual(len(self._ack_recv), self._no_requests)
-
-    def test_server_restart(self):
-        """
-        """        
-        self._server = R3PCServer(self.consume_req, self.server_close)
-        self._client = R3PCClient(self.consume_ack, self.client_close)
-
-        self._server.test_behaviors = {
-            25 : R3PCTestBehavior(R3PCTestBehavior.stop, 0)
-        }
-        
-        self._server.start()
-        self._client.start()
-
-        self.enqueue_all()
-
-        self._server_close_evt.get(timeout=15)
-        gevent.sleep(3)
-        self._server.start()
-
-        self._req_recv_evt.get(timeout=15)
-        self._ack_recv_evt.get(timeout=15)
-
-        self.assertDictEqual(self._req_sent, self._req_recv)
-        self.assertEqual(len(self._ack_recv), self._no_requests)
-
-    def test_client_restart(self):
-        """
-        """        
-        self._server = R3PCServer(self.consume_req, self.server_close)
-        self._client = R3PCClient(self.consume_ack, self.client_close)
-
-        self._client.test_behaviors = {
-            25 : R3PCTestBehavior(R3PCTestBehavior.stop, 0)
-        }
-        
-        self._server.start()
-        self._client.start()
-
-        self.enqueue_all()
-
-        self._client_close_evt.get(timeout=15)
-        gevent.sleep(3)
-        self._client.start()
-
-        self._req_recv_evt.get(timeout=15)
-        self._ack_recv_evt.get(timeout=15)
+        self._client.stop()
+        self._server.stop()
 
         self.assertDictEqual(self._req_sent, self._req_recv)
         self.assertEqual(len(self._ack_recv), self._no_requests)
@@ -211,18 +178,23 @@ class TestR3PCSocket(IonIntegrationTestCase):
         """        
         self._server = R3PCServer(self.consume_req, self.server_close)
         self._client = R3PCClient(self.consume_ack, self.client_close)
+        self.addCleanup(self._server.stop)
+        self.addCleanup(self._client.stop)
 
         self._server.test_behaviors = {
             25 : R3PCTestBehavior(R3PCTestBehavior.restart, 0)
         }
         
-        self._server.start()
-        self._client.start()
+        port = self._server.start('*', 0)
+        self._client.start('localhost', port)
 
         self.enqueue_all()
 
         self._req_recv_evt.get(timeout=15)
         self._ack_recv_evt.get(timeout=15)
+
+        self._client.stop()
+        self._server.stop()
 
         self.assertDictEqual(self._req_sent, self._req_recv)
         self.assertEqual(len(self._ack_recv), self._no_requests)
