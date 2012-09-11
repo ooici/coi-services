@@ -6,6 +6,7 @@
 @description: New Implementation for TransformFunction classes
 '''
 
+from pyon.public import log
 from pyon.core.exception import BadRequest
 from interface.objects import Granule
 
@@ -20,10 +21,6 @@ class TransformFunction(object):
     @param state A dictionary containing input state
     """
 
-    def validate_inputs(f):
-        raise NotImplementedError('Method validate_inputs not implemented')
-
-    @validate_inputs
     @staticmethod
     def execute(input=None, context=None, config=None, params=None, state=None):
         raise NotImplementedError('Method execute not implemented')
@@ -40,7 +37,6 @@ class SimpleTransformFunction(TransformFunction):
         return validate
 
     @staticmethod
-    @validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
         pass
 
@@ -51,15 +47,14 @@ class SimpleGranuleTransformFunction(SimpleTransformFunction):
     @staticmethod
     def validate_inputs(target):
         def validate(*args, **kwargs):
-            if kwargs['input']:
-                if not isinstance(kwargs['input'], Granule):
+            if args[0]:
+                if not isinstance(args[0], Granule):
                     raise BadRequest('input parameter must be of type Granule')
             return target(*args, **kwargs)
 
         return validate
 
     @staticmethod
-    @validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
         pass
 
@@ -70,10 +65,10 @@ class MultiGranuleTransformFunction(SimpleGranuleTransformFunction):
     @staticmethod
     def validate_inputs(target):
         def validate(*args, **kwargs):
-            if kwargs['input']:
-                if not isinstance(kwargs['input'], list):
+            if args[0]:
+                if not isinstance(args[0], list):
                     raise BadRequest('input parameter must be of type List')
-                for x in kwargs['input']:
+                for x in args[0]:
                     if not isinstance(x, Granule):
                         raise BadRequest('input list may only contain Granules')
             return target(*args, **kwargs)
@@ -81,6 +76,5 @@ class MultiGranuleTransformFunction(SimpleGranuleTransformFunction):
         return validate
 
     @staticmethod
-    @validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
         pass
