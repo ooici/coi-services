@@ -6,7 +6,10 @@
 @description: New Implementation for TransformFunction classes
 '''
 
+<<<<<<< HEAD
 from pyon.public import log
+=======
+>>>>>>> 356b8a9414212dfbe69a852eef72ca5cc67bfd12
 from pyon.core.exception import BadRequest
 from interface.objects import Granule
 
@@ -21,6 +24,13 @@ class TransformFunction(object):
     @param state A dictionary containing input state
     """
 
+<<<<<<< HEAD
+=======
+    def validate_inputs(f):
+        raise NotImplementedError('Method validate_inputs not implemented')
+
+    @validate_inputs
+>>>>>>> 356b8a9414212dfbe69a852eef72ca5cc67bfd12
     @staticmethod
     def execute(input=None, context=None, config=None, params=None, state=None):
         raise NotImplementedError('Method execute not implemented')

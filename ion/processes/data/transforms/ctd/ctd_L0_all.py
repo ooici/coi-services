@@ -17,6 +17,7 @@ import numpy as np
 from pyon.core.bootstrap import get_sys_name
 from pyon.net.transport import NameTrio
 import re
+from interface.objects import Granule
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -113,6 +114,38 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
         return result_list
 
+class ctd_L0_algorithm(MultiGranuleTransformFunction):
+
+    @staticmethod
+    def execute(input, context, config, params, state):
+        if not isinstance(input, Granule):
+            raise BadRequest("input parameter must be of type Granule")
+
+        rdt = RecordDictionaryTool.load_from_granule(input)
+
+        conductivity = get_safe(rdt, 'conductivity')
+        pressure = get_safe(rdt, 'pressure')
+        temperature = get_safe(rdt, 'temp')
+
+        longitude = get_safe(rdt, 'lon')
+        latitude = get_safe(rdt, 'lat')
+        time = get_safe(rdt, 'time')
+        depth = get_safe(rdt, 'depth')
+
+        result = {}
+
+        # create parameter settings
+        cond_pdict = ctd_L0_algorithm2._create_parameter("conductivity")
+        pres_pdict = ctd_L0_algorithm2._create_parameter("pressure")
+        temp_pdict = ctd_L0_algorithm2._create_parameter("temperature")
+
+        # build the granule for conductivity
+        result['conductivity'] = ctd_L0_algorithm2._build_granule_settings(cond_pdict, 'conductivity', conductivity, time, latitude, longitude, depth)
+        result['temperature'] = ctd_L0_algorithm2._build_granule_settings(temp_pdict, 'temperature', temperature, time, latitude, longitude, depth)
+        result['pressure'] = ctd_L0_algorithm2._build_granule_settings(pres_pdict, 'pressure', pressure, time, latitude, longitude, depth)
+
+        return result
+
     @staticmethod
     def _create_parameter(name):
 
@@ -171,7 +204,6 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
     @staticmethod
     def _build_granule_settings(param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, depth=None):
-
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
 
         root_rdt[field_name] = value
