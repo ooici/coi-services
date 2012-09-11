@@ -29,10 +29,13 @@ from mock import patch
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 
+from pyon.public import IonObject
+from pyon.event.event import EventPublisher, EventSubscriber
 from pyon.util.context import LocalContextMixin
 from ion.services.sa.tcaa.terrestrial_endpoint import TerrestrialEndpoint
 from ion.services.sa.tcaa.terrestrial_endpoint import TerrestrialEndpointClient
 from interface.services.icontainer_agent import ContainerAgentClient
+from interface.objects import TelemetryStatusType
 from ion.services.sa.tcaa.r3pc import R3PCServer
 from ion.services.sa.tcaa.r3pc import R3PCClient
 
@@ -47,12 +50,6 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-
-class RemoteEndpoint(object):
-    """
-    """
-    
-
 @attr('INT', group='sa')
 class TestTerrestrialEndpoint(IonIntegrationTestCase):
     """
@@ -60,13 +57,17 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
     def setUp(self):
         """
         """
-        #self._remote_server = R3PCServer(self.consume_req, self.remote_server_close)
-        #self._remote_client = R3PCClient(self.consume_ack, self.remote_client_close)
-        #self.addCleanup(self._remote_server.stop)
-        #self.addCleanup(self._remote_client.stop)
-        self._remote_port = 0
-        #self._remote_port = self._remote_server.start('*', 0)
-        
+        # Create fake remote client and server.
+        # Add clean up to shut down properly.
+        # Start remote server on a random port.
+        self._remote_server = R3PCServer(self.consume_req, self.remote_server_close)
+        self._remote_client = R3PCClient(self.consume_ack, self.remote_client_close)
+        self.addCleanup(self._remote_server.stop)
+        self.addCleanup(self._remote_client.stop)
+        self._remote_port = self._remote_server.start('*', 0)
+        log.debug('Remote server binding to *:%i', self._remote_port)
+        self._remote_host = 'localhost'
+        self._platform_resource_id = 'abc123'
         
         # Start container.
         log.debug('Staring capability container.')
@@ -76,23 +77,20 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        # Create a container client.
         log.debug('Creating container client.')
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
 
         # Create agent config.
         endpoint_config = {
-            'remote_host' : 'localhost',
+            'remote_host' : self._remote_host,
             'remote_port' : self._remote_port,
-            'terrestrial_port' : 0
+            'terrestrial_port' : 0,
+            'platform_resource_id' : self._platform_resource_id
         }
-
-        """
-        self._server = R3PCServer(self.consume_req, self.server_close)
-        self.addCleanup(self._server.stop)        
-        port = self._server.start('*', 0)
-        """
         
+        # Spawn the terrestrial enpoint process.
         log.debug('Spawning terrestrial endpoint process.')
         te_pid = container_client.spawn_process(
             name='remote_endpoint_1',
@@ -101,34 +99,58 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
             config=endpoint_config)
         log.debug('Endpoint pid=%s.', str(te_pid))
 
-        # On init or on start etc to start the endpoint server and port.
-
-        """
-        spawn_process(self, name=None, module=None, cls=None, config=None, process_id=None):
-        client(self, process=None, to_name=None, name=None, node=None, **kwargs):
-        """
-
-        # Start a resource agent client to talk with the instrument agent.
+        # Create an endpoint client.
         self.te_client = TerrestrialEndpointClient(
             process=FakeProcess(),
             to_name=te_pid)
         log.debug('Got te client %s.', str(self.te_client))
         
-        #self._terrestrial_port = self.te_client.get_port()
+        # Remember the terrestrial port.
+        self._terrestrial_port = self.te_client.get_port()
+        
+        # Start the event publisher.
+        self._event_publisher = EventPublisher()
+        
+        # Start the test subscriber.
+        self._event_subscriber = EventSubscriber(
+            event_type='PlatformTelemetryEvent',
+            callback=self.consume_event,
+            origin=self._platform_resource_id)
+        self._event_subscriber.start()
+        self._event_subscriber._ready_event.wait(timeout=5)
+        self.addCleanup(self._event_subscriber.stop)
+        
+        self._got_event = AsyncResult()    
+    
+    def consume_event(self, *args, **kwargs):
+        """
+        """
+        log.debug('args: %s, kwargs: %s', str(args), str(kwargs))
+        self._got_event.set()
         
     def on_link_up(self):
         """
         """
-        #self._remote_client.start('localhost', self._terrestrial_port)
-        pass
+        log.debug('Remote client connecting to localhost:%i.',
+                  self._terrestrial_port)
+        self._remote_client.start('localhost', self._terrestrial_port)
         # Publish a link up event to be caught by the endpoint.
+        log.debug('Publishing telemetry event.')
+        self._event_publisher.publish_event(
+                            event_type='PlatformTelemetryEvent',
+                            origin=self._platform_resource_id,
+                            status = TelemetryStatusType.AVAILABLE)
     
     def on_link_down(self):
         """
         """
-        #self._remote_client.stop()
-        pass
+        self._remote_client.stop()
         # Publish a link down event to be caught by the endpoint.
+        log.debug('Publishing telemetry event.')
+        self._event_publisher.publish_event(
+                            event_type='PlatformTelemetryEvent',
+                            origin=self._platform_resource_id,
+                            status = TelemetryStatusType.UNAVAILABLE)
 
     def consume_req(self, request):
         """
@@ -152,10 +174,27 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         """
         pass
 
+    """
+    RemoteCommand:
+      resource_id: ''
+      command: ''
+      args: []
+      kwargs: {}
+      command_id: ''
+      time_queued: 0
+      time_completed: 0
+      result: ''
+    """
+    
     def test_something(self):
         """
         """
-        #self.te_client.enqueue_command()
-        #print 'The terrestrial port is %i' % self._terrestrial_port
-        pass
+        print 'The terrestrial port is %i' % self._terrestrial_port
+        
+        for i in range(10):
+            cmd = 'fake_cmd_%i' % i
+            rcmd = IonObject('RemoteCommand', resource_id='fake_id',
+                             command=cmd, args=['arg1', 23],
+                             kwargs={'kwargs1':'someval'})
+            self.te_client.enqueue_command(rcmd)
         
