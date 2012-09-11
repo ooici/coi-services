@@ -22,6 +22,10 @@ class TransformFunction(object):
     """
 
     @staticmethod
+    def validate_inputs(f):
+        raise NotImplementedError('Method validate_inputs not implemented')
+
+    @staticmethod
     def execute(input=None, context=None, config=None, params=None, state=None):
         raise NotImplementedError('Method execute not implemented')
 

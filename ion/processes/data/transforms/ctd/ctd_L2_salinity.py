@@ -24,7 +24,13 @@ from coverage_model.basic_types import AxisTypeEnum
 from seawater.gibbs import SP_from_cndr
 from seawater.gibbs import cte
 
-class CTDL2SalinityTransform(TransformDataProcess):
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L2_practical_salinity_stream_definition
+
+class SalinityTransform(TransformDataProcess):
+
+    outgoing_stream_def = L2_practical_salinity_stream_definition()
+    incoming_stream_def = SBE37_CDM_stream_definition()
+
     ''' A basic transform that receives input through a subscription,
     parses the input from a CTD, extracts the pressure value and scales it according to
     the defined algorithm. If the transform
@@ -33,7 +39,7 @@ class CTDL2SalinityTransform(TransformDataProcess):
     '''
 
     def on_start(self):
-        super(CTDL2SalinityTransform, self).on_start()
+        super(SalinityTransform, self).on_start()
 
         if self.CFG.process.publish_streams.has_key('salinity'):
             self.sal_stream = self.CFG.process.publish_streams.salinity
@@ -83,7 +89,7 @@ class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
         # build the granule for density
-        result = CTDL2SalinityTransformAlgorithm._build_granule_settings(sal_pdict, 'density', sal_value, time, latitude, longitude, depth)
+        result = CTDL2SalinityTransformAlgorithm._build_granule_settings(sal_pdict, 'salinity', sal_value, time, latitude, longitude, depth)
 
         return result
 
