@@ -144,7 +144,8 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
                 'stream_id':stream_id,
                 }
         }
-        pid = self.processdispatchclient.schedule_process(process_definition_id= logger_procdef_id, configuration=configuration)
+        pid = self.processdispatchclient.schedule_process(process_definition_id=logger_procdef_id,
+                                                          configuration=configuration)
 
         return pid
 
@@ -194,7 +195,9 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj,
+                                                                             ctd_stream_def_id,
+                                                                             parameter_dictionary)
 
         log.debug('new ctd_parsed_data_product_id = %s' % ctd_parsed_data_product)
 
@@ -247,7 +250,9 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id, parameter_dictionary)
+        ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj,
+                                                                          raw_stream_def_id,
+                                                                          parameter_dictionary)
 
         print 'new ctd_raw_data_product_id = ', ctd_raw_data_product
 
@@ -277,14 +282,6 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             self.fail("failed to create new ctd_L0_all data process definition: %s" %ex)
 
 
-        #        ctd_L0_all_dprocdef_id = TestCTDTransformsNoSim.create_process(  name='ctd_L0_all',
-        #            module='ion.processes.data.transforms.ctd.ctd_L0_all',
-        #            class_name='ctd_L0_all',
-        #            configuration= configuration)
-        #
-        #        self.assertIsNotNone(ctd_L0_all_dprocdef_id)
-
-
         #-------------------------------
         # L1 Conductivity: Data Process Definition
         #-------------------------------
@@ -300,13 +297,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new CTDL1ConductivityTransform data process definition: %s" %ex)
 
-        #
-        #        ctd_L1_conductivity_dprocdef_id = TestCTDTransformsNoSim.create_process(  name='ctd_L1_conductivity',
-        #            module='ion.processes.data.transforms.ctd.ctd_L1_conductivity',
-        #            class_name='CTDL1ConductivityTransform',
-        #            configuration= configuration)
-        #
-        #        self.assertIsNotNone(ctd_L1_conductivity_dprocdef_id)
+        self.assertIsNotNone(ctd_L1_conductivity_dprocdef_id)
 
         #-------------------------------
         # L1 Pressure: Data Process Definition
@@ -323,12 +314,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new CTDL1PressureTransform data process definition: %s" %ex)
 
-        #        ctd_L1_conductivity_dprocdef_id = TestCTDTransformsNoSim.create_process(  name='ctd_L1_conductivity',
-        #            module='ion.processes.data.transforms.ctd.ctd_L1_conductivity',
-        #            class_name='CTDL1ConductivityTransform',
-        #            configuration= configuration)
-        #
-        #        self.assertIsNotNone(ctd_L1_conductivity_dprocdef_id)
+        self.assertIsNotNone(ctd_L1_conductivity_dprocdef_id)
 
         #-------------------------------
         # L1 Temperature: Data Process Definition
@@ -345,12 +331,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new CTDL1TemperatureTransform data process definition: %s" %ex)
 
-        #        ctd_L1_temperature_dprocdef_id = TestCTDTransformsNoSim.create_process(  name='ctd_L1_temperature',
-        #            module='ion.processes.data.transforms.ctd.ctd_L1_temperature',
-        #            class_name='CTDL1TemperatureTransform',
-        #            configuration= configuration)
-        #
-        #        self.assertIsNotNone(ctd_L1_temperature_dprocdef_id)
+        self.assertIsNotNone(ctd_L1_temperature_dprocdef_id)
 
 
         #-------------------------------
@@ -368,12 +349,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new SalinityTransform data process definition: %s" %ex)
 
-        #        ctd_L2_salinity_dprocdef_id = TestCTDTransformsNoSim.create_process(  name='ctd_L2_salinity',
-        #            module='ion.processes.data.transforms.ctd.ctd_L2_salinity',
-        #            class_name='SalinityTransform',
-        #            configuration= configuration)
-        #
-        #        self.assertIsNotNone(ctd_L2_salinity_dprocdef_id)
+        self.assertIsNotNone(ctd_L2_salinity_dprocdef_id)
 
         #-------------------------------
         # L2 Density: Data Process Definition
@@ -390,12 +366,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new DensityTransform data process definition: %s" %ex)
 
-        #        ctd_L2_density_dprocdef_id = TestCTDTransformsNoSim.create_process(  name='ctd_L2_density',
-        #            module='ion.processes.data.transforms.ctd.ctd_L2_density',
-        #            class_name='DensityTransform',
-        #            configuration= configuration)
-        #
-        #        self.assertIsNotNone(ctd_L2_density_dprocdef_id)
+        self.assertIsNotNone(ctd_L2_density_dprocdef_id)
 
         self.loggerpids = []
 
@@ -405,16 +376,22 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l0_conductivity = L0_conductivity_stream_definition()
-        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_conductivity, name='L0_Conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id )
+        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_conductivity,
+                                                                                        name='L0_Conductivity')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id,
+                                                                                   ctd_L0_all_dprocdef_id )
 
         outgoing_stream_l0_pressure = L0_pressure_stream_definition()
-        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_pressure, name='L0_Pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id )
+        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_pressure,
+                                                                                    name='L0_Pressure')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id,
+                                                                                   ctd_L0_all_dprocdef_id )
 
         outgoing_stream_l0_temperature = L0_temperature_stream_definition()
-        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_temperature, name='L0_Temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id )
+        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_temperature,
+                                                                                       name='L0_Temperature')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id,
+                                                                                   ctd_L0_all_dprocdef_id )
 
 
         self.output_products={}
@@ -440,7 +417,9 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj, outgoing_stream_l0_pressure_id, parameter_dictionary)
+        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj,
+                                                                                  outgoing_stream_l0_pressure_id,
+                                                                                  parameter_dictionary)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
@@ -453,7 +432,9 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             spatial_domain = sdom)
 
 
-        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj, outgoing_stream_l0_temperature_id, parameter_dictionary)
+        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj,
+                                                                                     outgoing_stream_l0_temperature_id,
+                                                                                     parameter_dictionary)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
@@ -463,16 +444,22 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l1_conductivity = L1_conductivity_stream_definition()
-        outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l1_conductivity, name='L1_conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_conductivity_id, ctd_L1_conductivity_dprocdef_id )
+        outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l1_conductivity,
+                                                                                        name='L1_conductivity')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_conductivity_id,
+                                                                                   ctd_L1_conductivity_dprocdef_id )
 
         outgoing_stream_l1_pressure = L1_pressure_stream_definition()
-        outgoing_stream_l1_pressure_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l1_pressure, name='L1_Pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_pressure_id, ctd_L1_pressure_dprocdef_id )
+        outgoing_stream_l1_pressure_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l1_pressure,
+                                                                                    name='L1_Pressure')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_pressure_id,
+                                                                                   ctd_L1_pressure_dprocdef_id )
 
         outgoing_stream_l1_temperature = L1_temperature_stream_definition()
-        outgoing_stream_l1_temperature_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l1_temperature, name='L1_Temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_temperature_id, ctd_L1_temperature_dprocdef_id )
+        outgoing_stream_l1_temperature_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l1_temperature,
+                                                                                       name='L1_Temperature')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_temperature_id,
+                                                                                   ctd_L1_temperature_dprocdef_id )
 
         log.debug("test_createTransformsThenActivateInstrument: create output data product L1 conductivity")
 
@@ -482,7 +469,9 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_l1_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_conductivity_output_dp_obj, outgoing_stream_l1_conductivity_id, parameter_dictionary)
+        ctd_l1_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_conductivity_output_dp_obj,
+                                                                                      outgoing_stream_l1_conductivity_id,
+                                                                                      parameter_dictionary)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_conductivity_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l1_conductivity_output_dp_id, PRED.hasStream, None, True)
@@ -498,7 +487,9 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_l1_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_pressure_output_dp_obj, outgoing_stream_l1_pressure_id, parameter_dictionary)
+        ctd_l1_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_pressure_output_dp_obj,
+                                                                                  outgoing_stream_l1_pressure_id,
+                                                                                  parameter_dictionary)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_pressure_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l1_pressure_output_dp_id, PRED.hasStream, None, True)
@@ -514,7 +505,9 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_l1_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_temperature_output_dp_obj, outgoing_stream_l1_temperature_id, parameter_dictionary)
+        ctd_l1_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_temperature_output_dp_obj,
+                                                                                     outgoing_stream_l1_temperature_id,
+                                                                                     parameter_dictionary)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l1_temperature_output_dp_id)
 
         stream_ids, _ = self.rrclient.find_objects(ctd_l1_temperature_output_dp_id, PRED.hasStream, None, True)
@@ -529,12 +522,16 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l2_salinity = L2_practical_salinity_stream_definition()
-        outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l2_salinity, name='L2_salinity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_salinity_id, ctd_L2_salinity_dprocdef_id )
+        outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l2_salinity,
+                                                                                    name='L2_salinity')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_salinity_id,
+                                                                                   ctd_L2_salinity_dprocdef_id )
 
         outgoing_stream_l2_density = L2_density_stream_definition()
-        outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l2_density, name='L2_Density')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id, ctd_L2_density_dprocdef_id )
+        outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l2_density,
+                                                                                   name='L2_Density')
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id,
+                                                                                   ctd_L2_density_dprocdef_id )
 
         log.debug("test_createTransformsThenActivateInstrument: create output data product L2 Salinity")
 
@@ -544,7 +541,9 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_l2_salinity_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_salinity_output_dp_obj, outgoing_stream_l2_salinity_id, parameter_dictionary)
+        ctd_l2_salinity_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_salinity_output_dp_obj,
+                                                                                  outgoing_stream_l2_salinity_id,
+                                                                                  parameter_dictionary)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_salinity_output_dp_id)
 
         log.debug("test_createTransformsThenActivateInstrument: create output data product L2 Density")
@@ -555,7 +554,9 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_l2_density_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_density_output_dp_obj, outgoing_stream_l2_density_id, parameter_dictionary)
+        ctd_l2_density_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_density_output_dp_obj,
+                                                                                 outgoing_stream_l2_density_id,
+                                                                                 parameter_dictionary)
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l2_density_output_dp_id)
 
         # Set up subscribers/loggers to these streams
@@ -574,7 +575,9 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id,
+                                                                                    [ctd_parsed_data_product],
+                                                                                    self.output_products)
             self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -586,7 +589,10 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L1 Conductivity data_process start")
         try:
-            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_conductivity_dprocdef_id, [ctd_l0_conductivity_output_dp_id], {'conductivity':ctd_l1_conductivity_output_dp_id})
+            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(
+                ctd_L1_conductivity_dprocdef_id,
+                [ctd_l0_conductivity_output_dp_id],
+                {'conductivity':ctd_l1_conductivity_output_dp_id})
             self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -599,7 +605,10 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process start")
         try:
-            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, [ctd_l0_pressure_output_dp_id], {'pressure':ctd_l1_pressure_output_dp_id})
+            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(
+                ctd_L1_pressure_dprocdef_id,
+                [ctd_l0_pressure_output_dp_id],
+                {'pressure':ctd_l1_pressure_output_dp_id})
             self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -613,7 +622,10 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L1_Pressure data_process start")
         try:
-            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, [ctd_l0_temperature_output_dp_id], { 'temperature': ctd_l1_temperature_output_dp_id})
+            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(
+                ctd_L1_temperature_dprocdef_id,
+                [ctd_l0_temperature_output_dp_id],
+                { 'temperature': ctd_l1_temperature_output_dp_id})
 
             self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
         except BadRequest as ex:
@@ -628,7 +640,10 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L2_salinity data_process start")
         try:
-            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, [ctd_parsed_data_product], {'salinity':ctd_l2_salinity_output_dp_id})
+            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(
+                ctd_L2_salinity_dprocdef_id,
+                [ctd_parsed_data_product],
+                {'salinity':ctd_l2_salinity_output_dp_id})
             self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -640,7 +655,10 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_createTransformsThenActivateInstrument: create L2_Density data_process start")
         try:
-            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_density_dprocdef_id, [ctd_parsed_data_product], {'density':ctd_l2_density_output_dp_id})
+            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(
+                ctd_L2_density_dprocdef_id,
+                [ctd_parsed_data_product],
+                {'density':ctd_l2_density_output_dp_id})
             self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)

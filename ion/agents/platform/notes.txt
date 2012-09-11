@@ -1,5 +1,88 @@
 platform agent framework
 
+2012-09-10:
+- Note: log messages are not always shown when running tests with the pycc
+  plugin, for example, see comment in OmsPlatformDriver.go_active.
+- various updates related with the topology now provided via platform
+  configuration. See ion/services/sa/observatory/test/test_oms_launch.py
+- removed obsolete *platform_network_builder sources.
+
+All tests:
+
+    $ GEN_DIAG=y OMS=embsimulator bin/nosetests --with-pycc -va UNIT -a INT  ion/agents/platform  ion/services/sa/observatory/test/test_oms_launch.py
+    pyon: sys_name changed from 'None' to 'ion_test_2adc8d'
+    Deleted exchanges:
+
+    Deleted queues:
+
+    Starting cc process: bin/pycc --noshell -sp --sysname=ion_test_2adc8d --logcfg=res/config/logging.pycc.yml --rel=res/deploy/r2deploy.yml --config={'system': {'auto_bootstrap': True}}
+    pycc: ION Container starter with command line options: Namespace(config="{'system': {'auto_bootstrap': True}}", config_from_directory=False, daemon=False, force_clean=False, immediate=False, logcfg='res/config/logging.pycc.yml', mx=False, no_container=False, noshell=True, pidfile=None, proc=None, rel='res/deploy/r2deploy.yml', signalparent=True, sysname='ion_test_2adc8d')
+    pyon: sys_name changed from 'None' to 'ion_test_2adc8d'
+    CouchDataStore: INFO: Connecting to CouchDB server: http://localhost:5984
+    CouchDataStore: INFO: Connecting to CouchDB server: http://localhost:5984
+    pycc: auto_bootstrap=True.
+    CouchDataStore: INFO: Connecting to CouchDB server: http://localhost:5984
+    store_interfaces: Storing system config in directory...
+    pyon: pyon.bootstrap (bootstrap_pyon) executing...
+    store_interfaces: Storing 13 entries in directory...
+    store_interfaces: Storing 380 resources in registry...
+    store_interfaces: Storing interfaces successful
+    CouchDataStore: INFO: Closing connection to CouchDB
+    CouchDataStore: INFO: Closing connection to CouchDB
+    pyon: pyon.bootstrap (bootstrap_pyon) executing...
+    pyon: WARNING -- bootstrap_pyon() called again!
+    pycc: Signal parent pid 53370 that pycc pid 53374 service start process is complete...
+    Child container is ready...
+    Dump child container state to file...
+    Start nose tests now...
+    test_aa_ping (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ac_getPlatformMap (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ad_getPlatformAttributeNames (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ae_getPlatformAttributeValues (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_af_getPlatformAttributeInfos (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ag_getPlatformPorts (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ah_getPortInfo (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ai_setUpPort (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_aj_turnOnPort (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_ak_turnOffPort (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
+    test_aa_ping (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ac_getPlatformMap (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ad_getPlatformAttributeNames (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ae_getPlatformAttributeValues (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_af_getPlatformAttributeInfos (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ag_getPlatformPorts (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ah_getPortInfo (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ai_setUpPort (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_aj_turnOnPort (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test_ak_turnOffPort (ion.agents.platform.oms.test.test_oms_client.Test) ... ok
+    test (ion.agents.platform.oms.test.test_oms_platform_driver.TestOmsPlatformDriver) ... ok
+    test_go_active_and_run (ion.agents.platform.test.test_platform_agent_with_oms.TestPlatformAgent) ... ok
+    test_oms_create_and_launch (ion.services.sa.observatory.test.test_oms_launch.TestOmsLaunch) ... No handlers could be found for logger "interface.services.icontainer_agent"
+    generating diagram '/var/folders/El/ElbkRaTJEeeIlKJgl9AsBU+++TI/-Tmp-/1e30a340bff1407686b45d97739e82fb.dot'
+    generating png '/var/folders/El/ElbkRaTJEeeIlKJgl9AsBU+++TI/-Tmp-/1e30a340bff1407686b45d97739e82fb.png'
+    opening '/var/folders/El/ElbkRaTJEeeIlKJgl9AsBU+++TI/-Tmp-/1e30a340bff1407686b45d97739e82fb.png'
+    ok
+
+    Blame Report on left over objects in couchd db
+    ====================
+    ----------------------------------------------------------------------
+    Ran 23 tests in 59.447s
+
+    OK
+    Shut down cc process
+    	Closing container with pid:53374
+    CouchDataStore: INFO: Connecting to CouchDB server: http://localhost:5984
+    CouchDataStore: INFO: Connecting to CouchDB server: http://localhost:5984
+    CouchDataStore: INFO: Closing connection to CouchDB
+    (coi)bochica:coi-services carueda$ Warning: shutdown_or_die found a previously registered ALARM and overrode it.
+
+
+
+
+2012-09-04:
+Add operations (ping-agent, ping-resource, get-resource).
+Adjust some operations according to changes in the interface spec.
+
 2012-08-29:
 Ongoing internal refactoring to move network creation functionality from
 PlatformNetworkBuilder to PlatformAgent itself, and to simplify the design.
@@ -46,7 +129,7 @@ platform-agent branched out from master's commit
 
 
 
-- CI side maintains information about the platform topology for a given
+- CI side will maintain information about the platform topology for a given
   network (RSN). In general, the possible "sources" to obtain the topology are:
   - some CI resource registry
   - a deployment file (like r2deploy.yml)

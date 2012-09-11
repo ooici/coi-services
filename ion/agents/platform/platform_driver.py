@@ -41,14 +41,36 @@ class PlatformDriver(object):
     A platform driver handles a particular platform in a platform network.
     """
 
-    def __init__(self, platform_id):
+    def __init__(self, platform_id, driver_config, parent_platform_id=None):
+        """
+        @param platform_id ID of my associated platform.
+        @param driver_config Driver configuration.
+        @param parent_platform_id Platform ID of my parent, if any.
+                    This is mainly used for diagnostic purposes
+        """
 
         self._platform_id = platform_id
+        self._driver_config = driver_config
+        self._parent_platform_id = parent_platform_id
+
         self._send_event = None
 
-        # the root NNode defining the platform network rooted at the platform
-        # identified by self._platform_id
+        # The dictionary defining the platform topology. If this dictionary is
+        # not given, then other mechanism (eg., direct access to the external
+        # platform system) is used to retrieve the information.
+        self._topology = None
+
+        # The root NNode defining the platform network rooted at the platform
+        # identified by self._platform_id. This _nnode is constructed by the
+        # driver based on _topology (if given) or other source of information.
         self._nnode = None
+
+    def set_topology(self, topology):
+        """
+        Sets the platform topology.
+        """
+        log.info("set_topology: %s" % str(topology))
+        self._topology = topology
 
     def set_event_listener(self, evt_recv):
         """
@@ -59,10 +81,38 @@ class PlatformDriver(object):
         """
         self._send_event = evt_recv
 
+    def ping(self):
+        """
+        To be implemented by subclass.
+        Verifies communication with external platform returning "PONG" if
+        this verification completes OK.
+
+        @retval "PONG"
+        @raise PlatformConnectionException
+        """
+        raise NotImplemented()
+
     def go_active(self):
         """
         To be implemented by subclass.
-        Establish communication with external platform and assigns self._nnode.
+        Main task here is to determine the topology of platforms
+        rooted here then assigning the corresponding definition to self._nnode.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplemented()
+
+    def get_attribute_values(self, attr_names, from_time):
+        """
+        To be implemented by subclass.
+        Returns the values for specific attributes since a given time.
+
+        @param attr_names [attrName, ...] desired attributes
+        @param from_time NTP v4 compliant string; time from which the values are requested
+
+        @retval {attrName : [(attrValue, timestamp), ...], ...}
+                dict indexed by attribute name with list of (value, timestamp)
+                pairs. Timestamps are NTP v4 compliant strings
         """
         raise NotImplemented()
 

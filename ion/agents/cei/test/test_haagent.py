@@ -69,8 +69,10 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                 },
                 'process_spec': {
                     'name': 'test',
-                    'module': 'ion.agents.cei.test.test_haagent',
-                    'class': 'TestProcess'
+                    'executable':{
+                        'module': 'ion.agents.cei.test.test_haagent',
+                        'class': 'TestProcess'
+                    }
                 },
                 "process_dispatchers": [
                     'process_dispatcher'

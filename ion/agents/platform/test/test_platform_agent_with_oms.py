@@ -13,6 +13,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
+from pyon.core.exception import ServerError
 from pyon.util.context import LocalContextMixin
 
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -22,7 +23,6 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
-from ion.agents.platform.platform_agent import set_container_client
 
 from interface.objects import StreamQuery
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -34,16 +34,18 @@ from gevent import spawn
 from gevent.event import AsyncResult
 from gevent import sleep
 
+import time
 import unittest
 import os
 from nose.plugins.attrib import attr
 
 
 # The ID of the root platform for this test and the IDs of its sub-platforms.
-# These Ids should correspond to corresponding entries in network.yml,
+# These Ids and names should correspond to corresponding entries in network.yml,
 # which is used by the OMS simulator.
 PLATFORM_ID = 'platA1'
 SUBPLATFORM_IDS = ['platA1a', 'platA1b']
+ATTR_NAMES = ['fooA1', 'bazA1']
 
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
@@ -53,7 +55,8 @@ DVR_CONFIG = {
 
 PLATFORM_CONFIG = {
     'platform_id': PLATFORM_ID,
-    'driver_config': DVR_CONFIG
+    'driver_config': DVR_CONFIG,
+    'container_name': None,  # determined in setUp
 }
 
 # Agent parameters.
@@ -83,6 +86,8 @@ class TestPlatformAgent(IonIntegrationTestCase):
         # Bring up services in a deploy file (no need to message)
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        PLATFORM_CONFIG['container_name'] = self.container.name
+
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.
         self._no_samples = None
@@ -104,7 +109,6 @@ class TestPlatformAgent(IonIntegrationTestCase):
         log.info("TestPlatformAgent.setup(): starting agent")
         container_client = ContainerAgentClient(node=self.container.node,
                                                 name=self.container.name)
-        set_container_client(container_client)
         self._pa_pid = container_client.spawn_process(name=PA_NAME,
                                                       module=PA_MOD,
                                                       cls=PA_CLS,
@@ -193,9 +197,36 @@ class TestPlatformAgent(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
+    def _ping_agent(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
+        retval = self._pa_client.execute_agent(cmd)
+        self.assertEquals("PONG", retval.result)
+
+    def _ping_resource(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.PING_RESOURCE)
+        if self._get_state() == PlatformAgentState.UNINITIALIZED:
+            # should get ServerError: "Command not handled in current state"
+            with self.assertRaises(ServerError):
+                self._pa_client.execute_agent(cmd)
+        else:
+            # In all other states the command should be accepted:
+            retval = self._pa_client.execute_agent(cmd)
+            self.assertEquals("PONG", retval.result)
+
+    def _get_resource(self):
+        kwargs = dict(attr_names=ATTR_NAMES, from_time=time.time())
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
+        retval = self._pa_client.execute_agent(cmd)
+        attr_values = retval.result
+        log.info("get_resource result: %s" % str(attr_values))
+        self.assertIsInstance(attr_values, dict)
+        for attr_name in ATTR_NAMES:
+            self.assertTrue(attr_name in attr_values)
+
     def _initialize(self):
+        kwargs = dict(plat_config=PLATFORM_CONFIG)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
-        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
+        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
         retval = self._pa_client.execute_agent(cmd)
         self._assert_state(PlatformAgentState.INACTIVE)
 
@@ -209,11 +240,10 @@ class TestPlatformAgent(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
-    def _add_subplatform_id(self, subplatform_id):
-        kwargs = dict(subplatform_id=subplatform_id)
-        cmd = AgentCommand(command=PlatformAgentEvent.ADD_SUBPLATFORM, kwargs=kwargs)
+    def _go_inactive(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE)
         retval = self._pa_client.execute_agent(cmd)
-        log.info("add_subplatform_agent_client's retval = %s" % str(retval))
+        self._assert_state(PlatformAgentState.INACTIVE)
 
     def _get_subplatform_ids(self):
         cmd = AgentCommand(command=PlatformAgentEvent.GET_SUBPLATFORM_IDS)
@@ -222,16 +252,26 @@ class TestPlatformAgent(IonIntegrationTestCase):
         return retval.result
 
     def test_go_active_and_run(self):
+
+        self._ping_agent()
+        self._ping_resource()
+
         self._initialize()
         self._go_active()
         self._run()
 
+        self._ping_agent()
+        self._ping_resource()
+
+        self._get_resource()
+
         log.info("sleeping...")
         sleep(15)
 
-        # retrieve subplatform IDs
+        # retrieve sub-platform IDs and verify against expected
         out_subplat_ids = self._get_subplatform_ids()
         log.info("get_subplatform_ids's retval = %s" % str(out_subplat_ids))
         self.assertEquals(SUBPLATFORM_IDS, out_subplat_ids)
 
+        self._go_inactive()
         self._reset()

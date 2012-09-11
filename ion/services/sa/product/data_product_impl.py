@@ -7,7 +7,7 @@
 
 #from pyon.core.exception import BadRequest, NotFound
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
-from pyon.public import PRED, RT
+from pyon.public import PRED, RT, OT
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.log import log
 from lxml import etree
@@ -128,7 +128,6 @@ class DataProductImpl(ResourceSimpleImpl):
             inst_model_objs, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasModel, object_type=RT.InstrumentModel)
             if inst_model_objs:
                 context['InstrumentModel'] = str(inst_model_objs[0])
-
         return context
 
     def _find_producer_in_products(self, producer_id=''):
@@ -259,23 +258,48 @@ class DataProductImpl(ResourceSimpleImpl):
             producer_type_tag.text = producer_obj.type_
 
             #retrieve the assoc data producer resource
-            producer_objs, producer_assns = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasDataProducer, id_only=False)
-            if not producer_objs:
+            data_producer_objs, producer_assns = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasDataProducer, id_only=False)
+            if not data_producer_objs:
                 raise BadRequest('No Data Producer resource associated with the Producer %s' % str(producer_id))
+            data_producer_obj = data_producer_objs[0]
 
 
-            producertype = type(producer_objs[0]).__name__
+            producertype = type(producer_obj).__name__
             log.debug("DataProductManagementService:producertype  %s ", str(producertype))
-            if RT.InstrumentDevice == producertype :
+            if data_producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
+            #if RT.InstrumentDevice == producertype :
                 # retrieve specifics from InstrumentProducerContext
-                producer_description_tag = etree.SubElement(data_producer_tag, "activation_time")
-                producer_description_tag.text = producer_obj.producer_context.activation_time
-            if RT.DataProcess == producertype :
-                # retrieve specifics from InstrumentProducerContext
-                producer_description_tag = etree.SubElement(data_producer_tag, "activation_time")
-                producer_description_tag.text = producer_obj.producer_context.activation_time     
+                activation_time_tag = etree.SubElement(data_producer_tag, "activation_time")
+                activation_time_tag.text = data_producer_obj.producer_context.activation_time
+                execution_configuration_tag = etree.SubElement(data_producer_tag, "execution_configuration")
+                execution_configuration_tag.text = str(data_producer_obj.producer_context.execution_configuration)
+
+                #get the assoc Site resource
+                if data_producer_obj.producer_context.deployed_site_id:
+                    site_obj = self.clients.resource_registry.read(data_producer_obj.producer_context.deployed_site_id)
+                    #todo: get the correct deployment object to retrieve: output the temporal constraints and the device_mounting_positions
+                    site_tag = etree.SubElement(data_producer_tag, "DeployedSite")
+                    site_tag = etree.SubElement(data_producer_tag, "DeployedSite")
+                    site_geospatial_constraint_tag = etree.SubElement(site_tag, "geospatial_constraint")
+                    site_geospatial_constraint_tag.text = str(site_obj.geospatial_constraint)
+                    site_temporal_constraint_tag = etree.SubElement(site_tag, "temporal_constraint")
+                    site_temporal_constraint_tag.text = str(site_obj.temporal_constraint)
+
+            #if RT.DataProcess == producertype :
+            if data_producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
+                # retrieve specifics from DataProcessProducerContext
+                activation_time_tag = etree.SubElement(data_producer_tag, "activation_time")
+                activation_time_tag.text = data_producer_obj.producer_context.activation_time
+                execution_configuration_tag = etree.SubElement(data_producer_tag, "execution_configuration")
+                execution_configuration_tag.text = str(data_producer_obj.producer_context.execution_configuration)
 
 
+            # check for attached deployment
+            deployment_ids, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasDeployment, object_type=RT.Deployment)
+            #todo: match when this prouct was produced with the correct deployment object
 
+            for deployment_id in deployment_ids:
+                #find the site
+                deployment_sites, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasDeployment, object_type=RT.Deployment)
 
 

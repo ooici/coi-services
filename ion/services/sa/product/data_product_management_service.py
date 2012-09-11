@@ -478,8 +478,24 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         pass
 
-    def get_product_storage_size_estimated(self, data_product_id=''):
+    def get_stored_data_size(self, data_product_id=''):
         # Returns the storage size occupied by the data content of the resource, in bytes.
 
         pass
 
+    def get_data_contents_updated(self, data_product_id=''):
+        # the datetime when the contents of the data were last modified in any way.
+        # This is distinct from modifications to the data product attributes
+        pass
+
+    def get_latest_data_datetime(self, data_product_id=''):
+        # the datetime on which the most recent data reading was taken.
+        # This does not assess when the descriptive attributes were modified,
+        # but when the data values were changed.
+        # For example, if an instrument was turned off and retrieved on 3/1, and the data
+        # downloaded and entered into the system on 3/15, then the latest_data_datetime would be 3/1..
+        pass
+
+    def get_metadata_update_datetime(self, data_product_id=''):
+        # The time the data metadata (attributes) were last updated
+        pass
