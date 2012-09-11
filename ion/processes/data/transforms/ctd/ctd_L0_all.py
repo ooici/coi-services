@@ -188,3 +188,4 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
         log.debug("ctd_L0_all:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
 
         return build_granule(data_producer_id='ctd_L0', param_dictionary=param_dictionary, record_dictionary=root_rdt)
+

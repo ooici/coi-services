@@ -39,7 +39,7 @@ class DensityTransform(TransformDataProcess):
     '''
 
     def on_start(self):
-        super(DensityTransform, self).on_start()
+        super(CTDL2DensityTransform, self).on_start()
 
         if self.CFG.process.publish_streams.has_key('density'):
             self.dens_stream = self.CFG.process.publish_streams.density

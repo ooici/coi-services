@@ -27,9 +27,8 @@ from seawater.gibbs import cte
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L2_practical_salinity_stream_definition
 
 class SalinityTransform(TransformDataProcess):
-
-    outgoing_stream_def = L2_practical_salinity_stream_definition()
     incoming_stream_def = SBE37_CDM_stream_definition()
+    outgoing_stream_def = L2_practical_salinity_stream_definition()
 
     ''' A basic transform that receives input through a subscription,
     parses the input from a CTD, extracts the pressure value and scales it according to
@@ -138,7 +137,6 @@ class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
     @staticmethod
     def _build_granule_settings(param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, depth=None):
-
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
 
         root_rdt[field_name] = value
