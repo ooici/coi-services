@@ -69,6 +69,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                         name='InstrumentSite1',
                                         description='test instrument site')
         instrument_site_id = self.omsclient.create_instrument_site(instrument_site_obj, "")
+        log.debug( 'test_get_provenance: new instrument_site_id id = %s ', str(instrument_site_id))
 
 
         # Create InstrumentModel
@@ -83,7 +84,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentModel: %s" %ex)
-        log.debug( 'test_get_provenance: new InstrumentModel id = %s ', instModel_id)
+        log.debug( 'test_get_provenance: new InstrumentModel id = %s ', str(instModel_id))
 
         self.omsclient.assign_instrument_model_to_instrument_site(instModel_id, instrument_site_id)
 
@@ -116,8 +117,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def = SBE37_CDM_stream_definition()
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
-
-        log.debug( 'test_get_provenance:new Stream Definition id = %s', instDevice_id)
 
         log.debug( 'test_get_provenance:Creating new CDM data product with a stream definition')
 
@@ -525,20 +524,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L2_Density data_process return")
 
 
-        provenance_dict = self.dpmsclient.get_data_product_provenance(ctd_l2_density_output_dp_id)
-        log.debug("TestDataProductProvenance: provenance_dict  %s", str(provenance_dict))
-
-        #validate that products are represented
-        self.assertTrue (provenance_dict[str(ctd_l1_conductivity_output_dp_id)])
-        self.assertTrue (provenance_dict[str(ctd_l0_conductivity_output_dp_id)])
-        self.assertTrue (provenance_dict[str(ctd_l2_density_output_dp_id)])
-        self.assertTrue (provenance_dict[str(ctd_l1_temperature_output_dp_id)])
-        self.assertTrue (provenance_dict[str(ctd_l0_temperature_output_dp_id)])
-
-        density_dict = (provenance_dict[str(ctd_l2_density_output_dp_id)])
-        self.assertEquals(density_dict['producer'], [l2_density_all_data_process_id])
-
-
         #-------------------------------
         # Launch InstrumentAgentInstance, connect to the resource agent client
         #-------------------------------
@@ -551,6 +536,24 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 #        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
 #        print 'activate_instrument: got ia client %s', self._ia_client
 #        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
+
+
+
+        #-------------------------------
+        # Retrieve the provenance info for the ctd density data product
+        #-------------------------------
+        provenance_dict = self.dpmsclient.get_data_product_provenance(ctd_l2_density_output_dp_id)
+        log.debug("TestDataProductProvenance: provenance_dict  %s", str(provenance_dict))
+
+        #validate that products are represented
+        self.assertTrue (provenance_dict[str(ctd_l1_conductivity_output_dp_id)])
+        self.assertTrue (provenance_dict[str(ctd_l0_conductivity_output_dp_id)])
+        self.assertTrue (provenance_dict[str(ctd_l2_density_output_dp_id)])
+        self.assertTrue (provenance_dict[str(ctd_l1_temperature_output_dp_id)])
+        self.assertTrue (provenance_dict[str(ctd_l0_temperature_output_dp_id)])
+
+        density_dict = (provenance_dict[str(ctd_l2_density_output_dp_id)])
+        self.assertEquals(density_dict['producer'], [l2_density_all_data_process_id])
 
 
         #-------------------------------
