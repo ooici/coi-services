@@ -137,12 +137,12 @@ class ExampleDataProducer(SimpleCtdPublisher):
         cond_ctxt.fill_value = 0e0
         pdict.add_context(cond_ctxt)
 
-        raw_fixed_ctxt = ParameterContext('raw_fixed', param_type='unknown')
+        raw_fixed_ctxt = ParameterContext('raw_fixed', param_type=QuantityType(value_encoding=numpy.float32))
         raw_fixed_ctxt.uom = 'unknown'
         raw_fixed_ctxt.fill_value = 0e0
         pdict.add_context(raw_fixed_ctxt)
 
-        raw_blob_ctxt = ParameterContext('raw_blob', param_type='unknown')
+        raw_blob_ctxt = ParameterContext('raw_blob', param_type=QuantityType(value_encoding=numpy.float32))
         raw_blob_ctxt.uom = 'unknown'
         raw_blob_ctxt.fill_value = 0e0
         pdict.add_context(raw_blob_ctxt)

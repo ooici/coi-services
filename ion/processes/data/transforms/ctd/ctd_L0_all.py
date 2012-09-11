@@ -12,43 +12,37 @@ from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 from pyon.net.endpoint import Publisher
 import numpy as np
-import uuid
 from pyon.core.bootstrap import get_sys_name
 from pyon.net.transport import NameTrio
 import re
-from interface.objects import Granule
-
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
-#from prototype.sci_data.constructor_apis import PointSupplementConstructor
-#from prototype.sci_data.stream_defs import ctd_stream_definition
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
 from ion.core.function.transform_function import MultiGranuleTransformFunction
 
+#from pyon.util.containers import DotDict
 #from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 #pmsc = PubsubManagementServiceClient(node=cc.node)
+#
 #c_stream_id = pmsc.create_stream(name='conductivity')
 #t_stream_id = pmsc.create_stream(name='temperature')
 #p_stream_id = pmsc.create_stream(name='pressure')
-#cc.spawn_process('l0_transform', 'ion.processes.data.transforms.ctd_L0_all','ctd_L0_all', config={'processes':{'publish_streams':{'conductivity':c_stream_id, 'temperature':t_stream_id, 'pressure': p_stream_id } } })
+#
+#config = DotDict()
+#config.process.queue_name = 'test_queue'
+#config.process.exchange_point = 'output_xp'
+#config.process.publish_streams.conductivity = c_stream_id
+#config.process.publish_streams.pressure = p_stream_id
+#config.process.publish_streams.temperature = t_stream_id
+#pid2 = cc.spawn_process(name='ctd_test', module='ion.processes.data.transforms.ctd.ctd_L0_all', cls='ctd_L0_all', config=config)
 
 class ctd_L0_all(TransformDataProcess):
     """Model for a TransformDataProcess
 
     """
-
-    incoming_stream_def = SBE37_CDM_stream_definition()
-
-    # Make the stream definitions of the transform class attributes
-
-    #outgoing_stream_pressure = L0_pressure_stream_definition()
-    #outgoing_stream_temperature = L0_temperature_stream_definition()
-    #outgoing_stream_conductivity = L0_conductivity_stream_definition()
 
     def on_start(self):
         super(ctd_L0_all, self).on_start()
@@ -69,58 +63,62 @@ class ctd_L0_all(TransformDataProcess):
         self.publisher.publish(msg=msg, stream_id=stream_id)
 
     def receive_msg(self, packet, stream_id):
-
-        """Processes incoming data!!!!
+        """
+        Processes incoming data!!!!
         """
         if packet == {}:
             return
 
-        granules = ctd_L0_algorithm2.execute([packet])
+        granules = ctd_L0_algorithm.execute([packet])
 
-        self.publish(msg=granules['conductivity'], stream_id=self.cond_stream)
+        for granule in granules:
+            self.publish(msg=granule['conductivity'], stream_id=self.cond_stream)
 
-        self.publish(msg=granules['temperature'], stream_id=self.temp_stream)
+            self.publish(msg=granule['temp'], stream_id=self.temp_stream)
 
-        self.publish(msg=granules['pressure'], stream_id=self.pres_stream)
+            self.publish(msg=granule['pressure'], stream_id=self.pres_stream)
 
-class ctd_L0_algorithm2(MultiGranuleTransformFunction):
+class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
     @staticmethod
-    def execute(input, context, config, params, state):
-        if not isinstance(input, Granule):
-            raise BadRequest("input parameter must be of type Granule")
+    @MultiGranuleTransformFunction.validate_inputs
+    def execute(input=None, context=None, config=None, params=None, state=None):
 
-        rdt = RecordDictionaryTool.load_from_granule(input)
+        result_list = []
+        for x in input:
+            rdt = RecordDictionaryTool.load_from_granule(x)
 
-        conductivity = get_safe(rdt, 'conductivity')
-        pressure = get_safe(rdt, 'pressure')
-        temperature = get_safe(rdt, 'temp')
+            conductivity = get_safe(rdt, 'conductivity')
+            pressure = get_safe(rdt, 'pressure')
+            temperature = get_safe(rdt, 'temp')
 
-        longitude = get_safe(rdt, 'lon')
-        latitude = get_safe(rdt, 'lat')
-        time = get_safe(rdt, 'time')
-        depth = get_safe(rdt, 'depth')
+            longitude = get_safe(rdt, 'lon')
+            latitude = get_safe(rdt, 'lat')
+            time = get_safe(rdt, 'time')
+            depth = get_safe(rdt, 'depth')
 
-        result = {}
+            result = {}
 
-        # create parameter settings
-        cond_pdict = ctd_L0_algorithm2._create_parameter("conductivity")
-        pres_pdict = ctd_L0_algorithm2._create_parameter("pressure")
-        temp_pdict = ctd_L0_algorithm2._create_parameter("temperature")
+            # create parameter settings
+            cond_pdict = ctd_L0_algorithm._create_parameter("conductivity")
+            pres_pdict = ctd_L0_algorithm._create_parameter("pressure")
+            temp_pdict = ctd_L0_algorithm._create_parameter("temp")
 
-        # build the granule for conductivity
-        result['conductivity'] = ctd_L0_algorithm2._build_granule_settings(cond_pdict, 'conductivity', conductivity, time, latitude, longitude, depth)
-        result['temperature'] = ctd_L0_algorithm2._build_granule_settings(temp_pdict, 'temperature', temperature, time, latitude, longitude, depth)
-        result['pressure'] = ctd_L0_algorithm2._build_granule_settings(pres_pdict, 'pressure', pressure, time, latitude, longitude, depth)
+            # build the granule for conductivity
+            result['conductivity'] = ctd_L0_algorithm._build_granule_settings(cond_pdict, 'conductivity', conductivity, time, latitude, longitude, depth)
+            result['temp'] = ctd_L0_algorithm._build_granule_settings(temp_pdict, 'temp', temperature, time, latitude, longitude, depth)
+            result['pressure'] = ctd_L0_algorithm._build_granule_settings(pres_pdict, 'pressure', pressure, time, latitude, longitude, depth)
 
-        return result
+            result_list.append(result)
+
+        return result_list
 
     @staticmethod
     def _create_parameter(name):
 
         pdict = ParameterDictionary()
 
-        pdict = ctd_L0_algorithm2._add_location_time_ctxt(pdict)
+        pdict = ctd_L0_algorithm._add_location_time_ctxt(pdict)
 
         if name == 'conductivity':
             cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.float32))
@@ -176,20 +174,17 @@ class ctd_L0_algorithm2(MultiGranuleTransformFunction):
 
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
 
-
         root_rdt[field_name] = value
 
-        root_rdt['time'] = time
-        root_rdt['lat'] = latitude
-        root_rdt['lon'] = longitude
-        root_rdt['depth'] = depth
+        if not time is None:
+            root_rdt['time'] = time
+        if not latitude is None:
+            root_rdt['lat'] = latitude
+        if not longitude is None:
+            root_rdt['lon'] = longitude
+        if not depth is None:
+            root_rdt['depth'] = depth
 
         log.debug("ctd_L0_all:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
 
         return build_granule(data_producer_id='ctd_L0', param_dictionary=param_dictionary, record_dictionary=root_rdt)
-
-class ctd_L0_algorithm(TransformAlgorithm):
-
-    @staticmethod
-    def execute(*args, **kwargs):
-        return args[0]
