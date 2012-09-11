@@ -13,6 +13,7 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
+from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
@@ -126,9 +127,6 @@ class PlatformAgent(ResourceAgent):
         # configuration information on transition to inactive.
         self._packet_factories = {}
 
-        # Stream registrar to create publishers
-        self._stream_registrar = None
-
         # The ResourceAgentClient objects to send commands to my sub-platforms
         self._pa_clients = {}
 
@@ -181,10 +179,6 @@ class PlatformAgent(ResourceAgent):
         @retval None
         """
 
-        # The registrar to create publishers.
-        self._stream_registrar = StreamPublisherRegistrar(process=self,
-                                                    container=self.container)
-
         stream_info = self.CFG.stream_config
         log.info("%r: stream_info = %s" % (
             self._platform_id, stream_info))
@@ -192,7 +186,7 @@ class PlatformAgent(ResourceAgent):
         for (name, stream_config) in stream_info.iteritems():
             stream_id = stream_config['id']
             self._data_streams[name] = stream_id
-            publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
+            publisher = StreamPublisher(process=self,stream_id=stream_id)
             self._data_publishers[name] = publisher
             log.info("%r: created publisher for stream_name=%r (stream_id=%r)" % (
                 self._platform_id, name, stream_id))

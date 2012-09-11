@@ -59,6 +59,7 @@ class IngestionManagementService(BaseIngestionManagementService):
         #--------------------------------------------------------------------------------
         validate_is_instance(stream_id,basestring, 'stream_id %s is not a valid string' % stream_id)
         validate_true(dataset_id or (ingestion_type == self.BINARY_INGESTION),'Clients must specify the dataset to persist')
+        log.info('Persisting stream %s to dataset %s.', stream_id, dataset_id)
         if not ingestion_type:
             ingestion_type = self.SCIENCE_INGESTION
 

@@ -13,6 +13,7 @@ from interface.objects import DataSet
 from ion.services.dm.utility.granule_utils import SimplexCoverage, ParameterDictionary, GridDomain
 from pyon.util.arg_check import validate_is_instance, validate_true, validate_is_not_none
 from pyon.util.file_sys import FileSystem, FS
+from pyon.util.log import log
 
 
 class DatasetManagementService(BaseDatasetManagementService):
@@ -117,10 +118,12 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.clients.resource_registry.delete(dataset_id)
 
     def add_stream(self,dataset_id='', stream_id=''):
+        log.info('Adding stream %s to dataset %s', stream_id, dataset_id)
         validate_true(dataset_id and stream_id, 'Clients must provide both the dataset_id and stream_id')
         self.clients.resource_registry.create_association(subject=dataset_id, predicate=PRED.hasStream,object=stream_id)
 
     def remove_stream(self,dataset_id='', stream_id=''):
+        log.info('Removing stream %s from dataset %s', stream_id, dataset_id)
         validate_true(dataset_id and stream_id, 'Clients must provide both the dataset_id and stream_id')
         assocs = self.clients.resource_registry.find_associations(subject=dataset_id, predicate=PRED.hasStream,object=stream_id)
         for assoc in assocs:

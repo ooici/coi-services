@@ -258,10 +258,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._ia_client = None
         self._ia_client = start_instrument_test_agent(self.container, self._stream_config)
 
-    def tearDown(self):
-        self._clean_data_subscribers()
-
-        
     ###############################################################################
     # Port agent helpers.
     ###############################################################################
@@ -332,12 +328,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         for stream_name in PACKET_CONFIG:
             
             # Create stream_id from stream_name.
-            stream_id = pubsub_client.create_stream(name=stream_name, exchange_point='science_data')
+            stream_id, stream_route = pubsub_client.create_stream(name=stream_name, exchange_point='science_data')
 
             # Create stream config from taxonomy and id.
             taxy = get_taxonomy(stream_name)
             stream_config = dict(
                 id=stream_id,
+                route=stream_route,
                 taxonomy=taxy.dump()
             )
             self._stream_config[stream_name] = stream_config        
@@ -370,11 +367,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             sub = StandaloneStreamSubscriber(exchange_name, recv_data)
             sub.start()
             self._data_subscribers.append(sub)
+            print 'stream_id: %s' % stream_id
             sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
             pubsub_client.activate_subscription(sub_id)
             sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
  
-    def _clean_data_subscribers(self):
+    def _stop_data_subscribers(self):
         for subscriber in self._data_subscribers:
             pubsub_client = PubsubManagementServiceClient()
             if hasattr(subscriber,'subscription_id'):

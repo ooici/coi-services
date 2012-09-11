@@ -26,6 +26,7 @@ from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
+from pyon.ion.stream import StreamPublisher
 import numpy as np
 
 class SalinityTransform(TransformDataProcess):
@@ -39,21 +40,24 @@ class SalinityTransform(TransformDataProcess):
     incoming_stream_def = SBE37_CDM_stream_definition()
 
     def on_start(self):
-        super(SalinityTransform, self).on_start()
 
         if self.CFG.process.publish_streams.has_key('salinity'):
             self.sal_stream = self.CFG.process.publish_streams.salinity
         elif self.CFG.process.publish_streams.has_key('output'):
             self.sal_stream = self.CFG.process.publish_streams.output
 
-        log.debug("Got salinity stream id: %s" % self.sal_stream)
+        self.CFG.process.stream_id = self.sal_stream
+
+        super(SalinityTransform, self).on_start()
+        log.info("Got salinity stream id: %s" % self.sal_stream)
 
     def publish(self, msg, stream_id):
-        self.publisher.publish(msg=msg, stream_id=stream_id)
+        self.publisher.publish(msg)
 
     def recv_packet(self, granule, stream_route, stream_id):
         """Processes incoming data!!!!
         """
+        log.info('Received incoming packet')
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
         temperature = get_safe(rdt, 'temp')

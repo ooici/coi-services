@@ -305,7 +305,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             'queue_name':queue_name,
             'publish_streams' : out_streams
         }
-        configuration['process']['publish_streams'] = out_streams
 
         # ------------------------------------------------------------------------------------
         # Process Spawning

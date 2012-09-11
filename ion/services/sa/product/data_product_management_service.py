@@ -239,10 +239,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         log.debug("Found the following datasets: %s, for the data product: %s" % (dataset_ids, data_product_id))
 
         for dataset_id in dataset_ids:
+            log.debug("Activating data product persistence for dataset_id: %s"  % str(dataset_id))
             dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
                                                     ingestion_configuration_id=ingestion_configuration_id,
                                                     dataset_id=dataset_id)
-            log.debug("Activating data product persistence for dataset_id: %s"  % str(dataset_id))
 
         #--------------------------------------------------------------------------------
         # todo: dataset_configuration_obj contains the ingest config for now...

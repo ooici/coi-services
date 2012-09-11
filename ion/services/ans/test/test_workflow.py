@@ -25,6 +25,7 @@ from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
 from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
 
 from pyon.util.context import LocalContextMixin
+import gevent
 
 
 class FakeProcess(LocalContextMixin):

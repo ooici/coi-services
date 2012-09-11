@@ -13,6 +13,7 @@ __license__ = 'Apache 2.0'
 
 # Pyon imports
 from pyon.public import IonObject, log, RT
+from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
@@ -958,8 +959,6 @@ class InstrumentAgent(ResourceAgent):
         @retval None
         """
         # The registrar to create publishers.
-        stream_registrar = StreamPublisherRegistrar(process=self,
-                                                    container=self.container)
         
         stream_info = self.CFG.get('stream_config', None)
         if not stream_info:
@@ -973,8 +972,7 @@ class InstrumentAgent(ResourceAgent):
                 try:
                     stream_id = stream_config['id']
                     self._data_streams[name] = stream_id
-                    publisher = stream_registrar.create_publisher(
-                       stream_id=stream_id)
+                    publisher = StreamPublisher(process=self, stream_id=stream_id)
                     self._data_publishers[name] = publisher
                     log.info("Instrument agent '%s' created publisher for stream_name "
                          "%s (stream_id=%s)" % (self._proc_name, name, stream_id))

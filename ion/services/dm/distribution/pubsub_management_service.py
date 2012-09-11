@@ -110,6 +110,7 @@ class PubsubManagementService(BasePubsubManagementService):
             raise BadRequest('Stream is already persisted.')
         stream.persisted = True
         self.clients.resource_registry.update(stream)
+        log.info('Stream %s marked as persisted.', stream_id)
         return True
 
     def unpersist_stream(self, stream_id=''):

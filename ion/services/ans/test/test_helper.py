@@ -148,7 +148,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         salinity_subscription_id = self.pubsubclient.create_subscription(
                 name = 'test workflow transformations',
                 exchange_name = exchange_name,
-                exchange_point = 'science_data',
                 stream_ids = data_product_stream_ids
                 )
 
