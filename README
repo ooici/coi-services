@@ -87,6 +87,10 @@ Use Buildout to install the python package dependencies (including pyon itself) 
     > python bootstrap.py
     > bin/buildout
 
+** If matplot lib fails to build due to not finding the free type headers, try:
+    if /usr/X11/lib/pkgconfig has a file named freetype2.pc, then add the following line to your .bash_profile
+    export PKG_CONFIG_PATH=/usr/X11/lib/pkgconfig
+
 ** Mac should have libpng and libfreetype headers, which are required
     for matplotlib python build.  If for some reason your buildout fails on
     matplotlib due to missing libpng libraries, try install from here:
