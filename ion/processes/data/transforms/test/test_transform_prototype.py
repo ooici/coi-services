@@ -7,7 +7,7 @@
 
 from pyon.ion.transforma import TransformEventListener, TransformEventPublisher, TransformAlgorithm
 from pyon.public import log
-from pyon.ion.stream import SimpleStreamPublisher
+from pyon.ion.stream import StandaloneStreamPublisher
 from pyon.util.containers import DotDict
 from pyon.util.file_sys import FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
@@ -174,7 +174,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         xp = self.container.ex_manager.create_xp(exchange_point)
         xn.bind('stream_id.data', xp)
 
-        pub = SimpleStreamPublisher.new_publisher(self.container, exchange_point,'stream_id')
+        pub = StandaloneStreamPublisher('stream_id.data', exchange_point)
 
         message = "A dummy example message containing the word PUBLISH, and with VALUE = 5 . This message" + \
                     " will trigger an alert event from the StreamAlertTransform"

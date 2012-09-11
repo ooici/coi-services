@@ -1,6 +1,6 @@
 from pyon.public import Container, log, IonObject
 from interface.objects import CouchStorage, ProcessDefinition
-
+from pyon.ion.stream import StandaloneStreamSubscriber
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.example_double_salinity import SalinityDoubler
@@ -138,38 +138,31 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
     def start_output_stream_and_listen(self, ctd_stream_id, data_product_stream_ids, message_count_per_stream=10):
 
-        cc = self.container
         assertions = self.assertTrue
+        exchange_name = 'workflow_test'
 
         ###
         ### Make a subscriber in the test to listen for transformed data
         ###
+
         salinity_subscription_id = self.pubsubclient.create_subscription(
-            query=StreamQuery(data_product_stream_ids),
-            exchange_name = 'workflow_test',
-            exchange_point = 'science_data',
-            name = "test workflow transformations",
-        )
-
-        pid = cc.spawn_process(name='dummy_process_for_test',
-            module='pyon.ion.process',
-            cls='SimpleProcess',
-            config={})
-        dummy_process = cc.proc_manager.procs[pid]
-
-        subscriber_registrar = StreamSubscriberRegistrar(process=dummy_process, container=cc)
+                name = 'test workflow transformations',
+                exchange_name = exchange_name,
+                exchange_point = 'science_data',
+                stream_ids = data_product_stream_ids
+                )
 
         result = gevent.event.AsyncResult()
         results = []
         message_count = len(data_product_stream_ids) * message_count_per_stream
 
-        def message_received(message, headers):
+        def message_received(message, stream_route, stream_id):
             # Heads
             results.append(message)
             if len(results) >= message_count:   #Only wait for so many messages - per stream
                 result.set(True)
 
-        subscriber = subscriber_registrar.create_subscriber(exchange_name='workflow_test', callback=message_received)
+        subscriber = StandaloneStreamSubscriber(exchange_name='workflow_test', callback=message_received)
         subscriber.start()
 
         # after the queue has been created it is safe to activate the subscription
@@ -195,7 +188,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
     def validate_messages(self, results):
 
-        cc = self.container
         assertions = self.assertTrue
 
         first_salinity_values = None

@@ -130,12 +130,14 @@ class PubsubManagementService(BasePubsubManagementService):
         if self.clients.resource_registry.find_resources(restype=RT.Stream,name=name, id_only=True)[0]:
             raise Conflict('The named subscription already exists.')
 
+
         stream_ids      = stream_ids or []
         exchange_points = exchange_points or []
         topic_ids       = topic_ids or []
 
         exchange_name = exchange_name or name
         validate_true(exchange_name, 'Clients must provide an exchange name')
+        log.info('Creating Subscription %s for %s <- %s', name, exchange_name, stream_ids or exchange_points or topic_ids)
 
         if not name: name = create_unique_identifier()
 

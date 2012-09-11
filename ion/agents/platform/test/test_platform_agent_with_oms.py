@@ -25,9 +25,8 @@ from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.platform_agent import set_container_client
 
-from interface.objects import StreamQuery
+from pyon.ion.stream import StandaloneStreamSubscriber
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from pyon.public import StreamSubscriberRegistrar
 from ion.agents.platform.test.adhoc import adhoc_stream_definition
 from ion.agents.platform.test.adhoc import adhoc_get_taxonomy
 from ion.agents.platform.test.adhoc import adhoc_get_stream_names
@@ -125,15 +124,12 @@ class TestPlatformAgent(IonIntegrationTestCase):
         pubsub_client = PubsubManagementServiceClient(node=self.container.node)
 
         # A callback for processing subscribed-to data.
-        def consume_data(message, headers):
-            log.info('Subscriber received data message: %s.', str(message))
+        def consume_data(message, stream_route, stream_id):
+            log.info('Received messages on %s (%s, %s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
             self._samples_received.append(message)
             if self._no_samples and self._no_samples == len(self._samples_received):
                 self._async_data_result.set()
 
-        # Create a stream subscriber registrar to create subscribers.
-        subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
-                                                container=self.container)
 
         # Create streams and subscriptions for each stream named in driver.
         self._stream_config = {}
@@ -150,32 +146,27 @@ class TestPlatformAgent(IonIntegrationTestCase):
 
             # Create subscriptions for each stream.
             exchange_name = '%s_queue' % stream_name
-            sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name,
-                                                         callback=consume_data)
-            self._listen(sub)
+            sub = StandaloneStreamSubscriber(exchange_name, consume_data)
+            sub.start()
             self._data_subscribers.append(sub)
-            query = StreamQuery(stream_ids=[stream_id])
-            sub_id = pubsub_client.create_subscription(
-                                query=query, exchange_name=exchange_name, exchange_point='science_data')
+            sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
             pubsub_client.activate_subscription(sub_id)
+            sub.subscription_id = sub_id
 
-    def _listen(self, sub):
-        """
-        Pass in a subscriber here, this will make it listen in a background greenlet.
-        """
-        gl = spawn(sub.listen)
-        self._data_greenlets.append(gl)
-        sub._ready_event.wait(timeout=5)
-        return gl
 
     def _stop_data_subscribers(self):
         """
         Stop the data subscribers on cleanup.
         """
         for sub in self._data_subscribers:
+            if hasattr(sub, 'subscription_id'):
+                pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+                try:
+                    pubsub_client.deactivate_subscription(sub.subscription_id)
+                except:
+                    pass
+                pubsub_client.delete_subscription(sub.subscription_id)
             sub.stop()
-        for gl in self._data_greenlets:
-            gl.kill()
 
     def _get_state(self):
         state = self._pa_client.get_agent_state()

@@ -49,16 +49,10 @@ class DensityTransform(TransformDataProcess):
         elif self.CFG.process.publish_streams.has_key('output'):
             self.dens_stream = self.CFG.process.publish_streams.output
 
-    def recv_packet(self, msg, headers):
-        log.warn('ctd_L2_desnity.recv_packet: {0}'.format(msg))
-        stream_id = headers['routing_key']
-        stream_id = re.sub(r'\.data', '', stream_id)
-        self.receive_msg(msg, stream_id)
-
     def publish(self, msg, stream_id):
         self.publisher.publish(msg=msg, stream_id=stream_id)
 
-    def receive_msg(self, granule, stream_id):
+    def recv_packet(self, granule, stream_route, stream_id):
         """Processes incoming data!!!!
         """
         rdt = RecordDictionaryTool.load_from_granule(granule)

@@ -7,9 +7,7 @@
 '''
 from pyon.ion.transforma import TransformEventListener, TransformStreamListener, TransformAlgorithm
 from pyon.util.log import log
-from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
-from pyon.ion.stream import SimpleStreamSubscriber
 
 class EventAlertTransform(TransformEventListener):
 
@@ -65,16 +63,13 @@ class EventAlertTransform(TransformEventListener):
 class StreamAlertTransform(TransformStreamListener):
 
     def on_start(self):
-        self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
         self.value = self.CFG.get_safe('process.value', 0)
 
-        self.subscriber = SimpleStreamSubscriber.new_subscriber(self.container, self.queue_name, self.recv_packet)
-        self.subscriber.start()
 
         # Create the publisher that will publish the Alert message
         self.event_publisher = EventPublisher()
 
-    def recv_packet(self, msg, headers):
+    def recv_packet(self, msg, stream_route, stream_id):
         '''
         The callback method.
         If the events satisfy the criteria, publish an alert event.

@@ -43,6 +43,7 @@ class IngestionManagementUnitTest(PyonTestCase):
         self.rr_del_assoc =  mock_clients.resource_registry.delete_association
         self.pubsub_create_sub = mock_clients.pubsub_management.create_subscription
         self.pubsub_read = mock_clients.pubsub_management.read_stream 
+        self.pubsub_is_persisted = mock_clients.pubsub_management.is_persisted
         self.pubsub_del_sub = mock_clients.pubsub_management.delete_subscription
         self.pubsub_act_sub = mock_clients.pubsub_management.activate_subscription
         self.pubsub_deact_sub = mock_clients.pubsub_management.deactivate_subscription
@@ -138,9 +139,7 @@ class IngestionManagementUnitTest(PyonTestCase):
         self.assertTrue(self.rr_find_res.call_count)
 
     def test_is_persisted(self):
-        stream = DotDict()
-        stream.persisted=True
-        self.pubsub_read.return_value = stream
+        self.pubsub_is_persisted.return_value = True
 
         retval = self.ingestion_management.is_persisted('stream_id')
 

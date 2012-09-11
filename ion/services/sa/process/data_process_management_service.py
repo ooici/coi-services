@@ -257,13 +257,16 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             in_stream_ids.append(stream_ids[0])
         log.critical('in_stream_ids: %s', in_stream_ids)
         # create a subscription to the input stream
-        log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
-        input_subscription_id = self.clients.pubsub_management.create_subscription(name=data_process_name, stream_ids=in_stream_ids)
-        log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(input_subscription_id))
+        if in_stream_ids:
+            log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
+            input_subscription_id = self.clients.pubsub_management.create_subscription(name=data_process_name, stream_ids=in_stream_ids)
+            log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(input_subscription_id))
 
-        log.info("Adding the subscription id to the resource for clean up later.")
-        # add the subscription id to the resource for clean up later
-        self.data_process.input_subscription_id = input_subscription_id
+            log.info("Adding the subscription id to the resource for clean up later.")
+            # add the subscription id to the resource for clean up later
+            self.data_process.input_subscription_id = input_subscription_id
+        else:
+            log.info('No input streams')
 
         procdef_ids,_ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
         if not procdef_ids:
@@ -337,19 +340,21 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_obj = self.clients.resource_registry.read(data_process_id)
         subscription_id = data_process_obj.input_subscription_id
         was_active = False 
-        # get rid of all the current streams
-        try:
-            self.clients.pubsub_management.deactivate_subscription(subscription_id)
-            was_active = True
+        if subscription_id:
+            # get rid of all the current streams
+            try:
+                self.clients.pubsub_management.deactivate_subscription(subscription_id)
+                was_active = True
 
-        except BadRequest:
-            pass # The subscription wasn't active
+            except BadRequest:
+                log.info('Subscription was not active')
 
-        self.clients.pubsub_management.delete_subscription(subscription_id)
+            self.clients.pubsub_management.delete_subscription(subscription_id)
 
         subscription_id = self.clients.pubsub_management.create_subscription(data_process_obj.name, stream_ids=in_stream_ids)
         if was_active:
             self.clients.pubsub_management.activate_subscription(subscription_id)
+
             
 
     def update_data_process(self,):

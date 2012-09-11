@@ -864,6 +864,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         # get site obj
+        log.info('Getting site object: %s', site_id)
         site_obj = self.RR.read(site_id)
 
         # error if no hasDevice
@@ -926,7 +927,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("Data product(s) of site does not have any matching streamdef for data product of device")
 
         data_process_id = process_ids[0]
-        log.info("Changing subscription")
+        log.info("Changing subscription: %s", data_process_id)
+        log.info('ds of ss: %s', ds[ss])
         self.PRMS.update_data_process_inputs(data_process_id, [ds[ss]])
 
 

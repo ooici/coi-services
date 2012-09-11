@@ -22,7 +22,6 @@ from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from pyon.public import log
 from nose.plugins.attrib import attr
 
-from pyon.public import StreamSubscriberRegistrar
 
 from interface.objects import HdfStorage, CouchStorage
 from interface.objects import ProcessDefinition

@@ -16,7 +16,6 @@ from pyon.public import IonObject, log, RT
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
-from pyon.ion.stream import StreamPublisherRegistrar
 from pyon.util.containers import get_ion_ts
 
 # Pyon exceptions.

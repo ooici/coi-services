@@ -116,9 +116,8 @@ class VisualizationService(BaseVisualizationService):
         xq = self.container.ex_manager.create_xn_queue(query_token)
 
         subscription_id = self.clients.pubsub_management.create_subscription(
-            query=StreamQuery(data_product_stream_id),
+            stream_ids=data_product_stream_id,
             exchange_name = query_token,
-            exchange_point = 'science_data',
             name = query_token
         )
 

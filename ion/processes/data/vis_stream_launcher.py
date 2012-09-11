@@ -21,7 +21,7 @@ import gevent
 
 from pyon.service.service import BaseService
 from pyon.ion.process import ImmediateProcess
-from pyon.public import PRED,RT,Container, log, IonObject, StreamPublisherRegistrar
+from pyon.public import PRED,RT,Container, log, IonObject 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from prototype.sci_data.stream_defs import ctd_stream_packet, ctd_stream_definition

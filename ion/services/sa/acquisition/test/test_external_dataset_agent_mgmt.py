@@ -15,7 +15,6 @@ from nose.plugins.attrib import attr
 
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
-from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.stream_defs import ctd_stream_definition
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 from pyon.agent.agent import ResourceAgentClient

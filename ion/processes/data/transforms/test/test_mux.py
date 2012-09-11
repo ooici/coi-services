@@ -8,7 +8,7 @@
 
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.ion.stream import SimpleStreamSubscriber, SimpleStreamPublisher
+from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from ion.processes.data.transforms.mux import DemuxTransform
 from mock import Mock
 from nose.plugins.attrib import attr
@@ -16,6 +16,7 @@ from pyon.ion.exchange import ExchangeNameQueue
 from pyon.util.containers import DotDict
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 import gevent
+
 @attr('UNIT',group='dm')
 class DemuxTransformUnitTest(PyonTestCase):
     def setUp(self):
@@ -60,19 +61,24 @@ class DemuxTransformIntTest(IonIntegrationTestCase):
     
 
     def test_demux(self):
-        self.stream0, self.stream1, self.stream2 = [self.pubsub_client.create_stream() for i in xrange(3)]
+        self.stream0, self.route0 = self.pubsub_client.create_stream('stream0', exchange_point='test')
+        self.stream1, self.route1 = self.pubsub_client.create_stream('stream1', exchange_point='main_data')
+        self.stream2, self.route2 = self.pubsub_client.create_stream('stream2', exchange_point='alt_data')
+        
         self.r_stream1 = gevent.event.Event()
         self.r_stream2 = gevent.event.Event()
 
-        def process(msg, header):
-            if header['routing_key'].split('.data')[0] == self.stream1:
+        def process(msg, stream_route, stream_id):
+            if stream_id == self.stream1:
                 self.r_stream1.set()
-            elif header['routing_key'].split('.data')[0] == self.stream2:
+            elif stream_id == self.stream2:
                 self.r_stream2.set()
-        self.container.spawn_process('demuxer', 'ion.processes.data.transforms.mux', 'DemuxTransform', {'process':{'output_exchange_points':['main_data', 'alt_data'], 'output_streams':[self.stream1, self.stream2]}}, 'demuxer_pid')
+        
+        self.container.spawn_process('demuxer', 'ion.processes.data.transforms.mux', 'DemuxTransform', {'process':{'output_streams':[self.stream1, self.stream2]}}, 'demuxer_pid')
         self.queue_cleanup.append('demuxer_pid') 
-        sub1 = SimpleStreamSubscriber.new_subscriber(self.container, 'sub1', process)
-        sub2 = SimpleStreamSubscriber.new_subscriber(self.container, 'sub2', process)
+        
+        sub1 = StandaloneStreamSubscriber('sub1', process)
+        sub2 = StandaloneStreamSubscriber('sub2', process)
         sub1.xn.bind('%s.data' % self.stream1, self.container.ex_manager.create_xp('main_data'))
         sub2.xn.bind('%s.data' % self.stream2, self.container.ex_manager.create_xp('alt_data'))
         sub1.start()
@@ -82,7 +88,7 @@ class DemuxTransformIntTest(IonIntegrationTestCase):
         self.queue_cleanup.append(sub2.xn)
         xn = self.container.ex_manager.create_xn_queue('demuxer_pid')
         xn.bind('%s.data' % self.stream0, self.container.ex_manager.create_xp('input_data'))
-        domino = SimpleStreamPublisher.new_publisher(self.container,'input_data',self.stream0)
+        domino = StandaloneStreamPublisher(self.stream0, self.route0)
         domino.publish('test')
 
         self.assertTrue(self.r_stream1.wait(2))

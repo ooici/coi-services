@@ -49,16 +49,10 @@ class ctd_L1_pressure(TransformDataProcess):
         self.pres_stream = self.CFG.process.publish_streams.pressure
         super(ctd_L1_pressure, self).__init__()
 
-    def recv_packet(self, msg, headers):
-        log.warn('ctd_L1_pressure.recv_packet: {0}'.format(msg))
-        stream_id = headers['routing_key']
-        stream_id = re.sub(r'\.data', '', stream_id)
-        self.receive_msg(msg, stream_id)
-
     def publish(self, msg, stream_id):
         self.publisher.publish(msg=msg, stream_id=stream_id)
 
-    def receive_msg(self, msg, stream_id):
+    def recv_packet(self, msg, stream_route, stream_id):
         if msg == {}:
             return
 

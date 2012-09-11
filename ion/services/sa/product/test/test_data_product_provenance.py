@@ -530,9 +530,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         self.assertEquals(density_dict['producer'], [l2_density_all_data_process_id])
 
 
-<<<<<<< HEAD
-        results = self.dpmsclient.get_data_product_provenance_report(ctd_l2_density_output_dp_id)
-=======
         #-------------------------------
         # Launch InstrumentAgentInstance, connect to the resource agent client
         #-------------------------------
@@ -555,4 +552,3 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
 
         results = self.dpmsclient.get_data_product_provenance_report(ctd_l2_density_output_dp_id)
->>>>>>> 13effff10bedaea0f8bc9b59d50d949356237462

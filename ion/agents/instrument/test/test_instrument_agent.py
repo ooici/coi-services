@@ -18,37 +18,25 @@ from pyon.public import CFG
 
 # Standard imports.
 import time
-import os
-import signal
-import time
-import unittest
-from datetime import datetime
-import uuid
 import socket
 import re
 
 # 3rd party imports.
 import gevent
-from gevent import spawn
 from gevent.event import AsyncResult
 from nose.plugins.attrib import attr
 from mock import patch
 
 # Pyon pubsub and event support.
-from pyon.public import StreamSubscriberRegistrar
-from pyon.event.event import EventSubscriber, EventPublisher
+from pyon.event.event import EventSubscriber
+from pyon.ion.stream import StandaloneStreamSubscriber
 
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
 
 # Pyon exceptions.
-from pyon.core.exception import IonException
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
-from pyon.core.exception import Timeout
-from pyon.core.exception import NotFound
-from pyon.core.exception import ServerError
-from pyon.core.exception import ResourceError
 
 # Agent imports.
 from pyon.util.context import LocalContextMixin
@@ -59,24 +47,16 @@ from pyon.agent.agent import ResourceAgentEvent
 # Driver imports.
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
-from ion.agents.port.logger_process import EthernetDeviceLogger
-from ion.agents.instrument.driver_process import DriverProcessType
 from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverConnectionState
 from ion.agents.instrument.taxy_factory import get_taxonomy
 
 # Objects and clients.
 from interface.objects import AgentCommand
-from interface.objects import StreamQuery
 from interface.objects import CapabilityType
 from interface.objects import AgentCapability
-from interface.services.dm.itransform_management_service import TransformManagementServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-
-# Stream defs.
-from prototype.sci_data.stream_defs import ctd_stream_definition
 
 # MI imports.
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
@@ -278,6 +258,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._ia_client = None
         self._ia_client = start_instrument_test_agent(self.container, self._stream_config)
 
+    def tearDown(self):
+        self._clean_data_subscribers()
+
         
     ###############################################################################
     # Port agent helpers.
@@ -365,10 +348,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Create a pubsub client to create streams.
         pubsub_client = PubsubManagementServiceClient(node=self.container.node)
                 
-        # Create a stream subscriber registrar to create subscribers.
-        subscriber_registrar = StreamSubscriberRegistrar(process=self.container,
-                                                container=self.container)
-
         # Create streams and subscriptions for each stream named in driver.
         self._data_subscribers = []
         self._data_greenlets = []
@@ -376,9 +355,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._async_sample_result = AsyncResult()
 
         # A callback for processing subscribed-to data.
-        def consume_data(message, headers):
-            log.info('Subscriber received data message: %s   %s.',
-                     str(message), str(headers))
+        def recv_data(message, stream_route, stream_id):
+            log.info('Received message on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
             self._samples_received.append(message)
             if len(self._samples_received) == count:
                 self._async_sample_result.set()
@@ -389,32 +367,26 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             
             # Create subscriptions for each stream.
             exchange_name = '%s_queue' % stream_name
-            sub = subscriber_registrar.create_subscriber(
-                exchange_name=exchange_name, callback=consume_data)
-            self._listen_data(sub)
+            sub = StandaloneStreamSubscriber(exchange_name, recv_data)
+            sub.start()
             self._data_subscribers.append(sub)
-            query = StreamQuery(stream_ids=[stream_id])
-            sub_id = pubsub_client.create_subscription(query=query,
-                    exchange_name=exchange_name, exchange_point='science_data')
+            sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
             pubsub_client.activate_subscription(sub_id)
+            sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
  
-    def _listen_data(self, sub):
-        """
-        Pass in a subscriber here, this will make it listen in a background greenlet.
-        """
-        gl = spawn(sub.listen)
-        self._data_greenlets.append(gl)
-        sub._ready_event.wait(timeout=5)
-        return gl
+    def _clean_data_subscribers(self):
+        for subscriber in self._data_subscribers:
+            pubsub_client = PubsubManagementServiceClient()
+            if hasattr(subscriber,'subscription_id'):
+                try:
+                    pubsub_client.deactivate_subscription(subscriber.subscription_id)
+                except:
+                    pass
+                pubsub_client.delete_subscription(subscriber.subscription_id)
+            subscriber.stop()
 
-    def _stop_data_subscribers(self):
-        """
-        Stop the data subscribers on cleanup.
-        """
-        for sub in self._data_subscribers:
-            sub.stop()
-        for gl in self._data_greenlets:
-            gl.kill()
+
+
 
     ###############################################################################
     # Socket listen.
@@ -843,7 +815,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Start data subscribers.
         self._start_data_subscribers(6)
-        self.addCleanup(self._stop_data_subscribers)    
         
         # Set up a subscriber to collect command events.
         self._start_event_subscriber('ResourceAgentCommandEvent', 7)

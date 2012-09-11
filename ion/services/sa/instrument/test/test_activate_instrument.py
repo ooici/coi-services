@@ -32,7 +32,6 @@ from gevent.event import AsyncResult
 from pyon.public import CFG
 from pyon.public import RT, LCS, PRED
 from pyon.public import Container, log, IonObject
-from pyon.public import StreamSubscriberRegistrar
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
@@ -507,28 +506,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         pid = self.create_logger('ctd_parsed', stream_ids[0] )
         self.loggerpids.append(pid)
-
-#        simdata_subscription_id = self.pubsubcli.create_subscription(
-#            query=StreamQuery([stream_ids[0]]),
-#            exchange_name='Sim_data_queue',
-#            name='SimDataSubscription',
-#            description='SimData SubscriptionDescription'
-#        )
-#
-#
-#        def simdata_message_received(message, headers):
-#            input = str(message)
-#            log.debug("test_activateInstrumentStream: granule received: %s", input)
-#
-#
-#        subscriber_registrar = StreamSubscriberRegistrar(process=self.container, container=self.container)
-#        simdata_subscriber = subscriber_registrar.create_subscriber(exchange_name='Sim_data_queue', callback=simdata_message_received)
-#
-#        # Start subscribers
-#        simdata_subscriber.start()
-#
-#        # Activate subscriptions
-#        self.pubsubcli.activate_subscription(simdata_subscription_id)
 
 
         log.debug( 'Creating new RAW data product with a stream definition')

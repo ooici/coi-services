@@ -133,7 +133,7 @@ class TestDeployment(IonIntegrationTestCase):
         parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
-            name='DP1',
+            name='Log Data Product',
             description='some new dp',
             temporal_domain = tdom,
             spatial_domain = sdom)
@@ -150,7 +150,7 @@ class TestDeployment(IonIntegrationTestCase):
 
 
         dp_obj = IonObject(RT.DataProduct,
-            name='DP1',
+            name='Instrument Data Product',
             description='some new dp',
             temporal_domain = tdom,
             spatial_domain = sdom)

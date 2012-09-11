@@ -19,7 +19,6 @@ from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RA
 from pyon.public import log, LCS, LCE
 from nose.plugins.attrib import attr
 
-from pyon.public import StreamSubscriberRegistrar
 
 from interface.objects import HdfStorage, CouchStorage
 

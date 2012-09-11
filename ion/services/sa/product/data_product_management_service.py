@@ -10,7 +10,7 @@ from interface.objects import DataProduct, DataProductVersion
 
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, PRED, LCS
-from pyon.util.arg_check import validate_is_instance, validate_true, validate_is_not_none
+from pyon.util.arg_check import validate_is_instance, validate_true, validate_is_not_none, validate_false
 
 from coverage_model.basic_types import AbstractIdentifiable, AbstractBase, AxisTypeEnum, MutabilityEnum
 from coverage_model.coverage import CRS, GridDomain, GridShape
@@ -37,6 +37,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param      source_resource_id IonObject id which defines the source for the data
         @retval     data_product_id
         """
+
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.DataProduct, name=data_product.name, id_only=True)
+        validate_false(len(res), 'A data product with the name %s already exists.' % data_product.name)
+        log.info('Creating DataProduct: %s', data_product.name)
+        log.debug('%s', data_product.__dict__)
+
 
         # Create will validate and register a new data product within the system
         validate_is_not_none(parameter_dictionary, 'A parameter dictionary must be passed to register a data product')
@@ -123,7 +129,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # remove stream associations
         #--------------------------------------------------------------------------------
-        streams = self.remove_streams(data_product_id)
+        self.remove_streams(data_product_id)
 
 
         #--------------------------------------------------------------------------------
@@ -132,9 +138,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
 
         for dataset_id in dataset_ids:
-            for stream in streams:
-                log.info('Removing stream from dataset: %s', stream)
-                self.dataset_management.remove_stream(stream)
             self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
 
         #        # delete the hasOutputDataProduct associations link

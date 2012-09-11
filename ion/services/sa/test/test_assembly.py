@@ -448,7 +448,7 @@ class TestAssembly(IonIntegrationTestCase):
         parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
-            name='DP1',
+            name='Instrument Data Product',
             description='some new dp',
             temporal_domain = tdom,
             spatial_domain = sdom)
@@ -461,6 +461,9 @@ class TestAssembly(IonIntegrationTestCase):
         log.debug("parameter dictionary: %s" % parameter_dictionary)
 
         inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+
+        dp_obj.name = 'Log Data Product'
+
         log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
         #assign data products appropriately
@@ -494,6 +497,7 @@ class TestAssembly(IonIntegrationTestCase):
                                     c.IMS.find_instrument_device_by_platform_device,
                                     platform_device_id,
                                     instrument_device_id2)
+        dp_obj.name = 'Instrument Data Product 2'
         inst_data_product_id2 = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id2,
                                    data_product_id=inst_data_product_id2)

@@ -37,11 +37,9 @@ import os
 
 # ION imports.
 from pyon.public import IonObject, log
-from interface.objects import StreamQuery, Attachment, AttachmentType, Granule
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.stream_defs import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand, ExternalDatasetAgent, ExternalDatasetAgentInstance

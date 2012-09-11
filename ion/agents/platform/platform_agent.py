@@ -29,7 +29,6 @@ from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver import AttributeValueDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
-from pyon.ion.stream import StreamPublisherRegistrar
 from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 from ion.agents.platform.test.adhoc import adhoc_get_packet_factories
 
