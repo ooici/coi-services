@@ -84,8 +84,8 @@ class DataProductImpl(ResourceSimpleImpl):
                 # get the producer that this DataProducer represents
                 nxt_producer_ids, _ = self.clients.resource_registry.find_subjects( predicate=PRED.hasDataProducer, object=parent_id, id_only=True)
                 producer_list = []
-                inputs_list = []
-                
+                inputs = {}
+
                 for nxt_producer_id in nxt_producer_ids:
                     nxt_producer_obj = self.clients.resource_registry.read(nxt_producer_id)
                     log.debug("DataProductManagementService:_find_producers nxt_producer %s" % nxt_producer_obj.name)
@@ -94,13 +94,13 @@ class DataProductImpl(ResourceSimpleImpl):
                     inputs_to_nxt_producer = self._find_producer_in_products(nxt_producer_id)
                     log.debug("DataProductManagementService:_find_producers inputs_to_nxt_producer %s", str(inputs_to_nxt_producer))
                     producer_list.append(nxt_producer_id)
-                    inputs_list.extend(inputs_to_nxt_producer)
+                    inputs[nxt_producer_id] = inputs_to_nxt_producer
                     #provenance_results[data_product_id] = { 'producerctx':self._extract_producer_context(nxt_producer_id) , 'producer': nxt_producer_id, 'inputs': inputs_to_nxt_producer }
                     log.debug("DataProductManagementService:_find_producers self.provenance_results %s", str(provenance_results))
                     for input in inputs_to_nxt_producer:
                         self._find_producers(input, provenance_results)
 
-                    provenance_results[data_product_id] = { 'producer': producer_list, 'inputs': inputs_list }
+                    provenance_results[data_product_id] = { 'producer': producer_list, 'inputs': inputs }
 
         log.debug("DataProductManagementService:_find_producers: %s" % str(source_ids))
         return
@@ -158,13 +158,20 @@ class DataProductImpl(ResourceSimpleImpl):
         in_data_products = []
         next_input_set = []
         self._write_product_info(data_product_id, provenance_results)
-        in_data_products = provenance_results[data_product_id]['inputs']
+
+        #get the set of inputs to the producer which created this data product
+        for key, value in provenance_results[data_product_id]['inputs'].items():
+            in_data_products.extend(value)
         log.debug("DataProductManagementService:_write_product_provenance_report in_data_products: %s" % str(in_data_products))
+
         while in_data_products:
             for in_data_product in in_data_products:
+                # write the provenance for each of those products
                 self._write_product_info(in_data_product, provenance_results)
                 log.debug("DataProductManagementService:_write_product_provenance_report next_input_set: %s" % str(provenance_results[in_data_product]['inputs']))
-                next_input_set.extend(provenance_results[in_data_product]['inputs'])
+                # provenance_results[in_data_product]['inputs'] contains a dict that is produce_id:[input_product_list]
+                for key, value in provenance_results[in_data_product]['inputs'].items():
+                    next_input_set.extend(value)
             #switch to the input for these producers
             in_data_products =  next_input_set
             next_input_set = []
@@ -194,27 +201,28 @@ class DataProductImpl(ResourceSimpleImpl):
         # Contacts List
         log.debug("DataProductManagementService:provenance_report  Contacts List" )
         contactlist = etree.SubElement(data_product_tag, "ContactList")
-        for contact in product_obj.contacts:
-            log.debug("DataProductManagementService:provenance_report  Contacts List contact %s", str(contact) )
-            contacttag = etree.SubElement(contactlist, "Contact")
-            first_name = etree.SubElement(contacttag, "first_name")
-            first_name.text = contact.first_name
-            name = etree.SubElement(contacttag, "name")
-            name.text = contact.name
-            address = etree.SubElement(contacttag, "address")
-            address.text = contact.address
-            city = etree.SubElement(contacttag, "city")
-            city.text = contact.city
-            postalcode = etree.SubElement(contacttag, "postalcode")
-            postalcode.text = contact.postalcode
-            state = etree.SubElement(contacttag, "state")
-            state.text = contact.state
-            country = etree.SubElement(contacttag, "country")
-            country.text = contact.country
-            phone = etree.SubElement(contacttag, "phone")
-            phone.text = contact.phone
-            email = etree.SubElement(contacttag, "email")
-            email.text = contact.email
+        if product_obj.contacts:
+            for contact in product_obj.contacts:
+                log.debug("DataProductManagementService:provenance_report  Contacts List contact %s", str(contact) )
+                contacttag = etree.SubElement(contactlist, "Contact")
+                first_name = etree.SubElement(contacttag, "first_name")
+                first_name.text = contact.first_name
+                name = etree.SubElement(contacttag, "name")
+                name.text = contact.name
+                address = etree.SubElement(contacttag, "address")
+                address.text = contact.address
+                city = etree.SubElement(contacttag, "city")
+                city.text = contact.city
+                postalcode = etree.SubElement(contacttag, "postalcode")
+                postalcode.text = contact.postalcode
+                state = etree.SubElement(contacttag, "state")
+                state.text = contact.state
+                country = etree.SubElement(contacttag, "country")
+                country.text = contact.country
+                phone = etree.SubElement(contacttag, "phone")
+                phone.text = contact.phone
+                email = etree.SubElement(contacttag, "email")
+                email.text = contact.email
 
         # GeoSpatial bounds
         #todo: pull form coverage model
@@ -292,6 +300,16 @@ class DataProductImpl(ResourceSimpleImpl):
                 activation_time_tag.text = data_producer_obj.producer_context.activation_time
                 execution_configuration_tag = etree.SubElement(data_producer_tag, "execution_configuration")
                 execution_configuration_tag.text = str(data_producer_obj.producer_context.execution_configuration)
+
+            # add the input product names for these producers
+            in_product_list = provenance_results[data_product_id]['inputs'][producer_id]
+            if in_product_list:
+                input_products_tag = etree.SubElement(data_producer_tag, "input_products")
+                for in_product in in_product_list:
+                    input_product_tag = etree.SubElement(input_products_tag, "input_product")
+                    product_name_tag = etree.SubElement(input_product_tag, "name")
+                    product_obj = self.clients.resource_registry.read(in_product)
+                    product_name_tag.text = product_obj.name
 
 
             # check for attached deployment
