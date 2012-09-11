@@ -1941,6 +1941,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return retval
 
+    # The actual initiation of the deployment, calculated from when the deployment was activated
+    def get_uptime(self, device_id):
+        #used by both instrument device, platform device
+        return "0 days, 0 hours, 0 minutes"
 
+    #-------------------------------
+    # Deployment Computed Attrs
+    #-------------------------------
+    # The actual initiation of the deployment, calculated from when the deployment was activated
+    def get_start_datetime_actual(self, deployment_id):
+        return "TBD"
 
+    # The actual end of the deployment, calculated from when the deployment was activated
+    def get_end_datetime_actual(self, deployment_id):
+        return "TBD"
 
