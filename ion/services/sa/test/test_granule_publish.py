@@ -17,7 +17,6 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
-from ion.services.dm.utility.granule_utils import CoverageCraft
 from pyon.public import log
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_types import QuantityType
@@ -25,7 +24,10 @@ from coverage_model.basic_types import AxisTypeEnum
 
 from interface.objects import StreamRoute
 from pyon.ion.stream import SimpleStreamRoutePublisher
-
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 from interface.objects import ProcessDefinition
 
@@ -93,8 +95,14 @@ class TestGranulePublish(IonIntegrationTestCase):
         #retrieve the param dict from the repository
         parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
 

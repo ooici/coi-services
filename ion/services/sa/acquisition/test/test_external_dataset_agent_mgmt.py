@@ -35,13 +35,16 @@ from pyon.public import RT, LCS, PRED
 from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
-from coverage_model.parameter import ParameterDictionary
 import unittest
 import time
-from ion.services.dm.utility.granule_utils import CoverageCraft
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
+from ion.util.parameter_yaml_IO import get_param_dict
 
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 # Agent parameters.
 EDA_RESOURCE_ID = '123xyz'
@@ -126,11 +129,19 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         log.debug("TestExternalDatasetAgentMgmt: Creating new data product with a stream definition")
         dp_obj = IonObject(RT.DataProduct,name='eoi dataset data',description=' stream test')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
+
         parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
@@ -316,5 +327,3 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         #-------------------------------
         self.damsclient.stop_external_dataset_agent_instance(extDatasetAgentInstance_id)
 
-
-  
