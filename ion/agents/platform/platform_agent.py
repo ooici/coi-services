@@ -415,6 +415,16 @@ class PlatformAgent(ResourceAgent):
         state = pa_client.get_agent_state()
         assert PlatformAgentState.UNINITIALIZED == state
 
+        # now, ping the sub-agent to check that all goes well
+        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
+        retval = pa_client.execute_agent(cmd)
+        log.info("%r: subplatform %r ping_agent's retval = %s" % (
+            self._platform_id, subplatform_id, str(retval)))
+        if "PONG" != retval.result:
+            msg = "unexpected ping response from sub-platform agent: %s " % retval.result
+            log.error(msg)
+            raise PlatformException(msg)
+
         # now, initialize the sub-platform agent so the agent network gets
         # built and initialized recursively:
         platform_config = {
