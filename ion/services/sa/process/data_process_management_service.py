@@ -17,7 +17,7 @@ from pyon.core.object import IonObjectSerializer, IonObjectBase
 from interface.objects import Transform
 from pyon.util.containers import DotDict
 from ion.services.sa.instrument.data_process_impl import DataProcessImpl
-from pyon.util.arg_check import validate_is_not_none
+from pyon.util.arg_check import validate_is_not_none, validate_true
 
 
 class DataProcessManagementService(BaseDataProcessManagementService):
@@ -44,7 +44,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         result, _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, data_process_definition.name, True)
 
-        assert not result, "A data process definition named '%s' already exists" % data_process_definition.name
+        validate_true( len(result) ==0, "A data process definition named '%s' already exists" % data_process_definition.name)
 
         #todo: determine validation checks for a data process def
         data_process_definition_id, version = self.clients.resource_registry.create(data_process_definition)
@@ -168,7 +168,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         configuration = configuration or DotDict()
 
-        validate_is_not_none( in_data_product_ids, "No input data products passed in")
         validate_is_not_none( out_data_products, "No output data products passed in")
 
         #---------------------------------------------------------------------------------------
