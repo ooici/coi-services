@@ -141,7 +141,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     @mask_couch_error
     def find_resources_ext(self, restype='', lcstate='', name='', keyword='', nested_type='', limit=0, skip=0, descending=False, id_only=False):
         # @TODO Remove if and else clause after pyon update
-        if 'find_resources_ext' in self.resource_registry:
+        if hasattr(self.resource_registry, 'find_resources_ext'):
             return self.resource_registry.find_resources_ext(restype=restype, lcstate=lcstate, name=name,
                 keyword=keyword, nested_type=nested_type, limit=limit, skip=skip, descending=descending,
                 id_only=id_only)
