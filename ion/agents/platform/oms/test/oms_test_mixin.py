@@ -80,35 +80,75 @@ class OmsTestMixin(object):
         self.assertEquals(InvalidResponse.PLATFORM_ID, retval[platform_id])
 
     def test_ah_getPlatformAttributeValues(self):
-        platAttrMap = {'platA': ['bazA', 'fooA']}
+        platform_id = 'platA'
+        attrNames = ['bazA', 'fooA']
         from_time = time.time()
-        retval = self.oms.getPlatformAttributeValues(platAttrMap, from_time)
+        retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         print("getPlatformAttributeValues = %s" % retval)
         self.assertIsInstance(retval, dict)
-        self.assertTrue('platA' in retval)
+        self.assertTrue(platform_id in retval)
+        vals = retval[platform_id]
+        self.assertIsInstance(vals, dict)
+        for attrName in attrNames:
+            self.assertTrue(attrName in vals)
+            self.assertIsInstance(vals[attrName],(tuple, list))
+
+    def test_ah_getPlatformAttributeValues_invalid_platform_id(self):
+        platform_id = 'bogus_plat_id'
+        attrNames = ['bazA', 'fooA']
+        from_time = time.time()
+        retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
+        print("getPlatformAttributeValues = %s" % retval)
+        self.assertIsInstance(retval, dict)
+        self.assertTrue(platform_id in retval)
+        self.assertEquals(1, len(retval))
+        self.assertEquals(InvalidResponse.PLATFORM_ID, retval[platform_id])
+
+    def test_ah_getPlatformAttributeValues_invalid_attributes(self):
+        platform_id = 'platA'
+        attrNames = ['bogus_attr1', 'bogus_attr2']
+        from_time = time.time()
+        retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
+        print("getPlatformAttributeValues = %s" % retval)
+        self.assertIsInstance(retval, dict)
+        self.assertTrue(platform_id in retval)
+        self.assertEquals(1, len(retval))
+        vals = retval[platform_id]
+        self.assertIsInstance(vals, dict)
+        for attrName in attrNames:
+            self.assertTrue(attrName in vals)
+            self.assertEquals(InvalidResponse.ATTRIBUTE_NAME_VALUE, vals[attrName])
 
     def test_ak_getPlatformPorts(self):
-        retval = self.oms.getPlatformPorts('platA')
+        platform_id = 'platA'
+        retval = self.oms.getPlatformPorts(platform_id)
         print("getPlatformPorts = %s" % retval)
+        self.assertIsInstance(retval, dict)
+        port_ids = retval[platform_id]
 
-        self.assertIsInstance(retval, list)
+        self.assertIsInstance(port_ids, list)
 
     def test_al_getPortInfo(self):
-        port_ids = self.oms.getPlatformPorts('platA')
+        platform_id = 'platA'
+        retval = self.oms.getPlatformPorts(platform_id)
+        self.assertIsInstance(retval, dict)
+        port_ids = retval[platform_id]
         for port_id in port_ids:
-            port_info = self.oms.getPortInfo('platA', port_id)
-            print("getPortInfo(%s,%s) = %s" % ('platA', port_id, port_info))
+            retval = self.oms.getPortInfo(platform_id, port_id)
+            print("getPortInfo(%s,%s) = %s" % (platform_id, port_id, retval))
+            port_info = retval[platform_id]
             self.assertIsInstance(port_info, dict)
             self.assertTrue('ip' in port_info)
 
     def test_am_setUpPort(self):
+        platform_id = 'platA'
         # TODO proper attributes and values
         valid_attributes = {'maxCurrentDraw': 1, 'initCurrent': 2,
                       'dataThroughput': 3, 'instrumentType': 'FOO'}
         invalid_attributes = {'invalid' : 'dummy'}
         all_attributes = valid_attributes.copy()
         all_attributes.update(invalid_attributes)
-        retval = self.oms.setUpPort('platA', 'portA_1', all_attributes)
+        retval = self.oms.setUpPort(platform_id, 'portA_1', all_attributes)
         print("setUpPort = %s" % retval)
         self.assertIsInstance(retval, dict)
         for attr_name in valid_attributes:
@@ -117,15 +157,21 @@ class OmsTestMixin(object):
             self.assertFalse(attr_name in retval)
 
     def test_an_turnOnPort(self):
-        port_ids = self.oms.getPlatformPorts('platA')
+        platform_id = 'platA'
+        retval = self.oms.getPlatformPorts(platform_id)
+        self.assertIsInstance(retval, dict)
+        port_ids = retval[platform_id]
         for port_id in port_ids:
-            retval = self.oms.turnOnPort('platA', port_id)
-            print("turnOnPort(%s,%s) = %s" % ('platA', port_id, retval))
+            retval = self.oms.turnOnPort(platform_id, port_id)
+            print("turnOnPort(%s,%s) = %s" % (platform_id, port_id, retval))
             self.assertTrue(retval)
 
     def test_ao_turnOffPort(self):
-        port_ids = self.oms.getPlatformPorts('platA')
+        platform_id = 'platA'
+        retval = self.oms.getPlatformPorts(platform_id)
+        self.assertIsInstance(retval, dict)
+        port_ids = retval[platform_id]
         for port_id in port_ids:
-            retval = self.oms.turnOffPort('platA', port_id)
-            print("turnOffPort(%s,%s) = %s" % ('platA', port_id, retval))
+            retval = self.oms.turnOffPort(platform_id, port_id)
+            print("turnOffPort(%s,%s) = %s" % (platform_id, port_id, retval))
             self.assertFalse(retval)

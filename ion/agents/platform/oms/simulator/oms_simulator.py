@@ -138,49 +138,47 @@ class OmsSimulator(OmsClient):
         return "platform_types: %s\nnetwork:\n%s" % (
             self._platform_types, self._dummy_root.dump())
 
-    def getPlatformAttributeValues(self, platAttrMap, from_time):
-        retval = {}
+    def getPlatformAttributeValues(self, platform_id, attrNames, from_time):
+        if platform_id not in self._idp:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
         timestamp = time.time()
-        for platform_id, attributeNames in platAttrMap.iteritems():
-            if platform_id in self._idp:
-                attrs = self._idp[platform_id].attrs
-                vals = {}
-                for attrName in attributeNames:
-                    if attrName in attrs:
-                        attr = attrs[attrName]
-                        val = attr._value
+        attrs = self._idp[platform_id].attrs
+        vals = {}
+        for attrName in attrNames:
+            if attrName in attrs:
+                attr = attrs[attrName]
+                val = attr._value
 
-                        if val is not None and from_time < timestamp:
-                            vals[attrName] = (val, timestamp)
-                        else:
-                            vals[attrName] = ('', '')
-                    else:
-                        vals[attrName] = InvalidResponse.ATTRIBUTE_NAME_VALUE
-                retval[platform_id] = vals
+                if val is not None and from_time < timestamp:
+                    vals[attrName] = (val, timestamp)
+                else:
+                    vals[attrName] = ('', '')
             else:
-                retval[platform_id] = InvalidResponse.PLATFORM_ID
+                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME_VALUE
 
-        return retval
+        return {platform_id: vals}
 
     def getPlatformPorts(self, platform_id):
         if platform_id not in self._idp:
-            return InvalidResponse.PLATFORM_ID
+            return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        return list(self._idp[platform_id].ports.iterkeys())
+        ports = list(self._idp[platform_id].ports.iterkeys())
+        return {platform_id: ports}
 
     def getPortInfo(self, platform_id, port_id):
         if platform_id not in self._idp:
-            return InvalidResponse.PLATFORM_ID
+            return {platform_id: InvalidResponse.PLATFORM_ID}
 
         if port_id not in self._idp[platform_id].ports :
             return InvalidResponse.PORT_ID
 
         port_comms = self._idp[platform_id].get_port(port_id).comms
-        return port_comms
+        return {platform_id: port_comms}
 
     def setUpPort(self, platform_id, port_id, attributes):
         if platform_id not in self._idp:
-            return InvalidResponse.PLATFORM_ID
+            return {platform_id: InvalidResponse.PLATFORM_ID}
 
         if port_id not in self._idp[platform_id].ports :
             return InvalidResponse.PORT_ID
@@ -201,7 +199,7 @@ class OmsSimulator(OmsClient):
 
     def turnOnPort(self, platform_id, port_id):
         if platform_id not in self._idp:
-            return InvalidResponse.PLATFORM_ID
+            return {platform_id: InvalidResponse.PLATFORM_ID}
 
         if port_id not in self._idp[platform_id].ports :
             return InvalidResponse.PORT_ID
@@ -216,7 +214,7 @@ class OmsSimulator(OmsClient):
 
     def turnOffPort(self, platform_id, port_id):
         if platform_id not in self._idp:
-            return InvalidResponse.PLATFORM_ID
+            return {platform_id: InvalidResponse.PLATFORM_ID}
 
         if port_id not in self._idp[platform_id].ports :
             return InvalidResponse.PORT_ID

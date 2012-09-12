@@ -229,7 +229,10 @@ class NNode(object):
         result = body
         if root:
             if style == "dot":
-                result = 'digraph G {\n\t"%s"\n%s}\n' % (self.platform_id, body)
+                result = 'digraph G {\n'
+                if self.platform_id:
+                    result += '\t"%s"\n' % self.platform_id
+                result += '%s}\n' % body
             elif style == "plantuml":
                 result = "%s\n" % body
 
