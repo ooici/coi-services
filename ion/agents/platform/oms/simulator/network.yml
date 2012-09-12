@@ -2,8 +2,17 @@
 # network definition for the mock OMS object
 #
 
+platform_types:
+  - platform_type: ptype1
+    description: description of platform type ptype1
+  - platform_type: ptype2
+    description: description of platform type ptype2
+  - platform_type: ptype3
+    description: description of platform type ptype3
+
 network:
 - platform_id: ShoreStation
+  platform_types: [ptype1]
   attrs:
   - attr_id: fooRoot
     monitorCycleSeconds: 5
@@ -11,6 +20,7 @@ network:
     value: dummy_value_fooRoot
   subplatforms:
   - platform_id: platA
+    platform_types: [ptype2]
     ports:
       - port_id: portA_1
         ip: ipA_1
@@ -26,6 +36,7 @@ network:
       units: xyz
     subplatforms:
       - platform_id: platA1
+        platform_types: [ptype3]
         ports:
           - port_id: portA1_1
             ip: ipA1_1
@@ -38,10 +49,12 @@ network:
           units: xyz
         subplatforms:
         - platform_id: platA1a
+          platform_types: [ptype3]
           ports:
             - port_id: portA1a_1
               ip: ipA1a_1
         - platform_id: platA1b
+          platform_types: [ptype3]
           ports:
             - port_id: portA1b_1
               ip: ipA1b_1
@@ -51,6 +64,7 @@ network:
             units: xyz
           subplatforms:
           - platform_id: platA1b1
+            platform_types: [ptype3]
             ports:
               - port_id: portA1b1_1
                 ip: ipA1b1_1
@@ -59,6 +73,7 @@ network:
               monitorCycleSeconds: 5
               units: xyz
           - platform_id: platA1b2
+            platform_types: [ptype3]
             ports:
               - port_id: portA1b2_1
                 ip: ipA1b2_1
@@ -69,6 +84,7 @@ network:
               value: dummy_value_bazA1b2
 
   - platform_id: platB
+    platform_types: [ptype2]
     ports:
       - port_id: portB_1
         ip: ipB_1
@@ -78,6 +94,7 @@ network:
       units: xyz
     subplatforms:
     - platform_id: platB1
+      platform_types: [ptype2]
       ports:
         - port_id: portB1_1
           ip: ipB1_1
@@ -86,6 +103,7 @@ network:
         monitorCycleSeconds: 5
         units: xyz
     - platform_id: platB2
+      platform_types: [ptype3]
       ports:
         - port_id: portB2_1
           ip: ipB2_1

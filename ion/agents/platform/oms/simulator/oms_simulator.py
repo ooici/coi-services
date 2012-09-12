@@ -12,6 +12,8 @@ __license__ = 'Apache 2.0'
 
 
 from ion.agents.platform.oms.oms_client import OmsClient
+from ion.agents.platform.oms.oms_client import VALID_PORT_ATTRIBUTES
+from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.util.network import NNode
 
 import yaml
@@ -22,29 +24,33 @@ import logging
 log = logging.getLogger('oms_simulator')
 
 
-VALID_PORT_ATTRIBUTES = [
-    'maxCurrentDraw', 'initCurrent', 'dataThroughput', 'instrumentType'
-]
-
-
-INVALID_PLATFORM_ID_RESPONSE = 'INVALID-PLATFORM-ID'
-INVALID_ATTRIBUTE_NAME_RESPONSE = ('INVALID-ATTRIBUTE-NAME', '')
-INVALID_PORT_ID_RESPONSE = 'INVALID-PORT-ID'
-
-
 class OmsSimulator(OmsClient):
     """
     Implementation of OmsClient for testing purposes.
-    Status: preliminary.
     """
 
     def __init__(self, yaml_filename='ion/agents/platform/oms/simulator/network.yml'):
 
         pyobj = yaml.load(file(yaml_filename))
-        assert 'network' in pyobj
-        self._idp = {}
-        self._dummy_root = None
+
+        self._get_platform_types(pyobj)
+
         self._build_network(pyobj)
+
+    def _get_platform_types(self, pyobj):
+        """
+        Constructs:
+          - self._platform_types: {platform_type : description} map
+        """
+        assert 'platform_types' in pyobj
+        self._platform_types = {}
+        for ptypeObj in pyobj["platform_types"]:
+            assert 'platform_type' in ptypeObj
+            assert 'description' in ptypeObj
+            platform_type = ptypeObj['platform_type']
+            description = ptypeObj['description']
+            self._platform_types[platform_type] = description
+
 
     def _build_network(self, pyobj):
         """
@@ -52,18 +58,26 @@ class OmsSimulator(OmsClient):
           - self._idp: {platform_id : NNode} map
           - self._dummy_root: The "dummy" root node; its children are the actual roots.
         """
-        def create_node(platform_id):
+        assert 'network' in pyobj
+        self._idp = {}
+        self._dummy_root = None
+
+        def create_node(platform_id, platform_types=None):
             assert not platform_id in self._idp
-            pn = NNode(platform_id)
+            pn = NNode(platform_id, platform_types)
             self._idp[platform_id] = pn
             return pn
 
         def build_node(platObj, parent_node):
             assert 'platform_id' in platObj
+            assert 'platform_types' in platObj
             platform_id = platObj['platform_id']
+            platform_types = platObj['platform_types']
+            for platform_type in platform_types:
+                assert platform_type in self._platform_types
             ports = platObj['ports'] if 'ports' in platObj else []
             attrs = platObj['attrs'] if 'attrs' in platObj else []
-            pn = create_node(platform_id)
+            pn = create_node(platform_id, platform_types)
             parent_node.add_subplatform(pn)
             pn.set_ports(ports)
             pn.set_attributes(attrs)
@@ -80,51 +94,51 @@ class OmsSimulator(OmsClient):
         self._dummy_root = create_node(platform_id='')
 
         for platObj in pyobj["network"]:
-            assert 'platform_id' in platObj
             build_node(platObj, self._dummy_root)
 
     def ping(self):
         return "pong"
 
     def getPlatformMap(self):
-        """
-        Returns platform map. This is the network object model in the OMS.
-
-        @retval [(platform_id, parent_platform_id), ...]
-        """
         return self._dummy_root.get_map([])
 
-    def getPlatformAttributeNames(self, platform_id):
-        """
-        Returns the names of the attributes assocciated to a given platform.
+    def getPlatformTypes(self):
+        return self._platform_types
 
-        @param platform_id Platform ID
-        @retval [attrName, ...]
-        """
+    def getPlatformMetadata(self, platform_id):
         if platform_id not in self._idp:
-            return INVALID_PLATFORM_ID_RESPONSE
+            return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        return list(self._idp[platform_id].attrs.iterkeys())
+        nnode = self._idp[platform_id]
+
+        # TODO capture/include appropriate elements
+        md = {}
+        if nnode.name:
+            md['name'] = nnode.name
+        if nnode.parent:
+            md['parent_platform_id'] = nnode.parent.platform_id
+        md['platform_types'] = nnode.platform_types
+
+        return {platform_id: md}
+
+    def getPlatformAttributes(self, platform_id):
+        if platform_id not in self._idp:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        attrs = self._idp[platform_id].attrs
+        ret_infos = {}
+        for attrName in attrs:
+            attr = attrs[attrName]
+            ret_infos[attrName] = attr.defn
+
+        return {platform_id: ret_infos}
 
     def dump(self):
-        """indented string representation"""
-        return self._dummy_root.dump()
+        """string representation of the network"""
+        return "platform_types: %s\nnetwork:\n%s" % (
+            self._platform_types, self._dummy_root.dump())
 
     def getPlatformAttributeValues(self, platAttrMap, from_time):
-        """
-        Returns the values for specific attributes associated with a given set
-        of platforms since a given time.
-
-        @param platAttrMap {platform_id: [attrName, ...], ...} dict indexed by
-                           platform ID indicating the desired attributes per
-                           platform.
-        @param from_time NTP v4 compliant string; time from which the values
-                         are requested.
-
-        @retval {platform_id: {attrName : [(attrValue, timestamp), ...], ...}, ...}
-                dict indexed by platform ID with (value, timestamp) pairs for
-                each attribute. Timestamps are NTP v4 compliant strings
-        """
         retval = {}
         timestamp = time.time()
         for platform_id, attributeNames in platAttrMap.iteritems():
@@ -141,64 +155,35 @@ class OmsSimulator(OmsClient):
                         else:
                             vals[attrName] = ('', '')
                     else:
-                        vals[attrName] = INVALID_ATTRIBUTE_NAME_RESPONSE
+                        vals[attrName] = InvalidResponse.ATTRIBUTE_NAME_VALUE
                 retval[platform_id] = vals
             else:
-                retval[platform_id] = INVALID_PLATFORM_ID_RESPONSE
-
-        return retval
-
-    def getPlatformAttributeInfo(self, platAttrMap):
-        """
-        Returns information for specific attributes associated with a given set of platforms.
-
-        @param platAttrMap {platform_id: [attrName, ...], ...} dict indexed by
-                           platform ID indicating the desired attributes per
-                           platform.
-
-        @retval {platform_id: {attrName : info, ...}, ...}
-                dict indexed by platform ID with info dictionary for each attribute.
-                info = {'units': val, 'monitorCycleSeconds': val, 'OID' : val }
-        """
-        retval = {}
-        for platform_id, attributeNames in platAttrMap.iteritems():
-            if platform_id in self._idp:
-                attrs = self._idp[platform_id].attrs
-                ret_infos = {}
-                for attrName in attributeNames:
-                    if attrName in attrs:
-                        attr = attrs[attrName]
-                        ret_infos[attrName] = attr.defn
-                    else:
-                        ret_infos[attrName] = "INVALID-ATTRIBUTE-NAME"
-                retval[platform_id] = ret_infos
-            else:
-                retval[platform_id] = INVALID_PLATFORM_ID_RESPONSE
+                retval[platform_id] = InvalidResponse.PLATFORM_ID
 
         return retval
 
     def getPlatformPorts(self, platform_id):
         if platform_id not in self._idp:
-            return INVALID_PLATFORM_ID_RESPONSE
+            return InvalidResponse.PLATFORM_ID
 
         return list(self._idp[platform_id].ports.iterkeys())
 
     def getPortInfo(self, platform_id, port_id):
         if platform_id not in self._idp:
-            return INVALID_PLATFORM_ID_RESPONSE
+            return InvalidResponse.PLATFORM_ID
 
         if port_id not in self._idp[platform_id].ports :
-            return INVALID_PORT_ID_RESPONSE
+            return InvalidResponse.PORT_ID
 
         port_comms = self._idp[platform_id].get_port(port_id).comms
         return port_comms
 
     def setUpPort(self, platform_id, port_id, attributes):
         if platform_id not in self._idp:
-            return INVALID_PLATFORM_ID_RESPONSE
+            return InvalidResponse.PLATFORM_ID
 
         if port_id not in self._idp[platform_id].ports :
-            return INVALID_PORT_ID_RESPONSE
+            return InvalidResponse.PORT_ID
 
         port_attrs = self._idp[platform_id].get_port(port_id).attrs
 
@@ -216,10 +201,10 @@ class OmsSimulator(OmsClient):
 
     def turnOnPort(self, platform_id, port_id):
         if platform_id not in self._idp:
-            return INVALID_PLATFORM_ID_RESPONSE
+            return InvalidResponse.PLATFORM_ID
 
         if port_id not in self._idp[platform_id].ports :
-            return INVALID_PORT_ID_RESPONSE
+            return InvalidResponse.PORT_ID
 
         port = self._idp[platform_id].get_port(port_id)
         if port._on:
@@ -231,10 +216,10 @@ class OmsSimulator(OmsClient):
 
     def turnOffPort(self, platform_id, port_id):
         if platform_id not in self._idp:
-            return INVALID_PLATFORM_ID_RESPONSE
+            return InvalidResponse.PLATFORM_ID
 
         if port_id not in self._idp[platform_id].ports :
-            return INVALID_PORT_ID_RESPONSE
+            return InvalidResponse.PORT_ID
 
         port = self._idp[platform_id].get_port(port_id)
         if not port._on:

@@ -22,6 +22,7 @@ from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.oms.oms_resource_monitor import OmsResourceMonitor
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
+from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.util.network import NNode
 
 
@@ -203,6 +204,31 @@ class OmsPlatformDriver(PlatformDriver):
         attr_values = retval[self._platform_id]
         return attr_values
 
+    def _verify_platform_id_in_response(self, response):
+        """
+        Verifies the presence of my platform_id in the response.
+
+        @param response Dictionary returned by _oms
+
+        @retval response[self._platform_id]
+        """
+        if not self._platform_id in response:
+            msg = "unexpected: response does not contain entry for %r" % self._platform_id
+            log.error(msg)
+            raise PlatformException(msg=msg)
+
+        if response[self._platform_id] == InvalidResponse.PLATFORM_ID:
+            #
+            # TODO Note, this should normally be an error; but I'm just
+            # logging a warning because at this moment there's a mix of
+            # information sources: topology from a dictionary but some other
+            # pieces from OMS, like platform attributes.
+            #
+            log.warn("response reports invalid platform_id for %r" % self._platform_id)
+            return None
+        else:
+            return response[self._platform_id]
+
     def start_resource_monitoring(self):
         """
         Starts greenlets to periodically retrieve values of the attributes
@@ -215,28 +241,18 @@ class OmsPlatformDriver(PlatformDriver):
 
         log.info("%r: getting platform attributes" % self._platform_id)
 
-        # get names of attributes associated with my platform
-        attr_names = self._oms.getPlatformAttributeNames(self._platform_id)
+        attrs = self._oms.getPlatformAttributes(self._platform_id)
+        log.info("%r: getPlatformAttributes=%s" % (
+            self._platform_id, attrs))
 
-        log.info("%r: getPlatformAttributeNames=%s" % (
-            self._platform_id, attr_names))
+        attr_info = self._verify_platform_id_in_response(attrs)
 
-        if not isinstance(attr_names, list):
+        if not attr_info:
+            # no attributes to monitor.
             log.info("%r: NOT starting resource monitoring" % self._platform_id)
             return
 
         log.info("%r: starting resource monitoring" % self._platform_id)
-
-        # get info associated with these attributes
-        platAttrMap = {self._platform_id: attr_names}
-        retval = self._oms.getPlatformAttributeInfo(platAttrMap)
-
-        log.info("%r: getPlatformAttributeInfo= %s" % (
-            self._platform_id, retval))
-
-        if not self._platform_id in retval:
-            raise PlatformException("Unexpected: response does not include "
-                                    "requested platform '%s'" % self._platform_id)
 
         #
         # TODO attribute grouping so one single greenlet is launched for a
@@ -244,7 +260,6 @@ class OmsPlatformDriver(PlatformDriver):
         # simplicity at the moment, start a greenlet per attribute.
         #
 
-        attr_info = retval[self._platform_id]
         for attr_name, attr_defn in attr_info.iteritems():
             if 'monitorCycleSeconds' in attr_defn:
                 self._start_monitor_greenlet(attr_defn)
