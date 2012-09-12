@@ -20,11 +20,12 @@ from pyon.core import bootstrap
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget,\
-    ProcessStateEnum, ProcessQueueingMode, ProcessRestartMode
+    ProcessStateEnum, ProcessQueueingMode, ProcessRestartMode, ProcessDefinitionType
 from interface.services.icontainer_agent import ContainerAgentClient
 
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
-    PDLocalBackend, PDNativeBackend, PDBridgeBackend, get_dashi, get_pd_dashi_name
+    PDLocalBackend, PDNativeBackend, PDBridgeBackend, get_dashi, get_pd_dashi_name,\
+    PDDashiHandler
 
 try:
     from epu.states import InstanceState
@@ -122,6 +123,62 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.assertTrue(ok)
         self.mock_cc_terminate.assert_called_once_with("process-id")
 
+@attr('UNIT', group='cei')
+class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
+    """Tests the dashi frontend of the PD
+    """
+
+    #TODO: add some more thorough tests
+
+    def setUp(self):
+ 
+        self.mock_backend = DotDict()
+        self.mock_backend['create_definition'] = Mock()
+        self.mock_backend['read_definition'] = Mock()
+        self.mock_backend['delete_definition'] = Mock()
+        self.mock_backend['spawn'] = Mock()
+        self.mock_backend['read_process'] = Mock()
+        self.mock_backend['list'] = Mock()
+        self.mock_backend['cancel'] = Mock()
+
+        self.mock_dashi = DotDict()
+        self.mock_dashi['handle'] = Mock()
+
+        self.pd_dashi_handler = PDDashiHandler(self.mock_backend, self.mock_dashi)
+
+    def test_process_definitions(self):
+
+        definition_id = "hello"
+        definition_type = ProcessDefinitionType.PYON_STREAM
+        executable = {'class': 'SomeThing', 'module': 'some.module'}
+        name = "whataname"
+        description = "describing stuff"
+
+        self.pd_dashi_handler.create_definition(definition_id, definition_type,
+                executable, name, description)
+        self.assertEqual(self.mock_backend.create_definition.call_count, 1)
+
+        self.pd_dashi_handler.describe_definition(definition_id)
+        self.assertEqual(self.mock_backend.read_definition.call_count, 1)
+
+        raised = False
+        try:
+            self.pd_dashi_handler.update_definition(definition_id, definition_type,
+                executable, name, description)
+        except BadRequest:
+            raised = True
+        assert raised, "update_definition didn't raise badrequest"
+
+        self.pd_dashi_handler.remove_definition(definition_id)
+        self.assertEqual(self.mock_backend.delete_definition.call_count, 1)
+
+        raised = False
+        try:
+            self.pd_dashi_handler.list_definitions()
+        except BadRequest:
+            raised = True
+        assert raised, "list_definitions didn't raise badrequest"
+        
 
 @attr('UNIT', group='cei')
 class ProcessDispatcherServiceNativeTest(PyonTestCase):
