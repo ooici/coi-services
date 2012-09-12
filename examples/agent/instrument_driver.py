@@ -22,6 +22,7 @@ from pyon.util.context import LocalContextMixin
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 from pyon.public import CFG
+from pyon.ion.stream import StandaloneStreamSubscriber
 from mock import patch
 
 import time
@@ -66,12 +67,9 @@ def instrument_test_driver(container):
     _pubsub_client = PubsubManagementServiceClient(node=container.node)
 
     # A callback for processing subscribed-to data.
-    def consume(message, headers):
+    def consume(message, *args, **kwargs):
         log.info('Subscriber received message: %s', str(message))
 
-    # Create a stream subscriber registrar to create subscribers.
-    subscriber_registrar = StreamSubscriberRegistrar(process=container,
-        node=container.node)
 
     subs = []
 
@@ -89,7 +87,7 @@ def instrument_test_driver(container):
 
         # Create subscriptions for each stream.
         exchange_name = '%s_queue' % stream_name
-        sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name, callback=consume)
+        sub = StandaloneStreamSubscriber(exchange_name=exchange_name, callback=consume)
         sub.start()
         sub_id = _pubsub_client.create_subscription(\
                 name=exchange_name,
