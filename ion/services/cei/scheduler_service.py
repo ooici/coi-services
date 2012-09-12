@@ -46,10 +46,10 @@ class SchedulerService(BaseSchedulerService):
             now_posix = self.__now_posix(now)
             if task.start_time < now_posix:
                 expires_in = [ceil(task.interval)]
-                task.number_of_intervals -= 1
+                task.number_of_intervals = -1 if task.number_of_intervals == -1 else task.number_of_intervals - 1
             else:
                 expires_in = [ceil((task.start_time - now_posix) + task.interval)]
-                task.number_of_intervals -= 1
+                task.number_of_intervals = -1 if task.number_of_intervals == -1 else task.number_of_intervals - 1
 
         return expires_in
 
@@ -222,7 +222,7 @@ class SchedulerService(BaseSchedulerService):
             raise BadRequest
 
     def create_interval_timer(self, start_time="", interval=0, number_of_intervals=0, event_origin="", event_subtype=""):
-        if number_of_intervals < 0 or interval < 1 or not event_origin:
+        if number_of_intervals < -1 or interval < 1 or not event_origin:
             log.error("SchedulerService.create_interval_timer: event_origin is not set")
             raise BadRequest
         interval_timer = IonObject("IntervalTimer", {"start_time": start_time, "interval": interval, "number_of_intervals": number_of_intervals,
