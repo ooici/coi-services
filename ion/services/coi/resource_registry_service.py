@@ -84,8 +84,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.delete_attachment(attachment_id=attachment_id)
 
     @mask_couch_error
-    def find_attachments(self, resource_id='', limit=0, descending=False, include_content=False, id_only=True):
-        return self.resource_registry.find_attachments(resource_id=resource_id, limit=limit,
+    def find_attachments(self, resource_id='', keyword='', limit=0, descending=False, include_content=False, id_only=True):
+        return self.resource_registry.find_attachments(resource_id=resource_id, keyword='', limit=limit,
                                                        descending=descending, include_content=include_content,
                                                        id_only=id_only)
 
@@ -137,13 +137,9 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     @mask_couch_error
     def find_resources_ext(self, restype='', lcstate='', name='', keyword='', nested_type='', limit=0, skip=0, descending=False, id_only=False):
-        # @TODO Remove if and else clause after pyon update
-        if 'find_resources_ext' in self.resource_registry:
-            return self.resource_registry.find_resources_ext(restype=restype, lcstate=lcstate, name=name,
-                keyword=keyword, nested_type=nested_type, limit=limit, skip=skip, descending=descending,
-                id_only=id_only)
-        else:
-            return self.resource_registry.find_resources(restype=restype, lcstate=lcstate, name=name, id_only=id_only)
+        return self.resource_registry.find_resources_ext(restype=restype, lcstate=lcstate, name=name,
+            keyword=keyword, nested_type=nested_type, limit=limit, skip=skip, descending=descending,
+            id_only=id_only)
 
     @mask_couch_error
     def read_mult(self, object_ids=[]):
