@@ -28,7 +28,7 @@ Install the following if not yet present:
 
 * OS Packages and package management:
 For Mac, use homebrew
-    > /usr/bin/ruby -e "$(/usr/bin/curl -fksSL https://raw.github.com/mxcl/homebrew/master/Library/Contributions/install_homebrew.rb)"
+    > /usr/bin/ruby <(curl -fsSkL raw.github.com/mxcl/homebrew/go)
 - python 2.7.2
 - git 1.7.7: Use brew or download the Mac or Linux installer and run it
 - couchdb 1.1.0 (optional if memory mockdb is used)
@@ -86,6 +86,10 @@ PACKAGE DEPENDENCIES
 Use Buildout to install the python package dependencies (including pyon itself) with:
     > python bootstrap.py
     > bin/buildout
+
+** If matplot lib fails to build due to not finding the free type headers, try:
+    if /usr/X11/lib/pkgconfig has a file named freetype2.pc, then add the following line to your .bash_profile
+    export PKG_CONFIG_PATH=/usr/X11/lib/pkgconfig
 
 ** Mac should have libpng and libfreetype headers, which are required
     for matplotlib python build.  If for some reason your buildout fails on

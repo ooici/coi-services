@@ -22,6 +22,7 @@ from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.oms.oms_resource_monitor import OmsResourceMonitor
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
+from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.util.network import NNode
 
 
@@ -30,14 +31,16 @@ class OmsPlatformDriver(PlatformDriver):
     Base class for OMS platform drivers.
     """
 
-    def __init__(self, platform_id, driver_config):
+    def __init__(self, platform_id, driver_config, parent_platform_id=None):
         """
         Creates an OmsPlatformDriver instance.
 
         @param platform_id Corresponding platform ID
         @param driver_config with required 'oms_uri' entry.
+        @param parent_platform_id Platform ID of my parent, if any.
+                    This is mainly used for diagnostic purposes
         """
-        PlatformDriver.__init__(self, platform_id)
+        PlatformDriver.__init__(self, platform_id, driver_config, parent_platform_id)
 
         if not 'oms_uri' in driver_config:
             raise PlatformDriverException(msg="driver_config does not indicate 'oms_uri'")
@@ -68,10 +71,10 @@ class OmsPlatformDriver(PlatformDriver):
         try:
             retval = self._oms.hello.ping()
         except Exception, e:
-            raise PlatformConnectionException("Cannot ping %s" % str(e))
+            raise PlatformConnectionException(msg="Cannot ping %s" % str(e))
 
         if retval is None or retval.upper() != "PONG":
-            raise PlatformConnectionException("Unexpected ping response: %r" % retval)
+            raise PlatformConnectionException(msg="Unexpected ping response: %r" % retval)
 
         return "PONG"
 
@@ -83,54 +86,93 @@ class OmsPlatformDriver(PlatformDriver):
         @raise PlatformConnectionException
         """
 
+        # NOTE: The following log.info DOES NOT show up when running a test
+        # with the pycc plugin (--with-pycc)!  (noticed with test_oms_launch).
         log.info("%r: going active.." % self._platform_id)
 
-        if self._rr_client:
-            self._nnode = self._build_network_definition_using_rr()
+        # note, we ping the OMS here regardless of the source for the network
+        # definition:
+        self.ping()
+
+        if self._topology:
+            self._nnode = self._build_network_definition_using_topology()
         else:
             self._nnode = self._build_network_definition_using_oms()
 
         log.info("%r: go_active completed ok. _nnode:\n%s" % (
                  self._platform_id, self._nnode.dump()))
 
-    def _build_network_definition_using_rr(self):
-        log.info("%r: _build_network_definition_using_rr..." % self._platform_id)
+        self.__gen_diagram()
 
-        def build_network_definition(platform_id, platform_name=None):
+    def __gen_diagram(self):
+        """
+        Convenience method for testing/debugging.
+        Generates a dot diagram iff the environment variable GEN_DIAG is
+        defined and this driver corresponds to the root of the network
+        (determined by not having a parent platform ID).
+        """
+        try:
+            import os, tempfile, subprocess
+            if os.getenv("GEN_DIAG", None) is None:
+                return
+            if self._parent_platform_id:
+                # I'm not the root of the network
+                return
+
+            # I'm the root of the network
+            name = self._platform_id
+            base_name = '%s/%s' % (tempfile.gettempdir(), name)
+            dot_name = '%s.dot' % base_name
+            png_name = '%s.png' % base_name
+            print 'generating diagram %r' % dot_name
+            file(dot_name, 'w').write(self._nnode.diagram(style="dot"))
+            print 'generating png %r' % png_name
+            dot_cmd = 'dot -Tpng %s -o %s' % (dot_name, png_name)
+            subprocess.call(dot_cmd.split())
+            print 'opening %r' % png_name
+            open_cmd = 'open %s' % png_name
+            subprocess.call(open_cmd.split())
+        except Exception, e:
+            print "error generating or opening diagram: %s" % str(e)
+
+    def _build_network_definition_using_topology(self):
+        """
+        Uses self._topology to build the network definition.
+        """
+        log.info("%r: _build_network_definition_using_topology: %s" % (
+            self._platform_id, self._topology))
+
+        def build(platform_id, children):
             """
             Returns the root NNode for the given platform_id with its
-            children according to associations retrieved from the RR.
+            children according to the given list.
             """
             nnode = NNode(platform_id)
-            nnode.set_name(platform_name)
 
-            subplatform_objs, _ = self._rr_client.find_objects(platform_id,
-                                                       PRED.hasDevice,
-                                                       RT.PlatformDevice)
-            log.debug('Found associated subplatform_objs for %r: %s' % (
-                platform_id, subplatform_objs))
+            log.debug('Created NNode for %r' % platform_id)
 
-            for subplatform_obj in subplatform_objs:
-                subplatform_id = subplatform_obj._id
-                subplatform_name = subplatform_obj.name
-                sub_nnode = build_network_definition(subplatform_id, subplatform_name)
+            for subplatform_id in children:
+                subplatform_children = self._topology.get(subplatform_id, [])
+                sub_nnode = build(subplatform_id, subplatform_children)
                 nnode.add_subplatform(sub_nnode)
 
             return nnode
 
-        plat_obj = self._rr_client.read(object_id=self._platform_id)
-        name = plat_obj.name if plat_obj else None
-        return build_network_definition(self._platform_id, name)
+        children = self._topology.get(self._platform_id, [])
+        return build(self._platform_id, children)
 
     def _build_network_definition_using_oms(self):
+        """
+        Uses OMS to build the network definition.
+        """
         log.info("%r: _build_network_definition_using_oms.." % self._platform_id)
-        self.ping()
-
-        log.info("%r: getting platform map..." % self._platform_id)
         try:
             map = self._oms.config.getPlatformMap()
         except Exception, e:
-            raise PlatformConnectionException("error getting platform map %s" % str(e))
+            log.info("%r: error getting platform map %s" % (self._platform_id, str(e)))
+            raise PlatformConnectionException(msg="error getting platform map %s" % str(e))
+
+        log.info("%r: got platform map %s" % (self._platform_id, str(map)))
 
         def build_network_definition(map):
             """
@@ -139,8 +181,9 @@ class OmsPlatformDriver(PlatformDriver):
             """
             nodes = NNode.create_network(map)
             if not self._platform_id in nodes:
-                raise PlatformException(
-                    "platform map does not contain entry for %r" % self._platform_id)
+                msg = "platform map does not contain entry for %r" % self._platform_id
+                log.error(msg)
+                raise PlatformException(msg=msg)
 
             return nodes[self._platform_id]
 
@@ -161,6 +204,31 @@ class OmsPlatformDriver(PlatformDriver):
         attr_values = retval[self._platform_id]
         return attr_values
 
+    def _verify_platform_id_in_response(self, response):
+        """
+        Verifies the presence of my platform_id in the response.
+
+        @param response Dictionary returned by _oms
+
+        @retval response[self._platform_id]
+        """
+        if not self._platform_id in response:
+            msg = "unexpected: response does not contain entry for %r" % self._platform_id
+            log.error(msg)
+            raise PlatformException(msg=msg)
+
+        if response[self._platform_id] == InvalidResponse.PLATFORM_ID:
+            #
+            # TODO Note, this should normally be an error; but I'm just
+            # logging a warning because at this moment there's a mix of
+            # information sources: topology from a dictionary but some other
+            # pieces from OMS, like platform attributes.
+            #
+            log.warn("response reports invalid platform_id for %r" % self._platform_id)
+            return None
+        else:
+            return response[self._platform_id]
+
     def start_resource_monitoring(self):
         """
         Starts greenlets to periodically retrieve values of the attributes
@@ -171,21 +239,20 @@ class OmsPlatformDriver(PlatformDriver):
         # - aggregate groups of attributes according to rate of monitoring
         # - start a greenlet for each attr grouping
 
+        log.info("%r: getting platform attributes" % self._platform_id)
+
+        attrs = self._oms.getPlatformAttributes(self._platform_id)
+        log.info("%r: getPlatformAttributes=%s" % (
+            self._platform_id, attrs))
+
+        attr_info = self._verify_platform_id_in_response(attrs)
+
+        if not attr_info:
+            # no attributes to monitor.
+            log.info("%r: NOT starting resource monitoring" % self._platform_id)
+            return
+
         log.info("%r: starting resource monitoring" % self._platform_id)
-
-        # get names of attributes associated with my platform
-        attr_names = self._oms.getPlatformAttributeNames(self._platform_id)
-
-        # get info associated with these attributes
-        platAttrMap = {self._platform_id: attr_names}
-        retval = self._oms.getPlatformAttributeInfo(platAttrMap)
-
-        log.info("%r: getPlatformAttributeInfo= %s" % (
-            self._platform_id, retval))
-
-        if not self._platform_id in retval:
-            raise PlatformException("Unexpected: response does not include "
-                                    "requested platform '%s'" % self._platform_id)
 
         #
         # TODO attribute grouping so one single greenlet is launched for a
@@ -193,7 +260,6 @@ class OmsPlatformDriver(PlatformDriver):
         # simplicity at the moment, start a greenlet per attribute.
         #
 
-        attr_info = retval[self._platform_id]
         for attr_name, attr_defn in attr_info.iteritems():
             if 'monitorCycleSeconds' in attr_defn:
                 self._start_monitor_greenlet(attr_defn)

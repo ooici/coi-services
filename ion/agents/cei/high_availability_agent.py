@@ -129,24 +129,30 @@ class ProcessDispatcherSimpleAPIClient(object):
         self.real_client = ProcessDispatcherServiceClient(to_name=name, **kwargs)
         self.event_pub = EventPublisher()
 
-    def dispatch_process(self, upid, spec, subscribers, constraints=None,
-                         immediate=False):
+    def create_definition(self, definition_id, definition_type, executable,
+                          name=None, description=None):
 
-        name = spec.get('name')
+        # note: we lose the description
+        definition = ProcessDefinition(name=name)
+        definition.executable = {'module': executable.get('module'),
+                'class': executable.get('class')}
+        definition.definition_type = definition_type
+        return self.real_client.create_process_definition(definition, definition_id)
+
+    def schedule_process(self, upid, definition_id, configuration=None,
+            subscribers=None, constraints=None, queueing_mode=None,
+            restart_mode=None, execution_engine_id=None, node_exclusive=None):
+
+        definition = self.real_client.read_process_definition(definition_id)
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
-            origin=name, origin_type="DispatchedHAProcess",
+            origin=definition.name, origin_type="DispatchedHAProcess",
             state=ProcessStateEnum.SPAWN)
-        process_def = ProcessDefinition(name=name)
-        process_def.executable = {'module': spec.get('module'),
-                'class': spec.get('class')}
 
-        process_def_id = self.real_client.create_process_definition(process_def)
-
-        pid = self.real_client.create_process(process_def_id)
+        pid = self.real_client.create_process(definition_id)
 
         process_schedule = ProcessSchedule()
 
-        sched_pid = self.real_client.schedule_process(process_def_id,
+        sched_pid = self.real_client.schedule_process(definition_id,
                 process_schedule, configuration={}, process_id=pid)
 
         proc = self.real_client.read_process(sched_pid)

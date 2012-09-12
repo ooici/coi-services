@@ -20,11 +20,12 @@ from pyon.core import bootstrap
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget,\
-    ProcessStateEnum, ProcessQueueingMode, ProcessRestartMode
+    ProcessStateEnum, ProcessQueueingMode, ProcessRestartMode, ProcessDefinitionType
 from interface.services.icontainer_agent import ContainerAgentClient
 
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
-    PDLocalBackend, PDNativeBackend, PDBridgeBackend, get_dashi, get_pd_dashi_name
+    PDLocalBackend, PDNativeBackend, PDBridgeBackend, get_dashi, get_pd_dashi_name,\
+    PDDashiHandler
 
 try:
     from epu.states import InstanceState
@@ -122,6 +123,62 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.assertTrue(ok)
         self.mock_cc_terminate.assert_called_once_with("process-id")
 
+@attr('UNIT', group='cei')
+class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
+    """Tests the dashi frontend of the PD
+    """
+
+    #TODO: add some more thorough tests
+
+    def setUp(self):
+ 
+        self.mock_backend = DotDict()
+        self.mock_backend['create_definition'] = Mock()
+        self.mock_backend['read_definition'] = Mock()
+        self.mock_backend['delete_definition'] = Mock()
+        self.mock_backend['spawn'] = Mock()
+        self.mock_backend['read_process'] = Mock()
+        self.mock_backend['list'] = Mock()
+        self.mock_backend['cancel'] = Mock()
+
+        self.mock_dashi = DotDict()
+        self.mock_dashi['handle'] = Mock()
+
+        self.pd_dashi_handler = PDDashiHandler(self.mock_backend, self.mock_dashi)
+
+    def test_process_definitions(self):
+
+        definition_id = "hello"
+        definition_type = ProcessDefinitionType.PYON_STREAM
+        executable = {'class': 'SomeThing', 'module': 'some.module'}
+        name = "whataname"
+        description = "describing stuff"
+
+        self.pd_dashi_handler.create_definition(definition_id, definition_type,
+                executable, name, description)
+        self.assertEqual(self.mock_backend.create_definition.call_count, 1)
+
+        self.pd_dashi_handler.describe_definition(definition_id)
+        self.assertEqual(self.mock_backend.read_definition.call_count, 1)
+
+        raised = False
+        try:
+            self.pd_dashi_handler.update_definition(definition_id, definition_type,
+                executable, name, description)
+        except BadRequest:
+            raised = True
+        assert raised, "update_definition didn't raise badrequest"
+
+        self.pd_dashi_handler.remove_definition(definition_id)
+        self.assertEqual(self.mock_backend.delete_definition.call_count, 1)
+
+        raised = False
+        try:
+            self.pd_dashi_handler.list_definitions()
+        except BadRequest:
+            raised = True
+        assert raised, "list_definitions didn't raise badrequest"
+        
 
 @attr('UNIT', group='cei')
 class ProcessDispatcherServiceNativeTest(PyonTestCase):
@@ -196,7 +253,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.assertEqual(pid, pid2)
         self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
 
-        self.assertEqual(self.mock_core.dispatch_process.call_count, 1)
+        self.assertEqual(self.mock_core.schedule_process.call_count, 1)
 
     def test_queueing_mode(self):
 
@@ -220,8 +277,8 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         pid2 = self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
-        self.assertEqual(self.mock_core.dispatch_process.call_count, 1)
-        call_args, call_kwargs = self.mock_core.dispatch_process.call_args
+        self.assertEqual(self.mock_core.schedule_process.call_count, 1)
+        call_args, call_kwargs = self.mock_core.schedule_process.call_args
         self.assertEqual(call_kwargs['queueing_mode'], core_queueing_mode)
 
     def test_restart_mode(self):
@@ -246,8 +303,8 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         pid2 = self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
-        self.assertEqual(self.mock_core.dispatch_process.call_count, 1)
-        call_args, call_kwargs = self.mock_core.dispatch_process.call_args
+        self.assertEqual(self.mock_core.schedule_process.call_count, 1)
+        call_args, call_kwargs = self.mock_core.schedule_process.call_args
         self.assertEqual(call_kwargs['restart_mode'], core_restart_mode)
 
     def test_node_exclusive_eeid(self):
@@ -273,8 +330,8 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         pid2 = self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
-        self.assertEqual(self.mock_core.dispatch_process.call_count, 1)
-        call_args, call_kwargs = self.mock_core.dispatch_process.call_args
+        self.assertEqual(self.mock_core.schedule_process.call_count, 1)
+        call_args, call_kwargs = self.mock_core.schedule_process.call_args
         self.assertEqual(call_kwargs['execution_engine_id'], ee_id)
         self.assertEqual(call_kwargs['node_exclusive'], node_exclusive)
 
@@ -320,7 +377,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
     def test_read_process_with_config(self):
         config = {"hats": 4}
         self.mock_core.describe_process.return_value = dict(upid="processid",
-            state="500-RUNNING", spec=dict(parameters=dict(config=config)))
+            state="500-RUNNING", configuration=config)
         proc = self.pd_service.read_process("processid")
         assert self.mock_core.describe_process.called
 
@@ -398,12 +455,12 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         self.assertEqual(self.mock_dashi.call.call_count, 1)
         call_args, call_kwargs = self.mock_dashi.call.call_args
         self.assertEqual(set(call_kwargs),
-            set(['upid', 'spec', 'subscribers', 'constraints']))
+            set(['upid', 'definition_id', 'configuration', 'subscribers', 'constraints']))
         self.assertEqual(call_kwargs['constraints'],
             proc_schedule.target['constraints'])
         self.assertEqual(call_kwargs['subscribers'],
             self.pd_service.backend.pd_process_subscribers)
-        self.assertEqual(call_args, ("pd", "dispatch_process"))
+        self.assertEqual(call_args, ("pd", "schedule_process"))
         self.assertEqual(self.event_pub.publish_event.call_count, 0)
 
         # trigger some fake async state updates from dashi. first
@@ -466,7 +523,7 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
     def test_read_process_with_config(self):
         config = {"hats": 4}
         self.mock_dashi.call.return_value = dict(upid="processid",
-            state="500-RUNNING", spec=dict(parameters=dict(config=config)))
+            state="500-RUNNING", configuration=config)
         proc = self.pd_service.read_process("processid")
         assert self.mock_dashi.call.called
 

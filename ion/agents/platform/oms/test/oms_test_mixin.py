@@ -12,6 +12,8 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
+from ion.agents.platform.oms.oms_client import InvalidResponse
+
 import time
 
 
@@ -24,18 +26,60 @@ class OmsTestMixin(object):
         response = self.oms.hello.ping()
         self.assertEquals(response, "pong")
 
-    def test_ac_getPlatformMap(self):
+    def test_ab_getPlatformMap(self):
         platform_map = self.oms.config.getPlatformMap()
         self.assertIsInstance(platform_map, list)
         for pair in platform_map:
             self.assertIsInstance(pair, (tuple, list))
 
-    def test_ad_getPlatformAttributeNames(self):
-        attrNames = self.oms.getPlatformAttributeNames('platA')
-        print("getPlatformAttributeNames = %s" % attrNames)
-        self.assertIsInstance(attrNames, list)
+    def test_ac_getPlatformTypes(self):
+        retval = self.oms.config.getPlatformTypes()
+        print("getPlatformTypes = %s" % retval)
+        self.assertIsInstance(retval, dict)
+        for k, v in retval.iteritems():
+            self.assertIsInstance(k, str)
+            self.assertIsInstance(v, str)
 
-    def test_ae_getPlatformAttributeValues(self):
+    def test_ad_getPlatformMetadata(self):
+        platform_id = 'platA'
+        retval = self.oms.config.getPlatformMetadata(platform_id)
+        print("getPlatformMetadata(%r) = %s" % (platform_id,  retval))
+        self.assertIsInstance(retval, dict)
+        self.assertTrue(platform_id in retval)
+        self.assertEquals(1, len(retval))
+        md = retval[platform_id]
+        self.assertIsInstance(md, dict)
+        self.assertTrue('platform_types' in md)
+
+    def test_ad_getPlatformMetadata_invalid(self):
+        platform_id = 'bogus_plat_id'
+        retval = self.oms.config.getPlatformMetadata(platform_id)
+        print("getPlatformMetadata(%r) = %s" % (platform_id,retval))
+        self.assertIsInstance(retval, dict)
+        self.assertTrue(platform_id in retval)
+        self.assertEquals(1, len(retval))
+        self.assertEquals(InvalidResponse.PLATFORM_ID, retval[platform_id])
+
+    def test_af_getPlatformAttributes(self):
+        platform_id = 'platA'
+        retval = self.oms.config.getPlatformAttributes(platform_id)
+        print("getPlatformAttributes(%r) = %s" % (platform_id, retval))
+        self.assertIsInstance(retval, dict)
+        self.assertTrue(platform_id in retval)
+        self.assertEquals(1, len(retval))
+        infos = retval[platform_id]
+        self.assertIsInstance(infos, dict)
+
+    def test_ag_getPlatformAttributes_invalid(self):
+        platform_id = 'bogus_plat_id'
+        retval = self.oms.config.getPlatformAttributes(platform_id)
+        print("getPlatformAttributes(%r) = %s" % (platform_id, retval))
+        self.assertIsInstance(retval, dict)
+        self.assertTrue(platform_id in retval)
+        self.assertEquals(1, len(retval))
+        self.assertEquals(InvalidResponse.PLATFORM_ID, retval[platform_id])
+
+    def test_ah_getPlatformAttributeValues(self):
         platAttrMap = {'platA': ['bazA', 'fooA']}
         from_time = time.time()
         retval = self.oms.getPlatformAttributeValues(platAttrMap, from_time)
@@ -43,29 +87,13 @@ class OmsTestMixin(object):
         self.assertIsInstance(retval, dict)
         self.assertTrue('platA' in retval)
 
-    def test_af_getPlatformAttributeInfos(self):
-        platAttrMap = {'platA': ['bazA', 'fooA']}
-        retval = self.oms.getPlatformAttributeInfo(platAttrMap)
-        print("getPlatformAttributeInfo = %s" % retval)
-
-        self.assertIsInstance(retval, dict)
-        self.assertTrue('platA' in retval)
-
-        platA = retval['platA']
-        self.assertIsInstance(platA, dict)
-        self.assertTrue('bazA' in platA)
-
-        bazA = platA['bazA']
-        self.assertIsInstance(bazA, dict)
-        self.assertTrue('monitorCycleSeconds' in bazA)
-
-    def test_ag_getPlatformPorts(self):
+    def test_ak_getPlatformPorts(self):
         retval = self.oms.getPlatformPorts('platA')
         print("getPlatformPorts = %s" % retval)
 
         self.assertIsInstance(retval, list)
 
-    def test_ah_getPortInfo(self):
+    def test_al_getPortInfo(self):
         port_ids = self.oms.getPlatformPorts('platA')
         for port_id in port_ids:
             port_info = self.oms.getPortInfo('platA', port_id)
@@ -73,7 +101,7 @@ class OmsTestMixin(object):
             self.assertIsInstance(port_info, dict)
             self.assertTrue('ip' in port_info)
 
-    def test_ai_setUpPort(self):
+    def test_am_setUpPort(self):
         # TODO proper attributes and values
         valid_attributes = {'maxCurrentDraw': 1, 'initCurrent': 2,
                       'dataThroughput': 3, 'instrumentType': 'FOO'}
@@ -88,14 +116,14 @@ class OmsTestMixin(object):
         for attr_name in invalid_attributes:
             self.assertFalse(attr_name in retval)
 
-    def test_aj_turnOnPort(self):
+    def test_an_turnOnPort(self):
         port_ids = self.oms.getPlatformPorts('platA')
         for port_id in port_ids:
             retval = self.oms.turnOnPort('platA', port_id)
             print("turnOnPort(%s,%s) = %s" % ('platA', port_id, retval))
             self.assertTrue(retval)
 
-    def test_ak_turnOffPort(self):
+    def test_ao_turnOffPort(self):
         port_ids = self.oms.getPlatformPorts('platA')
         for port_id in port_ids:
             retval = self.oms.turnOffPort('platA', port_id)

@@ -414,7 +414,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             producer_obj.producer_context.activation_time =  IonTime().to_string()
             producer_obj.producer_context.execution_configuration = agent_config
             # get the site where this device is currently deploy instrument_device_id
-            site_ids, _ = self.clients.resource_registry.find_subjects( subject_type=RT.Site, predicate=PRED.hasDevice, object=instrument_device_id, id_only=True)
+            site_ids, _ = self.clients.resource_registry.find_subjects( predicate=PRED.hasDevice, object=instrument_device_id, id_only=True)
             log.debug("start_instrument_agent_instance: hasDevice site_ids %s", str(site_ids))
             if len(site_ids) == 1:
                 producer_obj.producer_context.deployed_site_id = site_ids[0]
@@ -1941,6 +1941,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return retval
 
+    # The actual initiation of the deployment, calculated from when the deployment was activated
+    def get_uptime(self, device_id):
+        #used by both instrument device, platform device
+        return "0 days, 0 hours, 0 minutes"
 
+    #-------------------------------
+    # Deployment Computed Attrs
+    #-------------------------------
+    # The actual initiation of the deployment, calculated from when the deployment was activated
+    def get_start_datetime_actual(self, deployment_id):
+        return "TBD"
 
+    # The actual end of the deployment, calculated from when the deployment was activated
+    def get_end_datetime_actual(self, deployment_id):
+        return "TBD"
 

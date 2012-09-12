@@ -12,6 +12,18 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
+class InvalidResponse(object):
+    PLATFORM_ID          = 'INVALID-PLATFORM-ID'
+    ATTRIBUTE_NAME       = 'INVALID-ATTRIBUTE-NAME'
+    ATTRIBUTE_NAME_VALUE = ('INVALID-ATTRIBUTE-NAME', '')
+    PORT_ID              = 'INVALID-PORT-ID'
+
+
+VALID_PORT_ATTRIBUTES = [
+    'maxCurrentDraw', 'initCurrent', 'dataThroughput', 'instrumentType'
+]
+
+
 class OmsClient(object):
     """
     This class captures the interface with OMS.
@@ -46,12 +58,34 @@ class OmsClient(object):
         """
         raise NotImplemented()
 
-    def getPlatformAttributeNames(self, platform_id):
+    def getPlatformTypes(self):
         """
-        Returns the names of the attributes associated to a given platform.
+        Returns the types of platforms in the network
+
+        @retval { platform_type: description, ... } Dict of platform types in
+         the network.
+        """
+        raise NotImplemented()
+
+    def getPlatformMetadata(self, platform_id):
+        """
+        Returns the metadata for a requested platform.
 
         @param platform_id Platform ID
-        @retval [attrName, ...]
+        @retval { platform_id: {mdAttrName: mdAttrValue, ...\, ... }
+                dict with a single entry for the requested platform ID with a
+                dictionary for corresponding metadata
+        """
+        raise NotImplemented()
+
+    def getPlatformAttributes(self, platform_id):
+        """
+        Returns the attributes associated to a given platform.
+
+        @param platform_id Platform ID
+        @retval {platform_id: {attrName : info, ...}, ...}
+                dict with a single entry for the requested platform ID with an
+                info dictionary for each attribute in that platform.
         """
         raise NotImplemented()
 
@@ -68,18 +102,6 @@ class OmsClient(object):
         @retval {platform_id: {attrName : [(attrValue, timestamp), ...], ...}, ...}
                 dict indexed by platform ID with (value, timestamp) pairs for
                 each attribute. Timestamps are NTP v4 compliant strings
-        """
-        raise NotImplemented()
-
-    def getPlatformAttributeInfo(self, platAttrMap):
-        """
-        Returns information for specific attributes associated with a given set of platforms.
-
-        @param platAttrMap {platform_id: [attrName, ...], ...}	 dict indexed by platform ID indicating the desired attributes per platform
-
-        @retval {platform_id: {attrName : info, ...}, ...}	 dict indexed by
-                platform ID with info dictionary for each attribute.
-                info = {'units': val, 'monitorCycleSeconds': val, 'OID' : val }
         """
         raise NotImplemented()
 

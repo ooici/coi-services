@@ -35,25 +35,10 @@ from ion.agents.platform.test.adhoc import adhoc_get_packet_factories
 
 from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
-#--------------------------------
-# hack: we need to know the container_client so we can spawn subplatform agents.
-# TODO how to properly handle this?
-_container_client = None
-def set_container_client(container_client):
-    log.debug("HACK: container_client provided directly: %s" % str(container_client))
-    global _container_client
-    _container_client = container_client
+from interface.services.icontainer_agent import ContainerAgentClient
 
-
-#--------------------------------
-# hack: provide ResourceRegistryClient object that we can pass to the driver
-# TODO how to properly access the ResourceRegistry from the driver?
-_rr_client = None
-def set_rr_client(rr_client):
-    log.debug("HACK: rr_client provided directly: %s" % str(rr_client))
-    global _rr_client
-    _rr_client = rr_client
-
+# TODO clean up log-and-throw anti-idiom in several places which is used
+# because the exception alone does not show up in the logs!
 
 class PlatformAgentState(ResourceAgentState):
     """
@@ -113,7 +98,12 @@ class PlatformAgent(ResourceAgent):
 
         self._plat_config = None
         self._platform_id = None
+        self._topology = None
         self._plat_driver = None
+
+        # Platform ID of my parent, if any. This is mainly used for diagnostic
+        # purposes
+        self._parent_platform_id = None
 
         # Dictionary of data stream IDs for data publishing. Constructed
         # by stream_config agent config member during process on_init.
@@ -129,6 +119,8 @@ class PlatformAgent(ResourceAgent):
 
         # The ResourceAgentClient objects to send commands to my sub-platforms
         self._pa_clients = {}
+
+        self._container_client = None
 
         #
         # TODO the following defined here as in InstrumentAgent,
@@ -158,19 +150,41 @@ class PlatformAgent(ResourceAgent):
             self._platform_id, str(self._plat_config)))
 
         if not self._plat_config:
-            raise PlatformException("plat_config not provided")
+            msg = "plat_config not provided"
+            log.error(msg)
+            raise PlatformException(msg)
 
-        for k in ['platform_id', 'driver_config']:
+        for k in ['platform_id', 'driver_config', 'container_name']:
             if not k in self._plat_config:
-                raise PlatformException("'%s' key not given in plat_config=%s"
-                                        % (k, self._plat_config))
+                msg = "'%s' key not given in plat_config=%s" % (k, self._plat_config)
+                log.error(msg)
+                raise PlatformException(msg)
 
         self._platform_id = self._plat_config['platform_id']
         driver_config = self._plat_config['driver_config']
         for k in ['dvr_mod', 'dvr_cls']:
             if not k in driver_config:
-                raise PlatformException("'%s' key not given in driver_config=%s"
-                                        % (k, driver_config))
+                msg = "%r: '%s' key not given in driver_config=%s" % (
+                    self._platform_id, k, driver_config)
+                log.error(msg)
+                raise PlatformException(msg)
+
+        self._container_name = self._plat_config['container_name']
+        self._set_container_client()
+
+        if 'platform_topology' in self._plat_config:
+            self._topology = self._plat_config['platform_topology']
+
+        ppid = self._plat_config.get('parent_platform_id', None)
+        if ppid:
+            self._parent_platform_id = ppid
+            log.info("_parent_platform_id set to: %s" % self._parent_platform_id)
+
+    def _set_container_client(self):
+        log.debug("%r: setting container client using: %r" % (
+            self._platform_id, str(self._container_name)))
+
+        self._container_client = ContainerAgentClient(name=self._container_name)
 
     def _construct_data_publishers(self):
         """
@@ -229,11 +243,9 @@ class PlatformAgent(ResourceAgent):
         try:
             module = __import__(driver_module, fromlist=[driver_class])
             classobj = getattr(module, driver_class)
-            driver = classobj(self._platform_id, driver_config)
+            driver = classobj(self._platform_id, driver_config, self._parent_platform_id)
 
         except Exception as e:
-            # TODO log-and-throw is considered an anti-pattern, but the
-            # exception alone does not show up in the logs!
             msg = '%r: could not import/construct driver: module=%s, class=%s' % (
                 self._platform_id, driver_module, driver_class)
             log.error("%s; reason=%s" % (msg, str(e)))
@@ -242,8 +254,8 @@ class PlatformAgent(ResourceAgent):
         self._plat_driver = driver
         self._plat_driver.set_event_listener(self.evt_recv)
 
-        if _rr_client:
-            self._plat_driver.set_rr_client(_rr_client)
+        if self._topology:
+            self._plat_driver.set_topology(self._topology)
 
         log.info("%r: driver created: %s" % (
             self._platform_id, str(driver)))
@@ -363,7 +375,8 @@ class PlatformAgent(ResourceAgent):
         log.info("%r: launching subplatform %r" % (
             self._platform_id, subplatform_id))
 
-        pa_resource_id = get_resource_id(subplatform_id)
+#        pa_resource_id = get_resource_id(subplatform_id)
+        pa_resource_id = subplatform_id
         pa_name = 'PlatformAgent_%s' % subplatform_id
         pa_module = 'ion.agents.platform.platform_agent'
         pa_class = 'PlatformAgent'
@@ -399,7 +412,10 @@ class PlatformAgent(ResourceAgent):
         # built and initialized recursively:
         platform_config = {
             'platform_id': subplatform_id,
-            'driver_config': self._plat_config['driver_config']
+            'platform_topology' : self._topology,
+            'parent_platform_id' : self._platform_id,
+            'driver_config': self._plat_config['driver_config'],
+            'container_name': self._container_name,
         }
 
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=platform_config))
@@ -414,13 +430,17 @@ class PlatformAgent(ResourceAgent):
         Launches all my sub-platforms storing the corresponding
         ResourceAgentClient objects in _pa_clients.
         """
+        if self._container_client is None:
+            msg = "%r: No container client provided!!" % self._platform_id
+            log.error(msg)
+            raise PlatformException(msg)
+
         subplatform_ids = self._plat_driver.get_subplatform_ids()
         log.info("%r: launching subplatforms %s" % (
             self._platform_id, str(subplatform_ids)))
-        container_client = _container_client
         self._pa_clients.clear()
         for subplatform_id in subplatform_ids:
-            pa_client = self._launch_platform_agent(container_client, subplatform_id)
+            pa_client = self._launch_platform_agent(self._container_client, subplatform_id)
             self._pa_clients[subplatform_id] = pa_client
 
     def _subplatforms_execute_agent(self, command=None, create_command=None,
