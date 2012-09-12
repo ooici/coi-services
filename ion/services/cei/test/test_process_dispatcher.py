@@ -178,6 +178,23 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         except BadRequest:
             raised = True
         assert raised, "list_definitions didn't raise badrequest"
+
+    def test_schedule(self):
+
+        self.mock_backend['read_definition'].return_value = ProcessDefinition()
+
+        upid = 'myupid'
+        definition_id = 'something'
+        queueing_mode = 'RESTART_ONLY'
+        restart_mode = 'ABNORMAL'
+
+        self.pd_dashi_handler.schedule_process(upid, definition_id, queueing_mode=queueing_mode, restart_mode=restart_mode)
+
+        self.assertEqual(self.mock_backend.spawn.call_count, 1)
+        args, kwargs = self.mock_backend.spawn.call_args
+        passed_schedule = args[2]
+        assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
+        assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
         
 
 @attr('UNIT', group='cei')
