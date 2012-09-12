@@ -8,7 +8,6 @@ from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest
 from pyon.core.object import IonObjectSerializer
 
-from interface.objects import StreamQuery
 from interface.services.dm.itransform_management_service import TransformManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -79,23 +78,23 @@ def instrument_test_driver(container):
     # Create streams for each stream named in driver.
     stream_config = {}
     for (stream_name, val) in PACKET_CONFIG.iteritems():
-        stream_def = ctd_stream_definition(stream_id=None)
+        #@TODO: Figure out what goes inside this stream def, do we have a pdict?
         stream_def_id = _pubsub_client.create_stream_definition(
-            container=stream_def)
-        stream_id = _pubsub_client.create_stream(
-            name=stream_name,
-            stream_definition_id=stream_def_id,
-            original=True,
-            encoding='ION R2', headers=sa_user_header)
+                name='instrument stream def')
+        stream_id, route = _pubsub_client.create_stream(
+                name=stream_name,
+                stream_definition_id=stream_def_id, 
+                exchange_point='science_data')
         stream_config[stream_name] = stream_id
 
         # Create subscriptions for each stream.
         exchange_name = '%s_queue' % stream_name
         sub = subscriber_registrar.create_subscriber(exchange_name=exchange_name, callback=consume)
         sub.start()
-        query = StreamQuery(stream_ids=[stream_id])
         sub_id = _pubsub_client.create_subscription(\
-            query=query, exchange_name=exchange_name )
+                name=exchange_name,
+                stream_ids=[stream_id])
+
         _pubsub_client.activate_subscription(sub_id)
         subs.append(sub)
 
