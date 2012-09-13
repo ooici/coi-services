@@ -33,7 +33,7 @@ setup(  name = 'coi-services',
         ],
         test_suite = 'pyon',
         install_requires = [
-            'utilitiesi==2012.9.13',
+            'utilities==2012.9.13',
             'coverage-model',
             'marine-integrations',
             'pyon',
