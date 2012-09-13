@@ -31,7 +31,7 @@ class DemuxTransformUnitTest(PyonTestCase):
     def test_recv_packet(self):
         self.demuxer.publish = Mock()
 
-        self.demuxer.recv_packet('incoming',{})
+        self.demuxer.recv_packet('incoming',{}, 'id')
         self.demuxer.publish.assert_called_once_with('incoming',None)
 
     def test_publish(self):
