@@ -26,8 +26,8 @@ class StreamGranuleLogger(TransformDataProcess):
             self.subscription_id = pubsub_cli.create_subscription('%s_sub' % self.id, stream_ids=[stream_id], exchange_name=self.queue_name)
             pubsub_cli.activate_subscription(self.subscription_id)
 
+    def recv_packet(self, granule, stream_route, stream_id):
 
-    def received_packet(granule, headers):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         log.warn('Logging Record Dictionary received in logger subscription  \n%s', rdt.pretty_print())
 

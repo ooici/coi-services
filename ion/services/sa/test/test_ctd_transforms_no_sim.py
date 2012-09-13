@@ -180,7 +180,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
+        parameter_dictionary = get_param_dict('sample_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
