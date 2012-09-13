@@ -9,6 +9,7 @@
 from interface.services.dm.ipubsub_management_service import BasePubsubManagementService
 from interface.objects import StreamDefinition, Stream, Subscription, Topic
 from pyon.util.arg_check import validate_true, validate_is_instance, validate_is_not_none, validate_false, validate_equal
+from ion.services.dm.utility.granule_utils import ParameterDictionary
 from pyon.core.exception import Conflict, BadRequest
 from pyon.public import RT, PRED
 from pyon.util.containers import create_unique_identifier
@@ -20,12 +21,17 @@ class PubsubManagementService(BasePubsubManagementService):
     #--------------------------------------------------------------------------------
 
     def create_stream_definition(self, name='', parameter_dictionary=None, stream_type='', description=''):
-        if name and self.clients.resource_registry.find_resources(restype=RT.StreamDefinition, name=name, id_only=True)[0]:
+        parameter_dictionary = parameter_dictionary or {}
+        existing = self.clients.resource_registry.find_resources(restype=RT.StreamDefinition, name=name, id_only=True)[0]
+        if name and existing:
+            stream_def = self.read_stream_definition(existing[0])
+            if self._compare_pdicts(parameter_dictionary,stream_def.parameter_dictionary):
+                return existing[0]
             raise Conflict('StreamDefinition with the specified name already exists. (%s)' % name)
 
         if not name: create_unique_identifier()
 
-        stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary or {}, stream_type=stream_type, name=name, description=description)
+        stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description)
         stream_definition_id,_  = self.clients.resource_registry.create(stream_definition)
 
         return stream_definition_id
@@ -40,8 +46,13 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.delete(stream_definition_id)
         return True
 
-    #--------------------------------------------------------------------------------
+    def compare_stream_definition(self, stream_definition1_id='', stream_definition2_id=''):
+        def1 = self.read_stream_definition(stream_definition1_id)
+        def2 = self.read_stream_definition(stream_definition2_id)
+        return self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary)
 
+    #--------------------------------------------------------------------------------
+    
     def create_stream(self, name='', exchange_point='', topic_ids=None, credentials=None, stream_definition_id='', description=''):
         # Argument Validation
         if name and self.clients.resource_registry.find_resources(restype=RT.Stream,name=name,id_only=True)[0]:
@@ -403,4 +414,8 @@ class PubsubManagementService(BasePubsubManagementService):
 
         return list(visited_topics)
 
+    def _compare_pdicts(self, pdict1, pdict2):
+        pdict1 = ParameterDictionary.load(pdict1) or {}
+        pdict2 = ParameterDictionary.load(pdict2) or {}
+        return bool(pdict1 == pdict2)
 
