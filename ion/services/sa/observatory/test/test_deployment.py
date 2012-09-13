@@ -10,7 +10,6 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
@@ -24,8 +23,12 @@ import unittest
 from pyon.util.log import log
 
 from ion.services.sa.test.helpers import any_old
+from ion.util.parameter_yaml_IO import get_param_dict
 
-
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -134,15 +137,19 @@ class TestDeployment(IonIntegrationTestCase):
         ctd_stream_def_id = self.psmsclient.create_stream_definition(name='SBE37_CDM')
 
 
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
 
-        #----------------------------------------------------------------------------------------------------
-        # Using CoverageCraft to create spatial and temporal domain for tests and finally a data product
-        #----------------------------------------------------------------------------------------------------
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
+
         parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
@@ -208,3 +215,4 @@ class TestDeployment(IonIntegrationTestCase):
         log.debug("test_create_deployment: created deployment id: %s ", str(deployment_id) )
 
         self.omsclient.activate_deployment(deployment_id)
+

@@ -11,27 +11,19 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
-from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L1_temperature_stream_definition, L1_conductivity_stream_definition, L2_practical_salinity_stream_definition, L2_density_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from ion.services.dm.utility.granule_utils import CoverageCraft
-
-from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
 from interface.objects import  ContactInformation
 
 from pyon.util.context import LocalContextMixin
-from pyon.util.containers import DotDict
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.core.exception import BadRequest 
 from pyon.public import RT, PRED
-from mock import Mock
-from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
-from interface.objects import ProcessDefinition
 import unittest
-import time
 
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.util.parameter_yaml_IO import get_param_dict
+
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
+
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -119,12 +111,20 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         log.debug( 'test_get_provenance:Creating new CDM data product with a stream definition')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('sample_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
+
         parsed_param_dict = get_param_dict('ctd_parsed_param_dict')
 
         dp_obj = IonObject(RT.DataProduct,
@@ -555,3 +555,4 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
 
         results = self.dpmsclient.get_data_product_provenance_report(ctd_l2_density_output_dp_id)
+

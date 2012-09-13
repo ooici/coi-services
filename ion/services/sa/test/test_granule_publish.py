@@ -2,8 +2,8 @@
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 
-from pyon.public import RT, LCS, PRED
-from pyon.public import Container, log, IonObject
+from pyon.public import RT, PRED
+from pyon.public import log, IonObject
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -14,19 +14,22 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from pyon.ion.stream import StandaloneStreamPublisher
 
 
+from pyon.public import log
+from coverage_model.basic_types import AxisTypeEnum
+
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum
 
 from interface.objects import ProcessDefinition
 
 from ion.util.parameter_yaml_IO import get_param_dict
 
 from nose.plugins.attrib import attr
-import numpy, gevent
-import random
+import numpy
 import time
 
 class FakeProcess(LocalContextMixin):
@@ -86,8 +89,14 @@ class TestGranulePublish(IonIntegrationTestCase):
         #retrieve the param dict from the repository
         parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
 
