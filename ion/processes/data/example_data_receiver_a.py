@@ -1,7 +1,7 @@
 '''
 @author Tim Giguere
-@file ion/processes/data/transforms/ctd/ctd_L0_all_a.py
-@description Uses new transform classes to parse CTD data into L0 streams
+@file ion/processes/data/transforms/example_data_receiver_a.py
+@description Uses new transform classes to receive data from a stream
 '''
 
 '''
@@ -22,7 +22,7 @@ xn2.bind(stream_id + '.data', xp2)                      #bind the queue to the x
 
 
 from pyon.ion.transforma import TransformStreamListener
-from pyon.ion.granule import RecordDictionaryTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.public import log
 
 

@@ -1,43 +1,38 @@
+
 '''
-@author David Stuebe
-@file ion/services/dm/transformation/example/ion_seawater.py
-@description Transforms using the csiro/gibbs seawater toolbox
+@author MManning
+@file ion/processes/data/transforms/ctd/ctd_L2_salinity.py
+@description Transforms CTD parsed data into L2 product for salinity
 '''
 
-from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
-from pyon.service.service import BaseService
-from pyon.core.exception import BadRequest
-from pyon.public import IonObject, RT, log
-
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
-from prototype.sci_data.constructor_apis import PointSupplementConstructor
-
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L2_density_stream_definition, L2_practical_salinity_stream_definition
-
-from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
-from seawater.gibbs import cte
-import re
+from pyon.ion.transforma import TransformDataProcess
+from pyon.public import log
+import numpy as np
 
 ### For new granule and stream interface
-from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
+from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
-from pyon.ion.stream import StreamPublisher
-import numpy as np
+
+from seawater.gibbs import SP_from_cndr
+from seawater.gibbs import cte
+
+from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L2_practical_salinity_stream_definition
 
 class SalinityTransform(TransformDataProcess):
-    '''
-    L2 Transform for CTD Data.
-    Input is conductivity temperature and pres delivered as a single packet.
-    Output is Practical Salinity as calculated by the Gibbs Seawater package
-    '''
-
-    outgoing_stream_def = L2_practical_salinity_stream_definition()
     incoming_stream_def = SBE37_CDM_stream_definition()
+    outgoing_stream_def = L2_practical_salinity_stream_definition()
+
+    ''' A basic transform that receives input through a subscription,
+    parses the input from a CTD, extracts the pressure value and scales it according to
+    the defined algorithm. If the transform
+    has an output_stream it will publish the output on the output stream.
+
+    '''
 
     def on_start(self):
 
@@ -54,49 +49,62 @@ class SalinityTransform(TransformDataProcess):
     def publish(self, msg, stream_id):
         self.publisher.publish(msg)
 
-    def recv_packet(self, granule, stream_route, stream_id):
-        """Processes incoming data!!!!
+    def recv_packet(self, packet, stream_route, stream_id):
+        """
+        Processes incoming data!!!!
         """
         log.info('Received incoming packet')
-        rdt = RecordDictionaryTool.load_from_granule(granule)
 
-        temperature = get_safe(rdt, 'temp')
+        if packet == {}:
+            return
+
+        granule = CTDL2SalinityTransformAlgorithm.execute(packet)
+
+        self.publish(msg=granule, stream_id=self.sal_stream)
+
+
+class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
+
+    @staticmethod
+    @SimpleGranuleTransformFunction.validate_inputs
+    def execute(input=None, context=None, config=None, params=None, state=None):
+
+        rdt = RecordDictionaryTool.load_from_granule(input)
+
         conductivity = get_safe(rdt, 'conductivity')
-        pres = get_safe(rdt, 'pressure')
+        pressure = get_safe(rdt, 'pressure')
+        temperature = get_safe(rdt, 'temp')
 
         longitude = get_safe(rdt, 'lon')
         latitude = get_safe(rdt, 'lat')
         time = get_safe(rdt, 'time')
         depth = get_safe(rdt, 'depth')
 
-        parameter_dictionary = self._create_parameter()
-        root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
+        # create parameter settings
+        sal_pdict = CTDL2SalinityTransformAlgorithm._create_parameter()
 
-        root_rdt['salinity'] = ctd_L2_salinity_algorithm.execute(conductivity, pres, temperature)
-        root_rdt['time'] = time
-        root_rdt['lat'] = latitude
-        root_rdt['lon'] = longitude
-        root_rdt['depth'] = depth
+        sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
+        # build the granule for density
+        result = CTDL2SalinityTransformAlgorithm._build_granule_settings(sal_pdict, 'salinity', sal_value, time, latitude, longitude, depth)
 
-        g = build_granule(data_producer_id='ctd_L2_salinity', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
-        self.publish(msg=g, stream_id=self.sal_stream)
+        return result
 
-        return g
-
-    def _create_parameter(self):
+    @staticmethod
+    def _create_parameter():
 
         pdict = ParameterDictionary()
 
-        pdict = self._add_location_time_ctxt(pdict)
+        pdict = CTDL2SalinityTransformAlgorithm._add_location_time_ctxt(pdict)
 
-        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=np.float32))
-        sal_ctxt.uom = 'PSU'
-        sal_ctxt.fill_value = 0x0
-        pdict.add_context(sal_ctxt)
+        pres_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=np.float32))
+        pres_ctxt.uom = 'unknown'
+        pres_ctxt.fill_value = 0e0
+        pdict.add_context(pres_ctxt)
 
         return pdict
 
-    def _add_location_time_ctxt(self, pdict):
+    @staticmethod
+    def _add_location_time_ctxt(pdict):
 
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
         t_ctxt.reference_frame = AxisTypeEnum.TIME
@@ -124,13 +132,21 @@ class SalinityTransform(TransformDataProcess):
 
         return pdict
 
-
-class ctd_L2_salinity_algorithm(TransformAlgorithm):
-
     @staticmethod
-    def execute(*args, **kwargs):
-        print args[0], args[1], args[2]
-        cond = args[0]
-        pres = args[1]
-        temp = args[2]
-        return SP_from_cndr(r=cond/cte.C3515, t=temp, p=pres)
+    def _build_granule_settings(param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, depth=None):
+        root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
+
+        root_rdt[field_name] = value
+
+        if not time is None:
+            root_rdt['time'] = time
+        if not latitude is None:
+            root_rdt['lat'] = latitude
+        if not longitude is None:
+            root_rdt['lon'] = longitude
+        if not depth is None:
+            root_rdt['depth'] = depth
+
+        log.debug("CTDL2SalinityTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
+
+        return build_granule(data_producer_id='ctd_L2_salinity', param_dictionary=param_dictionary, record_dictionary=root_rdt)
