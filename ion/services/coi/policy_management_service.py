@@ -527,12 +527,15 @@ class PolicyManagementService(BasePolicyManagementService):
         #TODO - extend to handle Org specific service policies at some point.
 
         rules = ""
-        policy_set,_ = self.clients.resource_registry.find_resources_ext(restype=RT.Policy, nested_type=OT.ResourceAccessPolicy)
+        policy_set = self.find_resource_policies(resource_id)
+
         for p in policy_set:
-            if p.enabled:
+            if p.enabled and p.policy_type.type_ == OT.ResourceAccessPolicy :
                 rules += p.policy_type.policy_rule
 
+
         return rules
+
 
 
     def get_active_service_access_policy_rules(self, service_name='', org_name=''):
