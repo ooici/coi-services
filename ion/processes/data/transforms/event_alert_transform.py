@@ -63,6 +63,7 @@ class EventAlertTransform(TransformEventListener):
 class StreamAlertTransform(TransformStreamListener):
 
     def on_start(self):
+        super(StreamAlertTransform,self).on_start()
         self.value = self.CFG.get_safe('process.value', 0)
 
 
@@ -74,6 +75,7 @@ class StreamAlertTransform(TransformStreamListener):
         The callback method.
         If the events satisfy the criteria, publish an alert event.
         '''
+        log.info('Got incoming packet')
 
         value = self._extract_parameters_from_stream(msg, "VALUE")
 
