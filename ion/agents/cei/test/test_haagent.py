@@ -111,7 +111,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.event_sub.start()
 
     def await_state_event(self, pid, state):
-        event = self.event_queue.get(timeout=30)
+        event = self.event_queue.get(timeout=60)
         log.debug("Got event: %s", event)
         self.assertTrue(event.origin.startswith(pid))
         self.assertEqual(event.state, state)

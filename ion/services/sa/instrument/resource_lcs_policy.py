@@ -364,6 +364,9 @@ class DevicePolicy(ResourceLCSPolicy):
             if 0 == len(agentinsts): return self._make_fail("No agent instance found")
             agents = self._find_stemming(agentinsts[0], PRED.hasAgentDefinition, RT.PlatformAgent)
             # we check the develop precondition here, which checks that there's an agent. so assume it.
+
+            #todo: remove "site hasAgent agent"
+            #todo: add check that model is supported
             if siteagents[0]._id != agents[0]._id: return False
 
 

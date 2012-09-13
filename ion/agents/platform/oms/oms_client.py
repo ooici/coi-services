@@ -110,23 +110,12 @@ class OmsClient(object):
 
     def getPlatformPorts(self, platform_id):
         """
-        Returns the IDs of the ports associated with a given platform.
+        Returns information for each port in a given platform.
 
         @param platform_id	 	 Platform ID
 
-        @retval [port_id, ...]	 List of associated port IDs
-        """
-        raise NotImplemented()
-
-    def getPortInfo(self, platform_id, port_id):
-        """
-        Returns IP address for a given port in a platform.
-
-        @param platform_id	 	 Platform ID
-
-        @retval {ip: val}	 dict with associated port info.
-                        Note: Returned dict may also include TCP port and
-                        other info as appropriate. TBD
+        @retval {platform_id: {port_id: portInfo, ...} }
+                Dict with information for each port in the platform
         """
         raise NotImplemented()
 

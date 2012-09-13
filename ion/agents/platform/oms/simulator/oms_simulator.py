@@ -163,46 +163,42 @@ class OmsSimulator(OmsClient):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        ports = list(self._idp[platform_id].ports.iterkeys())
+        ports = {}
+        for port_id, port in self._idp[platform_id].ports.iteritems():
+            ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
+
         return {platform_id: ports}
-
-    def getPortInfo(self, platform_id, port_id):
-        if platform_id not in self._idp:
-            return {platform_id: InvalidResponse.PLATFORM_ID}
-
-        if port_id not in self._idp[platform_id].ports :
-            return InvalidResponse.PORT_ID
-
-        port_comms = self._idp[platform_id].get_port(port_id).comms
-        return {platform_id: port_comms}
 
     def setUpPort(self, platform_id, port_id, attributes):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
         if port_id not in self._idp[platform_id].ports :
-            return InvalidResponse.PORT_ID
+            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
         port_attrs = self._idp[platform_id].get_port(port_id).attrs
 
-        # retval will contain the attributes that were set
-        retval = {}
+        # result will contain the attributes that were set
+        result = {}
         for key, val in attributes.iteritems():
             if key in VALID_PORT_ATTRIBUTES:
+                # 1. set the value of the port attribute:
                 # TODO validate the value
                 port_attrs[key] = val
-                retval[key] = val
+
+                # 2. in the result, indicate that the value was set:
+                result[key] = val
             else:
                 log.warn("setUpPort called with unrecognized attribute: %s"% key)
 
-        return retval
+        return {platform_id: {port_id: result}}
 
     def turnOnPort(self, platform_id, port_id):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
         if port_id not in self._idp[platform_id].ports :
-            return InvalidResponse.PORT_ID
+            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
         port = self._idp[platform_id].get_port(port_id)
         if port._on:
@@ -210,14 +206,15 @@ class OmsSimulator(OmsClient):
         else:
             port._on = True
             log.info("port %s in platform %s turned on." % (port_id, platform_id))
-        return port._on
+
+        return {platform_id: {port_id: port._on}}
 
     def turnOffPort(self, platform_id, port_id):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
         if port_id not in self._idp[platform_id].ports :
-            return InvalidResponse.PORT_ID
+            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
         port = self._idp[platform_id].get_port(port_id)
         if not port._on:
@@ -225,4 +222,5 @@ class OmsSimulator(OmsClient):
         else:
             port._on = False
             log.info("port %s in platform %s turned off." % (port_id, platform_id))
-        return port._on
+
+        return {platform_id: {port_id: port._on}}
