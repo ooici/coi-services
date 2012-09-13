@@ -499,3 +499,11 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_metadata_update_datetime(self, data_product_id=''):
         # The time the data metadata (attributes) were last updated
         pass
+
+    def get_parameters(self, data_product_id=''):
+        # The set of Parameter objects describing each variable in this data product
+        pass
+
+    def get_data_url(self, data_product_id=''):
+        # The unique pointer to this set of data
+        pass
