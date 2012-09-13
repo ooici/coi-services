@@ -12,7 +12,7 @@ from interface.services.sa.iobservatory_management_service import ObservatoryMan
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-from pyon.core.exception import BadRequest, NotFound, Inconsistent #, Conflict
+from pyon.core.exception import BadRequest, NotFound, Inconsistent, Unauthorized #, Conflict
 from pyon.public import RT, LCS, LCE
 from pyon.ion.resource import get_maturity_visibility
 from nose.plugins.attrib import attr
@@ -569,8 +569,8 @@ class TestAssembly(IonIntegrationTestCase):
         """
 
         lcsmethod = getattr(owner_service, "execute_%s_lifecycle" % resource_label)
-        
-        self.assertRaises(BadRequest, lcsmethod, resource_id, lc_event)
+        #lcsmethod(resource_id, lc_event)
+        self.assertRaises(Unauthorized, lcsmethod, resource_id, lc_event)
         
         
     def generic_lcs_pass(self, 

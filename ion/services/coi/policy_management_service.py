@@ -526,17 +526,16 @@ class PolicyManagementService(BasePolicyManagementService):
 
         #TODO - extend to handle Org specific service policies at some point.
 
-        #TODO - can the finds be replaced with a better index based on sub types?
-
         rules = ""
         policy_set = self.find_resource_policies(resource_id)
 
         for p in policy_set:
-            if p.enabled  and p.policy_type.type_ == OT.ResourceAccessPolicy :
+            if p.enabled and p.policy_type.type_ == OT.ResourceAccessPolicy :
                 rules += p.policy_type.policy_rule
 
 
         return rules
+
 
 
     def get_active_service_access_policy_rules(self, service_name='', org_name=''):
@@ -550,21 +549,17 @@ class PolicyManagementService(BasePolicyManagementService):
         """
         #TODO - extend to handle Org specific service policies at some point.
 
-        #TODO - can the finds be replaced with a better index based on sub types?
-
-
-        #policy = self._get_policy_template()
-
         rules = ""
-        policy_set,_ = self.clients.resource_registry.find_resources(restype=RT.Policy)
         if not service_name:
+            policy_set,_ = self.clients.resource_registry.find_resources_ext(restype=RT.Policy, nested_type=OT.CommonServiceAccessPolicy)
             for p in policy_set:
-                if p.enabled and p.policy_type.type_ == OT.CommonServiceAccessPolicy:
+                if p.enabled:
                     rules += p.policy_type.policy_rule
 
         else:
+            policy_set,_ = self.clients.resource_registry.find_resources_ext(restype=RT.Policy, nested_type=OT.ServiceAccessPolicy)
             for p in policy_set:
-                if p.enabled and p.policy_type.type_ == OT.ServiceAccessPolicy and p.policy_type.service_name == service_name:
+                if p.enabled and p.policy_type.service_name == service_name:
                     rules += p.policy_type.policy_rule
 
         return rules
@@ -587,14 +582,10 @@ class PolicyManagementService(BasePolicyManagementService):
 
         #TODO - extend to handle Org specific service policies at some point.
 
-        #TODO - can the finds be replaced with a better index based on sub types?
-
         preconditions = list()
-        policy_set,_ = self.clients.resource_registry.find_resources(restype=RT.Policy)
-
+        policy_set,_ = self.clients.resource_registry.find_resources_ext(restype=RT.Policy, nested_type=OT.ProcessOperationPreconditionPolicy)
         for p in policy_set:
-            if p.enabled and p.policy_type.type_ == OT.ProcessOperationPreconditionPolicy and p.policy_type.process_name == process_name \
-            and p.policy_type.op == op:
+            if p.enabled and p.policy_type.process_name == process_name and p.policy_type.op == op:
                 return p.policy_type.preconditions
 
         return preconditions

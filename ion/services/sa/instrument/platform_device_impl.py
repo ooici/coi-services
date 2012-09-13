@@ -19,11 +19,11 @@ class PlatformDeviceImpl(ResourceImpl):
     def on_impl_init(self):
         self.policy = DevicePolicy(self.clients)
 
-        self.add_lce_precondition(LCE.PLAN, self.use_policy(self.policy.lce_precondition_plan))
-        self.add_lce_precondition(LCE.DEVELOP, self.use_policy(self.policy.lce_precondition_develop))
-        self.add_lce_precondition(LCE.INTEGRATE, self.use_policy(self.policy.lce_precondition_integrate))
-        self.add_lce_precondition(LCE.DEPLOY, self.use_policy(self.policy.lce_precondition_deploy))
-        self.add_lce_precondition(LCE.RETIRE, self.use_policy(self.policy.lce_precondition_retire))
+        self.add_lce_precondition(LCE.PLAN, self.policy.lce_precondition_plan)
+        self.add_lce_precondition(LCE.DEVELOP, self.policy.lce_precondition_develop)
+        self.add_lce_precondition(LCE.INTEGRATE, self.policy.lce_precondition_integrate)
+        self.add_lce_precondition(LCE.DEPLOY, self.policy.lce_precondition_deploy)
+        self.add_lce_precondition(LCE.RETIRE, self.policy.lce_precondition_retire)
 
     def _primary_object_name(self):
         return RT.PlatformDevice

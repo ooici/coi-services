@@ -136,6 +136,19 @@ class ResourceImpl(object):
 
         return ret
 
+    def policy_fn_lcs_precondition(self, id_field):
+
+        def freeze():
+            def policy_fn(msg, headers):
+                #The validation interceptor should have already verified that these are in the msg dict
+                resource_id = msg[id_field]
+                lifecycle_event = msg['lifecycle_event']
+
+                return self.check_lcs_precondition_satisfied(resource_id, lifecycle_event)
+
+            return policy_fn
+
+        return freeze()
 
     def check_lcs_precondition_satisfied(self, resource_id, transition_event):
         # check that the resource exists
@@ -144,24 +157,30 @@ class ResourceImpl(object):
 
         # check that we've been handed the correct object
         if not resource_type == self.iontype:
-            raise BadRequest("Attempted to change lifecycle of a %s in a %s module" %
+            return False, ("Attempted to change lifecycle of a %s in a %s module" %
                              (resource_type, self.iontype))
 
 
         # check that precondition function exists
         if not transition_event in self.lce_precondition:
-            raise BadRequest(
+            return False, (
                 "%s lifecycle precondition method for event '%s' not defined! Choices: %s"
                 % (self.iontype, transition_event, str(self.lce_precondition.keys())))
 
         precondition_fn = self.lce_precondition[transition_event]
 
         # check that the precondition is met
-        errmsg = precondition_fn(resource_id)
-        if not "" == errmsg:
-            raise BadRequest(("Couldn't apply '%s' LCS transition to %s '%s'; "
+        verbose = False
+        if not verbose:
+            return precondition_fn(resource_id)
+        else:
+            isok, errmsg = precondition_fn(resource_id)
+            if isok:
+                return isok, errmsg
+            else:
+                return isok, (("Couldn't apply '%s' LCS transition to %s '%s'; "
                               + "failed precondition: %s")
-            % (transition_event, self.iontype, resource_id, errmsg))
+                                % (transition_event, self.iontype, resource_id, errmsg))
 
 
     def add_lce_precondition(self, transition, precondition_predicate_fn):
@@ -174,22 +193,6 @@ class ResourceImpl(object):
         self.lce_precondition[transition] = precondition_predicate_fn
 
 
-    def use_policy(self, policy_predicate_fn):
-        """
-        turn a policy-style function (taking resource_id, returning boolean) and have it return strings instead
-        """
-        #todo this may get phased out -- the tuple being returned would become the standard way to do it
-        def freeze():
-            def wrapper(resource_id):
-                isok, message = policy_predicate_fn(resource_id)
-                if isok:
-                    return ""
-                else:
-                    return message
-
-            return wrapper
-
-        return freeze()
 
     ##################################################
     #

@@ -65,7 +65,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     @mask_couch_error
     def execute_lifecycle_transition(self, resource_id='', transition_event=''):
         return self.resource_registry.execute_lifecycle_transition(resource_id=resource_id,
-                                                                   transition_event=transition_event)
+            transition_event=transition_event)
 
     @mask_couch_error
     def set_lifecycle_state(self, resource_id='', target_lcstate=''):
@@ -84,15 +84,18 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.delete_attachment(attachment_id=attachment_id)
 
     @mask_couch_error
-    def find_attachments(self, resource_id='', limit=0, descending=False, include_content=False, id_only=True):
+    def find_attachments(self, resource_id='', keyword='', limit=0, descending=False, include_content=False, id_only=True):
+        #return self.resource_registry.find_attachments(resource_id=resource_id, keyword='', limit=limit,
+        #                                               descending=descending, include_content=include_content,
+        #                                               id_only=id_only)
         return self.resource_registry.find_attachments(resource_id=resource_id, limit=limit,
-                                                       descending=descending, include_content=include_content,
-                                                       id_only=id_only)
+            descending=descending, include_content=include_content,
+            id_only=id_only)
 
     @mask_couch_error
     def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
         return self.resource_registry.create_association(subject=subject, predicate=predicate,
-                                                         object=object, assoc_type=assoc_type)
+            object=object, assoc_type=assoc_type)
 
     @mask_couch_error
     def delete_association(self, association=''):
@@ -121,7 +124,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     @mask_couch_error
     def find_associations(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
         return self.resource_registry.find_associations(subject=subject, predicate=predicate,
-                                                        object=object, assoc_type=assoc_type, id_only=id_only)
+            object=object, assoc_type=assoc_type, id_only=id_only)
     @mask_couch_error
     def find_associations_mult(self, subjects=[], id_only=False):
         return self.resource_registry.find_associations_mult(subjects=subjects, id_only=id_only)
@@ -129,7 +132,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     @mask_couch_error
     def get_association(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
         return self.resource_registry.get_association(subject=subject, predicate=predicate,
-                                                      object=object, assoc_type=assoc_type, id_only=id_only)
+            object=object, assoc_type=assoc_type, id_only=id_only)
 
     @mask_couch_error
     def find_resources(self, restype="", lcstate="", name="", id_only=False):
@@ -138,7 +141,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     @mask_couch_error
     def find_resources_ext(self, restype='', lcstate='', name='', keyword='', nested_type='', limit=0, skip=0, descending=False, id_only=False):
         # @TODO Remove if and else clause after pyon update
-        if 'find_resources_ext' in self.resource_registry:
+        if hasattr(self.resource_registry, 'find_resources_ext'):
             return self.resource_registry.find_resources_ext(restype=restype, lcstate=lcstate, name=name,
                 keyword=keyword, nested_type=nested_type, limit=limit, skip=skip, descending=descending,
                 id_only=id_only)
@@ -170,6 +173,6 @@ class ResourceRegistryService(BaseResourceRegistryService):
         extended_resource_handler = ExtendedResourceContainer(self, self)
 
         extended_resource = extended_resource_handler.create_extended_resource_container(resource_extension,
-                                        resource_id, None, ext_associations, ext_exclude)
+            resource_id, None, ext_associations, ext_exclude)
 
         return extended_resource

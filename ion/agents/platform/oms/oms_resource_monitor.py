@@ -77,11 +77,11 @@ class OmsResourceMonitor(object):
         Retrieves the attribute value from the OMS.
         """
         log.info("%r: retrieving attribute %r" % (self._platform_id, self._attr_id))
-        platAttrMap = {self._platform_id: [self._attr_id]}
 
+        attrNames = [self._attr_id]
         from_time = self._last_ts if self._last_ts else 0
 
-        retval = self._oms.getPlatformAttributeValues(platAttrMap, from_time)
+        retval = self._oms.getPlatformAttributeValues(self._platform_id, attrNames, from_time)
         log.info("getPlatformAttributeValues for %r = %s" % (self._platform_id, retval))
 
         if not self._platform_id in retval:

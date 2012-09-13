@@ -192,10 +192,8 @@ class OmsPlatformDriver(PlatformDriver):
     def get_attribute_values(self, attr_names, from_time):
         """
         """
-        platAttrMap = {self._platform_id: attr_names}
-        retval = self._oms.getPlatformAttributeValues(platAttrMap, from_time)
+        retval = self._oms.getPlatformAttributeValues(self._platform_id, attr_names, from_time)
         log.info("getPlatformAttributeValues = %s" % retval)
-
 
         if not self._platform_id in retval:
             raise PlatformException("Unexpected: response does not include "

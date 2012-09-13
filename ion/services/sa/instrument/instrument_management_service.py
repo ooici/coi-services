@@ -80,6 +80,31 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self._pagent = None
         self.extended_resource_handler = ExtendedResourceContainer(self)
 
+        # set up all of the policy interceptions
+        if self.container and self.container.governance_controller:
+            reg_precondition = self.container.governance_controller.register_process_operation_precondition
+            reg_precondition(self, 'execute_instrument_agent_lifecycle',
+                             self.instrument_agent.policy_fn_lcs_precondition("instrument_agent_id"))
+            reg_precondition(self, 'execute_instrument_agent_instance_lifecycle',
+                             self.instrument_agent_instance.policy_fn_lcs_precondition("instrument_agent_instance_id"))
+            reg_precondition(self, 'execute_instrument_model_lifecycle',
+                             self.instrument_model.policy_fn_lcs_precondition("instrument_model_id"))
+            reg_precondition(self, 'execute_instrument_device_lifecycle',
+                             self.instrument_device.policy_fn_lcs_precondition("instrument_device_id"))
+            reg_precondition(self, 'execute_platform_agent_lifecycle',
+                             self.platform_agent.policy_fn_lcs_precondition("platform_agent_id"))
+            reg_precondition(self, 'execute_platform_agent_instance_lifecycle',
+                             self.platform_agent_instance.policy_fn_lcs_precondition("platform_agent_instance_id"))
+            reg_precondition(self, 'execute_platform_model_lifecycle',
+                             self.platform_model.policy_fn_lcs_precondition("platform_model_id"))
+            reg_precondition(self, 'execute_platform_device_lifecycle',
+                             self.platform_device.policy_fn_lcs_precondition("platform_device_id"))
+            reg_precondition(self, 'execute_sensor_model_lifecycle',
+                             self.sensor_model.policy_fn_lcs_precondition("sensor_model_id"))
+            reg_precondition(self, 'execute_sensor_device_lifecycle',
+                             self.sensor_device.policy_fn_lcs_precondition("sensor_device_id"))
+
+
     def override_clients(self, new_clients):
         """
         Replaces the service clients with a new set of them... and makes sure they go to the right places

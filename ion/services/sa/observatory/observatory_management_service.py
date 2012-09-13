@@ -60,6 +60,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                  RT.PlatformSite, 
                                  RT.InstrumentSite]
 
+        #todo: add lcs methods for these??
+#        # set up all of the policy interceptions
+#        if self.container and self.container.governance_controller:
+#            reg_precondition = self.container.governance_controller.register_process_operation_precondition
+#            reg_precondition(self, 'execute_observatory_lifecycle',
+#                             self.observatory.policy_fn_lcs_precondition("observatory_id"))
+#            reg_precondition(self, 'execute_subsite_lifecycle',
+#                             self.subsite.policy_fn_lcs_precondition("subsite_id"))
+#            reg_precondition(self, 'execute_platform_site_lifecycle',
+#                             self.platform_site.policy_fn_lcs_precondition("platform_site_id"))
+#            reg_precondition(self, 'execute_instrument_site_lifecycle',
+#                             self.instrument_site.policy_fn_lcs_precondition("instrument_site_id"))
 
 
     def override_clients(self, new_clients):

@@ -6,7 +6,12 @@ __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 
 import ast
 import csv
-
+try:
+    import xlrd
+except:
+    pass
+import requests
+import StringIO
 
 from interface import objects
 
@@ -23,6 +28,7 @@ class IONLoader(ImmediateProcess):
     """
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
@@ -75,6 +81,8 @@ class IONLoader(ImmediateProcess):
     def load_ion(self, path, scenario):
         if not path:
             raise iex.BadRequest("Must provide path")
+        if not scenario:
+            raise iex.BadRequest("Must provide scenario")
 
         log.info("Start preloading from path=%s" % path)
         categories = ['User',
@@ -114,6 +122,15 @@ class IONLoader(ImmediateProcess):
         if self.loadui:
             self.ui_loader.load_ui(path)
 
+        if path.startswith('http'):
+            preload_doc_str = requests.get(path).content
+            log.info("Loaded preload spreadsheet from URL %s size=%s", path, len(preload_doc_str))
+
+            xls_parser = XLSParser()
+            self.csv_files = xls_parser.extract_csvs(preload_doc_str)
+        else:
+            self.csv_files = None
+
         for category in categories:
             row_do, row_skip = 0, 0
 
@@ -126,20 +143,33 @@ class IONLoader(ImmediateProcess):
             filename = "%s/%s.csv" % (path, category)
             log.info("Loading category %s from file %s", category, filename)
             try:
-                with open(filename, "rb") as csvfile:
+                csvfile = None
+                if self.csv_files is not None:
+                    csv_doc = self.csv_files[category]
+                    # This is a hack to be able to read from string
+                    csv_doc = csv_doc.splitlines()
+                    reader = csv.DictReader(csv_doc, delimiter=',')
+                else:
+                    csvfile = open(filename, "rb")
                     reader = csv.DictReader(csvfile, delimiter=',')
-                    for row in reader:
-                        # Check if scenario applies
-                        rowsc = row[self.COL_SCENARIO]
-                        if not scenario in rowsc:
-                            row_skip += 1
-                            continue
-                        row_do += 1
 
-                        log.debug('handling %s row: %r', category, row)
-                        catfunc(row)
+                for row in reader:
+                    # Check if scenario applies
+                    rowsc = row[self.COL_SCENARIO]
+                    if not scenario in rowsc:
+                        row_skip += 1
+                        continue
+                    row_do += 1
+
+                    log.debug('handling %s row: %r', category, row)
+                    catfunc(row)
             except IOError, ioe:
+                log.exception("ERROR")
                 log.warn("Resource category file %s error: %s" % (filename, str(ioe)))
+            finally:
+                if csvfile is not None:
+                    csvfile.close()
+                    csvfile = None
 
             log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
 
@@ -192,9 +222,9 @@ class IONLoader(ImmediateProcess):
             return str(value)
         elif targettype is 'bool':
             lvalue = value.lower()
-            if lvalue == 'true':
+            if lvalue == 'true' or lvalue == '1':
                return True
-            elif lvalue == 'false' or lvalue == '':
+            elif lvalue == 'false' or lvalue == '' or lvalue == '0':
                 return False
             else:
                 raise iex.BadRequest("Value %s is no bool" % value)
@@ -895,3 +925,57 @@ class IONLoader(ImmediateProcess):
         parameter_dictionary = parameter_dictionary.dump()
 
         return parameter_dictionary, tdom, sdom
+
+
+class XLSParser(object):
+
+    def extract_csvs(self, file_content):
+        sheets = self.extract_worksheets(file_content)
+        csv_docs = {}
+        for sheet_name, sheet in sheets.iteritems():
+            csv_doc = self.dumps_csv(sheet)
+            csv_docs[sheet_name] = csv_doc
+        return csv_docs
+
+    def extract_worksheets(self, file_content):
+        book = xlrd.open_workbook(file_contents=file_content)
+        sheets = {}
+        formatter = lambda(t,v): self.format_excelval(book,t,v,False)
+
+        for sheet_name in book.sheet_names():
+            raw_sheet = book.sheet_by_name(sheet_name)
+            data = []
+            for row in range(raw_sheet.nrows):
+                (types, values) = (raw_sheet.row_types(row), raw_sheet.row_values(row))
+                data.append(map(formatter, zip(types, values)))
+            sheets[sheet_name] = data
+        return sheets
+
+    def dumps_csv(self, sheet):
+        stream = StringIO.StringIO()
+        csvout = csv.writer(stream, delimiter=',', doublequote=False, escapechar='\\')
+        csvout.writerows( map(self.utf8ize, sheet) )
+        csv_doc = stream.getvalue()
+        stream.close()
+        return csv_doc
+
+    def tupledate_to_isodate(self, tupledate):
+        (y,m,d, hh,mm,ss) = tupledate
+        nonzero = lambda n: n!=0
+        date = "%04d-%02d-%02d"  % (y,m,d)    if filter(nonzero, (y,m,d))                else ''
+        time = "T%02d:%02d:%02d" % (hh,mm,ss) if filter(nonzero, (hh,mm,ss)) or not date else ''
+        return date+time
+
+    def format_excelval(self, book, type, value, wanttupledate):
+        if   type == 2: # TEXT
+            if value == int(value): value = int(value)
+        elif type == 3: # NUMBER
+            datetuple = xlrd.xldate_as_tuple(value, book.datemode)
+            value = datetuple if wanttupledate else self.tupledate_to_isodate(datetuple)
+        elif type == 5: # ERROR
+            value = xlrd.error_text_from_code[value]
+        return value
+
+    def utf8ize(self, l):
+        return [unicode(s).encode("utf-8") if hasattr(s,'encode') else s for s in l]
+
