@@ -184,7 +184,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
         #Stop the workflow processes
-        self.workflowclient.terminate_data_process_workflow(workflow_id, False, timeout=15)  # Should test true at some point
+        self.workflowclient.terminate_data_process_workflow(workflow_id, False, timeout=25)  # Should test true at some point
 
         #Make sure the Workflow object was removed
         objs, _ = self.rrclient.find_resources(restype=RT.Workflow)
