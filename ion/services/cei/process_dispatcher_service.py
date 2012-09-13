@@ -360,6 +360,14 @@ class PDLocalBackend(object):
     deployments where there is no CEI launch to leverage.
     """
 
+    # We attempt to make the local backend act a bit more like the real thing.
+    # Process spawn requests are asynchronous (not completed by the time the
+    # operation returns). Therefore, callers need to listen for events to find
+    # the success of failure of the process launch. To make races here more
+    # detectable, we introduce an artificial delay between when
+    # schedule_process() returns and when the process is actually launched.
+    SPAWN_DELAY = 1.0
+
     def __init__(self, container):
         self.container = container
         self.event_pub = EventPublisher()
@@ -388,6 +396,19 @@ class PDLocalBackend(object):
 
         definition = self.read_definition(definition_id)
 
+        # in order for this local backend to behave more like the real thing,
+        # we introduce an artificial delay in spawn requests. This helps flush
+        # out races where callers try to use a process before it is necessarily
+        # running.
+
+        gevent.spawn_later(self.SPAWN_DELAY, self._spawn_later, process_id,
+            definition, schedule, configuration)
+
+        self._add_process(process_id, configuration, None)
+        return process_id
+
+    def _spawn_later(self, process_id, definition, schedule, configuration):
+
         name = definition.name
         module = definition.executable['module']
         cls = definition.executable['class']
@@ -396,7 +417,10 @@ class PDLocalBackend(object):
         pid = self.container.spawn_process(name=name, module=module, cls=cls,
             config=configuration, process_id=process_id)
         log.debug('PD: Spawned Process (%s)', pid)
-        self._add_process(pid, configuration, ProcessStateEnum.SPAWN)
+
+        # update state on the existing process
+        process = self._get_process(process_id)
+        process.process_state = ProcessStateEnum.SPAWN
 
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=process_id, origin_type="DispatchedProcess",

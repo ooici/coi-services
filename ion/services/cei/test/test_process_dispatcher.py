@@ -63,9 +63,11 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.pd_service.backend.rr = self.mock_rr = Mock()
 
     def test_create_schedule(self):
+        backend = self.pd_service.backend
+        assert isinstance(backend, PDLocalBackend)
 
         event_pub = Mock()
-        self.pd_service.backend.event_pub = event_pub
+        backend.event_pub = event_pub
 
         proc_def = DotDict()
         proc_def['name'] = "someprocess"
@@ -78,11 +80,20 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         # not used for anything in local mode
         proc_schedule = DotDict()
 
-
         configuration = {"some": "value"}
 
-        self.pd_service.schedule_process("fake-process-def-id",
-            proc_schedule, configuration, pid)
+        with patch("gevent.spawn_later") as mock_gevent:
+            self.pd_service.schedule_process("fake-process-def-id",
+                proc_schedule, configuration, pid)
+
+            self.assertTrue(mock_gevent.called)
+
+            self.assertEqual(mock_gevent.call_args[0][0], backend.SPAWN_DELAY)
+            self.assertEqual(mock_gevent.call_args[0][1], backend._spawn_later)
+            spawn_later_args = mock_gevent.call_args[0][2:]
+
+        # now call the delayed spawn directly
+        backend._spawn_later(*spawn_later_args)
 
         self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
         self.assertEqual(self.mock_cc_spawn.call_count, 1)
@@ -102,8 +113,8 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
 
         self.assertEqual(event_pub.publish_event.call_count, 1)
 
-        process = self.pd_service.read_process('123')
-        self.assertEqual(process.process_id, '123')
+        process = self.pd_service.read_process(pid)
+        self.assertEqual(process.process_id, pid)
         self.assertEqual(process.process_state, ProcessStateEnum.SPAWN)
 
     def test_schedule_process_notfound(self):
