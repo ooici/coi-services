@@ -1,6 +1,6 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import Container, IonObject
+from pyon.public import IonObject
 from pyon.util.log import log
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
@@ -16,7 +16,6 @@ from pyon.core.exception import BadRequest, NotFound, Inconsistent #, Conflict
 from pyon.public import RT, LCS, LCE
 from pyon.ion.resource import get_maturity_visibility
 from nose.plugins.attrib import attr
-import unittest
 
 from ion.services.sa.test.helpers import any_old, add_keyworded_attachment
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
@@ -27,10 +26,7 @@ from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 from ion.services.sa.instrument.flag import KeywordFlag
 
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, ctd_stream_definition
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.util.parameter_yaml_IO import get_param_dict
