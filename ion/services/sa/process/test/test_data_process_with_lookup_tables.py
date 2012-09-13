@@ -21,20 +21,8 @@ from pyon.public import log, IonObject
 from pyon.public import RT, PRED
 from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
-from ion.services.dm.utility.granule_utils import CoverageCraft
-from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from interface.objects import StreamQuery, ExchangeQuery
-import gevent
-import unittest
-from interface.objects import HdfStorage, CouchStorage
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
-from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
 from ion.util.parameter_yaml_IO import get_param_dict
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
