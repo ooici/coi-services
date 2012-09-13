@@ -69,10 +69,10 @@ class SchedulerService(BaseSchedulerService):
             now_posix = self.__now_posix(self.__now())
             if task.start_time < now_posix:
                 expires_in = ceil(task.interval)
-                task.number_of_intervals -= 1
+                task.number_of_intervals = -1 if task.number_of_intervals == -1 else task.number_of_intervals - 1
             else:
                 expires_in = ceil((task.start_time - now_posix) + task.interval)
-                task.number_of_intervals -= 1
+                task.number_of_intervals = -1 if task.number_of_intervals == -1 else task.number_of_intervals - 1
         return expires_in
 
     def __schedule(self, task):
@@ -162,7 +162,7 @@ class SchedulerService(BaseSchedulerService):
             return False
         # Validate the timer is set correctly
         if type(task) == IntervalTimer:
-            if task.number_of_intervals < 0 or task.interval < 1:
+            if task.number_of_intervals < -1 or task.number_of_intervals == 0 or task.interval < 1:
                 log.error("SchedulerService.__is_timer_valid: IntervalTimer is set to incorrect value")
                 return False
         elif type(task) == TimeOfDayTimer:
@@ -222,7 +222,7 @@ class SchedulerService(BaseSchedulerService):
             raise BadRequest
 
     def create_interval_timer(self, start_time="", interval=0, number_of_intervals=0, event_origin="", event_subtype=""):
-        if number_of_intervals < -1 or interval < 1 or not event_origin:
+        if number_of_intervals < -1 or number_of_intervals == 0 or interval < 1 or not event_origin:
             log.error("SchedulerService.create_interval_timer: event_origin is not set")
             raise BadRequest
         interval_timer = IonObject("IntervalTimer", {"start_time": start_time, "interval": interval, "number_of_intervals": number_of_intervals,
