@@ -29,11 +29,11 @@ setup(  name = 'coi-services',
             'https://github.com/ooici/coverage-model/tarball/master#egg=coverage-model',
             'https://github.com/ooici/marine-integrations/tarball/master#egg=marine_integrations-1.0',
             'https://github.com/ooici/pyon/tarball/v0.1.7#egg=pyon-1.0',
-            'https://github.com/newbrough/utilities/tarball/master#egg=utilities'
+            'https://github.com/ooici/utilities/tarball/v2012.9.13#egg=utilities-2012.9.13'
         ],
         test_suite = 'pyon',
         install_requires = [
-            'utilities',
+            'utilitiesi==2012.9.13',
             'coverage-model',
             'marine-integrations',
             'pyon',
