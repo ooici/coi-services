@@ -958,6 +958,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if 1 != len(pduct_ids):
             raise BadRequest("Expected 1 DataProduct associated to site '%s' but found %d" % (site_id, len(pduct_ids)))
         process_ids, _ = self.RR.find_subjects(RT.DataProcess, PRED.hasOutputProduct, pduct_ids[0], True)
+        if not process_ids:
+            log.info('No DataProcess associated to the data product of this site')
 #        if 1 != len(process_ids):
 #            raise BadRequest("Expected 1 DataProcess feeding DataProduct '%s', but found %d" %
 #                             (pduct_ids[0], len(process_ids)))
@@ -968,11 +970,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         if not ss in ds:
             raise BadRequest("Data product(s) of site does not have any matching streamdef for data product of device")
-
-        data_process_id = process_ids[0]
-        log.info("Changing subscription: %s", data_process_id)
-        log.info('ds of ss: %s', ds[ss])
-        self.PRMS.update_data_process_inputs(data_process_id, [ds[ss]])
+        if process_ids:
+            data_process_id = process_ids[0]
+            log.info("Changing subscription: %s", data_process_id)
+            log.info('ds of ss: %s', ds[ss])
+            self.PRMS.update_data_process_inputs(data_process_id, [ds[ss]])
 
 
 

@@ -1,33 +1,13 @@
 
 from pyon.public import log
-from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
-from interface.services.coi.iorg_management_service import OrgManagementServiceClient
-from nose.plugins.attrib import attr
 
-from pyon.core.bootstrap import IonObject
-from pyon.core.exception import BadRequest
-from pyon.core.object import IonObjectSerializer
-
-from interface.services.dm.itransform_management_service import TransformManagementServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from pyon.public import StreamSubscriberRegistrar
-from prototype.sci_data.stream_defs import ctd_stream_definition
-from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.context import LocalContextMixin
 #from ion.agents.instruments.drivers.sbe37.sbe37_driver import SBE37Channel
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 from pyon.public import CFG
 from pyon.ion.stream import StandaloneStreamSubscriber
-from mock import patch
 
-import time
-import unittest
-import simplejson, urllib
 
 
 def instrument_test_driver(container):
