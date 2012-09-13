@@ -11,7 +11,6 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from pyon.core.exception import BadRequest, NotFound, Inconsistent, Unauthorized #, Conflict
 from pyon.public import RT, LCS, LCE
@@ -29,6 +28,12 @@ from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 from ion.services.sa.instrument.flag import KeywordFlag
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, ctd_stream_definition
+
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
+from ion.util.parameter_yaml_IO import get_param_dict
 
 # some stuff for logging info to the console
 # import sys
@@ -441,11 +446,18 @@ class TestAssembly(IonIntegrationTestCase):
 
         log.debug('test_createDataProduct: Creating new data product w/o a stream definition: %s' % ctd_stream_def_id)
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
@@ -749,3 +761,4 @@ class TestAssembly(IonIntegrationTestCase):
         self.assertTrue(num_objs2 > num_objs)
 
         return generic_id
+

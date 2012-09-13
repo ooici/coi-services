@@ -21,7 +21,11 @@ import time
 
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
+from ion.util.parameter_yaml_IO import get_param_dict
 
 
 class FakeProcess(LocalContextMixin):
@@ -55,11 +59,20 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.clients.data_acquisition_management.assign_data_product.return_value = None
         self.clients.pubsub_management.create_stream.return_value = "stream_id"
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
+
         parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
@@ -117,4 +130,3 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
 #unit
 rim = ResourceImplMetatest(TestDataProductManagementServiceUnit, DataProductManagementService, log)
 rim.add_resource_impl_unittests(DataProductImpl)
-

@@ -43,9 +43,14 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 
-from ion.services.dm.utility.granule_utils import CoverageCraft
 from ion.util.parameter_yaml_IO import get_param_dict
 from pyon.core.exception import BadRequest, NotFound, Conflict
+
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
+from ion.util.parameter_yaml_IO import get_param_dict
 
 from nose.plugins.attrib import attr
 
@@ -178,12 +183,20 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         log.debug( 'Creating new CDM data product with a stream definition')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('sample_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
+
         parsed_param_dict = get_param_dict('ctd_parsed_param_dict')
         raw_param_dict = get_param_dict('ctd_raw_param_dict')
 
@@ -490,11 +503,18 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         log.debug( 'Creating new CDM data product with a stream definition')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
@@ -643,3 +663,4 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
+
