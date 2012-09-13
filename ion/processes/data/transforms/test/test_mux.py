@@ -74,20 +74,20 @@ class DemuxTransformIntTest(IonIntegrationTestCase):
             elif stream_id == self.stream2:
                 self.r_stream2.set()
         
-        self.container.spawn_process('demuxer', 'ion.processes.data.transforms.mux', 'DemuxTransform', {'process':{'output_streams':[self.stream1, self.stream2]}}, 'demuxer_pid')
+        self.container.spawn_process('demuxer', 'ion.processes.data.transforms.mux', 'DemuxTransform', {'process':{'out_streams':[self.stream1, self.stream2]}}, 'demuxer_pid')
         self.queue_cleanup.append('demuxer_pid') 
         
         sub1 = StandaloneStreamSubscriber('sub1', process)
         sub2 = StandaloneStreamSubscriber('sub2', process)
-        sub1.xn.bind('%s.data' % self.stream1, self.container.ex_manager.create_xp('main_data'))
-        sub2.xn.bind('%s.data' % self.stream2, self.container.ex_manager.create_xp('alt_data'))
+        sub1.xn.bind(self.route1.routing_key, self.container.ex_manager.create_xp('main_data'))
+        sub2.xn.bind(self.route2.routing_key, self.container.ex_manager.create_xp('alt_data'))
         sub1.start()
         sub2.start()
 
         self.queue_cleanup.append(sub1.xn)
         self.queue_cleanup.append(sub2.xn)
         xn = self.container.ex_manager.create_xn_queue('demuxer_pid')
-        xn.bind('%s.data' % self.stream0, self.container.ex_manager.create_xp('input_data'))
+        xn.bind(self.route0.routing_key, self.container.ex_manager.create_xp(self.route0.exchange_point))
         domino = StandaloneStreamPublisher(self.stream0, self.route0)
         domino.publish('test')
 
