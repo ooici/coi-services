@@ -69,9 +69,10 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
     def validate_messages(self, msgs):
+        msg = msgs.body
 
 
-        rdt = RecordDictionaryTool.load_from_granule(msgs.body)
+        rdt = RecordDictionaryTool.load_from_granule(msg.body)
 
         vardict = {}
         vardict['temp'] = get_safe(rdt, 'temp')
