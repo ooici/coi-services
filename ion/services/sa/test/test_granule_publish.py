@@ -18,7 +18,7 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule_utils import CoverageCraft
-from pyon.public import log
+from ooi.logging import log
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum

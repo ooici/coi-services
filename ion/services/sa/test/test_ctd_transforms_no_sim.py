@@ -19,7 +19,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
-from pyon.public import log
+from ooi.logging import log
 from nose.plugins.attrib import attr
 
 from pyon.public import StreamSubscriberRegistrar

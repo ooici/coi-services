@@ -4,7 +4,7 @@ from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
-from pyon.public import log
+from ooi.logging import log
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum

@@ -1,7 +1,7 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, IonObject
-from pyon.util.log import log
+from ooi.logging import log
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 

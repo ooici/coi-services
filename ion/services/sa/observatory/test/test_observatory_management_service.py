@@ -13,7 +13,7 @@ from nose.plugins.attrib import attr
 from pyon.public import PRED #, RT
 
 
-from pyon.util.log import log
+from ooi.logging import log
 
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 

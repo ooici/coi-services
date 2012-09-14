@@ -17,7 +17,7 @@ from pyon.public import RT, PRED
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
-from pyon.util.log import log
+from ooi.logging import log
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
