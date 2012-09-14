@@ -113,6 +113,10 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
         cfg_host = CFG.service.instrument_management.driver_release_host #'amoeaba.ucsd.edu'
         cfg_user = pwd.getpwuid(os.getuid())[0]
 
+        if "driver_release_user" in CFG.service.instrument_management:
+            cfg_user = CFG.service.instrument_management.driver_release_user
+
+
         remotehost = "%s@%s" % (cfg_user, cfg_host)
 
         ssh_retval = subprocess.call(["ssh", "-o", "PasswordAuthentication=no",
