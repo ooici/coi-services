@@ -1,21 +1,18 @@
 #!/usr/bin/env python
-from pyon.agent.simple_agent import SimpleResourceAgentClient
-from pyon.net.endpoint import Subscriber
-
-__author__ = 'Stephen P. Henrie, Michael Meisinger'
-__license__ = 'Apache 2.0'
 
 import uuid
 import json
 
 import gevent
+from couchdb.http import ResourceNotFound
 
+from pyon.agent.simple_agent import SimpleResourceAgentClient
+from pyon.net.endpoint import Subscriber
 from pyon.public import log
 from pyon.core.exception import NotFound, BadRequest, ServerError
 from pyon.util.containers import create_valid_identifier
 from pyon.event.event import EventPublisher
 from pyon.core import bootstrap
-from couchdb.http import ResourceNotFound
 
 try:
     from epu.processdispatcher.core import ProcessDispatcherCore
@@ -33,10 +30,8 @@ except ImportError:
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
-from interface.objects import ProcessStateEnum, Process
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.objects import ProcessStateEnum, ProcessDefinition, ProcessDefinitionType,\
-        ProcessQueueingMode, ProcessRestartMode, ProcessTarget, ProcessSchedule
+from interface.objects import ProcessStateEnum, Process, ProcessDefinition,\
+    ProcessQueueingMode, ProcessRestartMode, ProcessTarget, ProcessSchedule
 
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
@@ -255,6 +250,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         """
         return self.backend.list()
 
+
 class PDDashiHandler(object):
     """Dashi messaging handlers for the Process Dispatcher"""
 
@@ -356,12 +352,21 @@ class PDDashiHandler(object):
     def terminate_process(self, upid):
         return self.backend.cancel(upid)
 
+
 class PDLocalBackend(object):
     """Scheduling backend to PD that manages processes in the local container
 
     This implementation is the default and is used in single-container
     deployments where there is no CEI launch to leverage.
     """
+
+    # We attempt to make the local backend act a bit more like the real thing.
+    # Process spawn requests are asynchronous (not completed by the time the
+    # operation returns). Therefore, callers need to listen for events to find
+    # the success of failure of the process launch. To make races here more
+    # detectable, we introduce an artificial delay between when
+    # schedule_process() returns and when the process is actually launched.
+    SPAWN_DELAY = 1.0
 
     def __init__(self, container):
         self.container = container
@@ -387,21 +392,38 @@ class PDLocalBackend(object):
     def delete_definition(self, definition_id):
         return self.rr.delete(definition_id)
 
-    def spawn(self, name, definition_id, schedule, configuration):
+    def spawn(self, process_id, definition_id, schedule, configuration):
 
         definition = self.read_definition(definition_id)
 
+        # in order for this local backend to behave more like the real thing,
+        # we introduce an artificial delay in spawn requests. This helps flush
+        # out races where callers try to use a process before it is necessarily
+        # running.
+
+        gevent.spawn_later(self.SPAWN_DELAY, self._spawn_later, process_id,
+            definition, schedule, configuration)
+
+        self._add_process(process_id, configuration, None)
+        return process_id
+
+    def _spawn_later(self, process_id, definition, schedule, configuration):
+
+        name = definition.name
         module = definition.executable['module']
         cls = definition.executable['class']
 
         # Spawn the process
         pid = self.container.spawn_process(name=name, module=module, cls=cls,
-            config=configuration, process_id=name)
+            config=configuration, process_id=process_id)
         log.debug('PD: Spawned Process (%s)', pid)
-        self._add_process(pid, configuration, ProcessStateEnum.SPAWN)
+
+        # update state on the existing process
+        process = self._get_process(process_id)
+        process.process_state = ProcessStateEnum.SPAWN
 
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
-            origin=name, origin_type="DispatchedProcess",
+            origin=process_id, origin_type="DispatchedProcess",
             state=ProcessStateEnum.SPAWN)
 
         return pid
@@ -715,7 +737,7 @@ class PDNativeBackend(object):
         # also delete in RR
         self.rr.delete(definition_id)
 
-    def spawn(self, name, definition_id, schedule, configuration):
+    def spawn(self, process_id, definition_id, schedule, configuration):
 
         # note: not doing anything with schedule mode yet: the backend PD
         # service doesn't fully support it.
@@ -739,13 +761,13 @@ class PDNativeBackend(object):
             if hasattr(schedule, 'restart_mode') and schedule.restart_mode:
                 restart_mode = ProcessRestartMode._str_map.get(schedule.restart_mode)
 
-        self.core.schedule_process(None, upid=name, definition_id=definition_id,
+        self.core.schedule_process(None, upid=process_id, definition_id=definition_id,
             subscribers=None, constraints=constraints,
             node_exclusive=node_exclusive, queueing_mode=queueing_mode,
             execution_engine_id=execution_engine_id,
             restart_mode=restart_mode, configuration=configuration)
 
-        return name
+        return process_id
 
     def cancel(self, process_id):
         result = self.core.terminate_process(None, upid=process_id)
@@ -865,7 +887,7 @@ class PDBridgeBackend(object):
 
         self.rr.delete(definition_id)
 
-    def spawn(self, name, definition_id, schedule, configuration):
+    def spawn(self, process_id, definition_id, schedule, configuration):
 
         # note: not doing anything with schedule mode yet: the backend PD
         # service doesn't fully support it.
@@ -881,13 +903,13 @@ class PDBridgeBackend(object):
         config = configuration or {}
 
         proc = self.dashi.call(self.topic, "schedule_process",
-            upid=name, definition_id=definition_id, subscribers=self.pd_process_subscribers,
+            upid=process_id, definition_id=definition_id, subscribers=self.pd_process_subscribers,
             constraints=constraints, configuration=config)
 
         log.debug("Dashi Process Dispatcher returned process: %s", proc)
 
-        # name == upid == process_id
-        return name
+        # upid == process_id
+        return process_id
 
     def cancel(self, process_id):
 

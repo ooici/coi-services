@@ -17,7 +17,7 @@ import math
 class FakeProcess(LocalContextMixin):
     name = ''
 
-@attr('INT', group='cei')
+@attr('seman', group='cei')
 class TestSchedulerService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -117,6 +117,39 @@ class TestSchedulerService(IonIntegrationTestCase):
                                 - (self.interval_timer_interval * self.interval_timer_count) )
         # Assert expire time is within +-2 seconds
         self.assertTrue(time_diff <= 2)
+
+    def test__create_forever_interval_timer(self):
+        # Test creating interval timer that runs forever
+
+        self.interval_timer_count = 0
+        self.interval_timer_sent_time = 0
+        self.interval_timer_received_time = 0
+        self.interval_timer_interval = 3
+        self.interval_timer_number_of_intervals = -1
+
+        event_origin = "Interval Timer Forever"
+        sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
+        sub.start()
+
+        ss = SchedulerService()
+        id = ss.create_interval_timer(start_time= time.time(), interval=self.interval_timer_interval,
+                                      number_of_intervals=self.interval_timer_number_of_intervals,
+                                      event_origin=event_origin, event_subtype="")
+        self.interval_timer_sent_time = datetime.datetime.utcnow()
+        self.assertEqual(type(id), str)
+
+        # Wait for 5 events to be published
+        gevent.sleep((self.interval_timer_interval * 5) + 1)
+        ss.cancel_timer(id)
+
+        # Validate the timer id is invalid once it has been canceled
+        with self.assertRaises(BadRequest):
+            ss.cancel_timer(id)
+
+        # Validate events are not generated after canceling the timer
+        self.assertEqual(self.interval_timer_count, 5)
+
+
 
 
     def test_timeoffday_timer(self):
