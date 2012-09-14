@@ -1079,7 +1079,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         platform_agent_instance_obj.agent_process_id = process_id
         self.update_instrument_agent_instance(platform_agent_instance_obj)
 
-        return
+        return process_id
 
     def stop_platform_agent_instance(self, platform_agent_instance_id=''):
 
