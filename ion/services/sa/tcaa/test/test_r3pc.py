@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+"""
+@package ion.services.sa.tcaa.test.test_r3pc
+@file ion/services/sa/tcaa/test/test_r3pc.py
+@author Edward Hunter
+@brief Test cases for 2CAA R3PC sockets.
+"""
 
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
@@ -38,7 +44,7 @@ from ion.services.sa.tcaa.r3pc import R3PCTestBehavior
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_normal
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_delay_momentary
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_delay_long
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_msg_lost
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_server_restart
 
 #@unittest.skip('Socket unavailable on buildbot.')
 @attr('INT', group='sa')
@@ -52,7 +58,7 @@ class TestR3PCSocket(IonIntegrationTestCase):
         self._req_recv_evt = AsyncResult()
         self._client_close_evt = AsyncResult()
         self._server_close_evt = AsyncResult()
-        self._ack_recv = []
+        self._ack_recv = {}
         self._req_recv = {}
         self._req_sent = {}
         self._no_requests = 50
@@ -62,10 +68,10 @@ class TestR3PCSocket(IonIntegrationTestCase):
             id = uuid.uuid4()
             self._requests.append((id, request))
             
-    def consume_ack(self):
+    def consume_ack(self, request):
         """
         """
-        self._ack_recv.append('OK')
+        self._ack_recv[request[0]] = request[1]        
         log.debug('Client acks received: %i', len(self._ack_recv))
         if len(self._ack_recv) == self._no_requests and self._ack_recv_evt:
             self._ack_recv_evt.set()
@@ -115,7 +121,7 @@ class TestR3PCSocket(IonIntegrationTestCase):
         self._server.stop()
 
         self.assertDictEqual(self._req_sent, self._req_recv)
-        self.assertEqual(len(self._ack_recv), self._no_requests)
+        self.assertDictEqual(self._req_sent, self._ack_recv)
     
     def test_delay_momentary(self):
         """
@@ -126,7 +132,7 @@ class TestR3PCSocket(IonIntegrationTestCase):
         self.addCleanup(self._client.stop)
 
         self._server.test_behaviors = {
-            25 : R3PCTestBehavior(R3PCTestBehavior.delay, 5)
+            25 : R3PCTestBehavior(R3PCTestBehavior.delay, 2)
         }
         
         port = self._server.start('*', 0)
@@ -141,7 +147,7 @@ class TestR3PCSocket(IonIntegrationTestCase):
         self._server.stop()
 
         self.assertDictEqual(self._req_sent, self._req_recv)
-        self.assertEqual(len(self._ack_recv), self._no_requests)
+        self.assertDictEqual(self._req_sent, self._ack_recv)
 
 
     def test_delay_long(self):
@@ -161,20 +167,17 @@ class TestR3PCSocket(IonIntegrationTestCase):
 
         self.enqueue_all()
 
-        self._client_close_evt.get(timeout=15)
-        self._client.start('localhost', port)
-
-        self._req_recv_evt.get(timeout=15)
-        self._ack_recv_evt.get(timeout=15)
+        self._req_recv_evt.get(timeout=25)
+        self._ack_recv_evt.get(timeout=25)
 
         self._client.stop()
         self._server.stop()
 
         self.assertDictEqual(self._req_sent, self._req_recv)
-        self.assertEqual(len(self._ack_recv), self._no_requests)
+        self.assertDictEqual(self._req_sent, self._ack_recv)
 
-@unittest.skip('Fails on buildbot.')
-def test_msg_lost(self):
+    @unittest.skip('Fails on buildbot/CentOS.')
+    def test_server_restart(self):
         """
         """        
         self._server = R3PCServer(self.consume_req, self.server_close)
@@ -198,4 +201,4 @@ def test_msg_lost(self):
         self._server.stop()
 
         self.assertDictEqual(self._req_sent, self._req_recv)
-        self.assertEqual(len(self._ack_recv), self._no_requests)
+        self.assertDictEqual(self._req_sent, self._ack_recv)
