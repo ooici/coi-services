@@ -16,7 +16,7 @@ from pyon.public import CFG, IonObject, log, RT, PRED, LCS, LCE
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.containers import DotDict
 
-#from pyon.util.log import log
+#from ooi.logging import log
 from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
 from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl

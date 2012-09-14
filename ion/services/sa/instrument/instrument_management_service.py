@@ -17,7 +17,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.util.log import log
+from ooi.logging import log
 from pyon.util.ion_time import IonTime
 from pyon.core.object import ion_serializer
 from ion.services.sa.instrument.flag import KeywordFlag
@@ -724,6 +724,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         cfg_host        = CFG.service.instrument_management.driver_release_host      #'amoeaba.ucsd.edu'
         cfg_remotepath  = CFG.service.instrument_management.driver_release_directory #'/var/www/release'
         cfg_user        = pwd.getpwuid(os.getuid())[0]
+
+        #allow overriding of user with config variable
+        if CFG.service.instrument_management.driver_release_user:
+            cfg_user = CFG.service.instrument_management.driver_release_user
 
         log.debug("creating tempfile for egg output")
         f_handle, tempfilename = tempfile.mkstemp()

@@ -21,7 +21,8 @@ from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.util.parameter_yaml_IO import get_param_dict
 
-from pyon.public import log, LCS, LCE
+from pyon.public import LCS, LCE
+from ooi.logging import log
 from nose.plugins.attrib import attr
 
 
@@ -606,3 +607,4 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=newInstAgentInstance_id)
+

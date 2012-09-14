@@ -12,7 +12,7 @@ from pyon.core.exception import BadRequest, NotFound, Inconsistent
 
 from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 
-from pyon.util.log import log
+from ooi.logging import log
 
 class ResourceImplMetatestIntegration(ResourceImplMetatest):
     """

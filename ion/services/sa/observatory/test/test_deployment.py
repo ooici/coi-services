@@ -20,7 +20,7 @@ from pyon.public import RT, PRED
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
-from pyon.util.log import log
+from ooi.logging import log
 
 from ion.services.sa.test.helpers import any_old
 from ion.util.parameter_yaml_IO import get_param_dict

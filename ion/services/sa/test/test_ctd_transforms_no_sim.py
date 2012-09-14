@@ -13,7 +13,9 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
-from pyon.public import log
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+
+from ooi.logging import log
 from nose.plugins.attrib import attr
 
 

@@ -8,7 +8,7 @@
 from pyon.core.exception import BadRequest, Inconsistent
 from pyon.core.bootstrap import IonObject
 from pyon.public import PRED, RT, LCS, LCE
-from pyon.util.log import log
+from ooi.logging import log
 from pyon.core.exception import NotFound, BadRequest
 
 

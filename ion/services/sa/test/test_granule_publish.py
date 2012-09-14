@@ -18,7 +18,10 @@ from ion.services.dm.utility.granule.granule import build_granule
 from pyon.ion.stream import StandaloneStreamPublisher
 
 
-from pyon.public import log
+from ion.services.dm.utility.granule_utils import CoverageCraft
+from ooi.logging import log
+from coverage_model.parameter import ParameterContext, ParameterDictionary
+from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 
 from coverage_model.coverage import GridDomain, GridShape, CRS
