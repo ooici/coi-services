@@ -64,11 +64,11 @@ class DataRetrieverService(BaseDataRetrieverService):
             replay, config=self.replay_data_process(dataset_id, query, delivery_format, replay_stream_id)
         elif replay_type == self.BINARY_REPLAY:
             replay, config=self.replay_binary_process(query,delivery_format,replay_stream_id)
+
+
+        pid = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id)
         
-        pid = self.clients.process_dispatcher.schedule_process(
-            process_definition_id=process_definition_id,
-            configuration=config
-        )
+        self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, process_id=pid, configuration=config)
 
         replay.process_id = pid
 
@@ -84,7 +84,11 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.delete(replay_id)
 
+    def read_process_id(self, replay_id=''):
+        replay = self.clients.resource_registry.read(replay_id)
+        validate_is_instance(replay,Replay)
 
+        return replay.process_id
 
     def start_replay(self, replay_id=''):
         """
@@ -92,9 +96,8 @@ class DataRetrieverService(BaseDataRetrieverService):
         Execute replay should be a command which is fired, not RPC???
         """
 
-        replay = self.clients.resource_registry.read(replay_id)
-        pid = replay.process_id
-        cli = ReplayProcessClient(name=pid)
+        pid = self.read_process_id(replay_id)
+        cli = ReplayProcessClient(to_name=pid)
         cli.execute_replay()
 
 

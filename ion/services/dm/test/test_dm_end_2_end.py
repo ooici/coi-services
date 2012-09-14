@@ -17,6 +17,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.datastore.datastore import DataStore
 from interface.objects import ProcessDefinition, Granule
 from pyon.util.containers import DotDict
+from pyon.event.event import EventSubscriber
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
@@ -268,7 +269,16 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         replay_stream_id, replay_route = self.pubsub_management.create_stream('replay_out', exchange_point=self.exchange_point_name)
-        replay_id = self.data_retriever.define_replay(dataset_id=dataset_id, stream_id=replay_stream_id)
+        self.replay_id = self.data_retriever.define_replay(dataset_id=dataset_id, stream_id=replay_stream_id)
+        process_id = self.data_retriever.read_process_id(self.replay_id)
+
+        self.launched_event = gevent.event.Event()
+        
+        def ugh(*args, **kwargs):
+            self.launched_event.set()
+
+        event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=ugh, origin=process_id, origin_type="DispatchedProcess")
+        event_sub.start()
     
         #--------------------------------------------------------------------------------
         # Create the listening endpoint for the the retriever to talk to 
@@ -278,7 +288,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.queue_buffer.append(self.exchange_space_name)
         subscriber.start()
         subscriber.xn.bind(replay_route.routing_key, xp)
-        self.data_retriever.start_replay(replay_id)
+
+        if self.launched_event.wait(10):
+            self.data_retriever.start_replay(self.replay_id)
         
         fail = False
         try:
@@ -286,11 +298,15 @@ class TestDMEnd2End(IonIntegrationTestCase):
         except gevent.Timeout:
             fail = True
 
+        self.assertTrue(self.launched_event.wait(10), 'Guess what, the process was never dispatched...')
 
         subscriber.stop()
 
         self.assertTrue(not fail, 'Failed to validate the data.')
-        self.data_retriever.cancel_replay(replay_id)
+        self.data_retriever.cancel_replay(self.replay_id)
+
+        event_sub.stop()
+        event_sub.close()
 
 
     def test_replay_by_time(self):
@@ -423,7 +439,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         # Get the datastore to beat the race conditions
         #--------------------------------------------------------------------------------
         self.publish_file(stream_id, stream_route) 
-        
+        self.launched_event = gevent.event.Event()
+
+        def launched(*args, **kwargs):
+            self.launched_event.set()
        
         def notice(m,r,s):
             log.info( 'received: %s' , m)
@@ -432,8 +451,14 @@ class TestDMEnd2End(IonIntegrationTestCase):
            'file_stream_id': stream_id,
            'file_group_id':  'example1'
         }
+
+
         stream_id, route = self.pubsub_management.create_stream('replay_stream', exchange_point=self.exchange_point_name)
         replay_id = self.data_retriever.define_replay('', query, stream_id=stream_id, replay_type='BINARY')
+        pid = self.data_retriever.read_process_id(replay_id)
+        event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=launched, origin=pid, origin_type="DispatchedProcess")
+        event_sub.start()
+
 
         sub = StandaloneStreamSubscriber('test_binary_ingestion', notice)
         self.queue_buffer.append(sub.xn)
@@ -444,8 +469,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.wait_until_we_have_enough_files()
 
-        self.data_retriever.start_replay(replay_id)
+        if self.launched_event.wait(10):
+            self.data_retriever.start_replay(replay_id)
         self.assertTrue(success.wait(10))
         self.data_retriever.cancel_replay(replay_id)
 
 
+        event_sub.stop()
+        event_sub.close()
