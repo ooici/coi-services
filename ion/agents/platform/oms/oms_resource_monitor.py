@@ -56,7 +56,7 @@ class OmsResourceMonitor(object):
         """
         Starts greenlet for resource monitoring.
         """
-        log.info("starting resource monitoring %s" % str(self))
+        log.debug("starting resource monitoring %s" % str(self))
         self._active = True
         runnable = Greenlet(self._run)
         runnable.start()
@@ -70,31 +70,31 @@ class OmsResourceMonitor(object):
             if self._active:
                 self._retrieve_attribute_value()
 
-        log.info("greenlet stopped.")
+        log.debug("greenlet stopped.")
 
     def _retrieve_attribute_value(self):
         """
         Retrieves the attribute value from the OMS.
         """
-        log.info("%r: retrieving attribute %r" % (self._platform_id, self._attr_id))
+        log.debug("%r: retrieving attribute %r" % (self._platform_id, self._attr_id))
 
         attrNames = [self._attr_id]
         from_time = self._last_ts if self._last_ts else 0
 
         retval = self._oms.getPlatformAttributeValues(self._platform_id, attrNames, from_time)
-        log.info("getPlatformAttributeValues for %r = %s" % (self._platform_id, retval))
+        log.debug("getPlatformAttributeValues for %r = %s" % (self._platform_id, retval))
 
         if not self._platform_id in retval:
             raise PlatformException("Unexpected: response does not include "
                     "requested platform '%s'" % self._platform_id)
 
         attrs = retval[self._platform_id]
-        log.info("attrs = %s" % str(attrs))
+        log.debug("attrs = %s" % str(attrs))
         if self._attr_id in attrs:
             value_and_ts = attrs[self._attr_id]
             self._value_retrieved(value_and_ts)
         else:
-            log.info("No value reported for attribute=%r in platform=%r"
+            log.debug("No value reported for attribute=%r in platform=%r"
                      " with from_time=%r" % (
                         self._attr_id, self._platform_id, from_time))
 
@@ -103,7 +103,7 @@ class OmsResourceMonitor(object):
         A value has been retrieved from OMS. Create and notify corresponding
         event to platform agent.
         """
-        log.info("platform=%r; attr=%r: value retrieved = %s" % (
+        log.debug("platform=%r; attr=%r: value retrieved = %s" % (
             self._platform_id, self._attr_id, str(value_and_ts)))
 
         value, ts = value_and_ts
@@ -114,5 +114,5 @@ class OmsResourceMonitor(object):
         self._notify_driver_event(driver_event)
 
     def stop(self):
-        log.info("stopping resource monitoring %s" % str(self))
+        log.debug("stopping resource monitoring %s" % str(self))
         self._active = False

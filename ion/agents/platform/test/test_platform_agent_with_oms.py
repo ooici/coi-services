@@ -65,8 +65,8 @@ PLATFORM_CONFIG = {
 }
 
 # Agent parameters.
-PA_RESOURCE_ID = 'oms_platform_agent_001'
-PA_NAME = 'OmsPlatformAgent001'
+PA_RESOURCE_ID = 'platform_agent_001'
+PA_NAME = 'PlatformAgent001'
 PA_MOD = 'ion.agents.platform.platform_agent'
 PA_CLS = 'PlatformAgent'
 
@@ -80,8 +80,6 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-# don't skip it to see how it runs on buildbot
-#@unittest.skipIf(os.getenv('OMS') is None, "Define OMS to include this test")
 @attr('INT', group='sa')
 class TestPlatformAgent(IonIntegrationTestCase):
 

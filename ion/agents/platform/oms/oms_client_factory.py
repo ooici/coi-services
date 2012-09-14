@@ -49,35 +49,35 @@ class OmsClientFactory(object):
         if uri:
             if "embsimulator" == uri:
                 # "embedded" simulator, so instantiate OmsSimulator here:
-                log.info("Will use embedded OmsSimulator instance")
+                log.debug("Will use embedded OmsSimulator instance")
                 instance = OmsSimulator()
 
             elif "localsimulator" == uri:
                 # connect with OmsSimulator via XML/RPC on local host
                 uri = "http://localhost:7700/"
-                log.info("Will connect to OmsSimulator via XMP/RPC on %s" % uri)
+                log.debug("Will connect to OmsSimulator via XMP/RPC on %s" % uri)
 
             elif "simulator" == uri:
                 # connect with OmsSimulator via XML/RPC on oceanobservatories host
                 uri = "http://rsn-oms-simulator.oceanobservatories.org:7700/"
-                log.info("Will connect to OmsSimulator via XMP/RPC on %s" % uri)
+                log.debug("Will connect to OmsSimulator via XMP/RPC on %s" % uri)
 
             elif "rsn" == uri:
                 # connect to real OMS server on RSN
                 uri ="http://alice:1234@10.180.80.10:9021/"
-                log.info("Will connect to real OMS server on %s" % uri)
+                log.debug("Will connect to real OMS server on %s" % uri)
 
             #else: just use whatever URI was given.
 
         else:
             # use "embedded" simulator
-            log.info("OMS not defined; will use embedded OmsSimulator instance")
+            log.debug("OMS not defined; will use embedded OmsSimulator instance")
             instance = OmsSimulator()
 
         if (not instance) and uri:
-            log.info("Creating xmlrpclib.ServerProxy: uri=%s" % uri)
+            log.debug("Creating xmlrpclib.ServerProxy: uri=%s" % uri)
             instance = xmlrpclib.ServerProxy(uri, allow_none=True)
-            log.info("Created xmlrpclib.ServerProxy: uri=%s" % uri)
+            log.debug("Created xmlrpclib.ServerProxy: uri=%s" % uri)
 
         assert instance is not None, "instance must be created here"
         return instance
