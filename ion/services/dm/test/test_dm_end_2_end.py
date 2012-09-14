@@ -455,7 +455,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         from pyon.ion.stream import SimpleStreamSubscriber
 
         sub = SimpleStreamSubscriber.new_subscriber(self.container, 'test_binary_ingestion', notice)
-        replay_id = self.data_retriever.define_replay('', query, stream_id=stream_id, replay_type='BINARY')
         pid = self.data_retriever.read_process_id(replay_id)
         event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=launched, origin=pid, origin_type="DispatchedProcess")
         event_sub.start()
@@ -467,7 +466,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.wait_until_we_have_enough_files()
 
-        self.data_retriever.start_replay(replay_id)
+        if self.launched_event.wait(10):
+            self.data_retriever.start_replay(replay_id)
         self.assertTrue(success.wait(10))
         self.data_retriever.cancel_replay(replay_id)
 
