@@ -137,7 +137,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
     @needs_epu
     def test_features(self):
         status = self.haa_client.status().result
-        self.assertEqual(status, 'PENDING')
+        # Ensure HA hasn't already failed
+        assert status in ('PENDING', 'READY', 'STEADY')
 
         new_policy = {'preserve_n': 1}
         self.haa_client.reconfigure_policy(new_policy)
