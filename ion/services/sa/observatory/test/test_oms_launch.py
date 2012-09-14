@@ -26,7 +26,10 @@ from interface.objects import ProcessDefinition
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 
-import os
+from pyon.event.event import EventSubscriber
+from interface.objects import ProcessStateEnum
+
+from gevent import queue
 
 
 class FakeProcess(LocalContextMixin):
@@ -58,7 +61,43 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
 
+        self._event_queue = queue.Queue()
+        self._event_sub = None
 
+    def _event_callback(self, event, *args, **kwargs):
+        log.debug("_event_callback CALLED:\n event=%s\n args=%s\n kwargs=%s" % (
+            str(event), str(args), str(kwargs)))
+
+        self._event_queue.put(event)
+
+    def _subscribe_events(self, origin):
+
+        log.debug("_subscribe_events: origin=%s" % str(origin))
+
+        self._event_sub = EventSubscriber(
+            event_type="ProcessLifecycleEvent",
+            callback=self._event_callback,
+            origin=origin,
+            origin_type="DispatchedProcess"
+        )
+        self._event_sub.start()
+
+        log.debug("_subscribe_events: origin=%s STARTED" % str(origin))
+
+    def _await_state_event(self, pid, state, timeout=30):
+        state_str = ProcessStateEnum._str_map.get(state)
+        log.debug("_await_state_event: state=%s from pid=%s, timeout=%s" %  (
+            state_str, pid, timeout))
+        try:
+            event = self._event_queue.get(timeout=timeout)
+        except queue.Empty:
+            self.fail("Event timeout! Waited %s seconds for process %s to notifiy state %s" % (
+                timeout, pid, state_str))
+
+        log.debug("_await_state_event got event: %s, state=%s" % (
+            event, ProcessStateEnum._str_map.get(event.state)))
+        self.assertEqual(event.state, state)
+        self.assertEqual(event.origin, pid)
 
     #@unittest.skip('targeting')
     def test_oms_create_and_launch(self):
@@ -81,7 +120,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
             platformModel_id = self.imsclient.create_platform_model(platformModel_obj)
         except BadRequest as ex:
             self.fail("failed to create new PLatformModel: %s" %ex)
-        log.debug( 'new PlatformModel id = %s ', platformModel_id)
+        log.debug( 'new PlatformModel id = %s' % platformModel_id)
 
 
 
@@ -397,15 +436,25 @@ class TestOmsLaunch(IonIntegrationTestCase):
         #-------------------------------
         # Launch Platform SS AgentInstance, connect to the resource agent client
         #-------------------------------
-        print("start_platform_agent_instance: %s" % platformSS_agent_instance_id)
-        self.imsclient.start_platform_agent_instance(platform_agent_instance_id=platformSS_agent_instance_id)
+
+        #-----------------------------------------------------
+        # TODO IMS's start_platform_agent_instance hasn't seemed to have been
+        # adjusted to handle the proper dispatch of the process, so the
+        # _subscribe_events and _await_state_event calls below MAY NOT work
+        # yet due to the related potential race condition.
+        #-----------------------------------------------------
+        pid = self.imsclient.start_platform_agent_instance(platform_agent_instance_id=platformSS_agent_instance_id)
+        print("start_platform_agent_instance returned pid=%s" % pid)
+
+        self._subscribe_events(pid)
+        self._await_state_event(pid, ProcessStateEnum.SPAWN)
 
         platformSS_agent_instance_obj= self.imsclient.read_instrument_agent_instance(platformSS_agent_instance_id)
-        print 'test_oms_create_and_launch: Platform agent instance obj: = ', str(platformSS_agent_instance_obj)
+        print 'test_oms_create_and_launch: Platform agent instance obj: %s' % str(platformSS_agent_instance_obj)
 
         # Start a resource agent client to talk with the instrument agent.
         self._pa_client = ResourceAgentClient('paclient', name=platformSS_agent_instance_obj.agent_process_id,  process=FakeProcess())
-        log.debug(" test_oms_create_and_launch:: got pa client %s", str(self._pa_client))
+        log.debug(" test_oms_create_and_launch:: got pa client %s" % str(self._pa_client))
 
         DVR_CONFIG = {
             'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
@@ -425,24 +474,24 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # PING_AGENT can be issued before INITIALIZE
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
         retval = self._pa_client.execute_agent(cmd)
-        log.debug( 'ShoreSide Platform PING_AGENT = %s ', str(retval) )
+        log.debug( 'ShoreSide Platform PING_AGENT = %s' % str(retval) )
 
         # INITIALIZE should trigger the creation of the whole platform
         # hierarchy rooted at PLATFORM_CONFIG['platform_id']
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
         retval = self._pa_client.execute_agent(cmd)
-        log.debug( 'ShoreSide Platform INITIALIZE = %s ', str(retval) )
+        log.debug( 'ShoreSide Platform INITIALIZE = %s' % str(retval) )
 
 
         # GO_ACTIVE
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE)
         retval = self._pa_client.execute_agent(cmd)
-        log.debug( 'ShoreSide Platform GO_ACTIVE = %s ', str(retval) )
+        log.debug( 'ShoreSide Platform GO_ACTIVE = %s' % str(retval) )
 
         # RUN
         cmd = AgentCommand(command=PlatformAgentEvent.RUN)
         retval = self._pa_client.execute_agent(cmd)
-        log.debug( 'ShoreSide Platform RUN = %s ', str(retval) )
+        log.debug( 'ShoreSide Platform RUN = %s' % str(retval) )
 
         # TODO: here we could sleep for a little bit to let the resource
         # monitoring work for a while. But not done yet because the
