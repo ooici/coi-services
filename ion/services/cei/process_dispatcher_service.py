@@ -366,7 +366,7 @@ class PDLocalBackend(object):
     # the success of failure of the process launch. To make races here more
     # detectable, we introduce an artificial delay between when
     # schedule_process() returns and when the process is actually launched.
-    SPAWN_DELAY = 1.0
+    SPAWN_DELAY = 0
 
     def __init__(self, container):
         self.container = container
@@ -382,12 +382,12 @@ class PDLocalBackend(object):
         pass
 
     def shutdown(self):
-        for glet in self._spawn_greenlets:
+        if self._spawn_greenlets:
             try:
-                glet.kill()
+                gevent.killall(list(self._spawn_greenlets), block=True)
             except Exception:
-                log.warn("Ignoring error while killing spawn greenlet", exc_info=True)
-
+                log.warn("Ignoring error while killing spawn greenlets", exc_info=True)
+            self._spawn_greenlets.clear()
 
     def create_definition(self, definition, definition_id=None):
         pd_id, version = self.rr.create(definition, object_id=definition_id)
@@ -408,14 +408,20 @@ class PDLocalBackend(object):
         # out races where callers try to use a process before it is necessarily
         # running.
 
-        glet = gevent.spawn_later(self.SPAWN_DELAY, self._spawn_later,
-            process_id, definition, schedule, configuration)
-        self._spawn_greenlets.add(glet)
+        if self.SPAWN_DELAY:
+            glet = gevent.spawn_later(self.SPAWN_DELAY, self._inner_spawn,
+                process_id, definition, schedule, configuration)
+            self._spawn_greenlets.add(glet)
 
-        self._add_process(process_id, configuration, None)
+            self._add_process(process_id, configuration, None)
+
+        else:
+            self._add_process(process_id, configuration, None)
+            self._inner_spawn(process_id, definition, schedule, configuration)
+
         return process_id
 
-    def _spawn_later(self, process_id, definition, schedule, configuration):
+    def _inner_spawn(self, process_id, definition, schedule, configuration):
 
         name = definition.name
         module = definition.executable['module']
@@ -434,9 +440,10 @@ class PDLocalBackend(object):
             origin=process_id, origin_type="DispatchedProcess",
             state=ProcessStateEnum.SPAWN)
 
-        glet = gevent.getcurrent()
-        if glet:
-            self._spawn_greenlets.discard(glet)
+        if self.SPAWN_DELAY:
+            glet = gevent.getcurrent()
+            if glet:
+                self._spawn_greenlets.discard(glet)
 
         return pid
 

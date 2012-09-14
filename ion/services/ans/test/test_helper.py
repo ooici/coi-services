@@ -273,7 +273,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             process_source='SalinityTransform source code here...')
         try:
             ctd_L2_salinity_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-        except Excpetion as ex:
+        except Exception as ex:
             self.fail("failed to create new SalinityTransform data process definition: %s" %ex)
 
         # create a stream definition for the data from the salinity Transform
