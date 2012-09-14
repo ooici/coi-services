@@ -366,7 +366,7 @@ class PDLocalBackend(object):
     # the success of failure of the process launch. To make races here more
     # detectable, we introduce an artificial delay between when
     # schedule_process() returns and when the process is actually launched.
-    SPAWN_DELAY = 1.0
+    SPAWN_DELAY = 0
 
     def __init__(self, container):
         self.container = container
