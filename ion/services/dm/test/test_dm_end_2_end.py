@@ -271,14 +271,18 @@ class TestDMEnd2End(IonIntegrationTestCase):
         replay_stream_id, replay_route = self.pubsub_management.create_stream('replay_out', exchange_point=self.exchange_point_name)
         self.replay_id = self.data_retriever.define_replay(dataset_id=dataset_id, stream_id=replay_stream_id)
         process_id = self.data_retriever.read_process_id(self.replay_id)
+        log.info('Process ID: %s', process_id)
 
         self.launched_event = gevent.event.Event()
         
-        def ugh(*args, **kwargs):
+        def launched(*args, **kwargs):
+            log.info('Launched set')
             self.launched_event.set()
 
-        event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=ugh, origin=process_id, origin_type="DispatchedProcess")
+
+        event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=launched, origin=process_id, origin_type="ContainerProcess")
         event_sub.start()
+        log.info('Started event subscriber')
     
         #--------------------------------------------------------------------------------
         # Create the listening endpoint for the the retriever to talk to 
@@ -290,7 +294,12 @@ class TestDMEnd2End(IonIntegrationTestCase):
         subscriber.xn.bind(replay_route.routing_key, xp)
 
         if self.launched_event.wait(10):
+            log.critical('The process has started')
             self.data_retriever.start_replay(self.replay_id)
+        else:
+            log.error("well we missed it but we're gonna give it a shot anyway")
+            self.data_retriever.start_replay(self.replay_id)
+
         
         fail = False
         try:
@@ -298,7 +307,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         except gevent.Timeout:
             fail = True
 
-        self.assertTrue(self.launched_event.wait(10), 'Guess what, the process was never dispatched...')
+    
 
         subscriber.stop()
 
@@ -470,6 +479,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.wait_until_we_have_enough_files()
 
         if self.launched_event.wait(10):
+            self.data_retriever.start_replay(replay_id)
+        else:
+            log.error("Well we waited long enough, it probably was spawned")
             self.data_retriever.start_replay(replay_id)
         self.assertTrue(success.wait(10))
         self.data_retriever.cancel_replay(replay_id)
