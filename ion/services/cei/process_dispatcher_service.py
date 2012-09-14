@@ -373,6 +373,8 @@ class PDLocalBackend(object):
         self.event_pub = EventPublisher()
         self._processes = []
 
+        self._spawn_greenlets = set()
+
         # use the container RR instance -- talks directly to couchdb
         self.rr = container.resource_registry
 
@@ -380,7 +382,12 @@ class PDLocalBackend(object):
         pass
 
     def shutdown(self):
-        pass
+        for glet in self._spawn_greenlets:
+            try:
+                glet.kill()
+            except Exception:
+                log.warn("Ignoring error while killing spawn greenlet", exc_info=True)
+
 
     def create_definition(self, definition, definition_id=None):
         pd_id, version = self.rr.create(definition, object_id=definition_id)
@@ -401,8 +408,9 @@ class PDLocalBackend(object):
         # out races where callers try to use a process before it is necessarily
         # running.
 
-        gevent.spawn_later(self.SPAWN_DELAY, self._spawn_later, process_id,
-            definition, schedule, configuration)
+        glet = gevent.spawn_later(self.SPAWN_DELAY, self._spawn_later,
+            process_id, definition, schedule, configuration)
+        self._spawn_greenlets.add(glet)
 
         self._add_process(process_id, configuration, None)
         return process_id
@@ -425,6 +433,10 @@ class PDLocalBackend(object):
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=process_id, origin_type="DispatchedProcess",
             state=ProcessStateEnum.SPAWN)
+
+        glet = gevent.getcurrent()
+        if glet:
+            self._spawn_greenlets.discard(glet)
 
         return pid
 
