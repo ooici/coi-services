@@ -82,18 +82,24 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
 
         configuration = {"some": "value"}
 
-        with patch("gevent.spawn_later") as mock_gevent:
-            self.pd_service.schedule_process("fake-process-def-id",
-                proc_schedule, configuration, pid)
+        if backend.SPAWN_DELAY:
 
-            self.assertTrue(mock_gevent.called)
+            with patch("gevent.spawn_later") as mock_gevent:
+                self.pd_service.schedule_process("fake-process-def-id",
+                    proc_schedule, configuration, pid)
 
-            self.assertEqual(mock_gevent.call_args[0][0], backend.SPAWN_DELAY)
-            self.assertEqual(mock_gevent.call_args[0][1], backend._spawn_later)
-            spawn_later_args = mock_gevent.call_args[0][2:]
+                self.assertTrue(mock_gevent.called)
 
-        # now call the delayed spawn directly
-        backend._spawn_later(*spawn_later_args)
+                self.assertEqual(mock_gevent.call_args[0][0], backend.SPAWN_DELAY)
+                self.assertEqual(mock_gevent.call_args[0][1], backend._inner_spawn)
+                spawn_args = mock_gevent.call_args[0][2:]
+
+            # now call the delayed spawn directly
+            backend._inner_spawn(*spawn_args)
+
+        else:
+            self.pd_service.schedule_process("fake-process-def-id", proc_schedule,
+                configuration, pid)
 
         self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
         self.assertEqual(self.mock_cc_spawn.call_count, 1)
