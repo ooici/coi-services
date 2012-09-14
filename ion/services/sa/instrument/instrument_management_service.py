@@ -725,6 +725,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         cfg_remotepath  = CFG.service.instrument_management.driver_release_directory #'/var/www/release'
         cfg_user        = pwd.getpwuid(os.getuid())[0]
 
+        #allow overriding of user with config variable
+        if CFG.service.instrument_management.driver_release_user:
+            cfg_user = CFG.service.instrument_management.driver_release_user
+
         log.debug("creating tempfile for egg output")
         f_handle, tempfilename = tempfile.mkstemp()
         log.debug("writing egg data to disk at '%s'" % tempfilename)
