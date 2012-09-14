@@ -20,6 +20,7 @@ from pyon.util.containers import DotDict
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
+from pyon.event.event import EventSubscriber
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
 from gevent.event import Event
@@ -269,7 +270,16 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         replay_id, stream_id = self.data_retriever.define_replay(dataset_id)
+        process_id = self.data_retriever.read_process_id(replay_id)
+
     
+        self.launched_event = gevent.event.Event()
+        
+        def ugh(*args, **kwargs):
+            self.launched_event.set()
+
+        event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=ugh, origin=process_id, origin_type="DispatchedProcess")
+        event_sub.start()
         #--------------------------------------------------------------------------------
         # Create the listening endpoint for the the retriever to talk to 
         #--------------------------------------------------------------------------------
@@ -279,8 +289,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
         subscriber = SimpleStreamSubscriber.new_subscriber(self.container,
                     self.exchange_space_name,self.validate_granule_subscription)
         subscriber.start()
-        
-        self.data_retriever.start_replay(replay_id)
+
+        if self.launched_event.wait(10):
+            self.data_retriever.start_replay(replay_id)
         
         fail = False
         try:
@@ -427,7 +438,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         # Get the datastore to beat the race conditions
         #--------------------------------------------------------------------------------
         self.publish_file(stream_id) 
-        
+        self.launched_event = gevent.event.Event()
+
+        def launched(*args, **kwargs):
+            self.launched_event.set()
        
         def notice(m,h):
             log.info( 'received: %s' , m)
@@ -441,6 +455,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         from pyon.ion.stream import SimpleStreamSubscriber
 
         sub = SimpleStreamSubscriber.new_subscriber(self.container, 'test_binary_ingestion', notice)
+        replay_id = self.data_retriever.define_replay('', query, stream_id=stream_id, replay_type='BINARY')
+        pid = self.data_retriever.read_process_id(replay_id)
+        event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=launched, origin=pid, origin_type="DispatchedProcess")
+        event_sub.start()
         self.queue_buffer.append(sub.xn)
         sub.start()
 

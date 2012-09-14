@@ -64,10 +64,10 @@ class DataRetrieverService(BaseDataRetrieverService):
         elif replay_type == self.BINARY_REPLAY:
             replay, config=self.replay_binary_process(query,delivery_format,replay_stream_id)
         
-        pid = self.clients.process_dispatcher.schedule_process(
-            process_definition_id=process_definition_id,
-            configuration=config
-        )
+
+        pid = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id)
+        
+        self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, process_id=pid, configuration=config)
 
         replay.process_id = pid
 
@@ -83,6 +83,11 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.delete(replay_id)
 
+    def read_process_id(self, replay_id=''):
+        replay = self.clients.resource_registry.read(replay_id)
+        validate_is_instance(replay,Replay)
+
+        return replay.process_id
 
 
     def start_replay(self, replay_id=''):
