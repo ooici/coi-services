@@ -9,6 +9,7 @@ from ion.services.sa.observatory.observatory_management_service import Observato
 from interface.services.sa.iobservatory_management_service import IObservatoryManagementService, ObservatoryManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
@@ -30,6 +31,41 @@ from pyon.event.event import EventSubscriber
 from interface.objects import ProcessStateEnum
 
 from gevent import queue
+
+
+# copied from test_activate_instrument.py
+from gevent import event as gevent_event
+class ProcessStateGate(EventSubscriber):
+    """
+    Ensure that we get a particular state, now or in the future.
+    """
+    def __init__(self, process_dispatcher_svc_client=None, process_id='', desired_state=None, *args, **kwargs):
+        EventSubscriber.__init__(self, *args, callback=self.trigger_cb, **kwargs)
+
+        self.pd_client = process_dispatcher_svc_client
+        self.desired_state = desired_state
+        self.process_id = process_id
+
+        #sanity check
+        self.pd_client.read_process(self.process_id)
+
+    def trigger_cb(self, event, x):
+        if event == self.desired_state:
+            self.stop()
+            self.gate.set()
+
+    def await(self, timeout=None):
+        self.gate = gevent_event.Event()
+        self.start()
+
+        #check on the process as it exists right now
+        process_obj = self.pd_client.read_process(self.process_id)
+        if self.desired_state == process_obj.process_state:
+            self.stop()
+            return True
+
+        #if it's not where we want it, wait.
+        return self.gate.wait(timeout)
 
 
 class FakeProcess(LocalContextMixin):
@@ -61,43 +97,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
 
-        self._event_queue = queue.Queue()
-        self._event_sub = None
-
-    def _event_callback(self, event, *args, **kwargs):
-        log.debug("_event_callback CALLED:\n event=%s\n args=%s\n kwargs=%s" % (
-            str(event), str(args), str(kwargs)))
-
-        self._event_queue.put(event)
-
-    def _subscribe_events(self, origin):
-
-        log.debug("_subscribe_events: origin=%s" % str(origin))
-
-        self._event_sub = EventSubscriber(
-            event_type="ProcessLifecycleEvent",
-            callback=self._event_callback,
-            origin=origin,
-            origin_type="DispatchedProcess"
-        )
-        self._event_sub.start()
-
-        log.debug("_subscribe_events: origin=%s STARTED" % str(origin))
-
-    def _await_state_event(self, pid, state, timeout=30):
-        state_str = ProcessStateEnum._str_map.get(state)
-        log.debug("_await_state_event: state=%s from pid=%s, timeout=%s" %  (
-            state_str, pid, timeout))
-        try:
-            event = self._event_queue.get(timeout=timeout)
-        except queue.Empty:
-            self.fail("Event timeout! Waited %s seconds for process %s to notifiy state %s" % (
-                timeout, pid, state_str))
-
-        log.debug("_await_state_event got event: %s, state=%s" % (
-            event, ProcessStateEnum._str_map.get(event.state)))
-        self.assertEqual(event.state, state)
-        self.assertEqual(event.origin, pid)
+        self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
 
     #@unittest.skip('targeting')
     def test_oms_create_and_launch(self):
@@ -437,17 +437,13 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # Launch Platform SS AgentInstance, connect to the resource agent client
         #-------------------------------
 
-        #-----------------------------------------------------
-        # TODO IMS's start_platform_agent_instance hasn't seemed to have been
-        # adjusted to handle the proper dispatch of the process, so the
-        # _subscribe_events and _await_state_event calls below MAY NOT work
-        # yet due to the related potential race condition.
-        #-----------------------------------------------------
         pid = self.imsclient.start_platform_agent_instance(platform_agent_instance_id=platformSS_agent_instance_id)
         print("start_platform_agent_instance returned pid=%s" % pid)
 
-        self._subscribe_events(pid)
-        self._await_state_event(pid, ProcessStateEnum.SPAWN)
+        #wait for start
+        instance_obj = self.imsclient.read_platform_agent_instance(platformSS_agent_instance_id)
+        gate = ProcessStateGate(self.processdispatchclient, instance_obj.agent_process_id,ProcessStateEnum.SPAWN)
+        self.assertTrue(gate.await(30), "The platform agent instance did not spawn in 30 seconds")
 
         platformSS_agent_instance_obj= self.imsclient.read_instrument_agent_instance(platformSS_agent_instance_id)
         print 'test_oms_create_and_launch: Platform agent instance obj: %s' % str(platformSS_agent_instance_obj)
