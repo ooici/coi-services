@@ -11,12 +11,16 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-class PlatformException(Exception):
+from ooi.exception import ApplicationException
+
+
+class PlatformException(ApplicationException):
     """
     Base class for platform related exceptions.
     """
 
     def __init__ (self, msg=None, error_code=None, reason=None):
+        super(PlatformException, self).__init__()
         self.msg = msg if msg else str(reason) if reason else None
         self.args = (error_code, self.msg)
         self.error_code = error_code

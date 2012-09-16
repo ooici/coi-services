@@ -46,11 +46,11 @@ class OmsPlatformDriver(PlatformDriver):
             raise PlatformDriverException(msg="driver_config does not indicate 'oms_uri'")
 
         oms_uri = driver_config['oms_uri']
-        log.debug("%r: creating OmsClient instance with oms_uri=%r" % (
-            self._platform_id, oms_uri))
+        log.debug("%r: creating OmsClient instance with oms_uri=%r",
+            self._platform_id, oms_uri)
         self._oms = OmsClientFactory.create_instance(oms_uri)
-        log.debug("%r: OmsClient instance created: %s" % (
-            self._platform_id, self._oms))
+        log.debug("%r: OmsClient instance created: %s",
+            self._platform_id, self._oms)
 
         # TODO set-up configuration for notification of events associated
         # with values retrieved during platform resource monitoring
@@ -67,7 +67,7 @@ class OmsPlatformDriver(PlatformDriver):
         @raise PlatformConnectionException Cannot ping external platform or
                got unexpected response.
         """
-        log.debug("%r: pinging OMS..." % self._platform_id)
+        log.debug("%r: pinging OMS...", self._platform_id)
         try:
             retval = self._oms.hello.ping()
         except Exception, e:
@@ -88,7 +88,7 @@ class OmsPlatformDriver(PlatformDriver):
 
         # NOTE: The following log.debug DOES NOT show up when running a test
         # with the pycc plugin (--with-pycc)!  (noticed with test_oms_launch).
-        log.debug("%r: going active.." % self._platform_id)
+        log.debug("%r: going active..", self._platform_id)
 
         # note, we ping the OMS here regardless of the source for the network
         # definition:
@@ -99,8 +99,8 @@ class OmsPlatformDriver(PlatformDriver):
         else:
             self._nnode = self._build_network_definition_using_oms()
 
-        log.debug("%r: go_active completed ok. _nnode:\n%s" % (
-                 self._platform_id, self._nnode.dump()))
+        log.debug("%r: go_active completed ok. _nnode:\n%s",
+                 self._platform_id, self._nnode.dump())
 
         self.__gen_diagram()
 
@@ -139,8 +139,8 @@ class OmsPlatformDriver(PlatformDriver):
         """
         Uses self._topology to build the network definition.
         """
-        log.debug("%r: _build_network_definition_using_topology: %s" % (
-            self._platform_id, self._topology))
+        log.debug("%r: _build_network_definition_using_topology: %s",
+            self._platform_id, self._topology)
 
         def build(platform_id, children):
             """
@@ -149,7 +149,7 @@ class OmsPlatformDriver(PlatformDriver):
             """
             nnode = NNode(platform_id)
 
-            log.debug('Created NNode for %r' % platform_id)
+            log.debug('Created NNode for %r', platform_id)
 
             for subplatform_id in children:
                 subplatform_children = self._topology.get(subplatform_id, [])
@@ -165,14 +165,14 @@ class OmsPlatformDriver(PlatformDriver):
         """
         Uses OMS to build the network definition.
         """
-        log.debug("%r: _build_network_definition_using_oms.." % self._platform_id)
+        log.debug("%r: _build_network_definition_using_oms..", self._platform_id)
         try:
             map = self._oms.config.getPlatformMap()
         except Exception, e:
-            log.debug("%r: error getting platform map %s" % (self._platform_id, str(e)))
+            log.debug("%r: error getting platform map %s", self._platform_id, str(e))
             raise PlatformConnectionException(msg="error getting platform map %s" % str(e))
 
-        log.debug("%r: got platform map %s" % (self._platform_id, str(map)))
+        log.debug("%r: got platform map %s", self._platform_id, str(map))
 
         def build_network_definition(map):
             """
@@ -193,7 +193,7 @@ class OmsPlatformDriver(PlatformDriver):
         """
         """
         retval = self._oms.getPlatformAttributeValues(self._platform_id, attr_names, from_time)
-        log.debug("getPlatformAttributeValues = %s" % retval)
+        log.debug("getPlatformAttributeValues = %s", retval)
 
         if not self._platform_id in retval:
             raise PlatformException("Unexpected: response does not include "
@@ -222,7 +222,7 @@ class OmsPlatformDriver(PlatformDriver):
             # information sources: topology from a dictionary but some other
             # pieces from OMS, like platform attributes.
             #
-            log.warn("response reports invalid platform_id for %r" % self._platform_id)
+            log.warn("response reports invalid platform_id for %r", self._platform_id)
             return None
         else:
             return response[self._platform_id]
@@ -237,20 +237,20 @@ class OmsPlatformDriver(PlatformDriver):
         # - aggregate groups of attributes according to rate of monitoring
         # - start a greenlet for each attr grouping
 
-        log.debug("%r: getting platform attributes" % self._platform_id)
+        log.debug("%r: getting platform attributes", self._platform_id)
 
         attrs = self._oms.getPlatformAttributes(self._platform_id)
-        log.debug("%r: getPlatformAttributes=%s" % (
-            self._platform_id, attrs))
+        log.debug("%r: getPlatformAttributes=%s",
+            self._platform_id, attrs)
 
         attr_info = self._verify_platform_id_in_response(attrs)
 
         if not attr_info:
             # no attributes to monitor.
-            log.debug("%r: NOT starting resource monitoring" % self._platform_id)
+            log.debug("%r: NOT starting resource monitoring", self._platform_id)
             return
 
-        log.debug("%r: starting resource monitoring" % self._platform_id)
+        log.debug("%r: starting resource monitoring", self._platform_id)
 
         #
         # TODO attribute grouping so one single greenlet is launched for a
@@ -264,9 +264,9 @@ class OmsPlatformDriver(PlatformDriver):
             else:
                 log.warn(
                     "%r: unexpected: attribute info does not contain %r "
-                    "for attribute %r. attr_defn = %s" % (
+                    "for attribute %r. attr_defn = %s",
                         self._platform_id,
-                        'monitorCycleSeconds', attr_name, str(attr_defn)))
+                        'monitorCycleSeconds', attr_name, str(attr_defn))
 
     def _start_monitor_greenlet(self, attr_defn):
         assert 'attr_id' in attr_defn
@@ -282,7 +282,7 @@ class OmsPlatformDriver(PlatformDriver):
         """
 #        assert self._oms is not None, "set_oms_client must have been called"
 
-        log.debug("%r: stopping resource monitoring" % self._platform_id)
+        log.debug("%r: stopping resource monitoring", self._platform_id)
         for resmon in self._monitors.itervalues():
             resmon.stop()
         self._monitors.clear()
