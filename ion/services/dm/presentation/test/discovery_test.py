@@ -737,7 +737,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         pd_id, _ = self.rr.create(pd)
 
-        search_string = "search 'nominal_location' geo distance 20 km from lat 0 lon 0 from 'devices_index'"
+        search_string = "search 'index_location' geo distance 20 km from lat 0 lon 0 from 'devices_index'"
 
         results = self.poll(9, self.discovery.parse,search_string)
 
@@ -750,12 +750,12 @@ class DiscoveryIntTest(IonIntegrationTestCase):
     def test_geo_bbox_search(self):
 
         pd = PlatformDevice(name='test_dev')
-        pd.nominal_location.lat = 5
-        pd.nominal_location.lon = 5
+        pd.index_location.lat = 5
+        pd.index_location.lon = 5
 
         pd_id, _ = self.rr.create(pd)
 
-        search_string = "search 'nominal_location' geo box top-left lat 10 lon 0 bottom-right lat 0 lon 10 from 'devices_index'"
+        search_string = "search 'index_location' geo box top-left lat 10 lon 0 bottom-right lat 0 lon 10 from 'devices_index'"
 
         results = self.poll(9, self.discovery.parse,search_string)
 

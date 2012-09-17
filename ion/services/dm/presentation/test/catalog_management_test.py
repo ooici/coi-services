@@ -148,7 +148,7 @@ class CatalogManagementIntTest(IonIntegrationTestCase):
         ]
         indexes[0].options = SearchOptions(**{ # Devices
             'attribute_match' : ['name','model','serial'],
-            'geo_fields'      : ['nominal_location']
+            'geo_fields'      : ['index_location']
         })
         indexes[1].options = SearchOptions(**{ # BankAccount
             'attribute_match' : ['name','description','owner'],
@@ -157,7 +157,7 @@ class CatalogManagementIntTest(IonIntegrationTestCase):
         indexes[2].options = SearchOptions(**{ # Hybrid
             'attribute_match' : ['name'],
             'range_fields'    : ['arc'],
-            'geo_fields'      : ['nominal_location']
+            'geo_fields'      : ['index_location']
         })
 
         index_ids = list([ self.rr_cli.create(i)[0] for i in indexes])
@@ -168,7 +168,7 @@ class CatalogManagementIntTest(IonIntegrationTestCase):
         accounts_catalog_id = self.cms_cli.create_catalog('accounts_catalog', ['cash_balance'])
         self.assertTrue(index_ids[1] in self.cms_cli.list_indexes(accounts_catalog_id), 'The catalog did\'nt match the correct index.')
         
-        geo_catalog_id = self.cms_cli.create_catalog('geo_catalog', ['nominal_location'])
+        geo_catalog_id = self.cms_cli.create_catalog('geo_catalog', ['index_location'])
         self.assertTrue(index_ids[2] in self.cms_cli.list_indexes(geo_catalog_id), 'The catalog did\'nt match the correct index.')
 
         names_catalog_id = self.cms_cli.create_catalog('names_catalog', ['name'])

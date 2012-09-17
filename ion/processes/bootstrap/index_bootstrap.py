@@ -128,7 +128,7 @@ class IndexBootStrap(ImmediateProcess):
                 mapping.update( ep.ElasticMap(k).type('double'))
             elif ion_type=='str':
                 mapping.update( ep.ElasticMap(k).type('string'))
-            elif ion_type=='GeospatialPoint':
+            elif ion_type=='GeospatialIndex':
                 mapping.update( ep.ElasticMap(k).type('geo_point'))
 
         return {rtype : {'properties' : mapping}}
