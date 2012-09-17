@@ -518,6 +518,15 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _await_state_event: state=%s from %s timeout=%s",
             self._platform_id, state_str, str(pid), timeout)
 
+        #check on the process as it exists right now
+        process_obj = self._pd_client.read_process(pid)
+        log.debug("%r: process_obj.process_state: %s", self._platform_id,
+                  ProcessStateEnum._str_map.get(process_obj.process_state))
+        if state == process_obj.process_state:
+            self._event_sub.stop()
+            log.debug("%r: ALREADY in state %s", self._platform_id, state_str)
+            return
+
         try:
             event = self._event_queue.get(timeout=timeout)
         except queue.Empty:
