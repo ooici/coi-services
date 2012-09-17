@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 """
-@package 
-@file 
+@package ion.services.sa.tcaa.r3pc
+@file ion/services/sa/tcaa/r3pc.py
 @author Edward Hunter
-@brief 
+@brief Reliable, remote RPC sockets for 2CAA.
 """
 
 __author__ = 'Edward Hunter'
@@ -12,7 +12,6 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 from pyon.public import CFG
-
 
 import gevent
 from gevent import monkey
@@ -25,14 +24,10 @@ import zmq
 from zmq import ZMQError
 from zmq import NOBLOCK
 
-
-DELAY_AND_RESTART = 'DELAY_AND_RESTART'
-STOP = 'STOP'
-DELAY_ACK = 'DELAY_ACK'
-
-
-
 class R3PCTestBehavior(object):
+    """
+    Simple object to hold test instrumentation.
+    """
     delay = 0
     restart = 1
     stop = 2
@@ -41,28 +36,13 @@ class R3PCTestBehavior(object):
         self.type = type
         self.delay = delay
 
-"""
-ok
-test_client_restart (ion.services.sa.tcaa.test.test_r3pc.TestR3PCSocket) ... ok
-test_delay_long (ion.services.sa.tcaa.test.test_r3pc.TestR3PCSocket) ... Traceback (most recent call last):
-  File "/opt/cache/gevent-0.13.7-py2.7-linux-x86_64.egg/gevent/greenlet.py", line 390, in run
-    result = self._run(*self.args, **self.kwargs)
-  File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_pycc/build/ion/services/sa/tcaa/r3pc.py", line 79, in server_loop
-    self._start_sock()
-  File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_pycc/build/ion/services/sa/tcaa/r3pc.py", line 157, in _start_sock
-    self._server.bind(self._endpoint)
-  File "socket.pyx", line 390, in zmq.core.socket.Socket.bind (zmq/core/socket.c:3613)
-ZMQError: Address already in use
-<Greenlet at 0x9bac910: server_loop> failed with ZMQError
-"""
-
-class R3PCSocketError(Exception): pass
-
 class R3PCServer(object):
     """
+    A remote, reliable 0MQ RPC server socket.
     """
     def __init__(self, callback=None, close_callback=None):
         """
+        Initialize internal variables.
         """
         self._context = zmq.Context(1)
         self._greenlet = None
@@ -74,6 +54,7 @@ class R3PCServer(object):
         
     def start(self, host='*', port=7979, timeout=10, sleep=.1):
         """
+        Start the server and processing greenlet.
         """
         self._host = host
         self._port = port
@@ -133,7 +114,6 @@ class R3PCServer(object):
                             if test_behavior.delay > 0:
                                 gevent.sleep(test_behavior.delay)
                             self._stop_sock()
-                            self._close_callback()
                             break
                         
                         if test_behavior.type == R3PCTestBehavior.restart:
@@ -164,6 +144,7 @@ class R3PCServer(object):
 
     def _start_sock(self):
         """
+        Create and bind the server socket.
         """
         log.debug('Constructing zmq rep server socket.')
         self._server = self._context.socket(zmq.REP)
@@ -181,15 +162,19 @@ class R3PCServer(object):
     
     def _stop_sock(self):
         """
+        Close and destroy server socket.
         """
         if self._server:
             log.debug('Closing server.')
             self._server.setsockopt(zmq.LINGER, 0)
             self._server.close()
             self._server = None
+            self._close_callback()
     
     def stop(self):
         """
+        Stop server.
+        Kill server greenlet and close and destroy server socket.
         """
         if self._greenlet:
             self._greenlet.kill()
@@ -199,25 +184,30 @@ class R3PCServer(object):
     
     def done(self):
         """
+        Destroy 0MQ context.
         """
         self._context.term()
         self._context = None
 
     def _default_callback(self, request):
         """
+        Default callback for server requests.
         """
         log.debug('Default callback on request: %s', request)
 
     def _default_close_callback(self, request):
         """
+        Default callback for server close events.
         """
         log.debug('Server socket closed.')
 
 class R3PCClient(object):
     """
+    A remote, reliable 0MQ RPC client socket.
     """
     def __init__(self, callback=None, close_callback=None):
         """
+        Initialize internal variables.
         """
         self._context = zmq.Context(1)
         self._greenlet = None
@@ -228,33 +218,27 @@ class R3PCClient(object):
         self.send_count = 0
         self.test_behaviors = {}
 
-    def start(self, host='localhost', port=7979, timeout=3, sleep=.1, retries=3):
+    def start(self, host='localhost', port=7979, timeout=3, sleep=.1):
         """
+        Start client socket and processing greenlet.
         """
         self._host = host
         self._port = port
         self._endpoint = 'tcp://%s:%i' % (host, port)
         self._timeout = timeout
         self._sleep = sleep
-        self._retries = retries
 
         def client_loop():
             """
             """
             log.debug('Client greenlet started.')
             
-            no_retries = 0            
             while True:
 
                 # Start the client socket if necessary.
                 # If retries exceeded, end loop.
                 if not self._client:
-                    if no_retries >= self._retries:
-                        log.warning('Client exceeded maximum retries, closing.')
-                        self._close_callback()                        
-                        break
-                    else:
-                        self._start_sock()
+                    self._start_sock()
 
                 # Pop first message from the queue.
                 # If empty sleep and retry.                    
@@ -267,16 +251,20 @@ class R3PCClient(object):
                                                     
                 # Send request to server.
                 # If unable to send, sleep and retry.
+                startsend = time.time()
                 while True:
                     try:
                         log.debug('Client sending request %s.', request)                        
                         self._client.send_pyobj(request, NOBLOCK, 0)
+                        self.send_count += 1
                         break
                     except ZMQError:
                         log.warning('Client socket not available for send.')
                         gevent.sleep(self._sleep)
-                                
-                self.send_count += 1
+                        if time.time() - startsend > self._timeout:
+                            log.warning('Client timed out sending, restarting.')                            
+                            self._stop_sock()
+                            break
 
                 # Grab the current test behavior if any.
                 test_behavior = self.test_behaviors.get(self.send_count, None)
@@ -291,7 +279,6 @@ class R3PCClient(object):
                         if test_behavior.delay > 0:
                             gevent.sleep(test_behavior.delay)
                         self._stop_sock()
-                        self._close_callback()                                                
                         break
                     
                     if test_behavior.type == R3PCTestBehavior.restart:
@@ -310,9 +297,11 @@ class R3PCClient(object):
                         reply = self._client.recv_pyobj(NOBLOCK)
                         log.debug('Client received ack: %s for request: %s',
                             reply, request)
-                        no_retries = 0
-                        self._queue.pop(0)
-                        self._callback()
+                        if not reply:
+                            self._stop_sock()
+                        else:
+                            self._queue.pop(0)
+                            self._callback(request)
                         break
                     except ZMQError:
                         log.debug('Client socket unavailable to receive ack.')
@@ -322,7 +311,6 @@ class R3PCClient(object):
                         if time.time() - startrecv > self._timeout:
                             log.warning('Client timed out awaiting ack, restarting.')                            
                             self._stop_sock()
-                            no_retries += 1
                             break
         
         log.debug('Spawning client greenlet.')
@@ -333,6 +321,7 @@ class R3PCClient(object):
     
     def _start_sock(self):
         """
+        Create and connect client socket.
         """
         log.debug('Constructing zmq req client.')
         self._client = self._context.socket(zmq.REQ)
@@ -343,15 +332,18 @@ class R3PCClient(object):
     
     def _stop_sock(self):
         """
+        Close and destroy client socket.
         """
         if self._client:
             log.debug('Closing client.')
             self._client.setsockopt(zmq.LINGER, 0)
             self._client.close()
             self._client = None
+            self._close_callback()
     
     def stop(self):
         """
+        Kill client greenlet, close and destroy client socket.
         """
         if self._greenlet:
             self._greenlet.kill()
@@ -361,6 +353,7 @@ class R3PCClient(object):
     
     def enqueue(self, msg):
         """
+        Enqueue message for transmission so server.
         """
         log.debug('Client enqueueing message: %s.', msg)
         self._queue.append(msg)
@@ -368,17 +361,20 @@ class R3PCClient(object):
     
     def done(self):
         """
+        Destroy 0MQ context.
         """
         log.debug('Terminating zmq context.')
         self._context.term()
         self._conext = None
 
-    def _default_callback(self):
+    def _default_callback(self, request):
         """
+        Default client ack callback.
         """
-        log.debug('Client ack callback, queue size %i', len(self._queue))
+        log.debug('Client ack callback for request: %s', str(request))
 
     def _default_close_callback(self):
         """
+        Default client close callback.
         """
         log.debug('Client socket closed.')

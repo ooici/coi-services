@@ -36,7 +36,6 @@ DVR_CONFIG = {
 }
 
 
-@unittest.skipIf(os.getenv('OMS') is None, "Define OMS to include this test")
 @attr('INT', group='sa')
 class TestOmsPlatformDriver(IonIntegrationTestCase):
 

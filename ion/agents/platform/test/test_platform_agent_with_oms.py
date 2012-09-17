@@ -64,8 +64,8 @@ PLATFORM_CONFIG = {
 }
 
 # Agent parameters.
-PA_RESOURCE_ID = 'oms_platform_agent_001'
-PA_NAME = 'OmsPlatformAgent001'
+PA_RESOURCE_ID = 'platform_agent_001'
+PA_NAME = 'PlatformAgent001'
 PA_MOD = 'ion.agents.platform.platform_agent'
 PA_CLS = 'PlatformAgent'
 
@@ -79,8 +79,6 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-# don't skip it to see how it runs on buildbot
-#@unittest.skipIf(os.getenv('OMS') is None, "Define OMS to include this test")
 @attr('INT', group='sa')
 class TestPlatformAgent(IonIntegrationTestCase):
 
@@ -239,6 +237,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
     def _reset(self):
         cmd = AgentCommand(command=PlatformAgentEvent.RESET)
         retval = self._pa_client.execute_agent(cmd)
+        log.info("PlatformAgentEvent.RESET retval = %s" % str(retval))
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
     def _ping_agent(self):
@@ -300,6 +299,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd)
         log.info("PlatformAgentEvent.GET_SUBPLATFORM_IDS retval = %s" % str(retval))
         self.assertIsInstance(retval.result, list)
+        self.assertEquals(SUBPLATFORM_IDS, retval.result)
         return retval.result
 
     def test_go_active_and_run(self):
@@ -319,10 +319,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
         log.info("sleeping...")
         sleep(15)
 
-        # retrieve sub-platform IDs and verify against expected
-        out_subplat_ids = self._get_subplatform_ids()
-        log.info("get_subplatform_ids's retval = %s" % str(out_subplat_ids))
-        self.assertEquals(SUBPLATFORM_IDS, out_subplat_ids)
+        self._get_subplatform_ids()
 
         self._go_inactive()
         self._reset()
