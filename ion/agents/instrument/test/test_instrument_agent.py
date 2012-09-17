@@ -168,7 +168,7 @@ class FakeProcess(LocalContextMixin):
 #Refactored as stand alone method for starting an instrument agent for use in other tests, like governance
 #to do policy testing for resource agents
 #shenrie
-def start_instrument_test_agent(container, stream_config={}, resource_id=IA_RESOURCE_ID, resource_name=IA_NAME, message_headers=None):
+def start_instrument_agent_process(container, stream_config={}, resource_id=IA_RESOURCE_ID, resource_name=IA_NAME, message_headers=None):
 
     # Create agent config.
     agent_config = {
@@ -256,7 +256,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
-        self._ia_client = start_instrument_test_agent(self.container, self._stream_config)
+        self._ia_client = start_instrument_agent_process(self.container, self._stream_config)
 
     ###############################################################################
     # Port agent helpers.
@@ -363,7 +363,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             stream_id = stream_config['id']
             
             # Create subscriptions for each stream.
+
             exchange_name = '%s_queue' % stream_name
+            self._purge_queue(exchange_name)
             sub = StandaloneStreamSubscriber(exchange_name, recv_data)
             sub.start()
             self._data_subscribers.append(sub)
@@ -371,6 +373,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
             pubsub_client.activate_subscription(sub_id)
             sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
+
+    def _purge_queue(self, queue):
+        xn = self.container.ex_manager.create_xn_queue(queue)
+        xn.purge()
  
     def _stop_data_subscribers(self):
         for subscriber in self._data_subscribers:
@@ -806,10 +812,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEquals(retval['example'], 'newvalue')
 
     def test_poll(self):
-        """
-        Test observatory polling function thorugh execute resource interface.
-        Verify ResourceAgentCommandEvents are published.
-        """
+        #--------------------------------------------------------------------------------
+        # Test observatory polling function thorugh execute resource interface.
+        # Verify ResourceAgentCommandEvents are published.
+        #--------------------------------------------------------------------------------
 
         # Start data subscribers.
         self._start_data_subscribers(6)
