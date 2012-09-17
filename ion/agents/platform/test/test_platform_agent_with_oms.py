@@ -194,7 +194,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
         self._stream_config = {}
         self._data_subscribers = []
         for stream_name in adhoc_get_stream_names():
-            stream_id = pubsub_client.create_stream(name=stream_name,exchange_point='science_data')
+            stream_id, route = pubsub_client.create_stream(name=stream_name,exchange_point='science_data')
 
             taxy = adhoc_get_taxonomy(stream_name)
             stream_config = dict(
