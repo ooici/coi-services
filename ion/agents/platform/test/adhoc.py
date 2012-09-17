@@ -66,7 +66,7 @@ def adhoc_get_packet_factories(stream_names, stream_info):
     @retval a dict indexed by stream name of the packet factories defined.
     """
 
-    log.info("stream_names=%s; stream_info=%s" % (stream_names, stream_info))
+    log.trace("stream_names=%s; stream_info=%s" % (stream_names, stream_info))
 
     packet_factories = {}
     for name in stream_names:
@@ -78,7 +78,7 @@ def adhoc_get_packet_factories(stream_names, stream_info):
         try:
             packet_builder = create_packet_builder(name, stream_config)
             packet_factories[name] = packet_builder
-            log.info('created packet builder for stream %s' % name)
+            log.debug('created packet builder for stream %s' % name)
         except Exception, e:
             log.error('error creating packet builder: %s' % e)
 

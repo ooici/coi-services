@@ -16,7 +16,7 @@ from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
-from pyon.util.log import log
+from ooi.logging import log
 
 import string
 import base64
@@ -112,6 +112,10 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
         #test ssh-ability
         cfg_host = CFG.service.instrument_management.driver_release_host #'amoeaba.ucsd.edu'
         cfg_user = pwd.getpwuid(os.getuid())[0]
+
+        if "driver_release_user" in CFG.service.instrument_management:
+            cfg_user = CFG.service.instrument_management.driver_release_user
+
 
         remotehost = "%s@%s" % (cfg_user, cfg_host)
 

@@ -14,7 +14,7 @@ class logical_transform(TransformDataProcess):
 
 
     # send the packet out the same way it came in
-    def recv_packet(self, msg, headers):
+    def recv_packet(self, msg, *args, **kwargs):
         self.publish(msg)
 
 

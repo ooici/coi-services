@@ -7,7 +7,7 @@
 '''
 from pyon.core.exception import Timeout, BadRequest
 from pyon.ion.transforma import TransformStreamListener
-from pyon.ion.stream import SimpleStreamSubscriber
+from pyon.ion.stream import StreamSubscriber
 from pyon.util.fsm import FSM
 from pyon.util.log import log
 import gevent
@@ -30,7 +30,7 @@ class TransformPoll(TransformStreamListener):
 
     def on_start(self):
         self.queue_name  = self.CFG.get_safe('process.queue_name', self.id)
-        self.subscriber  = SimpleStreamSubscriber.new_subscriber(self.container, self.queue_name, self.recv_packet)
+        self.subscriber  = StreamSubscriber(process=self, exchange_name=self.queue_name, callback=self.recv_packet)
         self._msg_buffer = []
 
         self._fsm = FSM(self.S_INIT)

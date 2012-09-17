@@ -16,6 +16,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.objects import IngestionQueue, Subscription, IngestionConfiguration
 from mock import Mock
+from pyon.util.log import log
 from nose.plugins.attrib import attr
 
 @attr('UNIT', group='dm')
@@ -42,6 +43,7 @@ class IngestionManagementUnitTest(PyonTestCase):
         self.rr_del_assoc =  mock_clients.resource_registry.delete_association
         self.pubsub_create_sub = mock_clients.pubsub_management.create_subscription
         self.pubsub_read = mock_clients.pubsub_management.read_stream 
+        self.pubsub_is_persisted = mock_clients.pubsub_management.is_persisted
         self.pubsub_del_sub = mock_clients.pubsub_management.delete_subscription
         self.pubsub_act_sub = mock_clients.pubsub_management.activate_subscription
         self.pubsub_deact_sub = mock_clients.pubsub_management.deactivate_subscription
@@ -137,9 +139,7 @@ class IngestionManagementUnitTest(PyonTestCase):
         self.assertTrue(self.rr_find_res.call_count)
 
     def test_is_persisted(self):
-        stream = DotDict()
-        stream.persisted=True
-        self.pubsub_read.return_value = stream
+        self.pubsub_is_persisted.return_value = True
 
         retval = self.ingestion_management.is_persisted('stream_id')
 
@@ -165,15 +165,14 @@ class IngestionManagementIntTest(IonIntegrationTestCase):
         rr     = ResourceRegistryServiceClient()
         ingestion_config_ids = ingestion_management.list_ingestion_configurations(id_only=True)
         for ic in ingestion_config_ids:
-
-            assocs = rr.find_associations(subject=ic, predicate=PRED.hasSubscription, id_only=False)
-            for assoc in assocs:
+            subscription_ids, assocs = rr.find_objects(subject=ic, predicate=PRED.hasSubscription, id_only=True)
+            for subscription_id, assoc in zip(subscription_ids, assocs):
                 rr.delete_association(assoc)
                 try:
-                    pubsub.deactivate_subscription(assoc.o)
+                    pubsub.deactivate_subscription(subscription_id)
                 except:
-                    pass
-                pubsub.delete_subscription(assoc.o)
+                    log.exception("Unable to decativate subscription: %s", subscription_id)
+                pubsub.delete_subscription(subscription_id)
 
 
     def create_ingest_config(self):

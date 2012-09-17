@@ -1,6 +1,6 @@
 from pyon.public import Container, log, IonObject
-from interface.objects import CouchStorage, ProcessDefinition, StreamQuery
-
+from interface.objects import CouchStorage, ProcessDefinition
+from pyon.ion.stream import StandaloneStreamSubscriber
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.example_double_salinity import SalinityDoubler
@@ -22,7 +22,6 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 
 from pyon.public import log
 
-from pyon.public import StreamSubscriberRegistrar
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import CFG, RT, LCS, PRED
@@ -64,8 +63,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         # Create CTD Parsed as the initial data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def, name='Simulated CTD data')
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data')
 
 
         log.debug('Creating new CDM data product with a stream definition')
@@ -140,38 +138,30 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
     def start_output_stream_and_listen(self, ctd_stream_id, data_product_stream_ids, message_count_per_stream=10):
 
-        cc = self.container
         assertions = self.assertTrue
+        exchange_name = 'workflow_test'
 
         ###
         ### Make a subscriber in the test to listen for transformed data
         ###
+
         salinity_subscription_id = self.pubsubclient.create_subscription(
-            query=StreamQuery(data_product_stream_ids),
-            exchange_name = 'workflow_test',
-            exchange_point = 'science_data',
-            name = "test workflow transformations",
-        )
-
-        pid = cc.spawn_process(name='dummy_process_for_test',
-            module='pyon.ion.process',
-            cls='SimpleProcess',
-            config={})
-        dummy_process = cc.proc_manager.procs[pid]
-
-        subscriber_registrar = StreamSubscriberRegistrar(process=dummy_process, container=cc)
+                name = 'test workflow transformations',
+                exchange_name = exchange_name,
+                stream_ids = data_product_stream_ids
+                )
 
         result = gevent.event.AsyncResult()
         results = []
         message_count = len(data_product_stream_ids) * message_count_per_stream
 
-        def message_received(message, headers):
+        def message_received(message, stream_route, stream_id):
             # Heads
             results.append(message)
             if len(results) >= message_count:   #Only wait for so many messages - per stream
                 result.set(True)
 
-        subscriber = subscriber_registrar.create_subscriber(exchange_name='workflow_test', callback=message_received)
+        subscriber = StandaloneStreamSubscriber(exchange_name='workflow_test', callback=message_received)
         subscriber.start()
 
         # after the queue has been created it is safe to activate the subscription
@@ -197,7 +187,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
     def validate_messages(self, results):
 
-        cc = self.container
         assertions = self.assertTrue
 
         first_salinity_values = None
@@ -284,11 +273,11 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             process_source='SalinityTransform source code here...')
         try:
             ctd_L2_salinity_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-        except Excpetion as ex:
+        except Exception as ex:
             self.fail("failed to create new SalinityTransform data process definition: %s" %ex)
 
         # create a stream definition for the data from the salinity Transform
-        sal_stream_def_id = self.pubsubclient.create_stream_definition(container=SalinityTransform.outgoing_stream_def,  name='Salinity')
+        sal_stream_def_id = self.pubsubclient.create_stream_definition(name='Salinity')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id )
 
         return ctd_L2_salinity_dprocdef_id
@@ -315,7 +304,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
         # create a stream definition for the data from the salinity Transform
-        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(container=SalinityDoubler.outgoing_stream_def,  name='SalinityDoubler')
+        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(name='SalinityDoubler')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id )
 
         return salinity_doubler_dprocdef_id
@@ -393,7 +382,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
         # create a stream definition for the data from the
-        stream_def_id = self.pubsubclient.create_stream_definition(container=VizTransformGoogleDT.outgoing_stream_def,  name='VizTransformGoogleDT')
+        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformGoogleDT')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
 
         return procdef_id
@@ -446,7 +435,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
         # create a stream definition for the data
-        stream_def_id = self.pubsubclient.create_stream_definition(container=VizTransformMatplotlibGraphs.outgoing_stream_def,  name='VizTransformMatplotlibGraphs')
+        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformMatplotlibGraphs')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
 
         return procdef_id

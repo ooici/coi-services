@@ -26,13 +26,14 @@ from prototype.sci_data.stream_defs import \
 
 from interface.objects import AgentCommand
 from interface.objects import ProcessDefinition
+from interface.objects import ProcessStateEnum
 
 from gevent.event import AsyncResult
+
 
 from pyon.public import CFG
 from pyon.public import RT, LCS, PRED
 from pyon.public import Container, log, IonObject
-from pyon.public import StreamSubscriberRegistrar
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
@@ -43,14 +44,57 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 
-from ion.services.dm.utility.granule_utils import CoverageCraft
 from ion.util.parameter_yaml_IO import get_param_dict
 from pyon.core.exception import BadRequest, NotFound, Conflict
+
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
+from ion.util.parameter_yaml_IO import get_param_dict
 
 from nose.plugins.attrib import attr
 
 import unittest
 import time
+
+
+from pyon.event.event import EventSubscriber
+from gevent import event as gevent_event
+from pyon.event.event import EventSubscriber
+class ProcessStateGate(EventSubscriber):
+    """
+    Ensure that we get a particular state, now or in the future.
+    """
+    def __init__(self, process_dispatcher_svc_client=None, process_id='', desired_state=None, *args, **kwargs):
+        EventSubscriber.__init__(self, *args, callback=self.trigger_cb, **kwargs)
+
+        self.pd_client = process_dispatcher_svc_client
+        self.desired_state = desired_state
+        self.process_id = process_id
+
+        #sanity check
+        self.pd_client.read_process(self.process_id)
+
+    def trigger_cb(self, event, x):
+        if event == self.desired_state:
+            self.stop()
+            self.gate.set()
+
+    def await(self, timeout=None):
+        self.gate = gevent_event.Event()
+        self.start()
+
+        #check on the process as it exists right now
+        process_obj = self.pd_client.read_process(self.process_id)
+        if self.desired_state == process_obj.process_state:
+            self.stop()
+            return True
+
+        #if it's not where we want it, wait.
+        return self.gate.wait(timeout)
+
+
 
 
 class FakeProcess(LocalContextMixin):
@@ -82,7 +126,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
-
         
         #setup listerner vars
         self._data_greenlets = []
@@ -171,19 +214,26 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                                                                instDevice_id)
 
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def)
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37')
 
         log.debug( 'new Stream Definition id = %s', instDevice_id)
 
         log.debug( 'Creating new CDM data product with a stream definition')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('sample_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
+
         parsed_param_dict = get_param_dict('ctd_parsed_param_dict')
         raw_param_dict = get_param_dict('ctd_raw_param_dict')
 
@@ -215,8 +265,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
         log.debug( 'Creating new RAW data product with a stream definition')
-        raw_stream_def = SBE37_RAW_stream_definition()
-        raw_stream_def_id = self.pubsubcli.create_stream_definition(container=raw_stream_def)
+        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_RAW')
 
         dp_obj = IonObject(RT.DataProduct,
             name='the raw data',
@@ -256,25 +305,19 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l0_conductivity = L0_conductivity_stream_definition()
         outgoing_stream_l0_conductivity_id = self.pubsubcli.create_stream_definition(
-            container=outgoing_stream_l0_conductivity,
             name='L0_Conductivity')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(
             outgoing_stream_l0_conductivity_id,
             ctd_L0_all_dprocdef_id )
 
-        outgoing_stream_l0_pressure = L0_pressure_stream_definition()
         outgoing_stream_l0_pressure_id = self.pubsubcli.create_stream_definition(
-            container=outgoing_stream_l0_pressure,
             name='L0_Pressure')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(
             outgoing_stream_l0_pressure_id,
             ctd_L0_all_dprocdef_id )
 
-        outgoing_stream_l0_temperature = L0_temperature_stream_definition()
         outgoing_stream_l0_temperature_id = self.pubsubcli.create_stream_definition(
-            container=outgoing_stream_l0_temperature,
             name='L0_Temperature')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(
             outgoing_stream_l0_temperature_id,
@@ -355,15 +398,19 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process return")
 
-
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
-        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
+        #wait for start
+        instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
+        gate = ProcessStateGate(self.processdispatchclient, instance_obj.agent_process_id, ProcessStateEnum.SPAWN)
+        self.assertTrue(gate.await(30), "The instrument agent instance did not spawn in 30 seconds")
+
+        inst_agent_instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
         log.debug( 'Instrument agent instance obj: = %s', str(inst_agent_instance_obj))
 
         # Start a resource agent client to talk with the instrument agent.
-        #self._ia_client = ResourceAgentClient('123xyz', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
-        self._ia_client = ResourceAgentClient(instDevice_id,  process=FakeProcess())
+        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
+        #self._ia_client = ResourceAgentClient('iaclient', name=instDevice_id,  process=FakeProcess())
         log.debug("test_activateInstrumentSample: got ia client %s", str(self._ia_client))
 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
@@ -483,18 +530,24 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                                                                instDevice_id)
 
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(container=ctd_stream_def)
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM')
 
         log.debug( 'new Stream Definition id = %s', instDevice_id)
 
         log.debug( 'Creating new CDM data product with a stream definition')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
@@ -517,32 +570,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         pid = self.create_logger('ctd_parsed', stream_ids[0] )
         self.loggerpids.append(pid)
 
-#        simdata_subscription_id = self.pubsubcli.create_subscription(
-#            query=StreamQuery([stream_ids[0]]),
-#            exchange_name='Sim_data_queue',
-#            name='SimDataSubscription',
-#            description='SimData SubscriptionDescription'
-#        )
-#
-#
-#        def simdata_message_received(message, headers):
-#            input = str(message)
-#            log.debug("test_activateInstrumentStream: granule received: %s", input)
-#
-#
-#        subscriber_registrar = StreamSubscriberRegistrar(process=self.container, container=self.container)
-#        simdata_subscriber = subscriber_registrar.create_subscriber(exchange_name='Sim_data_queue', callback=simdata_message_received)
-#
-#        # Start subscribers
-#        simdata_subscriber.start()
-#
-#        # Activate subscriptions
-#        self.pubsubcli.activate_subscription(simdata_subscription_id)
-
 
         log.debug( 'Creating new RAW data product with a stream definition')
-        raw_stream_def = SBE37_RAW_stream_definition()
-        raw_stream_def_id = self.pubsubcli.create_stream_definition(container=raw_stream_def)
+        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_RAW')
 
         dp_obj = IonObject(RT.DataProduct,
             name='the raw data',
@@ -643,3 +673,4 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
+

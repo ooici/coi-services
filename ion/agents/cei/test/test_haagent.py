@@ -4,17 +4,20 @@ from gevent import queue
 
 from nose.plugins.attrib import attr
 from nose.plugins.skip import SkipTest
+from mock import Mock
 
 from pyon.agent.simple_agent import SimpleResourceAgentClient
 from pyon.event.event import EventSubscriber
 from pyon.public import log
 from pyon.service.service import BaseService
+from pyon.util.containers import DotDict
+from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from interface.services.icontainer_agent import ContainerAgentClient
-from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient
+from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, ProcessDispatcherSimpleAPIClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessStateEnum
+from interface.objects import ProcessStateEnum
 
 
 class FakeProcess(LocalContextMixin):
@@ -32,6 +35,7 @@ def needs_epu(test):
     def wrapped(*args, **kwargs):
         try:
             import epu
+            assert epu
             return test(*args, **kwargs)
         except ImportError:
             raise SkipTest("Need epu to run this test.")
@@ -133,7 +137,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
     @needs_epu
     def test_features(self):
         status = self.haa_client.status().result
-        self.assertEqual(status, 'PENDING')
+        # Ensure HA hasn't already failed
+        assert status in ('PENDING', 'READY', 'STEADY')
 
         new_policy = {'preserve_n': 1}
         self.haa_client.reconfigure_policy(new_policy)
@@ -177,3 +182,33 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.await_state_event("test", ProcessStateEnum.TERMINATE)
         self.assertEqual(len(self.get_running_procs()), 0)
+
+@attr('UNIT', group='cei')
+class ProcessDispatcherSimpleAPIClientTest(PyonTestCase):
+
+    def setUp(self):
+        self.mock_real_client = DotDict()
+        self.mock_real_client.read_process_definition = Mock()
+        self.mock_real_client.create_process = Mock()
+        self.mock_real_client.schedule_process = Mock()
+        self.mock_real_client.read_process = Mock()
+        self.mock_eventpub = DotDict()
+        self.mock_eventpub.publish_event = Mock()
+
+        self.client = ProcessDispatcherSimpleAPIClient('fake', real_client=self.mock_real_client)
+        self.client.event_pub = self.mock_eventpub
+
+    def test_schedule(self):
+
+        upid = 'my_pid'
+        definition_id = 'my_def'
+        configuration = {'some': 'value'}
+
+        self.client.schedule_process(upid, definition_id, configuration=configuration)
+
+        self.assertEqual(self.mock_real_client.schedule_process.call_count, 1)
+        args, kwargs = self.mock_real_client.schedule_process.call_args
+
+        self.assertEqual(args[0], definition_id)
+        self.assertEqual(kwargs['configuration'], configuration)
+        self.assertEqual(kwargs['process_id'], upid)

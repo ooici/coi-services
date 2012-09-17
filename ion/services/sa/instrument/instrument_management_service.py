@@ -17,7 +17,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 #from pyon.datastore.datastore import DataStore
 #from pyon.net.endpoint import RPCClient
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.util.log import log
+from ooi.logging import log
 from pyon.util.ion_time import IonTime
 from pyon.core.object import ion_serializer
 from ion.services.sa.instrument.flag import KeywordFlag
@@ -276,14 +276,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return pdict
 
 
-
-    def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
+    def validate_instrument_agent_instance(self, instrument_agent_instance_obj):
         """
-        Agent instance must first be created and associated with a instrument device
-        Launch the instument agent instance and return the id
-        """
+        Verify that an agent instance is valid for launch.
 
-        instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
+        returns a dict of params necessary to start this instance
+
+        """
 
         log.debug("start_instrument_agent_instance: initial agent_config %s ", str(instrument_agent_instance_obj))
 
@@ -293,12 +292,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                              str(instrument_agent_instance_obj.agent_process_id))
 
         #retrieve the associated instrument device
-        inst_device_objs = self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)
+        inst_device_objs = self.instrument_device.find_having_agent_instance(instrument_agent_instance_obj._id)
         if 1 != len(inst_device_objs):
             raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
-                             (str(instrument_agent_instance_id), len(inst_device_objs)))
+                             (str(instrument_agent_instance_obj._id), len(inst_device_objs)))
         instrument_device_id = inst_device_objs[0]._id
-        log.debug("start_instrument_agent_instance: device is %s connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
+        log.debug("L4-CI-SA-RQ-363: device is %s connected to instrument agent instance %s",
+                  str(instrument_device_id),
+                  str(instrument_agent_instance_obj._id))
 
         #retrieve the instrument model
         model_objs = self.instrument_device.find_stemming_model(instrument_device_id)
@@ -311,35 +312,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #retrive the stream info for this model
         streams_dict = model_objs[0].custom_attributes['streams']
         if not streams_dict:
-            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(model_objs[0]) )
+            raise BadRequest("Dev model does not contain stream configuration used in launching the agent. Model: '%s",
+                             str(model_objs[0]) )
 
         #retrieve the associated instrument agent
         agent_objs = self.instrument_agent.find_having_model(instrument_model_id)
         if 1 != len(agent_objs):
             raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentModel '%s', got %d" %
-                           (str(instrument_model_id), len(agent_objs)))
+                             (str(instrument_model_id), len(agent_objs)))
         instrument_agent_id = agent_objs[0]._id
         log.debug("start_instrument_agent_instance: Got instrument agent '%s'" % instrument_agent_id)
-
-
-        #retrieve the associated process definition
-        #todo: this association is not in the diagram... is it ok?
-        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id,
-                                                                         PRED.hasProcessDefinition,
-                                                                         RT.ProcessDefinition,
-                                                                         True)
-        if 1 != len(process_def_ids):
-            raise BadRequest("Expected 1 ProcessDefinition attached to InstrumentAgent '%s', got %d" %
-                           (str(instrument_agent_id), len(process_def_ids)))
-
-
-        process_definition_id = process_def_ids[0]
-        log.debug("start_instrument_agent_instance: agent process definition %s"  +  str(process_definition_id))
-
-        # retrieve the process definition information
-        process_def_obj = self.clients.resource_registry.read(process_definition_id)
-        if not process_def_obj:
-            raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
         out_streams = {}
         out_streams_and_param_dicts = {}
@@ -363,7 +345,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
 
             #get the  parameter dictionary for this stream
-            dataset_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasDataset, RT.Dataset, True)
+            dataset_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasDataset, RT.DataSet, True)
             #One data set per product ...for now.
             if not dataset_ids:
                 raise NotFound("No Dataset attached to this Data Product " + str(product_id))
@@ -378,7 +360,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #loop thru the defined streams for this device model and construct the stream config object
         stream_config_too = {}
         for stream_tag in streams_dict.iterkeys():
-            log.debug("start_instrument_agent_instance Model stream config: stream tag:   %s param dict name: %s", str(stream_tag), str(streams_dict[stream_tag]) )
+            log.debug("start_instrument_agent_instance Model stream config: stream tag:   %s param dict name: %s",
+                      str(stream_tag),
+                      str(streams_dict[stream_tag]) )
 
             model_param_dict = get_param_dict(streams_dict[stream_tag]) #ParameterDictionary.load_from_tag(out_streams_and_param_dicts[streams_dict[stream_tag]])
             log.debug("start_instrument_agent_instance: model_param_dict : %s", str(model_param_dict.dump()))
@@ -387,19 +371,66 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             #param_dict_for_model = ParameterDictionary.load(streams_dict[stream_tag])
             for product_stream_id in out_streams_and_param_dicts.iterkeys():
                 log.debug("start_instrument_agent_instance: product_stream_id : %s", str(product_stream_id))
-                log.debug("start_instrument_agent_instance: product_param_dict : %s", str(out_streams_and_param_dicts[product_stream_id]))
+                log.debug("start_instrument_agent_instance: product_param_dict : %s",
+                          str(out_streams_and_param_dicts[product_stream_id]))
                 product_param_dict = ParameterDictionary.load(out_streams_and_param_dicts[product_stream_id])
                 if product_param_dict == model_param_dict:
                     #get the streamroute object from pubsub by passing the stream_id
-                    stream_route = self.clients.pubsub_management.get_stream_route_for_stream(stream_id=product_stream_id, exchange_point='science_data')
+                    stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
                     log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
                     stream_route_flat = ion_serializer.serialize(stream_route)
-                    stream_config_too[stream_tag] = {'stream_route': str(stream_route_flat), 'parameter_dictionary':out_streams_and_param_dicts[product_stream_id]}
-                    log.debug("start_instrument_agent_instance: stream_config in progress:   %s ", str(stream_config_too) )
+                    stream_config_too[stream_tag] = {'stream_route': str(stream_route_flat),
+                                                     'parameter_dictionary':out_streams_and_param_dicts[product_stream_id]}
+                    log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
+                              str(stream_config_too) )
 
                     #todo: REIMPL THIS CHECK!
-#        if len(streams_dict) != len(stream_config_too):
-#            raise Inconsistent("Stream configuration for agent is not valid: " + str(stream_config_too))
+                #        if len(streams_dict) != len(stream_config_too):
+                #            raise Inconsistent("Stream configuration for agent is not valid: " + str(stream_config_too))
+
+
+        ret = {}
+        ret["instrument_agent_id"] = instrument_agent_id
+        ret["instrument_device_id"] = instrument_device_id
+        ret["stream_config"] = stream_config_too
+
+        return ret
+
+
+    def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
+        """
+        Agent instance must first be created and associated with a instrument device
+        Launch the instument agent instance and return the id
+        """
+        instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
+
+        params = self.validate_instrument_agent_instance(instrument_agent_instance_obj)
+
+        instrument_agent_id =   params["instrument_agent_id"]
+        instrument_device_id =  params["instrument_device_id"]
+        stream_config_too =     params["stream_config"]
+
+
+        #retrieve the associated process definition
+        #todo: this association is not in the diagram... is it ok?
+        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id,
+                                                                         PRED.hasProcessDefinition,
+                                                                         RT.ProcessDefinition,
+                                                                         True)
+        if 1 != len(process_def_ids):
+            raise BadRequest("Expected 1 ProcessDefinition attached to InstrumentAgent '%s', got %d" %
+                           (str(instrument_agent_id), len(process_def_ids)))
+
+
+        process_definition_id = process_def_ids[0]
+        log.debug("start_instrument_agent_instance: agent process definition %s"  +  str(process_definition_id))
+
+        # retrieve the process definition information
+        process_def_obj = self.clients.resource_registry.read(process_definition_id)
+        if not process_def_obj:
+            raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
+
+
 
         log.debug("start_instrument_agent_instance: stream_config:   %s ", str(stream_config_too) )
 
@@ -434,12 +465,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #todo: should get the time from process dispatcher
         producer_obj = self._get_instrument_producer(instrument_device_id)
         log.debug("start_instrument_agent_instance: producer_obj %s", str(producer_obj))
-        log.debug("start_instrument_agent_instance: producer_obj.producer_context.type_ %s", str(producer_obj.producer_context.type_))
+        log.debug("start_instrument_agent_instance: producer_obj.producer_context.type_ %s",
+                  str(producer_obj.producer_context.type_))
         if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
             producer_obj.producer_context.activation_time =  IonTime().to_string()
             producer_obj.producer_context.execution_configuration = agent_config
             # get the site where this device is currently deploy instrument_device_id
-            site_ids, _ = self.clients.resource_registry.find_subjects( predicate=PRED.hasDevice, object=instrument_device_id, id_only=True)
+            site_ids, _ = self.clients.resource_registry.find_subjects( predicate=PRED.hasDevice,
+                                                                        object=instrument_device_id,
+                                                                        id_only=True)
             log.debug("start_instrument_agent_instance: hasDevice site_ids %s", str(site_ids))
             if len(site_ids) == 1:
                 producer_obj.producer_context.deployed_site_id = site_ids[0]
@@ -561,7 +595,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
         return self.instrument_agent.update_one(instrument_agent)
-
 
     def read_instrument_agent(self, instrument_agent_id=''):
         """
@@ -725,6 +758,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         cfg_remotepath  = CFG.service.instrument_management.driver_release_directory #'/var/www/release'
         cfg_user        = pwd.getpwuid(os.getuid())[0]
 
+        #allow overriding of user with config variable
+        if "driver_release_user" in CFG.service.instrument_management:
+            cfg_user = CFG.service.instrument_management.driver_release_user
+
         log.debug("creating tempfile for egg output")
         f_handle, tempfilename = tempfile.mkstemp()
         log.debug("writing egg data to disk at '%s'" % tempfilename)
@@ -797,7 +834,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
         return self.instrument_model.update_one(instrument_model)
-
 
     def read_instrument_model(self, instrument_model_id=''):
         """
@@ -1075,7 +1111,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         platform_agent_instance_obj.agent_process_id = process_id
         self.update_instrument_agent_instance(platform_agent_instance_obj)
 
-        return
+        return process_id
 
     def stop_platform_agent_instance(self, platform_agent_instance_id=''):
 

@@ -14,8 +14,6 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
-import time
-
 
 class DriverEvent(object):
     """
@@ -69,7 +67,7 @@ class PlatformDriver(object):
         """
         Sets the platform topology.
         """
-        log.info("set_topology: %s" % str(topology))
+        log.debug("set_topology: %s" % str(topology))
         self._topology = topology
 
     def set_event_listener(self, evt_recv):
@@ -154,7 +152,7 @@ class PlatformDriver(object):
 
         @param driver_event a DriverEvent object.
         """
-        log.info("platform driver=%r: notify driver_event=%s" % (
+        log.debug("platform driver=%r: notify driver_event=%s" % (
             self._platform_id, driver_event))
 
         assert isinstance(driver_event, DriverEvent)

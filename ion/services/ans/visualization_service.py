@@ -12,9 +12,8 @@ Note:
 
 # Pyon imports
 # Note pyon imports need to be first for monkey patching to occur
-from pyon.public import IonObject, RT, log, PRED, StreamSubscriberRegistrar, StreamPublisherRegistrar, Container
+from pyon.public import IonObject, RT, log, PRED
 from pyon.util.containers import create_unique_identifier, get_safe
-from interface.objects import StreamQuery
 from pyon.core.exception import Inconsistent, BadRequest, NotFound
 from datetime import datetime
 
@@ -117,9 +116,8 @@ class VisualizationService(BaseVisualizationService):
         xq = self.container.ex_manager.create_xn_queue(query_token)
 
         subscription_id = self.clients.pubsub_management.create_subscription(
-            query=StreamQuery(data_product_stream_id),
+            stream_ids=data_product_stream_id,
             exchange_name = query_token,
-            exchange_point = 'science_data',
             name = query_token
         )
 
@@ -300,7 +298,7 @@ class VisualizationService(BaseVisualizationService):
         procdef_id = self.clients.data_process_management.create_data_process_definition(dpd_obj)
 
         # create a stream definition for the data from the
-        stream_def_id = self.clients.pubsub_management.create_stream_definition(container=VizTransformGoogleDT.outgoing_stream_def, name='VizTransformGoogleDT')
+        stream_def_id = self.clients.pubsub_management.create_stream_definition(name='VizTransformGoogleDT')
         self.clients.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
 
         return procdef_id

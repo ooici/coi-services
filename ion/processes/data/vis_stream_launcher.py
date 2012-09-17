@@ -21,7 +21,7 @@ import gevent
 
 from pyon.service.service import BaseService
 from pyon.ion.process import ImmediateProcess
-from pyon.public import PRED,RT,Container, log, IonObject, StreamPublisherRegistrar
+from pyon.public import PRED,RT,Container, log, IonObject 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from prototype.sci_data.stream_defs import ctd_stream_packet, ctd_stream_definition
@@ -100,8 +100,7 @@ class VisStreamLauncher(ImmediateProcess):
             self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
 
             # create a stream definition for the data from the ctd simulator
-            ctd_stream_def = SBE37_CDM_stream_definition()
-            ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
+            ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_CDM')
 
             craft = CoverageCraft
             sdom, tdom = craft.create_domains()

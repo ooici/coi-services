@@ -1,6 +1,6 @@
 from pyon.public import IonObject
 from pyon.public import RT
-from pyon.util.log import log
+from ooi.logging import log
 
 from interface.objects import AttachmentType
 

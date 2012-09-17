@@ -9,6 +9,7 @@ from ion.services.sa.observatory.observatory_management_service import Observato
 from interface.services.sa.iobservatory_management_service import IObservatoryManagementService, ObservatoryManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
@@ -17,7 +18,7 @@ from pyon.public import RT, PRED
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
-from pyon.util.log import log
+from ooi.logging import log
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
@@ -26,7 +27,45 @@ from interface.objects import ProcessDefinition
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 
-import os
+from pyon.event.event import EventSubscriber
+from interface.objects import ProcessStateEnum
+
+from gevent import queue
+
+
+# copied from test_activate_instrument.py
+from gevent import event as gevent_event
+class ProcessStateGate(EventSubscriber):
+    """
+    Ensure that we get a particular state, now or in the future.
+    """
+    def __init__(self, process_dispatcher_svc_client=None, process_id='', desired_state=None, *args, **kwargs):
+        EventSubscriber.__init__(self, *args, callback=self.trigger_cb, **kwargs)
+
+        self.pd_client = process_dispatcher_svc_client
+        self.desired_state = desired_state
+        self.process_id = process_id
+
+        #sanity check
+        self.pd_client.read_process(self.process_id)
+
+    def trigger_cb(self, event, x):
+        if event == self.desired_state:
+            self.stop()
+            self.gate.set()
+
+    def await(self, timeout=None):
+        self.gate = gevent_event.Event()
+        self.start()
+
+        #check on the process as it exists right now
+        process_obj = self.pd_client.read_process(self.process_id)
+        if self.desired_state == process_obj.process_state:
+            self.stop()
+            return True
+
+        #if it's not where we want it, wait.
+        return self.gate.wait(timeout)
 
 
 class FakeProcess(LocalContextMixin):
@@ -58,7 +97,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
 
-
+        self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
 
     #@unittest.skip('targeting')
     def test_oms_create_and_launch(self):
@@ -81,7 +120,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
             platformModel_id = self.imsclient.create_platform_model(platformModel_obj)
         except BadRequest as ex:
             self.fail("failed to create new PLatformModel: %s" %ex)
-        log.debug( 'new PlatformModel id = %s ', platformModel_id)
+        log.debug( 'new PlatformModel id = %s' % platformModel_id)
 
 
 
@@ -397,15 +436,21 @@ class TestOmsLaunch(IonIntegrationTestCase):
         #-------------------------------
         # Launch Platform SS AgentInstance, connect to the resource agent client
         #-------------------------------
-        print("start_platform_agent_instance: %s" % platformSS_agent_instance_id)
-        self.imsclient.start_platform_agent_instance(platform_agent_instance_id=platformSS_agent_instance_id)
+
+        pid = self.imsclient.start_platform_agent_instance(platform_agent_instance_id=platformSS_agent_instance_id)
+        print("start_platform_agent_instance returned pid=%s" % pid)
+
+        #wait for start
+        instance_obj = self.imsclient.read_platform_agent_instance(platformSS_agent_instance_id)
+        gate = ProcessStateGate(self.processdispatchclient, instance_obj.agent_process_id,ProcessStateEnum.SPAWN)
+        self.assertTrue(gate.await(30), "The platform agent instance did not spawn in 30 seconds")
 
         platformSS_agent_instance_obj= self.imsclient.read_instrument_agent_instance(platformSS_agent_instance_id)
-        print 'test_oms_create_and_launch: Platform agent instance obj: = ', str(platformSS_agent_instance_obj)
+        print 'test_oms_create_and_launch: Platform agent instance obj: %s' % str(platformSS_agent_instance_obj)
 
         # Start a resource agent client to talk with the instrument agent.
         self._pa_client = ResourceAgentClient('paclient', name=platformSS_agent_instance_obj.agent_process_id,  process=FakeProcess())
-        log.debug(" test_oms_create_and_launch:: got pa client %s", str(self._pa_client))
+        log.debug(" test_oms_create_and_launch:: got pa client %s" % str(self._pa_client))
 
         DVR_CONFIG = {
             'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
@@ -425,24 +470,24 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # PING_AGENT can be issued before INITIALIZE
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
         retval = self._pa_client.execute_agent(cmd)
-        log.debug( 'ShoreSide Platform PING_AGENT = %s ', str(retval) )
+        log.debug( 'ShoreSide Platform PING_AGENT = %s' % str(retval) )
 
         # INITIALIZE should trigger the creation of the whole platform
         # hierarchy rooted at PLATFORM_CONFIG['platform_id']
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
         retval = self._pa_client.execute_agent(cmd)
-        log.debug( 'ShoreSide Platform INITIALIZE = %s ', str(retval) )
+        log.debug( 'ShoreSide Platform INITIALIZE = %s' % str(retval) )
 
 
         # GO_ACTIVE
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE)
         retval = self._pa_client.execute_agent(cmd)
-        log.debug( 'ShoreSide Platform GO_ACTIVE = %s ', str(retval) )
+        log.debug( 'ShoreSide Platform GO_ACTIVE = %s' % str(retval) )
 
         # RUN
         cmd = AgentCommand(command=PlatformAgentEvent.RUN)
         retval = self._pa_client.execute_agent(cmd)
-        log.debug( 'ShoreSide Platform RUN = %s ', str(retval) )
+        log.debug( 'ShoreSide Platform RUN = %s' % str(retval) )
 
         # TODO: here we could sleep for a little bit to let the resource
         # monitoring work for a while. But not done yet because the

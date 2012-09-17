@@ -32,7 +32,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         super(DataRetrieverService,self).on_quit()
 
 
-    def define_replay(self, dataset_id='', query=None, delivery_format=None, replay_type=''):
+    def define_replay(self, dataset_id='', query=None, delivery_format=None, replay_type='', stream_id=''):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         query: 
           start_time: 0    The beginning timestamp
@@ -42,6 +42,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         if not dataset_id and replay_type != self.BINARY_REPLAY:
             raise BadRequest('(Data Retriever Service %s): No dataset provided.' % self.name)
+        validate_true(stream_id, 'No stream_id provided')
 
         if not replay_type:
             replay_type = self.SCIENCE_REPLAY
@@ -54,7 +55,7 @@ class DataRetrieverService(BaseDataRetrieverService):
             raise BadRequest('No replay process defined.')
         process_definition_id = res[0]
 
-        replay_stream_id = self.clients.pubsub_management.create_stream()
+        replay_stream_id = stream_id
 
         #--------------------------------------------------------------------------------
         # Begin the Decision tree for the various types of replay
@@ -63,17 +64,17 @@ class DataRetrieverService(BaseDataRetrieverService):
             replay, config=self.replay_data_process(dataset_id, query, delivery_format, replay_stream_id)
         elif replay_type == self.BINARY_REPLAY:
             replay, config=self.replay_binary_process(query,delivery_format,replay_stream_id)
+
+
+        pid = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id)
         
-        pid = self.clients.process_dispatcher.schedule_process(
-            process_definition_id=process_definition_id,
-            configuration=config
-        )
+        self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, process_id=pid, configuration=config)
 
         replay.process_id = pid
 
         self.clients.resource_registry.update(replay)
         self.clients.resource_registry.create_association(replay._id, PRED.hasStream, replay_stream_id)
-        return replay._id, replay_stream_id
+        return replay._id
 
     def delete_replay(self,replay_id=''):
         assocs = self.clients.resource_registry.find_associations(subject=replay_id,predicate=PRED.hasStream)
@@ -83,7 +84,11 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.delete(replay_id)
 
+    def read_process_id(self, replay_id=''):
+        replay = self.clients.resource_registry.read(replay_id)
+        validate_is_instance(replay,Replay)
 
+        return replay.process_id
 
     def start_replay(self, replay_id=''):
         """
@@ -91,9 +96,8 @@ class DataRetrieverService(BaseDataRetrieverService):
         Execute replay should be a command which is fired, not RPC???
         """
 
-        replay = self.clients.resource_registry.read(replay_id)
-        pid = replay.process_id
-        cli = ReplayProcessClient(name=pid)
+        pid = self.read_process_id(replay_id)
+        cli = ReplayProcessClient(to_name=pid)
         cli.execute_replay()
 
 

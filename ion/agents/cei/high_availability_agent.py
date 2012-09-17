@@ -1,15 +1,11 @@
-import datetime
-import logging
-
 from pyon.agent.simple_agent import SimpleResourceAgent
-from pyon.public import IonObject, log
-from pyon.util.containers import get_safe
-from pyon.net.endpoint import Publisher
 from pyon.event.event import EventPublisher
+from pyon.public import log
 
 from interface.objects import AgentCommand, ProcessDefinition, ProcessSchedule, ProcessStateEnum
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.agents.cei.util import looping_call
+from ion.services.cei.process_dispatcher_service import _core_process_definition_from_ion
 
 try:
     from epu.highavailability.core import HighAvailabilityCore
@@ -62,9 +58,11 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         cfg = self.CFG.get_safe("highavailability")
         pds = self.CFG.get_safe("highavailability.process_dispatchers", [])
         process_spec = self.CFG.get_safe("highavailability.process_spec")
+        process_configuration = self.CFG.get_safe("highavailability.process_configuration")
         # TODO: Allow other core class?
         self.core = HighAvailabilityCore(cfg, ProcessDispatcherSimpleAPIClient,
-                pds, process_spec, self.policy)
+                pds, process_spec, self.policy, parameters=policy_parameters,
+                process_configuration=process_configuration)
 
         self.policy_thread = looping_call(self.policy_interval, self.core.apply_policy)
 
@@ -125,8 +123,11 @@ class ProcessDispatcherSimpleAPIClient(object):
         ProcessStateEnum.ERROR: '850-FAILED'
     }
 
-    def __init__(self, name, **kwargs):
-        self.real_client = ProcessDispatcherServiceClient(to_name=name, **kwargs)
+    def __init__(self, name, real_client=None, **kwargs):
+        if real_client is not None:
+            self.real_client = real_client
+        else:
+            self.real_client = ProcessDispatcherServiceClient(to_name=name, **kwargs)
         self.event_pub = EventPublisher()
 
     def create_definition(self, definition_id, definition_type, executable,
@@ -138,6 +139,12 @@ class ProcessDispatcherSimpleAPIClient(object):
                 'class': executable.get('class')}
         definition.definition_type = definition_type
         return self.real_client.create_process_definition(definition, definition_id)
+
+    def describe_definition(self, definition_id):
+
+        definition = self.real_client.read_process_definition(definition_id)
+        core_defintion = _core_process_definition_from_ion(definition)
+        return core_defintion
 
     def schedule_process(self, upid, definition_id, configuration=None,
             subscribers=None, constraints=None, queueing_mode=None,
@@ -153,7 +160,7 @@ class ProcessDispatcherSimpleAPIClient(object):
         process_schedule = ProcessSchedule()
 
         sched_pid = self.real_client.schedule_process(definition_id,
-                process_schedule, configuration={}, process_id=pid)
+                process_schedule, configuration=configuration, process_id=upid)
 
         proc = self.real_client.read_process(sched_pid)
         dict_proc = {'upid': proc.process_id,

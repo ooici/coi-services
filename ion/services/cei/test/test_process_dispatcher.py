@@ -7,6 +7,7 @@ import os
 from mock import Mock, patch, DEFAULT
 from nose.plugins.attrib import attr
 from gevent import queue
+from gevent.queue import Empty
 
 from pyon.net.endpoint import RPCClient
 from pyon.service.service import BaseService
@@ -62,9 +63,11 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.pd_service.backend.rr = self.mock_rr = Mock()
 
     def test_create_schedule(self):
+        backend = self.pd_service.backend
+        assert isinstance(backend, PDLocalBackend)
 
         event_pub = Mock()
-        self.pd_service.backend.event_pub = event_pub
+        backend.event_pub = event_pub
 
         proc_def = DotDict()
         proc_def['name'] = "someprocess"
@@ -77,11 +80,26 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         # not used for anything in local mode
         proc_schedule = DotDict()
 
-
         configuration = {"some": "value"}
 
-        self.pd_service.schedule_process("fake-process-def-id",
-            proc_schedule, configuration, pid)
+        if backend.SPAWN_DELAY:
+
+            with patch("gevent.spawn_later") as mock_gevent:
+                self.pd_service.schedule_process("fake-process-def-id",
+                    proc_schedule, configuration, pid)
+
+                self.assertTrue(mock_gevent.called)
+
+                self.assertEqual(mock_gevent.call_args[0][0], backend.SPAWN_DELAY)
+                self.assertEqual(mock_gevent.call_args[0][1], backend._inner_spawn)
+                spawn_args = mock_gevent.call_args[0][2:]
+
+            # now call the delayed spawn directly
+            backend._inner_spawn(*spawn_args)
+
+        else:
+            self.pd_service.schedule_process("fake-process-def-id", proc_schedule,
+                configuration, pid)
 
         self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
         self.assertEqual(self.mock_cc_spawn.call_count, 1)
@@ -90,18 +108,19 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
 
         # name should be def name followed by a uuid
         name = call_kwargs['name']
-        self.assertEqual(name, pid)
+        self.assertEqual(name, proc_def['name'])
         self.assertEqual(len(call_kwargs), 5)
         self.assertEqual(call_kwargs['module'], 'my_module')
         self.assertEqual(call_kwargs['cls'], 'class')
+        self.assertEqual(call_kwargs['process_id'], pid)
 
         called_config = call_kwargs['config']
         self.assertEqual(called_config, configuration)
 
         self.assertEqual(event_pub.publish_event.call_count, 1)
 
-        process = self.pd_service.read_process('123')
-        self.assertEqual(process.process_id, '123')
+        process = self.pd_service.read_process(pid)
+        self.assertEqual(process.process_id, pid)
         self.assertEqual(process.process_state, ProcessStateEnum.SPAWN)
 
     def test_schedule_process_notfound(self):
@@ -618,8 +637,12 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
             callback=self._event_callback, origin=origin, origin_type="DispatchedProcess")
         self.event_sub.start()
 
-    def await_state_event(self, pid, state):
-        event = self.event_queue.get(timeout=30)
+    def await_state_event(self, pid, state, timeout=30):
+        try:
+            event = self.event_queue.get(timeout=timeout)
+        except Empty:
+            state_str = ProcessStateEnum._str_map.get(state)
+            self.fail("Event timeout! Waited %s seconds for process %s state %s" % (timeout, pid, state_str))
         log.debug("Got event: %s", event)
         self.assertEqual(event.origin, pid)
         self.assertEqual(event.state, state)

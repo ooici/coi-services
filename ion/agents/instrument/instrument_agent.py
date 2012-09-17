@@ -13,10 +13,10 @@ __license__ = 'Apache 2.0'
 
 # Pyon imports
 from pyon.public import IonObject, log, RT
+from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
-from pyon.ion.stream import StreamPublisherRegistrar
 from pyon.util.containers import get_ion_ts
 
 # Pyon exceptions.
@@ -53,6 +53,8 @@ from mi.core.instrument.instrument_driver import DriverEvent
 from mi.core.instrument.instrument_driver import DriverAsyncEvent
 from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverParameter
+
+from interface.objects import AgentCommand
 
 class InstrumentAgentState():
     UNINITIALIZED='xxx'
@@ -959,8 +961,6 @@ class InstrumentAgent(ResourceAgent):
         @retval None
         """
         # The registrar to create publishers.
-        stream_registrar = StreamPublisherRegistrar(process=self,
-                                                    container=self.container)
         
         stream_info = self.CFG.get('stream_config', None)
         if not stream_info:
@@ -974,8 +974,7 @@ class InstrumentAgent(ResourceAgent):
                 try:
                     stream_id = stream_config['id']
                     self._data_streams[name] = stream_id
-                    publisher = stream_registrar.create_publisher(
-                       stream_id=stream_id)
+                    publisher = StreamPublisher(process=self, stream_id=stream_id)
                     self._data_publishers[name] = publisher
                     log.info("Instrument agent '%s' created publisher for stream_name "
                          "%s (stream_id=%s)" % (self._proc_name, name, stream_id))
@@ -1023,7 +1022,8 @@ class InstrumentAgent(ResourceAgent):
                 log.error("InstAgent.telnet_input_processor: got unexpected integer " + str(data))
                 return
             log.warning("InstAgent.telnet_input_processor: connection closed %s" %self._da_session_close_reason)
-            self.execute_agent(ResourceAgentEvent.GO_COMMAND)
+            cmd = AgentCommand(command=ResourceAgentEvent.GO_COMMAND)
+            self.execute_agent(command=cmd)
             return
         log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
         # send the data to the driver
