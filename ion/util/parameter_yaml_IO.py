@@ -75,6 +75,12 @@ def build_contexts():
     depth_ctxt.fill_value = 0e0
     contexts.append(depth_ctxt)
 
+    bin_ctxt = ParameterContext('binary', param_type=QuantityType(value_encoding=np.uint8))
+    bin_ctxt.uom = 'unknown'
+    bin_ctxt.fill_value = 0x0
+    contexts.append(bin_ctxt)
+
+
     return contexts
 
 def dump_param_contexts_to_yml():
@@ -86,7 +92,7 @@ def dump_param_contexts_to_yml():
 
     out_dict = {}
     for param_context in contexts:
-        out_dict[param_context.name] = param_context._dump()
+        out_dict[param_context.name] = param_context.dump()
 
     yml_body = yaml.dump(out_dict)
 
@@ -120,7 +126,7 @@ def get_param_dict(param_dict_name = None):
     pdict = ParameterDictionary()
 
     for ctxt_name in context_names:
-        param_context = ParameterContext._load(param_context_dict[ctxt_name])
+        param_context = ParameterContext.load(param_context_dict[ctxt_name])
         pdict.add_context(param_context)
 
     return pdict
