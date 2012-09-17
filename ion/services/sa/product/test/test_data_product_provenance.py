@@ -429,7 +429,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         contactInfo = ContactInformation()
         contactInfo.first_name = "Bill"
         contactInfo.name = "Smith"
-        contactInfo.address = "111 First St"
+        contactInfo.street_address = "111 First St"
         contactInfo.city = "San Diego"
         contactInfo.email = "bill@yahoo.com"
         contactInfo.phone = "858-555-6666"

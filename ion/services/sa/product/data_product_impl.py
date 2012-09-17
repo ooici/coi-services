@@ -210,7 +210,7 @@ class DataProductImpl(ResourceSimpleImpl):
                 name = etree.SubElement(contacttag, "name")
                 name.text = contact.name
                 address = etree.SubElement(contacttag, "address")
-                address.text = contact.address
+                address.text = contact.street_address
                 city = etree.SubElement(contacttag, "city")
                 city.text = contact.city
                 postalcode = etree.SubElement(contacttag, "postalcode")
