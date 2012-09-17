@@ -39,15 +39,6 @@ class ScienceGranuleIngestionWorkerUnitTest(PyonTestCase):
         granule = bg(data_producer_id='test_identifier', taxonomy=tt, record_dictionary=rdt)
         return granule
 
-    def test_consume(self):
-        self.worker.ingest = Mock()
-
-        message = {}
-        headers = {'routing_key' : 'stream_id.data'}
-
-        self.worker.consume(message,headers)
-        self.worker.ingest.assert_called_once_with({},'stream_id')
-    
     def test_get_dataset(self):
         self.worker.datasets = {}
         self.worker._new_dataset = Mock()
@@ -67,12 +58,6 @@ class ScienceGranuleIngestionWorkerUnitTest(PyonTestCase):
         retval = self.worker.get_coverage('stream_id')
         self.assertEquals(retval,{'test':True})
 
-    def test_consume(self):
-        self.worker.ingest = Mock()
-       
-        self.worker.consume({},{'routing_key':'testval.data'})
-
-        self.worker.ingest.assert_called_once_with({},'testval')
 
     def test_ingest(self):
         self.worker.add_granule = Mock()
@@ -80,7 +65,7 @@ class ScienceGranuleIngestionWorkerUnitTest(PyonTestCase):
         
         granule = Granule()
 
-        self.worker.ingest(granule,'stream_id')
+        self.worker.recv_packet(granule,{},'stream_id')
 
         self.worker.add_granule.assert_called_once_with('stream_id',granule)
         self.worker.persist_meta.assert_called_once_with('stream_id',granule)

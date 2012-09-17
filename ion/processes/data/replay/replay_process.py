@@ -17,7 +17,7 @@ from pyon.datastore.datastore import DataStore
 import gevent
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule_utils import CoverageCraft
-
+from pyon.util.log import log
 class ReplayProcessException(IonException):
     """
     Exception class for IngestionManagementService exceptions. This class inherits from IonException
@@ -53,6 +53,7 @@ class ReplayProcess(BaseReplayProcess):
         '''
         Starts the process
         '''
+        log.info('IVE BEEN STARTED!')
         super(ReplayProcess,self).on_start()
         dsm_cli = DatasetManagementServiceClient()
 

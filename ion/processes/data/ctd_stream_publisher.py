@@ -1,94 +1,66 @@
 #!/usr/bin/env python
 
 '''
-@author David Stuebe <dstuebe@asascience.com>
+@author Luke Campbell <LCampbell@ASAScience.com>
+@date Fri Sep  7 12:05:34 EDT 2012
 @file ion/processes/data/ctd_stream_publisher.py
-@description A simple example process which publishes prototype ctd data
-
-To Run:
-bin/pycc --rel res/deploy/r2dm.yml
-### In the shell...
-
-# create a stream id and pass it in...
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-pmsc = PubsubManagementServiceClient(node=cc.node)
-stream_id = pmsc.create_stream(name='pfoo')
-pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.ctd_stream_publisher',cls='SimpleCtdPublisher',config={'process':{'stream_id':stream_id}})
-
-
-OR...
-
-# just let the simple ctd publisher create it on its own for simple cases...
-cc.spawn_process(name="viz_data_realtime", module="ion.processes.data.ctd_stream_publisher", cls="SimpleCtdPublisher")
+@brief A process which produces a simple data stream
 '''
-from gevent.greenlet import Greenlet
-from pyon.ion.stream import StreamPublisherRegistrar
-from pyon.ion.process import StandaloneProcess
-from pyon.public import log
 
-import time
-from uuid import uuid4
+from pyon.ion.transforma import TransformStreamPublisher
+from pyon.public import log
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.granule import build_granule
+from ion.services.dm.utility.granule_utils import ParameterContext, ParameterDictionary, QuantityType, AxisTypeEnum
+
 import random
 import numpy
 import gevent
 
-from prototype.sci_data.stream_defs import ctd_stream_packet, SBE37_CDM_stream_definition, ctd_stream_definition
-from prototype.sci_data.constructor_apis import PointSupplementConstructor
-
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-### For new granule and stream interface
-from pyon.ion.transforma import TransformStreamPublisher
-from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
-from coverage_model.parameter import ParameterContext, ParameterDictionary
-from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
-
 class SimpleCtdPublisher(TransformStreamPublisher):
+    '''
+    A very very simple CTD streaming producer
+    The only parameter you need to provide is process.stream_id
+    Example:
+        stream_id, route = pn.pubsub_management.create_stream('ctd publisher', exchange_point='science_data')
+        pid = cc.spawn_process('ctdpublisher', 'ion.processes.data.ctd_stream_publisher','SimpleCtdPublisher',{'process':{'stream_id':stream_id}})
+    '''
     def on_start(self):
-        self.exchange_point = self.CFG.get_safe('process.exchange_point', 'science_data')
-        self.CFG.process.exchange_point = self.exchange_point
         super(SimpleCtdPublisher,self).on_start()
         self.stream_id = self.CFG.get_safe('process.stream_id',{})
         self.interval  = self.CFG.get_safe('process.interval', 1.0)
         self.last_time = self.CFG.get_safe('process.last_time', 0)
 
-        # Stream creation is done in SA, but to make the example go for demonstration create one here if it is not provided...
-        if not self.stream_id:
 
-            pubsub_cli = PubsubManagementServiceClient()
-            self.stream_id = pubsub_cli.create_stream( name='Example CTD Data')
-
-        self.greenlet = gevent.spawn(self._trigger_func, self.stream_id)
         self.finished = gevent.event.Event()
-        log.info('SimpleCTDPublisher started, publishing to %s->%s', self.exchange_point, self.stream_id)
+        self.greenlet = gevent.spawn(self.publish_loop)
+        self._stats['publish_count'] = 0
+        log.info('SimpleCTDPublisher started, publishing to %s', self.publisher.stream_route.__dict__)
 
     def on_quit(self):
         if self.greenlet:
             self.finished.set()
             self.greenlet.join(10)
+            self.greenlet.kill()
         super(SimpleCtdPublisher,self).on_quit() 
 
     def publish(self, msg, to_name=''):
+        self._stats['publish_count'] += 1
         if to_name:
             self.publisher.publish(msg,stream_id=to_name)
         else:
-            log.info('Publishing on %s->%s', self.exchange_point, self.stream_id)
-            self.publisher.publish(msg,stream_id=self.stream_id)
+            log.info('Publishing on (%s,%s)', self.publisher.stream_route.exchange_point, self.publisher.stream_route.routing_key)
+            self.publisher.publish(msg)
 
-
-    def _trigger_func(self, stream_id):
+    def publish_loop(self):
 
         while not self.finished.is_set():
 
             #Length of packets should be uniform
             length = 10
 
-            ctd_packet = self._get_new_ctd_packet(stream_id, length)
-
-            log.info('SimpleCtdPublisher sending %d values!' % length)
+            ctd_packet = self._get_new_ctd_packet(length)
             self.publish(ctd_packet)
-
             gevent.sleep(self.interval)
 
     def _create_parameter(self):
@@ -142,7 +114,7 @@ class SimpleCtdPublisher(TransformStreamPublisher):
 
         return pdict
 
-    def _get_new_ctd_packet(self, stream_id, length):
+    def _get_new_ctd_packet(self, length):
 
         parameter_dictionary = self._create_parameter()
         rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
@@ -168,54 +140,6 @@ class SimpleCtdPublisher(TransformStreamPublisher):
 #        rdt['coordinates'] = rdt0
 #        rdt['data'] = rdt1
 
-        g = build_granule(data_producer_id=stream_id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
+        g = build_granule(data_producer_id=self.id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
 
         return g
-
-
-class PointCtdPublisher(StandaloneProcess):
-
-    def on_start(self):
-        super(PointCtdPublisher,self).on_start()
-        self.finished = gevent.event.Event()
-
-    def on_quit(self):
-        self.finished.set()
-        super(PointCtdPublisher,self).on_quit()
-
-    #overriding trigger function here to use PointSupplementConstructor
-    def _trigger_func(self, stream_id):
-
-        point_def = ctd_stream_definition(stream_id=stream_id)
-        point_constructor = PointSupplementConstructor(point_definition=point_def)
-
-        while not self.finished.is_set():
-
-            length = 1
-
-            c = [random.uniform(0.0,75.0)  for i in xrange(length)]
-
-            t = [random.uniform(-1.7, 21.0) for i in xrange(length)]
-
-            p = [random.lognormvariate(1,2) for i in xrange(length)]
-
-            lat = [random.uniform(-90.0, 90.0) for i in xrange(length)]
-
-            lon = [random.uniform(0.0, 360.0) for i in xrange(length)]
-
-            tvar = [self.last_time + i for i in xrange(1,length+1)]
-
-            self.last_time = max(tvar)
-
-            point_id = point_constructor.add_point(time=tvar,location=(lon[0],lat[0]))
-            point_constructor.add_point_coverage(point_id=point_id, coverage_id='temperature', values=t)
-            point_constructor.add_point_coverage(point_id=point_id, coverage_id='pressure', values=p)
-            point_constructor.add_point_coverage(point_id=point_id, coverage_id='conductivity', values=c)
-
-            ctd_packet = point_constructor.get_stream_granule()
-
-            log.info('SimpleCtdPublisher sending %d values!' % length)
-            self.publisher.publish(ctd_packet)
-
-            time.sleep(1.0)
-

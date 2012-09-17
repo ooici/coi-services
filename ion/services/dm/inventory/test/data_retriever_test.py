@@ -51,14 +51,13 @@ class DataRetrieverUnitTest(PyonTestCase):
 
         stream_id = 'stream_id'
 
-        self.pubsub_create_stream.return_value = stream_id
         self.rr_read.return_value = dataset
         self.rr_create.return_value = ('replay_id', 'rev')
         self.pd_schedule.return_value = 'pid'
 
-        retval = self.data_retriever.define_replay(dataset_id='dataset_id')
+        retval = self.data_retriever.define_replay(dataset_id='dataset_id', stream_id=stream_id)
 
-        self.assertTrue(retval == ('replay_id','stream_id'))
+        self.assertTrue(retval == 'replay_id')
 
     def test_delete_replay(self):
         self.rr_find_assocs.return_value = ['assoc']

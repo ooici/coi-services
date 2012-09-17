@@ -1,45 +1,20 @@
-# New Stream and Granule Stuff....
+#!/usr/bin/env python
 
-'''
-See also: ion/processes/data/stream_granule_logger.py for an example with subscription!
-
-To Run:
-bin/pycc --rel res/deploy/r2dm.yml
-### In the shell...
-
-# create a stream id and pass it in...
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-pmsc = PubsubManagementServiceClient(node=cc.node)
-stream_id = pmsc.create_stream(name='pfoo')
-pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.example_data_producer',cls='ExampleDataProducer',config={'process':{'stream_id':stream_id}})
-
-
-'''
-
-# Inherit some old machinery for this example
-from interface.objects import Granule
+from pyon.util.log import log
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool, build_granule, ParameterContext, ParameterDictionary, QuantityType, AxisTypeEnum, CoverageCraft
 
-### For new granule and stream interface
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool, build_granule
-from pyon.public import log
-from coverage_model.parameter import ParameterContext, ParameterDictionary
-from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from interface.objects import Granule
 
 import numpy
 import random
-import time
 import gevent
 
 class BetterDataProducer(SimpleCtdPublisher):
-    def _trigger_func(self, stream_id):
+    def publish_loop(self):
         t_i = 0
         while not self.finished.is_set():
-
-            length                    = 10
-            black_box                 = CoverageCraft()
+            black_box                     = CoverageCraft()
             black_box.rdt['time']         = numpy.arange(10) + t_i*10
             black_box.rdt['temp']         = numpy.random.random(10) * 10
             black_box.rdt['lat']          = numpy.array([0] * 10)
@@ -66,7 +41,7 @@ class ExampleDataProducer(SimpleCtdPublisher):
 
 
     #overriding trigger function here to use new granule
-    def _trigger_func(self, stream_id):
+    def publish_loop(self):
 
         #@todo - add lots of comments in here
         while not self.finished.is_set():
@@ -108,7 +83,7 @@ class ExampleDataProducer(SimpleCtdPublisher):
             rdt['lon'] = lon
 
 
-            g = build_granule(data_producer_id=stream_id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
+            g = build_granule(data_producer_id=self.id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
 
             log.info('Sending %d values!' % length)
             if isinstance(g,Granule):
@@ -137,12 +112,12 @@ class ExampleDataProducer(SimpleCtdPublisher):
         cond_ctxt.fill_value = 0e0
         pdict.add_context(cond_ctxt)
 
-        raw_fixed_ctxt = ParameterContext('raw_fixed', param_type='unknown')
+        raw_fixed_ctxt = ParameterContext('raw_fixed', param_type=QuantityType(value_encoding=numpy.float32))
         raw_fixed_ctxt.uom = 'unknown'
         raw_fixed_ctxt.fill_value = 0e0
         pdict.add_context(raw_fixed_ctxt)
 
-        raw_blob_ctxt = ParameterContext('raw_blob', param_type='unknown')
+        raw_blob_ctxt = ParameterContext('raw_blob', param_type=QuantityType(value_encoding=numpy.float32))
         raw_blob_ctxt.uom = 'unknown'
         raw_blob_ctxt.fill_value = 0e0
         pdict.add_context(raw_blob_ctxt)

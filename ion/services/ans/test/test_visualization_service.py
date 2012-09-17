@@ -1,7 +1,5 @@
 
-from pyon.ion.stream import StreamSubscriberRegistrar
 from pyon.net.endpoint import Subscriber
-from interface.objects import StreamQuery
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -71,11 +69,10 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
     def validate_messages(self, msgs):
+        msg = msgs.body
 
-        cc = self.container
-        assertions = self.assertTrue
 
-        rdt = RecordDictionaryTool.load_from_granule(msgs.body)
+        rdt = RecordDictionaryTool.load_from_granule(msg.body)
 
         vardict = {}
         vardict['temp'] = get_safe(rdt, 'temp')
@@ -92,8 +89,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
     #@unittest.skip("in progress")
     def test_visualization_queue(self):
 
-        assertions = self.assertTrue
-
         #The list of data product streams to monitor
         data_product_stream_ids = list()
 
@@ -106,20 +101,11 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         xq = self.container.ex_manager.create_xn_queue(user_queue_name)
 
         salinity_subscription_id = self.pubsubclient.create_subscription(
-            query=StreamQuery(data_product_stream_ids),
+            stream_ids=data_product_stream_ids,
             exchange_name = user_queue_name,
-            exchange_point = 'science_data',
             name = "user visualization queue"
         )
 
-
-        subscriber_registrar = StreamSubscriberRegistrar(container=self.container)
-
-        #subscriber = subscriber_registrar.create_subscriber(exchange_name=user_queue_name)
-        #subscriber.start()
-
-        #Using endpoint Subscriber directly; but should be a Stream-based subscriber that does nto require a process
-        #subscriber = Subscriber(from_name=(subscriber_registrar.XP, user_queue_name), callback=cb)
         subscriber = Subscriber(from_name=xq)
         subscriber.initialize()
 
@@ -187,7 +173,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
     #@unittest.skip("in progress")
     def test_realtime_visualization(self):
-        assertions = self.assertTrue
 
         # Build the workflow definition
         workflow_def_obj = IonObject(RT.WorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')

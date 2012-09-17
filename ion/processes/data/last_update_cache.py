@@ -47,8 +47,9 @@ class LastUpdateCache(TransformDataProcess):
 
 
 
-    def recv_packet(self, msg, headers):
+    def recv_packet(self, msg, stream_route, stream_id):
 
+        packet = msg
         if isinstance(packet,StreamGranuleContainer):
             granule = msg
             lu = self.db._ion_object_to_persistence_dict(self.get_last_value(granule))
