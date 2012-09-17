@@ -54,6 +54,8 @@ from mi.core.instrument.instrument_driver import DriverAsyncEvent
 from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverParameter
 
+from interface.objects import AgentCommand
+
 class InstrumentAgentState():
     UNINITIALIZED='xxx'
 
@@ -1020,7 +1022,8 @@ class InstrumentAgent(ResourceAgent):
                 log.error("InstAgent.telnet_input_processor: got unexpected integer " + str(data))
                 return
             log.warning("InstAgent.telnet_input_processor: connection closed %s" %self._da_session_close_reason)
-            self.execute_agent(ResourceAgentEvent.GO_COMMAND)
+            cmd = AgentCommand(command=ResourceAgentEvent.GO_COMMAND)
+            self.execute_agent(command=cmd)
             return
         log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
         # send the data to the driver
