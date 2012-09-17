@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 '''
 @author Luke Campbell <LCampbell@ASAScience.com>
-@file ingestion_worker_b
+@file ion/processes/data/ingestion/science_granule_ingestion_worker.py
 @date 06/26/12 11:38
 @description DESCRIPTION
 '''
-from pyon.ion.process import SimpleProcess
-from pyon.ion.stream import SimpleStreamSubscriber
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
@@ -17,13 +15,14 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from ion.services.dm.utility.granule_utils import CoverageCraft
 from interface.objects import Granule
 from couchdb import ResourceNotFound
+from pyon.ion.transforma import TransformStreamListener
 import re
 import collections
 import numpy
 
 
 
-class ScienceGranuleIngestionWorker(SimpleProcess):
+class ScienceGranuleIngestionWorker(TransformStreamListener):
     CACHE_LIMIT=100
 
     def __init__(self, *args,**kwargs):
@@ -36,14 +35,10 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         self._datasets  = collections.OrderedDict()
         self._coverages = collections.OrderedDict()
     def on_start(self): #pragma no cover
-        self.queue_name = self.CFG.get_safe('process.queue_name','ingestion_queue')
+        super(ScienceGranuleIngestionWorker,self).on_start()
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
-
-
-        self.subscriber = SimpleStreamSubscriber.new_subscriber(self.container,self.queue_name,self.consume)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         log.debug('Created datastore %s', self.datastore_name)
-        self.subscriber.start()
 
 
     def on_quit(self): #pragma no cover
@@ -58,6 +53,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         if datasets:
             return datasets[0]
         return None
+    
     def get_dataset(self,stream_id):
         '''
         Memoization (LRU) of _new_dataset
@@ -91,15 +87,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
         self._coverages[stream_id] = result
         return result
 
-    def consume(self, msg, headers):
-        '''
-        Subscriber's consume callback
-        '''
-        stream_id = headers['routing_key']
-        stream_id = re.sub(r'\.data', '', stream_id)
-        self.ingest(msg,stream_id)
-
-    def ingest(self, msg, stream_id):
+    def recv_packet(self, msg, stream_route, stream_id):
         '''
         Actual ingestion mechanism
         '''
@@ -108,6 +96,7 @@ class ScienceGranuleIngestionWorker(SimpleProcess):
             return
         # Message validation
         validate_is_instance(msg,Granule,'Incoming message is not compatible with this ingestion worker')
+        log.info('Received incoming granule from route: %s and stream_id: %s', stream_route, stream_id)
         granule = msg
         self.add_granule(stream_id, granule)
         self.persist_meta(stream_id, granule)

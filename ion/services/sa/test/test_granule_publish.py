@@ -2,14 +2,11 @@
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 
-from pyon.public import RT, LCS, PRED
-from pyon.public import Container, log, IonObject
+from pyon.public import RT, PRED
+from pyon.public import log, IonObject
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
-from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
@@ -17,23 +14,25 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
+
+from pyon.ion.stream import StandaloneStreamPublisher
+
+
 from ion.services.dm.utility.granule_utils import CoverageCraft
 from ooi.logging import log
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 
-from interface.objects import StreamRoute
-from pyon.ion.stream import SimpleStreamRoutePublisher
-
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum
 
 from interface.objects import ProcessDefinition
 
 from ion.util.parameter_yaml_IO import get_param_dict
 
 from nose.plugins.attrib import attr
-import numpy, gevent
-import random
+import numpy
 import time
 
 class FakeProcess(LocalContextMixin):
@@ -93,8 +92,14 @@ class TestGranulePublish(IonIntegrationTestCase):
         #retrieve the param dict from the repository
         parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
 
@@ -117,11 +122,9 @@ class TestGranulePublish(IonIntegrationTestCase):
 
         rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
-        exchange_point = 'test_exchange'
-
         #create the publisher from the stream route
-        stream_route = self.pubsubclient.get_stream_route_for_stream(stream_ids[0])
-        publisher = SimpleStreamRoutePublisher.new_publisher(self.container, stream_route)
+        stream_route = self.pubsubclient.read_stream_route(stream_ids[0])
+        publisher = StandaloneStreamPublisher(stream_ids[0], stream_route)
 
         # this is one sample from the ctd driver
         tomato = {"driver_timestamp": 3555971105.1268806, "instrument_id": "ABC-123", "pkt_format_id": "JSON_Data", "pkt_version": 1, "preferred_timestamp": "driver_timestamp", "quality_flag": "ok", "stream_name": "parsed", "values": [{"value": 22.9304, "value_id": "temp"}, {"value": 51.57381, "value_id": "conductivity"}, {"value": 915.551, "value_id": "depth"}]}

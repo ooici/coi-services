@@ -37,11 +37,9 @@ import os
 
 # ION imports.
 from pyon.public import IonObject, log
-from interface.objects import StreamQuery, Attachment, AttachmentType, Granule
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.public import StreamSubscriberRegistrar
 from prototype.sci_data.stream_defs import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand, ExternalDatasetAgent, ExternalDatasetAgentInstance
@@ -194,7 +192,7 @@ class ExternalDatasetAgentTestBase(object):
 
     def create_stream_and_logger(self, name, stream_id=''):
         if not stream_id or stream_id is '':
-            stream_id = self._pubsub_client.create_stream(name=name, encoding='ION R2')
+            stream_id = self._pubsub_client.create_stream(name=name, exchange_point='science_data')
 
         pid = self._container_client.spawn_process(
             name=name+'_logger',
@@ -962,7 +960,6 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
 
         # Generate the data product and associate it to the ExternalDataset
-
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
         sdom = sdom.dump()

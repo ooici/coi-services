@@ -7,7 +7,7 @@
 '''
 from pyon.core.exception import Timeout
 from pyon.public import RT, log
-from pyon.ion.stream import SimpleStreamPublisher, SimpleStreamSubscriber
+from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -17,10 +17,10 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.datastore.datastore import DataStore
 from interface.objects import ProcessDefinition, Granule
 from pyon.util.containers import DotDict
+from pyon.event.event import EventSubscriber
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
-from pyon.event.event import EventSubscriber
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
 from gevent.event import Event
@@ -89,8 +89,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         return ingest_configs[0]
 
 
-    def publish_hifi(self,stream_id, offset=0):
-        pub = SimpleStreamPublisher.new_publisher(self.container,self.exchange_point_name,stream_id)
+    def publish_hifi(self,stream_id,stream_route,offset=0):
+        pub = StandaloneStreamPublisher(stream_id, stream_route)
 
         black_box = CoverageCraft()
         black_box.rdt['time'] = np.arange(10) + (offset * 10)
@@ -98,10 +98,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         granule = black_box.to_granule()
         pub.publish(granule)
 
-    def publish_fake_data(self,stream_id):
+    def publish_fake_data(self,stream_id, route):
 
         for i in xrange(4):
-            self.publish_hifi(stream_id,i)
+            self.publish_hifi(stream_id,route,i)
         
 
     def get_datastore(self, dataset_id):
@@ -110,7 +110,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
         return datastore
 
-    def validate_granule_subscription(self, msg, header):
+    def validate_granule_subscription(self, msg, route, stream_id):
         if msg == {}:
             return
         self.assertIsInstance(msg,Granule,'Message is improperly formatted. (%s)' % type(msg))
@@ -124,8 +124,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         meta = File(name='/examples/' + rand + '.txt', group_id='example1')
         return {'body': data, 'meta':meta}
 
-    def publish_file(self, stream_id):
-        publisher = SimpleStreamPublisher.new_publisher(self.container, 'science_data', stream_id)
+    def publish_file(self, stream_id, stream_route):
+        publisher = StandaloneStreamPublisher(stream_id,stream_route)
         publisher.publish(self.make_file_data())
         
     def wait_until_we_have_enough_granules(self, dataset_id='',granules=4):
@@ -172,7 +172,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def test_coverage_ingest(self):
-        stream_id = self.pubsub_management.create_stream()
+        stream_id, stream_route = self.pubsub_management.create_stream('test_coverage_ingest', exchange_point=self.exchange_point_name)
         dataset_id = self.create_dataset()
         # I freaking hate this bug
         self.get_datastore(dataset_id)
@@ -187,7 +187,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         black_box.sync_with_granule()
         granule = black_box.to_granule()
 
-        publisher = SimpleStreamPublisher.new_publisher(self.container,self.exchange_point_name, stream_id)
+        publisher = StandaloneStreamPublisher(stream_id, stream_route)
         publisher.publish(granule)
 
         self.wait_until_we_have_enough_granules(dataset_id,1)
@@ -235,8 +235,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         # Set up a stream and have a mock instrument (producer) send data
         #--------------------------------------------------------------------------------
 
-        stream_id = self.pubsub_management.create_stream()
-
+        stream_id, route = self.pubsub_management.create_stream('producer', exchange_point=self.exchange_point_name)
         self.launch_producer(stream_id)
 
 
@@ -269,29 +268,38 @@ class TestDMEnd2End(IonIntegrationTestCase):
         # Now to try the streamed approach
         #--------------------------------------------------------------------------------
 
-        replay_id, stream_id = self.data_retriever.define_replay(dataset_id)
-        process_id = self.data_retriever.read_process_id(replay_id)
+        replay_stream_id, replay_route = self.pubsub_management.create_stream('replay_out', exchange_point=self.exchange_point_name)
+        self.replay_id = self.data_retriever.define_replay(dataset_id=dataset_id, stream_id=replay_stream_id)
+        process_id = self.data_retriever.read_process_id(self.replay_id)
+        log.info('Process ID: %s', process_id)
 
-    
         self.launched_event = gevent.event.Event()
         
-        def ugh(*args, **kwargs):
+        def launched(*args, **kwargs):
+            log.info('Launched set')
             self.launched_event.set()
 
-        event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=ugh, origin=process_id, origin_type="DispatchedProcess")
+
+        event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=launched, origin=process_id, origin_type="ContainerProcess")
         event_sub.start()
+        log.info('Started event subscriber')
+    
         #--------------------------------------------------------------------------------
         # Create the listening endpoint for the the retriever to talk to 
         #--------------------------------------------------------------------------------
         xp = self.container.ex_manager.create_xp(self.exchange_point_name)
-        xn = self.container.ex_manager.create_xn_queue(self.exchange_space_name)
-        xn.bind('%s.data' % stream_id, xp)
-        subscriber = SimpleStreamSubscriber.new_subscriber(self.container,
-                    self.exchange_space_name,self.validate_granule_subscription)
+        subscriber = StandaloneStreamSubscriber(self.exchange_space_name, self.validate_granule_subscription)
+        self.queue_buffer.append(self.exchange_space_name)
         subscriber.start()
+        subscriber.xn.bind(replay_route.routing_key, xp)
 
         if self.launched_event.wait(10):
-            self.data_retriever.start_replay(replay_id)
+            log.critical('The process has started')
+            self.data_retriever.start_replay(self.replay_id)
+        else:
+            log.error("well we missed it but we're gonna give it a shot anyway")
+            self.data_retriever.start_replay(self.replay_id)
+
         
         fail = False
         try:
@@ -299,22 +307,24 @@ class TestDMEnd2End(IonIntegrationTestCase):
         except gevent.Timeout:
             fail = True
 
+    
 
         subscriber.stop()
 
         self.assertTrue(not fail, 'Failed to validate the data.')
-        self.data_retriever.cancel_replay(replay_id)
+        self.data_retriever.cancel_replay(self.replay_id)
+
+        event_sub.stop()
+        event_sub.close()
 
 
     def test_replay_by_time(self):
-        log.info('starting test...')
-
         #--------------------------------------------------------------------------------
         # Create the necessary configurations for the test
         #--------------------------------------------------------------------------------
-        stream_id  = self.pubsub_management.create_stream()
-        config_id  = self.get_ingestion_config()
-        dataset_id = self.create_dataset()
+        stream_id, route  = self.pubsub_management.create_stream('replay_by_time', exchange_point=self.exchange_point_name)
+        config_id         = self.get_ingestion_config()
+        dataset_id        = self.create_dataset()
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         #--------------------------------------------------------------------------------
         # Create the datastore first,
@@ -324,7 +334,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         # exists before the process is even subscribing to data.
         self.get_datastore(dataset_id) 
 
-        self.publish_fake_data(stream_id)
+        self.publish_fake_data(stream_id, route)
         self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
 
         replay_granule = self.data_retriever.retrieve(dataset_id,{'start_time':0,'end_time':6})
@@ -344,17 +354,17 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Create the necessary configurations for the test
         #--------------------------------------------------------------------------------
-        stream_id  = self.pubsub_management.create_stream()
-        config_id  = self.get_ingestion_config()
-        dataset_id = self.create_dataset()
+        stream_id, route  = self.pubsub_management.create_stream('last_granule', exchange_point=self.exchange_point_name)
+        config_id         = self.get_ingestion_config()
+        dataset_id        = self.create_dataset()
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         #--------------------------------------------------------------------------------
         # Create the datastore first,
         #--------------------------------------------------------------------------------
         self.get_datastore(dataset_id)
 
-        self.publish_hifi(stream_id, 0)
-        self.publish_hifi(stream_id, 1)
+        self.publish_hifi(stream_id,route, 0)
+        self.publish_hifi(stream_id,route, 1)
         
 
         self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
@@ -372,7 +382,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Create the configurations and the dataset
         #--------------------------------------------------------------------------------
-        stream_id  = self.pubsub_management.create_stream()
+        stream_id, route  = self.pubsub_management.create_stream('replay_with_params', exchange_point=self.exchange_point_name)
         config_id  = self.get_ingestion_config()
         dataset_id = self.create_dataset()
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
@@ -403,18 +413,18 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def test_repersist_data(self):
-        stream_id = self.pubsub_management.create_stream()
+        stream_id, route = self.pubsub_management.create_stream(name='repersist', exchange_point=self.exchange_point_name)
         config_id = self.get_ingestion_config()
         dataset_id = self.create_dataset()
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         self.get_datastore(dataset_id)
-        self.publish_hifi(stream_id,0)
-        self.publish_hifi(stream_id,1)
+        self.publish_hifi(stream_id,route,0)
+        self.publish_hifi(stream_id,route,1)
         self.wait_until_we_have_enough_granules(dataset_id,2)
         self.ingestion_management.unpersist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id,dataset_id=dataset_id)
-        self.publish_hifi(stream_id,2)
-        self.publish_hifi(stream_id,3)
+        self.publish_hifi(stream_id,route,2)
+        self.publish_hifi(stream_id,route,3)
         self.wait_until_we_have_enough_granules(dataset_id,4)
         retrieved_granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
@@ -429,7 +439,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         # Set up the ingestion subscriptions
         #--------------------------------------------------------------------------------
         success   = gevent.event.Event()
-        stream_id = self.pubsub_management.create_stream()
+        stream_id, stream_route = self.pubsub_management.create_stream('test_stream',exchange_point=self.exchange_point_name)
         config_id = self.get_ingestion_config()
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id='', ingestion_type=IngestionManagementService.BINARY_INGESTION)
 
@@ -437,38 +447,45 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Get the datastore to beat the race conditions
         #--------------------------------------------------------------------------------
-        self.publish_file(stream_id) 
+        self.publish_file(stream_id, stream_route) 
         self.launched_event = gevent.event.Event()
 
         def launched(*args, **kwargs):
             self.launched_event.set()
        
-        def notice(m,h):
+        def notice(m,r,s):
             log.info( 'received: %s' , m)
             success.set()
         query =  {
            'file_stream_id': stream_id,
            'file_group_id':  'example1'
         }
-        replay_id, stream_id = self.data_retriever.define_replay('', query, replay_type='BINARY')
 
-        from pyon.ion.stream import SimpleStreamSubscriber
 
-        sub = SimpleStreamSubscriber.new_subscriber(self.container, 'test_binary_ingestion', notice)
+        stream_id, route = self.pubsub_management.create_stream('replay_stream', exchange_point=self.exchange_point_name)
+        replay_id = self.data_retriever.define_replay('', query, stream_id=stream_id, replay_type='BINARY')
         pid = self.data_retriever.read_process_id(replay_id)
         event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=launched, origin=pid, origin_type="DispatchedProcess")
         event_sub.start()
+
+
+        sub = StandaloneStreamSubscriber('test_binary_ingestion', notice)
         self.queue_buffer.append(sub.xn)
         sub.start()
 
         xp = self.container.ex_manager.create_xp('science_data')
-        sub.xn.bind('%s.data' % stream_id, xp)
+        sub.xn.bind(route.routing_key,xp)
 
         self.wait_until_we_have_enough_files()
 
         if self.launched_event.wait(10):
             self.data_retriever.start_replay(replay_id)
+        else:
+            log.error("Well we waited long enough, it probably was spawned")
+            self.data_retriever.start_replay(replay_id)
         self.assertTrue(success.wait(10))
         self.data_retriever.cancel_replay(replay_id)
 
 
+        event_sub.stop()
+        event_sub.close()

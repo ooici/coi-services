@@ -21,7 +21,7 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         ingestion_class     = config.get_safe('bootstrap.processes.ingestion.class' ,'ScienceGranuleIngestionWorker')
         ingestion_datastore = config.get_safe('bootstrap.processes.ingestion.datastore_name', 'datasets')
         ingestion_queue     = config.get_safe('bootstrap.processes.ingestion.queue' , 'science_granule_ingestion')
-        ingestion_workers   = config.get_safe('bootstrap.processes.ingestion.workers', 2)
+        ingestion_workers   = config.get_safe('bootstrap.processes.ingestion.workers', 1)
         
         bin_module    = config.get_safe('bootstrap.processes.bin.module','ion.processes.data.ingestion.blob_ingestion_worker')
         bin_class     = config.get_safe('bootstrap.processes.bin.class' ,'BlobIngestionWorker')

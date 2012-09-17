@@ -14,6 +14,7 @@ from coverage_model.basic_types import AxisTypeEnum
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
+from pyon.ion.stream import StreamPublisher
 import numpy, re
 
 class SalinityDoubler(TransformDataProcess):
@@ -22,25 +23,19 @@ class SalinityDoubler(TransformDataProcess):
     incoming_stream_def = L2_practical_salinity_stream_definition()
 
     def on_start(self):
-        super(SalinityDoubler, self).on_start()
+
 
         if self.CFG.process.publish_streams.has_key('salinity'):
             self.sal_stream = self.CFG.process.publish_streams.salinity
         elif self.CFG.process.publish_streams.has_key('output'):
             self.sal_stream = self.CFG.process.publish_streams.output
-
-        log.debug("Got stream_id for salinity doubler: %s" % self.sal_stream)
-
-    def recv_packet(self, msg, headers):
-        log.warn('ctd_L2_salinity.recv_packet: {0}'.format(msg))
-        stream_id = headers['routing_key']
-        stream_id = re.sub(r'\.data', '', stream_id)
-        self.receive_msg(msg, stream_id)
+        self.CFG.process.stream_id = self.sal_stream
+        super(SalinityDoubler, self).on_start()
 
     def publish(self, msg, stream_id):
-        self.publisher.publish(msg=msg, stream_id=stream_id)
+        self.publisher.publish(msg)
 
-    def receive_msg(self, granule, stream_id):
+    def recv_packet(self, granule, stream_route, stream_id):
         """
         Example process to double the salinity value
         """

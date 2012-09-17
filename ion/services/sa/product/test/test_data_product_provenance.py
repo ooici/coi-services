@@ -11,27 +11,19 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
-from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L1_temperature_stream_definition, L1_conductivity_stream_definition, L2_practical_salinity_stream_definition, L2_density_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from ion.services.dm.utility.granule_utils import CoverageCraft
-
-from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
 from interface.objects import  ContactInformation
 
 from pyon.util.context import LocalContextMixin
-from pyon.util.containers import DotDict
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.core.exception import BadRequest 
 from pyon.public import RT, PRED
-from mock import Mock
-from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
-from interface.objects import ProcessDefinition
 import unittest
-import time
 
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.util.parameter_yaml_IO import get_param_dict
+
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
+
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -115,17 +107,24 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # Create CTD Parsed  data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_CDM')
 
         log.debug( 'test_get_provenance:Creating new CDM data product with a stream definition')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('sample_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
+
         parsed_param_dict = get_param_dict('ctd_parsed_param_dict')
 
         dp_obj = IonObject(RT.DataProduct,
@@ -279,16 +278,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l0_conductivity = L0_conductivity_stream_definition()
-        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_conductivity, name='L0_Conductivity')
+        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id )
 
-        outgoing_stream_l0_pressure = L0_pressure_stream_definition()
-        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_pressure, name='L0_Pressure')
+        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id )
 
-        outgoing_stream_l0_temperature = L0_temperature_stream_definition()
-        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_temperature, name='L0_Temperature')
+        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id )
 
 
@@ -338,16 +334,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # L1 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l1_conductivity = L1_conductivity_stream_definition()
-        outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l1_conductivity, name='L1_conductivity')
+        outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(name='L1_conductivity')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_conductivity_id, ctd_L1_conductivity_dprocdef_id )
 
-        outgoing_stream_l1_pressure = L1_pressure_stream_definition()
-        outgoing_stream_l1_pressure_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l1_pressure, name='L1_Pressure')
+        outgoing_stream_l1_pressure_id = self.pubsubclient.create_stream_definition(name='L1_Pressure')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_pressure_id, ctd_L1_pressure_dprocdef_id )
 
-        outgoing_stream_l1_temperature = L1_temperature_stream_definition()
-        outgoing_stream_l1_temperature_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l1_temperature, name='L1_Temperature')
+        outgoing_stream_l1_temperature_id = self.pubsubclient.create_stream_definition(name='L1_Temperature')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_temperature_id, ctd_L1_temperature_dprocdef_id )
 
         log.debug("TestDataProductProvenance: create output data product L1 conductivity")
@@ -392,12 +385,10 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # L2 Salinity - Density: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l2_salinity = L2_practical_salinity_stream_definition()
-        outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l2_salinity, name='L2_salinity')
+        outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(name='L2_salinity')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_salinity_id, ctd_L2_salinity_dprocdef_id )
 
-        outgoing_stream_l2_density = L2_density_stream_definition()
-        outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l2_density, name='L2_Density')
+        outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(name='L2_Density')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id, ctd_L2_density_dprocdef_id )
 
         log.debug("TestDataProductProvenance: create output data product L2 Salinity")
@@ -564,3 +555,4 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
 
         results = self.dpmsclient.get_data_product_provenance_report(ctd_l2_density_output_dp_id)
+

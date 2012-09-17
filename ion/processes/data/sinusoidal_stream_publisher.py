@@ -22,7 +22,6 @@ OR...
 cc.spawn_process(name="viz_data_realtime", module="ion.processes.data.ctd_stream_publisher", cls="SimpleCtdPublisher")
 '''
 from gevent.greenlet import Greenlet
-from pyon.ion.stream import StreamPublisherRegistrar
 from pyon.ion.process import StandaloneProcess
 from pyon.public import log
 

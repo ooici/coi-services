@@ -45,13 +45,11 @@ bin/pycc --rel res/deploy/examples/dispatcher.yml dispatcher.data_product_id=<da
 '''
 
 
-from gevent.greenlet import Greenlet
-from pyon.ion.stream import StreamPublisherRegistrar
 from pyon.ion.process import StandaloneProcess
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
-from pyon.public import log, StreamSubscriberRegistrar, PRED
+from pyon.public import log, PRED
 from pyon.util.containers import get_datetime
-from interface.objects import StreamQuery
+from pyon.ion.stream import StreamSubscriber
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
@@ -74,24 +72,20 @@ class SimpleDispatcher(StandaloneProcess):
         log.info('Got Stream Ids: "%s"', stream_ids)
         assert stream_ids, 'No streams found for this data product!'
 
-        query = StreamQuery(stream_ids=stream_ids)
 
         exchange_name = 'dispatcher_%s' % str(os.getpid())
-
         subscription_id = pubsub_cli.create_subscription(
-            query = query,
-            exchange_name = exchange_name,
-            exchange_point = 'science_data',
-            name = "SampleSubscription",
-            description = "Sample Subscription Description")
+                name='SampleSubscription', 
+                exchange_name=exchange_name,
+                stream_ids=stream_ids,
+                description='Sample Subscription Description'
+                )
 
 
-        stream_subscriber = StreamSubscriberRegistrar(process=self, container=self.container)
-
-        
         stream_defs = {}
 
-        def message_received(granule, h):
+        def message_received(message, stream_route, stream_id):
+            granule = message
 
             stream_id = granule.stream_resource_id
 
@@ -119,9 +113,8 @@ class SimpleDispatcher(StandaloneProcess):
             log.info('Last values in the message: %s' % str(last_data))
 
 
-
-        subscriber = stream_subscriber.create_subscriber(exchange_name=exchange_name, callback=message_received)
-        self._process.add_endpoint(subscriber)
+        subscriber = StreamSubscriber(process=self, exchange_name=exchange_name, callback=message_received)
+        subscriber.start()
 
         pubsub_cli.activate_subscription(subscription_id)
 

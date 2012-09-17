@@ -376,8 +376,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 product_param_dict = ParameterDictionary.load(out_streams_and_param_dicts[product_stream_id])
                 if product_param_dict == model_param_dict:
                     #get the streamroute object from pubsub by passing the stream_id
-                    stream_route = self.clients.pubsub_management.get_stream_route_for_stream(stream_id=product_stream_id,
-                                                                                              exchange_point='science_data')
+                    stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
                     log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
                     stream_route_flat = ion_serializer.serialize(stream_route)
                     stream_config_too[stream_tag] = {'stream_route': str(stream_route_flat),

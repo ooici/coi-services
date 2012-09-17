@@ -7,8 +7,8 @@
 '''
 
 from nose.plugins.attrib import attr
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.objects import AttachmentType
+from pyon.core.exception import BadRequest
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -16,26 +16,15 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from pyon.public import Container, log, IonObject
-from pyon.util.containers import DotDict
-from pyon.public import CFG, RT, LCS, PRED, StreamPublisher, StreamSubscriber, StreamPublisherRegistrar, StreamSubscriberRegistrar
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.public import log, IonObject
+from pyon.public import RT, PRED
 from pyon.util.context import LocalContextMixin
-import time
 from pyon.util.int_test import IonIntegrationTestCase
-from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from interface.objects import StreamQuery, ExchangeQuery
-import gevent
-import unittest
-from interface.objects import HdfStorage, CouchStorage
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
-from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from ion.util.parameter_yaml_IO import get_param_dict
+
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 import base64
 
@@ -78,7 +67,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentModel: %s" %ex)
-        print 'test_createTransformsThenActivateInstrument: new InstrumentModel id = ', instModel_id
+        log.info('test_createTransformsThenActivateInstrument: new InstrumentModel id = %s', instModel_id)
 
         #-------------------------------
         # Create InstrumentAgent
@@ -88,7 +77,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
             self.fail("failed to create new InstrumentAgent: %s" %ex)
-        print 'test_createTransformsThenActivateInstrument: new InstrumentAgent id = ', instAgent_id
+        log.info( 'test_createTransformsThenActivateInstrument: new InstrumentAgent id = %s', instAgent_id)
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
@@ -102,12 +91,12 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new InstrumentDevice: %s" %ex)
 
-        print 'test_createTransformsThenActivateInstrument: new InstrumentDevice id = ', instDevice_id
+        log.info( 'test_createTransformsThenActivateInstrument: new InstrumentDevice id = %s', instDevice_id)
 
         contents = "this is the lookup table  contents, replace with a file..."
         att = IonObject(RT.Attachment, name='deviceLookupTable', content=base64.encodestring(contents), keywords=['DataProcessInput'], attachment_type=AttachmentType.ASCII)
         deviceAttachment = self.rrclient.create_attachment(instDevice_id, att)
-        print 'test_createTransformsThenActivateInstrument: InstrumentDevice attachment id = ', deviceAttachment
+        log.info( 'test_createTransformsThenActivateInstrument: InstrumentDevice attachment id = %s', deviceAttachment)
 
         #-------------------------------
         # Create InstrumentAgentInstance to hold configuration information
@@ -121,7 +110,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = driver_config,
                                           comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
-        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
+        self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
 
 
@@ -129,18 +118,25 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         # Create CTD Parsed as the first data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def = SBE37_CDM_stream_definition()
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(container=ctd_stream_def)
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_CDM')
 
-        print 'TestDataProcessWithLookupTable: new Stream Definition id = ', instDevice_id
+        log.info( 'TestDataProcessWithLookupTable: new Stream Definition id = %s', instDevice_id)
 
-        print 'Creating new CDM data product with a stream definition'
+        log.info( 'Creating new CDM data product with a stream definition')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
+
         parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
@@ -151,7 +147,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
-        print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product
+        log.info( 'new ctd_parsed_data_product_id = %s', ctd_parsed_data_product)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
@@ -159,14 +155,13 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
-        print 'TestDataProcessWithLookupTable: Data product streams1 = ', stream_ids
+        log.info('TestDataProcessWithLookupTable: Data product streams1 = %s', stream_ids)
 
         #-------------------------------
         # Create CTD Raw as the second data product
         #-------------------------------
-        print 'TestDataProcessWithLookupTable: Creating new RAW data product with a stream definition'
-        raw_stream_def = SBE37_RAW_stream_definition()
-        raw_stream_def_id = self.pubsubclient.create_stream_definition(container=raw_stream_def)
+        log.info('TestDataProcessWithLookupTable: Creating new RAW data product with a stream definition')
+        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW')
 
         dp_obj = IonObject(RT.DataProduct,
             name='ctd_raw',
@@ -176,7 +171,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id, parameter_dictionary)
 
-        print 'new ctd_raw_data_product_id = ', ctd_raw_data_product
+        log.info( 'new ctd_raw_data_product_id = %s', ctd_raw_data_product)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
 
@@ -184,7 +179,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
-        print 'Data product streams2 = ', stream_ids
+        log.info( 'Data product streams2 = %s', stream_ids)
 
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Data Process Definition
@@ -212,16 +207,13 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l0_conductivity = L0_conductivity_stream_definition()
-        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_conductivity, name='L0_Conductivity')
+        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id )
 
-        outgoing_stream_l0_pressure = L0_pressure_stream_definition()
-        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_pressure, name='L0_Pressure')
+        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id )
 
-        outgoing_stream_l0_temperature = L0_temperature_stream_definition()
-        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(container=outgoing_stream_l0_temperature, name='L0_Temperature')
+        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id )
 
 
@@ -289,7 +281,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         contents = "this is the lookup table  contents for L0 Conductivity - Temperature - Pressure: Data Process , replace with a file..."
         att = IonObject(RT.Attachment, name='processLookupTable',content=base64.encodestring(contents), keywords=['DataProcessInput'], attachment_type=AttachmentType.ASCII)
         processAttachment = self.rrclient.create_attachment(ctd_l0_all_data_process_id, att)
-        print 'TestDataProcessWithLookupTable: InstrumentDevice attachment id = ', processAttachment
+        log.info( 'TestDataProcessWithLookupTable: InstrumentDevice attachment id = %s', processAttachment)
 
 
 

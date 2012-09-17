@@ -54,11 +54,11 @@ class VizTransformGoogleDT(TransformDataProcess):
 
 
 
-    def recv_packet(self, packet, header):
-        log.critical('Received packet')
+    def recv_packet(self, packet, stream_route, stream_id):
+        log.info('Received packet')
         for stream_id in self.CFG.get_safe('process.output_streams',[]):
             self.publisher.publish(self.execute(packet), stream_id=stream_id)
-            log.critical('Publishing on: %s', stream_id)
+            log.info('Publishing on: %s', stream_id)
 
 
     def define_parameter_dictionary(self):
