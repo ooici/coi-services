@@ -664,8 +664,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         inst_obj_id,_ = self.rr_client.create(inst_obj, headers=self.sa_user_header)
 
         #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user role
-        from ion.agents.instrument.test.test_instrument_agent import start_instrument_test_agent
-        ia_client = start_instrument_test_agent(self.container, resource_id=inst_obj_id, resource_name=inst_obj.name, message_headers=self.sa_user_header)
+        from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
+        ia_client = start_instrument_agent_process(self.container, resource_id=inst_obj_id, resource_name=inst_obj.name, message_headers=self.sa_user_header)
 
         #Create Instrument Operator Role
         operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR,label='Instrument Operator', description='Instrument Operator')
