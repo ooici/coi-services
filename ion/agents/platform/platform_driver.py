@@ -67,7 +67,7 @@ class PlatformDriver(object):
         """
         Sets the platform topology.
         """
-        log.debug("set_topology: %s" % str(topology))
+        log.debug("set_topology: %s", str(topology))
         self._topology = topology
 
     def set_event_listener(self, evt_recv):
@@ -152,13 +152,13 @@ class PlatformDriver(object):
 
         @param driver_event a DriverEvent object.
         """
-        log.debug("platform driver=%r: notify driver_event=%s" % (
-            self._platform_id, driver_event))
+        log.debug("platform driver=%r: notify driver_event=%s",
+            self._platform_id, driver_event)
 
         assert isinstance(driver_event, DriverEvent)
 
         if self._send_event:
             self._send_event(driver_event)
         else:
-            log.warn("self._send_event not set to notify driver_event=%s" %
+            log.warn("self._send_event not set to notify driver_event=%s",
                      str(driver_event))

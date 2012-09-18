@@ -40,7 +40,7 @@ class ContainerUI(StandaloneProcess):
         #defaults
         self.http_server = None
         self.server_hostname = DEFAULT_WEB_SERVER_HOSTNAME
-        self.server_port = DEFAULT_WEB_SERVER_PORT
+        self.server_port = self.CFG.get_safe('container.flask_webapp.port',DEFAULT_WEB_SERVER_PORT)
         self.web_server_enabled = True
         self.logging = None
 

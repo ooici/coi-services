@@ -55,17 +55,17 @@ class OmsClientFactory(object):
             elif "localsimulator" == uri:
                 # connect with OmsSimulator via XML/RPC on local host
                 uri = "http://localhost:7700/"
-                log.debug("Will connect to OmsSimulator via XMP/RPC on %s" % uri)
+                log.debug("Will connect to OmsSimulator via XMP/RPC on %s", uri)
 
             elif "simulator" == uri:
                 # connect with OmsSimulator via XML/RPC on oceanobservatories host
                 uri = "http://rsn-oms-simulator.oceanobservatories.org:7700/"
-                log.debug("Will connect to OmsSimulator via XMP/RPC on %s" % uri)
+                log.debug("Will connect to OmsSimulator via XMP/RPC on %s", uri)
 
             elif "rsn" == uri:
                 # connect to real OMS server on RSN
                 uri ="http://alice:1234@10.180.80.10:9021/"
-                log.debug("Will connect to real OMS server on %s" % uri)
+                log.debug("Will connect to real OMS server on %s", uri)
 
             #else: just use whatever URI was given.
 
@@ -75,9 +75,9 @@ class OmsClientFactory(object):
             instance = OmsSimulator()
 
         if (not instance) and uri:
-            log.debug("Creating xmlrpclib.ServerProxy: uri=%s" % uri)
+            log.debug("Creating xmlrpclib.ServerProxy: uri=%s", uri)
             instance = xmlrpclib.ServerProxy(uri, allow_none=True)
-            log.debug("Created xmlrpclib.ServerProxy: uri=%s" % uri)
+            log.debug("Created xmlrpclib.ServerProxy: uri=%s", uri)
 
         assert instance is not None, "instance must be created here"
         return instance

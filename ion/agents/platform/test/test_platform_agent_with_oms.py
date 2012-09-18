@@ -22,21 +22,16 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
+from ion.agents.platform.platform_agent_launcher import Launcher
 
 from pyon.ion.stream import StandaloneStreamSubscriber
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from ion.agents.platform.test.adhoc import adhoc_stream_definition
 from ion.agents.platform.test.adhoc import adhoc_get_taxonomy
 from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 
-from pyon.event.event import EventSubscriber
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, ProcessStateEnum
 
-from gevent import spawn
 from gevent.event import AsyncResult
 from gevent import sleep
-from gevent import queue
 
 import time
 import unittest
@@ -106,75 +101,12 @@ class TestPlatformAgent(IonIntegrationTestCase):
             'test_mode' : True
         }
 
-        self._event_queue = queue.Queue()
-        self._event_sub = None
-
-        self._start_agent()
+        launcher = Launcher()
+        launcher.launch(PLATFORM_ID, self._agent_config)
 
         # Start a resource agent client to talk with the agent.
         self._pa_client = ResourceAgentClient(PA_RESOURCE_ID, process=FakeProcess())
         log.info('Got pa client %s.' % str(self._pa_client))
-
-    def _event_callback(self, event, *args, **kwargs):
-        log.debug("_event_callback CALLED:\n event=%s\n args=%s\n kwargs=%s" % (
-            str(event), str(args), str(kwargs)))
-
-        self._event_queue.put(event)
-
-    def _subscribe_events(self, origin):
-
-        log.debug("_subscribe_events: origin=%s" % str(origin))
-
-        self._event_sub = EventSubscriber(
-            event_type="ProcessLifecycleEvent",
-            callback=self._event_callback,
-            origin=origin,
-            origin_type="DispatchedProcess"
-        )
-        self._event_sub.start()
-
-        log.debug("_subscribe_events: origin=%s STARTED" % str(origin))
-
-    def _await_state_event(self, pid, state, timeout=30):
-        log.debug("awaiting state event: pid=%s, state=%s, timeout=%s" %  (
-            str(pid), str(state), timeout))
-        try:
-            event = self._event_queue.get(timeout=timeout)
-        except queue.Empty:
-            state_str = ProcessStateEnum._str_map.get(state)
-            self.fail("Event timeout! Waited %s seconds for process %s state %s" % (
-                timeout, pid, state_str))
-
-        log.debug("Got event: %s" %  event)
-        self.assertEqual(event.state, state)
-        self.assertEqual(event.origin, pid)
-
-    def _start_agent(self):
-        """
-        Starts the PlatformAgent agent using the process dispatcher.
-        """
-
-        log.debug("_start_agent: creating ProcessDispatcherServiceClient")
-        self._pd_client = ProcessDispatcherServiceClient()
-
-        pdef = ProcessDefinition(name=PA_NAME)
-        pdef.executable = {
-            'module': PA_MOD,
-            'class': PA_CLS
-        }
-        pdef_id = self._pd_client.create_process_definition(process_definition=pdef)
-
-        pid = self._pd_client.create_process(process_definition_id=pdef_id)
-
-        self._subscribe_events(pid)
-
-        self._pd_client.schedule_process(process_definition_id=pdef_id,
-                                         process_id=pid,
-                                         configuration=self._agent_config)
-
-        log.debug("schedule_process: pid=%s" % str(pid))
-
-        self._await_state_event(pid, ProcessStateEnum.SPAWN)
 
     def _start_data_subscribers(self):
         """

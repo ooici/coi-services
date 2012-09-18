@@ -35,7 +35,7 @@ function initMap() {
         if(rbuffer!= x) {
             var lat = x.latLng.lat();
             var lon = x.latLng.lng();
-            window.open("http://localhost:8080/new/PlatformDevice?nominal_location.lat=" + lat + "&nominal_location.lon=" + lon, "_blank");
+            window.open("http://localhost:8080/new/PlatformDevice?index_location.lat=" + lat + "&index_location.lon=" + lon, "_blank");
             rbuffer = x;
         }
     });
@@ -47,11 +47,11 @@ function initialize(results) {
         var name = x.name;
         console.debug(x.name);
         if(! points[name]) {
-            var markerLoc = new google.maps.LatLng(x.nominal_location.lat, x.nominal_location.lon);
+            var markerLoc = new google.maps.LatLng(x.index_location.lat, x.index_location.lon);
             var marker = new google.maps.Marker({
                 position: markerLoc,
                 map: map,
-                title: "Name: " + x.name + "\nDescrtiption: " + x.description + "\nModel:" + x.model + "\nLat: " + x.nominal_location.lat + "\nLon: " + x.nominal_location.lon,
+                title: "Name: " + x.name + "\nDescrtiption: " + x.description + "\nModel:" + x.model + "\nLat: " + x.index_location.lat + "\nLon: " + x.index_location.lon,
                 //icon: "http://a1.twimg.com/profile_images/662211540/Oil_Rig_normal.PNG",
             });
             google.maps.event.addListener(marker, 'click', function(){
@@ -69,7 +69,7 @@ function copyToClipboard (text) {
 function update() {
     var results = [];
     var data;
-    var general_request = {"query":{"match_all":{}}, "filter":{"exists":{"field":"nominal_location"}, "limit":1000}};
+    var general_request = {"query":{"match_all":{}}, "filter":{"exists":{"field":"index_location"}, "limit":1000}};
     data = general_request;
     var urlVars = getUrlVars();
     if("distance" in urlVars) {

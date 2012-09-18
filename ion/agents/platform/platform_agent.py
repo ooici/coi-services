@@ -34,12 +34,7 @@ from ion.agents.platform.test.adhoc import adhoc_get_packet_factories
 
 from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
-from pyon.event.event import EventSubscriber
-
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, ProcessStateEnum
-
-from gevent import queue
+from ion.agents.platform.platform_agent_launcher import Launcher
 
 
 PA_MOD = 'ion.agents.platform.platform_agent'
@@ -125,10 +120,7 @@ class PlatformAgent(ResourceAgent):
         # {subplatform_id: (ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
 
-        # process dispatcher elements:
-        self._pd_client = None
-        self._event_queue = queue.Queue()
-        self._event_sub = None
+        self._launcher = Launcher()
 
         #
         # TODO the following defined here as in InstrumentAgent,
@@ -146,15 +138,15 @@ class PlatformAgent(ResourceAgent):
         NOTE that this method is to be called *after* sending the RESET command
         to my sub-platforms (if any).
         """
-        log.debug("%r: resetting" % self._platform_id)
+        log.debug("%r: resetting", self._platform_id)
 
         # terminate sub-platform agent processes:
         if len(self._pa_clients):
-            log.debug("%r: terminating sub-platform agent processes (%d)" % (
-                self._platform_id, len(self._pa_clients)))
+            log.debug("%r: terminating sub-platform agent processes (%d)",
+                self._platform_id, len(self._pa_clients))
             for subplatform_id in self._pa_clients:
                 _, pid = self._pa_clients[subplatform_id]
-                self._pd_client.cancel_process(pid)
+                self._launcher.cancel_process(pid)
 
         self._pa_clients.clear()
 
@@ -172,8 +164,8 @@ class PlatformAgent(ResourceAgent):
 
         @raises PlatformException if the verification fails for some reason.
         """
-        log.debug("%r: plat_config=%s " % (
-            self._platform_id, str(self._plat_config)))
+        log.debug("%r: plat_config=%s ",
+            self._platform_id, str(self._plat_config))
 
         if not self._plat_config:
             msg = "plat_config not provided"
@@ -196,7 +188,6 @@ class PlatformAgent(ResourceAgent):
                 raise PlatformException(msg)
 
         self._container_name = self._plat_config['container_name']
-        self._set_process_dispatcher()
 
         if 'platform_topology' in self._plat_config:
             self._topology = self._plat_config['platform_topology']
@@ -204,13 +195,7 @@ class PlatformAgent(ResourceAgent):
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
             self._parent_platform_id = ppid
-            log.debug("_parent_platform_id set to: %s" % self._parent_platform_id)
-
-    def _set_process_dispatcher(self):
-        log.debug("%r: _set_process_dispatcher using name: %r" % (
-            self._platform_id, self._container_name))
-
-        self._pd_client = ProcessDispatcherServiceClient()
+            log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
 
     def _construct_data_publishers(self):
         """
@@ -220,16 +205,16 @@ class PlatformAgent(ResourceAgent):
         """
 
         stream_info = self.CFG.stream_config
-        log.debug("%r: stream_info = %s" % (
-            self._platform_id, stream_info))
+        log.debug("%r: stream_info = %s",
+            self._platform_id, stream_info)
 
         for (name, stream_config) in stream_info.iteritems():
             stream_id = stream_config['id']
             self._data_streams[name] = stream_id
             publisher = StreamPublisher(process=self,stream_id=stream_id)
             self._data_publishers[name] = publisher
-            log.debug("%r: created publisher for stream_name=%r (stream_id=%r)" % (
-                self._platform_id, name, stream_id))
+            log.debug("%r: created publisher for stream_name=%r (""stream_id=%r)",
+                      self._platform_id, name, stream_id)
 
     def _construct_packet_factories(self):
         """
@@ -257,8 +242,8 @@ class PlatformAgent(ResourceAgent):
 
         assert self._platform_id is not None, "must know platform_id to create driver"
 
-        log.debug('%r: creating driver: %s' % (
-            self._platform_id,  driver_config))
+        log.debug('%r: creating driver: %s',
+            self._platform_id,  driver_config)
 
         try:
             module = __import__(driver_module, fromlist=[driver_class])
@@ -268,7 +253,7 @@ class PlatformAgent(ResourceAgent):
         except Exception as e:
             msg = '%r: could not import/construct driver: module=%s, class=%s' % (
                 self._platform_id, driver_module, driver_class)
-            log.error("%s; reason=%s" % (msg, str(e)))
+            log.error("%s; reason=%s", msg, str(e))
             raise CannotInstantiateDriverException(msg=msg, reason=e)
 
         self._plat_driver = driver
@@ -277,8 +262,8 @@ class PlatformAgent(ResourceAgent):
         if self._topology:
             self._plat_driver.set_topology(self._topology)
 
-        log.debug("%r: driver created: %s" % (
-            self._platform_id, str(driver)))
+        log.debug("%r: driver created: %s",
+            self._platform_id, str(driver))
 
     def _assert_driver(self):
         assert self._plat_driver is not None, "_create_driver must have been called first"
@@ -330,8 +315,8 @@ class PlatformAgent(ResourceAgent):
         Callback to receive asynchronous driver events.
         @param driver_event The driver event received.
         """
-        log.debug('%r: in state=%s: received driver_event=%s' % (
-            self._platform_id, self.get_agent_state(), str(driver_event)))
+        log.debug('%r: in state=%s: received driver_event=%s',
+            self._platform_id, self.get_agent_state(), str(driver_event))
 
         value = {}
         if isinstance(driver_event, AttributeValueDriverEvent):
@@ -350,16 +335,16 @@ class PlatformAgent(ResourceAgent):
                 packet = self._packet_factories[stream_name](**value)
                 self._data_publishers[stream_name].publish(packet)
 
-                log.debug('%r: published data packet. stream_name=%s (stream_id=%s)' % (
-                    self._platform_id, stream_name, value['stream_id']))
+                log.debug('%r: published data packet. stream_name=%s (stream_id=%s)',
+                    self._platform_id, stream_name, value['stream_id'])
             else:
-                log.warn('%r: unrecognized stream_name=%r' % (
-                         self._platform_id, stream_name))
+                log.warn('%r: unrecognized stream_name=%r',
+                         self._platform_id, stream_name)
 
 
         else:
-            log.warn('%r: driver_event not handled: %s' % (
-                self._platform_id, str(type(driver_event))))
+            log.warn('%r: driver_event not handled: %s',
+                self._platform_id, str(type(driver_event)))
 
     ##########################################################################
     # TBD
@@ -386,15 +371,29 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_platform_agent(self, subplatform_id):
         """
-        Launches a platform agent including the INITIALIZE command,
-        and returns corresponding ResourceAgentClient instance.
+        Launches a sub-platform agent, creates ResourceAgentClient, and pings
+        and initializes the sub-platform agent.
 
         @param subplatform_id Platform ID
         """
-        log.debug("%r: _launch_platform_agent: subplatform_id=%s" % (
-            self._platform_id, subplatform_id))
+        log.debug("%r: _launch_platform_agent: subplatform_id=%s",
+            self._platform_id, subplatform_id)
 
-        return self._launch_platform_agent_with_pd(subplatform_id)
+        agent_config = {
+            'agent':            {'resource_id': subplatform_id},
+            'stream_config':    self.CFG.stream_config,
+            'test_mode':        True
+        }
+
+        log.debug("%r: launching sub-platform agent: pid=%s",
+            self._platform_id, subplatform_id)
+        pid = self._launcher.launch(subplatform_id, agent_config)
+
+        pa_client = self._create_resource_agent_client(subplatform_id)
+        self._pa_clients[subplatform_id] = (pa_client, pid)
+
+        self._ping_subplatform(subplatform_id)
+        self._initialize_subplatform(subplatform_id)
 
     def _create_resource_agent_client(self, subplatform_id):
         """
@@ -402,32 +401,32 @@ class PlatformAgent(ResourceAgent):
 
         @param subplatform_id Platform ID
         """
-        log.debug("%r: _create_resource_agent_client: subplatform_id=%s" % (
-            self._platform_id, subplatform_id))
+        log.debug("%r: _create_resource_agent_client: subplatform_id=%s",
+            self._platform_id, subplatform_id)
 
         pa_client = ResourceAgentClient(subplatform_id, process=FakeProcess())
 
-        log.debug("%r: got platform agent client %s" % (
-            self._platform_id, str(pa_client)))
+        log.debug("%r: got platform agent client %s",
+            self._platform_id, str(pa_client))
 
         state = pa_client.get_agent_state()
         assert PlatformAgentState.UNINITIALIZED == state
 
-        log.debug("%r: ResourceAgentClient CREATED: subplatform_id=%s" % (
-            self._platform_id, subplatform_id))
+        log.debug("%r: ResourceAgentClient CREATED: subplatform_id=%s",
+            self._platform_id, subplatform_id)
 
         return pa_client
 
     def _ping_subplatform(self, subplatform_id):
-        log.debug("%r: _ping_subplatform -> %r" % (
-            self._platform_id, subplatform_id))
+        log.debug("%r: _ping_subplatform -> %r",
+            self._platform_id, subplatform_id)
 
         pa_client, _ = self._pa_clients[subplatform_id]
 
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
         retval = pa_client.execute_agent(cmd)
-        log.debug("%r: _ping_subplatform %r  retval = %s" % (
-            self._platform_id, subplatform_id, str(retval)))
+        log.debug("%r: _ping_subplatform %r  retval = %s",
+            self._platform_id, subplatform_id, str(retval))
 
         if "PONG" != retval.result:
             msg = "unexpected ping response from sub-platform agent: %s " % retval.result
@@ -435,8 +434,8 @@ class PlatformAgent(ResourceAgent):
             raise PlatformException(msg)
 
     def _initialize_subplatform(self, subplatform_id):
-        log.debug("%r: _initialize_subplatform -> %r" % (
-            self._platform_id, subplatform_id))
+        log.debug("%r: _initialize_subplatform -> %r",
+            self._platform_id, subplatform_id)
 
         pa_client, _ = self._pa_clients[subplatform_id]
 
@@ -453,119 +452,21 @@ class PlatformAgent(ResourceAgent):
         kwargs = dict(plat_config=platform_config)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
         retval = pa_client.execute_agent(cmd)
-        log.debug("%r: _initialize_subplatform %r  retval = %s" % (
-            self._platform_id, subplatform_id, str(retval)))
-
-    def _launch_platform_agent_with_pd(self, subplatform_id):
-        """
-        Launches a PlatformAgent for the given sub-platform ID
-        """
-
-        def _state_event_callback(event, *args, **kwargs):
-            state_str = ProcessStateEnum._str_map.get(event.state)
-            origin = event.origin
-            log.debug("%r: _state_event_callback CALLED: state=%s from %s\n "
-                      "event=%s\n args=%s\n kwargs=%s" % (
-                self._platform_id, state_str, origin, str(event), str(args), str(kwargs)))
-
-            self._event_queue.put(event)
-
-        def _subscribe_events(origin):
-            self._event_sub = EventSubscriber(
-                event_type="ProcessLifecycleEvent",
-                callback=_state_event_callback,
-                origin=origin,
-                origin_type="DispatchedProcess"
-            )
-            self._event_sub.start()
-
-            log.debug("%r: _subscribe_events: origin=%s STARTED" % (
-                self._platform_id, str(origin)))
-
-
-        pa_name = 'PlatformAgent_%s' % subplatform_id
-
-        pdef = ProcessDefinition(name=pa_name)
-        pdef.executable = {
-            'module': PA_MOD,
-            'class': PA_CLS
-        }
-        pdef_id = self._pd_client.create_process_definition(process_definition=pdef)
-
-        pid = self._pd_client.create_process(process_definition_id=pdef_id)
-
-        _subscribe_events(pid)
-
-        agent_config = {
-            'agent': {'resource_id': subplatform_id},
-            'stream_config' : self.CFG.stream_config,
-            'test_mode' : True
-        }
-
-        log.debug("%r: schedule_process: pid=%s" % (
-            self._platform_id, str(pid)))
-
-        self._pd_client.schedule_process(process_definition_id=pdef_id,
-                                         process_id=pid,
-                                         configuration=agent_config)
-
-        self._await_state_event(pid, ProcessStateEnum.SPAWN)
-
-        return pid
-
-    def _await_state_event(self, pid, state, timeout=30):
-        state_str = ProcessStateEnum._str_map.get(state)
-        log.debug("%r: _await_state_event: state=%s from %s timeout=%s" % (
-            self._platform_id, state_str, str(pid), timeout))
-
-        try:
-            event = self._event_queue.get(timeout=timeout)
-        except queue.Empty:
-            msg = "Event timeout! Waited %s seconds for process %s to notifiy state %s" % (
-                            timeout, pid, state_str)
-            log.error(msg)
-            raise PlatformException(msg)
-
-        log.debug("%r: Got event: %s" % (self._platform_id, event))
-        if event.state != state:
-            msg = "%r: Expecting state %s but got %s" % (
-                self._platform_id, state, event.state)
-            log.error(msg)
-            raise PlatformException(msg)
-        if event.origin != pid:
-            msg = "%r: Expecting origin %s but got %s" % (
-                self._platform_id, pid, event.origin)
-            log.error(msg)
-            raise PlatformException(msg)
+        log.debug("%r: _initialize_subplatform %r  retval = %s",
+            self._platform_id, subplatform_id, str(retval))
 
     def _subplatforms_launch(self):
         """
         Launches all my sub-platforms storing the corresponding
         ResourceAgentClient objects in _pa_clients.
         """
-        if self._pd_client is None:
-            msg = "%r: _set_process_dispatcher hasn't been called!" % self._platform_id
-            log.error(msg)
-            raise PlatformException(msg)
-
-        subplatform_ids = self._plat_driver.get_subplatform_ids()
-        log.debug("%r: launching subplatforms %s" % (
-            self._platform_id, str(subplatform_ids)))
-
         self._pa_clients.clear()
-        for subplatform_id in subplatform_ids:
-            #
-            # launch agent, create, ResourceAgentClient, ping, and initialize
-            #
-            pid = self._launch_platform_agent(subplatform_id)
-
-            pa_client = self._create_resource_agent_client(subplatform_id)
-            self._pa_clients[subplatform_id] = (pa_client, pid)
-
-            self._ping_subplatform(subplatform_id)
-            self._initialize_subplatform(subplatform_id)
-
-
+        subplatform_ids = self._plat_driver.get_subplatform_ids()
+        if len(subplatform_ids):
+            log.debug("%r: launching subplatforms %s",
+                self._platform_id, str(subplatform_ids))
+            for subplatform_id in subplatform_ids:
+                self._launch_platform_agent(subplatform_id)
 
     def _subplatforms_execute_agent(self, command=None, create_command=None,
                                     expected_state=None):
@@ -579,11 +480,11 @@ class PlatformAgent(ResourceAgent):
         subplatform_ids = self._plat_driver.get_subplatform_ids()
 
         if command:
-            log.debug("%r: executing command %r on my sub-platforms: %s" % (
-                        self._platform_id, command, str(subplatform_ids)))
+            log.debug("%r: executing command %r on my sub-platforms: %s",
+                        self._platform_id, command, str(subplatform_ids))
         else:
-            log.debug("%r: executing command on my sub-platforms: %s" % (
-                        self._platform_id, str(subplatform_ids)))
+            log.debug("%r: executing command on my sub-platforms: %s",
+                        self._platform_id, str(subplatform_ids))
 
         assert subplatform_ids == self._pa_clients.keys()
 
@@ -597,11 +498,11 @@ class PlatformAgent(ResourceAgent):
                 retval = pa_client.execute_agent(cmd)
                 state = pa_client.get_agent_state()
                 if expected_state and expected_state != state:
-                    log.error("%r: expected subplatform state %r but got %r" % (
-                                self._platform_id, expected_state, state))
+                    log.error("%r: expected subplatform state %r but got %r",
+                                self._platform_id, expected_state, state)
             except Exception, ex:
-                log.error("%r: exception executing command %r in subplatform %r" % (
-                            self._platform_id, cmd, subplatform_id))
+                log.error("%r: exception executing command %r in subplatform %r",
+                            self._platform_id, cmd, subplatform_id)
 
     def _subplatforms_reset(self):
         self._subplatforms_execute_agent(command=PlatformAgentEvent.RESET,
@@ -626,8 +527,8 @@ class PlatformAgent(ResourceAgent):
     def _handler_uninitialized_initialize(self, *args, **kwargs):
         """
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         result = None
         next_state = PlatformAgentState.INACTIVE
@@ -648,8 +549,8 @@ class PlatformAgent(ResourceAgent):
     def _handler_inactive_reset(self, *args, **kwargs):
         """
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         result = None
         next_state = PlatformAgentState.UNINITIALIZED
@@ -663,8 +564,8 @@ class PlatformAgent(ResourceAgent):
     def _handler_inactive_go_active(self, *args, **kwargs):
         """
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         result = None
         next_state = PlatformAgentState.IDLE
@@ -682,8 +583,8 @@ class PlatformAgent(ResourceAgent):
     def _handler_idle_reset(self, *args, **kwargs):
         """
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         result = None
         next_state = PlatformAgentState.UNINITIALIZED
@@ -697,8 +598,8 @@ class PlatformAgent(ResourceAgent):
     def _handler_idle_go_inactive(self, *args, **kwargs):
         """
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         result = None
         next_state = PlatformAgentState.INACTIVE
@@ -712,8 +613,8 @@ class PlatformAgent(ResourceAgent):
     def _handler_idle_run(self, *args, **kwargs):
         """
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         result = None
         next_state = PlatformAgentState.COMMAND
@@ -732,8 +633,8 @@ class PlatformAgent(ResourceAgent):
     def _handler_command_reset(self, *args, **kwargs):
         """
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         result = None
         next_state = PlatformAgentState.UNINITIALIZED
@@ -748,8 +649,8 @@ class PlatformAgent(ResourceAgent):
         """
         Gets the IDs of my direct subplatforms.
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         result = self._plat_driver.get_subplatform_ids()
 
@@ -765,8 +666,8 @@ class PlatformAgent(ResourceAgent):
     def _handler_get_resource_capabilities(self, *args, **kwargs):
         """
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         # TODO
 
@@ -791,8 +692,8 @@ class PlatformAgent(ResourceAgent):
     def _handler_get_resource(self, *args, **kwargs):
         """
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         attr_names = kwargs.get('attr_names', None)
         if attr_names is None:
@@ -808,7 +709,7 @@ class PlatformAgent(ResourceAgent):
             next_state = self.get_agent_state()
 
         except Exception as ex:
-            log.error("erorr in get_attribute_values %s" % str(ex))
+            log.error("error in get_attribute_values %s", str(ex))
             raise
 
         return (next_state, result)
@@ -817,8 +718,8 @@ class PlatformAgent(ResourceAgent):
         """
         Pings the agent.
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         result = "PONG"
 
@@ -830,8 +731,8 @@ class PlatformAgent(ResourceAgent):
         """
         Pings the driver.
         """
-        log.debug("%r/%s args=%s kwargs=%s" % (
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs)))
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         result = self._plat_driver.ping()
 

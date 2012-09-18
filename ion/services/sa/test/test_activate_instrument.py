@@ -409,57 +409,39 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug( 'Instrument agent instance obj: = %s', str(inst_agent_instance_obj))
 
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
-        #self._ia_client = ResourceAgentClient('iaclient', name=instDevice_id,  process=FakeProcess())
+        self._ia_client = ResourceAgentClient(instDevice_id,
+                                              to_name=inst_agent_instance_obj.agent_process_id,
+                                              process=FakeProcess())
+
         log.debug("test_activateInstrumentSample: got ia client %s", str(self._ia_client))
 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrumentSample: initialize %s", str(retval))
 
-#        cmd = AgentCommand(command='initialize')
-#        retval = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrumentSample: initialize %s", str(retval))
-#
-#        time.sleep(1)
-#
-#        log.debug("test_activateInstrumentSample: Sending go_active command (L4-CI-SA-RQ-334)")
-#        cmd = AgentCommand(command='go_active')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return value from go_active %s", str(reply))
-#        time.sleep(1)
-#        cmd = AgentCommand(command='get_current_state')
-#        retval = self._ia_client.execute_agent(cmd)
-#        state = retval.result
-#        log.debug("test_activateInstrumentSample: current state after sending go_active command %s    (L4-CI-SA-RQ-334)", str(state))
-#
-#        cmd = AgentCommand(command='run')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrumentSample: run %s", str(reply))
-#        time.sleep(1)
-#
-#        log.debug("test_activateInstrumentSample: calling acquire_sample ")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrumentSample: return from acquire_sample %s", str(reply))
-#        time.sleep(1)
-#
-#        log.debug("test_activateInstrumentSample: calling acquire_sample 2")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrumentSample: return from acquire_sample 2   %s", str(reply))
-#        time.sleep(1)
-#
-#        log.debug("test_activateInstrumentSample: calling acquire_sample 3")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrumentSample: return from acquire_sample 3   %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrumentSample: calling reset ")
-#        cmd = AgentCommand(command='reset')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrumentSample: return from reset %s", str(reply))
-#        time.sleep(1)
+        time.sleep(1)
+
+        log.debug("(L4-CI-SA-RQ-334): Sending go_active command ")
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrument: return value from go_active %s", str(reply))
+        time.sleep(1)
+        cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        log.debug("(L4-CI-SA-RQ-334): current state after sending go_active command %s", str(state))
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrumentSample: run %s", str(reply))
+        time.sleep(1)
+
+
+        log.debug("test_activateInstrumentSample: calling reset ")
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        reply = self._ia_client.execute_agent(cmd)
+        log.debug("test_activateInstrumentSample: return from reset %s", str(reply))
+        time.sleep(1)
 
         #-------------------------------
         # Deactivate InstrumentAgentInstance
