@@ -664,6 +664,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent.read_one(instrument_agent_id)
 
 
+        #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
+        cfg_host        = self.CFG.get_safe("service.instrument_management.driver_release_host", None)
+        cfg_remotepath  = self.CFG.get_safe("service.instrument_management.driver_release_directory", None)
+        cfg_user        = self.CFG.get_safe("service.instrument_management.driver_release_user",
+                                            pwd.getpwuid(os.getuid())[0])
+
+        if cfg_host is None or cfg_remotepath is None:
+            raise BadRequest("Missing configuration items for host and directory -- destination of driver release")
+
         #process the input files (base64-encoded zips)
         qa_zip_obj  = zip_of_b64(qa_documents, "qa_documents")
         egg_zip_obj = zip_of_b64(agent_egg, "agent_egg")
@@ -713,7 +722,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #determine egg name
         egg_filename = "%s-%s-py2.7.egg" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
-        log.debug("Egg filename is '%s'" % egg_filename)
+        log.info("Egg filename is '%s'" % egg_filename)
 
         egg_url = "http://%s%s/%s" % (CFG.service.instrument_management.driver_release_host,
                                       CFG.service.instrument_management.driver_release_directory,
@@ -753,14 +762,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         
 
         #move output egg to another directory / upload it somewhere
-
-        cfg_host        = CFG.service.instrument_management.driver_release_host      #'amoeaba.ucsd.edu'
-        cfg_remotepath  = CFG.service.instrument_management.driver_release_directory #'/var/www/release'
-        cfg_user        = pwd.getpwuid(os.getuid())[0]
-
-        #allow overriding of user with config variable
-        if "driver_release_user" in CFG.service.instrument_management:
-            cfg_user = CFG.service.instrument_management.driver_release_user
 
         log.debug("creating tempfile for egg output")
         f_handle, tempfilename = tempfile.mkstemp()
