@@ -44,7 +44,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='foob')
+@attr('INT', group='sa')
 #@unittest.skip('run locally only')
 class TestGranulePublish(IonIntegrationTestCase):
 
