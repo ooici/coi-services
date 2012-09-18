@@ -19,7 +19,13 @@ import time
 # Some IDs used in the tests (which must be defined in network.yml
 # if testing against the simulator)
 PLATFORM_ID = 'Node1A'
+ATTR_NAMES = ['Node1A_attr_1', 'Node1A_attr_2']
 PORT_ID = 'Node1A_port_1'
+
+# some bogus IDs
+BOGUS_PLATFORM_ID = 'bogus_plat_id'
+BOGUS_ATTR_NAMES = ['bogus_attr1', 'bogus_attr2']
+BOGUS_PORT_ID = 'bogus_port_id'
 
 
 class OmsTestMixin(object):
@@ -47,6 +53,27 @@ class OmsTestMixin(object):
         self.assertEquals(1, len(dic))
         val = dic[platform_id]
         self.assertEquals(InvalidResponse.PLATFORM_ID, val)
+
+    def _verify_valid_attribute_id(self, attr_id, dic):
+        """
+        verifies the attr_id is an entry in the dict with a
+        valid value. Returns dic[attr_id].
+        """
+        self.assertTrue(attr_id in dic)
+        val = dic[attr_id]
+        self.assertIsInstance(val, (tuple, list))
+        self.assertNotEquals(InvalidResponse.ATTRIBUTE_NAME_VALUE, val)
+        return val
+
+    def _verify_invalid_attribute_id(self, attr_id, dic):
+        """
+        verifies the attr_id is an entry in the dict with a
+        value equal to InvalidResponse.ATTRIBUTE_NAME_VALUE.
+        """
+        self.assertTrue(attr_id in dic)
+        val = dic[attr_id]
+        self.assertIsInstance(val, (tuple, list))
+        self.assertEquals(InvalidResponse.ATTRIBUTE_NAME_VALUE, val)
 
     def _verify_valid_port_id(self, port_id, dic):
         """
@@ -94,7 +121,7 @@ class OmsTestMixin(object):
         self.assertTrue('platform_types' in md)
 
     def test_ad_getPlatformMetadata_invalid(self):
-        platform_id = 'bogus_plat_id'
+        platform_id = BOGUS_PLATFORM_ID
         retval = self.oms.config.getPlatformMetadata(platform_id)
         print("getPlatformMetadata(%r) = %s" % (platform_id,retval))
         self._verify_invalid_platform_id(platform_id, retval)
@@ -107,26 +134,25 @@ class OmsTestMixin(object):
         self.assertIsInstance(infos, dict)
 
     def test_ag_getPlatformAttributes_invalid(self):
-        platform_id = 'bogus_plat_id'
+        platform_id = BOGUS_PLATFORM_ID
         retval = self.oms.config.getPlatformAttributes(platform_id)
         print("getPlatformAttributes(%r) = %s" % (platform_id, retval))
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_ah_getPlatformAttributeValues(self):
         platform_id = PLATFORM_ID
-        attrNames = ['bazA', 'fooA']
+        attrNames = ATTR_NAMES
         from_time = time.time()
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         print("getPlatformAttributeValues = %s" % retval)
         vals = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(vals, dict)
         for attrName in attrNames:
-            self.assertTrue(attrName in vals)
-            self.assertIsInstance(vals[attrName],(tuple, list))
+            self._verify_valid_attribute_id(attrName, vals)
 
     def test_ah_getPlatformAttributeValues_invalid_platform_id(self):
-        platform_id = 'bogus_plat_id'
-        attrNames = ['bazA', 'fooA']
+        platform_id = BOGUS_PLATFORM_ID
+        attrNames = ATTR_NAMES
         from_time = time.time()
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         print("getPlatformAttributeValues = %s" % retval)
@@ -134,15 +160,14 @@ class OmsTestMixin(object):
 
     def test_ah_getPlatformAttributeValues_invalid_attributes(self):
         platform_id = PLATFORM_ID
-        attrNames = ['bogus_attr1', 'bogus_attr2']
+        attrNames = BOGUS_ATTR_NAMES
         from_time = time.time()
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         print("getPlatformAttributeValues = %s" % retval)
         vals = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(vals, dict)
         for attrName in attrNames:
-            self.assertTrue(attrName in vals)
-            self.assertEquals(InvalidResponse.ATTRIBUTE_NAME_VALUE, vals[attrName])
+            self._verify_invalid_attribute_id(attrName, vals)
 
     def _getPlatformPorts(self, platform_id):
         retval = self.oms.getPlatformPorts(platform_id)
@@ -160,7 +185,7 @@ class OmsTestMixin(object):
             self.assertTrue('ip' in info['comms'])
 
     def test_ak_getPlatformPorts_invalid_platform_id(self):
-        platform_id = 'bogus_plat_id'
+        platform_id = BOGUS_PLATFORM_ID
         retval = self.oms.getPlatformPorts(platform_id)
         print("getPlatformPorts = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
@@ -185,7 +210,7 @@ class OmsTestMixin(object):
             self.assertFalse(attr_name in port_val)
 
     def test_am_setUpPort_invalid_platform_id(self):
-        platform_id = 'bogus_plat_id'
+        platform_id = BOGUS_PLATFORM_ID
         port_id = PORT_ID
         attributes = {}
         retval = self.oms.setUpPort(platform_id, port_id, attributes)
@@ -194,7 +219,7 @@ class OmsTestMixin(object):
 
     def test_am_setUpPort_invalid_port_id(self):
         platform_id = PLATFORM_ID
-        port_id = 'bogus_port_id'
+        port_id = BOGUS_PORT_ID
         attributes = {}
         retval = self.oms.setUpPort(platform_id, port_id, attributes)
         print("setUpPort = %s" % retval)
@@ -218,7 +243,7 @@ class OmsTestMixin(object):
         ports = self._getPlatformPorts(platform_id)
 
         # use invalid for turnOnPort
-        requested_platform_id = 'bogus_plat_id'
+        requested_platform_id = BOGUS_PLATFORM_ID
         for port_id in ports.iterkeys():
             retval = self.oms.turnOnPort(requested_platform_id, port_id)
             print("turnOnPort(%s,%s) = %s" % (requested_platform_id, port_id, retval))
@@ -241,7 +266,7 @@ class OmsTestMixin(object):
         ports = self._getPlatformPorts(platform_id)
 
         # use invalid for turnOffPort
-        requested_platform_id = 'bogus_plat_id'
+        requested_platform_id = BOGUS_PLATFORM_ID
         for port_id in ports.iterkeys():
             retval = self.oms.turnOffPort(requested_platform_id, port_id)
             print("turnOffPort(%s,%s) = %s" % (requested_platform_id, port_id, retval))
