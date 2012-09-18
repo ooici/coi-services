@@ -606,7 +606,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info got reloaded
         #--------------------------------------------------------------------------------------
-        proc1 = self.container.proc_manager.procs_by_name[pids[0]]
+        proc1 = self.container.proc_manager.procs.get(pids[0])
 
         ar_1 = gevent.event.AsyncResult()
         ar_2 = gevent.event.AsyncResult()
