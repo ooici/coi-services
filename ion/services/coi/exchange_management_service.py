@@ -124,6 +124,12 @@ class ExchangeManagementService(BaseExchangeManagementService):
         if not exchange_name.xn_type in typemap:
             raise BadRequest("Unknown exchange name type: %s" % exchange_name.xn_type)
 
+        xns, assocs = self.clients.resource_registry.find_objects(subject=exchange_space_id, predicate=PRED.hasExchangeName, id_only=False)
+        for xn in xns:
+            if xn.name == exchange_name.name and xn.xn_type == exchange_name.xn_type:
+                return xn._id
+
+
         xntype = typemap[exchange_name.xn_type]
 
         exchange_space          = self.read_exchange_space(exchange_space_id)
@@ -189,10 +195,17 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval exchange_point_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
+
+        xs_xps, assocs = self.clients.resource_registry.find_objects(subject=exchange_space_id, predicate=PRED.hasExchangePoint, id_only=False)
+        for xs_xp in xs_xps:
+            if xs_xp.name == exchange_point.name and xs_xp.topology_type == exchange_point.topology_type:
+                return xs_xp._id
+
+
         exchange_space          = self.read_exchange_space(exchange_space_id)
         exchange_point_id, _ver = self.clients.resource_registry.create(exchange_point)
 
-        aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
+        self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
 
         # call container API
         xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
