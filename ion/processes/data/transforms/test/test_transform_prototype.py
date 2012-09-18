@@ -59,7 +59,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         self.assertIsNotNone(pid)
 
-        proc = self.container.proc_manager.procs_by_name[pid]
+        proc = self.container.proc_manager.procs.get(pid)
 
         #-------------------------------------------------------------------------------------
         # Publish events and make assertions about alerts

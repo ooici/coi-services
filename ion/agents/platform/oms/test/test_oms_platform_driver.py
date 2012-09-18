@@ -27,8 +27,8 @@ from gevent import sleep
 # The ID of the platform for this test and corresponding attribute names.
 # These strings should correspond to corresponding entries in network.yml,
 # which is used by the OMS simulator.
-PLATFORM_ID = 'platA'
-ATTR_NAMES = ['fooA', 'bazA']
+PLATFORM_ID = 'Node1A'
+ATTR_NAMES = ['Node1A_attr_1', 'Node1A_attr_2']
 
 
 DVR_CONFIG = {

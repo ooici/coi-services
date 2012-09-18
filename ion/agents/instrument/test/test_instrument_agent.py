@@ -20,6 +20,7 @@ from pyon.public import CFG
 import time
 import socket
 import re
+import json
 
 # 3rd party imports.
 import gevent
@@ -49,7 +50,11 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverConnectionState
+
+# Parameter dicts and publishing.
 from ion.agents.instrument.taxy_factory import get_taxonomy
+from ion.util.parameter_yaml_IO import get_param_dict
+from coverage_model.parameter import ParameterDictionary
 
 # Objects and clients.
 from interface.objects import AgentCommand
@@ -325,29 +330,28 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Create streams and subscriptions for each stream named in driver.
         self._stream_config = {}
 
-        for stream_name in PACKET_CONFIG:
-            
-            # Create stream_id from stream_name.
-            stream_id, stream_route = pubsub_client.create_stream(name=stream_name, exchange_point='science_data')
+        streams = {
+            'parsed' : 'ctd_parsed_param_dict',
+            'raw' : 'ctd_raw_param_dict'
+        }
 
-            # Create stream config from taxonomy and id.
-            taxy = get_taxonomy(stream_name)
-            stream_config = dict(
-                id=stream_id,
-                route=stream_route,
-                taxonomy=taxy.dump()
-            )
-            self._stream_config[stream_name] = stream_config        
+        for (stream_name, param_dict_name) in streams.iteritems():
+            stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
+                                                exchange_point='science_data')
+            pd = get_param_dict(param_dict_name)
+            stream_config = dict(stream_route=stream_route,
+                                 stream_id=stream_id,
+                                 parameter_dictionary=pd.dump())
+            self._stream_config[stream_name] = stream_config
 
     def _start_data_subscribers(self, count):
         """
-        """
+        """        
         # Create a pubsub client to create streams.
         pubsub_client = PubsubManagementServiceClient(node=self.container.node)
                 
         # Create streams and subscriptions for each stream named in driver.
         self._data_subscribers = []
-        self._data_greenlets = []
         self._samples_received = []
         self._async_sample_result = AsyncResult()
 
@@ -360,7 +364,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         for (stream_name, stream_config) in self._stream_config.iteritems():
             
-            stream_id = stream_config['id']
+            stream_id = stream_config['stream_id']
             
             # Create subscriptions for each stream.
 
@@ -388,9 +392,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                     pass
                 pubsub_client.delete_subscription(subscriber.subscription_id)
             subscriber.stop()
-
-
-
 
     ###############################################################################
     # Socket listen.
@@ -424,22 +425,37 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Verify the value is a sample dictionary for the sbe37.
         """
         # AgentCommandResult.result['parsed']
-        # {'p': [707.311], 'c': [69.03532], 'stream_name': 'parsed', 't': [85.9109], 'time': [1343258355.202828]}
+        """
+        {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp',
+        'stream_name': 'parsed', 'pkt_format_id': 'JSON_Data',
+        'pkt_version': 1, 'values':
+        [{'value_id': 'temp', 'value': 21.4894},
+        {'value_id': 'conductivity', 'value': 13.22157},
+        {'value_id': 'depth', 'value': 146.186}],
+        'driver_timestamp': 3556901018.170206}
+        """
+        
         self.assertTrue(isinstance(val, dict))
-        self.assertTrue(val.has_key('c'))
-        self.assertTrue(val.has_key('t'))
-        self.assertTrue(val.has_key('p'))
-        self.assertTrue(val.has_key('time'))
-        c = val['c'][0]
-        t = val['t'][0]
-        p = val['p'][0]
-        time = val['time'][0]
-    
-        self.assertTrue(isinstance(c, float))
-        self.assertTrue(isinstance(t, float))
-        self.assertTrue(isinstance(p, float))
-        self.assertTrue(isinstance(time, float))
+        self.assertTrue(val.has_key('values'))
+        values_list = val['values']
+        self.assertTrue(isinstance(values_list, list))
+        self.assertTrue(len(values_list)==3)
+        
+        ids = ['temp', 'conductivity', 'depth']
+        ids_found = []
 
+        for x in values_list:
+            self.assertTrue(x.has_key('value_id'))
+            self.assertTrue(x.has_key('value'))
+            ids_found.append(x['value_id'])
+            self.assertTrue(isinstance(x['value'], float))
+
+        self.assertItemsEqual(ids, ids_found)
+
+        self.assertTrue(val.has_key('driver_timestamp'))
+        time = val['driver_timestamp']
+        self.assertTrue(isinstance(time, float))
+        
     def assertParamDict(self, pd, all_params=False):
         """
         Verify all device parameters exist and are correct type.
@@ -854,13 +870,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-               
+        
         self._async_event_result.get(timeout=2)
         self.assertEquals(len(self._events_received), 7)
-               
-        self._async_sample_result.get(timeout=2)
+        
+        self._async_sample_result.get(timeout=5)
         self.assertEquals(len(self._samples_received), 6)
-               
+        
     def test_autosample(self):
         """
         Test instrument driver execute interface to start and stop streaming
