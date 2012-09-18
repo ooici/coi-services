@@ -288,10 +288,10 @@ class DataProductImpl(ResourceSimpleImpl):
                     #todo: get the correct deployment object to retrieve: output the temporal constraints and the device_mounting_positions
                     site_tag = etree.SubElement(data_producer_tag, "DeployedSite")
                     site_tag = etree.SubElement(data_producer_tag, "DeployedSite")
-                    site_geospatial_constraint_tag = etree.SubElement(site_tag, "geospatial_constraint")
-                    site_geospatial_constraint_tag.text = str(site_obj.geospatial_constraint)
-                    site_temporal_constraint_tag = etree.SubElement(site_tag, "temporal_constraint")
-                    site_temporal_constraint_tag.text = str(site_obj.temporal_constraint)
+#                    site_geospatial_constraint_tag = etree.SubElement(site_tag, "geospatial_constraint")
+#                    site_geospatial_constraint_tag.text = str(site_obj.geospatial_constraint)
+#                    site_temporal_constraint_tag = etree.SubElement(site_tag, "temporal_constraint")
+#                    site_temporal_constraint_tag.text = str(site_obj.temporal_constraint)
 
             #if RT.DataProcess == producertype :
             if data_producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
