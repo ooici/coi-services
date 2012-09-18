@@ -484,3 +484,19 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_data_url(self, data_product_id=''):
         # The unique pointer to this set of data
         pass
+
+    def get_provenance(self, data_product_id=''):
+        # Provides an audit trail for modifications to the original data
+
+        #todo - call get_data_product_provenance when it is completed
+        pass
+
+    def get_number_active_subscriptions(self, data_product_id=''):
+        # The number of current subscriptions to the data
+
+        pass
+
+    def get_descriptors(self, data_product_id=''):
+        # Returns a list of keyword/authority pairs with optional urls
+
+        pass
