@@ -8,11 +8,12 @@
 
 from interface.services.dm.ipubsub_management_service import BasePubsubManagementService
 from interface.objects import StreamDefinition, Stream, Subscription, Topic
-from pyon.util.arg_check import validate_true, validate_is_instance, validate_is_not_none, validate_false, validate_equal
+from pyon.util.arg_check import validate_true, validate_is_instance, validate_false, validate_equal
 from ion.services.dm.utility.granule_utils import ParameterDictionary
 from pyon.core.exception import Conflict, BadRequest
 from pyon.public import RT, PRED
 from pyon.util.containers import create_unique_identifier
+from pyon.core.exception import NotFound
 from pyon.util.log import log
 from collections import deque
 
@@ -57,6 +58,19 @@ class PubsubManagementService(BasePubsubManagementService):
         # Argument Validation
         if name and self.clients.resource_registry.find_resources(restype=RT.Stream,name=name,id_only=True)[0]:
             raise Conflict('The named stream already exists')
+        exchange_point_id = None
+
+        try:
+            xp_obj = self.clients.exchange_management.read_exchange_point(exchange_point)
+            exchange_point_id = exchange_point
+            exchange_point = xp_obj.name
+        except NotFound:
+            self.container.ex_manager.create_xp(exchange_point)
+            xp_objs, _ = self.clients.resource_registry.find_resources(restype=RT.ExchangePoint,name=exchange_point,id_only=True)
+            if not xp_objs:
+                raise BadRequest('The Exchange Management Service failed to create an ExchangePoint for use.')
+            exchange_point_id = xp_objs[0]
+
 
         topic_ids = topic_ids or []
 
@@ -87,6 +101,8 @@ class PubsubManagementService(BasePubsubManagementService):
 
         stream_id, rev = self.clients.resource_registry.create(stream)
 
+        self._associate_stream_with_exchange_point(stream_id,exchange_point_id)
+
         if stream_definition_id: #@Todo: what if the stream has no definition?!
             self._associate_stream_with_definition(stream_id, stream_definition_id)
 
@@ -110,7 +126,6 @@ class PubsubManagementService(BasePubsubManagementService):
             raise BadRequest('Can not delete the stream while there are remaining subscriptions')
 
         self.clients.resource_registry.delete(stream_id)
-
         self._deassociate_stream(stream_id)
 
         return True
@@ -345,6 +360,9 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.create_association(subject=stream_id, predicate=PRED.hasTopic, object=topic_id)
 
     def _deassociate_stream(self,stream_id):
+        xps, assocs = self.clients.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream,restype=RT.ExchangePoint, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
         objects, assocs = self.clients.resource_registry.find_objects(subject=stream_id, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
@@ -359,6 +377,9 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def _associate_stream_with_subscription(self, stream_id, subscription_id):
         self.clients.resource_registry.create_association(subject=subscription_id, predicate=PRED.hasStream, object=stream_id)
+
+    def _associate_stream_with_exchange_point(self, stream_id, exchange_point_id):
+        self.clients.resource_registry.create_association(subject=exchange_point_id, predicate=PRED.hasStream, object=stream_id)
 
     def _associate_topic_with_subscription(self, topic_id, subscription_id):
         self.clients.resource_registry.create_association(subject=subscription_id, predicate=PRED.hasTopic, object=topic_id)
