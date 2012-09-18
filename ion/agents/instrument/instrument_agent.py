@@ -30,6 +30,11 @@ from pyon.core.exception import ResourceError
 
 # Standard imports.
 import socket
+import json
+import base64
+
+# Packages
+import numpy
 
 # MI exceptions
 from mi.core.exceptions import InstrumentTimeoutException
@@ -47,12 +52,16 @@ from ion.agents.instrument.instrument_fsm import FSMCommandUnknownError
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.granule import build_granule
+from coverage_model.parameter import ParameterDictionary
 
 # MI imports
 from mi.core.instrument.instrument_driver import DriverEvent
 from mi.core.instrument.instrument_driver import DriverAsyncEvent
 from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverParameter
+from mi.core.instrument.data_particle import DataParticle
 
 from interface.objects import AgentCommand
 
@@ -130,6 +139,8 @@ class InstrumentAgent(ResourceAgent):
         # Dictionary of data stream IDs for data publishing. Constructed
         # by stream_config agent config member during process on_init.
         self._data_streams = {}
+
+        self._param_dicts = {}
         
         # Dictionary of data stream publishers. Constructed by
         # stream_config agent config member during process on_init.
@@ -681,15 +692,56 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         # Publish sample on sample data streams.
-        try:
-            stream_name = val.pop('stream_name')
-            val['stream_id'] = self._data_streams[stream_name]
-            packet = self._packet_factories[stream_name](**val)
-            self._data_publishers[stream_name].publish(packet)
-            log.info('Instrument agent %s published data packet. '
-                 'stream_name=%s (stream_id=%s)', self._proc_name,
-                 stream_name, val['stream_id'])
+        """
+        quality_flag : ok
+        preferred_timestamp : driver_timestamp
+        stream_name : raw
+        pkt_format_id : JSON_Data
+        pkt_version : 1
+        values : [{u'binary': True, u'value_id': u'raw', u'value':
+            u'MTkuMDYxMiwzLjMzNzkxLCA0NDkuMDA1LCAgIDE0Ljg3MjksIDE1MDUuMTQ3L
+            CAwMSBGZWIgMjAwMSwgMDE6MDE6MDA='}]
+
+        quality_flag : ok
+        preferred_timestamp : driver_timestamp
+        stream_name : parsed
+        pkt_format_id : JSON_Data
+        pkt_version : 1
+        values : [{u'value_id': u'temp', u'value': 19.0612},
+            {u'value_id': u'conductivity', u'value': 3.33791},
+            {u'value_id': u'depth', u'value': 449.005}]
+        """
         
+        # If the sample event is encoded, load it back to a dict.
+        if isinstance(val, str):
+            val = json.loads(val)
+        
+        try:
+            stream_name = val['stream_name']
+            publisher = self._data_publishers[stream_name]
+            param_dict = self._param_dicts[stream_name]
+            rdt = RecordDictionaryTool(param_dictionary=param_dict)
+
+            for (k, v) in val.iteritems():
+                if k == 'values':
+                    for x in v:
+                        value_id = x['value_id']
+                        if value_id in param_dict:
+                            value = x['value']
+                            if x.get('binary', None):
+                                value = base64.b64decode(value)
+                            rdt[value_id] = numpy.array([value])
+                    
+                elif k in param_dict:
+                    rdt[k] = numpy.array([v])
+
+            g = build_granule(data_producer_id=self.resource_id,
+                param_dictionary=param_dict, record_dictionary=rdt)
+            publisher.publish(g)        
+            
+            log.info('Instrument agent %s published data granule on stream %s.',
+                     self._proc_name, stream_name)
+            
         except:
             log.error('Instrument agent %s could not publish data.',
                       self._proc_name)
@@ -970,19 +1022,21 @@ class InstrumentAgent(ResourceAgent):
         else:
             log.info("stream_info = %s" % stream_info)
  
-            for (name, stream_config) in stream_info.iteritems():
+            for (stream_name, stream_config) in stream_info.iteritems():
                 try:
-                    stream_id = stream_config['id']
-                    self._data_streams[name] = stream_id
-                    publisher = StreamPublisher(process=self, stream_id=stream_id)
-                    self._data_publishers[name] = publisher
+                    stream_route = stream_config['stream_route']
+                    param_dict_flat = stream_config['parameter_dictionary']
+                    self._data_streams[stream_name] = stream_route
+                    self._param_dicts[stream_name] = ParameterDictionary.load(param_dict_flat)
+                    publisher = StreamPublisher(process=self, stream_route=stream_route)
+                    self._data_publishers[stream_name] = publisher
                     log.info("Instrument agent '%s' created publisher for stream_name "
-                         "%s (stream_id=%s)" % (self._proc_name, name, stream_id))
+                         "%s" % (self._proc_name, stream_name))
                 
                 except:
                     log.warning('Instrument agent %s failed to create \
                                 publisher for stream %s.', self._proc_name,
-                                name)
+                                stream_name)
 
     def _construct_packet_factories(self):
         """
