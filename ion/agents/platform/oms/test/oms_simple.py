@@ -129,6 +129,8 @@ attributeNames = [
 if __name__ == "__main__":
 
     def gen_diagrams(name, nnode):
+        yml_name = '%s.yml' % name
+        file(yml_name, 'w').write(nnode.yaml())
         dot_name = '%s.dot' % name
         pml_name = '%s.puml' % name
         file(dot_name, 'w').write(nnode.diagram(style="dot"))

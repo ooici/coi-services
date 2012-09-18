@@ -52,10 +52,11 @@ class PlatformAgentState(ResourceAgentState):
 
 
 class PlatformAgentEvent(ResourceAgentEvent):
-    PING_AGENT = 'ping_agent'
-    GET_SUBPLATFORM_IDS = 'get_subplatform_ids'
+    PING_AGENT = 'PLATFORM_AGENT_PING_AGENT'
+    GET_SUBPLATFORM_IDS = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
 
 
+# TODO specify the capabilities
 class PlatformAgentCapability(BaseEnum):
 #    INITIALIZE = ResourceAgentEvent.INITIALIZE
 #    RESET = ResourceAgentEvent.RESET

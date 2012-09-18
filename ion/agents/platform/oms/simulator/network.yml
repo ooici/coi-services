@@ -12,98 +12,511 @@ platform_types:
 
 network:
 - platform_id: ShoreStation
-  platform_types: [ptype1]
+  platform_types: []
   attrs:
-  - attr_id: fooRoot
+  - attr_id: ShoreStation_attr_1
     monitorCycleSeconds: 5
     units: xyz
-    value: dummy_value_fooRoot
+  - attr_id: ShoreStation_attr_2
+    monitorCycleSeconds: 5
+    units: xyz
+  ports:
+  - port_id: ShoreStation_port_1
+    ip: ShoreStation_port_1_IP
+  - port_id: ShoreStation_port_2
+    ip: ShoreStation_port_2_IP
   subplatforms:
-  - platform_id: platA
-    platform_types: [ptype2]
-    ports:
-      - port_id: portA_1
-        ip: ipA_1
-      - port_id: portA_2
-        ip: ipA_2
+  - platform_id: Node1A
+    platform_types: []
     attrs:
-    - attr_id: fooA
+    - attr_id: Node1A_attr_1
       monitorCycleSeconds: 5
       units: xyz
-      value: dummy_value_fooA
-    - attr_id: bazA
+    - attr_id: Node1A_attr_2
       monitorCycleSeconds: 5
       units: xyz
-    subplatforms:
-      - platform_id: platA1
-        platform_types: [ptype3]
-        ports:
-          - port_id: portA1_1
-            ip: ipA1_1
-        attrs:
-        - attr_id: fooA1
-          monitorCycleSeconds: 5
-          units: xyz
-        - attr_id: bazA1
-          monitorCycleSeconds: 5
-          units: xyz
-        subplatforms:
-        - platform_id: platA1a
-          platform_types: [ptype3]
-          ports:
-            - port_id: portA1a_1
-              ip: ipA1a_1
-        - platform_id: platA1b
-          platform_types: [ptype3]
-          ports:
-            - port_id: portA1b_1
-              ip: ipA1b_1
-          attrs:
-          - attr_id: fooA1b
-            monitorCycleSeconds: 5
-            units: xyz
-          subplatforms:
-          - platform_id: platA1b1
-            platform_types: [ptype3]
-            ports:
-              - port_id: portA1b1_1
-                ip: ipA1b1_1
-            attrs:
-            - attr_id: bazA1b1
-              monitorCycleSeconds: 5
-              units: xyz
-          - platform_id: platA1b2
-            platform_types: [ptype3]
-            ports:
-              - port_id: portA1b2_1
-                ip: ipA1b2_1
-            attrs:
-            - attr_id: bazA1b2
-              monitorCycleSeconds: 5
-              units: xyz
-              value: dummy_value_bazA1b2
-
-  - platform_id: platB
-    platform_types: [ptype2]
     ports:
-      - port_id: portB_1
-        ip: ipB_1
-    attrs:
-    - attr_id: fooB
-      monitorCycleSeconds: 5
-      units: xyz
+    - port_id: Node1A_port_1
+      ip: Node1A_port_1_IP
+    - port_id: Node1A_port_2
+      ip: Node1A_port_2_IP
     subplatforms:
-    - platform_id: platB1
-      platform_types: [ptype2]
-      ports:
-        - port_id: portB1_1
-          ip: ipB1_1
+    - platform_id: MJ01A
+      platform_types: []
       attrs:
-      - attr_id: bazB1
+      - attr_id: MJ01A_attr_1
         monitorCycleSeconds: 5
         units: xyz
-    - platform_id: platB2
-      platform_types: [ptype3]
+      - attr_id: MJ01A_attr_2
+        monitorCycleSeconds: 5
+        units: xyz
       ports:
-        - port_id: portB2_1
-          ip: ipB2_1
+      - port_id: MJ01A_port_1
+        ip: MJ01A_port_1_IP
+      - port_id: MJ01A_port_2
+        ip: MJ01A_port_2_IP
+    - platform_id: Node1B
+      platform_types: []
+      attrs:
+      - attr_id: Node1B_attr_1
+        monitorCycleSeconds: 5
+        units: xyz
+      - attr_id: Node1B_attr_2
+        monitorCycleSeconds: 5
+        units: xyz
+      ports:
+      - port_id: Node1B_port_1
+        ip: Node1B_port_1_IP
+      - port_id: Node1B_port_2
+        ip: Node1B_port_2_IP
+      subplatforms:
+      - platform_id: Node1C
+        platform_types: []
+        attrs:
+        - attr_id: Node1C_attr_1
+          monitorCycleSeconds: 5
+          units: xyz
+        - attr_id: Node1C_attr_2
+          monitorCycleSeconds: 5
+          units: xyz
+        ports:
+        - port_id: Node1C_port_1
+          ip: Node1C_port_1_IP
+        - port_id: Node1C_port_2
+          ip: Node1C_port_2_IP
+        subplatforms:
+        - platform_id: Node1D
+          platform_types: []
+          attrs:
+          - attr_id: Node1D_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: Node1D_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: Node1D_port_1
+            ip: Node1D_port_1_IP
+          - port_id: Node1D_port_2
+            ip: Node1D_port_2_IP
+          subplatforms:
+          - platform_id: MJ01C
+            platform_types: []
+            attrs:
+            - attr_id: MJ01C_attr_1
+              monitorCycleSeconds: 5
+              units: xyz
+            - attr_id: MJ01C_attr_2
+              monitorCycleSeconds: 5
+              units: xyz
+            ports:
+            - port_id: MJ01C_port_1
+              ip: MJ01C_port_1_IP
+            - port_id: MJ01C_port_2
+              ip: MJ01C_port_2_IP
+            subplatforms:
+            - platform_id: LJ01D
+              platform_types: []
+              attrs:
+              - attr_id: LJ01D_attr_1
+                monitorCycleSeconds: 5
+                units: xyz
+              - attr_id: LJ01D_attr_2
+                monitorCycleSeconds: 5
+                units: xyz
+              ports:
+              - port_id: LJ01D_port_1
+                ip: LJ01D_port_1_IP
+              - port_id: LJ01D_port_2
+                ip: LJ01D_port_2_IP
+        - platform_id: LV01C
+          platform_types: []
+          attrs:
+          - attr_id: LV01C_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: LV01C_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: LV01C_port_1
+            ip: LV01C_port_1_IP
+          - port_id: LV01C_port_2
+            ip: LV01C_port_2_IP
+          subplatforms:
+          - platform_id: PC01B
+            platform_types: []
+            attrs:
+            - attr_id: PC01B_attr_1
+              monitorCycleSeconds: 5
+              units: xyz
+            - attr_id: PC01B_attr_2
+              monitorCycleSeconds: 5
+              units: xyz
+            ports:
+            - port_id: PC01B_port_1
+              ip: PC01B_port_1_IP
+            - port_id: PC01B_port_2
+              ip: PC01B_port_2_IP
+            subplatforms:
+            - platform_id: SC01B
+              platform_types: []
+              attrs:
+              - attr_id: SC01B_attr_1
+                monitorCycleSeconds: 5
+                units: xyz
+              - attr_id: SC01B_attr_2
+                monitorCycleSeconds: 5
+                units: xyz
+              ports:
+              - port_id: SC01B_port_1
+                ip: SC01B_port_1_IP
+              - port_id: SC01B_port_2
+                ip: SC01B_port_2_IP
+              subplatforms:
+              - platform_id: SF01B
+                platform_types: []
+                attrs:
+                - attr_id: SF01B_attr_1
+                  monitorCycleSeconds: 5
+                  units: xyz
+                - attr_id: SF01B_attr_2
+                  monitorCycleSeconds: 5
+                  units: xyz
+                ports:
+                - port_id: SF01B_port_1
+                  ip: SF01B_port_1_IP
+                - port_id: SF01B_port_2
+                  ip: SF01B_port_2_IP
+          - platform_id: LJ01C
+            platform_types: []
+            attrs:
+            - attr_id: LJ01C_attr_1
+              monitorCycleSeconds: 5
+              units: xyz
+            - attr_id: LJ01C_attr_2
+              monitorCycleSeconds: 5
+              units: xyz
+            ports:
+            - port_id: LJ01C_port_1
+              ip: LJ01C_port_1_IP
+            - port_id: LJ01C_port_2
+              ip: LJ01C_port_2_IP
+      - platform_id: LV01B
+        platform_types: []
+        attrs:
+        - attr_id: LV01B_attr_1
+          monitorCycleSeconds: 5
+          units: xyz
+        - attr_id: LV01B_attr_2
+          monitorCycleSeconds: 5
+          units: xyz
+        ports:
+        - port_id: LV01B_port_1
+          ip: LV01B_port_1_IP
+        - port_id: LV01B_port_2
+          ip: LV01B_port_2_IP
+        subplatforms:
+        - platform_id: LJ01B
+          platform_types: []
+          attrs:
+          - attr_id: LJ01B_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: LJ01B_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: LJ01B_port_1
+            ip: LJ01B_port_1_IP
+          - port_id: LJ01B_port_2
+            ip: LJ01B_port_2_IP
+        - platform_id: MJ01B
+          platform_types: []
+          attrs:
+          - attr_id: MJ01B_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: MJ01B_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: MJ01B_port_1
+            ip: MJ01B_port_1_IP
+          - port_id: MJ01B_port_2
+            ip: MJ01B_port_2_IP
+    - platform_id: LV01A
+      platform_types: []
+      attrs:
+      - attr_id: LV01A_attr_1
+        monitorCycleSeconds: 5
+        units: xyz
+      - attr_id: LV01A_attr_2
+        monitorCycleSeconds: 5
+        units: xyz
+      ports:
+      - port_id: LV01A_port_1
+        ip: LV01A_port_1_IP
+      - port_id: LV01A_port_2
+        ip: LV01A_port_2_IP
+      subplatforms:
+      - platform_id: LJ01A
+        platform_types: []
+        attrs:
+        - attr_id: LJ01A_attr_1
+          monitorCycleSeconds: 5
+          units: xyz
+        - attr_id: LJ01A_attr_2
+          monitorCycleSeconds: 5
+          units: xyz
+        ports:
+        - port_id: LJ01A_port_1
+          ip: LJ01A_port_1_IP
+        - port_id: LJ01A_port_2
+          ip: LJ01A_port_2_IP
+      - platform_id: PC01A
+        platform_types: []
+        attrs:
+        - attr_id: PC01A_attr_1
+          monitorCycleSeconds: 5
+          units: xyz
+        - attr_id: PC01A_attr_2
+          monitorCycleSeconds: 5
+          units: xyz
+        ports:
+        - port_id: PC01A_port_1
+          ip: PC01A_port_1_IP
+        - port_id: PC01A_port_2
+          ip: PC01A_port_2_IP
+        subplatforms:
+        - platform_id: SC01A
+          platform_types: []
+          attrs:
+          - attr_id: SC01A_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: SC01A_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: SC01A_port_1
+            ip: SC01A_port_1_IP
+          - port_id: SC01A_port_2
+            ip: SC01A_port_2_IP
+          subplatforms:
+          - platform_id: SF01A
+            platform_types: []
+            attrs:
+            - attr_id: SF01A_attr_1
+              monitorCycleSeconds: 5
+              units: xyz
+            - attr_id: SF01A_attr_2
+              monitorCycleSeconds: 5
+              units: xyz
+            ports:
+            - port_id: SF01A_port_1
+              ip: SF01A_port_1_IP
+            - port_id: SF01A_port_2
+              ip: SF01A_port_2_IP
+  - platform_id: Node5A
+    platform_types: []
+    attrs:
+    - attr_id: Node5A_attr_1
+      monitorCycleSeconds: 5
+      units: xyz
+    - attr_id: Node5A_attr_2
+      monitorCycleSeconds: 5
+      units: xyz
+    ports:
+    - port_id: Node5A_port_1
+      ip: Node5A_port_1_IP
+    - port_id: Node5A_port_2
+      ip: Node5A_port_2_IP
+    subplatforms:
+    - platform_id: Node3A
+      platform_types: []
+      attrs:
+      - attr_id: Node3A_attr_1
+        monitorCycleSeconds: 5
+        units: xyz
+      - attr_id: Node3A_attr_2
+        monitorCycleSeconds: 5
+        units: xyz
+      ports:
+      - port_id: Node3A_port_1
+        ip: Node3A_port_1_IP
+      - port_id: Node3A_port_2
+        ip: Node3A_port_2_IP
+      subplatforms:
+      - platform_id: Node3B
+        platform_types: []
+        attrs:
+        - attr_id: Node3B_attr_1
+          monitorCycleSeconds: 5
+          units: xyz
+        - attr_id: Node3B_attr_2
+          monitorCycleSeconds: 5
+          units: xyz
+        ports:
+        - port_id: Node3B_port_1
+          ip: Node3B_port_1_IP
+        - port_id: Node3B_port_2
+          ip: Node3B_port_2_IP
+        subplatforms:
+        - platform_id: MJ03F
+          platform_types: []
+          attrs:
+          - attr_id: MJ03F_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: MJ03F_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: MJ03F_port_1
+            ip: MJ03F_port_1_IP
+          - port_id: MJ03F_port_2
+            ip: MJ03F_port_2_IP
+        - platform_id: MJ03E
+          platform_types: []
+          attrs:
+          - attr_id: MJ03E_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: MJ03E_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: MJ03E_port_1
+            ip: MJ03E_port_1_IP
+          - port_id: MJ03E_port_2
+            ip: MJ03E_port_2_IP
+        - platform_id: MJ03D
+          platform_types: []
+          attrs:
+          - attr_id: MJ03D_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: MJ03D_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: MJ03D_port_1
+            ip: MJ03D_port_1_IP
+          - port_id: MJ03D_port_2
+            ip: MJ03D_port_2_IP
+        - platform_id: MJ03C
+          platform_types: []
+          attrs:
+          - attr_id: MJ03C_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: MJ03C_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: MJ03C_port_1
+            ip: MJ03C_port_1_IP
+          - port_id: MJ03C_port_2
+            ip: MJ03C_port_2_IP
+        - platform_id: MJ03B
+          platform_types: []
+          attrs:
+          - attr_id: MJ03B_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: MJ03B_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: MJ03B_port_1
+            ip: MJ03B_port_1_IP
+          - port_id: MJ03B_port_2
+            ip: MJ03B_port_2_IP
+      - platform_id: MJ03A
+        platform_types: []
+        attrs:
+        - attr_id: MJ03A_attr_1
+          monitorCycleSeconds: 5
+          units: xyz
+        - attr_id: MJ03A_attr_2
+          monitorCycleSeconds: 5
+          units: xyz
+        ports:
+        - port_id: MJ03A_port_1
+          ip: MJ03A_port_1_IP
+        - port_id: MJ03A_port_2
+          ip: MJ03A_port_2_IP
+      - platform_id: LV03A
+        platform_types: []
+        attrs:
+        - attr_id: LV03A_attr_1
+          monitorCycleSeconds: 5
+          units: xyz
+        - attr_id: LV03A_attr_2
+          monitorCycleSeconds: 5
+          units: xyz
+        ports:
+        - port_id: LV03A_port_1
+          ip: LV03A_port_1_IP
+        - port_id: LV03A_port_2
+          ip: LV03A_port_2_IP
+        subplatforms:
+        - platform_id: LJ03A
+          platform_types: []
+          attrs:
+          - attr_id: LJ03A_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: LJ03A_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: LJ03A_port_1
+            ip: LJ03A_port_1_IP
+          - port_id: LJ03A_port_2
+            ip: LJ03A_port_2_IP
+        - platform_id: PC03A
+          platform_types: []
+          attrs:
+          - attr_id: PC03A_attr_1
+            monitorCycleSeconds: 5
+            units: xyz
+          - attr_id: PC03A_attr_2
+            monitorCycleSeconds: 5
+            units: xyz
+          ports:
+          - port_id: PC03A_port_1
+            ip: PC03A_port_1_IP
+          - port_id: PC03A_port_2
+            ip: PC03A_port_2_IP
+          subplatforms:
+          - platform_id: SC03A
+            platform_types: []
+            attrs:
+            - attr_id: SC03A_attr_1
+              monitorCycleSeconds: 5
+              units: xyz
+            - attr_id: SC03A_attr_2
+              monitorCycleSeconds: 5
+              units: xyz
+            ports:
+            - port_id: SC03A_port_1
+              ip: SC03A_port_1_IP
+            - port_id: SC03A_port_2
+              ip: SC03A_port_2_IP
+            subplatforms:
+            - platform_id: SF03A
+              platform_types: []
+              attrs:
+              - attr_id: SF03A_attr_1
+                monitorCycleSeconds: 5
+                units: xyz
+              - attr_id: SF03A_attr_2
+                monitorCycleSeconds: 5
+                units: xyz
+              ports:
+              - port_id: SF03A_port_1
+                ip: SF03A_port_1_IP
+              - port_id: SF03A_port_2
+                ip: SF03A_port_2_IP

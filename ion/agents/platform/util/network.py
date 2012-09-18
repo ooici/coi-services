@@ -238,6 +238,51 @@ class NNode(object):
 
         return result
 
+    def yaml(self, level=0):
+        """
+        Partial string representation in yaml.
+        *NOTE*: Very ad hoc, just to help capture some of the real info from
+        the RSN OMS interface into network.yml (the file used by the simulator).
+        """
+
+        result = ""
+        next_level = level
+        if self.platform_id:
+            pid = self.platform_id
+            lines = []
+            if level == 0:
+                lines.append('network:')
+
+            lines.append('- platform_id: %s' % pid)
+            lines.append('  platform_types: []')
+
+            lines.append('  attrs:')
+            for i in range(2):
+                attr_id = '%s_attr_%d' % (pid, i + 1)
+                lines.append('  - attr_id: %s' % attr_id)
+                lines.append('    monitorCycleSeconds: 5')
+                lines.append('    units: xyz')
+#                lines.append('    value: %s_dummy_value' % attr_id)
+
+            lines.append('  ports:')
+            for i in range(2):
+                port_id = '%s_port_%d' % (pid, i + 1)
+                lines.append('  - port_id: %s' % port_id)
+                lines.append('    ip: %s_IP' % port_id)
+
+            if self.subplatforms:
+                lines.append('  subplatforms:')
+
+            nl = "\n" + ("  " * level)
+            result += nl + nl.join(lines)
+            next_level = level + 1
+
+        if self.subplatforms:
+            for sub_platform in self.subplatforms.itervalues():
+                result += sub_platform.yaml(next_level)
+
+        return result
+
     @staticmethod
     def create_network(map):
         """

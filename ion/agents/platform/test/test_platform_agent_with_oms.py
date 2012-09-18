@@ -42,9 +42,9 @@ from nose.plugins.attrib import attr
 # The ID of the root platform for this test and the IDs of its sub-platforms.
 # These Ids and names should correspond to corresponding entries in network.yml,
 # which is used by the OMS simulator.
-PLATFORM_ID = 'platA1'
-SUBPLATFORM_IDS = ['platA1a', 'platA1b']
-ATTR_NAMES = ['fooA1', 'bazA1']
+PLATFORM_ID = 'Node1A'
+SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
+ATTR_NAMES = ['Node1A_attr_1', 'Node1A_attr_2']
 
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
@@ -231,7 +231,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd)
         log.info("PlatformAgentEvent.GET_SUBPLATFORM_IDS retval = %s" % str(retval))
         self.assertIsInstance(retval.result, list)
-        self.assertEquals(SUBPLATFORM_IDS, retval.result)
+        self.assertTrue(x in retval.result for x in SUBPLATFORM_IDS)
         return retval.result
 
     def test_go_active_and_run(self):
