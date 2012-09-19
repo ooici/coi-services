@@ -93,7 +93,15 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._results_recv = {}
         self._workers = []
         self._done_evt = AsyncResult()
-        
+        self._queue_mod_evts = []
+        self._cmd_tx_evts = []
+        self._telem_evts = []
+        self._no_telem_evts = 0
+        self._no_queue_mod_evts = 0
+        self._no_cmd_tx_evts = 0
+        self._done_queue_mod_evts = AsyncResult()
+        self._done_telem_evts = AsyncResult()
+        self._done_cmd_tx_evts = AsyncResult()
         # Start container.
         log.debug('Staring capability container.')
         self._start_container()
@@ -136,9 +144,9 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         # Start the event publisher.
         self._event_publisher = EventPublisher()
         
-        # Start the test subscriber.
+        # Start the event subscriber.
         self._event_subscriber = EventSubscriber(
-            event_type='PlatformTelemetryEvent',
+            event_type='PlatformEvent',
             callback=self.consume_event,
             origin=self._platform_resource_id)
         self._event_subscriber.start()
@@ -165,12 +173,26 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         if len(self._results_recv) == self._no_requests:
             self._done_evt.set()
     
-    def consume_event(self, *args, **kwargs):
+    def consume_event(self, evt, *args, **kwargs):
         """
         Test callback for events.
         """
-        log.debug('args: %s, kwargs: %s', str(args), str(kwargs))
-        self._got_event.set()
+        log.debug('Got event: %s, args: %s, kwargs: %s',
+                  str(evt), str(args), str(kwargs))
+        if evt.type_ == 'PublicPlatformTelemetryEvent':
+            self._telem_evts.append(evt)
+            if self._no_telem_evts > 0 and self._no_telem_evts == len(self._telem_evts):
+                    self._done_telem_evts.set()
+                    
+        elif evt.type_ == 'RemoteQueueModifiedEvent':
+            self._queue_mod_evts.append(evt)
+            if self._no_queue_mod_evts > 0 and self._no_queue_mod_evts == len(self._queue_mod_evts):
+                    self._done_queue_mod_evts.set()
+            
+        elif evt.type_ == 'RemoteCommandTransmittedEvent':
+            self._cmd_tx_evts.append(evt)
+            if self._no_cmd_tx_evts > 0 and self._no_cmd_tx_evts == len(self._cmd_tx_evts):
+                    self._done_cmd_tx_evts.set()
         
     def on_link_up(self):
         """
@@ -261,25 +283,37 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         Test forwarding of queued commands upon link up.
         """
         
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._no_telem_evts = 2
+        
         for i in range(self._no_requests):
             cmd = self.make_fake_command(i)
             cmd = self.te_client.enqueue_command(cmd)
             self._requests_sent[cmd.command_id] = cmd
         
+        self._done_queue_mod_evts.get(timeout=5)
+        
         self.on_link_up()
         
+        self._done_cmd_tx_evts.get(timeout=5)
         self._done_evt.get(timeout=10)
         
         self.on_link_down()
 
+        self._done_telem_evts.get(timeout=5)
+
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
-
 
     def test_process_online(self):
         """
         Test forwarding commands when the link is up.
         """
+
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._no_telem_evts = 2
         
         self.on_link_up()
         
@@ -289,9 +323,13 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
             self._requests_sent[cmd.command_id] = cmd
             gevent.sleep(.2)
 
+        self._done_queue_mod_evts.get(timeout=5)
+        self._done_cmd_tx_evts.get(timeout=5)
         self._done_evt.get(timeout=10)
         
         self.on_link_down()
+
+        self._done_telem_evts.get(timeout=5)
 
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
@@ -300,6 +338,10 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         """
         Test simulates behavior when the remote side is initially unavailable.
         """
+        
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._no_telem_evts = 2
         
         self.on_link_up()
 
@@ -311,15 +353,19 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
             cmd = self.te_client.enqueue_command(cmd)
             self._requests_sent[cmd.command_id] = cmd
         
+        self._done_queue_mod_evts.get(timeout=5)
 
         gevent.sleep(3)
         
         self._remote_client.start('localhost', self._terrestrial_port)
         self._remote_server.start('*', self._remote_port)
 
+        self._done_cmd_tx_evts.get(timeout=5)
         self._done_evt.get(timeout=10)
         
         self.on_link_down()
+
+        self._done_telem_evts.get(timeout=5)
 
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())

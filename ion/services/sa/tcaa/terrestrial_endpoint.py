@@ -53,6 +53,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         self._tx_dict = {}
         self._event_subscriber = None
         self._server_greenlet = None
+        self._publisher = EventPublisher()
     
     def on_start(self):
         """
@@ -123,13 +124,13 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
             cmd = self._tx_dict.pop(id)
             cmd.time_completed = time.time()
             cmd.result = _result
-            publisher = EventPublisher()
-            publisher.publish_event(event_type='RemoteCommandResult',
+            self._publisher.publish_event(
+                                    event_type='RemoteCommandResult',
                                     command=cmd,
                                     origin=cmd.resource_id)
             log.debug('Published remote result: %s.', str(result))
         except KeyError:
-            log.error('Error publishing remote result: %s.', str(result))
+            log.warning('Error publishing remote result: %s.', str(result))
 
         # If the send queue is empty, publish availability.
         if len(self._client._queue) == 0:
@@ -142,6 +143,10 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         """
         log.debug('Terrestrial client got ack for request: %s', str(request))
         self._tx_dict[request.command_id] = request
+        self._publisher.publish_event(
+                                event_type='RemoteCommandTransmittedEvent',
+                                origin=self._platform_resource_id,
+                                queue_size=len(self._client._queue))        
 
     def _server_close_callback(self):
         """
@@ -181,7 +186,10 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         log.debug('Terrestrial client connecting to %s:%i',
                       self._remote_host, self._remote_port)
         self._client.start(self._remote_host, self._remote_port)
-        
+        self._publisher.publish_event(
+                                event_type='PublicPlatformTelemetryEvent',
+                                origin=self._platform_resource_id,
+                                status=TelemetryStatusType.AVAILABLE)        
 
     def _on_link_down(self):
         """
@@ -189,7 +197,10 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         Stop client socket and publish ION link unavailability.
         """
         self._client.stop()
-        # Publish unavailability.
+        self._publisher.publish_event(
+                                event_type='PublicPlatformTelemetryEvent',
+                                origin=self._platform_resource_id,
+                                status=TelemetryStatusType.UNAVAILABLE)        
         
     def enqueue_command(self, command=None, link=False):
         """
@@ -204,8 +215,12 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         command.time_queued = time.time()
         command.command_id = str(uuid.uuid4())
         self._client.enqueue(command)
+        self._publisher.publish_event(
+                                event_type='RemoteQueueModifiedEvent',
+                                origin=self._platform_resource_id,
+                                queue_size=len(self._client._queue))        
         return command
-
+    
     def get_queue(self, resource_id=''):
         """
         Retrieve the command queue by resource id.
@@ -220,12 +235,16 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         Clear the command queue by resource id.
         Only availabile in offline mode.
         """
-        if self._link_status == TelemetryStatusType.AVAILABLE:
-            popped = []
-        else:
+        popped = []
+        if self._link_status == TelemetryStatusType.UNAVAILABLE:        
             new_queue = [x for x in self._client._queue if x.resource_id != resource_id]
             popped = [x for x in self._client._queue if x.resource_id == resource_id]
             self._client._queue = new_queue
+            self._publisher.publish_event(
+                                event_type='RemoteQueueModifiedEvent',
+                                origin=self._platform_resource_id,
+                                queue_size=len(self._client._queue))        
+            
         return popped
 
     def pop_queue(self, command_id=''):
@@ -234,11 +253,14 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         Only available in offline mode.
         """
         poped = None
-        if self._link_status == TelemetryStatusType.AVAILABLE:
+        if self._link_status == TelemetryStatusType.UNAVAILABLE:
             for x in self._client._queue:
                 if x.command_id == command_id:
                     poped = self._client._queue.pop(x)
-                    break                
+                    self._publisher.publish_event(
+                                event_type='RemoteQueueModifiedEvent',
+                                origin=self._platform_resource_id,
+                                queue_size=len(self._client._queue))        
         return poped
     
     def get_pending(self, resource_id=''):
