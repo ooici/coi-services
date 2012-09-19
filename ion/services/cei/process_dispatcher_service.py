@@ -67,7 +67,12 @@ class ProcessStateGate(EventSubscriber):
             return True
 
         #if the state was not where we want it, wait for the event.
-        return self.gate.wait(timeout)
+        ret = self.gate.wait(timeout)
+
+        #clean up
+        if not ret:
+            self.stop()
+        return ret
 
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
