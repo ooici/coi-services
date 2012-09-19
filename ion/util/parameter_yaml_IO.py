@@ -17,7 +17,7 @@ pdict_as_python_dictionary = pdict.dump()
 '''
 
 from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
+from coverage_model.parameter_types import QuantityType, ArrayType
 from coverage_model.basic_types import AxisTypeEnum
 import yaml
 from pyon.util.log import log
@@ -80,6 +80,26 @@ def build_contexts():
     bin_ctxt.fill_value = 0x0
     contexts.append(bin_ctxt)
 
+    port_ts_ctxt = ParameterContext(name='port_timestamp', param_type=QuantityType(value_encoding=np.float64))
+    port_ts_ctxt._derived_from_name = 'time'
+    port_ts_ctxt.reference_frame = AxisTypeEnum.TIME
+    port_ts_ctxt.uom = 'seconds'
+    port_ts_ctxt.fill_value = np.nan
+    contexts.append(port_ts_ctxt)
+
+    driver_ts_ctxt = ParameterContext(name=t_ctxt, new_name='driver_timestamp', param_type=QuantityType(value_encoding=np.float64))
+    driver_ts_ctxt._derived_from_name = 'time'
+    driver_ts_ctxt.uom = 'seconds'
+    driver_ts_ctxt.fill_value = np.nan
+    contexts.append(driver_ts_ctxt)
+
+    internal_ts_ctxt = ParameterContext(name=t_ctxt, new_name='internal_timestamp', param_type=QuantityType(value_encoding=np.float64))
+    internal_ts_ctxt._derived_from_name = 'time'
+    internal_ts_ctxt.uom = 'seconds'
+    internal_ts_ctxt.fill_value = np.nan
+    contexts.append(internal_ts_ctxt)
+
+    #TODO: Add 'preferred_timestamp', & 'quality_flag' when ArrayType can be transported in a granule
 
     return contexts
 
