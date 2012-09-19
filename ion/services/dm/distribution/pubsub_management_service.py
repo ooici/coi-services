@@ -360,7 +360,7 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.create_association(subject=stream_id, predicate=PRED.hasTopic, object=topic_id)
 
     def _deassociate_stream(self,stream_id):
-        xps, assocs = self.clients.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream,restype=RT.ExchangePoint, id_only=True)
+        xps, assocs = self.clients.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream,subject_type=RT.ExchangePoint, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
         objects, assocs = self.clients.resource_registry.find_objects(subject=stream_id, id_only=True)
