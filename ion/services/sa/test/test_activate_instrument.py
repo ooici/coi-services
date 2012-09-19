@@ -17,12 +17,6 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
-from prototype.sci_data.stream_defs import ctd_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from prototype.sci_data.stream_defs import \
-    ctd_stream_definition, \
-    L0_pressure_stream_definition, L0_temperature_stream_definition, \
-    L0_conductivity_stream_definition
 
 from interface.objects import AgentCommand
 from interface.objects import ProcessDefinition

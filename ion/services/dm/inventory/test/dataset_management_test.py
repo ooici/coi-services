@@ -4,18 +4,13 @@
 @description Unit and Integration test implementations for the data set management service class.
 '''
 import unittest
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from prototype.sci_data.stream_defs import ctd_stream_packet
-from pyon.datastore.datastore import DataStore
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from ion.services.dm.utility.granule_utils import CoverageCraft, SimplexCoverage
 from nose.plugins.attrib import attr
 from mock import Mock, patch
-import random
-import unittest
 
 
 @attr('UNIT',group='dm')

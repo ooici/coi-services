@@ -7,7 +7,6 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from coverage_model.parameter import ParameterDictionary
 

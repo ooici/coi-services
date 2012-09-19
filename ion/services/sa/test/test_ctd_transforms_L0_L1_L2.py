@@ -12,9 +12,6 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule_utils import CoverageCraft
 
-from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
-from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L1_temperature_stream_definition, L1_conductivity_stream_definition, L2_practical_salinity_stream_definition, L2_density_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from pyon.public import log

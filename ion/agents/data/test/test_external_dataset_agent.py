@@ -40,7 +40,6 @@ from pyon.public import IonObject, log
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand, ExternalDatasetAgent, ExternalDatasetAgentInstance
 from interface.objects import ExternalDataProvider, ExternalDataset, DataSource, DataSourceModel, DataProduct

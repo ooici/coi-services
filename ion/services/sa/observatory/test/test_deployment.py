@@ -11,7 +11,6 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent

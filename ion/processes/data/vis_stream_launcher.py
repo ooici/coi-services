@@ -24,14 +24,11 @@ from pyon.ion.process import ImmediateProcess
 from pyon.public import PRED,RT,Container, log, IonObject 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_packet, ctd_stream_definition
 from ion.services.dm.utility.granule_utils import CoverageCraft
 
 #Instrument related imports
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
 from interface.objects import HdfStorage, CouchStorage

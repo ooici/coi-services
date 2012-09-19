@@ -1,7 +1,6 @@
 from pyon.public import Container, log, IonObject
 from interface.objects import CouchStorage, ProcessDefinition
 from pyon.ion.stream import StandaloneStreamSubscriber
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.example_double_salinity import SalinityDoubler
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT

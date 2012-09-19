@@ -10,7 +10,6 @@ from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
@@ -41,8 +40,6 @@ class VizTransformMatplotlibGraphs(TransformFunction):
     """
 
     # Need to extract the incoming stream def automatically
-    outgoing_stream_def = SBE37_RAW_stream_definition()
-    incoming_stream_def = SBE37_CDM_stream_definition()
 
     def __init__(self):
         super(VizTransformMatplotlibGraphs, self).__init__()

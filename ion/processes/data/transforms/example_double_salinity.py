@@ -2,11 +2,8 @@
 @author Stephen Henrie
 @description Example Transform to double salinity
 '''
-from prototype.sci_data.stream_defs import L2_practical_salinity_stream_definition
 from pyon.util.log import log
 from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
-from prototype.sci_data.constructor_apis import PointSupplementConstructor
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
@@ -19,8 +16,6 @@ import numpy, re
 
 class SalinityDoubler(TransformDataProcess):
 
-    outgoing_stream_def = L2_practical_salinity_stream_definition()
-    incoming_stream_def = L2_practical_salinity_stream_definition()
 
     def on_start(self):
 

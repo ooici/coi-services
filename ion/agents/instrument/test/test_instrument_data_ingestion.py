@@ -32,7 +32,6 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 
-from prototype.sci_data.stream_defs import ctd_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase

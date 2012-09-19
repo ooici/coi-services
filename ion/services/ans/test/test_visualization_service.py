@@ -13,8 +13,6 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
 from interface.services.ans.ivisualization_service import VisualizationServiceClient
 
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
-
 
 from pyon.public import log, IonObject, RT
 
@@ -65,8 +63,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
         self.vis_client = VisualizationServiceClient(node=self.container.node)
         self.ingestion_management = IngestionManagementServiceClient(node=self.container.node)
-
-        self.ctd_stream_def = SBE37_CDM_stream_definition()
 
     def validate_messages(self, msgs):
         msg = msgs.body

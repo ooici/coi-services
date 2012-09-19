@@ -9,8 +9,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
-from interface.objects import HdfStorage, CouchStorage, DataProduct, LastUpdate
+from interface.objects import LastUpdate
 
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
@@ -27,7 +26,6 @@ import time
 import numpy as np
 from coverage_model.basic_types import AbstractIdentifiable, AbstractBase, AxisTypeEnum, MutabilityEnum
 from coverage_model.coverage import CRS, GridDomain, GridShape
-from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
@@ -61,8 +59,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # Create the environment
         #------------------------------------------
 
-        datastore_name = CACHE_DATASTORE_NAME
-        self.db = self.container.datastore_manager.get_datastore(datastore_name)
         self.stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM')
 
         self.process_definitions  = {}

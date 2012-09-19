@@ -26,7 +26,6 @@ from ion.agents.platform.platform_agent_launcher import Launcher
 
 from pyon.ion.stream import StandaloneStreamSubscriber
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from ion.agents.platform.test.adhoc import adhoc_get_taxonomy
 from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 
 
@@ -128,10 +127,8 @@ class TestPlatformAgent(IonIntegrationTestCase):
         for stream_name in adhoc_get_stream_names():
             stream_id, route = pubsub_client.create_stream(name=stream_name,exchange_point='science_data')
 
-            taxy = adhoc_get_taxonomy(stream_name)
             stream_config = dict(
                 id=stream_id,
-                taxonomy=taxy.dump()
             )
             self._stream_config[stream_name] = stream_config
 

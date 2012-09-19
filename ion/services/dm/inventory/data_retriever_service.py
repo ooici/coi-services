@@ -6,9 +6,8 @@
 
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 from interface.services.dm.ireplay_process import ReplayProcessClient
-from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
-from prototype.sci_data.constructor_apis import DefinitionTree, StreamDefinitionConstructor
-from pyon.core.exception import BadRequest, NotFound
+from interface.objects import Replay
+from pyon.core.exception import BadRequest
 from pyon.ion.transforma import TransformAlgorithm
 from pyon.util.arg_check import validate_is_instance, validate_true
 from ion.processes.data.replay.replay_process import ReplayProcess

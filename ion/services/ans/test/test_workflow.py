@@ -19,7 +19,6 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
 from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
@@ -58,8 +57,6 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
         self.data_retriever = DataRetrieverServiceClient(node=self.container.node)
-
-        self.ctd_stream_def = SBE37_CDM_stream_definition()
 
 
 

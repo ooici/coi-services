@@ -12,38 +12,14 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
+from ion.util.parameter_yaml_IO import get_param_dict
 
-
-from prototype.sci_data.stream_defs import L0_conductivity_stream_definition
 
 def adhoc_stream_definition():
 # arbitrarily using L0_conductivity_stream_definition for the platform attributes
-    sd = L0_conductivity_stream_definition()
-    sd.stream_resource_id = ''
+    #todo: complete guess if this is right
+    sd = get_param_dict('ctd_param_parsed_dict')
     return sd
-
-
-
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
-
-def adhoc_get_taxonomy(stream_name):
-    """
-    @param stream_name IGNORED in this adhoc function; it returns the same
-                taxonomy definition always.
-    @retval corresponding taxonomy.
-    """
-
-    taxy = TaxyTool()
-    taxy.add_taxonomy_set('value')
-    taxy.add_taxonomy_set('lat','long name for latitude')
-    taxy.add_taxonomy_set('lon','long name for longitude')
-    taxy.add_taxonomy_set('time','long name for time')
-    taxy.add_taxonomy_set('height','long name for height')
-    # This is an example of using groups it is not a normative statement about how to use groups
-    taxy.add_taxonomy_set('coordinates','This group contains coordinates...')
-    taxy.add_taxonomy_set('data','This group contains data...')
-
-    return taxy
 
 
 

@@ -21,19 +21,13 @@ OR...
 # just let the simple ctd publisher create it on its own for simple cases...
 cc.spawn_process(name="viz_data_realtime", module="ion.processes.data.ctd_stream_publisher", cls="SimpleCtdPublisher")
 '''
-from gevent.greenlet import Greenlet
-from pyon.ion.process import StandaloneProcess
 from pyon.public import log
 
 import time
-from uuid import uuid4
 import random
 import math
 
-from prototype.sci_data.stream_defs import ctd_stream_packet, SBE37_CDM_stream_definition, ctd_stream_definition
-from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.granule import build_granule

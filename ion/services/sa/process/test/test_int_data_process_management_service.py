@@ -25,11 +25,8 @@ from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.util.context import LocalContextMixin
 import time
 from pyon.util.int_test import IonIntegrationTestCase
-from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 import gevent
 from interface.objects import HdfStorage, CouchStorage
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from mock import patch

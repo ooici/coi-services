@@ -21,12 +21,8 @@ from coverage_model.basic_types import AxisTypeEnum
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, L2_density_stream_definition
-
 class DensityTransform(TransformDataProcess):
 
-    incoming_stream_def = SBE37_CDM_stream_definition()
-    outgoing_stream_def = L2_density_stream_definition()
 
     ''' A basic transform that receives input through a subscription,
     parses the input from a CTD, extracts the pressure value and scales it according to
