@@ -50,6 +50,8 @@ from ion.services.sa.tcaa.r3pc import R3PCClient
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_process_queued
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_process_online
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_remote_late
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_get_clear_queue
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_pop_pending_queue
 
 class FakeProcess(LocalContextMixin):
     """
@@ -155,24 +157,13 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
         # Start the result subscriber.        
         self._result_subscriber = EventSubscriber(
-            event_type='RemoteCommandResult', origin=self._resource_id,
-                callback=self.recv_remote_result)
+            event_type='RemoteCommandResult',
+            origin=self._resource_id,
+            callback=self.consume_event)
         self._result_subscriber.start()
         self._result_subscriber._ready_event.wait(timeout=5)
         self.addCleanup(self._result_subscriber.stop)
-
-        self._got_event = AsyncResult()    
-    
-    def recv_remote_result(self, evt, *args, **kwargs):
-        """
-        Subscriber callback to receive remote results.
-        """
-        cmd = evt.command
-        log.debug('Test got remote result: %s', str(cmd))
-        self._results_recv[cmd.command_id] = cmd    
-        if len(self._results_recv) == self._no_requests:
-            self._done_evt.set()
-    
+ 
     def consume_event(self, evt, *args, **kwargs):
         """
         Test callback for events.
@@ -194,6 +185,12 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
             if self._no_cmd_tx_evts > 0 and self._no_cmd_tx_evts == len(self._cmd_tx_evts):
                     self._done_cmd_tx_evts.set()
         
+        elif evt.type_ == 'RemoteCommandResult':
+            cmd = evt.command
+            self._results_recv[cmd.command_id] = cmd
+            if len(self._results_recv) == self._no_requests:
+                self._done_evt.set()
+            
     def on_link_up(self):
         """
         Called by a test to simulate turning the link on.
@@ -297,8 +294,12 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self.on_link_up()
         
         self._done_cmd_tx_evts.get(timeout=5)
+                
         self._done_evt.get(timeout=10)
-        
+
+        pending = self.te_client.get_pending()
+        self.assertEqual(len(pending), 0)
+                
         self.on_link_down()
 
         self._done_telem_evts.get(timeout=5)
@@ -326,6 +327,9 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._done_queue_mod_evts.get(timeout=5)
         self._done_cmd_tx_evts.get(timeout=5)
         self._done_evt.get(timeout=10)
+        
+        pending = self.te_client.get_pending()
+        self.assertEqual(len(pending), 0)
         
         self.on_link_down()
 
@@ -363,9 +367,183 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._done_cmd_tx_evts.get(timeout=5)
         self._done_evt.get(timeout=10)
         
+        pending = self.te_client.get_pending()
+        self.assertEqual(len(pending), 0)
+
         self.on_link_down()
 
         self._done_telem_evts.get(timeout=5)
 
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
+
+    def test_get_clear_queue(self):
+        """
+        Test endpoint queue get and clear manipulators.
+        """
+        
+        # Set up for events expected.
+        self._no_queue_mod_evts = self._no_requests
+
+        # Queue commands.        
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+        
+        # Confirm queue mod events.
+        self._done_queue_mod_evts.get(timeout=5)
+        
+        # Confirm get queue with no id.
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(queue), self._no_requests)
+
+        # Confirm get queue with id.
+        queue = self.te_client.get_queue(self._resource_id)
+        self.assertEqual(len(queue), self._no_requests)
+
+        # Confirm get queue with bogus id.
+        queue = self.te_client.get_queue('bogus_id')        
+        self.assertEqual(len(queue), 0)
+
+        # Reset queue mod expected events.        
+        self._queue_mod_evts = []
+        self._no_queue_mod_evts = 1
+        self._done_queue_mod_evts = AsyncResult()
+
+        # Clear queue with no id.        
+        poped = self.te_client.clear_queue()
+    
+        # Confirm queue mod event and mods.
+        self._done_queue_mod_evts.get(timeout=5)
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(poped), self._no_requests)
+        self.assertEqual(len(queue), 0)
+
+        # Queue new commands and confirm event.       
+        self._queue_mod_evts = []
+        self._no_queue_mod_evts = self._no_requests
+        self._done_queue_mod_evts = AsyncResult()
+        
+        self._requests_sent = {}
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+        
+        self._done_queue_mod_evts.get(timeout=5)
+
+        # Reset queue mod expected events.
+        self._queue_mod_evts = []
+        self._no_queue_mod_evts = 1
+        self._done_queue_mod_evts = AsyncResult()
+
+        # Clear queue with id.
+        poped = self.te_client.clear_queue(self._resource_id)
+    
+        # Confirm mods and mod events.
+        self._done_queue_mod_evts.get(timeout=5)
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(poped), self._no_requests)
+        self.assertEqual(len(queue), 0)
+
+        # Queue new commands and confirm events.        
+        self._queue_mod_evts = []
+        self._no_queue_mod_evts = self._no_requests
+        self._done_queue_mod_evts = AsyncResult()
+        
+        self._requests_sent = {}
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+        
+        self._done_queue_mod_evts.get(timeout=5)
+        
+        # Clear queue with bogus id.
+        poped = self.te_client.clear_queue('bogus id')
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(poped), 0)
+        self.assertEqual(len(queue), self._no_requests)
+        
+        # Clear queue and confirm empty.
+        self.te_client.clear_queue()
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(queue), 0)
+        
+        # Turn on link and wait a few seconds.
+        # Confirm no data or tx events arrive.
+        self.on_link_up()
+
+        gevent.sleep(2)
+        self.assertEqual(len(self._cmd_tx_evts), 0)
+        self.assertEqual(len(self._results_recv), 0)
+        
+        self._no_telem_evts = 2
+
+        self.on_link_down()
+        
+        self._done_telem_evts.get(timeout=5)
+                
+        
+    def test_pop_pending_queue(self):
+        """
+        Test endpoint queue pop manipulators.
+        """
+        
+        # Set up for events expected.
+        self._no_queue_mod_evts = self._no_requests
+
+        # Queue commands.        
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+        
+        # Confirm queue mod events.
+        self._done_queue_mod_evts.get(timeout=5)
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(queue), self._no_requests)
+
+        # Pop a few commands from the queue, confirm events.
+        self._queue_mod_evts = []
+        self._no_queue_mod_evts = 3
+        self._done_queue_mod_evts = AsyncResult()
+
+        cmd_ids = self._requests_sent.keys()[:3]
+        poped = []
+        for x in cmd_ids:
+            poped.append(self.te_client.pop_queue(x))
+            self._requests_sent.pop(x)
+            
+        # Try poping with illegal args. This should have no effect
+        poped.append(self.te_client.pop_queue())
+        poped.append(self.te_client.pop_queue('bogus id'))
+        poped = [x for x in poped if x != None]
+        
+        self._done_queue_mod_evts.get(timeout=5)
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(poped), 3)
+        self.assertEqual(len(queue), self._no_requests - 3)
+        
+        # Turn on the link and verify that only the remaining commands
+        # get processed.
+        
+        self._no_telem_evts = 2
+        self._no_requests = self._no_requests - 3
+        self._no_cmd_tx_evts = self._no_requests
+        
+        self.on_link_up()
+        self._done_cmd_tx_evts.get(timeout=5)
+        
+        self._done_evt.get(timeout=10)
+        
+        self.on_link_down()
+        self._done_telem_evts.get(timeout=5)
+
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
+        
+        
+        pending = self.te_client.get_pending()
+        self.assertEqual(len(pending), 0)        

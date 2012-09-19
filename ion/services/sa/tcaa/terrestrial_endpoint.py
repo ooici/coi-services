@@ -16,6 +16,10 @@ from pyon.public import CFG
 import uuid
 import time
 
+# Pyon exceptions.
+from pyon.core.exception import BadRequest
+from pyon.core.exception import Conflict
+
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.objects import TelemetryStatusType, RemoteCommand
 
@@ -131,16 +135,14 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
             log.debug('Published remote result: %s.', str(result))
         except KeyError:
             log.warning('Error publishing remote result: %s.', str(result))
-
-        # If the send queue is empty, publish availability.
-        if len(self._client._queue) == 0:
-            pass
     
     def _ack_callback(self, request):
         """
         Terrestrial client callback for command transmission acks.
         Insert command into pending command dictionary.
         """
+        log.debug('#######################################################')
+        log.debug('%s   %s',request.command, request.command_id)
         log.debug('Terrestrial client got ack for request: %s', str(request))
         self._tx_dict[request.command_id] = request
         self._publisher.publish_event(
@@ -228,7 +230,9 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         if resource_id == '':
             result = list(self._client._queue)
         else:
-            [x for x in self._client._queue if x.resource_id == resource_id]
+            result = [x for x in self._client._queue if x.resource_id == resource_id]
+
+        return result
 
     def clear_queue(self, resource_id=''):
         """
@@ -236,11 +240,17 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         Only availabile in offline mode.
         """
         popped = []
-        if self._link_status == TelemetryStatusType.UNAVAILABLE:        
-            new_queue = [x for x in self._client._queue if x.resource_id != resource_id]
-            popped = [x for x in self._client._queue if x.resource_id == resource_id]
+        if self._link_status == TelemetryStatusType.UNAVAILABLE:
+            if resource_id == '':
+                new_queue = []
+                popped = self._client._queue
+            else:
+                new_queue = [x for x in self._client._queue if x.resource_id != resource_id]
+                popped = [x for x in self._client._queue if x.resource_id == resource_id]
+                
             self._client._queue = new_queue
-            self._publisher.publish_event(
+            if len(popped)>0:
+                self._publisher.publish_event(
                                 event_type='RemoteQueueModifiedEvent',
                                 origin=self._platform_resource_id,
                                 queue_size=len(self._client._queue))        
@@ -254,13 +264,15 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         """
         poped = None
         if self._link_status == TelemetryStatusType.UNAVAILABLE:
-            for x in self._client._queue:
-                if x.command_id == command_id:
+            for x in range(len(self._client._queue)):
+                if self._client._queue[x].command_id == command_id:
                     poped = self._client._queue.pop(x)
                     self._publisher.publish_event(
                                 event_type='RemoteQueueModifiedEvent',
                                 origin=self._platform_resource_id,
-                                queue_size=len(self._client._queue))        
+                                queue_size=len(self._client._queue))
+                    break
+                    
         return poped
     
     def get_pending(self, resource_id=''):
@@ -275,6 +287,22 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
             for (key,val) in self._tx_dict.iteritems():
                 if val.resource_id == resource_id:
                     pending.append(val)
+        return pending
+
+    def clear_pending(self, resource_id=''):
+        """
+        Clear pending commands by resource id.
+        """
+        if resource_id == '':
+            pending = self._tx_dict.values()
+            self._tx_dict = {}
+            
+        else:
+            pending = []
+            for (key,val) in self._tx_dict.iteritems():
+                if val.resource_id == resource_id:
+                    pending.append(val)
+                    self._tx_dict.pop(key)
         return pending
 
     def get_port(self):
