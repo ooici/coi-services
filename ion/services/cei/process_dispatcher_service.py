@@ -13,6 +13,8 @@ from pyon.core.exception import NotFound, BadRequest, ServerError
 from pyon.util.containers import create_valid_identifier
 from pyon.event.event import EventPublisher
 from pyon.core import bootstrap
+from pyon.event.event import EventSubscriber
+from gevent import event as gevent_event
 
 try:
     from epu.processdispatcher.core import ProcessDispatcherCore
@@ -32,6 +34,40 @@ from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
 from interface.objects import ProcessStateEnum, Process, ProcessDefinition,\
     ProcessQueueingMode, ProcessRestartMode, ProcessTarget, ProcessSchedule
+
+
+class ProcessStateGate(EventSubscriber):
+    """
+    Ensure that we get a particular state, now or in the future.
+    """
+    def __init__(self, process_id='', desired_state=None, read_process_fn=None, *args, **kwargs):
+        EventSubscriber.__init__(self, *args, callback=self.trigger_cb, **kwargs)
+
+        self.desired_state = desired_state
+        self.process_id = process_id
+        self.read_process_fn = read_process_fn
+
+        #sanity check
+        self.read_process_fn(self.process_id)
+
+    def trigger_cb(self, event, x):
+        if event == self.desired_state:
+            self.stop()
+            self.gate.set()
+
+    def await(self, timeout=0):
+        #set up the event gate so that we don't miss any events
+        self.gate = gevent_event.Event()
+        self.start()
+
+        #check on the process as it exists right now... if it's in the desired state, return immediately
+        process_obj = self.read_process_fn(self.process_id)
+        if self.desired_state == process_obj.process_state:
+            self.stop()
+            return True
+
+        #if the state was not where we want it, wait for the event.
+        return self.gate.wait(timeout)
 
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
@@ -249,6 +285,20 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         @retval processes    list
         """
         return self.backend.list()
+
+    def await_process_state(self, process_id='', state=None, timeout=0):
+        """
+        Wait for a given process to reach a given state, within a given timeout.
+
+        The function returns True immediately upon reaching the desired state, or False if the timeout is reached.
+        This function avoids a race condition between read_process and using EventGate.
+
+        @retval state_reached boolean
+        """
+
+        gate = ProcessStateGate(process_id, state, self.read_process)
+        return gate.await(timeout)
+
 
 
 class PDDashiHandler(object):
