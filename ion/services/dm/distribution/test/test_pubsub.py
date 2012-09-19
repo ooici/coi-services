@@ -60,6 +60,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
     def test_stream_crud(self):
         stream_def_id = self.pubsub_management.create_stream_definition('test_definition', parameter_dictionary={1:1}, stream_type='stream')
         topic_id = self.pubsub_management.create_topic(name='test_topic', exchange_point='test_exchange')
+        self.exchange_cleanup.append('test_exchange')
         topic2_id = self.pubsub_management.create_topic(name='another_topic', exchange_point='outside')
         stream_id, route = self.pubsub_management.create_stream(name='test_stream', topic_ids=[topic_id, topic2_id], exchange_point='test_exchange', stream_definition_id=stream_def_id)
 
@@ -91,6 +92,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('test_definition', parameter_dictionary={1:1}, stream_type='stream')
         stream_id, route = self.pubsub_management.create_stream(name='test_stream', exchange_point='test_exchange', stream_definition_id=stream_def_id)
         subscription_id = self.pubsub_management.create_subscription(name='test subscription', stream_ids=[stream_id], exchange_name='test_queue')
+        self.exchange_cleanup.append('test_exchange')
 
         subs, assocs = self.resource_registry.find_objects(subject=subscription_id,predicate=PRED.hasStream,id_only=True)
         self.assertEquals(subs,[stream_id])
@@ -109,6 +111,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
     def test_topic_crud(self):
 
         topic_id = self.pubsub_management.create_topic(name='test_topic', exchange_point='test_xp')
+        self.exchange_cleanup.append('test_xp')
 
         topic = self.pubsub_management.read_topic(topic_id)
 

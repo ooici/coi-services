@@ -189,7 +189,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_agent_instance.update_one(instrument_agent_instance)
 
-
     def read_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
         fetch a resource by ID
@@ -213,67 +212,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
 
         return
-
-    # TODO: TEMP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    def _create_parameter(self, name):
-
-        pdict = ParameterDictionary()
-
-        pdict = self._add_location_time_ctxt(pdict)
-
-        if name == 'ctd':
-            cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.float32))
-            cond_ctxt.uom = 'unknown'
-            cond_ctxt.fill_value = 0e0
-            pdict.add_context(cond_ctxt)
-
-            pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.float32))
-            pres_ctxt.uom = 'Pascal'
-            pres_ctxt.fill_value = 0x0
-            pdict.add_context(pres_ctxt)
-
-            temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
-            temp_ctxt.uom = 'degree_Celsius'
-            temp_ctxt.fill_value = 0e0
-            pdict.add_context(temp_ctxt)
-
-        elif name == "raw":
-            raw_ctxt = ParameterContext('raw', param_type=QuantityType(value_encoding=np.int64))
-            raw_ctxt.reference_frame = 'unknown'
-            raw_ctxt.uom = 'bytes'
-            raw_ctxt.fill_value = 0e0
-            pdict.add_context(raw_ctxt)
-
-        return pdict
-
-    # TODO: TEMP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    def _add_location_time_ctxt(self, pdict):
-
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 1970-01-01'
-        t_ctxt.fill_value = 0x0
-        pdict.add_context(t_ctxt)
-
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
-        lat_ctxt.reference_frame = AxisTypeEnum.LAT
-        lat_ctxt.uom = 'degree_north'
-        lat_ctxt.fill_value = 0e0
-        pdict.add_context(lat_ctxt)
-
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
-        lon_ctxt.reference_frame = AxisTypeEnum.LON
-        lon_ctxt.uom = 'degree_east'
-        lon_ctxt.fill_value = 0e0
-        pdict.add_context(lon_ctxt)
-
-        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
-        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        depth_ctxt.uom = 'meters'
-        depth_ctxt.fill_value = 0e0
-        pdict.add_context(depth_ctxt)
-
-        return pdict
 
 
     def validate_instrument_agent_instance(self, instrument_agent_instance_obj):
@@ -664,6 +602,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent.read_one(instrument_agent_id)
 
 
+        #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
+        cfg_host        = self.CFG.get_safe("service.instrument_management.driver_release_host", None)
+        cfg_remotepath  = self.CFG.get_safe("service.instrument_management.driver_release_directory", None)
+        cfg_user        = self.CFG.get_safe("service.instrument_management.driver_release_user",
+                                            pwd.getpwuid(os.getuid())[0])
+
+        if cfg_host is None or cfg_remotepath is None:
+            raise BadRequest("Missing configuration items for host and directory -- destination of driver release")
+
         #process the input files (base64-encoded zips)
         qa_zip_obj  = zip_of_b64(qa_documents, "qa_documents")
         egg_zip_obj = zip_of_b64(agent_egg, "agent_egg")
@@ -713,7 +660,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #determine egg name
         egg_filename = "%s-%s-py2.7.egg" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
-        log.debug("Egg filename is '%s'" % egg_filename)
+        log.info("Egg filename is '%s'" % egg_filename)
 
         egg_url = "http://%s%s/%s" % (CFG.service.instrument_management.driver_release_host,
                                       CFG.service.instrument_management.driver_release_directory,
@@ -753,14 +700,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         
 
         #move output egg to another directory / upload it somewhere
-
-        cfg_host        = CFG.service.instrument_management.driver_release_host      #'amoeaba.ucsd.edu'
-        cfg_remotepath  = CFG.service.instrument_management.driver_release_directory #'/var/www/release'
-        cfg_user        = pwd.getpwuid(os.getuid())[0]
-
-        #allow overriding of user with config variable
-        if "driver_release_user" in CFG.service.instrument_management:
-            cfg_user = CFG.service.instrument_management.driver_release_user
 
         log.debug("creating tempfile for egg output")
         f_handle, tempfilename = tempfile.mkstemp()
@@ -889,7 +828,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.instrument_device.update_one(instrument_device)
 
-
     def read_instrument_device(self, instrument_device_id=''):
         """
         fetch a resource by ID
@@ -973,12 +911,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.read_platform_agent(platform_agent_id)
         self.read_platform_device(platform_device_id)
 
-        platform_agent_instance_id = self.instrument_agent_instance.create_one(platform_agent_instance)
+        platform_agent_instance_id = self.platform_agent_instance.create_one(platform_agent_instance)
 
         self.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
 
         self.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
-        log.debug("create_platform_agent_instance: device %s now connected to platform agent instance %s ", str(platform_device_id),  str(platform_agent_instance_id))
+        log.debug("create_platform_agent_instance: device %s now connected to platform agent instance %s ",
+                  str(platform_device_id),
+                  str(platform_agent_instance_id))
 
         return platform_agent_instance_id
 
@@ -991,7 +931,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
         return self.platform_agent_instance.update_one(platform_agent_instance)
-
 
     def read_platform_agent_instance(self, platform_agent_instance_id=''):
         """
@@ -1164,7 +1103,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return platform_agent_id
 
-
     def update_platform_agent(self, platform_agent=None):
         """
         update an existing instance
@@ -1175,7 +1113,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.platform_agent.update_one(platform_agent)
-
 
     def read_platform_agent(self, platform_agent_id=''):
         """
@@ -1226,7 +1163,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.platform_model.update_one(platform_model)
 
-
     def read_platform_model(self, platform_model_id=''):
         """
         fetch a resource by ID
@@ -1276,7 +1212,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.platform_device.update_one(platform_device)
-
 
     def read_platform_device(self, platform_device_id=''):
         """
@@ -1329,7 +1264,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         return self.sensor_model.update_one(sensor_model)
 
-
     def read_sensor_model(self, sensor_model_id=''):
         """
         fetch a resource by ID
@@ -1358,7 +1292,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##########################################################################
 
 
-
     def create_sensor_device(self, sensor_device=None):
         """
         create a new instance
@@ -1379,7 +1312,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         return self.sensor_device.update_one(sensor_device)
-
 
     def read_sensor_device(self, sensor_device_id=''):
         """
