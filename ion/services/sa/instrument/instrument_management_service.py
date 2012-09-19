@@ -911,12 +911,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.read_platform_agent(platform_agent_id)
         self.read_platform_device(platform_device_id)
 
-        platform_agent_instance_id = self.instrument_agent_instance.create_one(platform_agent_instance)
+        platform_agent_instance_id = self.platform_agent_instance.create_one(platform_agent_instance)
 
         self.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
 
         self.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
-        log.debug("create_platform_agent_instance: device %s now connected to platform agent instance %s ", str(platform_device_id),  str(platform_agent_instance_id))
+        log.debug("create_platform_agent_instance: device %s now connected to platform agent instance %s ",
+                  str(platform_device_id),
+                  str(platform_agent_instance_id))
 
         return platform_agent_instance_id
 
