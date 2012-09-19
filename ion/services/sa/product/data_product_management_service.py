@@ -444,11 +444,15 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         pass
 
-    def get_earliest_data_datetime(self, data_product_id=''):
-        # Returns the datetime of the earliest values in the data product
+    def get_data_datetime(self, data_product_id=''):
+        # Returns a temporal bounds object of the span of data product life span (may exist without getting a granule)
 
         pass
 
+    def get_data_ingestion_datetime(self, data_product_id=''):
+        # Returns a temporal bounds object of the earliest/most recent values ingested into in the data product
+
+        pass
 
     def get_product_download_size_estimated(self, data_product_id=''):
         # Returns the size of the full data product if downloaded/presented in a given presentation form
@@ -498,6 +502,11 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def get_descriptors(self, data_product_id=''):
         # Returns a list of keyword/authority pairs with optional urls
+
+        pass
+
+    def get_active_user_subscriptions(self, data_product_id=''):
+        # The UserSubscription objects for this data product
 
         pass
 

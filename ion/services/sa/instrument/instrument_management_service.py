@@ -1821,7 +1821,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return ret
 
 
-    def get_last_data_received_time(self, instrument_device_id):
+    def get_last_data_received_datetime(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 42.2 #todo: use ia_client
