@@ -74,6 +74,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
+@unittest.skip("need adjustments")
 @attr('INT', group='sa')
 class TestPlatformAgent(IonIntegrationTestCase):
 
