@@ -377,16 +377,13 @@ class PlatformAgent(ResourceAgent):
 
         @param subplatform_id Platform ID
         """
-        log.debug("%r: _launch_platform_agent: subplatform_id=%s",
-            self._platform_id, subplatform_id)
-
         agent_config = {
             'agent':            {'resource_id': subplatform_id},
             'stream_config':    self.CFG.stream_config,
             'test_mode':        True
         }
 
-        log.debug("%r: launching sub-platform agent: pid=%s",
+        log.debug("%r: launching sub-platform agent %s",
             self._platform_id, subplatform_id)
         pid = self._launcher.launch(subplatform_id, agent_config)
 
@@ -479,6 +476,11 @@ class PlatformAgent(ResourceAgent):
         @param expected_state
         """
         subplatform_ids = self._plat_driver.get_subplatform_ids()
+        assert subplatform_ids == self._pa_clients.keys()
+
+        if not len(subplatform_ids):
+            # I'm a leaf.
+            return
 
         if command:
             log.debug("%r: executing command %r on my sub-platforms: %s",
@@ -486,8 +488,6 @@ class PlatformAgent(ResourceAgent):
         else:
             log.debug("%r: executing command on my sub-platforms: %s",
                         self._platform_id, str(subplatform_ids))
-
-        assert subplatform_ids == self._pa_clients.keys()
 
         #
         # TODO what to do if a sub-platform fails in some way?

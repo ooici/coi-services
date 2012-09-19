@@ -12,6 +12,8 @@ __license__ = 'Apache 2.0'
 from ion.agents.platform.platform_agent_launcher import Launcher
 from pyon.util.int_test import IonIntegrationTestCase
 
+from gevent import sleep
+
 from nose.plugins.attrib import attr
 
 
@@ -31,4 +33,8 @@ class Test(IonIntegrationTestCase):
             'stream_config' : {}
         }
 
-        launcher.launch(platform_id, agent_config)
+        pid = launcher.launch(platform_id, agent_config)
+
+        sleep(2)
+
+        launcher.cancel_process(pid)

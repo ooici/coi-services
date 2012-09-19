@@ -80,21 +80,44 @@ class Launcher(object):
         }
         pdef_id = self._pd_client.create_process_definition(process_definition=pdef)
 
-        pid = self._pd_client.create_process(process_definition_id=pdef_id)
+        if True:  # True => using schedule_process directly
+            #
+            # the following more closely reflects the mechanism in
+            # test_oms_launch (which seems to be running consistently ok on
+            # coi_pycc)
+            #
+            log.debug("using schedule_process directly %r", platform_id)
 
-        log.debug("calling schedule_process: pid=%s", str(pid))
-        self._pd_client.schedule_process(process_definition_id=pdef_id,
-                                         process_id=pid,
-                                         configuration=agent_config)
+            pid = self._pd_client.schedule_process(process_definition_id=pdef_id,
+                                             schedule=None,
+                                             configuration=agent_config)
+
+        else:  # False => use create_process then schedule_process
+            #
+            # the following always works fine locally, but not on coi_pycc
+            #
+            log.debug("using create_process %r", platform_id)
+
+            pid = self._pd_client.create_process(process_definition_id=pdef_id)
+
+            self._pd_client.schedule_process(process_definition_id=pdef_id,
+                                             process_id=pid,
+                                             configuration=agent_config)
+
 
         if timeout_spawn:
             gate = ProcessStateGate(self._pd_client, pid, ProcessStateEnum.SPAWN)
+            msg = None
             try:
-                gate.await(timeout_spawn)
+                if not gate.await(timeout_spawn):
+                    msg = "The platform agent instance did not spawn in %s seconds" %\
+                          timeout_spawn
+                    log.error(msg)
             except:
-                msg = "The platform agent instance did not spawn in %s seconds" %\
-                      timeout_spawn
+                msg = "Exception while waiting for platform agent instance " \
+                      "to spawn in %s seconds" % timeout_spawn
                 log.error(msg, exc_Info=True)
+            if msg:
                 raise PlatformException(msg)
 
         return pid
