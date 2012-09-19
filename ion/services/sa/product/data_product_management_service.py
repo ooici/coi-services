@@ -500,3 +500,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Returns a list of keyword/authority pairs with optional urls
 
         pass
+
+    def get_past_user_subscriptions(self, data_product_id=''):
+        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
+
+        pass
