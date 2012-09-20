@@ -148,8 +148,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.firmware_version.status)
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
-                         extended_instrument.computed.last_data_received_time.status)
-        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.operational_state.status)
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.last_command_status.status)
