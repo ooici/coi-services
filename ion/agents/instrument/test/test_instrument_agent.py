@@ -650,7 +650,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
             
-        self._async_event_result.get(timeout=2)
+        self._async_event_result.get(timeout=10)
         self.assertEquals(len(self._events_received), 8)
             
     def test_get_set(self):
