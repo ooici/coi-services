@@ -301,32 +301,35 @@ class TestContainerExchangeToEms(IonIntegrationTestCase):
 
         # we want the ex manager to do its thing, but without actual calls to broker
         # just mock out the transport
-        self.container.ex_manager._transport = Mock(BaseTransport)
+        self.container.ex_manager._priviledged_transport = Mock(BaseTransport)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Test reaches into container, doesn\'t work with CEI')
-    @patch.dict('pyon.ion.exchange.CFG', container=DotDict(CFG.container, exchange=DotDict(auto_register=True)))
     def test_create_xs_talks_to_ems(self):
+        self.patch_cfg('pyon.ion.exchange.CFG', container=DotDict(CFG.container, exchange=DotDict(auto_register=True)))
 
-        self.container.ex_manager.create_xs('house')
+        xs = self.container.ex_manager.create_xs('house')
+        self.addCleanup(xs.delete)
 
         # should have called EMS and set RR items
         res, _ = self.rr.find_resources(RT.ExchangeSpace, name='house')
         self.assertEquals(res[0].name, 'house')
 
         # should have tried to call broker as well
-        self.assertEquals(self.container.ex_manager._transport.declare_exchange_impl.call_count, 1)
-        self.assertIn('house', self.container.ex_manager._transport.declare_exchange_impl.call_args[0][1])
+        self.assertEquals(self.container.ex_manager._priviledged_transport.declare_exchange_impl.call_count, 1)
+        self.assertIn('house', self.container.ex_manager._priviledged_transport.declare_exchange_impl.call_args[0][0])
 
-    @unittest.skip("Test does not work because cleanup method in int tests to destroy ex_manager objects doesn't get patched")
     @patch.dict('pyon.ion.exchange.CFG', container=DotDict(CFG.container, exchange=DotDict(auto_register=False)))
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Test reaches into container, doesn\'t work with CEI')
     def test_create_xs_with_no_flag_only_uses_ex_manager(self):
+        self.patch_cfg('pyon.ion.exchange.CFG', container=DotDict(CFG.container, exchange=DotDict(auto_register=False)))
 
-        self.container.ex_manager.create_xs('house')
+        xs = self.container.ex_manager.create_xs('house')
+        self.addCleanup(xs.delete)
+
         e1,e2 = self.rr.find_resources(RT.ExchangeSpace, name='house')
         self.assertEquals(e1, [])
         self.assertEquals(e2, [])
-        self.assertEquals(self.container.ex_manager._transport.declare_exchange_impl.call_count, 1)
-        self.assertIn('house', self.container.ex_manager._transport.declare_exchange_impl.call_args[0][1])
+        self.assertEquals(self.container.ex_manager._priviledged_transport.declare_exchange_impl.call_count, 1)
+        self.assertIn('house', self.container.ex_manager._priviledged_transport.declare_exchange_impl.call_args[0][0])
 
