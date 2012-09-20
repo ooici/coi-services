@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
 '''
-@package pyon.ion.granule.test.test_taxonomy
-@file pyon/ion/granule/test/test_taxonomy.py
 @author David Stuebe
 @author Tim Giguere
 @brief https://confluence.oceanobservatories.org/display/CIDev/R2+Construction+Data+Model
@@ -11,7 +9,7 @@
 
 import unittest
 from nose.plugins.attrib import attr
-from pyon.ion.granule.taxonomy import Taxonomy, TaxyTool
+from ion.services.dm.utility.granule.taxonomy import Taxonomy, TaxyTool
 
 @attr('UNIT', group='dm')
 class TaxonomyToolTestCase(unittest.TestCase):
