@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
 '''
-@package pyon.ion.granule.test.test_record_dictionary
-@file pyon/ion/granule/test/test_record_dictionary.py
 @author David Stuebe
 @author Tim Giguere
 @brief https://confluence.oceanobservatories.org/display/CIDev/R2+Construction+Data+Model
