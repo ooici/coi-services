@@ -69,7 +69,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
     def validate_messages(self, msgs):
-        msg = msgs.body
+        msg = msgs
 
 
         rdt = RecordDictionaryTool.load_from_granule(msg.body)

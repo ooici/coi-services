@@ -795,7 +795,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
     def test_user_search(self):
         user = UserInfo()
         user.name = 'test'
-        user.contact.phone = '5551212'
+        user.contact.phones.append('5551212')
 
         user_id, _ = self.rr.create(user)
 
@@ -808,7 +808,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == user_id)
         self.assertTrue(results[0]['_source'].name == 'test')
 
-        search_string = 'search "contact.phone" is "5551212" from "users_index"'
+        search_string = 'search "contact.phones" is "5551212" from "users_index"'
         results = self.poll(9, self.discovery.parse,search_string)
 
         self.assertIsNotNone(results, 'Results not found')
