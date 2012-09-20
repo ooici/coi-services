@@ -130,15 +130,21 @@ class RecordDictionaryTool(object):
 
     def iteritems(self):
         """ D.iteritems() -> an iterator over the (key, value) items of D """
-        return self._rd.iteritems()
+        for k,v in self._rd.iteritems():
+            if v is not None:
+                yield k,v
 
     def iterkeys(self):
         """ D.iterkeys() -> an iterator over the keys of D """
-        return self._rd.iterkeys()
+        for k,v in self._rd.iteritems():
+            if v is not None:
+                yield k
 
     def itervalues(self):
         """ D.itervalues() -> an iterator over the values of D """
-        return self._rd.itervalues()
+        for k,v in self._rd.iteritems():
+            if v is not None:
+                yield v
 
     def __contains__(self, key):
         """ D.__contains__(k) -> True if D has a key k, else False """
@@ -156,7 +162,10 @@ class RecordDictionaryTool(object):
 
     def __len__(self):
         """ x.__len__() <==> len(x) """
-        pass
+        if self._shp is None:
+            return 0
+        else:
+            return self._shp[0]
 
     def __repr__(self):
         """ x.__repr__() <==> repr(x) """
