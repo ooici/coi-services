@@ -8,11 +8,14 @@
 @brief https://confluence.oceanobservatories.org/display/CIDev/R2+Construction+Data+Model
 '''
 
-import StringIO
-from ion.services.dm.utility.granule.taxonomy import TaxyTool, Taxonomy
+from pyon.core.exception import BadRequest
 from coverage_model.parameter import ParameterDictionary
+from coverage_model.parameter_values import get_value_class, AbstractParameterValue
+from coverage_model.coverage import SimpleDomainSet
 from pyon.util.log import log
-import numpy
+from pyon.util.arg_check import validate_equal
+from interface.objects import Granule
+import numpy as np
 
 _NoneType = type(None)
 class RecordDictionaryTool(object):
@@ -26,279 +29,141 @@ class RecordDictionaryTool(object):
     The application user refers to everything in the record dictionary by the unique nick name from the taxonomy.
 
     """
-    def __init__(self, taxonomy=None, param_dictionary=None, shape=None):
+
+    _rd          = None
+    _pdict       = None
+    _shp         = None
+    _locator     = None
+
+    def __init__(self,param_dictionary=None, locator=None):
         """
         @brief Initialize a new instance of Record Dictionary Tool with a taxonomy and an optional fixed length
         @param taxonomy is an instance of a TaxonomyTool or Taxonomy (IonObject) used in this record dictionary
         @param length is an optional fixed length for the value sequences of this record dictionary
         """
-        if not isinstance(shape, (_NoneType, int, tuple)):
-            raise TypeError('Invalid shape argument, received type "%s"; should be None or int or tuple' % type(shape))
-
-
-        self._rd = {}
-        self._shp = shape
-
-        if isinstance(self._shp, int):
-            self._shp = (self._shp,)
-
-        # hold onto the taxonomy - we need it to build the granule...
-
-        #Eventually Taxonomy and TaxyTool will go away, to be replaced with ParameterDictionary from coverage-model
-        #For now, keep Taxonomy stuff in until everyone can re-work their code.
-        if param_dictionary:
-            self._param_dict = param_dictionary
-            self._tx = None
-        elif isinstance(taxonomy, TaxyTool):
-            self._tx = taxonomy
-            self._param_dict = None
-        elif isinstance(taxonomy, Taxonomy):
-            self._tx = TaxyTool(taxonomy)
-            self._param_dict = None
+        if type(param_dictionary) == dict:
+            self._pdict = ParameterDictionary.load(param_dictionary)
+        elif isinstance(param_dictionary,ParameterDictionary):
+            self._pdict = param_dictionary
         else:
-            raise TypeError('Invalid taxonomy argument, received type "%s"; should be ParameterDictionary, Taxonomy or TaxyTool' % type(taxonomy))
+            raise BadRequest('Unable to create record dictionary with improper ParameterDictionary')
+        self._shp = None
+        self._rd = {}
+        self._locator = locator
+
+        self._setup_params()
 
     @classmethod
     def load_from_granule(cls, g):
-        """
-        @brief return an instance of Record Dictionary Tool from a granule. Used when a granule is received in a message
-        """
-        if g.param_dictionary:
-            result = cls(param_dictionary=ParameterDictionary.load(g.param_dictionary))
+        instance = cls(param_dictionary=g.param_dictionary, locator=g.locator)
+        instance._shp = g.domain['shape']
+        instance._pdict = ParameterDictionary.load(g.param_dictionary)
+        for k,v in g.record_dictionary.iteritems():
+            if v is not None:
+                g.record_dictionary[k]['domain_set'] = g.domain
+                ptype = instance._pdict.get_context(k).param_type
+                g.record_dictionary[k]['parameter_type'] = ptype.dump()
 
-        else:
-            result = cls(TaxyTool(g.taxonomy))
+                instance._rd[k] = AbstractParameterValue.load(g.record_dictionary[k])
+        return instance
 
-        result._rd = g.record_dictionary
-        if result._rd.has_key(0):
-            result._shp = result._rd[0].shape
-        return result
+
+    def to_granule(self):
+        granule = Granule()
+        granule.record_dictionary = {}
+        for key,val in self._rd.iteritems():
+            if val is not None:
+                granule.record_dictionary[key] = val.dump()
+                granule.record_dictionary[key]['domain_set'] = None
+                granule.record_dictionary[key]['parameter_type'] = None
+            else:
+                granule.record_dictionary[key] = None
+        granule.param_dictionary = self._pdict.dump()
+        granule.locator = self._locator
+        granule.domain = self.domain.dump()
+        return granule
+
+
+    def _setup_params(self):
+        for param in self._pdict.keys():
+            self._rd[param] = None
+
+    @property
+    def domain(self):
+        dom = SimpleDomainSet(self._shp)
+        return dom
 
     def __setitem__(self, name, vals):
         """
-        Set an item by nick name in the record dictionary
+        Set a parameter
         """
-
-        #This if block is used if RecordDictionaryTool was initialized using a ParameterDictionary.
-        #This is the long term solution using the coverage-model.
-        if self._param_dict:
-            if isinstance(vals, RecordDictionaryTool):
-                assert vals._param_dict == self._param_dict
-                self._rd[self._param_dict.ord_from_key(param_name=name)] = vals._rd
-            elif isinstance(vals, numpy.ndarray):
-                #Otherwise it is a value sequence which should have the correct length
-
-                # Matthew says: Assert only equal shape 5/17/12
-
-                if vals.ndim == 0:
-                    raise ValueError('The rank of a value sequence array in a record dictionary must be greater than zero. Got name "%s" with rank "%d"' % (name, vals.ndim))
-
-                # Set _shp if it is None
-                if self._shp is None:
-                    self._shp = vals.shape
-
-                # Test new value sequence length
-                if self._shp != vals.shape:
-                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
-
-                self._rd[self._param_dict.ord_from_key(param_name=name)] = vals
-
+        if name not in self._rd:
+            raise KeyError(name)
+        context = self._pdict.get_context(name)
+        if self._shp is None: # Not initialized:
+            if isinstance(vals, np.ndarray):
+                self._shp = vals.shape
             else:
-
-                raise TypeError('Invalid type "%s" in Record Dictionary Tool setitem with name "%s". Valid types are numpy.ndarray and RecordDictionaryTool' % (type(vals),name))
-
-        #This if block is used if RecordDictionaryTool was initialized using a Taxonomy or TaxyTool
-        #This block will eventually be removed.
-        if self._tx:
-            if isinstance(vals, RecordDictionaryTool):
-                assert vals._tx == self._tx
-                self._rd[self._tx.get_handle(name)] = vals._rd
-            elif isinstance(vals, numpy.ndarray):
-                #Otherwise it is a value sequence which should have the correct length
-
-                # Matthew says: Assert only equal shape 5/17/12
-
-                if vals.ndim == 0:
-                    raise ValueError('The rank of a value sequence array in a record dictionary must be greater than zero. Got name "%s" with rank "%d"' % (name, vals.ndim))
-
-                # Set _shp if it is None
-                if self._shp is None:
-                    self._shp = vals.shape
-
-                # Test new value sequence length
-
-                if self._shp != vals.shape:
-                    raise ValueError('Invalid array shape "%s" for name "%s"; Record dictionary defined shape is "%s"' % (vals.shape, name, self._shp))
-
-                self._rd[self._tx.get_handle(name)] = vals
-
+                self._shp = (len(vals),)
+            log.info('Set shape to %s', self._shp)
+        else:
+            if isinstance(vals, np.ndarray):
+                validate_equal(vals.shape, self._shp, 'Invalid shape on input')
             else:
+                validate_equal(len(vals), self._shp[0], 'Invalid shape on input')
 
-                raise TypeError('Invalid type "%s" in Record Dictionary Tool setitem with name "%s". Valid types are numpy.ndarray and RecordDictionaryTool' % (type(vals),name))
+        dom = self.domain
+        paramval = get_value_class(context.param_type, domain_set = dom)
+        paramval[:] = vals
+        self._rd[name] = paramval
+
+
 
     def __getitem__(self, name):
         """
         Get an item by nick name from the record dictionary.
         """
-
-        #This if block is used if RecordDictionaryTool was initialized using a ParameterDictionary.
-        #This is the long term solution using the coverage-model.
-        if self._param_dict:
-            if isinstance(self._rd[self._param_dict.ord_from_key(param_name=name)], dict):
-                result = RecordDictionaryTool(taxonomy=self._param_dict)
-                result._rd = self._rd[self._param_dict.ord_from_key(param_name=name)]
-                return result
-            else:
-                return self._rd[self._param_dict.ord_from_key(param_name=name)]
-
-        #This if block is used if RecordDictionaryTool was initialized using a Taxonomy or TaxyTool
-        #This block will eventually be removed.
-        if self._tx:
-            if isinstance(self._rd[self._tx.get_handle(name)], dict):
-                result = RecordDictionaryTool(taxonomy=self._tx)
-                result._rd = self._rd[self._tx.get_handle(name)]
-                return result
-            else:
-                return self._rd[self._tx.get_handle(name)]
+        if self._rd[name]:
+            return self._rd[name][:]
+        else:
+            return None
 
     def iteritems(self):
         """ D.iteritems() -> an iterator over the (key, value) items of D """
-
-        #This if block is used if RecordDictionaryTool was initialized using a ParameterDictionary.
-        #This is the long term solution using the coverage-model.
-        if self._param_dict:
-            for k, v in self._rd.iteritems():
-                if isinstance(v, dict):
-                    result = RecordDictionaryTool(param_dictionary=self._param_dict)
-                    result._rd = v
-                    yield self._param_dict.key_from_ord(k), result
-                else:
-                    yield self._param_dict.key_from_ord(k), v
-
-        #This if block is used if RecordDictionaryTool was initialized using a Taxonomy or TaxyTool
-        #This block will eventually be removed.
-        if self._tx:
-            for k, v in self._rd.iteritems():
-                if isinstance(v, dict):
-                    result = RecordDictionaryTool(taxonomy=self._tx)
-                    result._rd = v
-                    yield self._tx.get_nick_name(k), result
-                else:
-                    yield self._tx.get_nick_name(k), v
+        return self._rd.iteritems()
 
     def iterkeys(self):
         """ D.iterkeys() -> an iterator over the keys of D """
-
-        #This if block is used if RecordDictionaryTool was initialized using a ParameterDictionary.
-        #This is the long term solution using the coverage-model.
-        if self._param_dict:
-            for k in self._rd.iterkeys():
-                yield self._param_dict.key_from_ord(k)
-
-        #This if block is used if RecordDictionaryTool was initialized using a Taxonomy or TaxyTool
-        #This block will eventually be removed.
-        if self._tx:
-            for k in self._rd.iterkeys():
-                yield self._tx.get_nick_name(k)
+        return self._rd.iterkeys()
 
     def itervalues(self):
         """ D.itervalues() -> an iterator over the values of D """
+        return self._rd.itervalues()
 
-        #This if block is used if RecordDictionaryTool was initialized using a ParameterDictionary.
-        #This is the long term solution using the coverage-model.
-        if self._param_dict:
-            for v in self._rd.itervalues():
-                if isinstance(v, dict):
-                    result = RecordDictionaryTool(taxonomy=self._param_dict)
-                    result._rd = v
-                    yield result
-                else:
-                    yield v
-
-        #This if block is used if RecordDictionaryTool was initialized using a Taxonomy or TaxyTool
-        #This block will eventually be removed.
-        if self._tx:
-            for v in self._rd.itervalues():
-                if isinstance(v, dict):
-                    result = RecordDictionaryTool(taxonomy=self._tx)
-                    result._rd = v
-                    yield result
-                else:
-                    yield v
-
-    #TJG - This may need to be updated
-    def update(self, E=None, **F):
-        """
-        @brief Dictionary update method exposed for Record Dictionaries
-        @param E is another record dictionary
-        @param F is a dictionary of nicknames and value sequences
-        """
-        if E:
-            if hasattr(E, "keys"):
-                for k in E:
-                    self[k] = E[k]
-            else:
-                for k, v in E.iteritems():
-                    self[k] = v
-
-        if F:
-            for k in F.keys():
-                self[k] = F[k]
-
-    def __contains__(self, nick_name):
+    def __contains__(self, key):
         """ D.__contains__(k) -> True if D has a key k, else False """
-
-        handle = ''
-        try:
-            if self._param_dict:
-                handle = self._param_dict.ord_from_key(nick_name)
-
-            if self._tx:
-                handle = self._tx.get_handle(nick_name)
-        except KeyError as ke:
-            # if the nick_name is not in the taxonomy, it is certainly not in the record dictionary
-            return False
-
-        return handle in self._rd
+        return key in self._rd
 
     def __delitem__(self, y):
         """ x.__delitem__(y) <==> del x[y] """
-        #not sure if this is right, might just have to remove the name, not the whole handle
-        if self._param_dict:
-            del self._rd[self._param_dict.ord_from_key(y)]
-
-        if self._tx:
-            del self._rd[self._tx.get_handle(y)]
-        #will probably need to delete the name from _tx
+        self._rd[y] = None
 
     def __iter__(self):
         """ x.__iter__() <==> iter(x) """
-        return self.iterkeys()
+        for k in self._rd.iterkeys():
+            yield k
+
 
     def __len__(self):
         """ x.__len__() <==> len(x) """
-        return len(self._rd)
+        pass
 
     def __repr__(self):
         """ x.__repr__() <==> repr(x) """
-        result = "{"
-        for k, v in self.iteritems():
-            result += "\'{0}\': {1},".format(k, v)
-
-        if len(result) > 1:
-            result = result[:-1] + "}"
-
-        return result
+        return self.pretty_print()
 
     def __str__(self):
-        result = "{"
-        for k, v in self.iteritems():
-            result += "\'{0}\': {1},".format(k, v)
-
-        if len(result) > 1:
-            result = result[:-1] + "}"
-
-        return result
+        return 'Record Dictionary %s' % self._rd.keys()
 
     __hash__ = None
 
@@ -306,31 +171,25 @@ class RecordDictionaryTool(object):
         """
         @brief Pretty Print the record dictionary for debug or log purposes.
         """
-        fid = StringIO.StringIO()
-        # Use string IO inside a try block in case of exceptions or a large return value.
-        try:
-            fid.write('Start Pretty Print Record Dictionary:\n')
-            self._pprint(fid,offset='')
-            fid.write('End of Pretty Print')
-        except Exception, ex:
-            log.exception('Unexpected Exception in Pretty Print Wrapper!')
-            fid.write('Exception! %s' % ex)
-
-        finally:
-            result = fid.getvalue()
-            fid.close()
+        return repr(self.__dict__)
 
 
-        return result
+    def __eq__(self, comp):
+        if self._shp != comp._shp:
+            print 'Shape is wrong'
+            return False
+        if self._pdict != comp._pdict:
+            print 'Pdict is wrong'
+            return False
 
-    def _pprint(self, fid, offset=None):
-        """
-        Utility method for pretty print
-        """
-        for k, v in self.iteritems():
-            if isinstance(v, RecordDictionaryTool):
-                fid.write('= %sRDT nick named "%s" contains:\n' % (offset,k))
-                new_offset = offset + '+ '
-                v._pprint(fid, offset=new_offset)
-            else:
-                fid.write('= %sRDT nick name: "%s"\n= %svalues: %s\n' % (offset,k, offset, repr(v)))
+        for k,v in self._rd.iteritems():
+            if v != comp._rd[k]:
+                if isinstance(v, AbstractParameterValue) and isinstance(comp._rd[k], AbstractParameterValue):
+                    if (v.content == comp._rd[k].content).all():
+                        continue
+                print '%s is wrong' % k
+                return False
+        return True
+
+    def __ne__(self, comp):
+        return not (self == comp)
