@@ -582,7 +582,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         with self.assertRaises(Conflict):
             res_state = self._ia_client.get_resource_state()
         
-        self._async_event_result.get(timeout=2)
+        self._async_event_result.get(timeout=10)
         self.assertGreaterEqual(len(self._events_received), 6)
         
     def test_states(self):
@@ -715,7 +715,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
     
-        self._async_event_result.get(timeout=2)
+        self._async_event_result.get(timeout=10)
         self.assertEquals(len(self._events_received), 3)
 
 
@@ -871,10 +871,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
         
-        self._async_event_result.get(timeout=2)
+        self._async_event_result.get(timeout=10)
         self.assertEquals(len(self._events_received), 7)
         
-        self._async_sample_result.get(timeout=5)
+        self._async_sample_result.get(timeout=10)
         self.assertEquals(len(self._samples_received), 6)
         
     def test_autosample(self):
@@ -922,10 +922,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-        self._async_event_result.get(timeout=2)
+        self._async_event_result.get(timeout=10)
         self.assertGreaterEqual(len(self._events_received), 8)
 
-        self._async_sample_result.get(timeout=2)
+        self._async_sample_result.get(timeout=10)
         self.assertGreaterEqual(len(self._samples_received), 6)
 
     def test_capabilities(self):
@@ -1315,7 +1315,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-        self._async_event_result.get(timeout=2)
+        self._async_event_result.get(timeout=10)
         self.assertEquals(len(self._events_received), 6)
         
     def test_direct_access(self):
