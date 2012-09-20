@@ -228,8 +228,9 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         # TEST ONLY: have to clean up the xp or we leave junk on the broker
         # we have to do it manually because the xs is gone
         #self.ems.delete_exchange_point(epid)
-        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
-        xp = exchange.ExchangePoint(self.container.ex_manager, exchange_point.name, xs, 'ttree')
+        # @TODO: reaching into ex manager for transport is clunky
+        xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
+        xp = exchange.ExchangePoint(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_point.name, xs, 'ttree')
         self.container.ex_manager.delete_xp(xp, use_ems=False)
 
     def test_xs_create_update(self):
@@ -281,9 +282,10 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         self.assertEquals(len(xnlist), 0)
 
         # cleanup: delete the XN (assoc already removed, so we reach into the implementation here)
+        # @TODO: reaching into ex manager for transport is clunky
         self.rr.delete(enid)
-        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
-        xn = exchange.ExchangeName(self.container.ex_manager, exchange_name.name, xs)
+        xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
+        xn = exchange.ExchangeName(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_name.name, xs)
         self.container.ex_manager.delete_xn(xn, use_ems=False)
 
 
