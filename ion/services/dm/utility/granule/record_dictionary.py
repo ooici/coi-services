@@ -125,6 +125,7 @@ class RecordDictionaryTool(object):
         dom = self.domain
         paramval = get_value_class(context.param_type, domain_set = dom)
         paramval[:] = vals
+        paramval.storage._storage.flags.writeable = False
         self._rd[name] = paramval
 
 
