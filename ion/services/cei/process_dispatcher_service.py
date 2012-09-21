@@ -39,8 +39,15 @@ from interface.objects import ProcessStateEnum, Process, ProcessDefinition,\
 class ProcessStateGate(EventSubscriber):
     """
     Ensure that we get a particular state, now or in the future.
+
+    Usage:
+      gate = ProcessStateGate(your_process_dispatcher_client.read_process, process_id, some_state)
+      assert gate.await(timeout_in_seconds)
+
+    This pattern returns True immediately upon reaching the desired state, or False if the timeout is reached.
+    This pattern avoids a race condition between read_process and using EventGate.
     """
-    def __init__(self, process_id='', desired_state=None, read_process_fn=None, *args, **kwargs):
+    def __init__(self, read_process_fn=None, process_id='', desired_state=None, *args, **kwargs):
         EventSubscriber.__init__(self, *args, callback=self.trigger_cb, **kwargs)
 
         self.desired_state = desired_state
@@ -291,18 +298,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         """
         return self.backend.list()
 
-    def await_process_state(self, process_id='', state=None, timeout=0):
-        """
-        Wait for a given process to reach a given state, within a given timeout.
-
-        The function returns True immediately upon reaching the desired state, or False if the timeout is reached.
-        This function avoids a race condition between read_process and using EventGate.
-
-        @retval state_reached boolean
-        """
-
-        gate = ProcessStateGate(process_id, state, self.read_process)
-        return gate.await(timeout)
 
 
 
