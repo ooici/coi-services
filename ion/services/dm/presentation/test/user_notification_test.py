@@ -836,7 +836,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # user_2
         user_2 = UserInfo()
         user_2.name = 'user_2'
-        user_2.contact.phone = 'user_2@gmail.com'
+        user_2.contact.phones = ['5551212']
 
 
         user_id_1, _ = self.rrc.create(user_1)
