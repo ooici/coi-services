@@ -98,8 +98,8 @@ class ExchangeManagementService(BaseExchangeManagementService):
         # delete XS now
         self.clients.resource_registry.delete(exchange_space_id)
 
-        # call container API to delete
-        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        # call container API to delete @TODO this is clunky
+        xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
         self.container.ex_manager.delete_xs(xs, use_ems=False)
 
     def find_exchange_spaces(self, filters=None):
@@ -140,7 +140,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
             aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangeName, exchange_name_id)
 
         # call container API
-        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
         self.container.ex_manager._create_xn(xntype, exchange_name.name, xs, use_ems=False)
 
         return exchange_name_id  #QUestion - is this the correct canonical name?
@@ -177,8 +177,8 @@ class ExchangeManagementService(BaseExchangeManagementService):
         self.clients.resource_registry.delete(exchange_name_id)
 
         # call container API
-        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
-        xn = exchange.ExchangeName(self.container.ex_manager, exchange_name.name, xs)              # type doesn't matter here
+        xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
+        xn = exchange.ExchangeName(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_name.name, xs)              # type doesn't matter here
         self.container.ex_manager.delete_xn(xn, use_ems=False)
 
     def find_exchange_names(self, filters=None):
@@ -212,7 +212,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
             self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
 
         # call container API
-        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
+        xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
         self.container.ex_manager.create_xp(exchange_point.name, xs, xptype=exchange_point.topology_type, use_ems=False)
 
         return exchange_point_id
@@ -266,8 +266,8 @@ class ExchangeManagementService(BaseExchangeManagementService):
         self.clients.resource_registry.delete(exchange_point_id)
 
         # call container API
-        xs = exchange.ExchangeSpace(self.container.ex_manager, exchange_space.name)
-        xp = exchange.ExchangePoint(self.container.ex_manager, exchange_point.name, xs, 'ttree')
+        xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
+        xp = exchange.ExchangePoint(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_point.name, xs, 'ttree')
         self.container.ex_manager.delete_xp(xp, use_ems=False)
 
     def find_exchange_points(self, filters=None):
