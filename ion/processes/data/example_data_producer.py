@@ -2,7 +2,7 @@
 
 from pyon.util.log import log
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool, build_granule, ParameterContext, ParameterDictionary, QuantityType, AxisTypeEnum, CoverageCraft
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool, ParameterContext, ParameterDictionary, QuantityType, AxisTypeEnum, CoverageCraft
 
 from interface.objects import Granule
 
@@ -83,7 +83,7 @@ class ExampleDataProducer(SimpleCtdPublisher):
             rdt['lon'] = lon
 
 
-            g = build_granule(data_producer_id=self.id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
+            g = rdt.to_granule()
 
             log.info('Sending %d values!' % length)
             if isinstance(g,Granule):

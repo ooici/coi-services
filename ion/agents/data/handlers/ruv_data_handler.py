@@ -9,7 +9,6 @@
 from pyon.public import log
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary
-from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler, NoNewDataWarning
 from ion.agents.data.handlers.handler_utils import list_file_info, get_sbuffer, get_time_from_filename

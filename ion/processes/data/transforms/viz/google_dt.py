@@ -11,7 +11,6 @@ from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
 
-from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 
@@ -148,9 +147,10 @@ class VizTransformGoogleDT(TransformDataProcess):
                     "data_description" : dataDescription,
                     "data_content" : dataTableContent}
 
+        #@TODO: This should never have worked and now breaks the old/new interface.
         out_rdt["google_dt_components"] = np.array([out_dict])
 
         log.debug('Google DT transform: Sending a granule')
 
-        out_granule = build_granule(data_producer_id='google_dt_transform', param_dictionary = self.gdt_paramdict, record_dictionary=out_rdt)
+        out_granule = out_rdt.to_granule()
         return out_granule

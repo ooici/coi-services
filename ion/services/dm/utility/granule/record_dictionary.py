@@ -14,7 +14,9 @@ from coverage_model.parameter_values import get_value_class, AbstractParameterVa
 from coverage_model.coverage import SimpleDomainSet
 from pyon.util.log import log
 from pyon.util.arg_check import validate_equal
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import Granule
+from pyon.util.memoize import memoize_lru
 import numpy as np
 
 _NoneType = type(None)
@@ -34,14 +36,16 @@ class RecordDictionaryTool(object):
     _pdict       = None
     _shp         = None
     _locator     = None
+    _stream_def  = None
 
-    def __init__(self,param_dictionary=None, locator=None):
+    def __init__(self,param_dictionary=None, stream_definition_id='', locator=None):
         """
-        @brief Initialize a new instance of Record Dictionary Tool with a taxonomy and an optional fixed length
-        @param taxonomy is an instance of a TaxonomyTool or Taxonomy (IonObject) used in this record dictionary
-        @param length is an optional fixed length for the value sequences of this record dictionary
         """
-        if type(param_dictionary) == dict:
+        if stream_definition_id:
+            pdict = RecordDictionaryTool.pdict_from_stream_def(stream_definition_id)
+            self._pdict = ParameterDictionary.load(pdict)
+            self._stream_def = stream_definition_id
+        elif type(param_dictionary) == dict:
             self._pdict = ParameterDictionary.load(param_dictionary)
         elif isinstance(param_dictionary,ParameterDictionary):
             self._pdict = param_dictionary
@@ -55,9 +59,15 @@ class RecordDictionaryTool(object):
 
     @classmethod
     def load_from_granule(cls, g):
-        instance = cls(param_dictionary=g.param_dictionary, locator=g.locator)
-        instance._shp = g.domain['shape']
-        instance._pdict = ParameterDictionary.load(g.param_dictionary)
+        if isinstance(g.param_dictionary, str):
+            instance = cls(stream_definition_id=g.param_dictionary, locator=g.locator)
+            pdict = RecordDictionaryTool.pdict_from_stream_def(g.param_dictionary)
+            instance._pdict = ParameterDictionary.load(pdict)
+        else:
+            instance = cls(param_dictionary=g.param_dictionary, locator=g.locator)
+            instance._pdict = ParameterDictionary.load(g.param_dictionary)
+        if g.domain['shape']:
+            instance._shp = (g.domain['shape'][0],)
         for k,v in g.record_dictionary.iteritems():
             if v is not None:
                 g.record_dictionary[k]['domain_set'] = g.domain
@@ -78,7 +88,7 @@ class RecordDictionaryTool(object):
                 granule.record_dictionary[key]['parameter_type'] = None
             else:
                 granule.record_dictionary[key] = None
-        granule.param_dictionary = self._pdict.dump()
+        granule.param_dictionary = self._stream_def or self._pdict.dump()
         granule.locator = self._locator
         granule.domain = self.domain.dump()
         return granule
@@ -180,7 +190,8 @@ class RecordDictionaryTool(object):
         """
         @brief Pretty Print the record dictionary for debug or log purposes.
         """
-        return repr(self.__dict__)
+        from pprint import pformat
+        return pformat(self.__dict__)
 
 
     def __eq__(self, comp):
@@ -202,3 +213,12 @@ class RecordDictionaryTool(object):
 
     def __ne__(self, comp):
         return not (self == comp)
+    
+    @staticmethod
+    @memoize_lru(maxsize=100)
+    def pdict_from_stream_def(stream_def_id):
+        pubsub_cli = PubsubManagementServiceClient()
+        stream_def_obj = pubsub_cli.read_stream_definition(stream_def_id)
+        return stream_def_obj.parameter_dictionary
+
+
