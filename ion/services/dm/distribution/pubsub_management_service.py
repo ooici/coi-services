@@ -436,7 +436,9 @@ class PubsubManagementService(BasePubsubManagementService):
         return list(visited_topics)
 
     def _compare_pdicts(self, pdict1, pdict2):
-        pdict1 = ParameterDictionary.load(pdict1) or {}
-        pdict2 = ParameterDictionary.load(pdict2) or {}
+        if pdict1:
+            pdict1 = ParameterDictionary.load(pdict1) or {}
+        if pdict2:
+            pdict2 = ParameterDictionary.load(pdict2) or {}
         return bool(pdict1 == pdict2)
 

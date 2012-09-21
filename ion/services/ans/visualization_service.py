@@ -220,9 +220,6 @@ class VisualizationService(BaseVisualizationService):
             subscriber = Subscriber(from_name=xq)
             subscriber.initialize()
 
-            msg_count,_ = subscriber.get_stats()
-            log.info('Messages in user queue 1: %s ' % msg_count)
-
             ret_val = []
             msgs = subscriber.get_all_msgs(timeout=2)
             for x in range(len(msgs)):
@@ -231,8 +228,6 @@ class VisualizationService(BaseVisualizationService):
             # Different messages should get processed differently. Ret val will be decided by the viz product type
             ret_val = self._process_visualization_message(msgs)
 
-            msg_count,_ = subscriber.get_stats()
-            log.info('Messages in user queue 2: %s ' % msg_count)
 
         except Exception, e:
             raise e
