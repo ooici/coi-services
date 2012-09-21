@@ -37,7 +37,13 @@ class PubsubManagementService(BasePubsubManagementService):
 
         return stream_definition_id
     
-    def read_stream_definition(self, stream_definition_id=''):
+    def read_stream_definition(self, stream_definition_id='', stream_id=''):
+        if stream_id and self.read_stream(stream_id):
+            sds, assocs = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition,id_only=False)
+            if sds:
+                return sds[0]
+            else:
+                raise NotFound('No Stream Definition is associated with this Stream')
         stream_definition = self.clients.resource_registry.read(stream_definition_id)
         validate_is_instance(stream_definition,StreamDefinition)
         return stream_definition

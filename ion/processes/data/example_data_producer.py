@@ -3,7 +3,7 @@
 from pyon.util.log import log
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, ParameterContext, ParameterDictionary, QuantityType, AxisTypeEnum, CoverageCraft
-
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import Granule
 
 import numpy
@@ -11,6 +11,11 @@ import random
 import gevent
 
 class BetterDataProducer(SimpleCtdPublisher):
+    def on_start(self):
+        super(BetterDataProducer,self).on_start()
+
+        stream_id = self.CFG.get_safe('process.stream_id')
+        stream_def = pubsub_cli
     def publish_loop(self):
         t_i = 0
         while not self.finished.is_set():
