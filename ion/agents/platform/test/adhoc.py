@@ -51,7 +51,7 @@ from ion.agents.instrument.packet_factory_man import create_packet_builder
 
 # some of the attribute names in the simulated network (network.yml)
 def adhoc_get_stream_names():
-    return ['fooA', 'bazA', 'fooA1', 'bazA1b2']
+    return ['Node1A_attr_1', 'Node1A_attr_2']
 
 # NOTE: the following actually follows the similar method in driver_process.py
 # but we are not using driver processes here, so just adapt that method.

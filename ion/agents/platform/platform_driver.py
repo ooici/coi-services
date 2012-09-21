@@ -33,6 +33,11 @@ class AttributeValueDriverEvent(DriverEvent):
         self._platform_id = platform_id
         self._attr_id = attr_id
 
+    def __str__(self):
+        return "%s(platform_id=%r, attr_id=%r, value=%r, ts=%r)" % (
+            self.__class__.__name__, self._platform_id, self._attr_id,
+            self._value, self._ts)
+
 
 class PlatformDriver(object):
     """
