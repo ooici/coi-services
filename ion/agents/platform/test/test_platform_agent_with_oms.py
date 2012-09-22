@@ -74,7 +74,8 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@unittest.skip("need adjustments")
+# trying again on buildbot (it runs fine locally)
+#@unittest.skipIf(os.getenv("RUN_THIS") is None, "need adjustments")
 @attr('INT', group='sa')
 class TestPlatformAgent(IonIntegrationTestCase):
 

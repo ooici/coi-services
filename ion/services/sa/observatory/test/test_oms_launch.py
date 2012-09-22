@@ -33,39 +33,8 @@ from interface.objects import ProcessStateEnum
 from gevent import queue
 
 
-# copied from test_activate_instrument.py
-from gevent import event as gevent_event
-class ProcessStateGate(EventSubscriber):
-    """
-    Ensure that we get a particular state, now or in the future.
-    """
-    def __init__(self, process_dispatcher_svc_client=None, process_id='', desired_state=None, *args, **kwargs):
-        EventSubscriber.__init__(self, *args, callback=self.trigger_cb, **kwargs)
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
 
-        self.pd_client = process_dispatcher_svc_client
-        self.desired_state = desired_state
-        self.process_id = process_id
-
-        #sanity check
-        self.pd_client.read_process(self.process_id)
-
-    def trigger_cb(self, event, x):
-        if event == self.desired_state:
-            self.stop()
-            self.gate.set()
-
-    def await(self, timeout=None):
-        self.gate = gevent_event.Event()
-        self.start()
-
-        #check on the process as it exists right now
-        process_obj = self.pd_client.read_process(self.process_id)
-        if self.desired_state == process_obj.process_state:
-            self.stop()
-            return True
-
-        #if it's not where we want it, wait.
-        return self.gate.wait(timeout)
 
 
 class FakeProcess(LocalContextMixin):
@@ -82,13 +51,7 @@ class FakeProcess(LocalContextMixin):
 class TestOmsLaunch(IonIntegrationTestCase):
 
     def setUp(self):
-        # Start container
-        #print 'instantiating container'
         self._start_container()
-        #container = Container()
-        #print 'starting container'
-        #container.start()
-        #print 'started container'
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
@@ -438,15 +401,17 @@ class TestOmsLaunch(IonIntegrationTestCase):
         #-------------------------------
 
         pid = self.imsclient.start_platform_agent_instance(platform_agent_instance_id=platformSS_agent_instance_id)
-        print("start_platform_agent_instance returned pid=%s" % pid)
+        log.debug("start_platform_agent_instance returned pid=%s", pid)
 
         #wait for start
         instance_obj = self.imsclient.read_platform_agent_instance(platformSS_agent_instance_id)
-        gate = ProcessStateGate(self.processdispatchclient, instance_obj.agent_process_id,ProcessStateEnum.SPAWN)
+        gate = ProcessStateGate(self.processdispatchclient.read_process,
+                                instance_obj.agent_process_id,
+                                ProcessStateEnum.SPAWN)
         self.assertTrue(gate.await(30), "The platform agent instance did not spawn in 30 seconds")
 
         platformSS_agent_instance_obj= self.imsclient.read_instrument_agent_instance(platformSS_agent_instance_id)
-        print 'test_oms_create_and_launch: Platform agent instance obj: %s' % str(platformSS_agent_instance_obj)
+        log.debug('test_oms_create_and_launch: Platform agent instance obj: %s', str(platformSS_agent_instance_obj))
 
         # Start a resource agent client to talk with the instrument agent.
         self._pa_client = ResourceAgentClient('paclient', name=platformSS_agent_instance_obj.agent_process_id,  process=FakeProcess())
@@ -465,7 +430,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
             'container_name': self.container.name,
         }
 
-        print("Root PLATFORM_CONFIG = %s" % PLATFORM_CONFIG)
+        log.debug("Root PLATFORM_CONFIG = %s", PLATFORM_CONFIG)
 
         # PING_AGENT can be issued before INITIALIZE
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
