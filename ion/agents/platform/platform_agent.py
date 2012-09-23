@@ -37,6 +37,13 @@ from ion.agents.instrument.instrument_fsm import InstrumentFSM
 from ion.agents.platform.platform_agent_launcher import Launcher
 
 
+# NOTE: the bigger the platform network size starting from the platform
+# associated with a PlatformAgent instance, the more the time that should be
+# given for commands to sub-platforms to complete. The following TIMEOUT value
+# intends to be big enough for all typical cases.
+TIMEOUT = 90
+
+
 PA_MOD = 'ion.agents.platform.platform_agent'
 PA_CLS = 'PlatformAgent'
 
@@ -147,7 +154,11 @@ class PlatformAgent(ResourceAgent):
                 self._platform_id, len(self._pa_clients))
             for subplatform_id in self._pa_clients:
                 _, pid = self._pa_clients[subplatform_id]
-                self._launcher.cancel_process(pid)
+                try:
+                    self._launcher.cancel_process(pid)
+                except Exception as e:
+                    log.warn("%r: exception in cancel_process for subplatform_id=%r, pid=%r: %s",
+                             self._platform_id, subplatform_id, pid, str(e), exc_Info=True)
 
         self._pa_clients.clear()
 
@@ -422,7 +433,7 @@ class PlatformAgent(ResourceAgent):
         pa_client, _ = self._pa_clients[subplatform_id]
 
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
-        retval = pa_client.execute_agent(cmd)
+        retval = pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug("%r: _ping_subplatform %r  retval = %s",
             self._platform_id, subplatform_id, str(retval))
 
@@ -449,7 +460,7 @@ class PlatformAgent(ResourceAgent):
 
         kwargs = dict(plat_config=platform_config)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
-        retval = pa_client.execute_agent(cmd)
+        retval = pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug("%r: _initialize_subplatform %r  retval = %s",
             self._platform_id, subplatform_id, str(retval))
 
@@ -496,7 +507,7 @@ class PlatformAgent(ResourceAgent):
             pa_client, _ = self._pa_clients[subplatform_id]
             cmd = AgentCommand(command=command) if command else create_command(subplatform_id)
             try:
-                retval = pa_client.execute_agent(cmd)
+                retval = pa_client.execute_agent(cmd, timeout=TIMEOUT)
                 state = pa_client.get_agent_state()
                 if expected_state and expected_state != state:
                     log.error("%r: expected subplatform state %r but got %r",
