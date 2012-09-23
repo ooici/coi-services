@@ -5,12 +5,6 @@
 __author__ = 'Michael Meisinger'
 
 from ion.core.bootstrap_process import BootstrapPlugin
-from ion.services.coi.policy_management_service import MANAGER_ROLE, ION_MANAGER
-from pyon.public import IonObject, RT
-
-from interface.objects import Org, UserRole, NegotiationDefinition, ExchangeSpace
-from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
-from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
 
 
 class BootstrapService(BootstrapPlugin):

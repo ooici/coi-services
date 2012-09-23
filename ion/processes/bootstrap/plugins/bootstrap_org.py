@@ -9,7 +9,7 @@ from ion.services.coi.policy_management_service import MANAGER_ROLE, ION_MANAGER
 from pyon.ion.exchange import ION_ROOT_XS
 from pyon.public import IonObject, RT
 
-from interface.objects import Org, UserRole, NegotiationDefinition, ExchangeSpace
+from interface.objects import Org, UserRole, ExchangeSpace
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
 
@@ -46,25 +46,3 @@ class BootstrapOrg(BootstrapPlugin):
         xs = ExchangeSpace(name=ION_ROOT_XS, description="ION service XS")
         self.xs_id = ex_ms_client.create_exchange_space(xs, self.org_id, headers={'ion-actor-id': system_actor_id})
 
-        # Now load the base set of negotiation definitions used by the request operations (enroll/role/resource, etc)
-
-        neg_def = NegotiationDefinition(name=RT.EnrollmentRequest,
-            description='Definition of Enrollment Request Negotiation',
-            pre_condition = ['is_registered(user_id)', 'is_not_enrolled(org_id,user_id)', 'enroll_req_not_exist(org_id,user_id)'],
-            accept_action = 'enroll_member(org_id,user_id)'
-        )
-        process.container.resource_registry.create(neg_def)
-
-        neg_def = NegotiationDefinition(name=RT.RoleRequest,
-            description='Definition of Role Request Negotiation',
-            pre_condition = ['is_enrolled(org_id,user_id)'],
-            accept_action = 'grant_role(org_id,user_id,role_name)'
-        )
-        process.container.resource_registry.create(neg_def)
-
-        neg_def = NegotiationDefinition(name=RT.ResourceRequest,
-            description='Definition of Role Request Negotiation',
-            pre_condition = ['is_enrolled(org_id,user_id)'],
-            accept_action = 'acquire_resource(org_id,user_id,resource_id)'
-        )
-        process.container.resource_registry.create(neg_def)

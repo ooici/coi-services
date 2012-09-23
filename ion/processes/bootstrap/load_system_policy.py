@@ -140,24 +140,6 @@ class LoadSystemPolicy(ImmediateProcess):
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">request*</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">accept_request</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">deny_request</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
                 </Actions>
 
             </Target>
@@ -167,7 +149,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_requests</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_org_negotiations</AttributeValue>
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_enrolled_users</AttributeValue>
                         </Apply>
                         <ActionAttributeDesignator
@@ -197,6 +179,58 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_id = policy_client.create_common_service_access_policy( 'Deny_Everything',
             'A global policy rule that permits access to everything with the ION Manager role',
             policy_text, headers=sa_user_header)
+
+
+
+##############
+
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Actions>
+
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">negotiate</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">has_role</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+
+
+            </Target>
+
+
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
+                        <SubjectAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </Apply>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+        </Rule> '''
+
+        policy_id = policy_client.create_common_service_access_policy( 'Allowed_Negotiate_Operations',
+            'A global policy rule which permits non-anonymous access to the negotiate operation in any service or agent',
+            policy_text, headers=sa_user_header)
+
 
 
 
@@ -277,7 +311,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_requests</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_org_negotiations</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
@@ -289,13 +323,13 @@ class LoadSystemPolicy(ImmediateProcess):
                     </Action>
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">approve_request</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">approve_negotiation</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">deny_request</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">deny_negotiation</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
