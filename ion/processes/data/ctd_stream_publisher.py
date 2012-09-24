@@ -10,7 +10,6 @@
 from pyon.ion.transforma import TransformStreamPublisher
 from pyon.public import log
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule_utils import ParameterContext, ParameterDictionary, QuantityType, AxisTypeEnum
 
 import random
@@ -140,6 +139,6 @@ class SimpleCtdPublisher(TransformStreamPublisher):
 #        rdt['coordinates'] = rdt0
 #        rdt['data'] = rdt1
 
-        g = build_granule(data_producer_id=self.id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
+        g = rdt.to_granule()
 
         return g

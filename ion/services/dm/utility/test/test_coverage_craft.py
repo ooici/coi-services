@@ -7,7 +7,7 @@
 '''
 
 from pyon.util.unit_test import PyonTestCase
-from ion.services.dm.utility.granule_utils import CoverageCraft, RecordDictionaryTool, build_granule
+from ion.services.dm.utility.granule_utils import CoverageCraft, RecordDictionaryTool
 from nose.plugins.attrib import attr
 
 import numpy as np
@@ -26,7 +26,7 @@ class CoverageCraftUnitTest(PyonTestCase):
         rdt['depth'] = np.array([0] * 20)
         rdt['data'] = np.array([0x01] * 20)
 
-        return build_granule('sample', param_dictionary=pdict, record_dictionary=rdt)
+        return rdt.to_granule()
 
     def test_to_coverage(self):
         granule = self.sample_granule()

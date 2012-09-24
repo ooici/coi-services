@@ -21,8 +21,6 @@ from nose.plugins.attrib import attr
 
 @attr('UNIT', group='dm')
 class IngestionManagementUnitTest(PyonTestCase):
-    SCIENCE_INGESTION = IngestionManagementService.SCIENCE_INGESTION
-    BINARY_INGESTION  = IngestionManagementService.BINARY_INGESTION
     def setUp(self):
         
         mock_clients = self._create_service_mock('ingestion_management')
@@ -102,14 +100,14 @@ class IngestionManagementUnitTest(PyonTestCase):
 
     def test_setup_queues(self):
         ingestion_config = IngestionConfiguration()
-        ingestion_config.queues = [IngestionQueue(type=self.SCIENCE_INGESTION)]
+        ingestion_config.queues = [IngestionQueue()]
         setattr(ingestion_config,'_id','config_id')
 
         self.pubsub_create_sub.return_value = 'subscription_id'
 
         self.ingestion_management._existing_dataset = Mock()
 
-        retval = self.ingestion_management.setup_queues(ingestion_config, 'stream_id', 'dataset_id', self.SCIENCE_INGESTION)
+        retval = self.ingestion_management.setup_queues(ingestion_config, 'stream_id', 'dataset_id')
 
         self.assertTrue(retval)
 

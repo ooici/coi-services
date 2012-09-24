@@ -25,7 +25,6 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 from coverage_model.parameter import ParameterDictionary
 
 from ion.agents.data.handlers.handler_utils import calculate_iteration_count, list_file_info, get_time_from_filename
@@ -597,7 +596,7 @@ class FibonacciDataHandler(BaseDataHandler):
             rdt = RecordDictionaryTool(param_dictionary=pdict)
             d = gen.next()
             rdt['data'] = d
-            g = build_granule(data_producer_id=dprod_id, record_dictionary=rdt, param_dictionary=pdict)
+            g = rdt.to_granule()
             yield g
 
 class DummyDataHandler(BaseDataHandler):
@@ -709,7 +708,7 @@ class DummyDataHandler(BaseDataHandler):
             rdt = RecordDictionaryTool(param_dictionary=pdict)
             d = arr[x*max_rec:(x+1)*max_rec]
             rdt['dummy'] = d
-            g = build_granule(data_producer_id=dprod_id, record_dictionary=rdt, param_dictionary=pdict)
+            g = rdt.to_granule()
             yield g
 
 

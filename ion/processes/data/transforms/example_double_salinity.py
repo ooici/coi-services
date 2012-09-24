@@ -12,7 +12,6 @@ from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 from pyon.util.containers import get_safe
 from pyon.ion.stream import StreamPublisher
 import numpy, re
@@ -67,7 +66,7 @@ class SalinityDoubler(TransformDataProcess):
         root_rdt['lon'] = longitude
         root_rdt['depth'] = depth
 
-        g = build_granule(data_producer_id='ctd_L2_salinity', param_dictionary=parameter_dictionary, record_dictionary=root_rdt)
+        g = root_rdt.to_granule()
         self.publish(msg=g, stream_id=self.sal_stream)
 
         return g

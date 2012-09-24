@@ -9,7 +9,6 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
-from ion.services.dm.utility.granule.granule import build_granule as bg
 from ion.processes.data.ingestion.science_granule_ingestion_worker import ScienceGranuleIngestionWorker
 from interface.objects import Granule
 
@@ -36,7 +35,7 @@ class ScienceGranuleIngestionWorkerUnitTest(PyonTestCase):
         rdt['t'] = np.array([0,1])
         rdt['d'] = np.array([0,1])
 
-        granule = bg(data_producer_id='test_identifier', taxonomy=tt, record_dictionary=rdt)
+        granule = rdt.to_granule()
         return granule
 
     def test_get_dataset(self):

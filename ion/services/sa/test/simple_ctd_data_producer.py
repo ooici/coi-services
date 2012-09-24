@@ -3,7 +3,6 @@ from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 from ooi.logging import log
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_types import QuantityType
@@ -81,8 +80,7 @@ class SimpleCtdDataProducer(SimpleCtdPublisher):
 #            log.debug("SimpleCtdDataProducer: logging published Record Dictionary:\n %s", rdt.pretty_print())
 #            log.debug("SimpleCtdDataProducer: logging published Record Dictionary:\n %s", rdt)
 
-            g = build_granule(data_producer_id=stream_id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
-
+            g = rdt.to_granule()
             log.debug('SimpleCtdDataProducer: Sending %d values!' % length)
             self.publisher.publish(g)
 

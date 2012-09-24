@@ -6,7 +6,7 @@
 @description Utilities for crafting granules into a coverage
 '''
 
-from ion.services.dm.utility.granule import RecordDictionaryTool, build_granule 
+from ion.services.dm.utility.granule import RecordDictionaryTool
 from pyon.util.arg_check import validate_is_instance
 from coverage_model.coverage import GridDomain, CRS, AxisTypeEnum, MutabilityEnum, GridShape, SimplexCoverage
 from coverage_model.parameter import ParameterContext, ParameterDictionary 
@@ -119,7 +119,7 @@ class CoverageCraft(object):
         self.rdt = rdt # Sync
 
     def to_granule(self):
-        return build_granule('from coverage', param_dictionary=self.pdict, record_dictionary=self.rdt)
+        return self.rdt.to_granule()
 
     @classmethod
     def create_coverage(cls):

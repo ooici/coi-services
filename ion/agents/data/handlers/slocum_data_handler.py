@@ -10,7 +10,6 @@
 from pyon.public import log
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary
-from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler
 from ion.agents.data.handlers.handler_utils import list_file_info, get_sbuffer, calculate_iteration_count, get_time_from_filename
@@ -121,7 +120,7 @@ class SlocumDataHandler(BaseDataHandler):
                         rdt[name]=d
 
                     #g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
-                    g = build_granule(data_producer_id=dprod_id, record_dictionary=rdt, param_dictionary=pdict)
+                    g = rdt.to_granule()
                     yield g
             except SlocumParseException as spe:
                 # TODO: Decide what to do here, raise an exception or carry on
