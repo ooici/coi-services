@@ -16,6 +16,7 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 
 
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 from prototype.sci_data.stream_defs import ctd_stream_definition
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
@@ -57,6 +58,7 @@ from nose.plugins.attrib import attr
 
 import unittest
 import time
+import gevent
 
 
 
@@ -70,7 +72,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('HARDWARE', group='sa')
-#@unittest.skip('run locally only')
+@unittest.skip('run locally only')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -95,6 +97,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self._no_samples = None
         self._samples_received = []
 
+
     def create_logger(self, name, stream_id=''):
 
         # logger process
@@ -116,7 +119,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         return pid
 
 
-    #@unittest.skip("TBD")
+    @unittest.skip("TBD")
     def test_activateInstrumentSample(self):
 
         self.loggerpids = []
@@ -126,7 +129,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
                                   model="SBE37IMModel",
-                                  custom_attributes= {'streams':{'raw': 'ctd_raw_param_dict' , 'parsed': 'ctd_parsed_param_dict' }})
+                                  custom_attributes= {'streams':{'raw': 'data_particle_raw_param_dict' , 'parsed': 'data_particle_parsed_param_dict' }})
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
@@ -197,9 +200,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         parameter_dictionary = get_param_dict('sample_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
 
-        parsed_param_dict = get_param_dict('ctd_parsed_param_dict')
-        raw_param_dict = get_param_dict('ctd_raw_param_dict')
 
+        parsed_parameter_dictionary = get_param_dict('data_particle_parsed_param_dict')
+
+        raw_parameter_dictionary = get_param_dict('data_particle_raw_param_dict')
 
         #-------------------------------
         # Create Raw and Parsed Data Products for the device
@@ -211,7 +215,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parsed_param_dict.dump())
+        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parsed_parameter_dictionary.dump())
 
         log.debug( 'new dp_id = %s', data_product_id1)
 
@@ -236,7 +240,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id, raw_param_dict.dump())
+        data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id, raw_parameter_dictionary.dump())
         log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
@@ -385,13 +389,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: initialize %s", str(retval))
 
-        time.sleep(1)
 
         log.debug("(L4-CI-SA-RQ-334): Sending go_active command ")
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrument: return value from go_active %s", str(reply))
-        time.sleep(1)
+
         cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
@@ -400,8 +403,26 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: run %s", str(reply))
-        time.sleep(1)
 
+#        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+#        retval = self._ia_client.execute_resource(cmd)
+#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
+#        retval = self._ia_client.execute_resource(cmd)
+#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
+#        retval = self._ia_client.execute_resource(cmd)
+#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
+
+
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        log.debug("test_activateInstrumentSample: return from START_AUTOSAMPLE: %s", str(retval))
+
+        gevent.sleep(10)
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        log.debug("test_activateInstrumentSample: return from STOP_AUTOSAMPLE: %s", str(retval))
 
         log.debug("test_activateInstrumentSample: calling reset ")
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
@@ -498,13 +519,20 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
 
+        parsed_parameter_dictionary = get_param_dict('data_particle_parsed_param_dict')
+        parsed_parameter_dictionary = parsed_parameter_dictionary.dump()
+
+        raw_parameter_dictionary = get_param_dict('data_particle_raw_param_dict')
+        raw_parameter_dictionary = raw_parameter_dictionary.dump()
+
+
         dp_obj = IonObject(RT.DataProduct,
             name='the parsed data',
             description='ctd stream test',
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parsed_parameter_dictionary)
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
@@ -528,7 +556,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id, parameter_dictionary)
+        data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id, raw_parameter_dictionary)
         log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)

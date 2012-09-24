@@ -84,23 +84,23 @@ def build_contexts():
     port_ts_ctxt._derived_from_name = 'time'
     port_ts_ctxt.reference_frame = AxisTypeEnum.TIME
     port_ts_ctxt.uom = 'seconds'
-    port_ts_ctxt.fill_value = np.nan
+    port_ts_ctxt.fill_value = -1
     contexts.append(port_ts_ctxt)
 
     driver_ts_ctxt = ParameterContext(name='driver_timestamp', param_type=QuantityType(value_encoding=np.float64))
     driver_ts_ctxt._derived_from_name = 'time'
     driver_ts_ctxt.uom = 'seconds'
-    driver_ts_ctxt.fill_value = np.nan
+    driver_ts_ctxt.fill_value = -1
     contexts.append(driver_ts_ctxt)
 
     internal_ts_ctxt = ParameterContext(name='internal_timestamp', param_type=QuantityType(value_encoding=np.float64))
     internal_ts_ctxt._derived_from_name = 'time'
     internal_ts_ctxt.uom = 'seconds'
-    internal_ts_ctxt.fill_value = np.nan
+    internal_ts_ctxt.fill_value = -1
     contexts.append(internal_ts_ctxt)
 
     timer_num_ctxt = ParameterContext(name='timer', param_type=QuantityType(value_encoding=np.float64))
-    timer_num_ctxt.fill_value = np.nan
+    timer_num_ctxt.fill_value = -1
     contexts.append(timer_num_ctxt)
 
     serial_num_ctxt = ParameterContext(name='serial_num', param_type=QuantityType(value_encoding=np.int32))
