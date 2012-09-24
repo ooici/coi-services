@@ -384,6 +384,17 @@ class OrgManagementService(BaseOrgManagementService):
                 #Get the most recent version of the Negotiation resource
                 negotiation = self.clients.resource_registry.read(neg_id)
 
+            elif sap.proposal_status == ProposalStatusEnum.ACCEPTED and sap.originator == ProposalOriginatorEnum.CONSUMER:
+                provider_accept_sap = Negotiation.create_counter_proposal(negotiation)
+                provider_accept_sap.proposal_status = ProposalStatusEnum.ACCEPTED
+                provider_accept_sap.originator = ProposalOriginatorEnum.PROVIDER
+
+                #Update the Negotiation object with the latest SAP
+                neg_id = self.negotiation_handler.update_negotiation(provider_accept_sap)
+
+                #Get the most recent version of the Negotiation resource
+                negotiation = self.clients.resource_registry.read(neg_id)
+
         #Return the latest proposal
         return negotiation.proposals[-1]
 
