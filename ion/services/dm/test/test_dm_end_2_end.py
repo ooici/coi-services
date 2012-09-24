@@ -26,8 +26,10 @@ from ion.services.dm.ingestion.ingestion_management_service import IngestionMana
 from gevent.event import Event
 from nose.plugins.attrib import attr
 from pyon.ion.exchange import ExchangeNameQueue
-import unittest
-import os
+from ion.util.parameter_yaml_IO import get_param_dict
+from coverage_model.parameter import ParameterContext
+from coverage_model.parameter_types import ArrayType, RecordType
+
 
 import gevent
 import time
@@ -159,7 +161,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
             now = time.time()
 
 
-    def create_dataset(self):
+    def create_dataset(self, parameter_dict=None):
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
         sdom = sdom.dump()
@@ -167,7 +169,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         pdict = craft.create_parameters()
         pdict = pdict.dump()
 
-        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dict=pdict, spatial_domain=sdom, temporal_domain=tdom)
+        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dict=parameter_dict or pdict, spatial_domain=sdom, temporal_domain=tdom)
         return dataset_id
 
 
@@ -235,8 +237,22 @@ class TestDMEnd2End(IonIntegrationTestCase):
         # Set up a stream and have a mock instrument (producer) send data
         #--------------------------------------------------------------------------------
 
-        stream_id, route = self.pubsub_management.create_stream('producer', exchange_point=self.exchange_point_name)
-        self.launch_producer(stream_id)
+        # Get a precompiled parameter dictionary with basic ctd fields
+        pdict = get_param_dict('ctd_parsed_param_dict')
+        # Add a field that supports binary data input.
+        bin_context = ParameterContext('binary',  param_type=ArrayType())
+        # Add another field that supports dictionary elements.
+        rec_context = ParameterContext('records', param_type=RecordType())
+
+        pdict.add_context(bin_context)
+        pdict.add_context(rec_context)
+        
+        stream_definition = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary=pdict.dump())
+
+
+        stream_id, route = self.pubsub_management.create_stream('producer', exchange_point=self.exchange_point_name, stream_definition_id=stream_definition)
+
+
 
 
         #--------------------------------------------------------------------------------
@@ -248,13 +264,14 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         ingest_config_id = self.get_ingestion_config()
-        dataset_id = self.create_dataset()
+        dataset_id = self.create_dataset(pdict.dump())
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
 
         #--------------------------------------------------------------------------------
         # Now the granules are ingesting and persisted
         #--------------------------------------------------------------------------------
 
+        self.launch_producer(stream_id)
         self.wait_until_we_have_enough_granules(dataset_id,4)
         
         #--------------------------------------------------------------------------------
@@ -263,6 +280,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         
         replay_data = self.data_retriever.retrieve(dataset_id)
         self.assertIsInstance(replay_data, Granule)
+        rdt = RecordDictionaryTool.load_from_granule(replay_data)
+        self.assertTrue((rdt['time'][:10] == np.arange(10)).all(),'%s' % rdt['time'][:])
+        self.assertTrue((rdt['binary'][:10] == np.array(['hi']*10, dtype='object')).all())
+
         
         #--------------------------------------------------------------------------------
         # Now to try the streamed approach
@@ -293,7 +314,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         subscriber.start()
         subscriber.xn.bind(replay_route.routing_key, xp)
 
-        if self.launched_event.wait(10):
+        if self.launched_event.wait(4):
             log.critical('The process has started')
             self.data_retriever.start_replay(self.replay_id)
         else:
@@ -317,38 +338,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         event_sub.stop()
         event_sub.close()
 
-
-    def test_replay_by_time(self):
-        #--------------------------------------------------------------------------------
-        # Create the necessary configurations for the test
-        #--------------------------------------------------------------------------------
-        stream_id, route  = self.pubsub_management.create_stream('replay_by_time', exchange_point=self.exchange_point_name)
-        config_id         = self.get_ingestion_config()
-        dataset_id        = self.create_dataset()
-        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
-        #--------------------------------------------------------------------------------
-        # Create the datastore first,
-        #--------------------------------------------------------------------------------
-        # There is a race condition sometimes between the services and the process for
-        # the creation of the datastore and it's instance, this ensures the datastore
-        # exists before the process is even subscribing to data.
-        self.get_datastore(dataset_id) 
-
-        self.publish_fake_data(stream_id, route)
-        self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
-
-        replay_granule = self.data_retriever.retrieve(dataset_id,{'start_time':0,'end_time':6})
-
-        rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-
-        comp = rdt['time'] == np.array([0,1,2,3,4,5])
-
-        try:
-            log.info('Compared granule: %s', replay_granule.__dict__)
-            log.info('Granule tax: %s', replay_granule.taxonomy.__dict__)
-        except:
-            pass
-        self.assertTrue(comp.all())
 
     def test_last_granule(self):
         #--------------------------------------------------------------------------------
@@ -382,9 +371,20 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Create the configurations and the dataset
         #--------------------------------------------------------------------------------
-        stream_id, route  = self.pubsub_management.create_stream('replay_with_params', exchange_point=self.exchange_point_name)
+        pdict = get_param_dict('ctd_parsed_param_dict')
+        # Add a field that supports binary data input.
+        bin_context = ParameterContext('binary',  param_type=ArrayType())
+        # Add another field that supports dictionary elements.
+        rec_context = ParameterContext('records', param_type=RecordType())
+
+        pdict.add_context(bin_context)
+        pdict.add_context(rec_context)
+        
+        stream_definition = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary=pdict.dump())
+        
+        stream_id, route  = self.pubsub_management.create_stream('replay_with_params', exchange_point=self.exchange_point_name, stream_definition_id=stream_definition)
         config_id  = self.get_ingestion_config()
-        dataset_id = self.create_dataset()
+        dataset_id = self.create_dataset(pdict.dump())
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
 
 

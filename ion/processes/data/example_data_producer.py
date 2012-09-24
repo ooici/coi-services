@@ -3,35 +3,40 @@
 from pyon.util.log import log
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, ParameterContext, ParameterDictionary, QuantityType, AxisTypeEnum, CoverageCraft
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from interface.objects import Granule
-
+from pyon.core.exception import NotFound
+from ion.util.parameter_yaml_IO import get_param_dict
 import numpy
 import random
 import gevent
 
 class BetterDataProducer(SimpleCtdPublisher):
     def on_start(self):
-        super(BetterDataProducer,self).on_start()
+        self.pdict = None
 
         stream_id = self.CFG.get_safe('process.stream_id')
-        stream_def = pubsub_cli
+        pubsub_cli = PubsubManagementServiceProcessClient(process=self)
+        try: 
+            stream_def = pubsub_cli.read_stream_definition(stream_id=stream_id)
+            self.pdict = ParameterDictionary.load(stream_def.parameter_dictionary)
+        except NotFound:
+            self.pdict = get_param_dict('ctd_parsed_param_dict')
+        super(BetterDataProducer,self).on_start()
+
     def publish_loop(self):
         t_i = 0
         while not self.finished.is_set():
-            black_box                     = CoverageCraft()
-            black_box.rdt['time']         = numpy.arange(10) + t_i*10
-            black_box.rdt['temp']         = numpy.random.random(10) * 10
-            black_box.rdt['lat']          = numpy.array([0] * 10)
-            black_box.rdt['lon']          = numpy.array([0] * 10)
-            black_box.rdt['depth']        = numpy.array([0] * 10)
-            black_box.rdt['conductivity'] = numpy.random.random(10) * 10
-            black_box.rdt['data']         = numpy.random.randint(0,255,10) # Simulates random bytes
+            rdt = RecordDictionaryTool(param_dictionary=self.pdict)
+            rdt['time']         = numpy.arange(10) + t_i*10
+            rdt['temp']         = numpy.random.random(10) * 10
+            rdt['lat']          = numpy.array([0] * 10)
+            rdt['lon']          = numpy.array([0] * 10)
+            rdt['depth']        = numpy.array([0] * 10)
+            rdt['conductivity'] = numpy.random.random(10) * 10
+            rdt['binary']         = numpy.array(['hi'] * 10, dtype='object')
             
-            black_box.sync_with_granule()
-            granule = black_box.to_granule()
-
-            self.publish(granule)
+            self.publish(rdt.to_granule())
             gevent.sleep(self.interval)
             t_i += 1
 
