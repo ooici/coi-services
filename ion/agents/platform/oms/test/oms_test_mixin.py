@@ -19,6 +19,7 @@ import time
 # Some IDs used in the tests (which must be defined in network.yml
 # if testing against the simulator)
 PLATFORM_ID = 'Node1A'
+SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
 ATTR_NAMES = ['Node1A_attr_1', 'Node1A_attr_2']
 PORT_ID = 'Node1A_port_1'
 
@@ -103,6 +104,18 @@ class OmsTestMixin(object):
         self.assertIsInstance(platform_map, list)
         for pair in platform_map:
             self.assertIsInstance(pair, (tuple, list))
+
+    def test_ab_getRootPlatformID(self):
+        platform_id = self.oms.config.getRootPlatformID()
+        self.assertEquals("ShoreStation", platform_id)
+
+    def test_ab_getSubplatformIDs(self):
+        platform_id = PLATFORM_ID
+        retval = self.oms.config.getSubplatformIDs(platform_id)
+        print("getSubplatformIDs(%r) = %s" % (platform_id,  retval))
+        subplatform_ids = self._verify_valid_platform_id(platform_id, retval)
+        self.assertIsInstance(subplatform_ids, list)
+        self.assertTrue(x in subplatform_ids for x in SUBPLATFORM_IDS)
 
     def test_ac_getPlatformTypes(self):
         retval = self.oms.config.getPlatformTypes()
