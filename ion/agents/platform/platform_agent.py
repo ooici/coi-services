@@ -13,6 +13,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 from pyon.ion.stream import StreamPublisher
+from pyon.ion.stream import StandaloneStreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
@@ -167,7 +168,7 @@ class PlatformAgent(ResourceAgent):
                     self._launcher.cancel_process(pid)
                 except Exception as e:
                     log.warn("%r: exception in cancel_process for subplatform_id=%r, pid=%r: %s",
-                             self._platform_id, subplatform_id, pid, str(e), exc_Info=True)
+                             self._platform_id, subplatform_id, pid, str(e)) #, exc_Info=True)
 
         self._pa_clients.clear()
 
@@ -218,6 +219,14 @@ class PlatformAgent(ResourceAgent):
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
 
+    def _create_publisher(self, stream_id=None, stream_route=None):
+        if self._standalone:
+            publisher = StandaloneStreamPublisher(stream_id, stream_route)
+        else:
+            publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=stream_route)
+
+        return publisher
+
     def _construct_data_publishers(self):
         """
         Construct the stream publishers from the stream_config agent
@@ -229,13 +238,13 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: stream_info = %s",
             self._platform_id, stream_info)
 
-        for (name, stream_config) in stream_info.iteritems():
+        for (stream_name, stream_config) in stream_info.iteritems():
             stream_id = stream_config['id']
-            self._data_streams[name] = stream_id
-            publisher = StreamPublisher(process=self,stream_id=stream_id)
-            self._data_publishers[name] = publisher
+            self._data_streams[stream_name] = stream_id
+            publisher = self._create_publisher(stream_id=stream_id)
+            self._data_publishers[stream_name] = publisher
             log.debug("%r: created publisher for stream_name=%r (""stream_id=%r)",
-                      self._platform_id, name, stream_id)
+                      self._platform_id, stream_name, stream_id)
 
     def _construct_packet_factories(self):
         """

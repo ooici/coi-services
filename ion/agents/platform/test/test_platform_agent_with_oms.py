@@ -95,6 +95,8 @@ class TestPlatformAgent(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+
         PLATFORM_CONFIG['container_name'] = self.container.name
 
         # Start data suscribers, add stop to cleanup.
@@ -116,14 +118,28 @@ class TestPlatformAgent(IonIntegrationTestCase):
 
         log.debug("launching with agent_config=%s",  str(self._agent_config))
 
-        self._launcher = LauncherFactory.createLauncher()
-        self._pid = self._launcher.launch(PLATFORM_ID, self._agent_config)
 
-        log.debug("LAUNCHED PLATFORM_ID=%r", PLATFORM_ID)
+        if os.getenv("STANDALONE") is not None:
+            standalone = {
+                'platform_id': PLATFORM_ID,
+                'container': self.container,
+                'pubsub_client': self._pubsub_client
+            }
+            self._launcher = LauncherFactory.createLauncher(standalone=standalone)
+            self._pid = self._launcher.launch(PLATFORM_ID, self._agent_config)
+            self._pa_client = self._pid
 
-        # Start a resource agent client to talk with the agent.
-        self._pa_client = ResourceAgentClient(PA_RESOURCE_ID, process=FakeProcess())
-        log.info('Got pa client %s.' % str(self._pa_client))
+            log.debug("STANDALONE: LAUNCHED PLATFORM_ID=%r", PLATFORM_ID)
+
+        else:
+            self._launcher = LauncherFactory.createLauncher()
+            self._pid = self._launcher.launch(PLATFORM_ID, self._agent_config)
+
+            log.debug("LAUNCHED PLATFORM_ID=%r", PLATFORM_ID)
+
+            # Start a resource agent client to talk with the agent.
+            self._pa_client = ResourceAgentClient(PA_RESOURCE_ID, process=FakeProcess())
+            log.info('Got pa client %s.' % str(self._pa_client))
 
     def tearDown(self):
         try:
@@ -134,8 +150,6 @@ class TestPlatformAgent(IonIntegrationTestCase):
     def _start_data_subscribers(self):
         """
         """
-        # Create a pubsub client to create streams.
-        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
 
         # A callback for processing subscribed-to data.
         def consume_data(message, stream_route, stream_id):
@@ -149,24 +163,34 @@ class TestPlatformAgent(IonIntegrationTestCase):
         self._stream_config = {}
         self._data_subscribers = []
         for stream_name in adhoc_get_stream_names():
-            stream_id, route = pubsub_client.create_stream(name=stream_name,exchange_point='science_data')
+            log.info('creating stream %r ...', stream_name)
+            stream_id, stream_route = self._pubsub_client.create_stream(name=stream_name,exchange_point='science_data')
+
+            log.info('create_stream(%r): stream_id=%r, stream_route=%s',
+                     stream_name, stream_id, str(stream_route))
 
             taxy = adhoc_get_taxonomy(stream_name)
             stream_config = dict(
                 id=stream_id,
                 taxonomy=taxy.dump()
             )
+
             self._stream_config[stream_name] = stream_config
+            log.info('_stream_config[%r]= %r', stream_name, stream_config)
 
             # Create subscriptions for each stream.
             exchange_name = '%s_queue' % stream_name
+            self._purge_queue(exchange_name)
             sub = StandaloneStreamSubscriber(exchange_name, consume_data)
             sub.start()
             self._data_subscribers.append(sub)
-            sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
-            pubsub_client.activate_subscription(sub_id)
+            sub_id = self._pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
+            self._pubsub_client.activate_subscription(sub_id)
             sub.subscription_id = sub_id
 
+    def _purge_queue(self, queue):
+        xn = self.container.ex_manager.create_xn_queue(queue)
+        xn.purge()
 
     def _stop_data_subscribers(self):
         """
@@ -174,12 +198,11 @@ class TestPlatformAgent(IonIntegrationTestCase):
         """
         for sub in self._data_subscribers:
             if hasattr(sub, 'subscription_id'):
-                pubsub_client = PubsubManagementServiceClient(node=self.container.node)
                 try:
-                    pubsub_client.deactivate_subscription(sub.subscription_id)
+                    self._pubsub_client.deactivate_subscription(sub.subscription_id)
                 except:
                     pass
-                pubsub_client.delete_subscription(sub.subscription_id)
+                self._pubsub_client.delete_subscription(sub.subscription_id)
             sub.stop()
 
     def _get_state(self):
