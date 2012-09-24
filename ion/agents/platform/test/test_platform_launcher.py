@@ -9,7 +9,7 @@
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
-from ion.agents.platform.platform_agent_launcher import Launcher
+from ion.agents.platform.platform_agent_launcher import LauncherFactory
 from pyon.util.int_test import IonIntegrationTestCase
 
 from gevent import sleep
@@ -24,7 +24,7 @@ class Test(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        launcher = Launcher()
+        launcher = LauncherFactory.createLauncher()
 
         platform_id = "My_platformId"
         PA_RESOURCE_ID = 'My_platformId_001'

@@ -22,7 +22,7 @@ from interface.objects import AgentCommand
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
-from ion.agents.platform.platform_agent_launcher import Launcher
+from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
 from pyon.ion.stream import StandaloneStreamSubscriber
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -114,8 +114,12 @@ class TestPlatformAgent(IonIntegrationTestCase):
             'test_mode' : True
         }
 
-        self._launcher = Launcher()
+        log.debug("launching with agent_config=%s",  str(self._agent_config))
+
+        self._launcher = LauncherFactory.createLauncher()
         self._pid = self._launcher.launch(PLATFORM_ID, self._agent_config)
+
+        log.debug("LAUNCHED PLATFORM_ID=%r", PLATFORM_ID)
 
         # Start a resource agent client to talk with the agent.
         self._pa_client = ResourceAgentClient(PA_RESOURCE_ID, process=FakeProcess())
