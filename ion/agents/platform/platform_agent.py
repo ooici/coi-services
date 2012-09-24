@@ -103,6 +103,7 @@ class PlatformAgent(ResourceAgent):
     ORIGIN_TYPE = "PlatformDevice"  #TODO how this works?
 
     def __init__(self, standalone=None):
+        log.info("PlatformAgent constructor called")
         ResourceAgent.__init__(self)
         self._standalone = standalone
         self._plat_config = None
@@ -147,6 +148,8 @@ class PlatformAgent(ResourceAgent):
             self.resource_id = self._standalone['platform_id']
             self.container = self._standalone.get('container', None)
             self._on_init()
+
+        log.info("PlatformAgent constructor complete.")
 
     def _reset(self):
         """
