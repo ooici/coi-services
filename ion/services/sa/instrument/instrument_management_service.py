@@ -312,15 +312,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 log.debug("start_instrument_agent_instance: product_param_dict : %s",
                           str(out_streams_and_param_dicts[product_stream_id]))
                 product_param_dict = ParameterDictionary.load(out_streams_and_param_dicts[product_stream_id])
-                if product_param_dict == model_param_dict:
-                    #get the streamroute object from pubsub by passing the stream_id
-                    stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
-                    log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
-                    stream_route_flat = ion_serializer.serialize(stream_route)
-                    stream_config_too[stream_tag] = {'stream_route': str(stream_route_flat),
-                                                     'parameter_dictionary':out_streams_and_param_dicts[product_stream_id]}
-                    log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
-                              str(stream_config_too) )
+                #if product_param_dict == model_param_dict:
+                #get the streamroute object from pubsub by passing the stream_id
+                stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
+                log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
+                stream_route_flat = ion_serializer.serialize(stream_route)
+                stream_config_too[stream_tag] = {'stream_route': str(stream_route_flat),
+                                                 'parameter_dictionary':out_streams_and_param_dicts[product_stream_id]}
+                log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
+                          str(stream_config_too) )
 
                     #todo: REIMPL THIS CHECK!
                 #        if len(streams_dict) != len(stream_config_too):
@@ -1742,7 +1742,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_firmware_version(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
-            ret.value = 1.1 #todo: use ia_client
+            ret.value = 0.0 #todo: use ia_client
         return ret
 
 
@@ -1756,38 +1756,38 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_last_data_received_datetime(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
-            ret.value = 42.2 #todo: use ia_client
+            ret.value = 0.0 #todo: use ia_client
         return ret
 
 
-    def get_operational_state(self, instrument_device_id):   # from Device
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedStringValue)
+    def get_operational_state(self, taskable_resource_id):   # from Device
+        ia_client, ret = self.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
         if ia_client:
-            ret.value = "23" #todo: use ia_client
+            ret.value = "" #todo: use ia_client
         return ret
 
     def get_last_command_status(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
         if ia_client:
-            ret.value = 34 #todo: use ia_client
+            ret.value = 0 #todo: use ia_client
         return ret
 
     def get_last_command_date(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
-            ret.value = 45.5 #todo: use ia_client
+            ret.value = 0.0 #todo: use ia_client
         return ret
 
     def get_last_command(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedStringValue)
         if ia_client:
-            ret.value = "56" #todo: use ia_client
+            ret.value = "0" #todo: use ia_client
         return ret
 
     def get_last_commanded_by(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedStringValue)
         if ia_client:
-            ret.value = "67" #todo: use ia_client
+            ret.value = "0" #todo: use ia_client
         return ret
 
     def get_power_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
@@ -1795,7 +1795,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
         if ia_client:
-            ret.value = 78 #todo: use ia_client
+            ret.value = 0 #todo: use ia_client
         return ret
 
     def get_communications_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
@@ -1810,7 +1810,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
         if ia_client:
-            ret.value = 89 #todo: use ia_client
+            ret.value = 0 #todo: use ia_client
         return ret
 
     def get_data_status_roll_up(self, instrument_device_id): # BLACK, RED, GREEN, YELLOW
@@ -1818,7 +1818,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
         if ia_client:
-            ret.value = 98 #todo: use ia_client
+            ret.value = 0 #todo: use ia_client
         return ret
 
     def get_location_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
@@ -1826,7 +1826,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
         if ia_client:
-            ret.value = 87 #todo: use ia_client
+            ret.value = 0 #todo: use ia_client
         return ret
 
     def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
