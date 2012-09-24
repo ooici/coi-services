@@ -29,7 +29,7 @@ from interface.objects import ProcessDefinition
 from interface.objects import ProcessStateEnum
 
 from gevent.event import AsyncResult
-
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
 
 from pyon.public import CFG
 from pyon.public import RT, LCS, PRED
@@ -57,43 +57,6 @@ from nose.plugins.attrib import attr
 
 import unittest
 import time
-
-
-from pyon.event.event import EventSubscriber
-from gevent import event as gevent_event
-from pyon.event.event import EventSubscriber
-class ProcessStateGate(EventSubscriber):
-    """
-    Ensure that we get a particular state, now or in the future.
-    """
-    def __init__(self, process_dispatcher_svc_client=None, process_id='', desired_state=None, *args, **kwargs):
-        EventSubscriber.__init__(self, *args, callback=self.trigger_cb, **kwargs)
-
-        self.pd_client = process_dispatcher_svc_client
-        self.desired_state = desired_state
-        self.process_id = process_id
-
-        #sanity check
-        self.pd_client.read_process(self.process_id)
-
-    def trigger_cb(self, event, x):
-        if event == self.desired_state:
-            self.stop()
-            self.gate.set()
-
-    def await(self, timeout=None):
-        self.gate = gevent_event.Event()
-        self.start()
-
-        #check on the process as it exists right now
-        process_obj = self.pd_client.read_process(self.process_id)
-        if self.desired_state == process_obj.process_state:
-            self.stop()
-            return True
-
-        #if it's not where we want it, wait.
-        return self.gate.wait(timeout)
-
 
 
 
@@ -402,7 +365,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
-        gate = ProcessStateGate(self.processdispatchclient, instance_obj.agent_process_id, ProcessStateEnum.SPAWN)
+        gate = ProcessStateGate(self.processdispatchclient.read_process,
+                                instance_obj.agent_process_id,
+                                ProcessStateEnum.SPAWN)
         self.assertTrue(gate.await(30), "The instrument agent instance did not spawn in 30 seconds")
 
         inst_agent_instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)

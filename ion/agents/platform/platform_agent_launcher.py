@@ -4,7 +4,9 @@
 @package ion.agents.platform.platform_agent_launcher
 @file    ion/agents/platform/platform_agent_launcher.py
 @author  Carlos Rueda
-@brief   Helper for launching platform agent processes
+@brief   Helper for launching platform agent processes. This helper was introduced
+         to facilitate testing and diagnosing of launching issues in coi_pycc and
+         other builds in buildbot.
 """
 
 __author__ = 'Carlos Rueda'
@@ -16,6 +18,8 @@ from pyon.event.event import EventSubscriber
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition, ProcessStateEnum
+
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
 
 from ion.agents.platform.exceptions import PlatformException
 
@@ -32,17 +36,21 @@ PA_CLS = 'PlatformAgent'
 
 class Launcher(object):
     """
-    Helper for launching platform agent processes.
+    Helper for launching platform agent processes. This helper was introduced
+    to facilitate testing and diagnosing of launching issues in coi_pycc and
+    other builds in buildbot.
     """
 
     def __init__(self, use_gate=True):
         """
-        @param use_gate     True to use StateGate pattern.
+        @param use_gate True (the default) to use ProcessStateGate pattern.
+                        Otherwise, the create_process/schedule_process/_await_state_event
+                        pattern (as described in
+                        https://confluence.oceanobservatories.org/display/CIDev/R2+Process+Dispatcher+Guide
+                        as of Sept 14/12) is used.
         """
-        self._pd_client = ProcessDispatcherServiceClient()
-        self._event_queue = None
-        self._event_sub = None
         self._use_gate = use_gate
+        self._pd_client = ProcessDispatcherServiceClient()
 
     def launch(self, platform_id, agent_config, timeout_spawn=30):
         """
@@ -55,21 +63,30 @@ class Launcher(object):
 
         @retval process ID
         """
-        log.debug("launch: platform_id=%s, timeout_spawn=%s",
+        log.debug("launch: platform_id=%r, timeout_spawn=%s",
                   platform_id, str(timeout_spawn))
 
+        if self._use_gate:
+            return self._do_launch_gate(platform_id, agent_config, timeout_spawn)
+
         try:
-            if self._use_gate:
-                return self._do_launch_gate(platform_id, agent_config, timeout_spawn)
-            else:
-                return self._do_launch(platform_id, agent_config, timeout_spawn)
+            return self._do_launch(platform_id, agent_config, timeout_spawn)
         finally:
             self._event_queue = None
             self._event_sub = None
 
-    def _do_launch_gate(self, platform_id, agent_config, timeout_spawn):
+    def cancel_process(self, pid):
+        """
+        Helper to terminate a process
+        """
+        self._pd_client.cancel_process(pid)
 
-        log.debug("_do_launch_gate: platform_id=%s", platform_id)
+    def _do_launch_gate(self, platform_id, agent_config, timeout_spawn):
+        """
+        The method for when using the ProcessStateGate pattern, which is the
+        one used by test_oms_launch to launch the root platform.
+        """
+        log.debug("_do_launch_gate: platform_id=%r", platform_id)
 
         pa_name = 'PlatformAgent_%s' % platform_id
 
@@ -80,49 +97,39 @@ class Launcher(object):
         }
         pdef_id = self._pd_client.create_process_definition(process_definition=pdef)
 
-        if True:  # True => using schedule_process directly
-            #
-            # the following more closely reflects the mechanism in
-            # test_oms_launch (which seems to be running consistently ok on
-            # coi_pycc)
-            #
-            log.debug("using schedule_process directly %r", platform_id)
+        log.debug("using schedule_process directly %r", platform_id)
 
-            pid = self._pd_client.schedule_process(process_definition_id=pdef_id,
-                                             schedule=None,
-                                             configuration=agent_config)
-
-        else:  # False => use create_process then schedule_process
-            #
-            # the following always works fine locally, but not on coi_pycc
-            #
-            log.debug("using create_process %r", platform_id)
-
-            pid = self._pd_client.create_process(process_definition_id=pdef_id)
-
-            self._pd_client.schedule_process(process_definition_id=pdef_id,
-                                             process_id=pid,
-                                             configuration=agent_config)
-
+        pid = self._pd_client.schedule_process(process_definition_id=pdef_id,
+                                         schedule=None,
+                                         configuration=agent_config)
 
         if timeout_spawn:
-            gate = ProcessStateGate(self._pd_client, pid, ProcessStateEnum.SPAWN)
-            msg = None
+            # ProcessStateGate used as indicated in its pydoc (9/21/12)
+            gate = ProcessStateGate(self._pd_client.read_process, pid, ProcessStateEnum.SPAWN)
+            err_msg = None
             try:
                 if not gate.await(timeout_spawn):
-                    msg = "The platform agent instance did not spawn in %s seconds" %\
+                    err_msg = "The platform agent instance did not spawn in %s seconds" %\
                           timeout_spawn
-                    log.error(msg)
+                    log.error(err_msg)
             except:
-                msg = "Exception while waiting for platform agent instance " \
+                err_msg = "Exception while waiting for platform agent instance " \
                       "to spawn in %s seconds" % timeout_spawn
-                log.error(msg, exc_Info=True)
-            if msg:
-                raise PlatformException(msg)
+                log.error(err_msg, exc_Info=True)
+            if err_msg:
+                raise PlatformException(err_msg)
 
         return pid
 
     def _do_launch(self, platform_id, agent_config, timeout_spawn):
+        """
+        The method for the create_process/schedule_process/_await_state_event
+        pattern, which has proved to be consistently effective locally but not
+        on buildbot.
+        """
+
+        self._event_queue = None
+        self._event_sub = None
 
         pa_name = 'PlatformAgent_%s' % platform_id
 
@@ -206,44 +213,3 @@ class Launcher(object):
             msg = "Expecting origin %s but got %s" % (pid, event.origin)
             log.error(msg)
             raise PlatformException(msg)
-
-    def cancel_process(self, pid):
-        """
-        Helper to terminate a process
-        """
-        self._pd_client.cancel_process(pid)
-
-
-# copied from test_activate_instrument.py
-from gevent import event as gevent_event
-class ProcessStateGate(EventSubscriber):
-    """
-    Ensure that we get a particular state, now or in the future.
-    """
-    def __init__(self, process_dispatcher_svc_client=None, process_id='', desired_state=None, *args, **kwargs):
-        EventSubscriber.__init__(self, *args, callback=self.trigger_cb, **kwargs)
-
-        self.pd_client = process_dispatcher_svc_client
-        self.desired_state = desired_state
-        self.process_id = process_id
-
-        #sanity check
-        self.pd_client.read_process(self.process_id)
-
-    def trigger_cb(self, event, x):
-        if event == self.desired_state:
-            self.stop()
-            self.gate.set()
-
-    def await(self, timeout=None):
-        self.gate = gevent_event.Event()
-        self.start()
-
-        #check on the process as it exists right now
-        process_obj = self.pd_client.read_process(self.process_id)
-        if self.desired_state == process_obj.process_state:
-            self.stop()
-            return True
-
-        #if it's not where we want it, wait.
-        return self.gate.wait(timeout)

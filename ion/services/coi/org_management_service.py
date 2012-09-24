@@ -2,16 +2,36 @@
 
 __author__ = 'Stephen P. Henrie, Michael Meisinger'
 
-from pyon.public import CFG, IonObject, RT, PRED
-
-from interface.services.coi.iorg_management_service import BaseOrgManagementService
-from ion.services.coi.policy_management_service import MEMBER_ROLE, MANAGER_ROLE
+from pyon.public import CFG, IonObject, RT, PRED, OT
 from pyon.core.exception import  Inconsistent, NotFound, BadRequest
 from pyon.ion.directory import Directory
+from pyon.core.registry import issubtype
 from pyon.event.event import EventPublisher
 from pyon.util.containers import is_basic_identifier
-from pyon.util.log import log
-from pyon.core.governance.negotiate_request import NegotiateRequest, NegotiateRequestFactory
+from pyon.core.governance.negotiation import Negotiation
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum
+from interface.services.coi.iorg_management_service import BaseOrgManagementService
+from ion.services.coi.policy_management_service import MEMBER_ROLE, MANAGER_ROLE
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+
+#Supported Negotiations - perhaps move these to data at some point if there are more negotiation types and/or remove
+#references to local functions to make this more dynamic
+negotiation_rules = {
+    OT.EnrollmentProposal: {
+        'pre_conditions': ['is_registered(sap.consumer)', 'not is_enrolled(sap.provider,sap.consumer)', 'not is_enroll_negotiation_open(sap.provider,sap.consumer)'],
+        'accept_action': 'enroll_member(sap.provider,sap.consumer)'
+    },
+
+    OT.RequestRoleProposal: {
+        'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)'],
+        'accept_action': 'grant_role(sap.provider,sap.consumer,sap.role_name)'
+    },
+
+    OT.AcquireResourceProposal: {
+        'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)', 'has_role(sap.provider,sap.consumer,"' + INSTRUMENT_OPERATOR_ROLE + '")'],
+        'accept_action': 'acquire_resource(sap.provider,sap.consumer,sap.resource)'
+    }
+}
 
 
 class OrgManagementService(BaseOrgManagementService):
@@ -22,10 +42,9 @@ class OrgManagementService(BaseOrgManagementService):
     and commitment repository
     """
 
-
-
     def on_init(self):
-        self.request_handler = NegotiateRequest(self)
+
+        self.negotiation_handler = Negotiation(self, negotiation_rules)
         self.event_pub = EventPublisher()
 
     def _get_root_org_name(self):
@@ -95,18 +114,18 @@ class OrgManagementService(BaseOrgManagementService):
             parameter_objects['resource'] = resource
 
 
-        if kwargs.has_key('request_id'):
+        if kwargs.has_key('negotiation_id'):
 
-            request_id = kwargs['request_id']
+            negotiation_id = kwargs['negotiation_id']
 
-            if not request_id:
-                raise BadRequest("The request_id parameter is missing")
+            if not negotiation_id:
+                raise BadRequest("The negotiation_id parameter is missing")
 
-            request = self.clients.resource_registry.read(request_id)
-            if not request:
-                raise NotFound("User Request %s does not exist" % request_id)
+            negotiation = self.clients.resource_registry.read(negotiation_id)
+            if not negotiation:
+                raise NotFound("Negotiation %s does not exist" % negotiation_id)
 
-            parameter_objects['request'] = request
+            parameter_objects['negotiation'] = negotiation
 
         if kwargs.has_key('affiliate_org_id'):
 
@@ -321,227 +340,113 @@ class OrgManagementService(BaseOrgManagementService):
 
         return role_list
 
+    def negotiate(self, sap=None):
+        """A generic operation for negotiating actions with an Org, such as for enrollment, role request or to acquire a
+        resource managed by the Org. The Service Agreement Proposal is used to specify conditions of the proposal as well
+        as counter proposals and the Org will create Negotiation Resource to track the history and status of the negotiation.
 
-    def request_enroll(self, org_id='', user_id=''):
-        """Requests for an enrollment with an Org which must be accepted or denied as a separate process.
-        Membership in the ION Org is implied by registration with the system, so a membership
-        association to the ION Org is not maintained. Throws a NotFound exception if neither id is found.
+        @param sap    ServiceAgreementProposal
+        @retval sap    ServiceAgreementProposal
+        @throws BadRequest    If an SAP is not provided or incomplete
+        @throws Inconsistent    If an SAP has inconsistent information
+        @throws NotFound    If any of the ids in the SAP do not exist
+        """
+
+        if sap is None or ( sap.type_ != OT.ServiceAgreementProposal and not issubtype(sap.type_, OT.ServiceAgreementProposal)):
+            raise BadRequest('The sap parameter must be a valid Service Agreement Proposal object')
+
+        if sap.proposal_status == ProposalStatusEnum.INITIAL:
+            neg_id = self.negotiation_handler.create_negotiation(sap)
+
+            #Synchronize the internal reference for later use
+            sap.negotiation_id = neg_id
+
+        #Get the most recent version of the Negotiation resource
+        negotiation = self.negotiation_handler.read_negotiation(sap)
+
+        #Update the Negotiation object with the latest SAP
+        neg_id = self.negotiation_handler.update_negotiation(sap)
+
+        #Get the most recent version of the Negotiation resource
+        negotiation = self.clients.resource_registry.read(neg_id)
+
+        #hardcodng some rules at the moment
+        if sap.type_ == OT.EnrollmentProposal or sap.type_ == OT.RequestRoleProposal:
+            #Automatically accept for the consumer if the Org Manager as provider accepts the proposal
+            if sap.proposal_status == ProposalStatusEnum.ACCEPTED and sap.originator == ProposalOriginatorEnum.PROVIDER:
+                consumer_accept_sap = Negotiation.create_counter_proposal(negotiation)
+                consumer_accept_sap.proposal_status = ProposalStatusEnum.ACCEPTED
+                consumer_accept_sap.originator = ProposalOriginatorEnum.CONSUMER
+
+                #Update the Negotiation object with the latest SAP
+                neg_id = self.negotiation_handler.update_negotiation(consumer_accept_sap)
+
+                #Get the most recent version of the Negotiation resource
+                negotiation = self.clients.resource_registry.read(neg_id)
+
+        #Return the latest proposal
+        return negotiation.proposals[-1]
+
+
+    def find_org_negotiations(self, org_id='', proposal_type='', negotiation_status=''):
+        """Returns a list of negotiations for an Org. An optional proposal_type can be supplied
+        or else all proposals will be returned. An optional negotiation_status can be supplied
+        or else all proposals will be returned. Will throw a not NotFound exception
+        if any of the specified ids do not exist.
 
         @param org_id    str
-        @param user_id    str
-        @retval request_id    str
+        @param proposal_type    str
+        @param negotiation_status    str
+        @retval negotiation    list
         @throws NotFound    object with specified id does not exist
         """
 
-        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id)
-        org = param_objects['org']
-
-        if org.name == self._get_root_org_name():
-            raise BadRequest("A request to enroll in the root ION Org is not allowed")
-
-        #Initiate request
-        req_obj = NegotiateRequestFactory.create_enrollment_request(org_id, user_id)
-
-        req_id = self.request_handler.open_request(req_obj)
-
-        return req_id
-
-
-    def request_role(self, org_id='', user_id='', role_name=''):
-        """Requests for an role within an Org which must be accepted or denied as a separate process.
-        A role of Member is automatically implied with successfull enrollment.  Throws a
-        NotFound exception if neither id is found.
-
-        @param org_id    str
-        @param user_id    str
-        @param role_name    str
-        @retval request_id    str
-        @throws NotFound    object with specified id does not exist
-        """
-
-        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, role_name=role_name)
-
-        if role_name == MEMBER_ROLE:
-            raise BadRequest("The Member User Role is already assigned with an enrollment to an Org")
-
-        #Initiate request
-        req_obj = NegotiateRequestFactory.create_role_request(org_id, user_id, role_name)
-
-        req_id = self.request_handler.open_request(req_obj)
-
-        return req_id
-
-    def request_acquire_resource(self, org_id='', user_id='', resource_id=''):
-        """Requests to acquire a resource within an Org which must be accepted or denied as a separate process.
-        Throws a NotFound exception if neither id is found.
-
-        @param org_id    str
-        @param user_id    str
-        @param resource_id    str
-        @retval request_id    str
-        @throws NotFound    object with specified id does not exist
-        """
-        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, resource_id=resource_id)
-
-        #Initiate request
-        req_obj = NegotiateRequestFactory.create_acquire_resource(org_id, user_id, resource_id)
-
-        req_id = self.request_handler.open_request(req_obj)
-
-        return req_id
-
-    def find_requests(self, org_id='', request_type='', request_status=''):
-        """Returns a list of open requests for an Org. An optional request_type can be supplied
-        or else all types will be returned. An optional request_status can be supplied
-        or else requests will be returned. Will throw a not NotFound exception
-        if none of the specified ids do not exist.
-
-        @param org_id    str
-        @param request_type    str
-        @param request_status    str
-        @retval requests    list
-        @throws NotFound    object with specified id does not exist
-        """
         param_objects = self._validate_parameters(org_id=org_id)
 
-        if request_type != '':
-            request_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasRequest, request_type)
-        else:
-             request_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasRequest)
+        neg_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasNegotiation)
 
-        if not request_status:
-            return request_list
+        if proposal_type != '':
+            neg_list = [neg for neg in neg_list if neg.proposals[0].type_ == proposal_type]
 
-        return_list = []
-        for req in request_list:
-            if req.status == request_status:
-                return_list.append(req)
+        if negotiation_status != '':
+            neg_list = [neg for neg in neg_list if neg.negotiation_status == negotiation_status]
 
-        return return_list
+        return neg_list
 
-    def approve_request(self, org_id='', request_id=''):
-        """Approves a request made to an Org. Will throw a not NotFound exception
-        if none of the specified ids do not exist.
-
-        @param org_id    str
-        @param request_id    str
-        @retval success    bool
-        @throws NotFound    object with specified id does not exist
-        """
-
-        param_objects = self._validate_parameters(org_id=org_id, request_id=request_id)
-        request = param_objects['request']
-        self.request_handler.approve_request(request)
-
-
-    def deny_request(self, org_id='', request_id='', reason=''):
-        """Denys a request made to an Org. An optional reason can be recorded with the denial.
-        Will throw a not NotFound exception if none of the specified ids do not exist.
-
-        @param org_id    str
-        @param request_id    str
-        @param reason    str
-        @retval success    bool
-        @throws NotFound    object with specified id does not exist
-        """
-        param_objects = self._validate_parameters(org_id=org_id, request_id=request_id)
-        request = param_objects['request']
-        self.request_handler.deny_request(request, reason)
-
-
-    def find_user_requests(self, user_id='', org_id='', request_type='', request_status=''):
-        """Returns a list of requests for a specified User. All requests for all Orgs will be returned
-        unless an org_id is specified. An optional request_type can be supplied
-        or else all types will be returned. An optional request_status can be supplied
-        or else requests will be returned. Will throw a not NotFound exception
-        if none of the specified ids do not exist.
+    def find_user_negotiations(self, user_id='', org_id='', proposal_type='', negotiation_status=''):
+        """Returns a list of negotiations for a specified User. All negotiations for all Orgs will be returned
+        unless an org_id is specified. An optional proposal_type can be supplied
+        or else all proposals will be returned. An optional negotiation_status can be provided
+        or else all proposals will be returned. Will throw a not NotFound exception
+        if any of the specified ids do not exist.
 
         @param user_id    str
         @param org_id    str
-        @param request_type    str
-        @param request_status    str
-        @retval requests    list
+        @param proposal_type    str
+        @param negotiation_status    str
+        @retval negotiation    list
         @throws NotFound    object with specified id does not exist
         """
         param_objects = self._validate_parameters(user_id=user_id)
         user = param_objects['user']
 
-        ret_list = []
+
+        neg_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasNegotiation)
 
         if org_id:
             param_objects = self._validate_parameters(org_id=org_id)
             org = param_objects['org']
 
-            if request_type != '':
-                request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest, request_type)
-            else:
-                request_list,_ = self.clients.resource_registry.find_objects(org, PRED.hasRequest)
+            neg_list = [neg for neg in neg_list if neg.proposals[0].provider == org_id]
 
-            for req in request_list:
-                if req.user_id == user_id:
-                    ret_list.append(req)
+        if proposal_type != '':
+            neg_list = [neg for neg in neg_list if neg.proposals[0].type_ == proposal_type]
 
-            if not request_status:
-                return ret_list
+        if negotiation_status != '':
+            neg_list = [neg for neg in neg_list if neg.negotiation_status == negotiation_status]
 
-            return_req_list = []
-            for req in ret_list:
-                if req.status == request_status:
-                    return_req_list.append(req)
+        return neg_list
 
-            return return_req_list
-
-
-        if request_type != '':
-            request_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRequest, request_type)
-        else:
-            request_list,_ = self.clients.resource_registry.find_objects(user, PRED.hasRequest)
-
-        if not request_status:
-            return request_list
-
-        return_list = []
-        for req in request_list:
-            if req.status == request_status:
-                return_list.append(req)
-
-        return return_list
-
-
-    def accept_request(self, org_id='', request_id=''):
-        """Accepts and invitation for a request made to an Org.  Will throw a not NotFound exception
-        if none of the specified ids do not exist.
-
-        @param org_id    str
-        @param request_id    str
-        @retval success    bool
-        @throws NotFound    object with specified id does not exist
-        """
-        param_objects = self._validate_parameters(org_id=org_id, request_id=request_id)
-        request = param_objects['request']
-        self.request_handler.accept_request(request)
-
-        #Since the request was accepted by the user, proceed with the defined action of the negotiation
-        request = self.clients.resource_registry.read(request_id)  # Pass in the most recent version
-        ret = self.request_handler.execute_accept_action(request)
-
-        return ret
-
-    def reject_request(self, org_id='', request_id='', reason=''):
-        """Rejects an invitation made to an Org. An optional reason can be recorded with the rejection.
-        Will throw a not NotFound exception if none of the specified ids do not exist.
-
-        @param org_id    str
-        @param request_id    str
-        @param reason    str
-        @retval success    bool
-        @throws NotFound    object with specified id does not exist
-        """
-        param_objects = self._validate_parameters(org_id=org_id, request_id=request_id)
-        request = param_objects['request']
-        self.request_handler.reject_request(request,reason)
-
-        return True
 
     def enroll_member(self, org_id='', user_id=''):
         """Enrolls a specified user into the specified Org so that they may find and negotiate to use resources
@@ -729,6 +634,28 @@ class OrgManagementService(BaseOrgManagementService):
         user_role = param_objects['user_role']
 
         return self._delete_role_association(org, user, user_role)
+
+    def has_role(self, org_id='', user_id='', role_name=''):
+        """Returns True if the specified user_id has the specified role_name in the Org and False if not.
+        Throws a NotFound exception if neither id is found.
+
+        @param org_id    str
+        @param user_id    str
+        @param role_name    str
+        @retval success    bool
+        @throws NotFound    object with specified id does not exist
+        """
+        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, role_name=role_name)
+        org = param_objects['org']
+        user = param_objects['user']
+
+        role_list = self._find_org_roles_by_user(org, user)
+
+        for role in role_list:
+            if role.name == role_name:
+                return True
+
+        return False
 
     def _find_org_roles_by_user(self, org=None, user=None):
 
@@ -969,3 +896,20 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.delete_association(aid)
         return True
 
+    #Local Negotiation helper functions are below - do not remove
+
+    def is_registered(self,user_id):
+        try:
+            user = self.clients.resource_registry.read(user_id)
+            return True
+        except:
+            return False
+
+    def is_enroll_negotiation_open(self,org_id,user_id):
+
+        neg_list = self.find_user_negotiations(user_id,org_id,proposal_type=OT.EnrollmentProposal, negotiation_status=NegotiationStatusEnum.OPEN )
+
+        if neg_list:
+            return True
+
+        return False

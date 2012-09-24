@@ -21,14 +21,14 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 
-from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
-from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE, ION_MANAGER
-from pyon.core.governance.negotiate_request import REQUEST_DENIED
-from interface.objects import AgentCommand
+from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
+from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
+from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE, ION_MANAGER
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+
 ORG2 = 'Org2'
-INSTRUMENT_OPERATOR = 'INSTRUMENT_OPERATOR'
 
 
 USER1_CERTIFICATE =  """-----BEGIN CERTIFICATE-----
@@ -391,10 +391,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         gevent.sleep(1)  # Wait for events to be published and policy updated
 
 
-
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    def test_org_policy(self):
+    def test_org_negotiations(self):
 
         #Make sure that the system policies have been loaded
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
@@ -413,6 +412,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Now create user with proper credentials
         user_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
         log.info( "user id=" + user_id)
+
+        #Build the message headers used with this user
         user_header = self.container.governance_controller.get_actor_header(user_id)
 
         #Attempt to enroll a user anonymously - should not be allowed
@@ -472,8 +473,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(roles),2)
         self.assertItemsEqual([r.name for r in roles], [MANAGER_ROLE, MEMBER_ROLE])
 
-
-        operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR,label='Instrument Operator', description='Instrument Operator')
+        operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE,label='Instrument Operator', description='Instrument Operator')
 
         #First try to add the user role anonymously
         with self.assertRaises(Unauthorized) as cm:
@@ -484,93 +484,126 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),3)
-        self.assertItemsEqual([r.name for r in roles], [MANAGER_ROLE, MEMBER_ROLE,  INSTRUMENT_OPERATOR])
+        self.assertItemsEqual([r.name for r in roles], [MANAGER_ROLE, MEMBER_ROLE,  INSTRUMENT_OPERATOR_ROLE])
 
-
-        # test requests for enrollments and roles.
+        # test proposals for enrollments and roles.
 
         #First try to find user requests anonymously
         with self.assertRaises(Unauthorized) as cm:
-            requests = self.org_client.find_requests(org2_id)
-        self.assertIn('org_management(find_requests) has been denied',cm.exception.message)
-
+            requests = self.org_client.find_org_negotiations(org2_id)
+        self.assertIn('org_management(find_org_negotiations) has been denied',cm.exception.message)
 
         #Next try to find user requests as as a basic member
         with self.assertRaises(Unauthorized) as cm:
-            requests = self.org_client.find_requests(org2_id, headers=user_header)
-        self.assertIn('org_management(find_requests) has been denied',cm.exception.message)
+            requests = self.org_client.find_org_negotiations(org2_id, headers=user_header)
+        self.assertIn('org_management(find_org_negotiations) has been denied',cm.exception.message)
 
-        requests = self.org_client.find_requests(org2_id, headers=self.sa_user_header)
+        requests = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
         self.assertEqual(len(requests),0)
+
+        #Build the Service Agreement Proposal for assigning  a role to a user
+        sap = IonObject(OT.RequestRoleProposal,consumer=user_id, provider=org2_id, role_name=INSTRUMENT_OPERATOR_ROLE )
 
         # First try to request a role anonymously
+        with self.assertRaises(Unauthorized) as cm:
+            sap_response = self.org_client.negotiate(sap)
+        self.assertIn('org_management(negotiate) has been denied',cm.exception.message)
+
+        # Next try to propose to assign a role without being a member
         with self.assertRaises(BadRequest) as cm:
-            req_id = self.org_client.request_role(org2_id, user_id, INSTRUMENT_OPERATOR )
-        self.assertIn('A precondition for this request has not been satisfied: is_enrolled(org_id,user_id)',cm.exception.message)
+            sap_response = self.org_client.negotiate(sap, headers=user_header )
+        self.assertIn('A precondition for this request has not been satisfied: is_enrolled',cm.exception.message)
 
-        # Next try to request a role without being a member
+        negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),0)
+
+        #Build the Service Agreement Proposal to enroll
+        sap = IonObject(OT.EnrollmentProposal,consumer=user_id, provider=org2_id )
+
+        sap_response = self.org_client.negotiate(sap, headers=user_header )
+
+        negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),1)
+
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),1)
+
+        #User tried proposing an enrollment again - this should fail
         with self.assertRaises(BadRequest) as cm:
-            req_id = self.org_client.request_role(org2_id, user_id, INSTRUMENT_OPERATOR, headers=user_header )
-        self.assertIn('A precondition for this request has not been satisfied: is_enrolled(org_id,user_id)',cm.exception.message)
+            self.org_client.negotiate(sap, headers=user_header )
+        self.assertIn('A precondition for this request has not been satisfied: not is_enroll_negotiation_open',cm.exception.message)
 
-        requests = self.org_client.find_requests(org2_id, headers=self.sa_user_header)
-        self.assertEqual(len(requests),0)
+        #Manager trys to reject the proposal but incorrectly
+        sap_response.proposal_status = ProposalStatusEnum.REJECTED
+        sap_response.originator = ProposalOriginatorEnum.PROVIDER
 
-        req_id = self.org_client.request_enroll(org2_id, user_id, headers=user_header )
+        #Should fail because the proposal sequence was not incremented
+        with self.assertRaises(Inconsistent) as cm:
+            self.org_client.negotiate(sap_response, headers=user_header )
+        self.assertIn('The Service Agreement Proposal does not have the correct sequence_num value (0) for this negotiation (1)',cm.exception.message)
 
-        requests = self.org_client.find_requests(org2_id, headers=self.sa_user_header)
-        self.assertEqual(len(requests),1)
+        #Manager now trys to reject the proposal but with the correct proposal sequence
+        sap_response.sequence_num += 1
 
-        requests = self.org_client.find_user_requests(user_id, org2_id, headers=self.sa_user_header)
-        self.assertEqual(len(requests),1)
+        sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
-        #User tried requesting enrollment again - this should fail
-        with self.assertRaises(BadRequest) as cm:
-            req_id = self.org_client.request_enroll(org2_id, user_id, headers=user_header )
-        self.assertIn('A precondition for this request has not been satisfied: enroll_req_not_exist(org_id,user_id)',cm.exception.message)
+        negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),1)
 
-        #Manager denies the request
-        self.org_client.deny_request(org2_id,req_id,'To test the deny process', headers=self.sa_user_header)
+        self.assertEqual(negotiations[0].negotiation_status, NegotiationStatusEnum.REJECTED)
 
-        requests = self.org_client.find_requests(org2_id, headers=self.sa_user_header)
-        self.assertEqual(len(requests),1)
+        #Create a new enrollment proposal
 
-        self.assertEqual(requests[0].status, REQUEST_DENIED)
+        #Build the Service Agreement Proposal to enroll
+        sap = IonObject(OT.EnrollmentProposal,consumer=user_id, provider=org2_id )
 
-        #Manager approves request
-        self.org_client.approve_request(org2_id,req_id, headers=self.sa_user_header)
+        sap_response = self.org_client.negotiate(sap, headers=user_header )
+
+        negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),2)
+
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),2)
 
         users = self.org_client.find_enrolled_users(org2_id, headers=self.sa_user_header)
         self.assertEqual(len(users),0)
 
-        #User Accepts request
-        self.org_client.accept_request(org2_id,req_id,  headers=user_header)
+        #Manager approves proposal
+        sap_response.proposal_status = ProposalStatusEnum.ACCEPTED
+        sap_response.originator = ProposalOriginatorEnum.PROVIDER
+        sap_response.sequence_num += 1
+        sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
         users = self.org_client.find_enrolled_users(org2_id, headers=self.sa_user_header)
         self.assertEqual(len(users),1)
 
         #User tried requesting enrollment again - this should fail
         with self.assertRaises(BadRequest) as cm:
-            req_id = self.org_client.request_enroll(org2_id, user_id, headers=user_header )
-        self.assertIn('A precondition for this request has not been satisfied: is_not_enrolled(org_id,user_id)',cm.exception.message)
+            sap = IonObject(OT.EnrollmentProposal,consumer=user_id, provider=org2_id )
+            neg_id = self.org_client.negotiate(sap, headers=user_header )
+        self.assertIn('A precondition for this request has not been satisfied: not is_enrolled',cm.exception.message)
 
+        #Create a proposal to add a role to a user
+        sap = IonObject(OT.RequestRoleProposal,consumer=user_id, provider=org2_id, role_name=INSTRUMENT_OPERATOR_ROLE )
+        sap_response = self.org_client.negotiate(sap, headers=user_header )
 
-        req_id = self.org_client.request_role(org2_id, user_id, INSTRUMENT_OPERATOR, headers=user_header )
+        ret = self.org_client.has_role(org2_id, user_id,INSTRUMENT_OPERATOR_ROLE, headers=user_header )
+        self.assertEqual(ret, False)
 
-        requests = self.org_client.find_requests(org2_id, headers=self.sa_user_header)
-        self.assertEqual(len(requests),2)
+        negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),3)
 
-        requests = self.org_client.find_requests(org2_id,request_status='Open', headers=self.sa_user_header)
-        self.assertEqual(len(requests),1)
+        negotiations = self.org_client.find_org_negotiations(org2_id,negotiation_status=NegotiationStatusEnum.OPEN, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),1)
 
-        requests = self.org_client.find_user_requests(user_id, org2_id, headers=user_header)
-        self.assertEqual(len(requests),2)
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, headers=user_header)
+        self.assertEqual(len(negotiations),3)
 
-        requests = self.org_client.find_user_requests(user_id, org2_id, request_type=RT.RoleRequest, headers=user_header)
-        self.assertEqual(len(requests),1)
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, proposal_type=OT.RequestRoleProposal, headers=user_header)
+        self.assertEqual(len(negotiations),1)
 
-        requests = self.org_client.find_user_requests(user_id, org2_id, request_status="Open", headers=user_header)
-        self.assertEqual(len(requests),1)
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
+        self.assertEqual(len(negotiations),1)
 
         ia_list,_ = self.rr_client.find_resources(restype=RT.InstrumentAgent)
 
@@ -586,14 +619,17 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ims_client.create_instrument_agent(ia_obj, headers=user_header)
         self.assertIn('instrument_management(create_instrument_agent) has been denied',cm.exception.message)
 
-        #Manager approves request
-        self.org_client.approve_request(org2_id,req_id, headers=self.sa_user_header)
+        #Manager approves proposal
+        sap_response.proposal_status = ProposalStatusEnum.ACCEPTED
+        sap_response.originator = ProposalOriginatorEnum.PROVIDER
+        sap_response.sequence_num += 1
+        sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
-        requests = self.org_client.find_user_requests(user_id, org2_id, request_status="Open", headers=user_header)
-        self.assertEqual(len(requests),0)
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
+        self.assertEqual(len(negotiations),0)
 
-        #User accepts request
-        self.org_client.accept_request(org2_id, req_id, headers=user_header)
+        ret = self.org_client.has_role(org2_id, user_id,INSTRUMENT_OPERATOR_ROLE, headers=user_header )
+        self.assertEqual(ret, True)
 
         #Refresh headers with new role
         user_header = self.container.governance_controller.get_actor_header(user_id)
@@ -608,33 +644,45 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First make a acquire resource request with an non-enrolled user.
         with self.assertRaises(BadRequest) as cm:
-            req_id = self.org_client.request_acquire_resource(org2_id,self.system_actor._id,ia_list[0]._id , headers=self.sa_user_header)
-        self.assertIn('A precondition for this request has not been satisfied: is_enrolled(org_id,user_id)',cm.exception.message)
+            sap = IonObject(OT.AcquireResourceProposal,consumer=self.system_actor._id, provider=org2_id, resource=ia_list[0]._id )
+            sap_response = self.org_client.negotiate(sap, headers=self.sa_user_header )
+        self.assertIn('A precondition for this request has not been satisfied: is_enrolled',cm.exception.message)
 
-        req_id = self.org_client.request_acquire_resource(org2_id,user_id,ia_list[0]._id , headers=user_header)
+        #Make a proposal to acquire a resource with an enrolled user that has the right role
+        sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id )
+        sap_response = self.org_client.negotiate(sap, headers=user_header )
 
-        requests = self.org_client.find_requests(org2_id, headers=self.sa_user_header)
-        self.assertEqual(len(requests),3)
+        negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),4)
 
-        requests = self.org_client.find_user_requests(user_id, org2_id, headers=user_header)
-        self.assertEqual(len(requests),3)
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, headers=user_header)
+        self.assertEqual(len(negotiations),4)
 
-        requests = self.org_client.find_user_requests(user_id, org2_id, request_type=RT.ResourceRequest, headers=user_header)
-        self.assertEqual(len(requests),1)
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, proposal_type=OT.AcquireResourceProposal, headers=user_header)
+        self.assertEqual(len(negotiations),1)
 
-        requests = self.org_client.find_user_requests(user_id, org2_id, request_status="Open", headers=user_header)
-        self.assertEqual(len(requests),1)
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
+        self.assertEqual(len(negotiations),1)
 
-        self.assertEqual(requests[0]._id, req_id)
+        self.assertEqual(negotiations[0]._id, sap_response.negotiation_id)
 
-        #Manager approves Instrument request
-        self.org_client.approve_request(org2_id,req_id, headers=self.sa_user_header)
+        #Manager approves Instrument resource proposal
+        sap_response.proposal_status = ProposalStatusEnum.ACCEPTED
+        sap_response.originator = ProposalOriginatorEnum.PROVIDER
+        sap_response.sequence_num += 1
+        sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
-        requests = self.org_client.find_user_requests(user_id, org2_id, request_status="Open", headers=user_header)
-        self.assertEqual(len(requests),0)
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
+        self.assertEqual(len(negotiations),1)
 
-        #User accepts request
-        self.org_client.accept_request(org2_id,req_id, headers=user_header)
+        #User accepts proposal in return
+        sap_response2.proposal_status = ProposalStatusEnum.ACCEPTED
+        sap_response2.originator = ProposalOriginatorEnum.CONSUMER
+        sap_response2.sequence_num += 1
+        sap_response3 = self.org_client.negotiate(sap_response2, headers=user_header )
+
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
+        self.assertEqual(len(negotiations),0)
 
         #Check commitments
         commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.ResourceCommitment)
@@ -643,8 +691,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         commitments, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.ResourceCommitment)
         self.assertEqual(len(commitments),1)
 
+        #TODO - Refactor release_resource
         #Release the resource
-        self.org_client.release_resource(org2_id,user_id ,ia_list[0]._id, headers=self.sa_user_header,timeout=15)  #TODO - Refactor release_resource
+        self.org_client.release_resource(org2_id,user_id ,ia_list[0]._id, headers=self.sa_user_header,timeout=15)
 
         #Check commitments
         commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.ResourceCommitment)
@@ -652,6 +701,21 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         commitments, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.ResourceCommitment)
         self.assertEqual(len(commitments),0)
+
+        #Now check some negative cases...
+
+        #Remove the INSTRUMENT_OPERATOR_ROLE from the user.
+        self.org_client.revoke_role(org2_id, user_id, INSTRUMENT_OPERATOR_ROLE,  headers=self.sa_user_header)
+
+        #Refresh headers with new role
+        user_header = self.container.governance_controller.get_actor_header(user_id)
+
+        #Make a proposal to acquire a resource with an enrolled user that does not have the right role
+        with self.assertRaises(BadRequest) as cm:
+            sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id )
+            sap_response = self.org_client.negotiate(sap, headers=user_header )
+        self.assertIn('A precondition for this request has not been satisfied: has_role',cm.exception.message)
+
 
     def test_instrument_agent_policy(self):
 
@@ -668,7 +732,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         ia_client = start_instrument_agent_process(self.container, resource_id=inst_obj_id, resource_name=inst_obj.name, message_headers=self.sa_user_header)
 
         #Create Instrument Operator Role
-        operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR,label='Instrument Operator', description='Instrument Operator')
+        operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE, label='Instrument Operator', description='Instrument Operator')
         self.org_client.add_user_role(self.ion_org._id, operator_role, headers=self.sa_user_header)
 
         #First try to execute a command anonymously - it should be denied
@@ -697,7 +761,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
 
         #Setup appropriate Role for user
-        self.org_client.grant_role(self.ion_org._id,user_id, INSTRUMENT_OPERATOR, headers=self.sa_user_header)
+        self.org_client.grant_role(self.ion_org._id,user_id, INSTRUMENT_OPERATOR_ROLE, headers=self.sa_user_header)
 
         #Refresh header with updated roles
         user_header = self.container.governance_controller.get_actor_header(user_id)
@@ -786,3 +850,4 @@ class TestGovernanceInt(IonIntegrationTestCase):
         retval = ia_client.execute_agent(cmd, headers=user_header)
         retval = ia_client.get_agent_state(headers=user_header)
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+

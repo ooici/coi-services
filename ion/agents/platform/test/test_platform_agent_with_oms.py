@@ -46,6 +46,19 @@ PLATFORM_ID = 'Node1A'
 SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
 ATTR_NAMES = ['Node1A_attr_1', 'Node1A_attr_2']
 
+
+# TIMEOUT: timeout for each execute_agent call.
+# NOTE: the bigger the platform network size starting from the chosen
+# PLATFORM_ID above, the more the time that should be given for commands to
+# complete, in particular, for those with a cascading effect on all the
+# descendents, eg, INITIALIZE. In the current network.yml there are 19
+# descendent platforms from 'Node1A' taking around 25secs for the INITIALIZE
+# command to complete on my local env (this elapsed time reduces to ~14secs
+# when using --with-pycc).
+# The following TIMEOUT value intends to be big enough for all typical cases.
+TIMEOUT = 90
+
+
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
     'dvr_cls': 'OmsPlatformDriver',
@@ -74,7 +87,6 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@unittest.skip("need adjustments")
 @attr('INT', group='sa')
 class TestPlatformAgent(IonIntegrationTestCase):
 
@@ -102,12 +114,18 @@ class TestPlatformAgent(IonIntegrationTestCase):
             'test_mode' : True
         }
 
-        launcher = Launcher()
-        launcher.launch(PLATFORM_ID, self._agent_config)
+        self._launcher = Launcher()
+        self._pid = self._launcher.launch(PLATFORM_ID, self._agent_config)
 
         # Start a resource agent client to talk with the agent.
         self._pa_client = ResourceAgentClient(PA_RESOURCE_ID, process=FakeProcess())
         log.info('Got pa client %s.' % str(self._pa_client))
+
+    def tearDown(self):
+        try:
+            self._launcher.cancel_process(self._pid)
+        finally:
+            super(TestPlatformAgent, self).tearDown()
 
     def _start_data_subscribers(self):
         """
@@ -167,16 +185,24 @@ class TestPlatformAgent(IonIntegrationTestCase):
     def _assert_state(self, state):
         self.assertEquals(self._get_state(), state)
 
+    def _execute_agent(self, cmd):
+        time_start = time.time()
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        elapsed_time = time.time() - time_start
+        return retval, elapsed_time
+
     def _reset(self):
         cmd = AgentCommand(command=PlatformAgentEvent.RESET)
-        retval = self._pa_client.execute_agent(cmd)
-        log.info("PlatformAgentEvent.RESET retval = %s" % str(retval))
+        retval, elapsed_time = self._execute_agent(cmd)
+        log.info("PlatformAgentEvent.RESET elapsed_time=%s, retval = %s",
+                 elapsed_time, str(retval))
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
     def _ping_agent(self):
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
-        retval = self._pa_client.execute_agent(cmd)
-        log.info("PlatformAgentEvent.PING_AGENT retval = %s" % str(retval))
+        retval, elapsed_time = self._execute_agent(cmd)
+        log.info("PlatformAgentEvent.PING_AGENT elapsed_time=%s, retval = %s",
+                 elapsed_time, str(retval))
         self.assertEquals("PONG", retval.result)
 
     def _ping_resource(self):
@@ -184,18 +210,20 @@ class TestPlatformAgent(IonIntegrationTestCase):
         if self._get_state() == PlatformAgentState.UNINITIALIZED:
             # should get ServerError: "Command not handled in current state"
             with self.assertRaises(ServerError):
-                self._pa_client.execute_agent(cmd)
+                self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         else:
             # In all other states the command should be accepted:
-            retval = self._pa_client.execute_agent(cmd)
-            log.info("PlatformAgentEvent.PING_RESOURCE retval = %s" % str(retval))
+            retval, elapsed_time = self._execute_agent(cmd)
+            log.info("PlatformAgentEvent.PING_RESOURCE elapsed_time=%s, retval = %s",
+                     elapsed_time, str(retval))
             self.assertEquals("PONG", retval.result)
 
     def _get_resource(self):
         kwargs = dict(attr_names=ATTR_NAMES, from_time=time.time())
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
-        retval = self._pa_client.execute_agent(cmd)
-        log.info("PlatformAgentEvent.GET_RESOURCE retval = %s" % str(retval))
+        retval, elapsed_time = self._execute_agent(cmd)
+        log.info("PlatformAgentEvent.GET_RESOURCE elapsed_time=%s, retval = %s",
+                 elapsed_time, str(retval))
         attr_values = retval.result
         self.assertIsInstance(attr_values, dict)
         for attr_name in ATTR_NAMES:
@@ -205,32 +233,37 @@ class TestPlatformAgent(IonIntegrationTestCase):
         kwargs = dict(plat_config=PLATFORM_CONFIG)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
-        retval = self._pa_client.execute_agent(cmd)
-        log.info("PlatformAgentEvent.INITIALIZE retval = %s" % str(retval))
+        retval, elapsed_time = self._execute_agent(cmd)
+        log.info("PlatformAgentEvent.INITIALIZE elapsed_time=%s, retval = %s",
+                 elapsed_time, str(retval))
         self._assert_state(PlatformAgentState.INACTIVE)
 
     def _go_active(self):
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE)
-        retval = self._pa_client.execute_agent(cmd)
-        log.info("PlatformAgentEvent.GO_ACTIVE retval = %s" % str(retval))
+        retval, elapsed_time = self._execute_agent(cmd)
+        log.info("PlatformAgentEvent.GO_ACTIVE elapsed_time=%s, retval = %s",
+                elapsed_time, str(retval))
         self._assert_state(PlatformAgentState.IDLE)
 
     def _run(self):
         cmd = AgentCommand(command=PlatformAgentEvent.RUN)
-        retval = self._pa_client.execute_agent(cmd)
-        log.info("PlatformAgentEvent.RUN retval = %s" % str(retval))
+        retval, elapsed_time = self._execute_agent(cmd)
+        log.info("PlatformAgentEvent.RUN elapsed_time=%s, retval = %s",
+                elapsed_time, str(retval))
         self._assert_state(PlatformAgentState.COMMAND)
 
     def _go_inactive(self):
         cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE)
-        retval = self._pa_client.execute_agent(cmd)
-        log.info("PlatformAgentEvent.GO_INACTIVE retval = %s" % str(retval))
+        retval, elapsed_time = self._execute_agent(cmd)
+        log.info("PlatformAgentEvent.GO_INACTIVE elapsed_time=%s, retval = %s",
+                elapsed_time, str(retval))
         self._assert_state(PlatformAgentState.INACTIVE)
 
     def _get_subplatform_ids(self):
         cmd = AgentCommand(command=PlatformAgentEvent.GET_SUBPLATFORM_IDS)
-        retval = self._pa_client.execute_agent(cmd)
-        log.info("PlatformAgentEvent.GET_SUBPLATFORM_IDS retval = %s" % str(retval))
+        retval, elapsed_time = self._execute_agent(cmd)
+        log.info("PlatformAgentEvent.GET_SUBPLATFORM_IDS elapsed_time=%s, retval = %s",
+                elapsed_time, str(retval))
         self.assertIsInstance(retval.result, list)
         self.assertTrue(x in retval.result for x in SUBPLATFORM_IDS)
         return retval.result

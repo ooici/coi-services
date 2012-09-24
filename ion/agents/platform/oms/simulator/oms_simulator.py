@@ -37,6 +37,8 @@ class OmsSimulator(OmsClient):
 
         self._build_network(pyobj)
 
+        self._next_value = 990000
+
     def _get_platform_types(self, pyobj):
         """
         Constructs:
@@ -149,6 +151,10 @@ class OmsSimulator(OmsClient):
             if attrName in attrs:
                 attr = attrs[attrName]
                 val = attr._value
+
+                if val is None:
+                    val = self._next_value
+                    self._next_value += 1
 
                 if val is not None and from_time < timestamp:
                     vals[attrName] = (val, timestamp)
