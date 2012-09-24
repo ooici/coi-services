@@ -21,7 +21,6 @@ from interface.objects import Granule
 from pyon.ion.transforma import TransformStreamPublisher, TransformAlgorithm
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 from pyon.public import log
 
 from gevent.greenlet import Greenlet
@@ -101,7 +100,7 @@ class ExampleDataProducer(TransformStreamPublisher):
 
             log.info("logging published Record Dictionary:\n %s", rdt.pretty_print())
 
-            g = build_granule(data_producer_id=stream_id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
+            g = rdt.to_granule()
 
             log.info('Sending %d values!' % length)
             if(isinstance(g, Granule)):

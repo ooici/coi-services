@@ -13,7 +13,6 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 
 from pyon.ion.stream import StandaloneStreamPublisher
 
@@ -136,7 +135,7 @@ class TestGranulePublish(IonIntegrationTestCase):
                 rdt[value['value_id']] = numpy.array( [ value['value'] ] )
                 log.debug("test_granule_publish: Added data item  %s  val: %s ", str(value['value']), str(value['value_id']) )
 
-        g = build_granule(data_producer_id=tomato['instrument_id'], param_dictionary=parameter_dictionary, record_dictionary=rdt)
+        g = rdt.to_granule()
 
         publisher.publish(g)
 

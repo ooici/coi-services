@@ -6,7 +6,6 @@ from pyon.public import IonObject, RT, log
 
 import time
 import numpy
-from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
@@ -184,7 +183,7 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         out_dict["content_type"] = "image/png"
 
         out_rdt["mpl_graph"] = np.array([out_dict])
-        return build_granule(data_producer_id='matplotlib_graphs_transform', param_dictionary=self.mpl_paramdict, record_dictionary=out_rdt)
+        return out_rdt.to_granule()
 
 
     # This method picks out a matplotlib line style based on an index provided. These styles are set in an order
