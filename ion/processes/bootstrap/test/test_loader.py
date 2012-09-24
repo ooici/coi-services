@@ -10,7 +10,6 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.coi.idatastore_service import DatastoreServiceClient, DatastoreServiceProcessClient
 import unittest
 
-@unittest.skip('Broken')
 @attr('INT', group='loader')
 class TestLoader(IonIntegrationTestCase):
 
