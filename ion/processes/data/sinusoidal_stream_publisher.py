@@ -36,7 +36,6 @@ from prototype.sci_data.constructor_apis import PointSupplementConstructor
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 import numpy
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_types import QuantityType
@@ -84,7 +83,7 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
             rdt['conductivity'] = c
             rdt['pressure'] = p
 
-            g = build_granule(data_producer_id=stream_id, param_dictionary=parameter_dictionary, record_dictionary=rdt)
+            g = rdt.to_granule()
 
             log.info('SinusoidalCtdPublisher sending 1 record!')
             self.publisher.publish(g, self.stream_id)

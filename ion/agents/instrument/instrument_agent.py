@@ -53,7 +53,6 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 from coverage_model.parameter import ParameterDictionary
 
 # MI imports
@@ -735,8 +734,7 @@ class InstrumentAgent(ResourceAgent):
                 elif k in param_dict:
                     rdt[k] = numpy.array([v])
 
-            g = build_granule(data_producer_id=self.resource_id,
-                param_dictionary=param_dict, record_dictionary=rdt)
+            g = rdt.to_granule()
             publisher.publish(g)        
             
             log.info('Instrument agent %s published data granule on stream %s.',

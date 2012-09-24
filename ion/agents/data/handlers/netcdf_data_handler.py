@@ -10,7 +10,6 @@
 
 from pyon.public import log
 from pyon.util.containers import get_safe
-from ion.services.dm.utility.granule.granule import build_granule
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler, DataHandlerParameter
 from ion.agents.data.handlers.handler_utils import calculate_iteration_count
@@ -155,8 +154,7 @@ class NetcdfDataHandler(BaseDataHandler):
 
                 # Build and return a granule
                 # CBM: ttool must be passed
-                #g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
-                g = build_granule(data_producer_id=dprod_id, record_dictionary=rdt, param_dictionary=pdict)
+                g = rdt.to_granule()
                 yield g
 
             ds.close()

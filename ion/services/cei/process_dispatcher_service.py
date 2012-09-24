@@ -62,24 +62,36 @@ class ProcessStateGate(EventSubscriber):
             self.stop()
             self.gate.set()
 
+    def in_desired_state(self):
+        # check whether the process we are monitoring is in the desired state as of this moment
+        process_obj = self.read_process_fn(self.process_id)
+        return self.desired_state == process_obj.process_state
+
     def await(self, timeout=0):
         #set up the event gate so that we don't miss any events
         self.gate = gevent_event.Event()
         self.start()
 
-        #check on the process as it exists right now... if it's in the desired state, return immediately
-        process_obj = self.read_process_fn(self.process_id)
-        if self.desired_state == process_obj.process_state:
+        #if it's in the desired state, return immediately
+        if self.in_desired_state():
             self.stop()
             return True
 
         #if the state was not where we want it, wait for the event.
         ret = self.gate.wait(timeout)
 
+        # sanity check for this pattern
+        last_chance = self.in_desired_state()
+
         #clean up
         if not ret:
             self.stop()
-        return ret
+
+        if last_chance:
+            log.warn("ProcessStateGate was successful on last_chance; " +
+                     ("should the state change have taken %d seconds exactly?" % timeout))
+
+        return ret or last_chance
 
 
 class ProcessDispatcherService(BaseProcessDispatcherService):

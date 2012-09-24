@@ -665,6 +665,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         egg_url = "http://%s%s/%s" % (CFG.service.instrument_management.driver_release_host,
                                       CFG.service.instrument_management.driver_release_directory,
                                       egg_filename)
+        log.info("Egg url will be '%s'" % egg_url)
 
         egg_urlfile = "%s v%s.url" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
 
@@ -711,7 +712,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                           cfg_remotepath, 
                                           egg_filename)
 
-        log.debug("executing scp: '%s' to %s" % (tempfilename, remotefilename))
+        log.info("executing scp: '%s' to '%s'" % (tempfilename, remotefilename))
         scp_retval = subprocess.call(["scp", "-q", "-o", "PasswordAuthentication=no",
                                       "-o", "StrictHostKeyChecking=no",
                                       tempfilename, remotefilename])
@@ -1737,7 +1738,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return a_client, ret
 
-    #functions for computed attributes -- currently bogus values returned
+    #functions for INSTRUMENT computed attributes -- currently bogus values returned
 
     def get_firmware_version(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
@@ -1844,6 +1845,27 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return ret
 
+    def get_last_calibration_time(self, instrument_device_id):
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+        if ia_client:
+            ret.value = 45.5 #todo: use ia_client
+        return ret
+
+
+    def get_sites(self, instrument_device_id):
+        #List of sites to which this instrument has been deployed
+        ret = IonObject(OT.ComputedListValue)
+        ret.status = ComputedValueAvailability.PROVIDED
+        #todo: this
+        ret.value = []
+        return ret
+
+    # def get_uptime(self, device_id): - common to both instrument and platform, see below
+
+
+
+
+    #functions for INSTRUMENT computed attributes -- currently bogus values returned
 
     def get_platform_device_extension(self, platform_device_id='', ext_associations=None, ext_exclude=None):
         """Returns an PlatformDeviceExtension object containing additional related information
@@ -1937,6 +1959,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     # The actual initiation of the deployment, calculated from when the deployment was activated
     def get_uptime(self, device_id):
         #used by both instrument device, platform device
+#        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+#        if ia_client:
+#            ret.value = 45.5 #todo: use ia_client
+#        return ret
         return "0 days, 0 hours, 0 minutes"
 
     #-------------------------------

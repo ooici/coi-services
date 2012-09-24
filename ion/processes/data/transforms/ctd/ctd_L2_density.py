@@ -11,7 +11,6 @@ import numpy as np
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
@@ -147,5 +146,4 @@ class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):
             root_rdt['depth'] = depth
 
         log.debug("CTDL2DensityTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
-
-        return build_granule(data_producer_id='ctd_L2_density', param_dictionary=param_dictionary, record_dictionary=root_rdt)
+        return root_rdt.to_granule()

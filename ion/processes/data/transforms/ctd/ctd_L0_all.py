@@ -20,7 +20,6 @@ import re
 
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 from ion.core.function.transform_function import MultiGranuleTransformFunction
 
 #from pyon.util.containers import DotDict
@@ -182,5 +181,5 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
         log.debug("ctd_L0_all:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
 
-        return build_granule(data_producer_id='ctd_L0', param_dictionary=param_dictionary, record_dictionary=root_rdt)
+        return root_rdt.to_granule()
 
