@@ -13,6 +13,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 from pyon.ion.stream import StreamPublisher
+from pyon.ion.stream import StandaloneStreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
@@ -34,7 +35,7 @@ from ion.agents.platform.test.adhoc import adhoc_get_packet_factories
 
 from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
-from ion.agents.platform.platform_agent_launcher import Launcher
+from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
 
 # NOTE: the bigger the platform network size starting from the platform
@@ -101,9 +102,10 @@ class PlatformAgent(ResourceAgent):
     # Override to set specific origin type
     ORIGIN_TYPE = "PlatformDevice"  #TODO how this works?
 
-    def __init__(self):
+    def __init__(self, standalone=None):
+        log.info("PlatformAgent constructor called")
         ResourceAgent.__init__(self)
-
+        self._standalone = standalone
         self._plat_config = None
         self._platform_id = None
         self._topology = None
@@ -128,7 +130,8 @@ class PlatformAgent(ResourceAgent):
         # {subplatform_id: (ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
 
-        self._launcher = Launcher()
+        self._launcher = LauncherFactory.createLauncher(standalone=standalone)
+        log.debug("launcher created: %s", str(type(self._launcher)))
 
         #
         # TODO the following defined here as in InstrumentAgent,
@@ -137,6 +140,16 @@ class PlatformAgent(ResourceAgent):
         self._lat = 0
         self._lon = 0
         self._height = 0
+
+
+        # standalone stuff
+        self.container = None
+        if self._standalone:
+            self.resource_id = self._standalone['platform_id']
+            self.container = self._standalone.get('container', None)
+            self._on_init()
+
+        log.info("PlatformAgent constructor complete.")
 
     def _reset(self):
         """
@@ -158,7 +171,7 @@ class PlatformAgent(ResourceAgent):
                     self._launcher.cancel_process(pid)
                 except Exception as e:
                     log.warn("%r: exception in cancel_process for subplatform_id=%r, pid=%r: %s",
-                             self._platform_id, subplatform_id, pid, str(e), exc_Info=True)
+                             self._platform_id, subplatform_id, pid, str(e)) #, exc_Info=True)
 
         self._pa_clients.clear()
 
@@ -209,6 +222,14 @@ class PlatformAgent(ResourceAgent):
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
 
+    def _create_publisher(self, stream_id=None, stream_route=None):
+        if self._standalone:
+            publisher = StandaloneStreamPublisher(stream_id, stream_route)
+        else:
+            publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=stream_route)
+
+        return publisher
+
     def _construct_data_publishers(self):
         """
         Construct the stream publishers from the stream_config agent
@@ -220,13 +241,13 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: stream_info = %s",
             self._platform_id, stream_info)
 
-        for (name, stream_config) in stream_info.iteritems():
+        for (stream_name, stream_config) in stream_info.iteritems():
             stream_id = stream_config['id']
-            self._data_streams[name] = stream_id
-            publisher = StreamPublisher(process=self,stream_id=stream_id)
-            self._data_publishers[name] = publisher
+            self._data_streams[stream_name] = stream_id
+            publisher = self._create_publisher(stream_id=stream_id)
+            self._data_publishers[stream_name] = publisher
             log.debug("%r: created publisher for stream_name=%r (""stream_id=%r)",
-                      self._platform_id, name, stream_id)
+                      self._platform_id, stream_name, stream_id)
 
     def _construct_packet_factories(self):
         """
@@ -265,7 +286,7 @@ class PlatformAgent(ResourceAgent):
         except Exception as e:
             msg = '%r: could not import/construct driver: module=%s, class=%s' % (
                 self._platform_id, driver_module, driver_class)
-            log.error("%s; reason=%s", msg, str(e))
+            log.error("%s; reason=%s", msg, str(e), exc_Info=True)
             raise CannotInstantiateDriverException(msg=msg, reason=e)
 
         self._plat_driver = driver
@@ -280,7 +301,7 @@ class PlatformAgent(ResourceAgent):
     def _assert_driver(self):
         assert self._plat_driver is not None, "_create_driver must have been called first"
 
-    def _initialize(self):
+    def _do_initialize(self):
         """
         Does the main initialize sequence, which includes activation of the
         driver and launch of the sub-platforms
@@ -290,7 +311,7 @@ class PlatformAgent(ResourceAgent):
         self._create_driver()
         self._plat_driver.go_active()
 
-    def _go_active(self):
+    def _do_go_active(self):
         """
         Does nothing at the moment.
         """
@@ -398,7 +419,11 @@ class PlatformAgent(ResourceAgent):
             self._platform_id, subplatform_id)
         pid = self._launcher.launch(subplatform_id, agent_config)
 
-        pa_client = self._create_resource_agent_client(subplatform_id)
+        if self._standalone:
+            pa_client = pid
+        else:
+            pa_client = self._create_resource_agent_client(subplatform_id)
+
         self._pa_clients[subplatform_id] = (pa_client, pid)
 
         self._ping_subplatform(subplatform_id)
@@ -514,7 +539,7 @@ class PlatformAgent(ResourceAgent):
                                 self._platform_id, expected_state, state)
             except Exception, ex:
                 log.error("%r: exception executing command %r in subplatform %r",
-                            self._platform_id, cmd, subplatform_id)
+                            self._platform_id, cmd, subplatform_id, exc_Info=True)
 
     def _subplatforms_reset(self):
         self._subplatforms_execute_agent(command=PlatformAgentEvent.RESET,
@@ -533,6 +558,36 @@ class PlatformAgent(ResourceAgent):
                                          expected_state=PlatformAgentState.COMMAND)
 
     ##############################################################
+    # major operations
+    ##############################################################
+
+    def _ping_agent(self, *args, **kwargs):
+        result = "PONG"
+        return result
+
+    def _initialize(self, *args, **kwargs):
+        self._plat_config = kwargs.get('plat_config', None)
+        self._do_initialize()
+
+        # done with the initialization for this particular agent; and now
+        # we have information to launch the sub-platform agents:
+        self._subplatforms_launch()
+
+        result = None
+        return result
+
+    def _go_active(self):
+        # first myself, then sub-platforms
+        self._do_go_active()
+        self._subplatforms_go_active()
+        result = None
+        return result
+
+    def _ping_resource(self, *args, **kwargs):
+        result = self._plat_driver.ping()
+        return result
+
+    ##############################################################
     # UNINITIALIZED event handlers.
     ##############################################################
 
@@ -542,15 +597,8 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r/%s args=%s kwargs=%s",
             self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = None
+        result = self._initialize(*args, **kwargs)
         next_state = PlatformAgentState.INACTIVE
-
-        self._plat_config = kwargs.get('plat_config', None)
-        self._initialize()
-
-        # done with the initialization for this particular agent; and now
-        # we have information to launch the sub-platform agents:
-        self._subplatforms_launch()
 
         return (next_state, result)
 
@@ -579,12 +627,9 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r/%s args=%s kwargs=%s",
             self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = None
         next_state = PlatformAgentState.IDLE
 
-        # first myself, then sub-platforms
-        self._go_active()
-        self._subplatforms_go_active()
+        result = self._go_active()
 
         return (next_state, result)
 
@@ -721,7 +766,7 @@ class PlatformAgent(ResourceAgent):
             next_state = self.get_agent_state()
 
         except Exception as ex:
-            log.error("error in get_attribute_values %s", str(ex))
+            log.error("error in get_attribute_values %s", str(ex)) #, exc_Info=True)
             raise
 
         return (next_state, result)
@@ -733,7 +778,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r/%s args=%s kwargs=%s",
             self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = "PONG"
+        result = self._ping_agent(*args, **kwargs)
 
         next_state = self.get_agent_state()
 
@@ -746,7 +791,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r/%s args=%s kwargs=%s",
             self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._plat_driver.ping()
+        result = self._ping_resource(*args, **kwargs)
 
         next_state = self.get_agent_state()
 

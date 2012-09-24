@@ -6,7 +6,9 @@
 @author  Carlos Rueda
 @brief   Helper for launching platform agent processes. This helper was introduced
          to facilitate testing and diagnosing of launching issues in coi_pycc and
-         other builds in buildbot.
+         other builds in buildbot, and also to facilitate other variations
+         like direct PlatformAgent instantation ("standalone" mode) for
+         testing purposes.
 """
 
 __author__ = 'Carlos Rueda'
@@ -15,6 +17,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 from pyon.event.event import EventSubscriber
+from pyon.util.containers import DotDict
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition, ProcessStateEnum
@@ -34,7 +37,20 @@ PA_CLS = 'PlatformAgent'
 # because the exception alone does not show up in the logs!
 
 
-class Launcher(object):
+class LauncherFactory(object):
+    """
+    Convenient factory of launcher objects.
+    """
+
+    @classmethod
+    def createLauncher(cls, use_gate=True, standalone=None):
+        if standalone:
+            return _StandaloneLauncher(standalone)
+        else:
+            return _Launcher(use_gate)
+
+
+class _Launcher(object):
     """
     Helper for launching platform agent processes. This helper was introduced
     to facilitate testing and diagnosing of launching issues in coi_pycc and
@@ -213,3 +229,28 @@ class Launcher(object):
             msg = "Expecting origin %s but got %s" % (pid, event.origin)
             log.error(msg)
             raise PlatformException(msg)
+
+
+class _StandaloneLauncher(object):
+    """
+    Direct builder of PlatformAgent instances.
+    """
+    def __init__(self, standalone):
+        self._standalone = standalone
+
+    def launch(self, platform_id, agent_config, timeout_spawn=30):
+        from ion.agents.platform.platform_agent import PlatformAgent
+
+        standalone = dict((k, v) for k, v in self._standalone.iteritems())
+        standalone['platform_id'] = platform_id
+
+        pa = PlatformAgent(standalone=standalone)
+        CFG = pa.CFG = DotDict()
+        CFG.agent = agent_config['agent']
+        CFG.stream_config = agent_config['stream_config']
+
+        return pa
+
+    def cancel_process(self, pid):
+        # nothing needs to be done.
+        pass
