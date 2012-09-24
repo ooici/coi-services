@@ -1835,7 +1835,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         try:
             ret.status = ComputedValueAvailability.PROVIDED
             #todo: try to get the last however long of data to parse through
-            ret.value = ["monday", "tuesday", "wednesday"]
+            ret.value = []
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "Could not retrieve device stream -- may not be configured et"

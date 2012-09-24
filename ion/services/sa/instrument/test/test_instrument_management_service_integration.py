@@ -121,6 +121,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(instrument_device_id, PRED.hasOutputProduct, dp_id)
 
         extended_instrument = self.IMS.get_instrument_device_extension(instrument_device_id)
+
         self.assertEqual(instrument_device_id, extended_instrument._id)
         self.assertEqual(len(extended_instrument.owners), 2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
@@ -168,7 +169,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_instrument.computed.recent_events.status)
-        self.assertEqual(["monday", "tuesday", "wednesday"], extended_instrument.computed.recent_events.value)
+        self.assertEqual([], extended_instrument.computed.recent_events.value)
 
 
         #        self.assertEqual("23", extended_instrument.computed.firmware_version)

@@ -104,6 +104,19 @@ class OmsSimulator(OmsClient):
     def getPlatformMap(self):
         return self._dummy_root.get_map([])
 
+    def getRootPlatformID(self):
+        subplatforms = self._dummy_root.subplatforms
+        assert len(subplatforms) == 1
+        actual_root = list(subplatforms.itervalues())[0]
+        return actual_root.platform_id
+
+    def getSubplatformIDs(self, platform_id):
+        if platform_id not in self._idp:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        nnode = self._idp[platform_id]
+        return {platform_id: list(nnode.subplatforms.iterkeys())}
+
     def getPlatformTypes(self):
         return self._platform_types
 

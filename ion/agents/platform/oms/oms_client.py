@@ -58,6 +58,22 @@ class OmsClient(object):
         """
         raise NotImplemented()
 
+    def getRootPlatformID(self):
+        """
+        Returns the ID of the root platform in the network.
+        @retval the ID of the root platform in the network.
+        """
+        raise NotImplemented()
+
+    def getSubplatformIDs(self, platform_id):
+        """
+        Returns the IDs of the sub-platforms of the given platform.
+        @retval     {platform_id: [sub_platform_id, ...]}
+                    Dict with single entry for the desired platform with list
+                    of IDs of the corresponding sub-platforms. ||
+        """
+        raise NotImplemented()
+
     def getPlatformTypes(self):
         """
         Returns the types of platforms in the network
