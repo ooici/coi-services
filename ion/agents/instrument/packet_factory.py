@@ -17,8 +17,10 @@ from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.instrument.exceptions import PacketFactoryException
 from ion.agents.instrument.exceptions import NotImplementedException
-from ion.services.dm.utility.granule import RecordDictionaryTool, ParameterDictionary
-from pyon.util.arg_check import validate_is_not_none
+
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.taxonomy import TaxyTool, Taxonomy
+from ion.services.dm.utility.granule.granule import build_granule
 
 
 class PacketFactoryType(BaseEnum):
@@ -46,10 +48,34 @@ class PacketFactory(object):
             return LCAPacketFactory()
 
         else:
-            raise PacketFactoryException("unknown driver process type: %s" % type)
+            raise PacketFactoryExeption("unknown driver process type: %s" % type)
 
     def build_packet(self, farg, **kwargs):
         raise NotImplementedException()
+
+    def _get_taxy_tool(self, taxonomy):
+        """
+        helper to get the TaxyTool version of the given argument.
+
+        @param taxonomy Either a TaxyTool, a Taxonomy, or some value that can
+               be processed by TaxyTool.load to create the TaxyTool instance.
+        """
+
+        if isinstance(taxonomy, TaxyTool):
+            tx = taxonomy
+        elif isinstance(taxonomy, Taxonomy):
+            tx = TaxyTool(taxonomy)
+        else:
+            tx = TaxyTool.load(taxonomy)
+
+        return tx
+
+    def _get_nick_names_from_taxonomy(self, taxonomy):
+
+        # NOTE this operation should probably be provided by the
+        # taxonomy object itself.
+
+        return [v[0] for v in taxonomy._t.map.itervalues()]
 
 
 class LCAPacketFactory(PacketFactory):
@@ -57,18 +83,30 @@ class LCAPacketFactory(PacketFactory):
     Packet factory to build granules from sample dictionaries sent from the SBE37 driver at LCA.  This is simply a
     flat dict object with raw and parsed data.
     """
-    def build_packet(self, pdict=None, data=None):
+    def build_packet(self, *args, **kwargs):
         """
         Build and return a granule of data.
         @param taxonomy the taxonomy of the granule
         @data dictionary containing sample data.
         @return granule suitable for publishing
         """
-        validate_is_not_none(pdict, 'No Parameter Dictionary specified', PacketFactoryException)
-        validate_is_not_none(data, 'No data supplied', PacketFactoryException)
+        taxonomy_str = kwargs.get('taxonomy')
+        data = kwargs.get('data')
+        data_producer_id = kwargs.get('data_producer_id')
 
+        if not data_producer_id:
+            raise PacketFactoryException("data_producer_id parameter missing")
 
-        fields = pdict.keys()
+        if not taxonomy_str:
+            raise PacketFactoryException("taxonomy parameter missing")
+
+        if not data:
+            raise PacketFactoryException("data parameter missing")
+
+        taxonomy = self._get_taxy_tool(taxonomy_str)
+
+        # the nick_names in the taxonomy:
+        nick_names = self._get_nick_names_from_taxonomy(taxonomy)
 
         #
         # TODO in general, how are groups (and the individual values
@@ -82,21 +120,65 @@ class LCAPacketFactory(PacketFactory):
         # NOTE for the moment, using the flat data record dict 'rdt'
         ##############################################################
 
+#        if not 'data' in nick_names:
+#            raise PacketFactoryException("expected name 'data' in taxonomy")
+#        if not 'coordinates' in nick_names:
+#            raise PacketFactoryException("expected name 'coordinates' in taxonomy")
 
 
-        rdt = RecordDictionaryTool(param_dictionary=pdict)
+        rdt = RecordDictionaryTool(taxonomy=taxonomy)
+#        data_rdt = RecordDictionaryTool(taxonomy=taxonomy)
+#        coordinates_rdt = RecordDictionaryTool(taxonomy=taxonomy)
+#
+#        rdt['data'] = data_rdt
+#        rdt['coordinates'] = coordinates_rdt
+
+#        def is_coordinate(nick_name):
+#            # just an ad hoc check to determine which group the nick_names
+#            # belong to
+#            return nick_name in ['lat', 'lon', 'time', 'height']
+
+
+        # now, assign the values to the corresp record dicts:
         for name, value in data.iteritems():
+            handle = -1
+            log.info("packetfactory: name: %s" % str(name))
+            if name in nick_names:
+                handle = taxonomy.get_handle(name)
+                log.info("packetfactory: handle: %s" % str(handle))
+            else:
+                handles = taxonomy.get_handles(name)
+                log.info("packetfactory: handles: %s" % str(handles))
+                if len(handles) == 1:
+                    handle = handles.pop()
+                elif len(handles) > 1:
+                    # TODO proper handling of this case
+                    log.warn("Multiple handles found for '%s': %s" % (name %
+                                                                 handles))
 
-            if name in fields:
+            if handle >= 0:
+                # ok, the nick_name has been found, either directly as a
+                # nick_name or via an alias; set value (using nick_name):
+                nick_name = taxonomy.get_nick_name(handle)
+
                 assert isinstance(value, list)
                 val = numpy.array(value)
-                rdt[name] = val
+
+                # NOTE for the moment, using the flat data record dict 'rdt':
+                rdt[nick_name] = val
+#                if is_coordinate(nick_name):
+#                    coordinates_rdt[nick_name] = val
+#                else:
+#                    data_rdt[nick_name] = val
+
             else:
-                log.warning('%s was not part of the parameter dictionary')
+                # name not found.
+                # In the current tests this is happening with 'stream_id'
+                log.warning("No handle found for '%s'" % name)
 
+        log.debug("dictionary created: %s" % rdt.pretty_print())
 
-
-        return rdt.to_granule()
+        return build_granule(data_producer_id=data_producer_id, taxonomy=taxonomy, record_dictionary=rdt)
 
 
 class CommonSamplePacketFactory(PacketFactory):
