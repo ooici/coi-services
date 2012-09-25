@@ -400,7 +400,11 @@ class UnixPortAgentProcess(PortAgentProcess):
         if(self._log_level > 0):
             for num in range(1, self._log_level):
                 command_line.append("-v");
-                
+
+            
+        if(self._test_mode):
+            command_line.append("-s")
+
         command_line.append("-p")
         command_line.append("%s" % (self._command_port));
 
