@@ -72,7 +72,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
 
-        scov = SimplexCoverage(description, parameter_dictionary=pdict, spatial_domain=sdom, temporal_domain=tdom)
+        scov = SimplexCoverage(description, parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
         return scov
 
     @classmethod

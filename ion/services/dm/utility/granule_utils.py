@@ -126,7 +126,7 @@ class CoverageCraft(object):
         pdict = cls.create_parameters()
         sdom, tdom = cls.create_domains()
     
-        scov = SimplexCoverage('sample grid coverage_model', pdict, sdom, tdom)
+        scov = SimplexCoverage('sample grid coverage_model', pdict, tdom, sdom)
 
         return scov
 
