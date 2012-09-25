@@ -36,6 +36,14 @@ from gevent import queue
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 
 
+# TIMEOUT: timeout for each execute_agent call.
+# NOTE: the bigger the platform network size starting from the chosen
+# PLATFORM_ID above, the more the time that should be given for commands to
+# complete, in particular, for those with a cascading effect on all the
+# descendents, eg, INITIALIZE.
+# The following TIMEOUT value intends to be big enough for all typical cases.
+TIMEOUT = 90
+
 
 class FakeProcess(LocalContextMixin):
     """
@@ -434,24 +442,24 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         # PING_AGENT can be issued before INITIALIZE
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
-        retval = self._pa_client.execute_agent(cmd)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'ShoreSide Platform PING_AGENT = %s' % str(retval) )
 
         # INITIALIZE should trigger the creation of the whole platform
         # hierarchy rooted at PLATFORM_CONFIG['platform_id']
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
-        retval = self._pa_client.execute_agent(cmd)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'ShoreSide Platform INITIALIZE = %s' % str(retval) )
 
 
         # GO_ACTIVE
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE)
-        retval = self._pa_client.execute_agent(cmd)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'ShoreSide Platform GO_ACTIVE = %s' % str(retval) )
 
         # RUN
         cmd = AgentCommand(command=PlatformAgentEvent.RUN)
-        retval = self._pa_client.execute_agent(cmd)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'ShoreSide Platform RUN = %s' % str(retval) )
 
         # TODO: here we could sleep for a little bit to let the resource
