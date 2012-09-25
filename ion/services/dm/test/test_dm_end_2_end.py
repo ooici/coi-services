@@ -15,14 +15,12 @@ from interface.services.dm.idata_retriever_service import DataRetrieverServiceCl
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.datastore.datastore import DataStore
-from interface.objects import ProcessDefinition, Granule
-from pyon.util.containers import DotDict
+from interface.objects import Granule
 from pyon.event.event import EventSubscriber
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from ion.services.dm.ingestion.ingestion_management_service import IngestionManagementService
 from gevent.event import Event
 from nose.plugins.attrib import attr
 from pyon.ion.exchange import ExchangeNameQueue
@@ -34,6 +32,8 @@ from coverage_model.parameter_types import ArrayType, RecordType
 import gevent
 import time
 import numpy as np
+import unittest
+import os
 
 @attr('INT',group='dm')
 class TestDMEnd2End(IonIntegrationTestCase):
@@ -172,7 +172,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dict=parameter_dict or pdict, spatial_domain=sdom, temporal_domain=tdom)
         return dataset_id
 
-
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_coverage_ingest(self):
         stream_id, stream_route = self.pubsub_management.create_stream('test_coverage_ingest', exchange_point=self.exchange_point_name)
         dataset_id = self.create_dataset()
