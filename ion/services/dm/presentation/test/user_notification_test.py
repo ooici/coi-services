@@ -1127,7 +1127,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(len(pids), 2)
 
-    @unittest.skip('Breaks buildbot with ctag0 key error')
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
