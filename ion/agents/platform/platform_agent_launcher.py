@@ -128,10 +128,11 @@ class _Launcher(object):
                     err_msg = "The platform agent instance did not spawn in %s seconds" %\
                           timeout_spawn
                     log.error(err_msg)
-            except:
-                err_msg = "Exception while waiting for platform agent instance " \
-                      "to spawn in %s seconds" % timeout_spawn
-                log.error(err_msg, exc_Info=True)
+            except Exception as e:
+                log.error("Exception while waiting for platform agent instance "
+                          "(platform_id=%r) "
+                          "to spawn in %s seconds: %s",
+                          platform_id, timeout_spawn, str(e)) #,exc_Info=True)
             if err_msg:
                 raise PlatformException(err_msg)
 
@@ -213,11 +214,11 @@ class _Launcher(object):
         except queue.Empty:
             msg = "Event timeout! Waited %s seconds for process %s to notifiy state %s" % (
                             timeout, pid, state_str)
-            log.error(msg, exc_info=True)
+            log.error(msg) #, exc_info=True)
             raise PlatformException(msg)
-        except:
-            msg = "Something unexpected happened"
-            log.error(msg, exc_info=True)
+        except Exception as e:
+            msg = "Something unexpected happened: %s" % str(e)
+            log.error(msg) #, exc_info=True)
             raise PlatformException(msg)
 
         log.debug("Got event: %s", event)

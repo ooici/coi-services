@@ -286,7 +286,7 @@ class PlatformAgent(ResourceAgent):
         except Exception as e:
             msg = '%r: could not import/construct driver: module=%s, class=%s' % (
                 self._platform_id, driver_module, driver_class)
-            log.error("%s; reason=%s", msg, str(e), exc_Info=True)
+            log.error("%s; reason=%s", msg, str(e))  #, exc_Info=True)
             raise CannotInstantiateDriverException(msg=msg, reason=e)
 
         self._plat_driver = driver
@@ -531,15 +531,26 @@ class PlatformAgent(ResourceAgent):
         for subplatform_id in self._pa_clients:
             pa_client, _ = self._pa_clients[subplatform_id]
             cmd = AgentCommand(command=command) if command else create_command(subplatform_id)
+
+            # execute command:
             try:
                 retval = pa_client.execute_agent(cmd, timeout=TIMEOUT)
+            except Exception as e:
+                exc = "%s: %s" % (e.__class__.__name__, str(e))
+                log.error("%r: exception executing command %r in subplatform %r: %s",
+                            self._platform_id, command, subplatform_id, exc) #, exc_Info=True)
+                continue
+
+            # verify state:
+            try:
                 state = pa_client.get_agent_state()
                 if expected_state and expected_state != state:
                     log.error("%r: expected subplatform state %r but got %r",
                                 self._platform_id, expected_state, state)
-            except Exception, ex:
-                log.error("%r: exception executing command %r in subplatform %r",
-                            self._platform_id, cmd, subplatform_id, exc_Info=True)
+            except Exception as e:
+                exc = "%s: %s" % (e.__class__.__name__, str(e))
+                log.error("%r: exception while calling get_agent_state to subplatform %r: %s",
+                            self._platform_id, subplatform_id, exc) #, exc_Info=True)
 
     def _subplatforms_reset(self):
         self._subplatforms_execute_agent(command=PlatformAgentEvent.RESET,
