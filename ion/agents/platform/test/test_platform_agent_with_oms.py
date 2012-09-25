@@ -18,6 +18,8 @@ from pyon.util.context import LocalContextMixin
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
+from interface.objects import CapabilityType
+from interface.objects import AgentCapability
 
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.agents.platform.platform_agent import PlatformAgentState
@@ -301,6 +303,201 @@ class TestPlatformAgent(IonIntegrationTestCase):
         self.assertIsInstance(retval.result, list)
         self.assertTrue(x in retval.result for x in SUBPLATFORM_IDS)
         return retval.result
+
+    def test_capabilities(self):
+        """
+        Test the ability to retrieve agent and resource parameter and command
+        capabilities in various system states.
+        """
+
+        agt_cmds_all = [
+            PlatformAgentEvent.INITIALIZE,
+            PlatformAgentEvent.RESET,
+            PlatformAgentEvent.GO_ACTIVE,
+            PlatformAgentEvent.GO_INACTIVE,
+            PlatformAgentEvent.RUN,
+            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+            PlatformAgentEvent.PING_RESOURCE,
+
+            PlatformAgentEvent.PING_AGENT,
+            PlatformAgentEvent.GET_SUBPLATFORM_IDS,
+        ]
+
+
+        def sort_caps(caps):
+            agt_cmds = []
+            agt_pars = []
+            res_cmds = []
+            res_pars = []
+
+            if len(caps)>0 and isinstance(caps[0], AgentCapability):
+                agt_cmds = [x.name for x in caps if x.cap_type==CapabilityType.AGT_CMD]
+                agt_pars = [x.name for x in caps if x.cap_type==CapabilityType.AGT_PAR]
+                res_cmds = [x.name for x in caps if x.cap_type==CapabilityType.RES_CMD]
+                res_pars = [x.name for x in caps if x.cap_type==CapabilityType.RES_PAR]
+
+            elif len(caps)>0 and isinstance(caps[0], dict):
+                agt_cmds = [x['name'] for x in caps if x['cap_type']==CapabilityType.AGT_CMD]
+                agt_pars = [x['name'] for x in caps if x['cap_type']==CapabilityType.AGT_PAR]
+                res_cmds = [x['name'] for x in caps if x['cap_type']==CapabilityType.RES_CMD]
+                res_pars = [x['name'] for x in caps if x['cap_type']==CapabilityType.RES_PAR]
+
+            return agt_cmds, agt_pars, res_cmds, res_pars
+
+
+        agt_pars_all = ['example']  # 'cause ResourceAgent defines aparam_example
+        res_pars_all = []
+        res_cmds_all = []
+
+        ##################################################################
+        # UNINITIALIZED
+        ##################################################################
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+
+        # Get exposed capabilities in current state.
+        retval = self._pa_client.get_capabilities()
+
+        # Validate capabilities for state UNINITIALIZED.
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        agt_cmds_uninitialized = [
+            PlatformAgentEvent.INITIALIZE,
+            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+            PlatformAgentEvent.PING_AGENT,
+        ]
+        self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+
+        # Get exposed capabilities in all states.
+        retval = self._pa_client.get_capabilities(current_state=False)
+
+        # Validate all capabilities as read from state UNINITIALIZED.
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+
+        self._initialize()
+
+        ##################################################################
+        # INACTIVE
+        ##################################################################
+
+        # Get exposed capabilities in current state.
+        retval = self._pa_client.get_capabilities()
+
+        # Validate capabilities for state INACTIVE.
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        agt_cmds_inactive = [
+            PlatformAgentEvent.RESET,
+            PlatformAgentEvent.GET_SUBPLATFORM_IDS,
+            PlatformAgentEvent.GO_ACTIVE,
+            PlatformAgentEvent.PING_AGENT,
+            PlatformAgentEvent.PING_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+        ]
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_inactive)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+
+        # Get exposed capabilities in all states.
+        retval = self._pa_client.get_capabilities(False)
+
+         # Validate all capabilities as read from state INACTIVE.
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+
+        self._go_active()
+
+        ##################################################################
+        # IDLE
+        ##################################################################
+
+        # Get exposed capabilities in current state.
+        retval = self._pa_client.get_capabilities()
+
+         # Validate capabilities for state IDLE.
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        agt_cmds_idle = [
+            PlatformAgentEvent.RESET,
+            PlatformAgentEvent.GO_INACTIVE,
+            PlatformAgentEvent.RUN,
+            PlatformAgentEvent.PING_AGENT,
+            PlatformAgentEvent.PING_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+        ]
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_idle)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+
+        # Get exposed capabilities in all states as read from IDLE.
+        retval = self._pa_client.get_capabilities(False)
+
+         # Validate all capabilities as read from state IDLE.
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_pars, [])
+
+        self._run()
+
+        ##################################################################
+        # COMMAND
+        ##################################################################
+
+        # Get exposed capabilities in current state.
+        retval = self._pa_client.get_capabilities()
+
+         # Validate capabilities of state COMMAND
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        agt_cmds_command = [
+            PlatformAgentEvent.GO_INACTIVE,
+            PlatformAgentEvent.RESET,
+            PlatformAgentEvent.GET_SUBPLATFORM_IDS,
+            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+            PlatformAgentEvent.PING_AGENT,
+            PlatformAgentEvent.PING_RESOURCE,
+        ]
+
+        res_cmds_command = [
+        ]
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_command)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_pars, res_pars_all)
+
+        # Get exposed capabilities in all states as read from state COMMAND.
+        retval = self._pa_client.get_capabilities(False)
+
+         # Validate all capabilities as read from state COMMAND
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_pars, res_pars_all)
+
+        self._go_inactive()
+        self._reset()
 
     def test_go_active_and_run(self):
 

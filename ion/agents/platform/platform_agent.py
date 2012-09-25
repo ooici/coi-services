@@ -66,19 +66,17 @@ class PlatformAgentEvent(ResourceAgentEvent):
     GET_SUBPLATFORM_IDS = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
 
 
-# TODO specify the capabilities
 class PlatformAgentCapability(BaseEnum):
-#    INITIALIZE = ResourceAgentEvent.INITIALIZE
-#    RESET = ResourceAgentEvent.RESET
-#    GO_ACTIVE = ResourceAgentEvent.GO_ACTIVE
-#    GO_INACTIVE = ResourceAgentEvent.GO_INACTIVE
-#    RUN = ResourceAgentEvent.RUN
-#    CLEAR = ResourceAgentEvent.CLEAR
-#    PAUSE = ResourceAgentEvent.PAUSE
-#    RESUME = ResourceAgentEvent.RESUME
-#    GO_COMMAND = ResourceAgentEvent.GO_COMMAND
-#    GO_DIRECT_ACCESS = ResourceAgentEvent.GO_DIRECT_ACCESS
-    pass
+    INITIALIZE = ResourceAgentEvent.INITIALIZE
+    RESET = ResourceAgentEvent.RESET
+    GO_ACTIVE = ResourceAgentEvent.GO_ACTIVE
+    GO_INACTIVE = ResourceAgentEvent.GO_INACTIVE
+    RUN = ResourceAgentEvent.RUN
+    GET_RESOURCE_CAPABILITIES = ResourceAgentEvent.GET_RESOURCE_CAPABILITIES
+    PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
+
+    PING_AGENT = 'PLATFORM_AGENT_PING_AGENT'
+    GET_SUBPLATFORM_IDS = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
 
 
 
@@ -836,6 +834,7 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
         # IDLE state event handlers.
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RESET, self._handler_idle_reset)
@@ -843,6 +842,7 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RUN, self._handler_idle_run)
         self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
         # COMMAND state event handlers.
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
