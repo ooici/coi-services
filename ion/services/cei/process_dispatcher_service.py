@@ -311,8 +311,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         return self.backend.list()
 
 
-
-
 class PDDashiHandler(object):
     """Dashi messaging handlers for the Process Dispatcher"""
 
@@ -350,14 +348,20 @@ class PDDashiHandler(object):
     def list_definitions(self):
         raise BadRequest("The Pyon PD does not support listing process definitions")
 
-    def schedule_process(self, upid, definition_id, configuration=None,
-                         subscribers=None, constraints=None,
+    def schedule_process(self, upid, definition_id=None, definition_name=None,
+                         configuration=None, subscribers=None, constraints=None,
                          queueing_mode=None, restart_mode=None,
                          execution_engine_id=None, node_exclusive=None):
 
-        if not definition_id:
-            raise NotFound('No process definition was provided')
-        process_definition = self.backend.read_definition(definition_id)
+        if definition_id:
+            process_definition = self.backend.read_definition(definition_id)
+
+        elif definition_name:
+            process_definition = self.backend.read_definition_by_name(definition_name)
+
+        else:
+            raise NotFound('No process definition id or name was provided')
+
 
         # early validation before we pass definition through to backend
         try:
@@ -457,6 +461,9 @@ class PDLocalBackend(object):
 
     def read_definition(self, definition_id):
         return self.rr.read(definition_id)
+
+    def read_definition_by_name(self, definition_name):
+        raise ServerError("reading process definitions by name not supported by this backend")
 
     def delete_definition(self, definition_id):
         return self.rr.delete(definition_id)
@@ -811,6 +818,19 @@ class PDNativeBackend(object):
             raise NotFound("process definition %s unknown" % definition_id)
         return _ion_process_definition_from_core(definition)
 
+    def read_definition_by_name(self, definition_name):
+
+        # this is slow but only used from launch plan so hopefully that is ok
+        definition_ids = self.core.list_definitions()
+
+        # pick the first definition that matches
+        for definition_id in definition_ids:
+            definition = self.core.describe_definition(definition_id)
+            if definition and definition.name == definition_name:
+                return definition
+
+        raise NotFound("process definition with name '%s' not found" % definition_name)
+
     def delete_definition(self, definition_id):
 
         self.core.remove_definition(definition_id)
@@ -961,6 +981,9 @@ class PDBridgeBackend(object):
         if not definition:
             raise NotFound("process definition %s unknown" % definition_id)
         return _ion_process_definition_from_core(definition)
+
+    def read_definition_by_name(self, definition_name):
+        raise ServerError("reading process definitions by name not supported by this backend")
 
     def delete_definition(self, definition_id):
         self.dashi.call(self.topic, "remove_definition",

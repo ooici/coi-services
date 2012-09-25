@@ -154,6 +154,7 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.mock_backend = DotDict()
         self.mock_backend['create_definition'] = Mock()
         self.mock_backend['read_definition'] = Mock()
+        self.mock_backend['read_definition_by_name'] = Mock()
         self.mock_backend['delete_definition'] = Mock()
         self.mock_backend['spawn'] = Mock()
         self.mock_backend['read_process'] = Mock()
@@ -214,7 +215,29 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         passed_schedule = args[2]
         assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
         assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
-        
+
+    def test_schedule_by_name(self):
+
+        self.mock_backend['read_definition_by_name'].return_value = ProcessDefinition()
+
+        upid = 'myupid'
+        definition_name = 'something'
+        queueing_mode = 'RESTART_ONLY'
+        restart_mode = 'ABNORMAL'
+
+        self.pd_dashi_handler.schedule_process(upid, definition_name=definition_name,
+            queueing_mode=queueing_mode, restart_mode=restart_mode)
+
+        self.mock_backend.read_definition_by_name.assert_called_once_with(definition_name)
+        self.assertFalse(self.mock_backend.read_definition.call_count)
+
+        self.assertEqual(self.mock_backend.spawn.call_count, 1)
+        args, kwargs = self.mock_backend.spawn.call_args
+        passed_schedule = args[2]
+        assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
+        assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
+
+
 
 @attr('UNIT', group='cei')
 class ProcessDispatcherServiceNativeTest(PyonTestCase):
@@ -261,7 +284,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.pd_service.start()
         self.assertEqual(self.mock_dashi.handle.call_count, 1)
         self.mock_matchmaker.start_election.assert_called_once_with()
-        self.mock_beat_subscriber.activate.assert_called_one_with()
+        self.mock_beat_subscriber.start.assert_called_once_with()
 
     def test_create_schedule(self):
 
