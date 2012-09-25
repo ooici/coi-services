@@ -15,6 +15,7 @@ import gevent
 import os
 import logging
 from ion.agents.port.logger_process import EthernetDeviceLogger
+from ion.agents.port.port_agent_process import PortAgentProcessType
 
 mi_logger = logging.getLogger('mi_logger')
 
@@ -25,7 +26,8 @@ class DriverIntegrationTestSupport(object):
     """
 
     def __init__(self, driver_module, driver_class,
-                 device_addr, device_port, delim=None,
+                 device_addr, device_port, data_port, command_port,
+                 port_agent_binary='port_agent', delim=None,
                  work_dir='/tmp/'):
 
         """
@@ -33,6 +35,8 @@ class DriverIntegrationTestSupport(object):
         @param driver_class
         @param device_addr
         @param device_port
+        @param command_port
+        @param port_agent_binary
         @param delim 2-element delimiter to indicate traffic from the driver
                in the logfile. See EthernetDeviceLogger.launch_process for
                default value.
@@ -46,6 +50,9 @@ class DriverIntegrationTestSupport(object):
 
         self.device_addr = device_addr
         self.device_port = device_port
+        self.command_port = command_port
+        self.data_port = data_port
+        self.port_agent_binary = port_agent_binary
         self.delim = delim
         self.work_dir = work_dir
 
@@ -61,8 +68,14 @@ class DriverIntegrationTestSupport(object):
         # Create port agent object.
         config = { 'device_addr' : self.device_addr,
                    'device_port' : self.device_port,
-                   'working_dir' : self.work_dir,
-                   'delimiter' : self.delim }
+
+                   'command_port': self.command_port,
+                   'data_port': self.data_port,
+
+                   'process_type': PortAgentProcessType.UNIX,
+                   'log_level': 5,
+                  }
+
         self._pagent = PortAgentProcess.launch_process(config, timeout = 60, test_mode = True)
         pid = self._pagent.get_pid()
         port = self._pagent.get_data_port()

@@ -97,6 +97,10 @@ DEV_PORT = CFG.device.sbe37.port
 #DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
+DATA_PORT = 4000
+CMD_PORT = 4003
+PA_BINARY = 'port_agent'
+
 # A seabird driver.
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
@@ -240,6 +244,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                                                      DRV_CLS,
                                                      DEV_ADDR,
                                                      DEV_PORT,
+                                                     DATA_PORT,
+                                                     CMD_PORT,
+                                                     PA_BINARY,
                                                      DELIM,
                                                      WORK_DIR)
         
@@ -923,7 +930,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
         self._async_event_result.get(timeout=10)
-        self.assertGreaterEqual(len(self._events_received), 8)
+        self.assertGreaterEqual(len(self._events_received), 6)
 
         self._async_sample_result.get(timeout=10)
         self.assertGreaterEqual(len(self._samples_received), 6)
