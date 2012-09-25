@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 import unittest
 
 from nose.plugins.attrib import attr
-from ion.agents.port.port_agent_process import PortAgentProcess, PythonPortAgentProcess
+from ion.agents.port.port_agent_process import PortAgentProcess, PythonPortAgentProcess, UnixPortAgentProcess, PortAgentProcessType
 from ion.agents.port.exceptions import PortAgentTimeout
 from ion.agents.port.exceptions import PortAgentMissingConfig
 from ion.agents.port.exceptions import PortAgentLaunchException
@@ -35,6 +35,8 @@ class TestPythonEthernetProcess(unittest.TestCase):
         self._port_config = {
             'device_addr': 'sbe37-simulator.oceanobservatories.org',
             'device_port': 4001,
+
+            'process_type': PortAgentProcessType.PYTHON
         }
 
     def test_driver_process(self):
@@ -169,6 +171,55 @@ class TestPythonEthernetProcess(unittest.TestCase):
 
         # Verify we don't have a process lingering
         self.assertFalse(process.poll())
+
+@attr('HARDWARE', group='mi')
+class TestUnixEthernetProcess(unittest.TestCase):
+    """
+    Unit tests for the Port Agent Process using python classes
+    """
+    def setUp(self):
+        """
+        Setup test cases.
+        """
+        self._port_config = {
+            'device_addr': 'sbe37-simulator.oceanobservatories.org',
+            'device_port': 4001,
+            'process_type': PortAgentProcessType.UNIX,
+            
+            'binary_path': "port_agent",
+            'command_port': 4002,
+            'data_port': 4003,
+            'log_level': 5,
+        }
+
+    def test_driver_process(self):
+        """
+        Test port agent process launch with default values and a good host and port
+        """
+        process = PortAgentProcess.get_process(self._port_config, test_mode=True)
+        self.assertTrue(process)
+        self.assertTrue(isinstance(process, UnixPortAgentProcess))
+
+        # Verify config
+        self.assertEqual(process._device_addr, self._port_config.get("device_addr"))
+        self.assertEqual(process._device_port, self._port_config.get("device_port"))
+        self.assertEqual(process._binary_path, self._port_config.get("binary_path"))
+        self.assertEqual(process._command_port, self._port_config.get("command_port"))
+        self.assertEqual(process._data_port, self._port_config.get("data_port"))
+        self.assertEqual(process._log_level, self._port_config.get("log_level"))
+
+        process.stop()
+        
+        # Try start
+        process.launch()
+
+        # Check that it launched properly
+        self.assertTrue(process.get_pid() > 0)
+        self.assertTrue(process.get_data_port(), 4003)
+        self.assertEqual(process.get_command_port(), 4002)
+
+        process.stop()
+        self.assertFalse(process.get_pid())
 
 
 

@@ -703,6 +703,40 @@ class TestGovernanceInt(IonIntegrationTestCase):
         negotiations = self.org_client.find_user_negotiations(user_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
         self.assertEqual(len(negotiations),1)
 
+        #Manager  rejects the initial role proposal
+        sap_response.proposal_status = ProposalStatusEnum.REJECTED
+        sap_response.originator = ProposalOriginatorEnum.PROVIDER
+        sap_response.sequence_num += 1
+        sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
+
+        negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),2)
+
+        negotiations = self.org_client.find_org_negotiations(org2_id,negotiation_status=NegotiationStatusEnum.REJECTED, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),1)
+
+        self.assertEqual(negotiations[0].negotiation_status, NegotiationStatusEnum.REJECTED)
+
+        #Make sure the user still does not have the requested role
+        ret = self.org_client.has_role(org2_id, user_id,INSTRUMENT_OPERATOR_ROLE, headers=user_header )
+        self.assertEqual(ret, False)
+
+
+        gevent.sleep(2)  # Wait for events to be published
+
+        #Check that there are the correct number of events
+        events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.RequestRoleNegotiationStatusEvent)
+        self.assertEquals(len(events_r), 2)
+        self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.REJECTED])
+
+
+        #Create a second proposal to add a role to a user
+        sap = IonObject(OT.RequestRoleProposal,consumer=user_id, provider=org2_id, role_name=INSTRUMENT_OPERATOR_ROLE )
+        sap_response = self.org_client.negotiate(sap, headers=user_header )
+
+        negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
+        self.assertEqual(len(negotiations),3)
+
         #Create an instrument resource
         ia_list,_ = self.rr_client.find_resources(restype=RT.InstrumentAgent)
 
@@ -720,7 +754,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ims_client.create_instrument_agent(ia_obj, headers=user_header)
         self.assertIn('instrument_management(create_instrument_agent) has been denied',cm.exception.message)
 
-        #Manager approves proposal
+        #Manager approves proposal for role request
         sap_response.proposal_status = ProposalStatusEnum.ACCEPTED
         sap_response.originator = ProposalOriginatorEnum.PROVIDER
         sap_response.sequence_num += 1
@@ -861,14 +895,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Manager Creates a counter proposal
         sap_response.proposal_status = ProposalStatusEnum.COUNTER
-        sap_response.originator = ProposalOriginatorEnum.CONSUMER
+        sap_response.originator = ProposalOriginatorEnum.PROVIDER
         sap_response.sequence_num += 1
         sap_response.conditions = {'commitment_length': 'one week'}
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
         #User Creates a counter proposal
         sap_response.proposal_status = ProposalStatusEnum.COUNTER
-        sap_response.originator = ProposalOriginatorEnum.PROVIDER
+        sap_response.originator = ProposalOriginatorEnum.CONSUMER
         sap_response.sequence_num += 1
         sap_response.conditions = {'commitment_length': 'one month'}
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
