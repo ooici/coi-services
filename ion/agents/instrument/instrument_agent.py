@@ -32,6 +32,7 @@ from pyon.core.exception import ResourceError
 import socket
 import json
 import base64
+import traceback
 
 # Packages
 import numpy
@@ -255,7 +256,7 @@ class InstrumentAgent(ResourceAgent):
 
         try:
             result = self._dvr_client.cmd_dvr('get_resource', params)
-            
+
         except Exception as ex:
             self._raise_ion_exception(ex)
         

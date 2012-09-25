@@ -16,9 +16,9 @@ from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
 #from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
-from interface.objects import Granule, Attachment, AttachmentType
+from interface.objects import Granule, Attachment, AttachmentType, StreamRoute
 
-from mi.core.instrument.instrument_driver import DriverAsyncEvent, DriverParameter
+from mi.core.instrument.instrument_driver import DriverAsyncEvent, DriverParameter, DriverEvent
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException, InstrumentException
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -28,6 +28,8 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from coverage_model.parameter import ParameterDictionary
 
 from ion.agents.data.handlers.handler_utils import calculate_iteration_count, list_file_info, get_time_from_filename
+from pyon.agent.agent import ResourceAgentState
+from pyon.ion.stream import StandaloneStreamPublisher
 
 import gevent
 from gevent.coros import Semaphore
@@ -44,7 +46,7 @@ class DataHandlerParameter(DriverParameter):
 
 class BaseDataHandler(object):
 
-    def __init__(self, stream_registrar, dh_config):
+    def __init__(self, dh_config):
         self._polling = False           #Moved these four variables so they're instance variables, not class variables
         self._polling_glet = None
         self._dh_config = {}
@@ -55,7 +57,6 @@ class BaseDataHandler(object):
         }
 
         self._dh_config=dh_config
-        self._stream_registrar = stream_registrar
 
         self._semaphore=Semaphore()
 
@@ -72,7 +73,7 @@ class BaseDataHandler(object):
 
     def _poll(self):
         """
-        Internal polling method, run inside a greenlet, that triggers execute_acquire_data without configuration mods
+        Internal polling method, run inside a greenlet, that triggers execute_acquire_sample without configuration mods
         The polling interval (in seconds) is retrieved from the POLLING_INTERVAL parameter
         """
         self._polling = True
@@ -81,7 +82,7 @@ class BaseDataHandler(object):
         log.debug('Polling interval: {0}'.format(interval))
 
         while not self._terminate_polling.wait(timeout=interval):
-            self.execute_acquire_data()
+            self.execute_acquire_sample()
 
     def cmd_dvr(self, cmd, *args, **kwargs):
         """
@@ -101,16 +102,16 @@ class BaseDataHandler(object):
         #discover -> Not used
         #disconnect -> Not used
 
-        log.debug('cmd_dvr received command \'{0}\' with: args={1} kwargs={2}'.format(cmd, args, kwargs))
+        log.info('cmd_dvr received command \'{0}\' with: args={1} kwargs={2}'.format(cmd, args, kwargs))
 
         reply = None
         if cmd == 'initialize':
             # Delegate to BaseDataHandler.initialize()
             reply = self.initialize(*args, **kwargs)
-        elif cmd == 'get':
+        elif cmd == 'get_resource':
             # Delegate to BaseDataHandler.get()
             reply = self.get(*args, **kwargs)
-        elif cmd == 'set':
+        elif cmd == 'set_resource':
             # Delegate to BaseDataHandler.set()
             reply = self.set(*args, **kwargs)
         elif cmd == 'get_resource_params':
@@ -119,16 +120,21 @@ class BaseDataHandler(object):
         elif cmd == 'get_resource_commands':
             # Delegate to BaseDataHandler.get_resource_commands()
             reply = self.get_resource_commands(*args, **kwargs)
-        elif cmd == 'execute_acquire_data':
-            # Delegate to BaseDataHandler.execute_acquire_data()
-            reply = self.execute_acquire_data(*args, **kwargs)
+        elif cmd == 'get_resource_capabilities':
+            # Delegate to BaseDataHandler.get_resource_commands()
+            reply = self.get_resource_capabilities(*args, **kwargs)
+        elif cmd == 'execute_acquire_sample':
+            # Delegate to BaseDataHandler.execute_acquire_sample()
+            reply = self.execute_acquire_sample(*args, **kwargs)
         elif cmd == 'execute_start_autosample':
             # Delegate to BaseDataHandler.execute_start_autosample()
             reply = self.execute_start_autosample(*args, **kwargs)
         elif cmd == 'execute_stop_autosample':
             # Delegate to BaseDataHandler.execute_stop_autosample()
             reply = self.execute_stop_autosample(*args, **kwargs)
-        elif cmd in ['configure','connect','disconnect','get_current_state','discover','execute_acquire_sample']:
+        elif cmd == 'execute_resource':
+            reply = self.execute_resource(*args, **kwargs)
+        elif cmd in ['configure','connect','disconnect','get_current_state','discover','execute_acquire_data']:
             # Disregard
             log.info('Command \'{0}\' not used by DataHandler'.format(cmd))
             pass
@@ -169,15 +175,15 @@ class BaseDataHandler(object):
             self._dh_config = args[0]
 
         except IndexError:
-            raise InstrumentParameterException('\'acquire_data\' command requires a config dict as the first argument')
+            raise InstrumentParameterException('\'acquire_sample\' command requires a config dict as the first argument')
 
         return
 
-    def execute_acquire_data(self, *args):
+    def execute_acquire_sample(self, *args):
         """
         Creates a copy of self._dh_config, creates a publisher, and spawns a greenlet to perform a data acquisition cycle
         If the args[0] is a dict, any entries keyed with one of the 'PATCHABLE_CONFIG_KEYS' are used to patch the config
-        Greenlet binds to BaseDataHandler._acquire_data and passes the publisher and config
+        Greenlet binds to BaseDataHandler._acquire_sample and passes the publisher and config
         Disallows multiple "new data" (unconstrained) requests using BaseDataHandler._semaphore lock
         Called from:
                       InstrumentAgent._handler_observatory_execute_resource
@@ -185,7 +191,7 @@ class BaseDataHandler(object):
 
         @parameter args First argument can be a config dictionary
         """
-        log.debug('Executing acquire_data: args = {0}'.format(args))
+        log.debug('Executing acquire_sample: args = {0}'.format(args))
 
         # Make a copy of the config to ensure no cross-pollution
         config = self._dh_config.copy()
@@ -225,13 +231,33 @@ class BaseDataHandler(object):
 
         config['new_data_check'] = ndc
 
-            # Create a publisher to pass into the greenlet
-        publisher = self._stream_registrar.create_publisher(stream_id=stream_id)
+        # Create a publisher to pass into the greenlet
+        stream_route = StreamRoute()
+        publisher = StandaloneStreamPublisher(stream_id=stream_id, stream_route=stream_route)
 
         # Spawn a greenlet to do the data acquisition and publishing
-        g = spawn(self._acquire_data, config, publisher, self._unlock_new_data_callback, self._update_new_data_check_attachment)
+        g = spawn(self._acquire_sample, config, publisher, self._unlock_new_data_callback, self._update_new_data_check_attachment)
         log.debug('** Spawned {0}'.format(g))
         self._glet_queue.append(g)
+        return ResourceAgentState.COMMAND, None
+
+    def execute_resource(self, *args, **kwargs):
+        cmd = args[0]
+        if cmd == DriverEvent.ACQUIRE_SAMPLE:
+            if len(args) == 1:
+                return self.execute_acquire_sample()
+            else:
+                return self.execute_acquire_sample(args[1])
+        elif cmd == DriverEvent.START_AUTOSAMPLE:
+                if len(args) == 1:
+                    return self.execute_start_autosample()
+                else:
+                    return self.execute_start_autosample(args[1])
+        elif cmd == DriverEvent.STOP_AUTOSAMPLE:
+            if len(args) == 1:
+                return self.execute_stop_autosample()
+            else:
+                return self.execute_stop_autosample(args[1])
 
     def execute_start_autosample(self, *args, **kwargs):
         #TODO: Add documentation
@@ -250,7 +276,7 @@ class BaseDataHandler(object):
         if not self._polling and self._polling_glet is None:
             self._polling_glet = spawn(self._poll)
 
-        return None
+        return ResourceAgentState.STREAMING, None
 
     def execute_stop_autosample(self, *args, **kwargs):
         #TODO: Add documentation
@@ -274,7 +300,7 @@ class BaseDataHandler(object):
             self._polling = False
             self._polling_glet = None
 
-        return None
+        return ResourceAgentState.COMMAND, None
 
     def get(self, *args, **kwargs):
         #TODO: Add documentation
@@ -356,6 +382,18 @@ class BaseDataHandler(object):
         """
         return self._params.keys()
 
+    def get_resource_capabilities(self, *args, **kwargs):
+        """
+        Return list of DataHandler execute commands available.
+        Called from:
+                      InstrumentAgent._handler_get_resource_capabilities
+        """
+        res_cmds = [cmd.replace('execute_','') for cmd in dir(self) if cmd.startswith('execute_')]
+        res_params = ['POLLING_INTERVAL', 'PATCHABLE_CONFIG_KEYS']
+
+        result = [res_cmds, res_params]
+
+
     def get_resource_commands(self, *args, **kwargs):
         """
         Return list of DataHandler execute commands available.
@@ -407,7 +445,7 @@ class BaseDataHandler(object):
         return att_id
 
     @classmethod
-    def _acquire_data(cls, config, publisher, unlock_new_data_callback, update_new_data_check_attachment):
+    def _acquire_sample(cls, config, publisher, unlock_new_data_callback, update_new_data_check_attachment):
         """
         Ensures required keys (such as stream_id) are available from config, configures the publisher and then calls:
              BaseDataHandler._constraints_for_new_request (only if config does not contain 'constraints')
@@ -415,7 +453,7 @@ class BaseDataHandler(object):
         @param config Dict containing configuration parameters, may include constraints, formatters, etc
         @param unlock_new_data_callback BaseDataHandler callback function to allow conditional unlocking of the BaseDataHandler._semaphore
         """
-        log.debug('start _acquire_data: config={0}'.format(config))
+        log.debug('start _acquire_sample: config={0}'.format(config))
 
         cls._init_acquisition_cycle(config)
 
@@ -429,7 +467,7 @@ class BaseDataHandler(object):
                 if get_safe(config,'TESTING'):
                     log.debug('Publish TestingFinished event')
                     pub = EventPublisher('DeviceCommonLifecycleEvent')
-                    pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
+                    pub.publish_event(origin='BaseDataHandler._acquire_sample', description='TestingFinished')
                 return
 
             if constraints is None:
@@ -451,7 +489,7 @@ class BaseDataHandler(object):
         if get_safe(config,'TESTING'):
             log.debug('Publish TestingFinished event')
             pub = EventPublisher('DeviceCommonLifecycleEvent')
-            pub.publish_event(origin='BaseDataHandler._acquire_data', description='TestingFinished')
+            pub.publish_event(origin='BaseDataHandler._acquire_sample', description='TestingFinished')
 
     @classmethod
     def _constraints_for_historical_request(cls, config):
