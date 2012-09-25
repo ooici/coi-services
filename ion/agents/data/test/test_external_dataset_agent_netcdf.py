@@ -167,7 +167,7 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
 #        ttool.add_taxonomy_set('data','This group contains data parameters')
 
         # Create the logger for receiving publications
-        self.create_stream_and_logger(name='usgs',stream_id=stream_id)
+        _, stream_route = self.create_stream_and_logger(name='usgs',stream_id=stream_id)
 
         pdict = ParameterDictionary()
 
@@ -219,6 +219,7 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
             'stream_id':stream_id,
+            'stream_route':stream_route,
             #'taxonomy':ttool.dump(),
             'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?

@@ -468,13 +468,14 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         #CBM: Eventually, probably want to group this crap somehow - not sure how yet...
 
         # Create the logger for receiving publications
-        self.create_stream_and_logger(name='slocum',stream_id=stream_id)
+        _, stream_route = self.create_stream_and_logger(name='slocum',stream_id=stream_id)
 
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
             'stream_id':stream_id,
+            'stream_route':stream_route,
             'external_dataset_res':dset,
             'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
