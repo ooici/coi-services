@@ -11,19 +11,25 @@
 from pyon.public import log
 from pyon.ion.resource import PRED, RT
 from pyon.util.containers import get_safe
-from pyon.core.exception import InstDriverError, NotFound
+from pyon.core.exception import InstDriverError
+from pyon.core.exception import NotFound
+from pyon.core.exception import ResourceError
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.agents.instrument.exceptions import InstrumentStateException
 
-from ion.agents.instrument.instrument_agent import InstrumentAgent, InstrumentAgentState, InstrumentAgentEvent
+from pyon.agent.agent import ResourceAgentEvent
+from pyon.agent.agent import ResourceAgentState
+from ion.agents.instrument.instrument_agent import InstrumentAgent
+from ion.agents.instrument.driver_process import DriverProcess
+from mi.core.instrument.instrument_driver import DriverEvent
 
 class ExternalDatasetAgent(InstrumentAgent):
 
-    def __init__(self, initial_state=InstrumentAgentState.UNINITIALIZED):
+    def __init__(self, initial_state=ResourceAgentState.UNINITIALIZED):
         log.debug('ExternalDatasetAgent.__init__: initial_state = {0}'.format(initial_state))
         InstrumentAgent.__init__(self, initial_state)
-        self._fsm.add_handler(InstrumentAgentState.STREAMING, InstrumentAgentEvent.EXECUTE_RESOURCE, self._handler_streaming_execute_resource)
+        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_streaming_execute_resource)
         # TODO: Do we need to (can we even?) remove handlers that aren't supported (i.e. Direct Access?)
 
 
@@ -124,7 +130,7 @@ class ExternalDatasetAgent(InstrumentAgent):
 
             log.debug('Load DataHandler: module={0}  classojb={1}'.format(module,classobj))
 
-            self._dvr_client = classobj(self._stream_registrar, dh_cfg)
+            self._dvr_client = classobj(dh_cfg)
             self._dvr_client.set_event_callback(self.evt_recv)
             # Initialize the DataHandler
             self._dvr_client.cmd_dvr('initialize')
@@ -133,8 +139,9 @@ class ExternalDatasetAgent(InstrumentAgent):
             self._dvr_client = None
             raise InstDriverError('Error instantiating DataHandler \'{0}.{1}\': {2}'.format(dvr_mod, dvr_cls, ex))
 
+
         #TODO: Temporarily construct packet factories to utilize pathways provided by IA
-        self._construct_packet_factories(dvr_mod)
+        self._construct_packet_factories()
 
         log.info('ExternalDatasetAgent \'{0}\' loaded DataHandler \'{1}.{2}\''.format(self._proc_name,dvr_mod,dvr_cls))
 
@@ -180,8 +187,8 @@ class ExternalDatasetAgent(InstrumentAgent):
         Handler for execute_resource command in streaming state.
         Delegates to InstrumentAgent._handler_observatory_execute_resource
         """
-        if command == 'execute_acquire_data':
-            return self._handler_observatory_execute_resource(command, *args, **kwargs)
+        if command == DriverEvent.ACQUIRE_SAMPLE or command == DriverEvent.STOP_AUTOSAMPLE:
+            return self._handler_execute_resource(command, *args, **kwargs)
         else:
             raise InstrumentStateException('Command \'{0}\' not allowed in current state {1}'.format(command, self._fsm.get_current_state()))
 
@@ -194,7 +201,7 @@ class ExternalDatasetAgent(InstrumentAgent):
 #        """
 #        InstrumentAgent._construct_data_publishers(self)
 
-    def _construct_packet_factories(self, dvr_mod):
+    def _construct_packet_factories(self):
         pass
 #        """
 #        Construct packet factories from packet_config member of the
@@ -215,3 +222,13 @@ class ExternalDatasetAgent(InstrumentAgent):
 
 #    def _publish_instrument_agent_event(self, event_type=None, description=None):
 #        pass
+
+    def _handler_inactive_go_active(self, *args, **kwargs):
+        """
+        """
+        next_state = None
+        result = None
+
+        next_state = ResourceAgentState.IDLE
+
+        return (next_state, result)
