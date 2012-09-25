@@ -53,6 +53,7 @@ from ion.agents.port.exceptions import PortAgentMissingConfig
 PYTHON_PATH = 'bin/python'
 UNIX_PROCESS = 'port_agent'
 DEFAULT_TIMEOUT = 60
+PID_FILE = "/var/ooi/port_agent/port_agent_%d.pid"
 
 class PortAgentProcessType(BaseEnum):
     """
@@ -402,31 +403,59 @@ class UnixPortAgentProcess(PortAgentProcess):
                 
         command_line.append("-p")
         command_line.append("%s" % (self._command_port));
-        
+
         command_line.append("-c")
         command_line.append(self._tmp_config.name);
-        
-        self._pid = self.run_command(command_line) + 1;
-        
+
+
+        self.run_command(command_line);
+        self._pid = self._read_pid();
+
         self._tmp_config.close();
-        
         return self._command_port;
     
     def run_command(self, command_line):
         log.debug("run command: " + str(command_line));
         process = subprocess.Popen(command_line, stdout=subprocess.PIPE, stderr=subprocess.PIPE);
-        
-        output, error_message = process.communicate();
+        gevent.sleep(1);
 
-        if(error_message):
-            log.error("Port Agent Config: \n %s", (self._read_config()))
-            raise PortAgentLaunchException("failed to run port agent command: \n%s" % (error_message));
-            return 0;
-        
+        process.poll()
+
+        # We have failed!
+        if(process.returncode and process.pid):
+            output, error_message = process.communicate();
+            log.error("Failed to run command: STDERR: %s" % (error_message))
+            raise PortAgentLaunchException("failed to launch port agent");
+
         log.debug("command successful.  pid: %d" % (process.pid))
         
         return process.pid;
-    
+
+    def _read_pid(self):
+        pid_file = PID_FILE % (self._command_port)
+        start_time = time.time()
+        boo = 0;
+
+        log.debug("read pid file: " + pid_file)
+        while(start_time + DEFAULT_TIMEOUT > time.time()):
+            try:
+                file = open(pid_file)
+                pid = file.read().strip('\0\n\r')
+                if(pid):
+                    int(pid)
+                    log.info("port agent pid: [%s]" % (pid))
+                    return int(pid)
+            except ValueError, e:
+                log.warn("Failed to convert %s to an int '%s" % (pid, e) )
+                break
+            except:
+                log.warn("Failed to open pid file: %s" % (pid_file))
+                gevent.sleep(1);
+
+        log.error("port agent startup failed");
+
+        return None;
+
     def _read_config(self):
         self._tmp_config.seek(0);
         return "".join(self._tmp_config.readlines());
