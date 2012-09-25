@@ -34,8 +34,6 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from ion.services.dm.utility.granule.granule import build_granule
 import numpy
 from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
-from ion.agents.platform.test.adhoc import adhoc_get_stream_names
-from ion.agents.platform.test.adhoc import adhoc_get_packet_factories
 
 from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
@@ -129,10 +127,6 @@ class PlatformAgent(ResourceAgent):
         # stream_config agent config member during process on_init.
         self._data_publishers = {}
 
-        # Factories for stream packets. Constructed by driver
-        # configuration information on transition to inactive.
-        self._packet_factories = {}
-
         # {subplatform_id: (ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
 
@@ -160,7 +154,7 @@ class PlatformAgent(ResourceAgent):
     def _reset(self):
         """
         Resets this platform agent (terminates sub-platforms processes,
-        clears self._pa_clients, destroys driver, clears packet factories).
+        clears self._pa_clients, destroys driver).
 
         NOTE that this method is to be called *after* sending the RESET command
         to my sub-platforms (if any).
@@ -186,8 +180,6 @@ class PlatformAgent(ResourceAgent):
         if self._plat_driver:
             self._plat_driver.destroy()
             self._plat_driver = None
-
-        self._clear_packet_factories()
 
     def _pre_initialize(self):
         """
@@ -256,27 +248,11 @@ class PlatformAgent(ResourceAgent):
 
             stream_id = stream_config['stream_id']
             self._data_streams[stream_name] = stream_id
-#                self._data_streams[stream_name] = stream_route
             self._param_dicts[stream_name] = adhoc_get_parameter_dictionary(stream_name)
-#                publisher = StreamPublisher(process=self, stream_route=stream_route)
             publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
             self._data_publishers[stream_name] = publisher
             log.debug("%r: created publisher for stream_name=%r",
                   self._platform_id, stream_name)
-
-    def _construct_packet_factories(self):
-        """
-        Constructs the packet factories for the streams associated to this
-        platform.
-        """
-        stream_names = adhoc_get_stream_names()
-        self._packet_factories = adhoc_get_packet_factories(stream_names, self.CFG.stream_config)
-
-    def _clear_packet_factories(self):
-        """
-        Deletes packet factories.
-        """
-        self._packet_factories.clear()
 
     def _create_driver(self):
         """
@@ -341,7 +317,6 @@ class PlatformAgent(ResourceAgent):
     def _run(self):
         """
         """
-        self._construct_packet_factories()
         self._start_resource_monitoring()
 
     def _start_resource_monitoring(self):

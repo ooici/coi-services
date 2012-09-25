@@ -1,9 +1,11 @@
 platform agent framework
 
+2012-09-25:
+Some TODOs:
+    - PlatformAgent: what to do if a command in some sub-platform fails?
+
 2012-09-14:
 - now using Process Dispatcher to launch platform agents.
-  Note that IMS's start_platform_agent_instance hasn't seemed to have been
-  updated.
 
 2012-09-12:
 - adjustments according to updates in CI-OMS+interface
