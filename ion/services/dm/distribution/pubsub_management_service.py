@@ -54,6 +54,7 @@ class PubsubManagementService(BasePubsubManagementService):
         return True
 
     def compare_stream_definition(self, stream_definition1_id='', stream_definition2_id=''):
+        # returns True if the 2 stream definitions are equivalent
         def1 = self.read_stream_definition(stream_definition1_id)
         def2 = self.read_stream_definition(stream_definition2_id)
         return self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary)
