@@ -30,6 +30,10 @@ from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver import AttributeValueDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule.granule import build_granule
+import numpy
+from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
 from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 from ion.agents.platform.test.adhoc import adhoc_get_packet_factories
 
@@ -118,6 +122,8 @@ class PlatformAgent(ResourceAgent):
         # Dictionary of data stream IDs for data publishing. Constructed
         # by stream_config agent config member during process on_init.
         self._data_streams = {}
+
+        self._param_dicts = {}
 
         # Dictionary of data stream publishers. Constructed by
         # stream_config agent config member during process on_init.
@@ -242,12 +248,21 @@ class PlatformAgent(ResourceAgent):
             self._platform_id, stream_info)
 
         for (stream_name, stream_config) in stream_info.iteritems():
-            stream_id = stream_config['id']
+
+            stream_route = stream_config['stream_route']
+
+            log.debug("%r: stream_name=%r, stream_route=%r",
+                self._platform_id, stream_name, stream_route)
+
+            stream_id = stream_config['stream_id']
             self._data_streams[stream_name] = stream_id
-            publisher = self._create_publisher(stream_id=stream_id)
+#                self._data_streams[stream_name] = stream_route
+            self._param_dicts[stream_name] = adhoc_get_parameter_dictionary(stream_name)
+#                publisher = StreamPublisher(process=self, stream_route=stream_route)
+            publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
             self._data_publishers[stream_name] = publisher
-            log.debug("%r: created publisher for stream_name=%r (""stream_id=%r)",
-                      self._platform_id, stream_name, stream_id)
+            log.debug("%r: created publisher for stream_name=%r",
+                  self._platform_id, stream_name)
 
     def _construct_packet_factories(self):
         """
@@ -351,33 +366,43 @@ class PlatformAgent(ResourceAgent):
         log.debug('%r: in state=%s: received driver_event=%s',
             self._platform_id, self.get_agent_state(), str(driver_event))
 
-        value = {}
-        if isinstance(driver_event, AttributeValueDriverEvent):
-            stream_name = driver_event._attr_id
-
-            #
-            # create and publish packet
-            #
-            if stream_name in self._data_streams:
-                value['value'] = [driver_event._value]
-                value['lat'] = [self._lat]
-                value['lon'] = [self._lon]
-                value['height'] = [self._height]
-                value['stream_id'] = self._data_streams[stream_name]
-
-                packet = self._packet_factories[stream_name](**value)
-                self._data_publishers[stream_name].publish(packet)
-
-                log.debug('%r: published data packet. stream_name=%s (stream_id=%s)',
-                    self._platform_id, stream_name, value['stream_id'])
-            else:
-                log.warn('%r: unrecognized stream_name=%r',
-                         self._platform_id, stream_name)
-
-
-        else:
+        if not isinstance(driver_event, AttributeValueDriverEvent):
             log.warn('%r: driver_event not handled: %s',
                 self._platform_id, str(type(driver_event)))
+            return
+
+        stream_name = driver_event._attr_id
+        if not stream_name in self._data_streams:
+            log.warn('%r: unrecognized stream %r',
+                     self._platform_id, stream_name)
+            return
+
+        publisher = self._data_publishers.get(stream_name, None)
+        if not publisher:
+            log.warn('%r: no publisher given for stream %r',
+                     self._platform_id, stream_name)
+            return
+
+        param_dict = self._param_dicts.get(stream_name, None)
+        if not param_dict:
+            log.warn('%r: No ParameterDictionary given for stream %r',
+                     self._platform_id, stream_name)
+            return
+
+        rdt = RecordDictionaryTool(param_dictionary=param_dict)
+
+        rdt['value'] =  numpy.array([driver_event._value])
+        rdt['lat'] =    numpy.array([self._lat])
+        rdt['lon'] =    numpy.array([self._lon])
+        rdt['height'] = numpy.array([self._height])
+
+        g = build_granule(data_producer_id=self.resource_id,
+            param_dictionary=param_dict, record_dictionary=rdt)
+
+        stream_id = self._data_streams[stream_name]
+        publisher.publish(g, stream_id=stream_id)
+        log.debug('%r: published data granule on stream %r, rdt=%r',
+            self._platform_id, stream_name, str(rdt))
 
     ##########################################################################
     # TBD

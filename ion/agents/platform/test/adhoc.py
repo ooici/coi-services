@@ -11,75 +11,53 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from pyon.public import log
+from coverage_model.parameter import ParameterDictionary, ParameterContext
+from coverage_model.parameter_types import QuantityType
+from coverage_model.basic_types import AxisTypeEnum
+
+import numpy
 
 
-from prototype.sci_data.stream_defs import L0_conductivity_stream_definition
-
-def adhoc_stream_definition():
-# arbitrarily using L0_conductivity_stream_definition for the platform attributes
-    sd = L0_conductivity_stream_definition()
-    sd.stream_resource_id = ''
-    return sd
-
-
-
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
-
-def adhoc_get_taxonomy(stream_name):
+def adhoc_get_parameter_dictionary(stream_name):
     """
     @param stream_name IGNORED in this adhoc function; it returns the same
-                taxonomy definition always.
-    @retval corresponding taxonomy.
+                ParameterDictionary definition always.
+    @retval corresponding ParameterDictionary.
     """
 
-    taxy = TaxyTool()
-    taxy.add_taxonomy_set('value')
-    taxy.add_taxonomy_set('lat','long name for latitude')
-    taxy.add_taxonomy_set('lon','long name for longitude')
-    taxy.add_taxonomy_set('time','long name for time')
-    taxy.add_taxonomy_set('height','long name for height')
-    # This is an example of using groups it is not a normative statement about how to use groups
-    taxy.add_taxonomy_set('coordinates','This group contains coordinates...')
-    taxy.add_taxonomy_set('data','This group contains data...')
+    pdict = ParameterDictionary()
 
-    return taxy
+    ctxt = ParameterContext('value', param_type=QuantityType(value_encoding=numpy.float32))
+    ctxt.uom = 'unknown'
+    ctxt.fill_value = 0e0
+    pdict.add_context(ctxt)
 
+    ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+    ctxt.reference_frame = AxisTypeEnum.TIME
+    ctxt.uom = 'seconds since 01-01-1970'
+    pdict.add_context(ctxt)
 
+    ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+    ctxt.reference_frame = AxisTypeEnum.LON
+    ctxt.uom = 'degree_east'
+    pdict.add_context(ctxt)
 
-from ion.agents.instrument.packet_factory_man import create_packet_builder
+    ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+    ctxt.reference_frame = AxisTypeEnum.LAT
+    ctxt.uom = 'degree_north'
+    pdict.add_context(ctxt)
+
+    ctxt = ParameterContext('height', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
+    ctxt.reference_frame = AxisTypeEnum.HEIGHT
+    ctxt.uom = 'unknown'
+    pdict.add_context(ctxt)
+
+    return pdict
+
 
 # some of the attribute names in the simulated network (network.yml)
 def adhoc_get_stream_names():
     return ['Node1A_attr_1', 'Node1A_attr_2']
 
-# NOTE: the following actually follows the similar method in driver_process.py
-# but we are not using driver processes here, so just adapt that method.
 def adhoc_get_packet_factories(stream_names, stream_info):
-    """
-    Construct packet factories for the given stream names
-    and the given stream_info dict.
-
-    @param stream_names
-    @param stream_info
-
-    @retval a dict indexed by stream name of the packet factories defined.
-    """
-
-    log.trace("stream_names=%s; stream_info=%s" % (stream_names, stream_info))
-
-    packet_factories = {}
-    for name in stream_names:
-        if not name in stream_info:
-            log.error("Name '%s' not found in stream_info" % name)
-            continue
-
-        stream_config = stream_info[name]
-        try:
-            packet_builder = create_packet_builder(name, stream_config)
-            packet_factories[name] = packet_builder
-            log.debug('created packet builder for stream %s' % name)
-        except Exception, e:
-            log.error('error creating packet builder: %s' % e)
-
-    return packet_factories
+    return {}

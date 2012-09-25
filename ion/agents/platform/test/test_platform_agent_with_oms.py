@@ -26,9 +26,9 @@ from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
 from pyon.ion.stream import StandaloneStreamSubscriber
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from ion.agents.platform.test.adhoc import adhoc_get_taxonomy
-from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 
+from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
+from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 
 from gevent.event import AsyncResult
 from gevent import sleep
@@ -151,42 +151,48 @@ class TestPlatformAgent(IonIntegrationTestCase):
         """
         """
 
-        # A callback for processing subscribed-to data.
-        def consume_data(message, stream_route, stream_id):
-            log.info('Subscriber received data message: %s.' % str(message))
-            self._samples_received.append(message)
-            if self._no_samples and self._no_samples == len(self._samples_received):
-                self._async_data_result.set()
-
-
         # Create streams and subscriptions for each stream named in driver.
         self._stream_config = {}
         self._data_subscribers = []
-        for stream_name in adhoc_get_stream_names():
-            log.info('creating stream %r ...', stream_name)
-            stream_id, stream_route = self._pubsub_client.create_stream(name=stream_name,exchange_point='science_data')
 
-            log.info('create_stream(%r): stream_id=%r, stream_route=%s',
-                     stream_name, stream_id, str(stream_route))
+        #
+        # TODO actually build the stream config and data subscribers. At the
+        # moment, what follows is an initial sketch of the needed changes but
+        # it's not working yet. I'm pushing this now because of the recent
+        # RDT refactoring that invalidated the old taxonomy-based mechanism.
+        #
 
-            taxy = adhoc_get_taxonomy(stream_name)
-            stream_config = dict(
-                id=stream_id,
-                taxonomy=taxy.dump()
-            )
-
-            self._stream_config[stream_name] = stream_config
-            log.info('_stream_config[%r]= %r', stream_name, stream_config)
-
-            # Create subscriptions for each stream.
-            exchange_name = '%s_queue' % stream_name
-            self._purge_queue(exchange_name)
-            sub = StandaloneStreamSubscriber(exchange_name, consume_data)
-            sub.start()
-            self._data_subscribers.append(sub)
-            sub_id = self._pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
-            self._pubsub_client.activate_subscription(sub_id)
-            sub.subscription_id = sub_id
+#        # A callback for processing subscribed-to data.
+#        def consume_data(message, stream_route, stream_id):
+#            log.info('Subscriber received data message: %s.' % str(message))
+#            self._samples_received.append(message)
+#            if self._no_samples and self._no_samples == len(self._samples_received):
+#                self._async_data_result.set()
+#
+#        for stream_name in adhoc_get_stream_names():
+#            log.info('creating stream %r ...', stream_name)
+#            stream_id, stream_route = self._pubsub_client.create_stream(name=stream_name,exchange_point='science_data')
+#
+#            log.info('create_stream(%r): stream_id=%r, stream_route=%s',
+#                     stream_name, stream_id, str(stream_route))
+#
+#            pdict = adhoc_get_parameter_dictionary(stream_name)
+#            stream_config = dict(stream_route=stream_route,
+#                                 stream_id=stream_id,
+#                                 parameter_dictionary=pdict.dump())
+#
+#            self._stream_config[stream_name] = stream_config
+#            log.info('_stream_config[%r]= %r', stream_name, stream_config)
+#
+#            # Create subscriptions for each stream.
+#            exchange_name = '%s_queue' % stream_name
+#            self._purge_queue(exchange_name)
+#            sub = StandaloneStreamSubscriber(exchange_name, consume_data)
+#            sub.start()
+#            self._data_subscribers.append(sub)
+#            sub_id = self._pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
+#            self._pubsub_client.activate_subscription(sub_id)
+#            sub.subscription_id = sub_id
 
     def _purge_queue(self, queue):
         xn = self.container.ex_manager.create_xn_queue(queue)
