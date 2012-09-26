@@ -58,6 +58,3 @@ def adhoc_get_parameter_dictionary(stream_name):
 # some of the attribute names in the simulated network (network.yml)
 def adhoc_get_stream_names():
     return ['Node1A_attr_1', 'Node1A_attr_2']
-
-def adhoc_get_packet_factories(stream_names, stream_info):
-    return {}

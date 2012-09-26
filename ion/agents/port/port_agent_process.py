@@ -38,6 +38,8 @@ import os
 import time
 import signal
 import gevent
+import tempfile
+import subprocess
 
 from pyon.util.log import log
 from ion.agents.instrument.common import BaseEnum
@@ -49,13 +51,16 @@ from ion.agents.port.exceptions import PortAgentTimeout
 from ion.agents.port.exceptions import PortAgentMissingConfig
 
 PYTHON_PATH = 'bin/python'
+UNIX_PROCESS = 'port_agent'
 DEFAULT_TIMEOUT = 60
+PID_FILE = "/var/ooi/port_agent/port_agent_%d.pid"
 
 class PortAgentProcessType(BaseEnum):
     """
     Defines the process types for the port agent.  i.e. C++ or Python
     """
     PYTHON = 'PYTHON',
+    UNIX = 'UNIX',
 
 class PortAgentType(BaseEnum):
     """
@@ -91,10 +96,15 @@ class PortAgentProcess(object):
         @param timeout timeout for port agent launch.  If exceeded an exception is raised
         @param test_mode enable test mode for the port agent
         """
-        process_type = config.get("process_type", PortAgentProcessType.PYTHON)
+        
+        # Default to unix port agent
+        process_type = config.get("process_type", PortAgentProcessType.UNIX)
 
         if process_type == PortAgentProcessType.PYTHON:
             return PythonPortAgentProcess(config, timeout, test_mode)
+
+        if process_type == PortAgentProcessType.UNIX:
+            return UnixPortAgentProcess(config, timeout, test_mode)
 
         else:
             raise PortAgentLaunchException("unknown port agent process type: %s" % process_type)
@@ -286,3 +296,183 @@ class PythonPortAgentProcess(PortAgentProcess):
             self.port_agent.stop()
         else:
             log.info('No port agent running.')
+            
+class UnixPortAgentProcess(PortAgentProcess):
+    """
+    Object to facilitate launching port agent processes using a c++ compiled port agent
+
+    Port Agent config requirements:
+    binary_path :: Path the the port agent executable
+    command_port :: port number of the observatory command port to the port agent
+    log_level :: how many -v options to add to the launch
+
+    Example:
+
+    port_agent_config = {
+        device_addr: sbe37-simulator.oceanobservatories.org,
+        device_port: 4001,
+        
+        binary_path: /bin/port_agent,
+        command_port: 4000,
+        data_port: 4002,
+        log_level: 5,
+
+        type: PortAgentType.ETHERNET
+    }
+    @param config configuration parameters for the driver process
+    @param test_mode should the driver be run in test mode
+    """
+
+    _port_agent = None
+
+    def __init__(self, config, timeout = DEFAULT_TIMEOUT, test_mode = False):
+        """
+        Initialize the Python port agent object using the passed in config.  This
+        defaults to ethernet as the type because that is currently the only port
+        agent we have.
+        @raises PortAgentMissingConfig
+        """
+        self._config = config
+        self._timeout = timeout
+        self._test_mode = test_mode
+
+        # Verify our configuration is correct
+
+        self._device_addr = config.get("device_addr")
+        self._device_port = config.get("device_port")
+        self._binary_path = config.get("binary_path", "port_agent")
+        self._command_port = config.get("command_port");
+        self._data_port = config.get("data_port");
+        self._log_level = config.get("log_level");
+        self._type = config.get("type", PortAgentType.ETHERNET)
+
+        if not self._device_addr:
+            raise PortAgentMissingConfig("missing config: device_addr")
+
+        if not self._device_port:
+            raise PortAgentMissingConfig("missing config: device_port")
+
+        if not self._command_port:
+            raise PortAgentMissingConfig("missing config: command_port")
+
+        if not self._data_port:
+            raise PortAgentMissingConfig("missing config: data_port")
+
+        if not self._binary_path:
+            raise PortAgentMissingConfig("missing config: binary_path")
+
+        if not self._type == PortAgentType.ETHERNET:
+            raise PortAgentLaunchException("unknown port agent type: %s" % self._type)
+        
+        self._tmp_config = self.get_config();
+        
+    def get_config(self):
+        """
+        @brief Write a configuration file for the port agent to read.
+        @ret NamedTemporaryFile object to the config file.
+        """
+        
+        temp = tempfile.NamedTemporaryFile()
+        temp.write("\ninstrument_type tcp\n")
+        temp.write("instrument_data_port %d\n" % (self._device_port) )
+        temp.write("instrument_addr %s\n" % (self._device_addr) )
+        temp.write("data_port %d\n" % (self._data_port) )
+        temp.flush()
+        
+        return temp;
+        
+
+    def launch(self):
+        """
+        @brief Launch the port agent process.
+        @retval return the command port the process is listening on.
+        """
+        log.info("Startup Unix Port Agent")
+        # Create port agent object.
+        this_pid = os.getpid() if self._test_mode else None
+
+        log.debug( " -- our pid: %s" % this_pid)
+        log.debug( " -- command port: %s" % (self._command_port))
+        log.debug( " -- address: %s, port: %s" % (self._device_addr, self._device_port))
+
+        command_line = [ self._binary_path ]
+        
+        if(self._log_level > 0):
+            for num in range(1, self._log_level):
+                command_line.append("-v");
+
+            
+        if(self._test_mode):
+            command_line.append("-s")
+
+        command_line.append("-p")
+        command_line.append("%s" % (self._command_port));
+
+        command_line.append("-c")
+        command_line.append(self._tmp_config.name);
+
+
+        self.run_command(command_line);
+        self._pid = self._read_pid();
+
+        self._tmp_config.close();
+        return self._command_port;
+    
+    def run_command(self, command_line):
+        log.debug("run command: " + str(command_line));
+        process = subprocess.Popen(command_line, stdout=subprocess.PIPE, stderr=subprocess.PIPE);
+        gevent.sleep(1);
+
+        process.poll()
+
+        # We have failed!
+        if(process.returncode and process.pid):
+            output, error_message = process.communicate();
+            log.error("Failed to run command: STDERR: %s" % (error_message))
+            raise PortAgentLaunchException("failed to launch port agent");
+
+        log.debug("command successful.  pid: %d" % (process.pid))
+        
+        return process.pid;
+
+    def _read_pid(self):
+        pid_file = PID_FILE % (self._command_port)
+        start_time = time.time()
+        boo = 0;
+
+        log.debug("read pid file: " + pid_file)
+        while(start_time + DEFAULT_TIMEOUT > time.time()):
+            try:
+                file = open(pid_file)
+                pid = file.read().strip('\0\n\r')
+                if(pid):
+                    int(pid)
+                    log.info("port agent pid: [%s]" % (pid))
+                    return int(pid)
+            except ValueError, e:
+                log.warn("Failed to convert %s to an int '%s" % (pid, e) )
+                break
+            except:
+                log.warn("Failed to open pid file: %s" % (pid_file))
+                gevent.sleep(1);
+
+        log.error("port agent startup failed");
+
+        return None;
+
+    def _read_config(self):
+        self._tmp_config.seek(0);
+        return "".join(self._tmp_config.readlines());
+        
+
+    def stop(self):
+        log.info('Stop port agent')
+        
+        command_line = [ self._binary_path ]
+        
+        command_line.append("-k")
+        
+        command_line.append("-p")
+        command_line.append("%s" % (self._command_port));
+        
+        self.run_command(command_line);

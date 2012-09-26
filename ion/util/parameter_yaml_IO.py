@@ -75,10 +75,11 @@ def build_contexts():
     depth_ctxt.fill_value = 0e0
     contexts.append(depth_ctxt)
 
-    bin_ctxt = ParameterContext('binary', param_type=QuantityType(value_encoding=np.uint8))
-    bin_ctxt.uom = 'unknown'
-    bin_ctxt.fill_value = 0x0
-    contexts.append(bin_ctxt)
+    raw_ctxt = ParameterContext('raw', param_type=ArrayType())
+    raw_ctxt.description = 'raw binary string values'
+    raw_ctxt.uom = 'utf-8 byte string'
+    raw_ctxt.fill_value = 0x0
+    contexts.append(raw_ctxt)
 
     port_ts_ctxt = ParameterContext(name='port_timestamp', param_type=QuantityType(value_encoding=np.float64))
     port_ts_ctxt._derived_from_name = 'time'
@@ -115,7 +116,35 @@ def build_contexts():
     checksum_ctxt.fill_value = -1
     contexts.append(checksum_ctxt)
 
-    #TODO: Add 'preferred_timestamp', & 'quality_flag' when ArrayType can be transported in a granule
+    pref_ts_ctxt = ParameterContext(name='preferred_timestep', param_type=ArrayType())
+    pref_ts_ctxt.description = 'name of preferred timestamp'
+    pref_ts_ctxt.fill_value = None
+    contexts.append(pref_ts_ctxt)
+
+    # TODO: This should probably be of type CategoryType when implemented
+    qual_flag_ctxt = ParameterContext(name='quality_flag', param_type=ArrayType())
+    qual_flag_ctxt.description = 'flag indicating quality'
+    qual_flag_ctxt.fill_value = None
+    contexts.append(qual_flag_ctxt)
+
+    viz_ts_ctxt = ParameterContext(name='viz_timestamp', param_type=QuantityType(value_encoding=np.float64))
+    viz_ts_ctxt._derived_from_name = 'time'
+    viz_ts_ctxt.reference_frame = AxisTypeEnum.TIME
+    viz_ts_ctxt.uom = 'seconds'
+    viz_ts_ctxt.fill_value = -1
+    contexts.append(viz_ts_ctxt)
+
+    viz_prod_type_ctxt = ParameterContext(name='viz_product_type', param_type=ArrayType())
+    contexts.append(viz_prod_type_ctxt)
+
+    image_obj_ctxt = ParameterContext(name='image_obj', param_type=ArrayType())
+    contexts.append(image_obj_ctxt)
+
+    image_name_ctxt = ParameterContext(name='image_name', param_type=ArrayType())
+    contexts.append(image_name_ctxt)
+
+    content_type_ctxt = ParameterContext(name='content_type', param_type=ArrayType())
+    contexts.append(content_type_ctxt)
 
     return contexts
 

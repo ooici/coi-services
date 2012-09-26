@@ -34,8 +34,6 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from ion.services.dm.utility.granule.granule import build_granule
 import numpy
 from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
-from ion.agents.platform.test.adhoc import adhoc_get_stream_names
-from ion.agents.platform.test.adhoc import adhoc_get_packet_factories
 
 from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
@@ -68,19 +66,17 @@ class PlatformAgentEvent(ResourceAgentEvent):
     GET_SUBPLATFORM_IDS = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
 
 
-# TODO specify the capabilities
 class PlatformAgentCapability(BaseEnum):
-#    INITIALIZE = ResourceAgentEvent.INITIALIZE
-#    RESET = ResourceAgentEvent.RESET
-#    GO_ACTIVE = ResourceAgentEvent.GO_ACTIVE
-#    GO_INACTIVE = ResourceAgentEvent.GO_INACTIVE
-#    RUN = ResourceAgentEvent.RUN
-#    CLEAR = ResourceAgentEvent.CLEAR
-#    PAUSE = ResourceAgentEvent.PAUSE
-#    RESUME = ResourceAgentEvent.RESUME
-#    GO_COMMAND = ResourceAgentEvent.GO_COMMAND
-#    GO_DIRECT_ACCESS = ResourceAgentEvent.GO_DIRECT_ACCESS
-    pass
+    INITIALIZE = ResourceAgentEvent.INITIALIZE
+    RESET = ResourceAgentEvent.RESET
+    GO_ACTIVE = ResourceAgentEvent.GO_ACTIVE
+    GO_INACTIVE = ResourceAgentEvent.GO_INACTIVE
+    RUN = ResourceAgentEvent.RUN
+    GET_RESOURCE_CAPABILITIES = ResourceAgentEvent.GET_RESOURCE_CAPABILITIES
+    PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
+
+    PING_AGENT = 'PLATFORM_AGENT_PING_AGENT'
+    GET_SUBPLATFORM_IDS = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
 
 
 
@@ -129,10 +125,6 @@ class PlatformAgent(ResourceAgent):
         # stream_config agent config member during process on_init.
         self._data_publishers = {}
 
-        # Factories for stream packets. Constructed by driver
-        # configuration information on transition to inactive.
-        self._packet_factories = {}
-
         # {subplatform_id: (ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
 
@@ -160,7 +152,7 @@ class PlatformAgent(ResourceAgent):
     def _reset(self):
         """
         Resets this platform agent (terminates sub-platforms processes,
-        clears self._pa_clients, destroys driver, clears packet factories).
+        clears self._pa_clients, destroys driver).
 
         NOTE that this method is to be called *after* sending the RESET command
         to my sub-platforms (if any).
@@ -186,8 +178,6 @@ class PlatformAgent(ResourceAgent):
         if self._plat_driver:
             self._plat_driver.destroy()
             self._plat_driver = None
-
-        self._clear_packet_factories()
 
     def _pre_initialize(self):
         """
@@ -256,27 +246,11 @@ class PlatformAgent(ResourceAgent):
 
             stream_id = stream_config['stream_id']
             self._data_streams[stream_name] = stream_id
-#                self._data_streams[stream_name] = stream_route
             self._param_dicts[stream_name] = adhoc_get_parameter_dictionary(stream_name)
-#                publisher = StreamPublisher(process=self, stream_route=stream_route)
             publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
             self._data_publishers[stream_name] = publisher
             log.debug("%r: created publisher for stream_name=%r",
                   self._platform_id, stream_name)
-
-    def _construct_packet_factories(self):
-        """
-        Constructs the packet factories for the streams associated to this
-        platform.
-        """
-        stream_names = adhoc_get_stream_names()
-        self._packet_factories = adhoc_get_packet_factories(stream_names, self.CFG.stream_config)
-
-    def _clear_packet_factories(self):
-        """
-        Deletes packet factories.
-        """
-        self._packet_factories.clear()
 
     def _create_driver(self):
         """
@@ -341,7 +315,6 @@ class PlatformAgent(ResourceAgent):
     def _run(self):
         """
         """
-        self._construct_packet_factories()
         self._start_resource_monitoring()
 
     def _start_resource_monitoring(self):
@@ -861,6 +834,7 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
         # IDLE state event handlers.
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RESET, self._handler_idle_reset)
@@ -868,6 +842,7 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RUN, self._handler_idle_run)
         self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
         # COMMAND state event handlers.
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
