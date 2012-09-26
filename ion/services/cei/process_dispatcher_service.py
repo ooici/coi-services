@@ -89,7 +89,8 @@ class ProcessStateGate(EventSubscriber):
 
         if last_chance:
             log.warn("ProcessStateGate was successful on last_chance; " +
-                     ("should the state change have taken %d seconds exactly?" % timeout))
+                     ("should the state change for '%s' have taken %d seconds exactly?" %
+                      (self.process_id, timeout)))
 
         return ret or last_chance
 
