@@ -713,15 +713,22 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                           egg_filename)
 
         log.info("executing scp: '%s' to '%s'" % (tempfilename, remotefilename))
-        scp_retval = subprocess.call(["scp", "-q", "-o", "PasswordAuthentication=no",
+        scp_proc = subprocess.Popen(["scp", "-v", "-o", "PasswordAuthentication=no",
                                       "-o", "StrictHostKeyChecking=no",
-                                      tempfilename, remotefilename])
-        
-        if 0 != scp_retval:
-            raise BadRequest("Secure copy to %s:%s failed" % (cfg_host, cfg_remotepath))
+                                      tempfilename, remotefilename],
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE
+                                    )
+        scp_out, scp_err = scp_proc.communicate()
 
+        # clean up
         log.debug("removing tempfile at '%s'" % tempfilename)
         os.unlink(tempfilename)
+
+        # check scp status
+        if 0 != scp_proc.returncode:
+            raise BadRequest("Secure copy to %s:%s failed.  (STDOUT: %s) (STDERR: %s)"
+            % (cfg_host, cfg_remotepath, scp_out, scp_err))
 
 
         #now we can do the ION side of things
