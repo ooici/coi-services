@@ -217,8 +217,9 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
 
     def test_schedule_by_name(self):
-
-        self.mock_backend['read_definition_by_name'].return_value = ProcessDefinition()
+        pdef = ProcessDefinition()
+        pdef._id = "someprocessid"
+        self.mock_backend['read_definition_by_name'].return_value = pdef
 
         upid = 'myupid'
         definition_name = 'something'

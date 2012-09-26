@@ -357,7 +357,9 @@ class PDDashiHandler(object):
             process_definition = self.backend.read_definition(definition_id)
 
         elif definition_name:
+            log.info("scheduling process by definition name: '%s'", definition_name)
             process_definition = self.backend.read_definition_by_name(definition_name)
+            definition_id = process_definition._id
 
         else:
             raise NotFound('No process definition id or name was provided')
@@ -816,7 +818,7 @@ class PDNativeBackend(object):
         definition = self.core.describe_definition(definition_id)
         if not definition:
             raise NotFound("process definition %s unknown" % definition_id)
-        return _ion_process_definition_from_core(definition)
+        return _ion_process_definition_from_core(definition_id, definition)
 
     def read_definition_by_name(self, definition_name):
 
@@ -827,7 +829,7 @@ class PDNativeBackend(object):
         for definition_id in definition_ids:
             definition = self.core.describe_definition(definition_id)
             if definition and definition.name == definition_name:
-                return definition
+                return _ion_process_definition_from_core(definition_id, definition)
 
         raise NotFound("process definition with name '%s' not found" % definition_name)
 
@@ -980,7 +982,7 @@ class PDBridgeBackend(object):
             definition_id=definition_id)
         if not definition:
             raise NotFound("process definition %s unknown" % definition_id)
-        return _ion_process_definition_from_core(definition)
+        return _ion_process_definition_from_core(definition_id, definition)
 
     def read_definition_by_name(self, definition_name):
         raise ServerError("reading process definitions by name not supported by this backend")
@@ -1064,11 +1066,13 @@ def _core_process_from_ion(ion_process):
     }
     return process
 
-def _ion_process_definition_from_core(core_process_definition):
-    return ProcessDefinition(name=core_process_definition.get('name'),
+def _ion_process_definition_from_core(definition_id, core_process_definition):
+    procdef = ProcessDefinition(name=core_process_definition.get('name'),
         description=core_process_definition.get('description'),
         definition_type=core_process_definition.get('definition_type'),
         executable=core_process_definition.get('executable'))
+    procdef._id = definition_id
+    return procdef
 
 def _core_process_definition_from_ion(ion_process_definition):
     definition = {
