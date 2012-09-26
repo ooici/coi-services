@@ -6,33 +6,24 @@
 
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 from interface.services.dm.ireplay_process import ReplayProcessClient
-from interface.objects import Replay, ProcessDefinition, StreamDefinitionContainer
-from prototype.sci_data.constructor_apis import DefinitionTree, StreamDefinitionConstructor
-from pyon.core.exception import BadRequest, NotFound
+from interface.objects import Replay 
+from pyon.core.exception import BadRequest 
 from pyon.ion.transforma import TransformAlgorithm
 from pyon.util.arg_check import validate_is_instance, validate_true
 from ion.processes.data.replay.replay_process import ReplayProcess
 from pyon.public import PRED, RT
 from pyon.util.containers import for_name
-from pyon.util.log import log
 
 
 class DataRetrieverService(BaseDataRetrieverService):
-    SCIENCE_REPLAY = 'SCIDATA'
-    BINARY_REPLAY  = 'BINARY'
-
-    REPLAY_TYPES = {
-        SCIENCE_REPLAY : 'data_replay_process',
-        BINARY_REPLAY  : 'binary_replay_process'
-    }
-
+    REPLAY_PROCESS = 'replay_process'
 
     def on_quit(self): #pragma no cover
         #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
         super(DataRetrieverService,self).on_quit()
 
 
-    def define_replay(self, dataset_id='', query=None, delivery_format=None, replay_type='', stream_id=''):
+    def define_replay(self, dataset_id='', query=None, delivery_format=None, stream_id=''):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         query: 
           start_time: 0    The beginning timestamp
@@ -40,18 +31,13 @@ class DataRetrieverService(BaseDataRetrieverService):
           parameters: []   The list of parameters which match the coverages parameters
         '''
 
-        if not dataset_id and replay_type != self.BINARY_REPLAY:
+        if not dataset_id:
             raise BadRequest('(Data Retriever Service %s): No dataset provided.' % self.name)
         validate_true(stream_id, 'No stream_id provided')
 
-        if not replay_type:
-            replay_type = self.SCIENCE_REPLAY
-        if replay_type not in self.REPLAY_TYPES:
-            replay_type = self.SCIENCE_REPLAY
 
-        res, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name=self.REPLAY_TYPES[replay_type],id_only=True)
+        res, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name=self.REPLAY_PROCESS,id_only=True)
         if not len(res):
-            log.error('Failed to find replay process for replay_type: %s', replay_type)
             raise BadRequest('No replay process defined.')
         process_definition_id = res[0]
 
@@ -60,10 +46,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         #--------------------------------------------------------------------------------
         # Begin the Decision tree for the various types of replay
         #--------------------------------------------------------------------------------
-        if replay_type == self.SCIENCE_REPLAY:
-            replay, config=self.replay_data_process(dataset_id, query, delivery_format, replay_stream_id)
-        elif replay_type == self.BINARY_REPLAY:
-            replay, config=self.replay_binary_process(query,delivery_format,replay_stream_id)
+        replay, config=self.replay_data_process(dataset_id, query, delivery_format, replay_stream_id)
 
 
         pid = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id)
@@ -131,13 +114,13 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         replay_instance = ReplayProcess()
 
-        replay_instance.dataset = self.clients.dataset_management.read_dataset(dataset_id)
-        replay_instance.dataset_id = dataset_id
-        replay_instance.start_time = query.get('start_time', None)
-        replay_instance.end_time = query.get('end_time', None)
+        replay_instance.dataset     = self.clients.dataset_management.read_dataset(dataset_id)
+        replay_instance.dataset_id  = dataset_id
+        replay_instance.start_time  = query.get('start_time', None)
+        replay_instance.end_time    = query.get('end_time', None)
         replay_instance.stride_time = query.get('stride_time', None)
-        replay_instance.parameters = query.get('parameters',None)
-        replay_instance.container = self.container
+        replay_instance.parameters  = query.get('parameters',None)
+        replay_instance.container   = self.container
 
         retrieve_data = replay_instance.execute_retrieve()
 
@@ -184,25 +167,6 @@ class DataRetrieverService(BaseDataRetrieverService):
         }
         return replay, config
 
-    def replay_binary_process(self, query, delivery_format, replay_stream_id):
-        delivery_format = delivery_format or {}
-        replay = Replay()
-        replay.delivery_format = delivery_format
-        replay.type = self.BINARY_REPLAY
-
-        replay.process_id = 'null'
-
-        replay_id, rev = self.clients.resource_registry.create(replay)
-        replay._id = replay_id
-        replay._rev = rev
-        config = {'process':{
-            'query':query,
-            'delivery_format': delivery_format,
-            'publish_streams':{'output':replay_stream_id}
-            }
-        }
-        return replay, config
-    
     @classmethod
     def _transform_data(binding, data, module, cls, kwargs={}):
         transform = for_name(module,cls)
