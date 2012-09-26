@@ -3,9 +3,9 @@
 '''
 @package ion.services.dm.utility.granule.record_dictionary
 @file ion/services/dm/utility/granule/record_dictionary.py
-@author David Stuebe
 @author Tim Giguere
-@brief https://confluence.oceanobservatories.org/display/CIDev/R2+Construction+Data+Model
+@author Luke Campbell <LCampbell@ASAScience.com>
+@brief https://confluence.oceanobservatories.org/display/CIDev/Record+Dictionary
 '''
 
 from pyon.core.exception import BadRequest
@@ -19,17 +19,22 @@ from interface.objects import Granule
 from pyon.util.memoize import memoize_lru
 import numpy as np
 
-_NoneType = type(None)
 class RecordDictionaryTool(object):
     """
-    A granule is a unit of information which conveys part of a coverage. It is composed of a taxonomy and a nested
-    structure of record dictionaries.
+    A record dictionary is a key/value store which contains records for a particular dataset. The keys are specified by 
+    a parameter dictionary which map to the fields in the dataset, the data types for the records as well as metadata about 
+    the fields. Each field in a record dictionary must contain the same number of records. A record can consist of a scalar 
+    value (typically a NumPy scalar) or it may contain an array or dictionary of values. The data type for each field is 
+    determined by the parameter dictionary. The length of the first assignment dictates the allowable size for the RDT - 
+    see the Tip below
 
-    The record dictionary is composed of named value sequences and other nested record dictionaries.
+    The record dictionary can contain an instance of the parameter dictionary itself or it may contain a reference to one 
+    by use of a stream definition. A stream definition is a resource persisted by the resource registry and contains the 
+    parameter dictionary. When the record dictionary is constructed the client will specify either a stream definition 
+    identifier or a parameter dictionary.
 
-    The fact that all of the keys in the record dictionary are handles mapped by the taxonomy should never be exposed.
-    The application user refers to everything in the record dictionary by the unique nick name from the taxonomy.
-
+    ParameterDictionaries are inherently large and congest message traffic through RabbitMQ, therefore it is preferred 
+    to use stream definitions in lieu of parameter dictionaries directly.
     """
 
     _rd          = None
@@ -41,16 +46,23 @@ class RecordDictionaryTool(object):
     def __init__(self,param_dictionary=None, stream_definition_id='', locator=None):
         """
         """
-        if stream_definition_id:
+        if type(param_dictionary) == dict:
+            self._pdict = ParameterDictionary.load(param_dictionary)
+        
+        elif isinstance(param_dictionary,ParameterDictionary):
+            self._pdict = param_dictionary
+        
+        elif stream_definition_id:
             pdict = RecordDictionaryTool.pdict_from_stream_def(stream_definition_id)
             self._pdict = ParameterDictionary.load(pdict)
             self._stream_def = stream_definition_id
-        elif type(param_dictionary) == dict:
-            self._pdict = ParameterDictionary.load(param_dictionary)
-        elif isinstance(param_dictionary,ParameterDictionary):
-            self._pdict = param_dictionary
+        
         else:
             raise BadRequest('Unable to create record dictionary with improper ParameterDictionary')
+        
+        if stream_definition_id:
+            self._stream_def=stream_definition_id
+        
         self._shp = None
         self._rd = {}
         self._locator = locator
@@ -63,11 +75,15 @@ class RecordDictionaryTool(object):
             instance = cls(stream_definition_id=g.param_dictionary, locator=g.locator)
             pdict = RecordDictionaryTool.pdict_from_stream_def(g.param_dictionary)
             instance._pdict = ParameterDictionary.load(pdict)
+        
         else:
             instance = cls(param_dictionary=g.param_dictionary, locator=g.locator)
             instance._pdict = ParameterDictionary.load(g.param_dictionary)
+        
+       
         if g.domain['shape']:
             instance._shp = (g.domain['shape'][0],)
+        
         for k,v in g.record_dictionary.iteritems():
             if v is not None:
                 g.record_dictionary[k]['domain_set'] = g.domain
@@ -75,12 +91,14 @@ class RecordDictionaryTool(object):
                 g.record_dictionary[k]['parameter_type'] = ptype.dump()
 
                 instance._rd[k] = AbstractParameterValue.load(g.record_dictionary[k])
+        
         return instance
 
 
     def to_granule(self):
         granule = Granule()
         granule.record_dictionary = {}
+        
         for key,val in self._rd.iteritems():
             if val is not None:
                 granule.record_dictionary[key] = val.dump()
@@ -88,6 +106,7 @@ class RecordDictionaryTool(object):
                 granule.record_dictionary[key]['parameter_type'] = None
             else:
                 granule.record_dictionary[key] = None
+        
         granule.param_dictionary = self._stream_def or self._pdict.dump()
         granule.locator = self._locator
         granule.domain = self.domain.dump()
