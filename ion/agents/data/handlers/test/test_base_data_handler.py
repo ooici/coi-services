@@ -17,7 +17,7 @@ import unittest
 
 #from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentDataException, InstrumentCommandException, NotImplementedException, InstrumentException
-from interface.objects import Granule, Attachment
+from interface.objects import Granule, Attachment, StreamRoute
 
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler, ConfigurationError, DummyDataHandler, FibonacciDataHandler
 from pyon.agent.agent import ResourceAgentState
@@ -49,8 +49,8 @@ class TestBaseDataHandlerUnit(PyonTestCase):
     @patch('ion.agents.data.handlers.base_data_handler.time')
     @unittest.skip('')
     def test__poll(self, time_mock, execute_acquire_sample_mock):
-        self._stream_registrar = Mock()
-        dh_config = {'external_dataset_res_id' : 'external_ds', 'stream_id' : 'test_stream_id' }
+        stream_route = Mock(spec=StreamRoute)
+        dh_config = {'external_dataset_res_id' : 'external_ds', 'stream_id' : 'test_stream_id', 'stream_route' : stream_route }
         bdh = BaseDataHandler(dh_config)
         #bdh.initialize()
         bdh._params = {'POLLING_INTERVAL':1}
@@ -381,7 +381,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         ret = self._bdh.get(['DRIVER_PARAMETER_ALL'])
         self.assertEqual(ret, {
             'POLLING_INTERVAL' : 3600,
-            'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']
+            'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints','stream_route']
         })
 
     def test_get_all_with_no_arguments(self):
@@ -389,7 +389,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         self.assertEqual(ret, {
             'POLLING_INTERVAL' : 3600,
-            'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']
+            'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints','stream_route']
         })
 
     def test_get_not_list_or_tuple(self):
@@ -403,14 +403,14 @@ class TestBaseDataHandlerUnit(PyonTestCase):
     def test_get_patchable_config_keys(self):
         #TODO: Need to change back to enums instead of strings. Problem with BaseEnum.
         ret = self._bdh.get(['PATCHABLE_CONFIG_KEYS'])
-        self.assertEqual(ret, {'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']})
+        self.assertEqual(ret, {'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints','stream_route']})
 
     def test_get_polling_and_patchable_config_keys(self):
         #TODO: Need to change back to enums instead of strings. Problem with BaseEnum.
         ret = self._bdh.get(['POLLING_INTERVAL', 'PATCHABLE_CONFIG_KEYS'])
         self.assertEqual(ret, {
             'POLLING_INTERVAL' : 3600,
-            'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']
+            'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints','stream_route']
         })
 
     def test_get_key_error(self):
@@ -442,12 +442,14 @@ class TestBaseDataHandlerUnit(PyonTestCase):
     def test_execute_acquire_sample_with_stream_id_not_new(self, mock):
         self._bdh._semaphore = Mock()
         self._bdh._glet_queue = Mock()
-        self._bdh.execute_acquire_sample({'stream_id' : 'test_stream_id', 'constraints' : 'test_constraints'})
+        stream_route = Mock(spec=StreamRoute)
+        self._bdh.execute_acquire_sample({'stream_id' : 'test_stream_id', 'constraints' : 'test_constraints', 'stream_route' : stream_route})
 
     def test_execute_acquire_sample_with_stream_id_new_already_acquiring(self):
         self._bdh._semaphore = Mock()
         self._bdh._semaphore.acquire.return_value = False
-        self._bdh.execute_acquire_sample({'stream_id' : 'test_stream_id'})
+        stream_route = Mock(spec=StreamRoute)
+        self._bdh.execute_acquire_sample({'stream_id' : 'test_stream_id', 'stream_route' : stream_route})
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
 
     @patch('ion.agents.data.handlers.base_data_handler.ResourceRegistryServiceClient')
@@ -546,7 +548,8 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         attachment2.keywords = ['NotTheRightKeyword']
         self._bdh._find_new_data_check_attachment = Mock()
         self._bdh._find_new_data_check_attachment.return_value = [attachment2, attachment]
-        self._bdh.execute_acquire_sample({'stream_id' : 'test_stream_id'})
+        stream_route = Mock(spec=StreamRoute)
+        self._bdh.execute_acquire_sample({'stream_id' : 'test_stream_id', 'stream_route' : stream_route})
 
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
         self._bdh._find_new_data_check_attachment.assert_called_once()
@@ -559,7 +562,8 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         self._bdh._find_new_data_check_attachment = Mock()
         self._bdh._find_new_data_check_attachment.side_effect = InstrumentException
 
-        self.assertRaises(InstrumentException, self._bdh.execute_acquire_sample, {'stream_id' : 'test_stream_id'})
+        stream_route = Mock(spec=StreamRoute)
+        self.assertRaises(InstrumentException, self._bdh.execute_acquire_sample, {'stream_id' : 'test_stream_id', 'stream_route' : stream_route})
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
         self._bdh._find_new_data_check_attachment.assert_called_once()
 
@@ -571,7 +575,8 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         self._bdh._find_new_data_check_attachment = Mock()
         self._bdh._find_new_data_check_attachment.return_value = []
 
-        self._bdh.execute_acquire_sample({'stream_id' : 'test_stream_id'})
+        stream_route = Mock(spec=StreamRoute)
+        self._bdh.execute_acquire_sample({'stream_id' : 'test_stream_id', 'stream_route' : stream_route})
 
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
         self._bdh._find_new_data_check_attachment.assert_called_once()

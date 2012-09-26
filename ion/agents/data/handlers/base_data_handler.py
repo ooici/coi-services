@@ -53,7 +53,7 @@ class BaseDataHandler(object):
         self._terminate_polling = None
         self._params = {
             'POLLING_INTERVAL' : 3600,
-            'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints']
+            'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints','stream_route']
         }
 
         self._dh_config=dh_config
@@ -212,10 +212,11 @@ class BaseDataHandler(object):
             log.info('No configuration modifications were provided')
 
         # Verify that there is a stream_id member in the config
-        stream_id = get_safe(config, 'stream_id')
+        stream_id = get_safe(config, 'stream_id', None)
         if not stream_id:
             raise ConfigurationError('Configuration does not contain required \'stream_id\' member')
-        stream_route = get_safe(config, 'stream_route')
+        stream_route = get_safe(config, 'stream_route', None)
+        log.warn(stream_route)
         if not stream_route:
             raise ConfigurationError('Configuration does not contain required \'stream_route\' member')
 
@@ -234,7 +235,6 @@ class BaseDataHandler(object):
 
         config['new_data_check'] = ndc
 
-        log.warn(stream_route.exchange_point)
         # Create a publisher to pass into the greenlet
         publisher = StandaloneStreamPublisher(stream_id=stream_id, stream_route=stream_route)
 
