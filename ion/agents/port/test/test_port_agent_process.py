@@ -219,7 +219,6 @@ class TestUnixEthernetProcess(unittest.TestCase):
         self.assertEqual(process.get_command_port(), 4002)
 
         process.stop()
-        self.assertFalse(process.get_pid())
 
 
 
