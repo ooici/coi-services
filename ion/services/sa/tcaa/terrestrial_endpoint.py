@@ -40,7 +40,11 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         For framework level code only.
         """
         super(BaseTerrestrialEndpoint, self).__init__(*args, **kwargs)
-        
+
+    ######################################################################    
+    # Framework process lifecycle functions.
+    ######################################################################    
+    
     def on_init(self):
         """
         Application level initializer.
@@ -84,7 +88,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
             origin=self._platform_resource_id)
         self._event_subscriber.start()
         self._event_subscriber._ready_event.wait(timeout=5)
-        
+                
     def on_stop(self):
         """
         Process about to be stopped.
@@ -101,19 +105,9 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         self._stop()
         super(BaseTerrestrialEndpoint, self).on_quit()
 
-    def _stop(self):
-        """
-        Stop sockets and subscriber.
-        """
-        if self._event_subscriber:
-            self._event_subscriber.stop()
-            self._event_subscriber = None
-        if self._server:
-            self._server.stop()
-            self._server = None
-        if self._client:
-            self._client.stop()
-            self._client = None
+    ######################################################################    
+    # Callbacks.
+    ######################################################################    
 
     def _req_callback(self, result):
         """
@@ -179,6 +173,10 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
             log.debug('Telemetry not available.')
             self._on_link_down()
         
+    ######################################################################    
+    # Helpers.
+    ######################################################################    
+
     def _on_link_up(self):
         """
         Processing on link up event.
@@ -204,6 +202,24 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
                                 origin=self._platform_resource_id,
                                 status=TelemetryStatusType.UNAVAILABLE)        
         
+    def _stop(self):
+        """
+        Stop sockets and subscriber.
+        """
+        if self._event_subscriber:
+            self._event_subscriber.stop()
+            self._event_subscriber = None
+        if self._server:
+            self._server.stop()
+            self._server = None
+        if self._client:
+            self._client.stop()
+            self._client = None
+        
+    ######################################################################    
+    # Commands.
+    ######################################################################    
+
     def enqueue_command(self, command=None, link=False):
         """
         Enqueue command for remote processing.
