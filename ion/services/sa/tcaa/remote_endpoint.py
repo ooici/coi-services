@@ -20,10 +20,15 @@ import time
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
 
+from pyon.event.event import EventPublisher, EventSubscriber
+from interface.objects import TelemetryStatusType, RemoteCommand
+
+from interface.services.sa.iremote_endpoint import BaseRemoteEndpoint
+from interface.services.sa.iremote_endpoint import RemoteEndpointProcessClient
 from ion.services.sa.tcaa.r3pc import R3PCServer
 from ion.services.sa.tcaa.r3pc import R3PCClient
 
-class RemoteEndpoint(object):
+class RemoteEndpoint(BaseRemoteEndpoint):
     """
     """
     def __init__(self, *args, **kwargs):
@@ -46,6 +51,7 @@ class RemoteEndpoint(object):
         self._client = None
         self._terrestrial_host = self.CFG.terrestrial_host
         self._terrestrial_port = self.CFG.terrestrial_port
+        self._remote_port = 0
         self._platform_resource_id = self.CFG.platform_resource_id
         self._remote_port = self.CFG.remote_port
         self._link_status = TelemetryStatusType.UNAVAILABLE
@@ -108,7 +114,8 @@ class RemoteEndpoint(object):
     def _consume_telemetry_event(self, *args, **kwargs):
         """
         """
-        pass
+        print '##########################################'
+        print "GOT A TELEMETRY EVENT: args:%s  kwargs:%s" % (str(args), str(kwargs))
 
     ######################################################################    
     # Helpers.
@@ -132,23 +139,22 @@ class RemoteEndpoint(object):
     # Commands.
     ######################################################################    
     
+    def get_port(self):
+        """
+        """
+        return self._remote_port
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+class RemoteEndpointClient(RemoteEndpointProcessClient):
+    """
+    Remote endpoint client.
+    """
+    pass
+
 """
 from pyon.core.bootstrap import get_service_registry
 svc_client_cls = get_service_registry().get_service_by_name(svc_name).client    
 """ 
-    
+
 """
 list procs from self.container.proc_manager.list_procs():
 EventPersister(name=event_persister,id=Edwards-MacBook-Pro_local_12469.1,type=standalone)
