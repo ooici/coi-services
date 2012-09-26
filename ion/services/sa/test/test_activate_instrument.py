@@ -71,8 +71,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='sa')
-@unittest.skip('run locally only')
+@attr('SMOKE', group='sa')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
