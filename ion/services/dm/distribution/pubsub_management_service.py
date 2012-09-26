@@ -38,7 +38,6 @@ class PubsubManagementService(BasePubsubManagementService):
         return stream_definition_id
     
     def read_stream_definition(self, stream_definition_id='', stream_id=''):
-        print 'YOU SHOULD NOT SEE THIS'
         if stream_id and self.read_stream(stream_id):
             sds, assocs = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition,id_only=False)
             if sds:

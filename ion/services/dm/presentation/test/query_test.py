@@ -80,7 +80,6 @@ class QueryLanguageUnitTest(PyonTestCase):
         self.assertTrue(struct.query.field == 'instrument.model')
         self.assertTrue(struct.query.value == 'throwable')
         self.assertTrue(struct.query.index == 'indexID')
-        print struct
         self.assertTrue(struct['and'][0]['association'] == 'rsn')
 
     def test_union_search(self):

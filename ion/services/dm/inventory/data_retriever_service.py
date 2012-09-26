@@ -148,7 +148,6 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         replay = Replay()
         replay.delivery_format = delivery_format
-        replay.type = self.SCIENCE_REPLAY
 
         replay.process_id = 'null'
 
