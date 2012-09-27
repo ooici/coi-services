@@ -119,7 +119,14 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
+        pdict = ParameterDictionary()
+
+        t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
+        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
+
+        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp", parameter_dictionary=pdict.dump())
 
         # Generate the data product and associate it to the ExternalDataset
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,
@@ -133,22 +140,10 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
 
         log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id, 'Stream':stream_id}))
 
-        #CBM: Use CF standard_names
-
-        #ttool = TaxyTool()
-        #
-        #ttool.add_taxonomy_set('data','test data')
-        pdict = ParameterDictionary()
-
-        t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 01-01-1970'
-        pdict.add_context(t_ctxt)
-
         #CBM: Eventually, probably want to group this crap somehow - not sure how yet...
 
         # Create the logger for receiving publications
-        _, stream_route = self.create_stream_and_logger(name='ruv',stream_id=stream_id)
+        _, stream_route, _ = self.create_stream_and_logger(name='ruv',stream_id=stream_id)
 
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
@@ -156,8 +151,8 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
             'TESTING':True,
             'stream_id':stream_id,
             'stream_route':stream_route,
+            'stream_def':streamdef_id,
             'external_dataset_res':dset,
-            'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':20,
         }

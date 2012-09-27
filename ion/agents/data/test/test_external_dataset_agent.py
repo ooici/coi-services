@@ -196,11 +196,17 @@ class ExternalDatasetAgentTestBase(object):
     def _setup_resources(self):
         raise NotImplementedError('_setup_resources must be implemented in the subclass')
 
-    def create_stream_and_logger(self, name, stream_id=''):
+    def create_stream_and_logger(self, name, stream_id='', pdict=None):
+
+        stream_def_id = ''
         if not stream_id or stream_id is '':
-            stream_id, route = self._pubsub_client.create_stream(name=name, exchange_point='science_data')
+            if pdict:
+                stream_def_id = self._pubsub_client.create_stream_definition(parameter_dictionary=pdict.dump(), stream_type='stream')
+            stream_id, route = self._pubsub_client.create_stream(name=name, exchange_point='science_data', stream_definition_id=stream_def_id)
         else:
             route = self._pubsub_client.read_stream_route(stream_id=stream_id)
+            stream_def = self._pubsub_client.read_stream_definition(stream_id=stream_id)
+            stream_def_id = stream_def._id
 
         pid = self._container_client.spawn_process(
             name=name+'_logger',
@@ -210,7 +216,7 @@ class ExternalDatasetAgentTestBase(object):
         )
         log.info('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
 
-        return stream_id, route
+        return stream_id, route, stream_def_id
 
     def _start_finished_event_subscriber(self):
 
@@ -331,7 +337,7 @@ class ExternalDatasetAgentTestBase(object):
         config_mods={}
 
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config_mods['stream_id'], config_mods['stream_route'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        config_mods['stream_id'], config_mods['stream_route'], _ = self.create_stream_and_logger(name='stream_id_for_historical_1')
         config_mods['constraints']=self.HIST_CONSTRAINTS_1
         cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE, args=[config_mods])
         retval = self._ia_client.execute_resource(cmd)
@@ -339,7 +345,7 @@ class ExternalDatasetAgentTestBase(object):
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
         log.info('Send a second constrained request for data: constraints = HIST_CONSTRAINTS_2')
-        config_mods['stream_id'], config_mods['stream_route'] = self.create_stream_and_logger(name='stream_id_for_historical_2')
+        config_mods['stream_id'], config_mods['stream_route'], _ = self.create_stream_and_logger(name='stream_id_for_historical_2')
         config_mods['constraints']=self.HIST_CONSTRAINTS_2
         cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE, args=[config_mods])
         self._ia_client.execute_resource(cmd)
@@ -389,7 +395,7 @@ class ExternalDatasetAgentTestBase(object):
 
         config = get_safe(self.DVR_CONFIG, 'dh_cfg', {})
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config['stream_id'], config['stream_route'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        config['stream_id'], config['stream_route'], _ = self.create_stream_and_logger(name='stream_id_for_historical_1')
         config['constraints']=self.HIST_CONSTRAINTS_1
         cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE, args=[config])
         reply = self._ia_client.execute_resource(cmd)
@@ -784,22 +790,24 @@ class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestC
     }
 
     def _setup_resources(self):
-        stream_id, stream_route = self.create_stream_and_logger(name='fibonacci_stream')
-#        tx = TaxyTool()
-#        tx.add_taxonomy_set('data', 'external_data')
         pdict = ParameterDictionary()
 
         t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
         t_ctxt.reference_frame = AxisTypeEnum.TIME
         t_ctxt.uom = 'seconds since 01-01-1970'
         pdict.add_context(t_ctxt)
-        #TG: Build TaxonomyTool & add to dh_cfg.taxonomy
+
+        stream_id, stream_route, stream_def = self.create_stream_and_logger(name='fibonacci_stream', pdict=pdict)
+#        tx = TaxyTool()
+#        tx.add_taxonomy_set('data', 'external_data')
+
+
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
             'stream_id':stream_id,
             'stream_route':stream_route,
+            'stream_def':stream_def,
             'data_producer_id':'fibonacci_data_producer_id',
-            'param_dictionary':pdict.dump(),
             'max_records':4,
             }
 
@@ -938,7 +946,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         pdict.add_context(t_ctxt)
 
         # Create the logger for receiving publications
-        _, stream_route = self.create_stream_and_logger(name='dummy',stream_id=stream_id)
+        _, stream_route, stream_def = self.create_stream_and_logger(name='dummy',stream_id=stream_id)
 
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
@@ -946,7 +954,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
             'TESTING':True,
             'stream_id':stream_id,
             'stream_route':stream_route,
-            'param_dictionary':pdict.dump(),
+            'stream_def':stream_def,
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':4,
             }
@@ -1012,7 +1020,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         config_mods={}
 
         log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config_mods['stream_id'], config_mods['stream_route'] = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        config_mods['stream_id'], config_mods['stream_route'], _ = self.create_stream_and_logger(name='stream_id_for_historical_1')
         cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE, args=[config_mods])
         self._ia_client.execute_resource(cmd)
 

@@ -121,54 +121,6 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
         dams_cli.assign_external_dataset_to_agent_instance(external_dataset_id=ds_id, agent_instance_id=eda_inst_id)
         #        dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
 
-        #create temp streamdef so the data product can create the stream
-        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
-
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
-
-        dprod = IonObject(RT.DataProduct,
-            name='usgs_parsed_product',
-            description='parsed usgs product',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
-        # Generate the data product and associate it to the ExternalDataset
-        dproduct_id = dpms_cli.create_data_product(data_product=dprod,
-                                                    stream_definition_id=streamdef_id,
-                                                    parameter_dictionary=parameter_dictionary)
-
-        dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
-
-        stream_id, assn = rr_cli.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
-        stream_id = stream_id[0]
-
-        log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id, 'Stream':stream_id}))
-
-        #CBM: Use CF standard_names
-
-#        ttool = TaxyTool()
-#        ttool.add_taxonomy_set('time','time')
-#        ttool.add_taxonomy_set('lon','longitude')
-#        ttool.add_taxonomy_set('lat','latitude')
-#        ttool.add_taxonomy_set('z','water depth')
-#        ttool.add_taxonomy_set('water_temperature', 'average water temperature')
-#        ttool.add_taxonomy_set('water_temperature_bottom','water temperature at bottom of water column')
-#        ttool.add_taxonomy_set('water_temperature_middle', 'water temperature at middle of water column')
-#        ttool.add_taxonomy_set('streamflow', 'flow velocity of stream')
-#        ttool.add_taxonomy_set('specific_conductance', 'specific conductance of water')
-#        ttool.add_taxonomy_set('data_qualifier','data qualifier flag')
-#
-#        ttool.add_taxonomy_set('coords','This group contains coordinate parameters')
-#        ttool.add_taxonomy_set('data','This group contains data parameters')
-
-        # Create the logger for receiving publications
-        _, stream_route = self.create_stream_and_logger(name='usgs',stream_id=stream_id)
-
         pdict = ParameterDictionary()
 
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
@@ -214,14 +166,44 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
         pres_ctxt.uom = 'unknown'
         pdict.add_context(pres_ctxt)
 
+        #create temp streamdef so the data product can create the stream
+        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp", parameter_dictionary=pdict.dump())
+
+        craft = CoverageCraft
+        sdom, tdom = craft.create_domains()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        parameter_dictionary = craft.create_parameters()
+        parameter_dictionary = parameter_dictionary.dump()
+
+        dprod = IonObject(RT.DataProduct,
+            name='usgs_parsed_product',
+            description='parsed usgs product',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        # Generate the data product and associate it to the ExternalDataset
+        dproduct_id = dpms_cli.create_data_product(data_product=dprod,
+                                                    stream_definition_id=streamdef_id,
+                                                    parameter_dictionary=parameter_dictionary)
+
+        dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
+
+        stream_id, assn = rr_cli.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        stream_id = stream_id[0]
+
+        log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id, 'Stream':stream_id}))
+
+        # Create the logger for receiving publications
+        _, stream_route, _ = self.create_stream_and_logger(name='usgs', stream_id=stream_id)
+
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
             'stream_id':stream_id,
             'stream_route':stream_route,
-            #'taxonomy':ttool.dump(),
-            'param_dictionary':pdict.dump(),
+            'stream_def':streamdef_id,
             'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':1,
         }
