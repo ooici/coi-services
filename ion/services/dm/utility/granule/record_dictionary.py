@@ -132,13 +132,16 @@ class RecordDictionaryTool(object):
         if self._shp is None: # Not initialized:
             if isinstance(vals, np.ndarray):
                 self._shp = vals.shape
-            else:
+            elif isinstance(vals, list):
                 self._shp = (len(vals),)
+            else:
+                raise BadRequest('No shape was defined')
+
             log.info('Set shape to %s', self._shp)
         else:
             if isinstance(vals, np.ndarray):
                 validate_equal(vals.shape, self._shp, 'Invalid shape on input')
-            else:
+            elif isinstance(vals, list):
                 validate_equal(len(vals), self._shp[0], 'Invalid shape on input')
 
         dom = self.domain
@@ -216,10 +219,8 @@ class RecordDictionaryTool(object):
 
     def __eq__(self, comp):
         if self._shp != comp._shp:
-            print 'Shape is wrong'
             return False
         if self._pdict != comp._pdict:
-            print 'Pdict is wrong'
             return False
 
         for k,v in self._rd.iteritems():
@@ -227,7 +228,6 @@ class RecordDictionaryTool(object):
                 if isinstance(v, AbstractParameterValue) and isinstance(comp._rd[k], AbstractParameterValue):
                     if (v.content == comp._rd[k].content).all():
                         continue
-                print '%s is wrong' % k
                 return False
         return True
 
