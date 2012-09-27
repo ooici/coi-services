@@ -59,11 +59,13 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         pds = self.CFG.get_safe("highavailability.process_dispatchers", [])
         process_definition_id = self.CFG.get_safe("highavailability.process_definition_id")
         process_configuration = self.CFG.get_safe("highavailability.process_configuration")
+        aggregator_config = self.CFG.get_safe("highavailability.aggregator")
         # TODO: Allow other core class?
         self.core = HighAvailabilityCore(cfg, ProcessDispatcherSimpleAPIClient,
                 pds, self.policy, process_definition_id=process_definition_id,
                 parameters=policy_parameters,
-                process_configuration=process_configuration)
+                process_configuration=process_configuration,
+                aggregator_config=aggregator_config)
 
         self.policy_thread = looping_call(self.policy_interval, self.core.apply_policy)
 
