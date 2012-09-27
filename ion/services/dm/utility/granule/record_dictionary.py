@@ -95,7 +95,7 @@ class RecordDictionaryTool(object):
         return instance
 
 
-    def to_granule(self):
+    def to_granule(self, data_producer_id=''):
         granule = Granule()
         granule.record_dictionary = {}
         
@@ -110,6 +110,7 @@ class RecordDictionaryTool(object):
         granule.param_dictionary = self._stream_def or self._pdict.dump()
         granule.locator = self._locator
         granule.domain = self.domain.dump()
+        granule.data_producer_id=data_producer_id
         return granule
 
 
