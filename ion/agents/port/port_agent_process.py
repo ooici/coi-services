@@ -53,7 +53,8 @@ from ion.agents.port.exceptions import PortAgentMissingConfig
 PYTHON_PATH = 'bin/python'
 UNIX_PROCESS = 'port_agent'
 DEFAULT_TIMEOUT = 60
-PID_FILE = "/var/ooi/port_agent/port_agent_%d.pid"
+PROCESS_BASE_DIR = '/tmp'
+PID_FILE = "%s/port_agent_%d.pid"
 
 class PortAgentProcessType(BaseEnum):
     """
@@ -373,7 +374,11 @@ class UnixPortAgentProcess(PortAgentProcess):
         """
         
         temp = tempfile.NamedTemporaryFile()
-        temp.write("\ninstrument_type tcp\n")
+        temp.write("\n")
+        temp.write("log_dir %s\n" % (PROCESS_BASE_DIR))
+        temp.write("pid_dir %s\n" % (PROCESS_BASE_DIR))
+        temp.write("data_dir %s\n" % (PROCESS_BASE_DIR))
+        temp.write("instrument_type tcp\n")
         temp.write("instrument_data_port %d\n" % (self._device_port) )
         temp.write("instrument_addr %s\n" % (self._device_addr) )
         temp.write("data_port %d\n" % (self._data_port) )
@@ -415,7 +420,6 @@ class UnixPortAgentProcess(PortAgentProcess):
         self.run_command(command_line);
         self._pid = self._read_pid();
 
-        self._tmp_config.close();
         return self._command_port;
     
     def run_command(self, command_line):
@@ -436,7 +440,7 @@ class UnixPortAgentProcess(PortAgentProcess):
         return process.pid;
 
     def _read_pid(self):
-        pid_file = PID_FILE % (self._command_port)
+        pid_file = PID_FILE % (PROCESS_BASE_DIR, self._command_port)
         start_time = time.time()
         boo = 0;
 
@@ -469,7 +473,10 @@ class UnixPortAgentProcess(PortAgentProcess):
         log.info('Stop port agent')
         
         command_line = [ self._binary_path ]
-        
+
+        command_line.append("-c")
+        command_line.append(self._tmp_config.name);
+
         command_line.append("-k")
         
         command_line.append("-p")

@@ -5,6 +5,7 @@ from gevent import queue
 from nose.plugins.attrib import attr
 from nose.plugins.skip import SkipTest
 from mock import Mock
+from uuid import uuid4
 
 from pyon.agent.simple_agent import SimpleResourceAgentClient
 from pyon.event.event import EventSubscriber
@@ -17,7 +18,7 @@ from pyon.util.context import LocalContextMixin
 from interface.services.icontainer_agent import ContainerAgentClient
 from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, ProcessDispatcherSimpleAPIClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessStateEnum
+from interface.objects import ProcessStateEnum, ProcessDefinition
 
 
 class FakeProcess(LocalContextMixin):
@@ -60,6 +61,13 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         #self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
         self.pd_cli = ProcessDispatcherServiceClient(to_name="process_dispatcher")
 
+        self.process_definition_id = uuid4().hex
+        self.process_definition =  ProcessDefinition(name='test', executable={
+                'module': 'ion.agents.cei.test.test_haagent',
+                'class': 'TestProcess'
+        })
+        self.pd_cli.create_process_definition(self.process_definition, self.process_definition_id)
+
         self.resource_id = "haagent_1234"
         self._haa_name = "high_availability_agent"
         self._haa_config = {
@@ -71,13 +79,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                         'preserve_n': 0
                     }
                 },
-                'process_spec': {
-                    'name': 'test',
-                    'executable':{
-                        'module': 'ion.agents.cei.test.test_haagent',
-                        'class': 'TestProcess'
-                    }
-                },
+                'process_definition_id': self.process_definition_id,
                 "process_dispatchers": [
                     'process_dispatcher'
                 ]

@@ -771,7 +771,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                                       True)
 
             add_sites(new_site_ids, site_type, model_type)
-            add_devices(new_device_ids, site_type, model_type)
+            add_devices(new_device_ids, device_type, model_type)
 
         # collect platforms, verify that only one platform device exists in the deployment
         collect_specific_resources(RT.PlatformSite, RT.PlatformDevice, RT.PlatformModel)

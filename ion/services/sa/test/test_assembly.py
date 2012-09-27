@@ -16,7 +16,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 
 from pyon.core.exception import BadRequest, NotFound, Inconsistent, Unauthorized #, Conflict
 from pyon.public import RT, LCS, LCE
-from pyon.ion.resource import get_maturity_visibility
+from pyon.ion.resource import get_maturity_visibility, OT
 from nose.plugins.attrib import attr
 
 from ion.services.sa.test.helpers import any_old, add_keyworded_attachment
@@ -439,29 +439,12 @@ class TestAssembly(IonIntegrationTestCase):
         ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data')
         log.debug("Created stream def id %s" % ctd_stream_def_id)
 
-        #create data products for instrument data
-
-        log.debug('Creating new data product w/o a stream definition: %s' % ctd_stream_def_id)
-
-        # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-
         parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
 
-        dp_obj = IonObject(RT.DataProduct,
-            name='Instrument Data Product',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+        #create data products for instrument data
+
+        dp_obj = self.create_data_product_obj()
 
         log.debug("Created an IonObject for a data product: %s" % dp_obj)
 
@@ -469,10 +452,10 @@ class TestAssembly(IonIntegrationTestCase):
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
         #------------------------------------------------------------------------------------------------
 
+        dp_obj.name = 'Inst Data Product'
         inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
         dp_obj.name = 'Log Data Product'
-
         log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
         #assign data products appropriately
@@ -540,12 +523,114 @@ class TestAssembly(IonIntegrationTestCase):
 
 
 
+    def create_data_product_obj(self):
+
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+
+        # creates an IonObject of RT.DataProduct and adds custom fields specified by dict
+        return any_old(RT.DataProduct, dict(temporal_domain=tdom, spatial_domain=sdom))
 
 
 
+    def template_tst_deployment_context(self, context=None):
+        """
+        Creates a minimal deployment: 1 instrument, 1 site.  deployment context must be provided
+        """
+        c = self.client
+
+        c2 = DotDict()
+        c2.resource_registry = self.client.RR
+        instrument_site_impl = InstrumentSiteImpl(c2)
+
+        log.info("Create a instrument model")
+        instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel,
+                                                      "instrument_model",
+                                                      self.client.IMS,
+                                                      True)
+
+        log.info("Create an instrument device")
+        instrument_device_id = self.generic_fcruf_script(RT.InstrumentDevice,
+                                                         "instrument_device",
+                                                         self.client.IMS,
+                                                         False)
+
+        log.info("Create instrument site")
+        instrument_site_id = self.generic_fcruf_script(RT.InstrumentSite,
+                                                       "instrument_site",
+                                                       self.client.OMS,
+                                                       True)
+
+        log.info("Associate instrument model with instrument site")
+        self.generic_association_script(c.OMS.assign_instrument_model_to_instrument_site,
+                                        instrument_site_impl.find_having_model,
+                                        instrument_site_impl.find_stemming_model,
+                                        instrument_site_id,
+                                        instrument_model_id)
+
+
+        log.info("Associate instrument model with instrument device")
+        self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_device,
+                                        c.IMS.find_instrument_device_by_instrument_model,
+                                        c.IMS.find_instrument_model_by_instrument_device,
+                                        instrument_device_id,
+                                        instrument_model_id)
+
+
+        log.info("Create a stream definition for the data from the ctd simulator")
+        ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data')
+        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
+        parameter_dictionary = parameter_dictionary.dump()
+
+        log.info("Create an IonObject for a data products")
+        dp_obj = self.create_data_product_obj()
+
+        dp_obj.name = 'Inst Data Product'
+        inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+
+        dp_obj.name = 'Log Data Product'
+        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+
+        #assign data products appropriately
+        c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
+                                   data_product_id=inst_data_product_id)
+        c.OMS.create_site_data_product(instrument_site_id, log_data_product_id)
+
+
+        deployment_obj = any_old(RT.Deployment, dict(context=context))
+        deployment_id = c.OMS.create_deployment(deployment_obj)
+
+        c.OMS.deploy_instrument_site(instrument_site_id, deployment_id)
+        c.IMS.deploy_instrument_device(instrument_device_id, deployment_id)
+
+        c.OMS.activate_deployment(deployment_id, True)
 
 
 
+    # test all 4 deployment contexts.  can fill in these context when their fields get defined
+    def test_deployment_buoy(self):
+        context = IonObject(OT.BuoyDeploymentContext)
+        self.template_tst_deployment_context(context)
+
+    def test_deployment_mooring(self):
+        context = IonObject(OT.MooringDeploymentContext)
+        self.template_tst_deployment_context(context)
+
+    def test_deployment_glider(self):
+        context = IonObject(OT.GliderDeploymentContext)
+        self.template_tst_deployment_context(context)
+
+    def test_deployment_cruise(self):
+        context = IonObject(OT.CruiseDeploymentContext)
+        self.template_tst_deployment_context(context)
 
 
 
