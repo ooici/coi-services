@@ -35,7 +35,6 @@ import gevent
 from gevent.coros import Semaphore
 from gevent.event import Event
 import time
-import traceback
 
 class DataHandlerParameter(DriverParameter):
     """
@@ -216,7 +215,7 @@ class BaseDataHandler(object):
         if not stream_id:
             raise ConfigurationError('Configuration does not contain required \'stream_id\' member')
         stream_route = get_safe(config, 'stream_route', None)
-        log.warn(stream_route)
+
         if not stream_route:
             raise ConfigurationError('Configuration does not contain required \'stream_route\' member')
 
@@ -610,9 +609,8 @@ class FibonacciDataHandler(BaseDataHandler):
 
         max_rec = get_safe(config, 'max_records', 1)
         dprod_id = get_safe(config, 'data_producer_id')
-        #tx_yml = get_safe(config, 'taxonomy')
-        #ttool = TaxyTool.load(tx_yml)
-        pdict = ParameterDictionary.load(get_safe(config, 'param_dictionary'))
+
+        stream_def = get_safe(config, 'stream_def')
 
         def fibGenerator():
             """
@@ -634,7 +632,7 @@ class FibonacciDataHandler(BaseDataHandler):
         gen=fibGenerator()
         cnt = calculate_iteration_count(cnt, max_rec)
         for i in xrange(cnt):
-            rdt = RecordDictionaryTool(param_dictionary=pdict)
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
             d = gen.next()
             rdt['data'] = d
             g = rdt.to_granule()
@@ -738,15 +736,14 @@ class DummyDataHandler(BaseDataHandler):
 
         max_rec = get_safe(config, 'max_records', 1)
         dprod_id = get_safe(config, 'data_producer_id')
-        #tx_yml = get_safe(config, 'taxonomy')
-        #ttool = TaxyTool.load(tx_yml)
-        pdict = ParameterDictionary.load(get_safe(config, 'param_dictionary'))
+
+        stream_def = get_safe(config, 'stream_def')
 
         arr = npr.random_sample(array_len)
         log.debug('Array to send using max_rec={0}: {1}'.format(max_rec, arr))
         cnt = calculate_iteration_count(arr.size, max_rec)
         for x in xrange(cnt):
-            rdt = RecordDictionaryTool(param_dictionary=pdict)
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
             d = arr[x*max_rec:(x+1)*max_rec]
             rdt['dummy'] = d
             g = rdt.to_granule()

@@ -160,7 +160,8 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         #        dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
 
         #create temp streamdef so the data product can create the stream
-        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
+        pdict = self._create_parameter_dictionary()
+        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp", parameter_dictionary=pdict.dump())
 
         # Generate the data product and associate it to the ExternalDataset
 
@@ -188,65 +189,22 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
 
         log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id, 'Stream':stream_id}))
 
-        #CBM: Use CF standard_names
+        # Create the logger for receiving publications
+        _, stream_route, _ = self.create_stream_and_logger(name='slocum',stream_id=stream_id)
 
-#        ttool = TaxyTool()
-#
-#        ttool.add_taxonomy_set('c_wpt_y_lmc'),
-#        ttool.add_taxonomy_set('sci_water_cond'),
-#        ttool.add_taxonomy_set('m_y_lmc'),
-#        ttool.add_taxonomy_set('u_hd_fin_ap_inflection_holdoff'),
-#        ttool.add_taxonomy_set('sci_m_present_time'),
-#        ttool.add_taxonomy_set('m_leakdetect_voltage_forward'),
-#        ttool.add_taxonomy_set('sci_bb3slo_b660_scaled'),
-#        ttool.add_taxonomy_set('c_science_send_all'),
-#        ttool.add_taxonomy_set('m_gps_status'),
-#        ttool.add_taxonomy_set('m_water_vx'),
-#        ttool.add_taxonomy_set('m_water_vy'),
-#        ttool.add_taxonomy_set('c_heading'),
-#        ttool.add_taxonomy_set('sci_fl3slo_chlor_units'),
-#        ttool.add_taxonomy_set('u_hd_fin_ap_gain'),
-#        ttool.add_taxonomy_set('m_vacuum'),
-#        ttool.add_taxonomy_set('u_min_water_depth'),
-#        ttool.add_taxonomy_set('m_gps_lat'),
-#        ttool.add_taxonomy_set('m_veh_temp'),
-#        ttool.add_taxonomy_set('f_fin_offset'),
-#        ttool.add_taxonomy_set('u_hd_fin_ap_hardover_holdoff'),
-#        ttool.add_taxonomy_set('c_alt_time'),
-#        ttool.add_taxonomy_set('m_present_time'),
-#        ttool.add_taxonomy_set('m_heading'),
-#        ttool.add_taxonomy_set('sci_bb3slo_b532_scaled'),
-#        ttool.add_taxonomy_set('sci_fl3slo_cdom_units'),
-#        ttool.add_taxonomy_set('m_fin'),
-#        ttool.add_taxonomy_set('x_cycle_overrun_in_ms'),
-#        ttool.add_taxonomy_set('sci_water_pressure'),
-#        ttool.add_taxonomy_set('u_hd_fin_ap_igain'),
-#        ttool.add_taxonomy_set('sci_fl3slo_phyco_units'),
-#        ttool.add_taxonomy_set('m_battpos'),
-#        ttool.add_taxonomy_set('sci_bb3slo_b470_scaled'),
-#        ttool.add_taxonomy_set('m_lat'),
-#        ttool.add_taxonomy_set('m_gps_lon'),
-#        ttool.add_taxonomy_set('sci_ctd41cp_timestamp'),
-#        ttool.add_taxonomy_set('m_pressure'),
-#        ttool.add_taxonomy_set('c_wpt_x_lmc'),
-#        ttool.add_taxonomy_set('c_ballast_pumped'),
-#        ttool.add_taxonomy_set('x_lmc_xy_source'),
-#        ttool.add_taxonomy_set('m_lon'),
-#        ttool.add_taxonomy_set('m_avg_speed'),
-#        ttool.add_taxonomy_set('sci_water_temp'),
-#        ttool.add_taxonomy_set('u_pitch_ap_gain'),
-#        ttool.add_taxonomy_set('m_roll'),
-#        ttool.add_taxonomy_set('m_tot_num_inflections'),
-#        ttool.add_taxonomy_set('m_x_lmc'),
-#        ttool.add_taxonomy_set('u_pitch_ap_deadband'),
-#        ttool.add_taxonomy_set('m_final_water_vy'),
-#        ttool.add_taxonomy_set('m_final_water_vx'),
-#        ttool.add_taxonomy_set('m_water_depth'),
-#        ttool.add_taxonomy_set('m_leakdetect_voltage'),
-#        ttool.add_taxonomy_set('u_pitch_max_delta_battpos'),
-#        ttool.add_taxonomy_set('m_coulomb_amphr'),
-#        ttool.add_taxonomy_set('m_pitch'),
+        self.EDA_RESOURCE_ID = ds_id
+        self.EDA_NAME = ds_name
+        self.DVR_CONFIG['dh_cfg'] = {
+            'TESTING':True,
+            'stream_id':stream_id,
+            'stream_route':stream_route,
+            'stream_def':streamdef_id,
+            'external_dataset_res':dset,
+            'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
+            'max_records':20,
+        }
 
+    def _create_parameter_dictionary(self):
         pdict = ParameterDictionary()
 
         t_ctxt = ParameterContext('c_wpt_y_lmc', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
@@ -465,22 +423,6 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         t_ctxt.uom = 'unknown'
         pdict.add_context(t_ctxt)
 
-        #CBM: Eventually, probably want to group this crap somehow - not sure how yet...
-
-        # Create the logger for receiving publications
-        _, stream_route = self.create_stream_and_logger(name='slocum',stream_id=stream_id)
-
-        self.EDA_RESOURCE_ID = ds_id
-        self.EDA_NAME = ds_name
-        self.DVR_CONFIG['dh_cfg'] = {
-            'TESTING':True,
-            'stream_id':stream_id,
-            'stream_route':stream_route,
-            'external_dataset_res':dset,
-            'param_dictionary':pdict.dump(),
-            'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
-            'max_records':20,
-        }
-
+        return pdict
 
 

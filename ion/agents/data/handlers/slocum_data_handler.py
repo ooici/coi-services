@@ -106,14 +106,13 @@ class SlocumDataHandler(BaseDataHandler):
 
                 max_rec = get_safe(config, 'max_records', 1)
                 dprod_id = get_safe(config, 'data_producer_id', 'unknown data producer')
-                #tx_yml = get_safe(config, 'taxonomy')
-                #ttool = TaxyTool.load(tx_yml) #CBM: Assertion inside RDT.__setitem__ requires same instance of TaxyTool
-                pdict = ParameterDictionary.load(get_safe(config, 'param_dictionary'))
+
+                stream_def = get_safe(config, 'stream_def')
 
                 cnt = calculate_iteration_count(len(parser.sensor_map), max_rec)
                 for x in xrange(cnt):
                     #rdt = RecordDictionaryTool(taxonomy=ttool)
-                    rdt = RecordDictionaryTool(param_dictionary=pdict)
+                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)
 
                     for name in parser.sensor_map:
                         d = parser.data_map[name][x*max_rec:(x+1)*max_rec]

@@ -119,41 +119,27 @@ class NetcdfDataHandler(BaseDataHandler):
 
             max_rec = get_safe(config, 'max_records', 1)
             dprod_id = get_safe(config, 'data_producer_id', 'unknown data producer')
-            #tx_yml = get_safe(config, 'taxonomy')
-            #ttool = TaxyTool.load(tx_yml) #CBM: Assertion inside RDT.__setitem__ requires same instance of TaxyTool
-            pdict = ParameterDictionary.load(get_safe(config, 'param_dictionary'))
+
+            stream_def = get_safe(config, 'stream_def')
 
             cnt = calculate_iteration_count(t_arr.size, max_rec)
             for x in xrange(cnt):
                 ta = t_arr[x*max_rec:(x+1)*max_rec]
 
                 # Make a 'master' RecDict
-                #rdt = RecordDictionaryTool(taxonomy=ttool)
-                rdt = RecordDictionaryTool(param_dictionary=pdict)
-                # Make a 'coordinate' RecDict
-                #rdt_c = RecordDictionaryTool(taxonomy=ttool)
-                #rdt_c = RecordDictionaryTool(param_dictionary=pdict)
-                # Make a 'data' RecDict
-                #rdt_d = RecordDictionaryTool(taxonomy=ttool)
-                #rdt_d = RecordDictionaryTool(param_dictionary=pdict)
+                rdt = RecordDictionaryTool(stream_definition_id=stream_def)
 
-                # Assign values to the coordinate RecDict
+                # Assign coordinate values to the RecDict
                 rdt[x_vname] = lon
                 rdt[y_vname] = lat
                 rdt[z_vname] = z
 
-                # Assign values to the data RecDict
+                # Assign data values to the RecDict
                 rdt[t_vname] = ta
                 for key, arr in data_arrays.iteritems():
                     d = arr[x*max_rec:(x+1)*max_rec]
                     rdt[key] = d
 
-                # Add the coordinate and data RecDicts to the master RecDict
-                #rdt['coords'] = rdt_c
-                #rdt['data'] = rdt_d
-
-                # Build and return a granule
-                # CBM: ttool must be passed
                 g = rdt.to_granule()
                 yield g
 
