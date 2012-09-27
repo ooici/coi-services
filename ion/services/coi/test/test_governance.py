@@ -24,11 +24,11 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 
-from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
+from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum, CommitmentStatusEnum
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
-from ion.services.coi.policy_management_service import MANAGER_ROLE, MEMBER_ROLE, ION_MANAGER
+from ion.services.coi.policy_management_service import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
 ORG2 = 'Org2'
@@ -582,15 +582,15 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(self.ion_org._id)
         self.assertEqual(len(roles),3)
-        self.assertItemsEqual([r.name for r in roles], [MANAGER_ROLE, MEMBER_ROLE, ION_MANAGER])
+        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER])
 
         roles = self.org_client.find_org_roles_by_user(self.ion_org._id, self.system_actor._id, headers=self.sa_user_header)
         self.assertEqual(len(roles),3)
-        self.assertItemsEqual([r.name for r in roles], [MEMBER_ROLE, MANAGER_ROLE, ION_MANAGER])
+        self.assertItemsEqual([r.name for r in roles], [ORG_MEMBER_ROLE, ORG_MANAGER_ROLE, ION_MANAGER])
 
         roles = self.org_client.find_org_roles_by_user(self.ion_org._id, user_id, headers=self.sa_user_header)
         self.assertEqual(len(roles),1)
-        self.assertItemsEqual([r.name for r in roles], [MEMBER_ROLE])
+        self.assertItemsEqual([r.name for r in roles], [ORG_MEMBER_ROLE])
 
 
         #Create a second Org
@@ -606,7 +606,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),2)
-        self.assertItemsEqual([r.name for r in roles], [MANAGER_ROLE, MEMBER_ROLE])
+        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
 
         #Create the Instrument Operator Role
         operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE,label='Instrument Operator', description='Instrument Operator')
@@ -620,7 +620,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),3)
-        self.assertItemsEqual([r.name for r in roles], [MANAGER_ROLE, MEMBER_ROLE,  INSTRUMENT_OPERATOR_ROLE])
+        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE,  INSTRUMENT_OPERATOR_ROLE])
 
         #Add the same role to the first Org as well
         self.org_client.add_user_role(self.ion_org._id, operator_role, headers=self.sa_user_header)
@@ -818,12 +818,17 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),2)
-        self.assertItemsEqual([r.name for r in roles], [MANAGER_ROLE, MEMBER_ROLE])
+        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
 
         #Create the Instrument Operator Role
         operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE,label='Instrument Operator', description='Instrument Operator')
 
+        #And add it to all Orgs
+        self.org_client.add_user_role(self.ion_org._id, operator_role, headers=self.sa_user_header)
         self.org_client.add_user_role(org2_id, operator_role, headers=self.sa_user_header)
+
+        #Add the INSTRUMENT_OPERATOR_ROLE to the User for the ION Org
+        self.org_client.grant_role(self.ion_org._id, user_id, INSTRUMENT_OPERATOR_ROLE, headers=self.sa_user_header)
 
         #Enroll the user in the second Org - do without Negotiation for test
         self.org_client.enroll_member(org2_id, user_id,headers=self.sa_user_header )
@@ -874,7 +879,24 @@ class TestGovernanceInt(IonIntegrationTestCase):
             sap_response = self.org_client.negotiate(sap, headers=self.sa_user_header )
         self.assertIn('A precondition for this request has not been satisfied: is_enrolled',cm.exception.message)
 
-        #Make a proposal to acquire a resource with an enrolled user that has the right role
+
+        #Make a proposal to acquire a resource with an enrolled user that has the right role but the resource is not shared the Org
+        with self.assertRaises(BadRequest) as cm:
+            sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id,
+            conditions = {'commitment_length': 'unlimited'} )
+            sap_response = self.org_client.negotiate(sap, headers=user_header )
+        self.assertIn('A precondition for this request has not been satisfied: is_resource_shared',cm.exception.message)
+
+        #So share the resource
+        self.org_client.share_resource(org_id=org2_id, resource_id=ia_list[0]._id, headers=self.sa_user_header  )
+
+        #Verify the resource is shared
+        res_list,_ = self.rr_client.find_objects(org2,PRED.hasResource)
+        self.assertEqual(len(res_list), 1)
+        self.assertEqual(res_list[0]._id, ia_list[0]._id)
+
+
+        #Make a proposal to acquire a resource with an enrolled user that has the right role and is now shared
         sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id,
             conditions = {'commitment_length': 'unlimited'} )
         sap_response = self.org_client.negotiate(sap, headers=user_header )
@@ -934,25 +956,36 @@ class TestGovernanceInt(IonIntegrationTestCase):
         negotiations = self.org_client.find_user_negotiations(user_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
         self.assertEqual(len(negotiations),0)
 
-        #Check commitments
+        #Check commitment to be active
         commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.ResourceCommitment)
         self.assertEqual(len(commitments),1)
 
         commitments, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.ResourceCommitment)
         self.assertEqual(len(commitments),1)
+        self.assertEqual(commitments[0].status,CommitmentStatusEnum.ACTIVE)
 
-        #TODO - Refactor release_resource
         #Release the resource
-        self.org_client.release_resource(org2_id,user_id ,ia_list[0]._id, headers=self.sa_user_header,timeout=15)
+        self.org_client.release_resource(commitments[0]._id, headers=self.sa_user_header)
 
-        #Check commitments
+        #Check commitment to be inactive
         commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.ResourceCommitment)
-        self.assertEqual(len(commitments),0)
+        self.assertEqual(len(commitments),1)
+        self.assertEqual(commitments[0].status,CommitmentStatusEnum.INACTIVE)
 
         commitments, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.ResourceCommitment)
-        self.assertEqual(len(commitments),0)
+        self.assertEqual(len(commitments),1)
+        self.assertEqual(commitments[0].status,CommitmentStatusEnum.INACTIVE)
+
 
         #Now check some negative cases...
+
+        #Attempt to acquire the same resource from the ION Org which is not sharing it - should fail
+        with self.assertRaises(BadRequest) as cm:
+            sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=self.ion_org._id, resource=ia_list[0]._id,
+                conditions = {'commitment_length': 'unlimited'} )
+            sap_response = self.org_client.negotiate(sap, headers=user_header )
+        self.assertIn('A precondition for this request has not been satisfied: is_resource_shared',cm.exception.message)
+
 
         #Remove the INSTRUMENT_OPERATOR_ROLE from the user.
         self.org_client.revoke_role(org2_id, user_id, INSTRUMENT_OPERATOR_ROLE,  headers=self.sa_user_header)
@@ -972,6 +1005,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
         self.assertEquals(len(events_r), 6)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
+
 
     def test_instrument_agent_policy(self):
 

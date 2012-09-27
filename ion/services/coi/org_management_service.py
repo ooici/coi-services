@@ -9,16 +9,17 @@ from pyon.core.registry import issubtype
 from pyon.event.event import EventPublisher
 from pyon.util.containers import is_basic_identifier
 from pyon.core.governance.negotiation import Negotiation
-from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, CommitmentStatusEnum
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
-from ion.services.coi.policy_management_service import MEMBER_ROLE, MANAGER_ROLE
+from ion.services.coi.policy_management_service import ORG_MEMBER_ROLE, ORG_MANAGER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
 #Supported Negotiations - perhaps move these to data at some point if there are more negotiation types and/or remove
 #references to local functions to make this more dynamic
 negotiation_rules = {
     OT.EnrollmentProposal: {
-        'pre_conditions': ['is_registered(sap.consumer)', 'not is_enrolled(sap.provider,sap.consumer)', 'not is_enroll_negotiation_open(sap.provider,sap.consumer)'],
+        'pre_conditions': ['is_registered(sap.consumer)', 'not is_enrolled(sap.provider,sap.consumer)',
+                           'not is_enroll_negotiation_open(sap.provider,sap.consumer)'],
         'accept_action': 'enroll_member(sap.provider,sap.consumer)'
     },
 
@@ -28,7 +29,9 @@ negotiation_rules = {
     },
 
     OT.AcquireResourceProposal: {
-        'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)', 'has_role(sap.provider,sap.consumer,"' + INSTRUMENT_OPERATOR_ROLE + '")'],
+        'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)',
+                           'has_role(sap.provider,sap.consumer,"' + INSTRUMENT_OPERATOR_ROLE + '")',
+                           'is_resource_shared(sap.provider,sap.resource)'],
         'accept_action': 'acquire_resource(sap.provider,sap.consumer,sap.resource)'
     }
 }
@@ -172,10 +175,10 @@ class OrgManagementService(BaseOrgManagementService):
         directory = Directory(orgname=org.name)
 
         #Instantiate initial set of User Roles for this Org
-        manager_role = IonObject(RT.UserRole, name=MANAGER_ROLE,label='Org Manager', description='Org Manager')
+        manager_role = IonObject(RT.UserRole, name=ORG_MANAGER_ROLE,label='Org Manager', description='Org Manager')
         self.add_user_role(org_id, manager_role)
 
-        member_role = IonObject(RT.UserRole, name=MEMBER_ROLE,label='Org Member', description='Org Member')
+        member_role = IonObject(RT.UserRole, name=ORG_MEMBER_ROLE,label='Org Member', description='Org Member')
         self.add_user_role(org_id, member_role)
 
         return org_id
@@ -271,7 +274,7 @@ class OrgManagementService(BaseOrgManagementService):
 
     def remove_user_role(self, org_id='', role_name='', force_removal=False):
         """Removes a UserRole from an Org. The UserRole will not be removed if there are
-        users associated with the UserRole unless the force_removal paramater is set to True
+        users associated with the UserRole unless the force_removal parameter is set to True
         Throws exception if either id does not exist.
 
         @param org_id    str
@@ -281,6 +284,7 @@ class OrgManagementService(BaseOrgManagementService):
         @throws NotFound    object with specified name does not exist
         """
         param_objects = self._validate_parameters(org_id=org_id, role_name=role_name)
+        org = param_objects['org']
         user_role = param_objects['user_role']
 
         if not force_removal:
@@ -288,6 +292,13 @@ class OrgManagementService(BaseOrgManagementService):
             if len(alist) > 0:
                 raise BadRequest('The User Role %s cannot be removed as there are %s users associated to it' %
                                  (user_role.name, str(len(alist))))
+
+
+        #Finally remove the association to the Org
+        aid = self.clients.resource_registry.get_association(org, PRED.hasMembership, user_role)
+        if not aid:
+            raise NotFound("The role association between the specified Org (%s) and UserRole (%s) is not found" %
+                           (org_id, user_role.name))
 
         self.clients.resource_registry.delete_association(aid)
 
@@ -686,9 +697,9 @@ class OrgManagementService(BaseOrgManagementService):
                 ret_list.append(role)
 
         #Because a user is enrolled with an Org then the membership role is implied - so add it to the list
-        member_role = self._find_role(org._id, MEMBER_ROLE)
+        member_role = self._find_role(org._id, ORG_MEMBER_ROLE)
         if member_role is None:
-            raise Inconsistent('The %s User Role is not found.' % MEMBER_ROLE)
+            raise Inconsistent('The %s User Role is not found.' % ORG_MEMBER_ROLE)
 
         ret_list.append(member_role)
 
@@ -736,18 +747,6 @@ class OrgManagementService(BaseOrgManagementService):
         return ret_val
 
 
-    def has_permission(self, org_id='', user_id='', action_id='', resource_id=''):
-        """Returns a boolean of the specified user has permission for the specified action on a specified resource. Will
-        throw a NotFound exception if none of the specified ids do not exist.
-
-        @param org_id    str
-        @param user_id    str
-        @param action_id    str
-        @param resource_id    str
-        @retval has_permission    bool
-        @throws NotFound    object with specified id does not exist
-        """
-        raise NotImplementedError()
 
 
     def share_resource(self, org_id='', resource_id=''):
@@ -790,20 +789,25 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.delete_association(aid)
         return True
 
-    def acquire_resource(self, org_id='', user_id='', resource_id=''):
-        """Acquire the specified resource for a specified user withing the specified Org. Once shared, the resource is
+
+
+    def acquire_resource(self, org_id='', user_id='', resource_id='', exclusive=False):
+        """Creates a Commitment Resource to for the specified resource for a specified user withing the specified Org. Once shared, the resource is
         committed to the user. Throws a NotFound exception if none of the ids are found.
 
         @param org_id    str
         @param user_id    str
         @param resource_id    str
-        @retval success    bool
+        @param exclusive    bool
+        @retval commitment_id    str
         @throws NotFound    object with specified id does not exist
         """
         param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, resource_id=resource_id)
 
-        commitment = IonObject(RT.ResourceCommitment, name='', org_id=org_id, user_id=user_id, resource_id=resource_id,
-            description='Resource Commitment')
+        res_commitment = IonObject(OT.ResourceCommitment, resource_id=resource_id, exclusive=exclusive)
+
+        commitment = IonObject(RT.Commitment, name='', provider=org_id, consumer=user_id, commitment=res_commitment,
+             description='Resource Commitment')
 
         commitment_id, commitment_rev = self.clients.resource_registry.create(commitment)
         commitment._id = commitment_id
@@ -811,30 +815,24 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.create_association(user_id, PRED.hasCommitment, commitment)
         self.clients.resource_registry.create_association(resource_id, PRED.hasCommitment, commitment)
 
-        return True
+        return commitment_id
 
-    def release_resource(self, org_id='', user_id='', resource_id=''):
+    def release_resource(self, commitment_id=''):
         """Release the specified resource from an existing commitment. Throws a NotFound exception if none of the ids are found.
 
-        @param org_id    str
-        @param user_id    str
-        @param resource_id    str
+        @param commitment_id    str
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, resource_id=resource_id)
 
-        commitment_list,_ = self.clients.resource_registry.find_objects(resource_id, PRED.hasCommitment, RT.ResourceCommitment)
-        for com in commitment_list:
-            if com.org_id == org_id and com.user_id == user_id:
-                aid = self.clients.resource_registry.find_associations(resource_id, PRED.hasCommitment, com)
-                if aid:
-                    self.clients.resource_registry.delete_association(aid[0])
+        if not commitment_id:
+            raise BadRequest("The commitment_id parameter is missing")
 
-                aid = self.clients.resource_registry.find_associations(user_id, PRED.hasCommitment, com)
-                if aid:
-                    self.clients.resource_registry.delete_association(aid[0])
-                    self.clients.resource_registry.delete(com._id)
+        commitment = self.clients.resource_registry.read(commitment_id)
+
+        commitment.status = CommitmentStatusEnum.INACTIVE
+
+        self.clients.resource_registry.update(commitment)
 
         return True
 
@@ -907,7 +905,7 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.delete_association(aid)
         return True
 
-    #Local Negotiation helper functions are below - do not remove
+    #Local helper functions are below - do not remove
 
     def is_registered(self,user_id):
         try:
@@ -922,5 +920,17 @@ class OrgManagementService(BaseOrgManagementService):
 
         if neg_list:
             return True
+
+        return False
+
+    def is_resource_shared(self, org_id, resource_id):
+
+        #TODO - check with Michael if there is a better way to do this
+        res_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasResource)
+
+        if res_list:
+            for res in res_list:
+                if res._id == resource_id:
+                    return True
 
         return False
