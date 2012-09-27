@@ -43,7 +43,6 @@ class TestGranule(IonIntegrationTestCase):
         
         def verify(m,r,s):
             rdt = RecordDictionaryTool.load_from_granule(m)
-            print rdt
             self.assertTrue((rdt['time'] == np.arange(20)).all())
             for i in rdt['temp']:
                 self.assertEquals(i.tostring(), important_s) # verifies perfect fidelity
