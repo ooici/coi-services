@@ -18,6 +18,9 @@ class InvalidResponse(object):
     ATTRIBUTE_NAME_VALUE = ('INVALID-ATTRIBUTE-NAME', '')
     PORT_ID              = 'INVALID-PORT-ID'
 
+    PLATFORM_TYPE        = 'INVALID-PLATFORM-TYPE'
+    ALARM_LISTENER_URL   = 'INVALID-ALARM-LISTENER-URL'
+    ALARM_TYPE           = 'INVALID-ALARM-TYPE'
 
 VALID_PORT_ATTRIBUTES = [
     'maxCurrentDraw', 'initCurrent', 'dataThroughput', 'instrumentType'
@@ -168,4 +171,19 @@ class OmsClient(object):
 
         @retval TBD
         """
+        raise NotImplemented()
+
+    def describeAlarmTypes(self, alarm_type_ids):
+        raise NotImplemented()
+
+    def getAlarmsByPlatformType(self, platform_types):
+        raise NotImplemented()
+
+    def registerAlarmListener(self, URL, alarm_types):
+        raise NotImplemented()
+
+    def unregisterAlarmListener(self, URL, alarm_types):
+        raise NotImplemented()
+
+    def getRegisteredAlarmListeners(self):
         raise NotImplemented()

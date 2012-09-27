@@ -3,8 +3,8 @@
 #
 
 platform_types:
-  - platform_type: ptype1
-    description: description of platform type ptype1
+  - platform_type: UPS
+    description: description of platform type UPS
   - platform_type: ptype2
     description: description of platform type ptype2
   - platform_type: ptype3

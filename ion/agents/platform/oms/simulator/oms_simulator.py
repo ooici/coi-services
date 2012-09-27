@@ -15,6 +15,7 @@ from ion.agents.platform.oms.oms_client import OmsClient
 from ion.agents.platform.oms.oms_client import VALID_PORT_ATTRIBUTES
 from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.util.network import NNode
+from ion.agents.platform.oms.simulator.oms_alarms import AlarmInfo
 
 import yaml
 import time
@@ -38,6 +39,11 @@ class OmsSimulator(OmsClient):
         self._build_network(pyobj)
 
         self._next_value = 990000
+
+        # registered alarm listeners: {url: [(alarm_type, REG_time), ...], ...},
+        # where reg_time is the time of (latest) registration.
+        # NOTE: for simplicity, we don't keep info about unregistered listeners
+        self._reg_alarm_listeners = {}
 
     def _get_platform_types(self, pyobj):
         """
@@ -243,3 +249,116 @@ class OmsSimulator(OmsClient):
             log.info("port %s in platform %s turned off." % (port_id, platform_id))
 
         return {platform_id: {port_id: port._on}}
+
+    def describeAlarmTypes(self, alarm_type_ids):
+        if len(alarm_type_ids) == 0:
+            return AlarmInfo.ALARM_TYPES
+
+        result = {}
+        for k in alarm_type_ids:
+            if not k in AlarmInfo.ALARM_TYPES:
+                result[k] = InvalidResponse.ALARM_TYPE
+            else:
+                result[k] = AlarmInfo.ALARM_TYPES[k]
+
+        return result
+
+    def getAlarmsByPlatformType(self, platform_types):
+        if len(platform_types) == 0:
+            platform_types = self._platform_types.keys()
+
+        result = {}
+        for platform_type in platform_types:
+            if not platform_type in self._platform_types:
+                result[platform_type] = InvalidResponse.PLATFORM_TYPE
+                continue
+
+            result[platform_type] = [v for v in AlarmInfo.ALARM_TYPES.itervalues() \
+                if v['platform_type'] == platform_type]
+
+        return result
+
+    def _validate_alarm_listener_url(self, url):
+        """
+        Does a basic, static validation of the url.
+        """
+        # TODO implement it; for now always returning True
+        return True
+
+    def registerAlarmListener(self, url, alarm_types):
+        log.info("registerAlarmListener: url=%r, alarm_types=%s",
+                 url, str(alarm_types))
+
+        if not self._validate_alarm_listener_url(url):
+            return {url: InvalidResponse.ALARM_LISTENER_URL}
+
+        if not url in self._reg_alarm_listeners:
+            # create entry for this new url
+            existing_pairs = self._reg_alarm_listeners[url] = []
+        else:
+            existing_pairs = self._reg_alarm_listeners[url]
+
+        if len(existing_pairs):
+            existing_types, reg_times = zip(*existing_pairs)
+        else:
+            existing_types = reg_times = []
+
+        result_list = []
+        for alarm_type in alarm_types:
+            if not alarm_type in AlarmInfo.ALARM_TYPES:
+                result_list.append((alarm_type, InvalidResponse.ALARM_TYPE))
+                continue
+
+            if alarm_type in existing_types:
+                # already registered:
+                reg_time = reg_times[existing_types.index(alarm_type)]
+                result_list.append((alarm_type, reg_time))
+            else:
+                # new registration
+                reg_time = time.time()
+                existing_pairs.append((alarm_type, reg_time))
+                result_list.append((alarm_type, reg_time))
+
+        return {url: result_list}
+
+    def unregisterAlarmListener(self, url, alarm_types):
+        log.info("TODO: unregisterAlarmListener: url=%r, alarm_types=%s",
+                 url, str(alarm_types))
+
+        if not url in self._reg_alarm_listeners:
+            return {url: InvalidResponse.ALARM_LISTENER_URL}
+
+        existing_pairs = self._reg_alarm_listeners[url]
+
+        assert len(existing_pairs), "we don't keep any url with empty list"
+
+        existing_types, reg_times = zip(*existing_pairs)
+
+        result_list = []
+        for alarm_type in alarm_types:
+            if not alarm_type in AlarmInfo.ALARM_TYPES:
+                result_list.append((alarm_type, InvalidResponse.ALARM_TYPE))
+                continue
+
+            if alarm_type in existing_types:
+                # registered, so remove pair
+                del existing_pairs[existing_types.index(alarm_type)]
+                unreg_time = time.time()
+                result_list.append((alarm_type, unreg_time))
+            else:
+                # not registered, report 0
+                unreg_time = 0
+                result_list.append((alarm_type, unreg_time))
+
+        if not len(existing_pairs):
+            # we don't keep any url with empty list
+            del self._reg_alarm_listeners[url]
+
+        return {url: result_list}
+
+    def _stop_alarm_listener(self, url, alarm_type):
+        # TODO
+        pass
+
+    def getRegisteredAlarmListeners(self):
+        return self._reg_alarm_listeners

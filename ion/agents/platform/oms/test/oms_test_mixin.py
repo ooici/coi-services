@@ -27,6 +27,7 @@ PORT_ID = 'Node1A_port_1'
 BOGUS_PLATFORM_ID = 'bogus_plat_id'
 BOGUS_ATTR_NAMES = ['bogus_attr1', 'bogus_attr2']
 BOGUS_PORT_ID = 'bogus_port_id'
+BOGUS_ALARM_TYPE = "bogus_alarm_type"
 
 
 class OmsTestMixin(object):
@@ -284,3 +285,156 @@ class OmsTestMixin(object):
             retval = self.oms.turnOffPort(requested_platform_id, port_id)
             print("turnOffPort(%s,%s) = %s" % (requested_platform_id, port_id, retval))
             self._verify_invalid_platform_id(requested_platform_id, retval)
+
+    def _get_all_alarm_types(self):
+        all_alarms = self.oms.describeAlarmTypes([])
+        self.assertIsInstance(all_alarms, dict)
+        print('all_alarms = %s' % all_alarms)
+        return all_alarms
+
+    def test_ba_describeAlarmTypes(self):
+        all_alarms = self._get_all_alarm_types()
+        if len(all_alarms) == 0:
+            return
+
+        # get a specific alarm
+        alarm_type_id = all_alarms.keys()[0]
+        alarms = self.oms.describeAlarmTypes([alarm_type_id])
+        self.assertIsInstance(alarms, dict)
+        self.assertEquals(len(alarms), 1)
+        self.assertTrue(alarm_type_id in alarms)
+
+    def test_bb_describeAlarmTypes_invalid_alarm_type(self):
+        alarm_type_id = BOGUS_ALARM_TYPE
+        alarms = self.oms.describeAlarmTypes([alarm_type_id])
+        self.assertIsInstance(alarms, dict)
+        self.assertEquals(len(alarms), 1)
+        self.assertTrue(alarm_type_id in alarms)
+        self.assertEquals(InvalidResponse.ALARM_TYPE, alarms[alarm_type_id])
+
+    def test_bc_getAlarmsByPlatformType(self):
+        # get all alarm types
+        all_alarms = self.oms.getAlarmsByPlatformType([])
+        self.assertIsInstance(all_alarms, dict)
+
+        print('all_alarms = %s' % all_alarms)
+        if len(all_alarms) == 0:
+            return
+
+        # arbitrarily get first platform type again
+        platform_type = all_alarms.keys()[0]
+        alarms = self.oms.getAlarmsByPlatformType([platform_type])
+        self.assertIsInstance(alarms, dict)
+        self.assertEquals(len(alarms), 1)
+        self.assertTrue(platform_type in alarms)
+        self.assertEquals(all_alarms[platform_type], alarms[platform_type])
+
+    def test_bd_getAlarmsByPlatformType_invalid_platform_type(self):
+        platform_type = "bogus_platform_type"
+        alarms = self.oms.getAlarmsByPlatformType([platform_type])
+        self.assertIsInstance(alarms, dict)
+        self.assertEquals(len(alarms), 1)
+        self.assertTrue(platform_type in alarms)
+        self.assertEquals(InvalidResponse.PLATFORM_TYPE, alarms[platform_type])
+
+    def _get_registered_alarm_listeners(self):
+        listeners = self.oms.getRegisteredAlarmListeners()
+        print("getRegisteredAlarmListeners returned %s" % str(listeners))
+        self.assertIsInstance(listeners, dict)
+        return listeners
+
+    def _register_alarm_listener(self, url, alarm_types):
+        result = self.oms.registerAlarmListener(url, alarm_types)
+        print("registerAlarmListener returned %s" % str(result))
+        self.assertIsInstance(result, dict)
+        self.assertEquals(len(result), 1)
+        self.assertTrue(url in result)
+        return result[url]
+
+    def _register_one_alarm_listener(self):
+        all_alarms = self._get_all_alarm_types()
+        if len(all_alarms) == 0:
+            print "WARNING: No alarm types reported so not registering any listener"
+            return None
+
+        # arbitrarily pick first alarm type
+        alarm_type_id = all_alarms.keys()[0]
+
+        url = "http://localhost:9753"
+        res = self._register_alarm_listener(url, [alarm_type_id])[0]
+
+        # check that it's registered
+        listeners = self._get_registered_alarm_listeners()
+        self.assertTrue(url in listeners)
+
+        print("_register_one_alarm_listener: res=%s" % str(res))
+        return url, res
+
+    def test_be_registerAlarmListener(self):
+        self._register_one_alarm_listener()
+
+    def test_bf_registerAlarmListener_invalid_alarm_type(self):
+        url = "http://localhost:9753"
+        alarm_type_id = BOGUS_ALARM_TYPE
+        res = self._register_alarm_listener(url, [alarm_type_id])
+        self.assertEquals(len(res), 1)
+        self.assertEquals((alarm_type_id, InvalidResponse.ALARM_TYPE), res[0])
+
+        # check that it's registered
+        listeners = self._get_registered_alarm_listeners()
+        self.assertTrue(url in listeners)
+
+    def test_bg_getRegisteredAlarmListeners(self):
+        self._get_registered_alarm_listeners()
+
+    def _unregister_alarm_listener(self, url, alarm_types):
+        result = self.oms.unregisterAlarmListener(url, alarm_types)
+        print("unregisterAlarmListener returned %s" % str(result))
+        self.assertIsInstance(result, dict)
+        self.assertEquals(len(result), 1)
+        self.assertTrue(url in result)
+        return result[url]
+
+    def test_bh_unregisterAlarmListener(self):
+        result = self._get_registered_alarm_listeners()
+        if len(result) == 0:
+            print "WARNING: No alarm listeners to unregister"
+            return
+
+        url = result.keys()[0]
+        alarm_pairs = result[url]
+        self.assertTrue(len(alarm_pairs) > 0)
+        alarm_type_id, time = alarm_pairs[0]
+        self._unregister_alarm_listener(url, [alarm_type_id])
+
+        # check that it's unregistered
+        listeners = self._get_registered_alarm_listeners()
+        self.assertTrue(url not in listeners)
+
+    def test_bi_unregisterAlarmListener_not_registered_url(self):
+        url = "http://_never_registered_url"
+        alarm_type_id = "dummy_alarm_type"
+        res = self._unregister_alarm_listener(url, [alarm_type_id])
+        self.assertEquals(InvalidResponse.ALARM_LISTENER_URL, res)
+
+    def test_bj_unregisterAlarmListener_invalid_alarm_type(self):
+        reg_res = None
+        result = self._get_registered_alarm_listeners()
+        if len(result) == 0:
+            # register one
+            url, reg_res = self._register_one_alarm_listener()
+        else:
+            url = result.keys()[0]
+
+        # here we have a valid url; now use a bogus alarm type:
+        print("unregistering %s" % BOGUS_ALARM_TYPE)
+        res = self._unregister_alarm_listener(url, [BOGUS_ALARM_TYPE])
+        self.assertEquals((BOGUS_ALARM_TYPE, InvalidResponse.ALARM_TYPE), res[0])
+
+        if reg_res:
+            # unregister the one created above
+            alarm_type_id, reg_time = reg_res
+            print("unregistering %s" % alarm_type_id)
+            self._unregister_alarm_listener(url, [alarm_type_id])
+
+        self._get_registered_alarm_listeners()
