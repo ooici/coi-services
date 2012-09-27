@@ -346,13 +346,13 @@ class PlatformAgent(ResourceAgent):
 
         stream_name = driver_event._attr_id
         if not stream_name in self._data_streams:
-            log.warn('%r: unrecognized stream %r',
+            log.warn('%r: got attribute value event for unconfigured stream %r',
                      self._platform_id, stream_name)
             return
 
         publisher = self._data_publishers.get(stream_name, None)
         if not publisher:
-            log.warn('%r: no publisher given for stream %r',
+            log.warn('%r: no publisher configured for stream %r',
                      self._platform_id, stream_name)
             return
 
