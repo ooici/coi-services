@@ -38,6 +38,7 @@ from coverage_model.parameter_types import QuantityType
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.util.parameter_yaml_IO import get_param_dict
+from ion.agents.port.port_agent_process import PortAgentProcessType
 
 class FakeProcess(LocalContextMixin):
     """
@@ -48,7 +49,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='frick')
 class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
     def setUp(self):
@@ -256,11 +257,24 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgentInstance to hold configuration information
         #-------------------------------
+
+
+        port_agent_config = {
+            'device_addr': 'sbe37-simulator.oceanobservatories.org',
+            'device_port': 4001,
+            'process_type': PortAgentProcessType.UNIX,
+            'binary_path': "port_agent",
+            'command_port': 4002,
+            'data_port': 4003,
+            'log_level': 5,
+        }
+
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
                                           driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver",
-                                          cmd_port=5556, evt_port=5557, comms_method="ethernet", comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
-                                          comms_server_address="localhost", comms_server_port=8888)
+                                          comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
+                                          port_agent_config = port_agent_config)
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
+
 
         #-------------------------------
         # Create CTD Parsed as the first data product
