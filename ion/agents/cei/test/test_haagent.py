@@ -275,6 +275,8 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
     def _stop_webserver(self):
         if self._webserver is not None:
+            self._webserver.stop()
+            gevent.sleep(2)
             self._web_glet.kill()
 
     def setUp(self):
@@ -348,7 +350,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
     def tearDown(self):
         self.container.terminate_process(self._haa_pid)
-        self._start_webserver()
+        self._stop_webserver()
         self._stop_container()
 
     def _event_callback(self, event, *args, **kwargs):
@@ -360,7 +362,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         self.event_sub.start()
 
     def await_state_event(self, pid, state):
-        event = self.event_queue.get(timeout=60)
+        event = self.event_queue.get(timeout=120)
         log.debug("Got event: %s", event)
         self.assertTrue(event.origin.startswith(pid))
         self.assertEqual(event.state, state)

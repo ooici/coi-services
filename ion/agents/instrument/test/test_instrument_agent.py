@@ -97,9 +97,11 @@ DEV_PORT = CFG.device.sbe37.port
 #DEV_PORT = 4001 # Moxa port or simulator random data.
 #DEV_PORT = 4002 # Simulator sine data.
 
-DATA_PORT = 4000
-CMD_PORT = 4003
-PA_BINARY = 'port_agent'
+DEV_ADDR = CFG.device.sbe37.host
+DEV_PORT = CFG.device.sbe37.port
+DATA_PORT = CFG.device.sbe37.port_agent_data_port
+CMD_PORT = CFG.device.sbe37.port_agent_cmd_port
+PA_BINARY = CFG.device.sbe37.port_agent_binary
 
 # A seabird driver.
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'

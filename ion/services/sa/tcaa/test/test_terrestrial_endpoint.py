@@ -84,11 +84,11 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._remote_client = R3PCClient(self.consume_ack, self.remote_client_close)
         self.addCleanup(self._remote_server.stop)
         self.addCleanup(self._remote_client.stop)
-        self._remote_port = self._remote_server.start('*', 0)
-        log.debug('Remote server binding to *:%i', self._remote_port)
+        self._other_port = self._remote_server.start('*', 0)
+        log.debug('Remote server binding to *:%i', self._other_port)
         
         # Set internal variables.
-        self._remote_host = 'localhost'
+        self._other_host = 'localhost'
         self._platform_resource_id = 'abc123'
         self._resource_id = 'fake_id'
         self._no_requests = 10
@@ -120,9 +120,9 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
         # Create agent config.
         endpoint_config = {
-            'remote_host' : self._remote_host,
-            'remote_port' : self._remote_port,
-            'terrestrial_port' : 0,
+            'other_host' : self._other_host,
+            'other_port' : self._other_port,
+            'this_port' : 0,
             'platform_resource_id' : self._platform_resource_id
         }
         
@@ -142,7 +142,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         log.debug('Got te client %s.', str(self.te_client))
         
         # Remember the terrestrial port.
-        self._terrestrial_port = self.te_client.get_port()
+        self._this_port = self.te_client.get_port()
         
         # Start the event publisher.
         self._event_publisher = EventPublisher()
@@ -197,8 +197,8 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         Called by a test to simulate turning the link on.
         """
         log.debug('Remote client connecting to localhost:%i.',
-                  self._terrestrial_port)
-        self._remote_client.start('localhost', self._terrestrial_port)
+                  self._this_port)
+        self._remote_client.start('localhost', self._this_port)
         # Publish a link up event to be caught by the endpoint.
         log.debug('Publishing telemetry event.')
         self._event_publisher.publish_event(
@@ -350,6 +350,8 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         
         self.on_link_up()
 
+        gevent.sleep(2)
+
         self._remote_server.stop()
         self._remote_client.stop()
 
@@ -362,8 +364,8 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
         gevent.sleep(3)
         
-        self._remote_client.start('localhost', self._terrestrial_port)
-        self._remote_server.start('*', self._remote_port)
+        self._remote_client.start('localhost', self._this_port)
+        self._remote_server.start('*', self._other_port)
 
         self._done_cmd_tx_evts.get(timeout=5)
         self._done_evt.get(timeout=10)

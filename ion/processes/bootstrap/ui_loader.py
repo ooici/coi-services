@@ -85,8 +85,6 @@ class UILoader(object):
         if path.startswith("http"):
             self._get_ui_files(path)
             self.read_from_local = False
-        else:
-            path = path + "/ui_assets"
 
         log.info("Start parsing UI assets from path=%s" % path)
 

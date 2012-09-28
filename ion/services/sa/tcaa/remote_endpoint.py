@@ -15,6 +15,11 @@ from pyon.public import CFG
 
 import uuid
 import time
+import random
+
+#
+import gevent
+
 
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
@@ -25,17 +30,95 @@ from interface.objects import TelemetryStatusType, RemoteCommand
 
 from interface.services.sa.iremote_endpoint import BaseRemoteEndpoint
 from interface.services.sa.iremote_endpoint import RemoteEndpointProcessClient
-from ion.services.sa.tcaa.r3pc import R3PCServer
-from ion.services.sa.tcaa.r3pc import R3PCClient
+from ion.services.sa.tcaa.endpoint_mixin import EndpointMixin
 
-class RemoteEndpoint(BaseRemoteEndpoint):
+
+class ServiceCommandQueue(object):
+    """
+    """
+    def __init__(self, id, callback):
+        """
+        """
+        self._id = id
+        self._queue = []
+        self._client = None
+        self._callback = callback
+        self._greenlet = None
+        
+        if id == 'fake_id':
+            pass
+        
+        else:
+            # Look for a service with name == id.
+            
+            # Then look for a resource with resource_id == id.
+            
+            # If nothing found raise.
+            # raise ValueError
+            pass
+
+    def start(self):
+        
+        def command_loop():
+            while True:
+                try:
+                    cmd = self._queue.pop(0)
+                    
+                except IndexError:
+                    # No command available, sleep for a while.
+                    gevent.sleep(.1)
+                    continue
+                
+                if self._id == 'fake_id':
+                    log.debug('Processing fake command.')
+                    worktime = random.uniform(.1,3)
+                    gevent.sleep(worktime)
+                    result = 'fake_result'
+                else:
+                    cmdstr = cmd.command
+                    args = cmd.args
+                    kwargs = cmd.kwargs
+                    try:
+                        func = getattr(self,_client, cmdstr)
+                        result = func(*args, **kwargs)
+                    
+                    except AttributeError, TypeError:
+                        # The command does not exist.
+                        pass
+                        
+                    except Exception as ex:
+                        # populate result with error.
+                        pass
+                
+                cmd_result = {
+                    'command_id' : cmd.command_id,
+                    'result' : result
+                }
+                self._callback(cmd_result)
+                    
+        self._greenelet = gevent.spawn(command_loop)
+
+    def stop(self):
+        """
+        """
+        if self._greenlet:
+            self._greenlet.kill()
+            self._greenlet.join()
+            self._greenlet = None
+
+    def insert(self, cmd):
+        """
+        """
+        self._queue.append(cmd)
+
+class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
     """
     """
     def __init__(self, *args, **kwargs):
         """
         For framework level code only.
         """
-        super(BaseRemoteEndpoint, self).__init__(*args, **kwargs)
+        super(RemoteEndpoint, self).__init__(*args, **kwargs)
         
     ######################################################################    
     # Framework process lifecycle funcitons.
@@ -46,95 +129,116 @@ class RemoteEndpoint(BaseRemoteEndpoint):
         Application level initializer.
         Setup default internal values.
         """
-        super(BaseRemoteEndpoint, self).on_init()
-        self._server = None
-        self._client = None
-        self._terrestrial_host = self.CFG.terrestrial_host
-        self._terrestrial_port = self.CFG.terrestrial_port
-        self._remote_port = 0
-        self._platform_resource_id = self.CFG.platform_resource_id
-        self._remote_port = self.CFG.remote_port
-        self._link_status = TelemetryStatusType.UNAVAILABLE
-        self._event_subscriber = None
-        self._server_greenlet = None
-        self._publisher = EventPublisher()
+        super(RemoteEndpoint, self).on_init()
+        self.mixin_on_init()
+        self._service_command_queues = {}
 
     def on_start(self):
         """
         Process about to be started.
         """
-        super(BaseRemoteEndpoint, self).on_start()
-        
-        # Start the event subscriber.
-        self._event_subscriber = EventSubscriber(
-            event_type='PlatformTelemetryEvent',
-            callback=self._consume_telemetry_event,
-            origin=self._platform_resource_id)
-        self._event_subscriber.start()
-        self._event_subscriber._ready_event.wait(timeout=5)        
+        super(RemoteEndpoint, self).on_start()
+        self.mixin_on_start()
         
     def on_stop(self):
         """
         Process about to be stopped.
         """
-        self._stop()
-        super(BaseRemoteEndpoint, self).on_stop()
+        self.mixin_on_stop()
+        self._stop_queues()
+        super(RemoteEndpoint, self).on_stop()
     
     def on_quit(self):
         """
         Process terminated following.
         """
-        self._stop()
-        super(BaseRemoteEndpoint, self).on_quit()
-
-    ######################################################################    
-    # Callbacks.
-    ######################################################################    
-
-    def _req_callback(self, result):
-        """
-        """
-        pass
-    
-    def _ack_callback(self, request):
-        """
-        """
-        pass
-    
-    def _server_close_callback(self):
-        """
-        """
-        pass
-    
-    def _client_close_callback(self):
-        """
-        """
-        pass
-    
-    def _consume_telemetry_event(self, *args, **kwargs):
-        """
-        """
-        print '##########################################'
-        print "GOT A TELEMETRY EVENT: args:%s  kwargs:%s" % (str(args), str(kwargs))
+        self.mixin_on_quit()
+        self._stop_queues()
+        super(RemoteEndpoint, self).on_quit()
 
     ######################################################################    
     # Helpers.
     ######################################################################    
 
-    def _stop(self):
+    def _stop_queues(self):
         """
-        Stop sockets and subscriber.
         """
-        if self._event_subscriber:
-            self._event_subscriber.stop()
-            self._event_subscriber = None
-        if self._server:
-            self._server.stop()
-            self._server = None
-        if self._client:
-            self._client.stop()
-            self._client = None
+        for (id, queue) in self._service_command_queues.iteritems():
+            queue.stop()
+        self._service_command_queues = {}
+
+    ######################################################################    
+    # Callbacks.
+    ######################################################################    
+
+    def _req_callback(self, request):
+        """
+        """
+        try:
+            id = request.resource_id
+            service_queue = self._service_command_queues[id]
+            
+        except KeyError:
+            service_queue = ServiceCommandQueue(id, self._result_complete)
+            service_queue.start()
+            self._service_command_queues[id] = service_queue
+
+        service_queue.insert(request)
+        log.debug('Remote endpoint got request: %s', str(request))
     
+    def _ack_callback(self, result):
+        """
+        """
+        log.debug('Remote endpoint got ack for result: %s', str(result))
+    
+    def _server_close_callback(self):
+        """
+        """
+        log.debug('Remote endpoint server closed.')
+    
+    def _client_close_callback(self):
+        """
+        """
+        log.debug('Remote endpoint client closed.')
+    
+    def _consume_telemetry_event(self, *args, **kwargs):
+        """
+        """
+        log.debug('Telemetry event received by remote endpoint, args: %s, kwargs: %s',
+                  str(args), str(kwargs))
+        evt = args[0]
+        self._link_status = evt.status
+        if evt.status == TelemetryStatusType.AVAILABLE:
+            log.debug('Remote endpoint telemetry available.')
+            self._on_link_up()
+            
+        elif evt.status == TelemetryStatusType.UNAVAILABLE:
+            log.debug('Remote endpoint telemetry not available.')
+            self._on_link_down()
+    
+    def _on_link_up(self):
+        """
+        Processing on link up event.
+        Start client socket.
+        ION link availability published when pending commands are transmitted.
+        """
+        log.debug('%s client connecting to %s:%i',
+                    self.__class__.__name__,
+                    self._other_host, self._other_port)
+        self._client.start(self._other_host, self._other_port)
+
+    def _on_link_down(self):
+        """
+        Processing on link down event.
+        Stop client socket and publish ION link unavailability.
+        """
+        self._client.stop()
+    
+    def _result_complete(self, result):
+        """
+        """
+        self._client.enqueue(result)
+
     ######################################################################    
     # Commands.
     ######################################################################    
@@ -142,7 +246,7 @@ class RemoteEndpoint(BaseRemoteEndpoint):
     def get_port(self):
         """
         """
-        return self._remote_port
+        return self._this_port
     
 class RemoteEndpointClient(RemoteEndpointProcessClient):
     """
@@ -150,25 +254,3 @@ class RemoteEndpointClient(RemoteEndpointProcessClient):
     """
     pass
 
-"""
-from pyon.core.bootstrap import get_service_registry
-svc_client_cls = get_service_registry().get_service_by_name(svc_name).client    
-""" 
-
-"""
-list procs from self.container.proc_manager.list_procs():
-EventPersister(name=event_persister,id=Edwards-MacBook-Pro_local_12469.1,type=standalone)
-ResourceRegistryService(name=resource_registry,id=Edwards-MacBook-Pro_local_12469.3,type=service)
-IdentityManagementService(name=identity_management,id=Edwards-MacBook-Pro_local_12469.5,type=service)
-DirectoryService(name=directory,id=Edwards-MacBook-Pro_local_12469.4,type=service)
-ExchangeManagementService(name=exchange_management,id=Edwards-MacBook-Pro_local_12469.7,type=service)
-
-procs by name (self.container.proc_manager.procs_by_name):
-data_retriever == DataRetrieverService(name=data_retriever,id=Edwards-MacBook-Pro_local_12469.18,type=service)
-agent_management == AgentManagementService(name=agent_management,id=Edwards-MacBook-Pro_local_12469.9,type=service)
-event_persister == EventPersister(name=event_persister,id=Edwards-MacBook-Pro_local_12469.1,type=standalone)
-identity_management == IdentityManagementService(name=identity_management,id=Edwards-MacBook-Pro_local_12469.5,type=service)
-catalog_management == CatalogManagementService(name=catalog_management,id=Edwards-MacBook-Pro_local_12469.22,type=service)
-pubsub_management == PubsubManagementService(name=pubsub_management,id=Edwards-MacBook-Pro_local_12469.15,type=service)
-"""
-    

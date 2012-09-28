@@ -25,10 +25,9 @@ from interface.objects import TelemetryStatusType, RemoteCommand
 
 from interface.services.sa.iterrestrial_endpoint import BaseTerrestrialEndpoint
 from interface.services.sa.iterrestrial_endpoint import TerrestrialEndpointProcessClient
-from ion.services.sa.tcaa.r3pc import R3PCServer
-from ion.services.sa.tcaa.r3pc import R3PCClient
+from ion.services.sa.tcaa.endpoint_mixin import EndpointMixin
 
-class TerrestrialEndpoint(BaseTerrestrialEndpoint):
+class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
     """
     Terrestrial endpoint for two component agent architecture.
     This class provides a manipulable terrestrial command queue and fully
@@ -39,7 +38,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         """
         For framework level code only.
         """
-        super(BaseTerrestrialEndpoint, self).__init__(*args, **kwargs)
+        super(TerrestrialEndpoint, self).__init__(*args, **kwargs)
 
     ######################################################################    
     # Framework process lifecycle functions.
@@ -51,17 +50,8 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         Setup default internal values.
         """
         super(BaseTerrestrialEndpoint, self).on_init()
-        self._server = None
-        self._client = None
-        self._remote_host = self.CFG.remote_host
-        self._remote_port = self.CFG.remote_port
-        self._terrestrial_port = self.CFG.terrestrial_port
-        self._platform_resource_id = self.CFG.platform_resource_id
-        self._link_status = TelemetryStatusType.UNAVAILABLE
+        self.mixin_on_init()
         self._tx_dict = {}
-        self._event_subscriber = None
-        self._server_greenlet = None
-        self._publisher = EventPublisher()
     
     def on_start(self):
         """
@@ -71,30 +61,14 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         Start telemetry subscriber.
         """
         super(BaseTerrestrialEndpoint, self).on_start()
-        self._server = R3PCServer(self._req_callback,
-                                self._server_close_callback)
-        self._client = R3PCClient(self._ack_callback,
-                                self._client_close_callback)
-        if self._terrestrial_port == 0:            
-            self._terrestrial_port = self._server.start('*', self._terrestrial_port)
-        else:
-            self._server.start('*', self._terrestrial_port)
-        log.debug('Terrestrial server binding to *:%i', self._terrestrial_port)
-    
-        # Start the event subscriber.
-        self._event_subscriber = EventSubscriber(
-            event_type='PlatformTelemetryEvent',
-            callback=self._consume_telemetry_event,
-            origin=self._platform_resource_id)
-        self._event_subscriber.start()
-        self._event_subscriber._ready_event.wait(timeout=5)
+        self.mixin_on_start()
                 
     def on_stop(self):
         """
         Process about to be stopped.
         Stop sockets and subscriber.
         """
-        self._stop()
+        self.mixin_on_stop()
         super(BaseTerrestrialEndpoint, self).on_stop()
     
     def on_quit(self):
@@ -102,7 +76,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         Process terminated following.
         Stop sockets and subscriber.
         """
-        self._stop()
+        self.mixin_on_quit()
         super(BaseTerrestrialEndpoint, self).on_quit()
 
     ######################################################################    
@@ -172,10 +146,6 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         elif evt.status == TelemetryStatusType.UNAVAILABLE:
             log.debug('Telemetry not available.')
             self._on_link_down()
-        
-    ######################################################################    
-    # Helpers.
-    ######################################################################    
 
     def _on_link_up(self):
         """
@@ -183,9 +153,10 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         Start client socket.
         ION link availability published when pending commands are transmitted.
         """
-        log.debug('Terrestrial client connecting to %s:%i',
-                      self._remote_host, self._remote_port)
-        self._client.start(self._remote_host, self._remote_port)
+        log.debug('%s client connecting to %s:%i',
+                    self.__class__.__name__,
+                    self._other_host, self._other_port)
+        self._client.start(self._other_host, self._other_port)
         self._publisher.publish_event(
                                 event_type='PublicPlatformTelemetryEvent',
                                 origin=self._platform_resource_id,
@@ -201,20 +172,6 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
                                 event_type='PublicPlatformTelemetryEvent',
                                 origin=self._platform_resource_id,
                                 status=TelemetryStatusType.UNAVAILABLE)        
-        
-    def _stop(self):
-        """
-        Stop sockets and subscriber.
-        """
-        if self._event_subscriber:
-            self._event_subscriber.stop()
-            self._event_subscriber = None
-        if self._server:
-            self._server.stop()
-            self._server = None
-        if self._client:
-            self._client.stop()
-            self._client = None
         
     ######################################################################    
     # Commands.
@@ -325,7 +282,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint):
         """
         Retrieve the terrestrial server port.
         """
-        return self._terrestrial_port
+        return self._this_port
 
 
 class TerrestrialEndpointClient(TerrestrialEndpointProcessClient):

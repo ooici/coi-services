@@ -1,15 +1,31 @@
 #!/usr/bin/env python
 
-"""Process that loads ION resources via service calls based on given definitions"""
+"""Process that loads ION resources via service calls based on given definitions
+
+    @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
+
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
+
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadui=True
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadooi path=res/preload/r2_ioc scenario=R2_DEMO,SCALE_TEST
+
+    ui_path= override location to get UI preload files (default is path + '/ui_assets')
+    assets= override location to get OOI asset file (default is path + '/ooi_assets')
+    attachments= override location to get file attachments (default is path)
+
+    TODO: constraints defined in multiple tables as list of IDs, but not used
+    TODO: support attachments using HTTP URL
+"""
 
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 
 import ast
 import csv
-try:
-    import xlrd
-except:
-    pass
 import requests
 import StringIO
 
@@ -21,22 +37,16 @@ from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any, get_ion_ts
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import CoverageCraft
+from ion.util.parameter_yaml_IO import get_param_dict
+try:
+    import xlrd
+except:
+    log.warning('failed to import xlrd, cannot use http path')
 
 DEBUG = True
 
 class IONLoader(ImmediateProcess):
     """
-    @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
-
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
-
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadui=True
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadooi path=res/preload/r2_ioc scenario=R2_DEMO
     """
 
     COL_SCENARIO = "Scenario"
@@ -47,27 +57,39 @@ class IONLoader(ImmediateProcess):
 
     ID_ORG_ION = "ORG_ION"
 
+    unknown_fields = {}
+
     def on_start(self):
         self.ui_loader = UILoader(self)
 
         global DEBUG
         op = self.CFG.get("op", None)
-        path = self.CFG.get("path", None)
-        scenario = self.CFG.get("scenario", None)
+        self.path = self.CFG.get("path", None)
+        if not self.path:
+            raise iex.BadRequest("Must provide path")
+        self.attachment_path = self.CFG.get("attachments", self.path + '/attachments')
+        self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets")
+        default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
+        self.ui_path = self.CFG.get("ui_path", default_ui_path)
+        scenarios = self.CFG.get("scenario", None)
         DEBUG = self.CFG.get("debug", False)
         self.loadooi = self.CFG.get("loadooi", False)
         self.loadui = self.CFG.get("loadui", False)
         self.exportui = self.CFG.get("exportui", False)
 
-        log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, path, scenario))
+        log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, self.path, scenarios))
         if op:
             if op == "load":
-                self.load_ion(path, scenario)
+                if not scenarios:
+                    raise iex.BadRequest("Must provide scenarios to load: scenario=sc1,sc2,...")
+                items = scenarios.split(',')
+                for scenario in items:
+                    self.load_ion(scenario)
             elif op == "loadooi":
-                self.extract_ooi_assets(path)
+                self.extract_ooi_assets()
             elif op == "loadui":
                 specs_path = 'ui_specs.json' if self.exportui else None
-                self.ui_loader.load_ui(path, specs_path=specs_path)
+                self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
             elif op == "deleteui":
                 self.ui_loader.delete_ui()
             else:
@@ -78,13 +100,8 @@ class IONLoader(ImmediateProcess):
     def on_quit(self):
         pass
 
-    def load_ion(self, path, scenario):
-        if not path:
-            raise iex.BadRequest("Must provide path")
-        if not scenario:
-            raise iex.BadRequest("Must provide scenario")
-
-        log.info("Start preloading from path=%s" % path)
+    def load_ion(self, scenario):
+        log.info("Loading from path: %s" % self.path)
         categories = ['User',
                       'Org',
                       'UserRole',
@@ -110,22 +127,21 @@ class IONLoader(ImmediateProcess):
                       'Deployment',
                       ]
 
-        self.path = path
         self.obj_classes = {}
         self.resource_ids = {}
         self.user_ids = {}
 
         self._preload_ids()
         if self.loadooi:
-            self.extract_ooi_assets(path)
+            self.extract_ooi_assets()
 
         if self.loadui:
-            self.ui_loader.load_ui(path)
+            specs_path = 'ui_specs.json' if self.exportui else None
+            self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
 
-        if path.startswith('http'):
-            preload_doc_str = requests.get(path).content
-            log.info("Loaded preload spreadsheet from URL %s size=%s", path, len(preload_doc_str))
-
+        if self.path.startswith('http'):
+            preload_doc_str = requests.get(self.path).content
+            log.debug("Fetched URL contents, size=%s", len(preload_doc_str))
             xls_parser = XLSParser()
             self.csv_files = xls_parser.extract_csvs(preload_doc_str)
         else:
@@ -140,8 +156,8 @@ class IONLoader(ImmediateProcess):
                 catfunc_ooi()
 
             catfunc = getattr(self, "_load_%s" % category)
-            filename = "%s/%s.csv" % (path, category)
-            log.info("Loading category %s from file %s", category, filename)
+            filename = "%s/%s.csv" % (self.path, category)
+            log.info("Loading category %s", category)
             try:
                 csvfile = None
                 if self.csv_files is not None:
@@ -156,7 +172,7 @@ class IONLoader(ImmediateProcess):
                 for row in reader:
                     # Check if scenario applies
                     rowsc = row[self.COL_SCENARIO]
-                    if not scenario in rowsc:
+                    if not scenario == rowsc:
                         row_skip += 1
                         continue
                     row_do += 1
@@ -164,8 +180,7 @@ class IONLoader(ImmediateProcess):
                     log.debug('handling %s row: %r', category, row)
                     catfunc(row)
             except IOError, ioe:
-                log.exception("ERROR")
-                log.warn("Resource category file %s error: %s" % (filename, str(ioe)))
+                log.warn("Resource category file %s error: %s" % (filename, str(ioe)), exc_info=True)
             finally:
                 if csvfile is not None:
                     csvfile.close()
@@ -174,7 +189,7 @@ class IONLoader(ImmediateProcess):
             log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
 
     def _create_object_from_row(self, objtype, row, prefix=''):
-        log.info("Create object type=%s, prefix=%s" % (objtype, prefix))
+        log.trace("Create object type=%s, prefix=%s", objtype, prefix)
         schema = self._get_object_class(objtype)._schema
         obj_fields = {}
         exclude_prefix = set()
@@ -187,7 +202,7 @@ class IONLoader(ImmediateProcess):
                     if not nested_obj_field in exclude_prefix:
                         nested_obj_type = schema[nested_obj_field]['type']
                         nested_prefix = prefix + fieldname[:slidx+1]
-                        log.info("Get nested object field=%s type=%s, prefix=%s" % (nested_obj_field, nested_obj_type, nested_prefix))
+                        log.trace("Get nested object field=%s type=%s, prefix=%s", nested_obj_field, nested_obj_type, nested_prefix)
                         nested_obj = self._create_object_from_row(nested_obj_type, row, nested_prefix)
                         obj_fields[nested_obj_field] = nested_obj
                         exclude_prefix.add(nested_obj_field)
@@ -197,21 +212,28 @@ class IONLoader(ImmediateProcess):
                             fieldvalue = self._get_typed_value(value, schema[fieldname])
                             obj_fields[fieldname] = fieldvalue
                     except Exception:
-                        log.warn("Object type=%s, prefix=%s, field=%s cannot be converted to type=%s. Value=%s" % (objtype, prefix, fieldname, schema[fieldname]['type'], value))
+                        log.warn("Object type=%s, prefix=%s, field=%s cannot be converted to type=%s. Value=%s", objtype, prefix, fieldname, schema[fieldname]['type'], value, exc_info=True)
                         #fieldvalue = str(fieldvalue)
                 else:
-                    log.warn("Unknown fieldname: %s" % fieldname)
-        log.info("Create object type %s from field names %s" % (objtype, obj_fields.keys()))
+                    # warn about unknown fields just once -- not on each row
+                    if objtype not in self.unknown_fields:
+                        self.unknown_fields[objtype] = []
+                    if fieldname not in self.unknown_fields[objtype]:
+                        log.warn("Skipping unknown field in %s: %s%s", objtype, prefix, fieldname)
+                        self.unknown_fields[objtype].append(fieldname)
+        log.trace("Create object type %s from field names %s", objtype, obj_fields.keys())
         obj = IonObject(objtype, **obj_fields)
         return obj
 
     def _get_object_class(self, objtype):
         if objtype in self.obj_classes:
             return self.obj_classes[objtype]
-
-        obj_class = named_any("interface.objects.%s" % objtype)
-        self.obj_classes[objtype] = obj_class
-        return obj_class
+        try:
+            obj_class = named_any("interface.objects.%s" % objtype)
+            self.obj_classes[objtype] = obj_class
+            return obj_class
+        except:
+            log.error('failed to find class for type %s' % objtype)
 
     def _get_typed_value(self, value, schema_entry=None, targettype=None):
         targettype = targettype or schema_entry["type"]
@@ -245,6 +267,7 @@ class IONLoader(ImmediateProcess):
                 value = value[1:len(value)-1].strip()
             return list(value.split(','))
         else:
+            log.trace('parsing value as %s: %s', targettype, value)
             return ast.literal_eval(value)
 
     def _get_service_client(self, service):
@@ -254,11 +277,11 @@ class IONLoader(ImmediateProcess):
         if alias in self.resource_ids:
             raise iex.BadRequest("ID alias %s used twice" % alias)
         self.resource_ids[alias] = resid
-        log.info("Added resource alias=%s to id=%s" % (alias, resid))
+        log.debug("Added resource alias=%s to id=%s", alias, resid)
 
     def _register_user_id(self, name, id):
         self.user_ids[name] = id
-        log.info("Added user name|id=%s|%s" % (name, id))
+        log.debug("Added user name|id=%s|%s", name, id)
 
     def _get_op_headers(self, row):
         headers = {}
@@ -269,18 +292,12 @@ class IONLoader(ImmediateProcess):
         return headers
 
     def _basic_resource_create(self, row, restype, prefix, svcname, svcop, **kwargs):
-        log.info("Loading %s (ID=%s)" % (restype, row[self.COL_ID]))
         res_obj = self._create_object_from_row(restype, row, prefix)
-        log.info("%s: %s" % (restype,res_obj))
-
         headers = self._get_op_headers(row)
-
         svc_client = self._get_service_client(svcname)
         res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
         self._register_id(row[self.COL_ID], res_id)
-
         self._resource_assign_org(row, res_id)
-
         return res_id
 
     def _resource_advance_lcs(self, row, res_id, restype=None):
@@ -322,7 +339,6 @@ class IONLoader(ImmediateProcess):
     # Add specific types of resources below
 
     def _load_User(self, row):
-        log.info("Loading user")
         subject = row["subject"]
         name = row["name"]
         email = row["email"]
@@ -341,9 +357,9 @@ class IONLoader(ImmediateProcess):
         ims.create_user_info(user_id, user_info_obj)
 
     def _load_Org(self, row):
-        log.info("Loading Org (ID=%s)" % (row[self.COL_ID]))
+        log.trace("Loading Org (ID=%s)", row[self.COL_ID])
         res_obj = self._create_object_from_row("Org", row, "org/")
-        log.info("Org: %s" % (res_obj))
+        log.trace("Org: %s", res_obj)
 
         headers = self._get_op_headers(row)
 
@@ -360,10 +376,6 @@ class IONLoader(ImmediateProcess):
         self._register_id(row[self.COL_ID], res_id)
 
     def _load_UserRole(self, row):
-        log.info("Loading UserRole")
-
-        rr_client = self._get_service_client("resource_registry")
-
         org_id = row["org_id"]
         if org_id:
             if org_id == self.ID_ORG_ION and DEBUG:
@@ -387,7 +399,6 @@ class IONLoader(ImmediateProcess):
                                             "instrument_management", "create_platform_model")
 
     def _load_PlatformModel_OOI(self):
-        log.info("Loading OOI PlatformModel assets")
         for pm_def in self.platform_models.values():
             fakerow = {}
             fakerow[self.COL_ID] = pm_def['code']
@@ -400,11 +411,11 @@ class IONLoader(ImmediateProcess):
             self._load_PlatformModel(fakerow)
 
     def _load_InstrumentModel(self, row):
+        log.debug('laoding InstrumentModel')
         res_id = self._basic_resource_create(row, "InstrumentModel", "im/",
                                             "instrument_management", "create_instrument_model")
 
     def _load_InstrumentModel_OOI(self):
-        log.info("Loading OOI InstrumentModel assets")
         for im_def in self.instrument_models.values():
             fakerow = {}
             fakerow[self.COL_ID] = im_def['code']
@@ -430,7 +441,6 @@ class IONLoader(ImmediateProcess):
             svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id])
 
     def _load_Subsite_OOI(self):
-        log.info("Loading OOI Observatory assets")
         for site_def in self.obs_sites.values():
             fakerow = {}
             fakerow[self.COL_ID] = site_def['code']
@@ -438,10 +448,8 @@ class IONLoader(ImmediateProcess):
             fakerow['obs/description'] = site_def['name']
             org_id = 'MF_RSN' if site_def['code'].startswith("R") else 'MF_CGSN'
             fakerow['org_ids'] = org_id
-
             self._load_Observatory(fakerow)
 
-        log.info("Loading OOI Subsite assets")
         for site_def in self.sub_sites.values():
             fakerow = {}
             fakerow[self.COL_ID] = site_def['code']
@@ -469,7 +477,6 @@ class IONLoader(ImmediateProcess):
                 svc_client.assign_platform_model_to_platform_site(self.resource_ids[pm_id], res_id)
 
     def _load_PlatformSite_OOI(self):
-        log.info("Loading OOI PlatformSite assets")
         for i, lp_def in enumerate(self.logical_platforms.values()):
             fakerow = {}
             fakerow[self.COL_ID] = lp_def['code']
@@ -498,7 +505,6 @@ class IONLoader(ImmediateProcess):
                 svc_client.assign_instrument_model_to_instrument_site(self.resource_ids[im_id], res_id)
 
     def _load_InstrumentSite_OOI(self):
-        log.info("Loading OOI InstrumentSite assets")
         for i, li_def in enumerate(self.logical_instruments.values()):
             fakerow = {}
             fakerow[self.COL_ID] = li_def['code']
@@ -515,71 +521,35 @@ class IONLoader(ImmediateProcess):
                 break
 
     def _load_StreamDefinition(self, row):
-        log.info("Loading StreamDefinition")
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
-        log.info("StreamDefinition: %s" % res_obj)
-
         sd_module = row["StreamContainer_module"]
         sd_method = row["StreamContainer_method"]
         creator_func = named_any("%s.%s" % (sd_module, sd_method))
         sd_container = creator_func()
-
         svc_client = self._get_service_client("pubsub_management")
         res_id = svc_client.create_stream_definition( name=res_obj.name, description=res_obj.description)
-
         self._register_id(row[self.COL_ID], res_id)
 
     def _load_PlatformDevice(self, row):
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
                                             "instrument_management", "create_platform_device")
-
-#        oms_client = self._get_service_client("observatory_management")
-#        ass_ids = row["deployment_lp_ids"]
-#        if ass_ids:
-#            ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
-#            for ass_id in ass_ids:
-#                oms_client.assign_device_to_site(res_id, self.resource_ids[ass_id])
-
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["platform_model_id"]
         if ass_id:
             ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
-
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
-
-#        ass_id = row["primary_deployment_lp_id"]
-        #TODO: we no longer have "primary deployment"
-        #if ass_id:
-        #    oms_client.deploy_as_primary_platform_device_to_platform_site(res_id, self.resource_ids[ass_id])
 
     def _load_InstrumentDevice(self, row):
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
                                             "instrument_management", "create_instrument_device")
-
-#        oms_client = self._get_service_client("observatory_management")
-#        ass_ids = row["deployment_li_ids"]
-#        if ass_ids:
-#            ass_ids = self._get_typed_value(ass_ids, targettype="simplelist")
-#            for ass_id in ass_ids:
-#                oms_client.assign_device_to_site(res_id, self.resource_ids[ass_id])
-
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
         if ass_id:
             ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
-
-        #print 'about to get device for ' + row['ID'] + ' cols: ' + repr(row.keys())
         ass_id = row["platform_device_id"]# if 'platform_device_id' in row else None
         if ass_id:
             ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
-
         self._resource_advance_lcs(row, res_id, "InstrumentDevice")
-
-#        ass_id = row["primary_deployment_li_id"]
-        #TODO: we no longer have "primary deployment"
-        #if ass_id:
-        #    oms_client.deploy_as_primary_instrument_device_to_instrument_site(res_id, self.resource_ids[ass_id])
-
 
     def _load_InstrumentAgent(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
@@ -612,7 +582,7 @@ class IONLoader(ImmediateProcess):
         input_strdef = row["input_stream_defs"]
         if input_strdef:
             input_strdef = self._get_typed_value(input_strdef, targettype="simplelist")
-        log.info("Assigning input StreamDefinition to DataProcessDefinition for %s" % input_strdef)
+        log.trace("Assigning input StreamDefinition to DataProcessDefinition for %s" % input_strdef)
         for insd in input_strdef:
             svc_client.assign_input_stream_definition_to_data_process_definition(self.resource_ids[insd], res_id)
 
@@ -623,48 +593,34 @@ class IONLoader(ImmediateProcess):
             svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[outsd], res_id)
 
     def _load_IngestionConfiguration(self, row):
-        log.info("Loading IngestionConfiguration")
         if DEBUG:
             return
 
         xp = row["exchange_point_id"]
         name = row["ic/name"]
         ingest_queue = self._create_object_from_row("IngestionQueue",row,"ingestion_queue/")
-        #couch_cfg = self._create_object_from_row("CouchStorage", row, "couch_storage/")
-        #hdf_cfg = self._create_object_from_row("HdfStorage", row, "hdf_storage/")
-        #numw = int(row["number_of_workers"])
-
         svc_client = self._get_service_client("ingestion_management")
-        #ic_id = svc_client.create_ingestion_configuration(xp, couch_cfg, hdf_cfg, numw)
         ic_id = svc_client.create_ingestion_configuration(name=name, exchange_point_id=xp, queues=[ingest_queue])
-
-        #ic_id = svc_client.activate_ingestion_configuration(ic_id)
 
     def _load_DataProduct(self, row):
         strdef = row["stream_def_id"]
 
         res_obj = self._create_object_from_row("DataProduct", row, "dp/")
-
-        parameter_dictionary, tdom, sdom = self._create_parameter_dictionary(row["param_dict_type"])
-        res_obj.temporal_domain = tdom
-        res_obj.spatial_domain = sdom
+        parameter_dictionary = get_param_dict(row['param_dict_type'])
+        sdom, tdom = CoverageCraft.create_domains()
+        res_obj.spatial_domain = sdom.dump()
+        res_obj.temporal_domain = tdom.dump()
 
         svc_client = self._get_service_client("data_product_management")
-
         res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id='', parameter_dictionary = parameter_dictionary)
-
         self._register_id(row[self.COL_ID], res_id)
-
         if not DEBUG:
             svc_client.activate_data_product_persistence(res_id)
-
         self._resource_advance_lcs(row, res_id, "DataProduct")
 
     def _load_DataProcess(self, row):
-        log.info("Loading DataProcess")
-
         dpd_id = self.resource_ids[row["data_process_definition_id"]]
-        log.debug("_load_DataProcess  data_product_def %s" % str(dpd_id))
+        log.trace("_load_DataProcess  data_product_def %s", str(dpd_id))
         in_data_product_id = self.resource_ids[row["in_data_product_id"]]
         configuration = row["configuration"]
         if configuration:
@@ -700,18 +656,20 @@ class IONLoader(ImmediateProcess):
 
         res_id = self.resource_ids[row["resource_id"]]
         att_obj = self._create_object_from_row("Attachment", row, "att/")
-        file_path = row["file_path"]
-        if file_path:
-            file_path = "%s/attachments/%s" % (self.path, file_path)
-            try:
-                with open(file_path, "rb") as attfile:
-                    att_obj.content = attfile.read()
-            except IOError, ioe:
-                raise iex.BadRequest("Attachment file_path %s error: %s" % (file_path, str(ioe)))
+        filename = row["file_path"]
+        if not filename:
+            raise iex.BadRequest('attachment did not include a filename: ' + row[self.COL_ID])
+
+        path = "%s/%s" % (self.attachment_path, filename)
+        try:
+            with open(path, "rb") as f:
+                att_obj.content = f.read()
+        except IOError, ioe:
+            # warn instead of fail here
+            log.warn("Failed to open attachment file: %s/%s" % (path, ioe))
 
         rr_client = self._get_service_client("resource_registry")
         headers = self._get_op_headers(row)
-
         att_id = rr_client.create_attachment(res_id, att_obj, headers=headers)
         self._register_id(row[self.COL_ID], att_id)
 
@@ -746,18 +704,13 @@ class IONLoader(ImmediateProcess):
 
     # Workflow load functions - Added by Raj Singh
     def _load_Workflow(self,row):
-        log.info("Loading Workflow")
-
         workflow_obj = self._create_object_from_row("WorkflowDefinition", row, "wf/")
         workflow_client = self._get_service_client("workflow_management")
-
         workflow_def_id = self.resource_ids[row["wfd_id"]]
         #Create and start the workflow
         workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_def_id, self.resource_ids[row["in_dp_id"]], timeout=30)
 
-
     def _load_Deployment(self,row):
-        log.info("Loading Deployments")
         deployment = self._create_object_from_row("Deployment", row, "d/")
         device_id = self.resource_ids[row['device_id']]
         site_id = self.resource_ids[row['site_id']]
@@ -774,19 +727,19 @@ class IONLoader(ImmediateProcess):
         if activate:
             oms.activate_deployment(deployment_id)
 
-    def extract_ooi_assets(self, path):
-        if not path:
-            raise iex.BadRequest("Must provide path")
+    def extract_ooi_assets(self):
+        if not self.asset_path:
+            raise iex.BadRequest("Must provide path for assets: path=dir or assets=dir")
+        if self.asset_path.startswith('http'):
+            raise iex.BadRequest('Asset path must be local directory, not URL: ' + self.asset_path)
 
-        path = path + "/ooi_assets"
-        log.info("Start parsing OOI assets from path=%s" % path)
-        categories = [
-                      'Report2_InstrumentTypes',
-                      'Report4_InstrumentsPerSite',
-                      'Report1_InstrumentLocations',
-                      'Report3_InstrumentTypeByLocation',
-                      'Report6_ReferenceDesignatorListWithDepth',
-                      ]
+        log.info("Parsing OOI assets from path=%s", self.asset_path)
+
+        categories = [ 'Report2_InstrumentTypes',
+                       'Report4_InstrumentsPerSite',
+                       'Report1_InstrumentLocations',
+                       'Report3_InstrumentTypeByLocation',
+                       'Report6_ReferenceDesignatorListWithDepth' ]
 
         self.obs_sites = {}
         self.sub_sites = {}
@@ -800,8 +753,8 @@ class IONLoader(ImmediateProcess):
 
             funcname = "_parse_%s" % category
             catfunc = getattr(self, funcname)
-            filename = "%s/%s.csv" % (path, category)
-            log.info("Loading category %s from file %s" % (category, filename))
+            filename = "%s/%s.csv" % (self.asset_path, category)
+            log.debug("Loading category %s from file %s", category, filename)
             try:
                 with open(filename, "rb") as csvfile:
                     for i in xrange(9):
@@ -815,7 +768,7 @@ class IONLoader(ImmediateProcess):
             except IOError, ioe:
                 log.warn("OOI asset file %s error: %s" % (filename, str(ioe)))
 
-            log.info("Loaded assets %s: %d rows read" % (category, row_do))
+            log.debug("Loaded assets %s: %d rows read" % (category, row_do))
 
     def _parse_Report2_InstrumentTypes(self, row):
         """
@@ -916,15 +869,15 @@ class IONLoader(ImmediateProcess):
         li['port_min_depth'] = row["PortMinDepth"]
         li['port_max_depth'] = row["PortMaxDepth"]
 
-    def _create_parameter_dictionary(self, type):
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
-
-        return parameter_dictionary, tdom, sdom
+#    def _create_parameter_dictionary(self, type):
+#        craft = CoverageCraft
+#        sdom, tdom = craft.create_domains()
+#        sdom = sdom.dump()
+#        tdom = tdom.dump()
+#        parameter_dictionary = craft.create_parameters()
+#        parameter_dictionary = parameter_dictionary.dump()
+#
+#        return parameter_dictionary, tdom, sdom
 
 
 class XLSParser(object):
