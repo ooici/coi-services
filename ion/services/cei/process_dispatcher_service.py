@@ -687,8 +687,11 @@ class PDNativeBackend(object):
 
     def __init__(self, conf, service):
         engine_conf = conf.get('engines', {})
+        default_engine = conf.get('default_engine')
+        if default_engine is None and len(engine_conf.keys()) == 1:
+            default_engine = engine_conf.keys()[0]
         self.store = ProcessDispatcherStore()
-        self.registry = EngineRegistry.from_config(engine_conf)
+        self.registry = EngineRegistry.from_config(engine_conf, default=default_engine)
 
         # The Process Dispatcher communicates with EE Agents over ION messaging
         # but it still uses dashi to talk to the EPU Management Service, until
