@@ -14,12 +14,9 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 
-
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
-from prototype.sci_data.stream_defs import ctd_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 from prototype.sci_data.stream_defs import \
     ctd_stream_definition, \
     L0_pressure_stream_definition, L0_temperature_stream_definition, \
@@ -31,6 +28,7 @@ from interface.objects import ProcessStateEnum
 
 from gevent.event import AsyncResult
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
+from ion.agents.port.port_agent_process import PortAgentProcessType
 
 from pyon.public import CFG
 from pyon.public import RT, LCS, PRED
@@ -60,7 +58,7 @@ import unittest
 import time
 import gevent
 
-
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 class FakeProcess(LocalContextMixin):
     """
@@ -128,7 +126,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
                                   model="SBE37IMModel",
-                                  custom_attributes= {'streams':{'raw': 'data_particle_raw_param_dict' , 'parsed': 'data_particle_parsed_param_dict' }})
+                                  custom_attributes= {'streams':{'raw': 'simple_data_particle_raw_param_dict' , 'parsed': 'simple_data_particle_parsed_param_dict' }})
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
@@ -165,44 +163,49 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ",
                   instDevice_id)
 
+        port_agent_config = {
+            'device_addr': 'sbe37-simulator.oceanobservatories.org',
+            'device_port': 4001,
+            'process_type': PortAgentProcessType.UNIX,
+            'binary_path': "port_agent",
+            'command_port': 4002,
+            'data_port': 4003,
+            'log_level': 5,
+        }
+
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
                                           driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
                                           driver_class='SBE37Driver',
                                           comms_device_address='sbe37-simulator.oceanobservatories.org',
                                           comms_device_port=4001,
-                                          port_agent_work_dir='/tmp/',
-                                          port_agent_delimeter=['<<','>>'] )
+                                          port_agent_config = port_agent_config)
+
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
                                                                                instAgent_id,
                                                                                instDevice_id)
 
-        # create a stream definition for the data from the ctd simulator
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37')
-
-        log.debug( 'new Stream Definition id = %s', instDevice_id)
-
-        log.debug( 'Creating new CDM data product with a stream definition')
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+#        tcrs = CRS([AxisTypeEnum.TIME])
+#        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+#
+#        # Construct temporal and spatial Domain objects
+#        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+#        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
 
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
-
+        sdom, tdom = CoverageCraft.create_domains()
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('sample_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
 
+        parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
+        parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM', parameter_dictionary=parsed_parameter_dictionary)
 
-        parsed_parameter_dictionary = get_param_dict('data_particle_parsed_param_dict')
+        raw_parameter_dictionary = get_param_dict('simple_data_particle_raw_param_dict')
+        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_RAW', parameter_dictionary=raw_parameter_dictionary)
 
-        raw_parameter_dictionary = get_param_dict('data_particle_raw_param_dict')
 
         #-------------------------------
         # Create Raw and Parsed Data Products for the device
@@ -214,13 +217,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parsed_parameter_dictionary.dump())
+        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary)
+        #data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parsed_parameter_dictionary.dump())
 
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
+        #self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
@@ -230,139 +234,137 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.loggerpids.append(pid)
 
 
-        log.debug( 'Creating new RAW data product with a stream definition')
-        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_RAW')
-
         dp_obj = IonObject(RT.DataProduct,
             name='the raw data',
             description='raw stream test',
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id, raw_parameter_dictionary.dump())
+        data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary)
+        #data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id, raw_parameter_dictionary.dump())
         log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
+        #self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
         log.debug( 'Data product streams2 = %s', str(stream_ids))
 
-        #-------------------------------
-        # L0 Conductivity - Temperature - Pressure: Data Process Definition
-        #-------------------------------
-        log.debug("test_activateInstrumentSample: create data process definition ctd_L0_all")
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-                            name='ctd_L0_all',
-                            description='transform ctd package into three separate L0 streams',
-                            module='ion.processes.data.transforms.ctd.ctd_L0_all',
-                            class_name='ctd_L0_all',
-                            process_source='some_source_reference')
-        try:
-            ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new ctd_L0_all data process definition: %s" %ex)
-
-
-
-        #-------------------------------
-        # L0 Conductivity - Temperature - Pressure: Output Data Products
-        #-------------------------------
-
-        outgoing_stream_l0_conductivity_id = self.pubsubcli.create_stream_definition(
-            name='L0_Conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(
-            outgoing_stream_l0_conductivity_id,
-            ctd_L0_all_dprocdef_id )
-
-        outgoing_stream_l0_pressure_id = self.pubsubcli.create_stream_definition(
-            name='L0_Pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(
-            outgoing_stream_l0_pressure_id,
-            ctd_L0_all_dprocdef_id )
-
-        outgoing_stream_l0_temperature_id = self.pubsubcli.create_stream_definition(
-            name='L0_Temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(
-            outgoing_stream_l0_temperature_id,
-            ctd_L0_all_dprocdef_id )
-
-
-        self.output_products={}
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 conductivity")
-
-        ctd_l0_conductivity_output_dp_obj = IonObject(  RT.DataProduct,
-                                                        name='L0_Conductivity',
-                                                        description='transform output conductivity',
-                                                        temporal_domain = tdom,
-                                                        spatial_domain = sdom)
-
-        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(
-            ctd_l0_conductivity_output_dp_obj,
-            outgoing_stream_l0_conductivity_id,
-            parameter_dictionary)
-        self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
-
-        stream_ids, _ = self.rrclient.find_objects(ctd_l0_conductivity_output_dp_id, PRED.hasStream, None, True)
-        log.debug(" ctd_l0_conductivity stream id =  %s", str(stream_ids) )
-        pid = self.create_logger(' ctd_l1_conductivity', stream_ids[0] )
-        self.loggerpids.append(pid)
-
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 pressure")
-
-        ctd_l0_pressure_output_dp_obj = IonObject(  RT.DataProduct,
-                                                    name='L0_Pressure',
-                                                    description='transform output pressure',
-                                                    temporal_domain = tdom,
-                                                    spatial_domain = sdom)
-
-        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(  ctd_l0_pressure_output_dp_obj,
-                                                                                    outgoing_stream_l0_pressure_id,
-                                                                                    parameter_dictionary)
-        self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
-
-        stream_ids, _ = self.rrclient.find_objects(ctd_l0_pressure_output_dp_id, PRED.hasStream, None, True)
-        log.debug(" ctd_l0_pressure stream id =  %s", str(stream_ids) )
-        pid = self.create_logger(' ctd_l0_pressure', stream_ids[0] )
-        self.loggerpids.append(pid)
-
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 temperature")
-
-        ctd_l0_temperature_output_dp_obj = IonObject(   RT.DataProduct,
-                                                        name='L0_Temperature',
-                                                        description='transform output temperature',
-                                                        temporal_domain = tdom,
-                                                        spatial_domain = sdom)
-
-        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj,
-                                                                                    outgoing_stream_l0_temperature_id,
-                                                                                    parameter_dictionary)
-        self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
-
-        stream_ids, _ = self.rrclient.find_objects(ctd_l0_temperature_output_dp_id, PRED.hasStream, None, True)
-        log.debug(" ctd_l0_temperature stream id =  %s", str(stream_ids) )
-        pid = self.create_logger(' ctd_l0_temperature', stream_ids[0] )
-        self.loggerpids.append(pid)
-
-        #-------------------------------
-        # L0 Conductivity - Temperature - Pressure: Create the data process
-        #-------------------------------
-        log.debug("test_activateInstrumentSample: create L0 all data_process start")
-        try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(
-                ctd_L0_all_dprocdef_id,
-                [data_product_id1],
-                self.output_products)
-            self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
-        except BadRequest as ex:
-            self.fail("failed to create new data process: %s" %ex)
-
-        log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process return")
+#        #-------------------------------
+#        # L0 Conductivity - Temperature - Pressure: Data Process Definition
+#        #-------------------------------
+#        log.debug("test_activateInstrumentSample: create data process definition ctd_L0_all")
+#        dpd_obj = IonObject(RT.DataProcessDefinition,
+#                            name='ctd_L0_all',
+#                            description='transform ctd package into three separate L0 streams',
+#                            module='ion.processes.data.transforms.ctd.ctd_L0_all',
+#                            class_name='ctd_L0_all',
+#                            process_source='some_source_reference')
+#        try:
+#            ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
+#        except BadRequest as ex:
+#            self.fail("failed to create new ctd_L0_all data process definition: %s" %ex)
+#
+#
+#
+#        #-------------------------------
+#        # L0 Conductivity - Temperature - Pressure: Output Data Products
+#        #-------------------------------
+#
+#        outgoing_stream_l0_conductivity_id = self.pubsubcli.create_stream_definition(
+#            name='L0_Conductivity')
+#        self.dataprocessclient.assign_stream_definition_to_data_process_definition(
+#            outgoing_stream_l0_conductivity_id,
+#            ctd_L0_all_dprocdef_id )
+#
+#        outgoing_stream_l0_pressure_id = self.pubsubcli.create_stream_definition(
+#            name='L0_Pressure')
+#        self.dataprocessclient.assign_stream_definition_to_data_process_definition(
+#            outgoing_stream_l0_pressure_id,
+#            ctd_L0_all_dprocdef_id )
+#
+#        outgoing_stream_l0_temperature_id = self.pubsubcli.create_stream_definition(
+#            name='L0_Temperature')
+#        self.dataprocessclient.assign_stream_definition_to_data_process_definition(
+#            outgoing_stream_l0_temperature_id,
+#            ctd_L0_all_dprocdef_id )
+#
+#
+#        self.output_products={}
+#        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 conductivity")
+#
+#        ctd_l0_conductivity_output_dp_obj = IonObject(  RT.DataProduct,
+#                                                        name='L0_Conductivity',
+#                                                        description='transform output conductivity',
+#                                                        temporal_domain = tdom,
+#                                                        spatial_domain = sdom)
+#
+#        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(
+#            ctd_l0_conductivity_output_dp_obj,
+#            outgoing_stream_l0_conductivity_id,
+#            parameter_dictionary)
+#        self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
+#        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
+#
+#        stream_ids, _ = self.rrclient.find_objects(ctd_l0_conductivity_output_dp_id, PRED.hasStream, None, True)
+#        log.debug(" ctd_l0_conductivity stream id =  %s", str(stream_ids) )
+#        pid = self.create_logger(' ctd_l1_conductivity', stream_ids[0] )
+#        self.loggerpids.append(pid)
+#
+#        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 pressure")
+#
+#        ctd_l0_pressure_output_dp_obj = IonObject(  RT.DataProduct,
+#                                                    name='L0_Pressure',
+#                                                    description='transform output pressure',
+#                                                    temporal_domain = tdom,
+#                                                    spatial_domain = sdom)
+#
+#        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(  ctd_l0_pressure_output_dp_obj,
+#                                                                                    outgoing_stream_l0_pressure_id,
+#                                                                                    parameter_dictionary)
+#        self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
+#        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
+#
+#        stream_ids, _ = self.rrclient.find_objects(ctd_l0_pressure_output_dp_id, PRED.hasStream, None, True)
+#        log.debug(" ctd_l0_pressure stream id =  %s", str(stream_ids) )
+#        pid = self.create_logger(' ctd_l0_pressure', stream_ids[0] )
+#        self.loggerpids.append(pid)
+#
+#        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 temperature")
+#
+#        ctd_l0_temperature_output_dp_obj = IonObject(   RT.DataProduct,
+#                                                        name='L0_Temperature',
+#                                                        description='transform output temperature',
+#                                                        temporal_domain = tdom,
+#                                                        spatial_domain = sdom)
+#
+#        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj,
+#                                                                                    outgoing_stream_l0_temperature_id,
+#                                                                                    parameter_dictionary)
+#        self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
+#        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
+#
+#        stream_ids, _ = self.rrclient.find_objects(ctd_l0_temperature_output_dp_id, PRED.hasStream, None, True)
+#        log.debug(" ctd_l0_temperature stream id =  %s", str(stream_ids) )
+#        pid = self.create_logger(' ctd_l0_temperature', stream_ids[0] )
+#        self.loggerpids.append(pid)
+#
+#        #-------------------------------
+#        # L0 Conductivity - Temperature - Pressure: Create the data process
+#        #-------------------------------
+#        log.debug("test_activateInstrumentSample: create L0 all data_process start")
+#        try:
+#            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(
+#                ctd_L0_all_dprocdef_id,
+#                [data_product_id1],
+#                self.output_products)
+#            self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
+#        except BadRequest as ex:
+#            self.fail("failed to create new data process: %s" %ex)
+#
+#        log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process return")
 
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
@@ -433,9 +435,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Deactivate InstrumentAgentInstance
         #-------------------------------
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
-
-        for pid in self.loggerpids:
-            self.processdispatchclient.cancel_process(pid)
+#
+#        for pid in self.loggerpids:
+#            self.processdispatchclient.cancel_process(pid)
 
 
     @unittest.skip("TBD")

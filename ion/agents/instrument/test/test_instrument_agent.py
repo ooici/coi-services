@@ -342,12 +342,22 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'raw' : 'ctd_raw_param_dict'
         }
 
+
+
         for (stream_name, param_dict_name) in streams.iteritems():
-            stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
-                                                exchange_point='science_data')
             pd = get_param_dict(param_dict_name)
+
+            stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary=pd)
+
+            stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
+                                                exchange_point='science_data',
+                                                stream_definition_id=stream_def_id)
+
             stream_config = dict(stream_route=stream_route,
+                                 routing_key=stream_route.routing_key,
+                                 exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
+                                 stream_definition_ref=stream_def_id,
                                  parameter_dictionary=pd.dump())
             self._stream_config[stream_name] = stream_config
 

@@ -107,9 +107,10 @@ class InstrumentAgent(ResourceAgent):
         ###############################################################################
 
         
-        #This is the type of Resource mamaged by this agent
+        #This is the type of Resource managed by this agent
         self.resource_type = RT.InstrumentDevice
-        
+        #This is the id of the resource managed by this agent
+        self.resource_id = None
         # Driver configuration. Passed as part of the spawn configuration
         # or with an initialize command. Sets driver specific
         # context.
@@ -140,7 +141,8 @@ class InstrumentAgent(ResourceAgent):
         self._data_streams = {}
 
         self._param_dicts = {}
-        
+        self._stream_defs = {}
+
         # Dictionary of data stream publishers. Constructed by
         # stream_config agent config member during process on_init.
         self._data_publishers = {}
@@ -714,12 +716,13 @@ class InstrumentAgent(ResourceAgent):
         # If the sample event is encoded, load it back to a dict.
         if isinstance(val, str):
             val = json.loads(val)
-        
+
         try:
             stream_name = val['stream_name']
             publisher = self._data_publishers[stream_name]
             param_dict = self._param_dicts[stream_name]
-            rdt = RecordDictionaryTool(param_dictionary=param_dict)
+            stream_def = self._stream_defs[stream_name]
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
 
             for (k, v) in val.iteritems():
                 if k == 'values':
@@ -734,7 +737,7 @@ class InstrumentAgent(ResourceAgent):
                 elif k in param_dict:
                     rdt[k] = numpy.array([v])
 
-            g = rdt.to_granule()
+            g = rdt.to_granule(data_producer_id=self.resource_id)
             publisher.publish(g)        
             
             log.info('Instrument agent %s published data granule on stream %s.',
@@ -1011,7 +1014,13 @@ class InstrumentAgent(ResourceAgent):
         @retval None
         """
         # The registrar to create publishers.
-        
+        agent_info = self.CFG.get('agent', None)
+        if not agent_info:
+            log.warning('No agent config found in agent config -- publishers \
+                        not constructed.')
+        else:
+            self.resource_id = agent_info['resource_id']
+
         stream_info = self.CFG.get('stream_config', None)
         if not stream_info:
             log.warning('No stream config found in agent config -- publishers \
@@ -1022,11 +1031,14 @@ class InstrumentAgent(ResourceAgent):
  
             for (stream_name, stream_config) in stream_info.iteritems():
                 try:
-                    stream_route = stream_config['stream_route']
+                    stream_id = stream_config['stream_id']
+                    exchange_point = stream_config['exchange_point']
+                    routing_key = stream_config['routing_key']
                     param_dict_flat = stream_config['parameter_dictionary']
-                    self._data_streams[stream_name] = stream_route
                     self._param_dicts[stream_name] = ParameterDictionary.load(param_dict_flat)
-                    publisher = StreamPublisher(process=self, stream_route=stream_route)
+                    self._stream_defs[stream_name] = stream_config['stream_definition_ref']
+                    publisher = StreamPublisher(process=self, stream_id=stream_id, exchange_point=exchange_point, routing_key=routing_key)
+
                     self._data_publishers[stream_name] = publisher
                     log.info("Instrument agent '%s' created publisher for stream_name "
                          "%s" % (self._proc_name, stream_name))
