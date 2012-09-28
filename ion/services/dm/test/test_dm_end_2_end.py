@@ -3,37 +3,40 @@
 @author Luke Campbell <LCampbell@ASAScience.com>
 @file test_dm_end_2_end
 @date 06/29/12 13:58
-@description DESCRIPTION
+@description Complete DM End to End Integration Tests
 '''
 from pyon.core.exception import Timeout
-from pyon.public import RT, log
-from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.datastore.datastore import DataStore
-from interface.objects import Granule
-from pyon.event.event import EventSubscriber
-from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
-from pyon.util.int_test import IonIntegrationTestCase
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
-from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from gevent.event import Event
-from nose.plugins.attrib import attr
 from pyon.ion.exchange import ExchangeNameQueue
+from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
+from pyon.public import RT, log
+from pyon.util.int_test import IonIntegrationTestCase
+
+from ion.processes.data.replay.replay_client import ReplayClient
+from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
 from ion.util.parameter_yaml_IO import get_param_dict
+
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
 
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.objects import Granule
+
+from gevent.event import Event
+from nose.plugins.attrib import attr
 
 import gevent
-import time
 import numpy as np
-import unittest
 import os
+import unittest
+import time
 
 @attr('INT',group='dm')
 class TestDMEnd2End(IonIntegrationTestCase):
@@ -69,6 +72,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         for queue in self.queue_buffer:
             if isinstance(queue, ExchangeNameQueue):
                 queue.delete()
+            elif isinstance(queue, str):
+                xn = self.container.ex_manager.create_xn_queue(queue)
+                xn.delete()
+
         
 
     def launch_producer(self, stream_id=''):
@@ -115,6 +122,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
     def validate_granule_subscription(self, msg, route, stream_id):
         if msg == {}:
             return
+        rdt = RecordDictionaryTool.load_from_granule(msg)
+        log.info('%s', rdt.pretty_print())
         self.assertIsInstance(msg,Granule,'Message is improperly formatted. (%s)' % type(msg))
         self.event.set()
 
@@ -227,9 +236,77 @@ class TestDMEnd2End(IonIntegrationTestCase):
         black_box.sync_rdt_with_granule(granule)
         comp = black_box.rdt['time'] == np.arange(40)
         self.assertTrue(comp.all())
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_replay_pause(self):
+        # Get a precompiled parameter dictionary with basic ctd fields
+        pdict = get_param_dict('ctd_parsed_param_dict')
+        # Add a field that supports binary data input.
+        bin_context = ParameterContext('binary',  param_type=ArrayType())
+        # Add another field that supports dictionary elements.
+        rec_context = ParameterContext('records', param_type=RecordType())
+
+        pdict.add_context(bin_context)
+        pdict.add_context(rec_context)
         
 
+        stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary=pdict.dump())
+        replay_stream, replay_route = self.pubsub_management.create_stream('replay', 'xp1', stream_definition_id=stream_def_id)
+        dataset_id = self.create_dataset(pdict.dump())
+        scov = DatasetManagementService._get_coverage(dataset_id)
 
+        bb = CoverageCraft(scov)
+        bb.rdt['time'] = np.arange(100)
+        bb.rdt['temp'] = np.random.random(100) + 30
+        bb.sync_with_granule()
+
+        DatasetManagementService._persist_coverage(dataset_id, bb.coverage)
+        # Set up the subscriber to verify the data
+        subscriber = StandaloneStreamSubscriber(self.exchange_space_name, self.validate_granule_subscription)
+        xp = self.container.ex_manager.create_xp('xp1')
+        self.queue_buffer.append(self.exchange_space_name)
+        subscriber.start()
+        subscriber.xn.bind(replay_route.routing_key, xp)
+
+        # Set up the replay agent and the client wrapper
+
+        # 1) Define the Replay (dataset and stream to publish on)
+        self.replay_id, process_id = self.data_retriever.define_replay(dataset_id=dataset_id, stream_id=replay_stream)
+        # 2) Make a client to the interact with the process (optionall provide it a process to bind with)
+        replay_client = ReplayClient(process_id)
+        # 3) Start the agent (launch the process)
+        self.data_retriever.start_replay_agent(self.replay_id)
+        # 4) Start replaying...
+        replay_client.start_replay()
+        
+        # Wait till we get some granules
+        self.assertTrue(self.event.wait(5))
+        
+        # We got granules, pause the replay, clear the queue and allow the process to finish consuming
+        replay_client.pause_replay()
+        gevent.sleep(1)
+        subscriber.xn.purge()
+        self.event.clear()
+        
+        # Make sure there's no remaining messages being consumed
+        self.assertFalse(self.event.wait(1))
+
+        # Resume the replay and wait until we start getting granules again
+        replay_client.resume_replay()
+        self.assertTrue(self.event.wait(5))
+    
+        # Stop the replay, clear the queues
+        replay_client.stop_replay()
+        gevent.sleep(1)
+        subscriber.xn.purge()
+        self.event.clear()
+
+        # Make sure that it did indeed stop
+        self.assertFalse(self.event.wait(1))
+
+        subscriber.stop()
 
 
     @attr('SMOKE') 
@@ -237,6 +314,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Set up a stream and have a mock instrument (producer) send data
         #--------------------------------------------------------------------------------
+        self.event.clear()
 
         # Get a precompiled parameter dictionary with basic ctd fields
         pdict = get_param_dict('ctd_parsed_param_dict')
@@ -289,22 +367,12 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Now to try the streamed approach
         #--------------------------------------------------------------------------------
-
-        replay_stream_id, replay_route = self.pubsub_management.create_stream('replay_out', exchange_point=self.exchange_point_name)
-        self.replay_id = self.data_retriever.define_replay(dataset_id=dataset_id, stream_id=replay_stream_id)
-        process_id = self.data_retriever.read_process_id(self.replay_id)
+        replay_stream_id, replay_route = self.pubsub_management.create_stream('replay_out', exchange_point=self.exchange_point_name, stream_definition_id=stream_definition)
+        self.replay_id, process_id =  self.data_retriever.define_replay(dataset_id=dataset_id, stream_id=replay_stream_id)
         log.info('Process ID: %s', process_id)
 
-        self.launched_event = gevent.event.Event()
-        
-        def launched(*args, **kwargs):
-            log.info('Launched set')
-            self.launched_event.set()
+        replay_client = ReplayClient(process_id)
 
-
-        event_sub = EventSubscriber(event_type="ProcessLifecycleEvent", callback=launched, origin=process_id, origin_type="ContainerProcess")
-        event_sub.start()
-        log.info('Started event subscriber')
     
         #--------------------------------------------------------------------------------
         # Create the listening endpoint for the the retriever to talk to 
@@ -315,29 +383,15 @@ class TestDMEnd2End(IonIntegrationTestCase):
         subscriber.start()
         subscriber.xn.bind(replay_route.routing_key, xp)
 
-        if self.launched_event.wait(4):
-            log.critical('The process has started')
-            self.data_retriever.start_replay(self.replay_id)
-        else:
-            log.error("well we missed it but we're gonna give it a shot anyway")
-            self.data_retriever.start_replay(self.replay_id)
+        self.data_retriever.start_replay_agent(self.replay_id)
 
+        self.assertTrue(replay_client.await_agent_ready(5), 'The process never launched')
+        replay_client.start_replay()
         
-        fail = False
-        try:
-            self.event.wait(10)
-        except gevent.Timeout:
-            fail = True
-
-    
-
+        self.assertTrue(self.event.wait(10))
         subscriber.stop()
 
-        self.assertTrue(not fail, 'Failed to validate the data.')
-        self.data_retriever.cancel_replay(self.replay_id)
-
-        event_sub.stop()
-        event_sub.close()
+        self.data_retriever.cancel_replay_agent(self.replay_id)
 
 
     def test_last_granule(self):

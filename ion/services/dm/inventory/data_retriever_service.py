@@ -5,7 +5,6 @@
 '''
 
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
-from interface.services.dm.ireplay_process import ReplayProcessClient
 from interface.objects import Replay 
 from pyon.core.exception import BadRequest 
 from pyon.ion.transforma import TransformAlgorithm
@@ -42,22 +41,18 @@ class DataRetrieverService(BaseDataRetrieverService):
         process_definition_id = res[0]
 
         replay_stream_id = stream_id
+        pid = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id)
 
         #--------------------------------------------------------------------------------
         # Begin the Decision tree for the various types of replay
         #--------------------------------------------------------------------------------
-        replay, config=self.replay_data_process(dataset_id, query, delivery_format, replay_stream_id)
-
-
-        pid = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id)
-        
-        self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, process_id=pid, configuration=config)
+        replay=self.replay_data_process(dataset_id, query, delivery_format, replay_stream_id)
 
         replay.process_id = pid
 
         self.clients.resource_registry.update(replay)
         self.clients.resource_registry.create_association(replay._id, PRED.hasStream, replay_stream_id)
-        return replay._id
+        return replay._id, pid
 
     def delete_replay(self,replay_id=''):
         assocs = self.clients.resource_registry.find_associations(subject=replay_id,predicate=PRED.hasStream)
@@ -73,18 +68,23 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         return replay.process_id
 
-    def start_replay(self, replay_id=''):
+    def start_replay_agent(self, replay_id=''):
         """
-        Problem: start_replay does not return until execute replay is complete - it is all chained rpc.
-        Execute replay should be a command which is fired, not RPC???
         """
+        res, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition,name=self.REPLAY_PROCESS,id_only=True)
+        if not len(res):
+            raise BadRequest('No replay process defined.')
+        process_definition_id = res[0]
+        replay = self.clients.resource_registry.read(replay_id)
+        validate_is_instance(replay,Replay)
+        
+        config = replay.config
+        pid = replay.process_id
+        
+        self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, process_id=pid, configuration=config)
 
-        pid = self.read_process_id(replay_id)
-        cli = ReplayProcessClient(to_name=pid)
-        cli.execute_replay()
 
-
-    def cancel_replay(self, replay_id=''):
+    def cancel_replay_agent(self, replay_id=''):
         replay = self.clients.resource_registry.read(replay_id)
         pid = replay.process_id
         self.clients.process_dispatcher.cancel_process(pid)
@@ -164,7 +164,8 @@ class DataRetrieverService(BaseDataRetrieverService):
             'publish_streams':{'output':replay_stream_id}
             }
         }
-        return replay, config
+        replay.config = config
+        return replay
 
     @classmethod
     def _transform_data(binding, data, module, cls, kwargs={}):
