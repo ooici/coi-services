@@ -469,18 +469,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         # This is distinct from modifications to the data product attributes
         pass
 
-    def get_latest_data_datetime(self, data_product_id=''):
-        # the datetime on which the most recent data reading was taken.
-        # This does not assess when the descriptive attributes were modified,
-        # but when the data values were changed.
-        # For example, if an instrument was turned off and retrieved on 3/1, and the data
-        # downloaded and entered into the system on 3/15, then the latest_data_datetime would be 3/1..
-        pass
-
-    def get_metadata_update_datetime(self, data_product_id=''):
-        # The time the data metadata (attributes) were last updated
-        pass
-
     def get_parameters(self, data_product_id=''):
         # The set of Parameter objects describing each variable in this data product
         pass

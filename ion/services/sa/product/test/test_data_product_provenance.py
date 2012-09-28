@@ -418,8 +418,8 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 #                                                                            parameter_dictionary)
 
         contactInfo = ContactInformation()
-        contactInfo.first_name = "Bill"
-        contactInfo.name = "Smith"
+        contactInfo.individual_names_given = "Bill"
+        contactInfo.individual_name_family = "Smith"
         contactInfo.street_address = "111 First St"
         contactInfo.city = "San Diego"
         contactInfo.email = "bill@yahoo.com"

@@ -205,10 +205,10 @@ class DataProductImpl(ResourceSimpleImpl):
             for contact in product_obj.contacts:
                 log.debug("DataProductManagementService:provenance_report  Contacts List contact %s", str(contact) )
                 contacttag = etree.SubElement(contactlist, "Contact")
-                first_name = etree.SubElement(contacttag, "first_name")
-                first_name.text = contact.first_name
-                name = etree.SubElement(contacttag, "name")
-                name.text = contact.name
+                first_name = etree.SubElement(contacttag, "individual_names_given")
+                first_name.text = contact.individual_names_given
+                name = etree.SubElement(contacttag, "individual_name_family")
+                name.text = contact.individual_name_family
                 address = etree.SubElement(contacttag, "address")
                 address.text = contact.street_address
                 city = etree.SubElement(contacttag, "city")
