@@ -11,6 +11,10 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
+from pyon.public import log
+from ion.agents.platform.oms.simulator.logger import Logger
+Logger.set_logger(log)
+
 from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
 from ion.agents.platform.oms.test.oms_test_mixin import OmsTestMixin
 
@@ -28,3 +32,9 @@ class Test(unittest.TestCase, OmsTestMixin):
     @classmethod
     def setUpClass(cls):
         cls.oms = OmsSimulator()
+        OmsTestMixin.start_http_server()
+
+    @classmethod
+    def tearDownClass(cls):
+        alarm_notifications = OmsTestMixin.stop_http_server()
+        log.info("alarm_notifications = %s" % str(alarm_notifications))

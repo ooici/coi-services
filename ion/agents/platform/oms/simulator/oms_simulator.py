@@ -10,19 +10,19 @@
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
-
 from ion.agents.platform.oms.oms_client import OmsClient
 from ion.agents.platform.oms.oms_client import VALID_PORT_ATTRIBUTES
 from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.util.network import NNode
 from ion.agents.platform.oms.simulator.oms_alarms import AlarmInfo
+from ion.agents.platform.oms.simulator.oms_alarms import AlarmNotifier
+from ion.agents.platform.oms.simulator.oms_alarms import AlarmGenerator
 
 import yaml
 import time
 
-import logging
-
-log = logging.getLogger('oms_simulator')
+from ion.agents.platform.oms.simulator.logger import Logger
+log = Logger.get_logger()
 
 
 class OmsSimulator(OmsClient):
@@ -31,7 +31,6 @@ class OmsSimulator(OmsClient):
     """
 
     def __init__(self, yaml_filename='ion/agents/platform/oms/simulator/network.yml'):
-
         pyobj = yaml.load(file(yaml_filename))
 
         self._get_platform_types(pyobj)
@@ -40,10 +39,15 @@ class OmsSimulator(OmsClient):
 
         self._next_value = 990000
 
-        # registered alarm listeners: {url: [(alarm_type, REG_time), ...], ...},
+        # registered alarm listeners: {url: [(alarm_type, reg_time), ...], ...},
         # where reg_time is the time of (latest) registration.
         # NOTE: for simplicity, we don't keep info about unregistered listeners
         self._reg_alarm_listeners = {}
+
+        self._alarm_notifier = AlarmNotifier()
+        self._alarm_generator = AlarmGenerator(self._alarm_notifier)
+        self._alarm_generator.start()
+        log.debug("alarm generator started")
 
     def _get_platform_types(self, pyobj):
         """
@@ -314,15 +318,17 @@ class OmsSimulator(OmsClient):
                 reg_time = reg_times[existing_types.index(alarm_type)]
                 result_list.append((alarm_type, reg_time))
             else:
+                #
                 # new registration
-                reg_time = time.time()
+                #
+                reg_time = self._alarm_notifier.add_listener(url, alarm_type)
                 existing_pairs.append((alarm_type, reg_time))
                 result_list.append((alarm_type, reg_time))
 
         return {url: result_list}
 
     def unregisterAlarmListener(self, url, alarm_types):
-        log.info("TODO: unregisterAlarmListener: url=%r, alarm_types=%s",
+        log.info("unregisterAlarmListener: url=%r, alarm_types=%s",
                  url, str(alarm_types))
 
         if not url in self._reg_alarm_listeners:
@@ -341,9 +347,11 @@ class OmsSimulator(OmsClient):
                 continue
 
             if alarm_type in existing_types:
-                # registered, so remove pair
+                #
+                # registered, so remove it
+                #
+                unreg_time = self._alarm_notifier.remove_listener(url, alarm_type)
                 del existing_pairs[existing_types.index(alarm_type)]
-                unreg_time = time.time()
                 result_list.append((alarm_type, unreg_time))
             else:
                 # not registered, report 0
@@ -355,10 +363,6 @@ class OmsSimulator(OmsClient):
             del self._reg_alarm_listeners[url]
 
         return {url: result_list}
-
-    def _stop_alarm_listener(self, url, alarm_type):
-        # TODO
-        pass
 
     def getRegisteredAlarmListeners(self):
         return self._reg_alarm_listeners
