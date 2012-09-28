@@ -314,6 +314,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
             PlatformAgentEvent.RUN,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE,
 
             PlatformAgentEvent.PING_AGENT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
@@ -471,6 +472,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_AGENT,
             PlatformAgentEvent.PING_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE,
         ]
 
         res_cmds_command = [

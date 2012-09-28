@@ -13,9 +13,6 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.public import PRED, RT
-
 from ion.agents.platform.platform_driver import PlatformDriver
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.exceptions import PlatformDriverException
@@ -232,11 +229,6 @@ class OmsPlatformDriver(PlatformDriver):
         Starts greenlets to periodically retrieve values of the attributes
         associated with my platform, and do corresponding event notifications.
         """
-        # TODO preliminary implementation. General idea:
-        # - get attributes for the platform
-        # - aggregate groups of attributes according to rate of monitoring
-        # - start a greenlet for each attr grouping
-
         log.debug("%r: getting platform attributes", self._platform_id)
 
         attrs = self._oms.getPlatformAttributes(self._platform_id)
