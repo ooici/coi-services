@@ -179,10 +179,10 @@ class OmsClient(object):
     def getAlarmsByPlatformType(self, platform_types):
         raise NotImplemented()
 
-    def registerAlarmListener(self, URL, alarm_types):
+    def registerAlarmListener(self, url, alarm_types):
         raise NotImplemented()
 
-    def unregisterAlarmListener(self, URL, alarm_types):
+    def unregisterAlarmListener(self, url, alarm_types):
         raise NotImplemented()
 
     def getRegisteredAlarmListeners(self):

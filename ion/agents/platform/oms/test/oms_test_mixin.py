@@ -350,19 +350,25 @@ class OmsTestMixin(object):
             # use actual URL corresponding to the launched server
             url = "http://%s:%s" % cls._http_server.address
         else:
-            # use ad hoc server.
+            # use ad hoc url
             url = "http://localhost:9753"
         return url
 
     @classmethod
     def stop_http_server(cls):
+        """
+        Stops the http server returning the notifications dictionary,
+        which is internally re-initialized.
+        """
         if cls._http_server:
             address = cls._http_server.address
             log.info("HTTP SERVER: stopping http server: address: host=%r port=%r" % address)
             cls._http_server.stop()
             cls._http_server = None
 
-        return cls._notifications
+        ret = cls._notifications
+        cls._notifications = {}  # re-initialize
+        return ret
 
     def _get_all_alarm_types(self):
         all_alarms = self.oms.describeAlarmTypes([])

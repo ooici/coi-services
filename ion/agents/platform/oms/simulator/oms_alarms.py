@@ -110,7 +110,7 @@ class AlarmNotifier(object):
         try:
             payload = yaml.dump(alarm_instance, default_flow_style=False)
             log.trace("payload=\n\t%s", payload.replace('\n', '\n\t'))
-            headers = {"Content-type": "application/x-www-form-urlencoded",
+            headers = {"Content-type": "text/plain",
                        "Accept": "text/plain"}
             conn.request("POST", "", body=payload, headers=headers)
             response = conn.getresponse()

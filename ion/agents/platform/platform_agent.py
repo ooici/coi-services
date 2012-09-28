@@ -62,21 +62,22 @@ class PlatformAgentState(ResourceAgentState):
 
 
 class PlatformAgentEvent(ResourceAgentEvent):
-    PING_AGENT = 'PLATFORM_AGENT_PING_AGENT'
-    GET_SUBPLATFORM_IDS = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
+    PING_AGENT            = 'PLATFORM_AGENT_PING_AGENT'
+    GET_SUBPLATFORM_IDS   = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
 
 
 class PlatformAgentCapability(BaseEnum):
-    INITIALIZE = ResourceAgentEvent.INITIALIZE
-    RESET = ResourceAgentEvent.RESET
-    GO_ACTIVE = ResourceAgentEvent.GO_ACTIVE
-    GO_INACTIVE = ResourceAgentEvent.GO_INACTIVE
-    RUN = ResourceAgentEvent.RUN
-    GET_RESOURCE_CAPABILITIES = ResourceAgentEvent.GET_RESOURCE_CAPABILITIES
-    PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
+    INITIALIZE                = PlatformAgentEvent.INITIALIZE
+    RESET                     = PlatformAgentEvent.RESET
+    GO_ACTIVE                 = PlatformAgentEvent.GO_ACTIVE
+    GO_INACTIVE               = PlatformAgentEvent.GO_INACTIVE
+    RUN                       = PlatformAgentEvent.RUN
+    GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
+    PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
+    GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
 
-    PING_AGENT = 'PLATFORM_AGENT_PING_AGENT'
-    GET_SUBPLATFORM_IDS = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
+    PING_AGENT                = 'PLATFORM_AGENT_PING_AGENT'
+    GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
 
 
 

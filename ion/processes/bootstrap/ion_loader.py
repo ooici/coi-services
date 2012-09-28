@@ -353,7 +353,7 @@ class IONLoader(ImmediateProcess):
         user_credentials_obj = IonObject("UserCredentials", {"name": subject})
         ims.register_user_credentials(user_id, user_credentials_obj)
 
-        user_info_obj = IonObject("UserInfo", {"contact": {"name": name, "email": email}})
+        user_info_obj = IonObject("UserInfo", {"name": name, "contact": {"email": email}})
         ims.create_user_info(user_id, user_info_obj)
 
     def _load_Org(self, row):
@@ -363,6 +363,7 @@ class IONLoader(ImmediateProcess):
 
         headers = self._get_op_headers(row)
 
+        res_id = None
         org_type = row["org_type"]
         if org_type == "MarineFacility":
             svc_client = self._get_service_client("observatory_management")
@@ -373,7 +374,8 @@ class IONLoader(ImmediateProcess):
         else:
             log.warn("Unknown Org type: %s" % org_type)
 
-        self._register_id(row[self.COL_ID], res_id)
+        if res_id:
+            self._register_id(row[self.COL_ID], res_id)
 
     def _load_UserRole(self, row):
         org_id = row["org_id"]

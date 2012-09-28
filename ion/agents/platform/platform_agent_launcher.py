@@ -140,11 +140,12 @@ class _Launcher(object):
 
     def _do_launch(self, platform_id, agent_config, timeout_spawn):
         """
-        The method for the create_process/schedule_process/_await_state_event
-        pattern, which has proved to be consistently effective locally but not
-        on buildbot.
+        The method for the
+        "create_process/subscribe-to-event/schedule_process/_await_state_event"
+        pattern as described in
+        https://confluence.oceanobservatories.org/display/CIDev/R2+Process+Dispatcher+Guide
+        as of Sept 14/12.
         """
-
         self._event_queue = None
         self._event_sub = None
 
