@@ -65,6 +65,8 @@ class ProcessStateGate(EventSubscriber):
     def in_desired_state(self):
         # check whether the process we are monitoring is in the desired state as of this moment
         process_obj = self.read_process_fn(self.process_id)
+        if not process_obj:
+            return False
         return self.desired_state == process_obj.process_state
 
     def await(self, timeout=0):
