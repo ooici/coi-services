@@ -56,7 +56,7 @@ from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
-from ion.agents.port.port_agent_process import PortAgentProcess
+from ion.agents.port.port_agent_process import PortAgentProcess, PortAgentProcessType
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
@@ -314,11 +314,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 product_param_dict = ParameterDictionary.load(out_streams_and_param_dicts[product_stream_id])
                 #if product_param_dict == model_param_dict:
                 #get the streamroute object from pubsub by passing the stream_id
+                stream_def_ids, _ = self.clients.resource_registry.find_objects(product_stream_id,
+                                                                          PRED.hasStreamDefinition,
+                                                                          RT.StreamDefinition,
+                                                                          True)
+
                 stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
                 log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
                 stream_route_flat = ion_serializer.serialize(stream_route)
-                stream_config_too[stream_tag] = {'stream_route': str(stream_route_flat),
-                                                 'parameter_dictionary':out_streams_and_param_dicts[product_stream_id]}
+                stream_config_too[stream_tag] = {'routing_key' : stream_route.routing_key,
+                                                 'stream_id' : product_stream_id,
+                                                 'stream_definition_ref' : stream_def_ids[0],
+                                                 'exchange_point' : stream_route.exchange_point,
+
+                                                 'parameter_dictionary':model_param_dict.dump()}
                 log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
                           str(stream_config_too) )
 
@@ -392,7 +401,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'agent'         : {'resource_id': instrument_device_id}
         }
 
-        log.debug("start_instrument_agent_instance: agent_config %s ", str(instrument_agent_instance_obj.agent_config))
+        log.debug("start_instrument_agent_instance: agent_config %s ", str(agent_config))
 
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
                                                                schedule=None,
@@ -433,14 +442,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
-        config = { 'device_addr' : instrument_agent_instance_obj.comms_device_address,
-                   'device_port' : instrument_agent_instance_obj.comms_device_port,
-                   'working_dir' : instrument_agent_instance_obj.port_agent_work_dir,
-                   'delimiter' : instrument_agent_instance_obj.port_agent_delimeter  }
-        self._pagent = PortAgentProcess.launch_process(config, timeout = 60, test_mode = True)
+        self._port_config = {
+            'device_addr': 'sbe37-simulator.oceanobservatories.org',
+            'device_port': 4001,
+            'process_type': PortAgentProcessType.UNIX,
+
+            'binary_path': "port_agent",
+            'command_port': 4002,
+            'data_port': 4003,
+            'log_level': 5,
+        }
+
+        self._pagent = PortAgentProcess.launch_process(self._port_config,  test_mode = True)
         pid = self._pagent.get_pid()
         port = self._pagent.get_data_port()
-        log.debug("IMS: port agent pid: %d ", pid)
+        log.debug("IMS_start_pagent: port agent pid: %d ", pid)
 
         # Configure driver to use port agent port number.
         instrument_agent_instance_obj.driver_config['comms_config'] = {

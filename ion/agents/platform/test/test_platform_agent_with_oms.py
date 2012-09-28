@@ -305,10 +305,6 @@ class TestPlatformAgent(IonIntegrationTestCase):
         return retval.result
 
     def test_capabilities(self):
-        """
-        Test the ability to retrieve agent and resource parameter and command
-        capabilities in various system states.
-        """
 
         agt_cmds_all = [
             PlatformAgentEvent.INITIALIZE,

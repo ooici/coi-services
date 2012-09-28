@@ -4,32 +4,33 @@
 @package ion.agents.platform.oms.simulator.oms_simulator_server
 @file    ion/agents/platform/oms/simulator/oms_simulator_server.py
 @author  Carlos Rueda
-@brief   OMS simulator XML/RPC server for testing purposes.
+@brief   OMS simulator XML/RPC server. Program intended to be run outside of
+         pyon.
+
+ USAGE:
+    $ bin/python ion/agents/platform/oms/simulator/oms_simulator_server.py
+    ...
+    2012-09-27 21:15:51,335 INFO     MainThread oms_simulator  :107 <module> Listening on localhost:7700
+    2012-09-27 21:15:51,335 INFO     MainThread oms_simulator  :108 <module> Enter ^D to exit
+
 """
 
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
+from ion.agents.platform.oms.simulator.logger import Logger
+log = Logger.get_logger()
+
 from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from threading import Thread
 
 
-import logging
-
-log = logging.getLogger('oms_simulator')
-log.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(levelname)-10s %(module)-25s %(funcName)s %(lineno)-4d %(process)-6d %(threadName)-15s - %(message)s')
-handler.setFormatter(formatter)
-log.addHandler(handler)
-
-
 class OmsSimulatorServer(object):
     """
-    Dispatches an OmsSimulator with a SimpleXMLRPCServer.
+    Dispatches an OmsSimulator with a SimpleXMLRPCServer. Normally,
+    this is intended to be run outside of pyon.
     """
 
     def __init__(self, host, port, thread=False):
@@ -105,6 +106,7 @@ if __name__ == "__main__":
     log.info("network.dump():\n   |%s" % sim.dump().replace('\n', '\n   |'))
     log.info("network.get_map() = %s\n" % sim.config.getPlatformMap())
 
+    log.info("Listening on %s:%s", host, port)
     log.info("Enter ^D to exit")
     try:
         sys.stdin.read()
