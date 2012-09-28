@@ -164,36 +164,35 @@ def dump_param_contexts_to_yml():
     with open(param_context_defs_file, "w") as f:
         f.write(yml_body)
 
+_PARAMETER_DICTIONARIES = None
+_PARAMETER_CONTEXTS = None
+
 def get_param_dict(param_dict_name = None):
+    # read the file just once, not every time needed
+    global _PARAMETER_DICTIONARIES
+    global _PARAMETER_CONTEXTS
+    if not _PARAMETER_DICTIONARIES:
+        param_dict_defs_file = "res/config/param_dict_defs.yml"
+        with open(param_dict_defs_file, "r") as f_dict:
+            dict_string = f_dict.read()
+        _PARAMETER_DICTIONARIES = yaml.load(dict_string)
 
-    # Dumping the param context defs in the file below
-    param_context_defs_file = "res/config/param_context_defs.yml"
-    param_dict_defs_file = "res/config/param_dict_defs.yml"
+        param_context_defs_file = "res/config/param_context_defs.yml"
+        with open(param_context_defs_file, "r") as f_ctxt:
+            ctxt_string = f_ctxt.read()
+        _PARAMETER_CONTEXTS = yaml.load(ctxt_string)
 
-    with open(param_dict_defs_file, "r") as f_dict:
-        dict_string = f_dict.read()
-    with open(param_context_defs_file, "r") as f_ctxt:
-        ctxt_string = f_ctxt.read()
-
-    # look at param dict yml
-    pdict_dict = yaml.load(dict_string)
-
-    # load each parameter context based on name
-    context_names = pdict_dict[param_dict_name]
-
-    param_context_dict = yaml.load(ctxt_string)
-
-    # validate that the context names mentioned in the parameter dictionary def in yml are correct
+    # make sure we have the one requested
+    context_names = _PARAMETER_DICTIONARIES[param_dict_name]
     for name in context_names:
-        if not param_context_dict.has_key(name):
+        if not _PARAMETER_CONTEXTS.has_key(name):
             raise AssertionError('The parameter dict has a context that does not exist in the parameter context defs specified in yml: %s' % name)
 
+    # package and ship
     pdict = ParameterDictionary()
-
     for ctxt_name in context_names:
-        param_context = ParameterContext.load(param_context_dict[ctxt_name])
+        param_context = ParameterContext.load(_PARAMETER_CONTEXTS[ctxt_name])
         pdict.add_context(param_context)
-
     return pdict
     
 
