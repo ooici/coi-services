@@ -69,7 +69,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('SMOKE', group='sa')
+@attr('MMM', group='mmm')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -116,7 +116,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         return pid
 
 
-    @unittest.skip("TBD")
+    #@unittest.skip("TBD")
     def test_activateInstrumentSample(self):
 
         self.loggerpids = []
@@ -201,10 +201,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
         parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
-        parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM', parameter_dictionary=parsed_parameter_dictionary)
+        parsed_stream_def_id = self.pubsubcli.create_stream_definition( name='parsed', parameter_dictionary=parsed_parameter_dictionary)
 
         raw_parameter_dictionary = get_param_dict('simple_data_particle_raw_param_dict')
-        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_RAW', parameter_dictionary=raw_parameter_dictionary)
+        raw_stream_def_id = self.pubsubcli.create_stream_definition( name='raw', parameter_dictionary=raw_parameter_dictionary)
 
 
         #-------------------------------
@@ -405,25 +405,25 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: run %s", str(reply))
 
-#        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
-#        retval = self._ia_client.execute_resource(cmd)
-#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
-#        retval = self._ia_client.execute_resource(cmd)
-#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
-#        retval = self._ia_client.execute_resource(cmd)
-#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
-
-
-
-        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
         retval = self._ia_client.execute_resource(cmd)
-        log.debug("test_activateInstrumentSample: return from START_AUTOSAMPLE: %s", str(retval))
+        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
+#        retval = self._ia_client.execute_resource(cmd)
+#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
+#        retval = self._ia_client.execute_resource(cmd)
+#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
 
-        gevent.sleep(10)
 
-        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
-        retval = self._ia_client.execute_resource(cmd)
-        log.debug("test_activateInstrumentSample: return from STOP_AUTOSAMPLE: %s", str(retval))
+
+#        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+#        retval = self._ia_client.execute_resource(cmd)
+#        log.debug("test_activateInstrumentSample: return from START_AUTOSAMPLE: %s", str(retval))
+#
+#        gevent.sleep(10)
+#
+#        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+#        retval = self._ia_client.execute_resource(cmd)
+#        log.debug("test_activateInstrumentSample: return from STOP_AUTOSAMPLE: %s", str(retval))
 
         log.debug("test_activateInstrumentSample: calling reset ")
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)

@@ -10,12 +10,9 @@
 #from pyon.public import Container
 from pyon.agent.agent import ResourceAgentClient
 from pyon.public import LCE
-from pyon.public import RT, PRED, OT
-from pyon.public import CFG
+from pyon.public import RT, PRED, OT, CFG
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent,BadRequest, NotFound
-#from pyon.datastore.datastore import DataStore
-#from pyon.net.endpoint import RPCClient
 from pyon.ion.resource import ExtendedResourceContainer
 from ooi.logging import log
 from pyon.util.ion_time import IonTime
@@ -250,7 +247,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #retrive the stream info for this model
         streams_dict = model_objs[0].custom_attributes['streams']
         if not streams_dict:
-            raise BadRequest("Dev model does not contain stream configuration used in launching the agent. Model: '%s",
+            raise BadRequest("Device model does not contain stream configuration used in launching the agent. Model: '%s",
                              str(model_objs[0]) )
 
         #retrieve the associated instrument agent
@@ -261,7 +258,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_id = agent_objs[0]._id
         log.debug("start_instrument_agent_instance: Got instrument agent '%s'" % instrument_agent_id)
 
-        out_streams = {}
+        out_streams = []
         out_streams_and_param_dicts = {}
         #retrieve the output products
         data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id,
@@ -290,46 +287,33 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             if len(dataset_ids) > 1:
                 raise Inconsistent("Data Product should only have ONE Dataset" + str(product_id))
 
-            dataset_param_dict_flat = self.clients.dataset_management.get_dataset_parameters(dataset_ids[0])
-            log.debug("start_instrument_agent_instance: dataset_param_dict_flat : %s", str(dataset_param_dict_flat))
-
-            out_streams_and_param_dicts[stream_ids[0]] = dataset_param_dict_flat
+            out_streams.append(stream_ids[0])
 
         #loop thru the defined streams for this device model and construct the stream config object
         stream_config_too = {}
-        for stream_tag in streams_dict.iterkeys():
-            log.debug("start_instrument_agent_instance Model stream config: stream tag:   %s param dict name: %s",
-                      str(stream_tag),
-                      str(streams_dict[stream_tag]) )
 
-            model_param_dict = get_param_dict(streams_dict[stream_tag]) #ParameterDictionary.load_from_tag(out_streams_and_param_dicts[streams_dict[stream_tag]])
-            log.debug("start_instrument_agent_instance: model_param_dict : %s", str(model_param_dict.dump()))
+        # create a stream config got each stream (dataproduct) assoc with this agent/device
+        for product_stream_id in out_streams:
 
-            # inflate the param dict and compare it against the param dicts that are attached to the data products for this device
-            #param_dict_for_model = ParameterDictionary.load(streams_dict[stream_tag])
-            for product_stream_id in out_streams_and_param_dicts.iterkeys():
-                log.debug("start_instrument_agent_instance: product_stream_id : %s", str(product_stream_id))
-                log.debug("start_instrument_agent_instance: product_param_dict : %s",
-                          str(out_streams_and_param_dicts[product_stream_id]))
-                product_param_dict = ParameterDictionary.load(out_streams_and_param_dicts[product_stream_id])
-                #if product_param_dict == model_param_dict:
-                #get the streamroute object from pubsub by passing the stream_id
-                stream_def_ids, _ = self.clients.resource_registry.find_objects(product_stream_id,
-                                                                          PRED.hasStreamDefinition,
-                                                                          RT.StreamDefinition,
-                                                                          True)
+            #get the streamroute object from pubsub by passing the stream_id
+            stream_def_ids, _ = self.clients.resource_registry.find_objects(product_stream_id,
+                                                                      PRED.hasStreamDefinition,
+                                                                      RT.StreamDefinition,
+                                                                      True)
+            stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_def_ids[0])
+            log.debug("start_instrument_agent_instance: stream_def_ids:   %s ", str(stream_def_obj) )
+            stream_tag = stream_def_obj.name
+            model_param_dict = get_param_dict(streams_dict[stream_tag])
 
-                stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
-                log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
-                stream_route_flat = ion_serializer.serialize(stream_route)
-                stream_config_too[stream_tag] = {'routing_key' : stream_route.routing_key,
-                                                 'stream_id' : product_stream_id,
-                                                 'stream_definition_ref' : stream_def_ids[0],
-                                                 'exchange_point' : stream_route.exchange_point,
-
-                                                 'parameter_dictionary':model_param_dict.dump()}
-                log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
-                          str(stream_config_too) )
+            stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
+            log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
+            stream_config_too[stream_tag] = {'routing_key' : stream_route.routing_key,
+                                             'stream_id' : product_stream_id,
+                                             'stream_definition_ref' : stream_def_ids[0],
+                                             'exchange_point' : stream_route.exchange_point,
+                                             'parameter_dictionary':model_param_dict.dump()}
+            log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
+                      str(stream_config_too) )
 
                     #todo: REIMPL THIS CHECK!
                 #        if len(streams_dict) != len(stream_config_too):
@@ -443,13 +427,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
         self._port_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
+            'device_addr': CFG.device.sbe37.host,
+            'device_port': CFG.device.sbe37.port,
             'process_type': PortAgentProcessType.UNIX,
 
-            'binary_path': "port_agent",
-            'command_port': 4002,
-            'data_port': 4003,
+            'binary_path':  CFG.device.sbe37.port_agent_binary,
+            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+            'data_port': CFG.device.sbe37.port_agent_data_port,
             'log_level': 5,
         }
 
@@ -487,7 +471,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #Stop the port agent.
         log.debug("IMS:stop_instrument_agent_instance stop pagent  %s ", str(port_agent_pid))
         if port_agent_pid:
-            os.kill(port_agent_pid, signal.SIGTERM)
+            os.kill(port_agent_pid, signal.SIGKILL)
 
         #reset the process ids.
         instrument_agent_instance_obj.agent_process_id = None
@@ -1770,13 +1754,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return ret
 
 
-    def get_location(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedGeospatialBoundsValue)
-        if ia_client:
-            ret.value = IonObject(OT.GeospatialBounds)  #todo: use ia_client
-        return ret
-
-
     def get_last_data_received_datetime(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
@@ -1788,30 +1765,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         ia_client, ret = self.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
         if ia_client:
             ret.value = "" #todo: use ia_client
-        return ret
-
-    def get_last_command_status(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
-        if ia_client:
-            ret.value = 0 #todo: use ia_client
-        return ret
-
-    def get_last_command_date(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
-        if ia_client:
-            ret.value = 0.0 #todo: use ia_client
-        return ret
-
-    def get_last_command(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedStringValue)
-        if ia_client:
-            ret.value = "0" #todo: use ia_client
-        return ret
-
-    def get_last_commanded_by(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedStringValue)
-        if ia_client:
-            ret.value = "0" #todo: use ia_client
         return ret
 
     def get_power_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
@@ -1868,20 +1821,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return ret
 
-    def get_last_calibration_time(self, instrument_device_id):
+    def get_last_calibration_datetime(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 45.5 #todo: use ia_client
         return ret
 
-
-    def get_sites(self, instrument_device_id):
-        #List of sites to which this instrument has been deployed
-        ret = IonObject(OT.ComputedListValue)
-        ret.status = ComputedValueAvailability.PROVIDED
-        #todo: this
-        ret.value = []
-        return ret
 
     # def get_uptime(self, device_id): - common to both instrument and platform, see below
 
@@ -1988,14 +1933,4 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #        return ret
         return "0 days, 0 hours, 0 minutes"
 
-    #-------------------------------
-    # Deployment Computed Attrs
-    #-------------------------------
-    # The actual initiation of the deployment, calculated from when the deployment was activated
-    def get_start_datetime_actual(self, deployment_id):
-        return "TBD"
-
-    # The actual end of the deployment, calculated from when the deployment was activated
-    def get_end_datetime_actual(self, deployment_id):
-        return "TBD"
 

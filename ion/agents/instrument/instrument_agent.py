@@ -61,6 +61,7 @@ from mi.core.instrument.instrument_driver import DriverAsyncEvent
 from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverParameter
 from mi.core.instrument.data_particle import DataParticle
+from interface.objects import StreamRoute
 
 from interface.objects import AgentCommand
 
@@ -722,7 +723,7 @@ class InstrumentAgent(ResourceAgent):
             publisher = self._data_publishers[stream_name]
             param_dict = self._param_dicts[stream_name]
             stream_def = self._stream_defs[stream_name]
-            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+            rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
             for (k, v) in val.iteritems():
                 if k == 'values':
@@ -1037,7 +1038,8 @@ class InstrumentAgent(ResourceAgent):
                     param_dict_flat = stream_config['parameter_dictionary']
                     self._param_dicts[stream_name] = ParameterDictionary.load(param_dict_flat)
                     self._stream_defs[stream_name] = stream_config['stream_definition_ref']
-                    publisher = StreamPublisher(process=self, stream_id=stream_id, exchange_point=exchange_point, routing_key=routing_key)
+                    self.route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
+                    publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=self.route)
 
                     self._data_publishers[stream_name] = publisher
                     log.info("Instrument agent '%s' created publisher for stream_name "
