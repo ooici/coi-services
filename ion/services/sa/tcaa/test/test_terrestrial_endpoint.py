@@ -350,6 +350,8 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         
         self.on_link_up()
 
+        gevent.sleep(2)
+
         self._remote_server.stop()
         self._remote_client.stop()
 

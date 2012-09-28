@@ -146,7 +146,32 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         elif evt.status == TelemetryStatusType.UNAVAILABLE:
             log.debug('Telemetry not available.')
             self._on_link_down()
-        
+
+    def _on_link_up(self):
+        """
+        Processing on link up event.
+        Start client socket.
+        ION link availability published when pending commands are transmitted.
+        """
+        log.debug('%s client connecting to %s:%i',
+                    self.__class__.__name__,
+                    self._other_host, self._other_port)
+        self._client.start(self._other_host, self._other_port)
+        self._publisher.publish_event(
+                                event_type='PublicPlatformTelemetryEvent',
+                                origin=self._platform_resource_id,
+                                status=TelemetryStatusType.AVAILABLE)        
+
+    def _on_link_down(self):
+        """
+        Processing on link down event.
+        Stop client socket and publish ION link unavailability.
+        """
+        self._client.stop()
+        self._publisher.publish_event(
+                                event_type='PublicPlatformTelemetryEvent',
+                                origin=self._platform_resource_id,
+                                status=TelemetryStatusType.UNAVAILABLE)        
         
     ######################################################################    
     # Commands.

@@ -47,6 +47,9 @@ from ion.services.sa.tcaa.r3pc import R3PCClient
 from interface.objects import TelemetryStatusType
 
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_process_queued
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_process_online
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_terrestrial_late
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_xxx
 
 class FakeProcess(LocalContextMixin):
@@ -75,6 +78,14 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         
         self._other_host = 'localhost'
         self._platform_resource_id = 'abc123'
+        self._resource_id = 'fake_id'
+        self._no_requests = 10
+        self._requests_sent = {}
+        self._results_recv = {}
+        self._no_telem_events = 0
+        self._done_evt = AsyncResult()
+        self._done_telem_evts = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
         
         # Start container.
         log.debug('Staring capability container.')
@@ -145,16 +156,21 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
                             origin=self._platform_resource_id,
                             status = TelemetryStatusType.UNAVAILABLE)    
     
-    def consume_req(self):
+    def consume_req(self, res):
         """
         """
-        pass
+        command_id = res['command_id']
+        self._results_recv[command_id] = res
+        if len(self._results_recv) == self._no_requests:
+            self._done_evt.set()
     
-    def consume_ack(self):
+    def consume_ack(self, cmd):
         """
         """
-        pass
-    
+        self._requests_sent[cmd.command_id] = cmd
+        if len(self._requests_sent) == self._no_requests:
+            self._cmd_tx_evt.set()
+        
     def terrestrial_server_close(self):
         """
         """
@@ -165,6 +181,86 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         """
         pass
     
+    def make_fake_command(self, no):
+        """
+        Build a fake command for use in tests.
+        """
+            
+        cmdstr = 'fake_cmd_%i' % no
+        cmd = IonObject('RemoteCommand',
+                             resource_id=self._resource_id,
+                             command=cmdstr,
+                             args=['arg1', 23],
+                             kwargs={'kwargs1':'someval'},
+                             command_id = str(uuid.uuid4()))
+        return cmd
+
+    def test_process_queued(self):
+        """
+        """        
+        
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            self._terrestrial_client.enqueue(cmd)
+
+        self.on_link_up()
+
+        self._cmd_tx_evt.get(self._no_requests*4)
+        self._done_evt.get(self._no_requests*4)
+
+        self.on_link_down()
+
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
+    
+    def test_process_online(self):
+        """
+        """        
+        
+        self.on_link_up()
+
+        gevent.sleep(1)
+
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            self._terrestrial_client.enqueue(cmd)
+
+        self._cmd_tx_evt.get(self._no_requests*4)
+        self._done_evt.get(self._no_requests*4)
+
+        self.on_link_down()
+
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
+
+    def test_terrestrial_late(self):
+        """
+        """        
+        
+        self.on_link_up()
+
+        gevent.sleep(1)
+
+        self._terrestrial_server.stop()
+        self._terrestrial_client.stop()
+
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            self._terrestrial_client.enqueue(cmd)
+
+        gevent.sleep(3)
+        
+        self._terrestrial_client.start('localhost', self._this_port)
+        self._terrestrial_server.start('*', self._other_port)
+
+        self._cmd_tx_evt.get(self._no_requests*4)
+        self._done_evt.get(self._no_requests*4)
+
+        self.on_link_down()
+
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
+
     def test_xxx(self):
         """
         """
