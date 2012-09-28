@@ -65,16 +65,22 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
     def setUp(self):
         """
         """
-        self._terrestrial_host = None
-        self._terrestrial_port = None
-        self._remote_port = None
-        self._platform_resource_id = 'a_remote_platform'
+        
+        self._terrestrial_server = R3PCServer(self.consume_req, self.terrestrial_server_close)
+        self._terrestrial_client = R3PCClient(self.consume_ack, self.terrestrial_client_close)
+        self.addCleanup(self._terrestrial_server.stop)
+        self.addCleanup(self._terrestrial_client.stop)
+        self._other_port = self._terrestrial_server.start('*', 0)
+        log.debug('Terrestrial server binding to *:%i', self._other_port)
+        
+        self._other_host = 'localhost'
+        self._platform_resource_id = 'abc123'
         
         # Start container.
         log.debug('Staring capability container.')
         self._start_container()
         
-        # Bring up services in a deploy file (no need to message)
+        # Bring up services in a deploy file (no need to message).
         log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
@@ -85,30 +91,30 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
         # Create agent config.
         endpoint_config = {
-            'terrestrial_host' : self._terrestrial_host,
-            'terrestrial_port' : self._terrestrial_port,
-            'remote_port' : 0,
+            'other_host' : self._other_host,
+            'other_port' : self._other_port,
+            'this_port' : 0,
             'platform_resource_id' : self._platform_resource_id
         }
         
-        # Spawn the terrestrial enpoint process.
+        # Spawn the remote enpoint process.
         log.debug('Spawning remote endpoint process.')
-        te_pid = container_client.spawn_process(
+        re_pid = container_client.spawn_process(
             name='remote_endpoint_1',
             module='ion.services.sa.tcaa.remote_endpoint',
             cls='RemoteEndpoint',
             config=endpoint_config)
-        log.debug('Endpoint pid=%s.', str(te_pid))
+        log.debug('Endpoint pid=%s.', str(re_pid))
 
         # Create an endpoint client.
         self.re_client = RemoteEndpointClient(
             process=FakeProcess(),
-            to_name=te_pid)
-        log.debug('Got te client %s.', str(self.re_client))
+            to_name=re_pid)
+        log.debug('Got re client %s.', str(self.re_client))
         
-        # Remember the terrestrial port.
-        self._remote_port = self.re_client.get_port()
-        log.debug('The remote port is: %i.', self._remote_port)
+        # Remember the remote port.
+        self._this_port = self.re_client.get_port()
+        log.debug('The remote port is: %i.', self._this_port)
         
         # Start the event publisher.
         self._event_publisher = EventPublisher()
@@ -117,9 +123,9 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         """
         Called by a test to simulate turning the link on.
         """
-        log.debug('Remote client connecting to localhost:%i.',
-                  self._terrestrial_port)
-        self._remote_client.start('localhost', self._terrestrial_port)
+        log.debug('Terrestrial client connecting to localhost:%i.',
+                 self._this_port)
+        self._terrestrial_client.start('localhost', self._this_port)
         # Publish a link up event to be caught by the endpoint.
         log.debug('Publishing telemetry event.')
         self._event_publisher.publish_event(
@@ -131,7 +137,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         """
         Called by a test to simulate turning the link off.
         """
-        self._remote_client.stop()
+        self._terrestrial_client.stop()
         # Publish a link down event to be caught by the endpoint.
         log.debug('Publishing telemetry event.')
         self._event_publisher.publish_event(
@@ -139,8 +145,31 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
                             origin=self._platform_resource_id,
                             status = TelemetryStatusType.UNAVAILABLE)    
     
-    def test_xxx(self):
+    def consume_req(self):
         """
         """
         pass
-
+    
+    def consume_ack(self):
+        """
+        """
+        pass
+    
+    def terrestrial_server_close(self):
+        """
+        """
+        pass
+    
+    def terrestrial_client_close(self):
+        """
+        """
+        pass
+    
+    def test_xxx(self):
+        """
+        """
+        
+        self.on_link_up()
+        gevent.sleep(2)
+        self.on_link_down()
+        gevent.sleep(2)
