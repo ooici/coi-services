@@ -465,13 +465,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Cancels the execution of the given process id.
         self.clients.process_dispatcher.cancel_process(instrument_agent_instance_obj.agent_process_id)
 
-        port_agent_pid = instrument_agent_instance_obj.driver_config['pagent_pid']
-
-
-        #Stop the port agent.
-        log.debug("IMS:stop_instrument_agent_instance stop pagent  %s ", str(port_agent_pid))
-        if port_agent_pid:
-            os.kill(port_agent_pid, signal.SIGKILL)
+        process = PortAgentProcess.get_process(self._port_config, test_mode=True)
+        process.stop()
 
         #reset the process ids.
         instrument_agent_instance_obj.agent_process_id = None
