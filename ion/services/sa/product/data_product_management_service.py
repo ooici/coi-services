@@ -298,6 +298,12 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return results
 
+    ############################
+    #
+    #  Data Product Collections
+    #
+    ############################
+
 
     def create_data_product_collection(self, data_product_id='', collection_name='', collection_description=''):
         """Define a  set of an existing data products that represent an improvement in the quality or

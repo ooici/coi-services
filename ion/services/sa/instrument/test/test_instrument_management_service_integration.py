@@ -151,8 +151,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.operational_state.status)
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
-                         extended_instrument.computed.last_command_status.status)
-        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.last_command_date.status)
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.last_command.status)
@@ -172,18 +170,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual([], extended_instrument.computed.recent_events.value)
 
 
-        #        self.assertEqual("23", extended_instrument.computed.firmware_version)
-#        self.assertEqual("42.2", extended_instrument.computed.last_data_received_time)
-#        self.assertEqual("23", extended_instrument.computed.operational_state)
-#        self.assertEqual("34", extended_instrument.computed.last_command_status)
-#        self.assertEqual("45", extended_instrument.computed.last_command_date)
-#        self.assertEqual("56", extended_instrument.computed.last_command)
-#        self.assertEqual("67", extended_instrument.computed.last_commanded_by)
-#        self.assertEqual("78", extended_instrument.computed.power_status_roll_up)
-#        self.assertEqual("89", extended_instrument.computed.communications_status_roll_up)
-#        self.assertEqual("98", extended_instrument.computed.data_status_roll_up)
-#        self.assertEqual("87", extended_instrument.computed.location_status_roll_up)
-#        self.assertEqual(['mon', 'tue', 'wed'], extended_instrument.computed.recent_events)
 
 
     def test_custom_attributes(self):

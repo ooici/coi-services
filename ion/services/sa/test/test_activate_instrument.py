@@ -119,7 +119,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         return pid
 
 
-    @unittest.skip("TBD")
+    #@unittest.skip("TBD")
     def test_activateInstrumentSample(self):
 
         self.loggerpids = []
@@ -432,10 +432,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         dataset_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
 
-#        replay_data = self.dataretrieverclient.retrieve(dataset_ids[0])
-#        self.assertIsInstance(replay_data, Granule)
-#        rdt = RecordDictionaryTool.load_from_granule(replay_data)
-#        log.debug("test_activateInstrumentSample: replay_data %s ", str(rdt.pretty_print()))
+        replay_data = self.dataretrieverclient.retrieve(dataset_ids[0])
+        self.assertIsInstance(replay_data, Granule)
+        rdt = RecordDictionaryTool.load_from_granule(replay_data)
+        log.debug("test_activateInstrumentSample: replay_data %s ", str(rdt.pretty_print()))
 
         #-------------------------------
         # Deactivate InstrumentAgentInstance
