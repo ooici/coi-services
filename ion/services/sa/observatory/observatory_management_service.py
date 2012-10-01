@@ -447,11 +447,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         site_type = site_obj._get_type()
 
         if RT.PlatformSite == site_type:
-           self.platform_site.link_device(site_id, device_id)
+            self.platform_site.link_device(site_id, device_id)
         elif RT.InstrumentSite == site_type:
-           self.instrument_site.link_device(site_id, device_id)
+            self.instrument_site.link_device(site_id, device_id)
         else:
-           raise BadRequest("Tried to assign a device to a %s resource" % site_type)
+            raise BadRequest("Tried to assign a device to a %s resource" % site_type)
 
     def unassign_device_from_site(self, device_id='', site_id=''):
         """Disconnects a device (any type) from a site (any subtype)
@@ -636,6 +636,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return a dict of streamdef_id => stream_id for a given device
         """
 
+        assert(type("") == type(device_id))
+
         #recursive function to get all data producers
         def child_data_producers(dpdc_ids):
             def cdp_helper(acc2, dpdc_id2):
@@ -679,6 +681,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return streamdefs
 
     def check_site_for_deployment(self, site_id, site_type, model_type):
+        assert(type("") == type(site_id))
+        assert(type(RT.Resource) == type(site_type) == type(model_type))
+
         log.debug("checking %s for deployment, will return %s" % (site_type, model_type))
         # validate and return supported models
         models, _ = self.RR.find_objects(site_id, PRED.hasModel, model_type, True)
@@ -686,14 +691,20 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("Expected at least 1 model for %s '%s', got %d" % (site_type, site_id, len(models)))
 
         log.debug("checking site data products")
-        prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        if 1 != len(prods):
-            raise BadRequest("Expected 1 output data product on %s '%s', got %d" % (site_type, site_id, len(prods)))
+
+        #todo: remove this when platform data products start working
+        if site_type != RT.PlatformSite:
+            prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
+            if 1 != len(prods):
+                raise BadRequest("Expected 1 output data product on %s '%s', got %d" % (site_type, site_id, len(prods)))
         return models
 
 
 
     def check_device_for_deployment(self, device_id, device_type, model_type):
+        assert(type("") == type(device_id))
+        assert(type(RT.Resource) == type(device_type) == type(model_type))
+
         log.debug("checking %s for deployment, will return %s" % (device_type, model_type))
         # validate and return model
         models, _ = self.RR.find_objects(device_id, PRED.hasModel, model_type, True)
@@ -702,6 +713,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return models[0]
 
     def check_site_device_pair_for_deployment(self, site_id, device_id, site_type=None, device_type=None):
+        assert(type("") == type(site_id) == type(device_id))
+
         log.debug("checking %s/%s pair for deployment" % (site_type, device_type))
         #return a pair that should be REMOVED, or None
 
@@ -724,15 +737,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return ret
 
-    def has_matching_streamdef(self, site_id, device_id):
-        if not self.streamdef_of_site(site_id) in self.streamdefs_of_device(device_id):
-            raise BadRequest("No matching streamdefs between %s '%s' and %s '%s'" %
-                             (site_type, site_id, device_type, device_id))
+#    def has_matching_streamdef(self, site_id, device_id):
+#        if not self.streamdef_of_site(site_id) in self.streamdefs_of_device(device_id):
+#            raise BadRequest("No matching streamdefs between %s '%s' and %s '%s'" %
+#                             (site_type, site_id, device_type, device_id))
 
     def collect_deployment_components(self, deployment_id):
         """
         get all devices and sites associated with this deployment and use their ID as a key to list of models
         """
+        assert(type("") == type(deployment_id))
 
         device_models = {}
         site_models = {}
@@ -779,9 +793,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("Multiple platforms in the same deployment are not allowed")
         elif 0 < len(device_models):
             # add devices and sites that are children of platform device / site
-            child_device_ids = self.platform_device.find_stemming_device(device_models.keys()[0])
-            child_site_ids = self.find_related_frames_of_reference(site_models.keys()[0],
+            child_device_objs = self.platform_device.find_stemming_platform_device(device_models.keys()[0])
+            child_site_objs = self.find_related_frames_of_reference(site_models.keys()[0],
                 [RT.PlatformSite, RT.InstrumentSite])
+
+            child_device_ids = [x._id for x in child_device_objs]
+            child_site_ids   = [x._id for x in child_site_objs[RT.InstrumentSite]]
 
             # IGNORE child platforms
             #  verify that platform site has no sub-platform-sites
@@ -791,12 +808,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             #  gather a list of all instrument sites on platform site
             #  gather a list of all instrument devices on platform device
             add_devices(child_device_ids, RT.InstrumentDevice, RT.InstrumentModel)
-            add_sites(child_site_ids[RT.InstrumentSite], RT.InstrumentSite, RT.InstrumentModel)
+            add_sites(child_site_ids, RT.InstrumentSite, RT.InstrumentModel)
+        else:
+            log.warn("0 platforms in deployment being activated")
 
         collect_specific_resources(RT.InstrumentSite, RT.InstrumentDevice, RT.InstrumentModel)
 
         return device_models, site_models
-
 
 
     def activate_deployment(self, deployment_id='', activate_subscriptions=False):
@@ -829,15 +847,30 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # perform CSP solve; this will be a list of solutions, each a dict of var -> value
         solutions = problem.getSolutions()
 
+        def solution_to_string(soln):
+            ret = "%s" % type(soln).__name__
+            for k, v in soln.iteritems():
+                dev_obj = self.RR.read(k)
+                site_obj = self.RR.read(v)
+                ret = "%s, %s '%s' -> %s '%s'" % (ret, dev_obj._get_type(), k, site_obj._get_type(), v)
+            return ret
+
         if 1 > len(solutions):
             raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
                              "model and streamdefs")
         elif 1 < len(solutions):
             log.warn("Found %d possible ways to map device and site, but just picking the first one" % len(solutions))
+            log.warn("Here is the %s of all of them:" % type(solutions).__name__)
+            for i, s in enumerate(solutions):
+                log.warn("Option %d: %s" % (i+1, solution_to_string(s)))
+        else:
+            log.info("Found one possible way to map devices and sites.  Best case scenario!")
 
         pairs_add = []
         pairs_rem = []
 
+        #figure out if any of the devices in the new mapping are already mapped and need to be removed
+        #then add the new mapping to the output array
         for device_id in device_models.keys():
             site_id = solutions[0]["device_%s" % device_id]
             old_pair = self.check_site_device_pair_for_deployment(site_id, device_id)
@@ -938,6 +971,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             model_type = RT.InstrumentModel
         elif RT.PlatformDevice == device_type:
             model_type = RT.PlatformModel
+            #todo: actually transfer the subsription.  for now we abort because there are no platform data products
+            return
         else:
             raise BadRequest("Expected a device type, got '%s'" % device_type)
 
