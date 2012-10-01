@@ -119,6 +119,9 @@ class ResourceImpl(object):
         @new_state the new lifecycle state
         """
 
+        assert(type("") == type(resource_id))
+        assert(type(LCE.PLAN) == type(transition_event))
+
         self.check_lcs_precondition_satisfied(resource_id, transition_event)
 
         if LCE.RETIRE == transition_event:
@@ -126,13 +129,14 @@ class ResourceImpl(object):
             ret = self.RR.retire(resource_id)
             return ret
         else:
-            log.debug("Moving %s resource life cycle with transition event %s"
+            log.debug("Moving %s resource life cycle with transition event=%s"
                       % (self.iontype, transition_event))
 
             ret = self.RR.execute_lifecycle_transition(resource_id=resource_id,
                                                        transition_event=transition_event)
 
-            log.debug("Result of lifecycle transition was %s" % str(ret))
+            log.info("%s lifecycle transition=%s resulted in lifecycle state=%s" %
+                     (self.iontype, transition_event, str(ret)))
 
         return ret
 
@@ -143,8 +147,14 @@ class ResourceImpl(object):
                 #The validation interceptor should have already verified that these are in the msg dict
                 resource_id = msg[id_field]
                 lifecycle_event = msg['lifecycle_event']
+                log.debug("policy_fn got LCE=%s for %s=(%s)'%s'" %
+                          (lifecycle_event, id_field, type(resource_id).__name__, resource_id))
 
-                return self.check_lcs_precondition_satisfied(resource_id, lifecycle_event)
+                ret = self.check_lcs_precondition_satisfied(resource_id, lifecycle_event)
+                isok, msg = ret
+                log.debug("policy_fn for '%s %s' successfully returning %s - %s" %
+                          (lifecycle_event, id_field, isok, msg))
+                return ret
 
             return policy_fn
 
@@ -629,7 +639,7 @@ class ResourceImpl(object):
         """
         delete all assocations of a given type
         """
-        log.debug("Deleting all %s object associations from subject with id='%s'" % 
+        log.debug("Deleting all %s object associations from subject with id='%s'" %
                   (association_type, subject_id))
         associations = self.RR.find_associations(subject=subject_id, predicate=association_type)
         
@@ -641,7 +651,7 @@ class ResourceImpl(object):
         """
         delete all assocations of a given type
         """
-        log.debug("Deleting all %s associations to object with id='%s'" % 
+        log.debug("Deleting all %s associations to object with id='%s'" %
                   (association_type, object_id))
         associations = self.RR.find_associations(object=object_id, predicate=association_type)
         
