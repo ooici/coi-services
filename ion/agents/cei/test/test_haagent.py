@@ -305,7 +305,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
                         'metric': 'app_attributes:ml',
                         'sample_period': 600,
                         'sample_function': 'Average',
-                        'cooldown_period': 2,
+                        'cooldown_period': 20,
                         'scale_up_threshold': 2.0,
                         'scale_up_n_processes': 1,
                         'scale_down_threshold': 1.0,
