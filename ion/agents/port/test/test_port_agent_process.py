@@ -17,6 +17,7 @@ from ion.agents.port.port_agent_process import PortAgentProcess, PythonPortAgent
 from ion.agents.port.exceptions import PortAgentTimeout
 from ion.agents.port.exceptions import PortAgentMissingConfig
 from ion.agents.port.exceptions import PortAgentLaunchException
+from pyon.public import CFG
 
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/agents/port/test/test_port_agent_process.py
@@ -182,13 +183,13 @@ class TestUnixEthernetProcess(unittest.TestCase):
         Setup test cases.
         """
         self._port_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
+            'device_addr': CFG.device.sbe37.host,
+            'device_port': CFG.device.sbe37.port,
             'process_type': PortAgentProcessType.UNIX,
             
-            'binary_path': "port_agent",
-            'command_port': 4002,
-            'data_port': 4003,
+            'binary_path': CFG.device.sbe37.port_agent_binary,
+            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+            'data_port': CFG.device.sbe37.port_agent_data_port,
             'log_level': 5,
         }
 
@@ -215,8 +216,10 @@ class TestUnixEthernetProcess(unittest.TestCase):
 
         # Check that it launched properly
         self.assertTrue(process.get_pid() > 0)
-        self.assertTrue(process.get_data_port(), 4003)
-        self.assertEqual(process.get_command_port(), 4002)
+        self.assertTrue(process.get_data_port(),
+                CFG.device.sbe37.port_agent_data_port)
+        self.assertEqual(process.get_command_port(),
+                CFG.device.sbe37.port_agent_cmd_port)
 
         process.stop()
 
