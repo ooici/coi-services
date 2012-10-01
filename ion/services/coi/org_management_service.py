@@ -9,7 +9,7 @@ from pyon.core.registry import issubtype
 from pyon.event.event import EventPublisher
 from pyon.util.containers import is_basic_identifier
 from pyon.core.governance.negotiation import Negotiation
-from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, CommitmentStatusEnum
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, AcquisitionTypeEnum
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from ion.services.coi.policy_management_service import ORG_MEMBER_ROLE, ORG_MANAGER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
@@ -32,7 +32,7 @@ negotiation_rules = {
         'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)',
                            'has_role(sap.provider,sap.consumer,"' + INSTRUMENT_OPERATOR_ROLE + '")',
                            'is_resource_shared(sap.provider,sap.resource)'],
-        'accept_action': 'acquire_resource(sap.provider,sap.consumer,sap.resource)'
+        'accept_action': 'acquire_resource(sap)'
     }
 }
 
@@ -791,29 +791,35 @@ class OrgManagementService(BaseOrgManagementService):
 
 
 
-    def acquire_resource(self, org_id='', user_id='', resource_id='', exclusive=False):
-        """Creates a Commitment Resource to for the specified resource for a specified user withing the specified Org. Once shared, the resource is
-        committed to the user. Throws a NotFound exception if none of the ids are found.
+    def acquire_resource(self, sap=None):
+        """Creates a Commitment Resource for the specified resource for a specified user withing the specified Org as defined in the
+        proposal. Once shared, the resource is committed to the user. Throws a NotFound exception if none of the ids are found.
 
-        @param org_id    str
-        @param user_id    str
-        @param resource_id    str
-        @param exclusive    bool
+        @param proposal    AcquireResourceProposal
         @retval commitment_id    str
         @throws NotFound    object with specified id does not exist
         """
-        param_objects = self._validate_parameters(org_id=org_id, user_id=user_id, resource_id=resource_id)
+        param_objects = self._validate_parameters(org_id=sap.provider, user_id=sap.consumer, resource_id=sap.resource)
 
-        res_commitment = IonObject(OT.ResourceCommitment, resource_id=resource_id, exclusive=exclusive)
+        if sap.acquisition_type == AcquisitionTypeEnum.EXCLUSIVE:
+            exclusive = True
+        else:
+            exclusive = False
 
-        commitment = IonObject(RT.Commitment, name='', provider=org_id, consumer=user_id, commitment=res_commitment,
+        res_commitment = IonObject(OT.ResourceCommitment, resource_id=sap.resource, exclusive=exclusive)
+
+        commitment = IonObject(RT.Commitment, name='', provider=sap.provider, consumer=sap.consumer, commitment=res_commitment,
              description='Resource Commitment')
 
         commitment_id, commitment_rev = self.clients.resource_registry.create(commitment)
         commitment._id = commitment_id
         commitment._rev = commitment_rev
-        self.clients.resource_registry.create_association(user_id, PRED.hasCommitment, commitment)
-        self.clients.resource_registry.create_association(resource_id, PRED.hasCommitment, commitment)
+
+        #Creating associations to all objects
+        self.clients.resource_registry.create_association(sap.provider, PRED.hasCommitment, commitment_id)
+        self.clients.resource_registry.create_association(sap.consumer, PRED.hasCommitment, commitment_id)
+        self.clients.resource_registry.create_association(sap.resource, PRED.hasCommitment, commitment_id)
+        self.clients.resource_registry.create_association(sap.negotiation_id, PRED.hasContract, commitment_id)
 
         return commitment_id
 
@@ -828,11 +834,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not commitment_id:
             raise BadRequest("The commitment_id parameter is missing")
 
-        commitment = self.clients.resource_registry.read(commitment_id)
-
-        commitment.status = CommitmentStatusEnum.INACTIVE
-
-        self.clients.resource_registry.update(commitment)
+        self.clients.resource_registry.retire(commitment_id)
 
         return True
 

@@ -16,7 +16,7 @@ from pyon.datastore.datastore import DatastoreManager
 from pyon.event.event import EventRepository
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound, Unauthorized, InstStateError
-from pyon.public import PRED, RT, IonObject, CFG, log, OT
+from pyon.public import PRED, RT, IonObject, CFG, log, OT, LCS
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
@@ -24,9 +24,9 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 
-from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum, CommitmentStatusEnum
+from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
-
+from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from ion.services.coi.policy_management_service import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
@@ -486,8 +486,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn('A precondition for this request has not been satisfied: not is_enroll_negotiation_open',cm.exception.message)
 
         #Manager trys to reject the proposal but incorrectly
-        sap_response.proposal_status = ProposalStatusEnum.REJECTED
-        sap_response.originator = ProposalOriginatorEnum.PROVIDER
+        negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.EnrollmentProposal,
+            negotiation_status=NegotiationStatusEnum.OPEN, headers=self.sa_user_header)
+
+        sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.REJECTED, ProposalOriginatorEnum.PROVIDER)
+        sap_response.sequence_num -= 1
 
         #Should fail because the proposal sequence was not incremented
         with self.assertRaises(Inconsistent) as cm:
@@ -528,9 +531,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(users),0)
 
         #Manager approves proposal
-        sap_response.proposal_status = ProposalStatusEnum.ACCEPTED
-        sap_response.originator = ProposalOriginatorEnum.PROVIDER
-        sap_response.sequence_num += 1
+        negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.EnrollmentProposal,
+            negotiation_status=NegotiationStatusEnum.OPEN, headers=self.sa_user_header)
+
+        sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
         users = self.org_client.find_enrolled_users(org2_id, headers=self.sa_user_header)
@@ -672,9 +676,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(users),0)
 
         #Manager approves proposal
-        sap_response.proposal_status = ProposalStatusEnum.ACCEPTED
-        sap_response.originator = ProposalOriginatorEnum.PROVIDER
-        sap_response.sequence_num += 1
+        negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.EnrollmentProposal,
+            negotiation_status=NegotiationStatusEnum.OPEN, headers=self.sa_user_header)
+
+        sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
         users = self.org_client.find_enrolled_users(org2_id, headers=self.sa_user_header)
@@ -704,9 +709,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(negotiations),1)
 
         #Manager  rejects the initial role proposal
-        sap_response.proposal_status = ProposalStatusEnum.REJECTED
-        sap_response.originator = ProposalOriginatorEnum.PROVIDER
-        sap_response.sequence_num += 1
+        negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.RequestRoleProposal,
+            negotiation_status=NegotiationStatusEnum.OPEN, headers=self.sa_user_header)
+
+        sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.REJECTED, ProposalOriginatorEnum.PROVIDER)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
         negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
@@ -755,9 +761,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn('instrument_management(create_instrument_agent) has been denied',cm.exception.message)
 
         #Manager approves proposal for role request
-        sap_response.proposal_status = ProposalStatusEnum.ACCEPTED
-        sap_response.originator = ProposalOriginatorEnum.PROVIDER
-        sap_response.sequence_num += 1
+        negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.RequestRoleProposal,
+            negotiation_status=NegotiationStatusEnum.OPEN, headers=self.sa_user_header)
+
+        sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
         #mke sure there are no more open negotiations
@@ -846,10 +853,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         ret = self.org_client.has_role(org2_id, user_id,INSTRUMENT_OPERATOR_ROLE, headers=user_header )
         self.assertEqual(ret, False)
 
-        #User approves proposal
-        sap_response.proposal_status = ProposalStatusEnum.ACCEPTED
-        sap_response.originator = ProposalOriginatorEnum.CONSUMER
-        sap_response.sequence_num += 1
+        #User creates proposal to approve
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, proposal_type=OT.RequestRoleProposal,
+            negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
+
+        sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED)
         sap_response2 = self.org_client.negotiate(sap_response, headers=user_header )
 
         #Verify the user has been assigned the requested role in the second Org
@@ -915,17 +923,20 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.assertEqual(negotiations[0]._id, sap_response.negotiation_id)
 
+
         #Manager Creates a counter proposal
-        sap_response.proposal_status = ProposalStatusEnum.COUNTER
-        sap_response.originator = ProposalOriginatorEnum.PROVIDER
-        sap_response.sequence_num += 1
+        negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.AcquireResourceProposal,
+            negotiation_status=NegotiationStatusEnum.OPEN, headers=self.sa_user_header)
+
+        sap_response = Negotiation.create_counter_proposal(negotiations[0], originator=ProposalOriginatorEnum.PROVIDER)
         sap_response.conditions = {'commitment_length': 'one week'}
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
         #User Creates a counter proposal
-        sap_response.proposal_status = ProposalStatusEnum.COUNTER
-        sap_response.originator = ProposalOriginatorEnum.CONSUMER
-        sap_response.sequence_num += 1
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, proposal_type=OT.AcquireResourceProposal,
+            negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
+
+        sap_response = Negotiation.create_counter_proposal(negotiations[0])
         sap_response.conditions = {'commitment_length': 'one month'}
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
@@ -939,19 +950,21 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
         #Manager approves Instrument resource proposal
-        sap_response.proposal_status = ProposalStatusEnum.ACCEPTED
-        sap_response.originator = ProposalOriginatorEnum.PROVIDER
-        sap_response.sequence_num += 1
+        negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.AcquireResourceProposal,
+            negotiation_status=NegotiationStatusEnum.OPEN, headers=self.sa_user_header)
+
+        sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
         negotiations = self.org_client.find_user_negotiations(user_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
         self.assertEqual(len(negotiations),1)
 
         #User accepts proposal in return
-        sap_response2.proposal_status = ProposalStatusEnum.ACCEPTED
-        sap_response2.originator = ProposalOriginatorEnum.CONSUMER
-        sap_response2.sequence_num += 1
-        sap_response3 = self.org_client.negotiate(sap_response2, headers=user_header )
+        negotiations = self.org_client.find_user_negotiations(user_id, org2_id, proposal_type=OT.AcquireResourceProposal,
+            negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
+
+        sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED)
+        sap_response2 = self.org_client.negotiate(sap_response, headers=user_header )
 
         negotiations = self.org_client.find_user_negotiations(user_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
         self.assertEqual(len(negotiations),0)
@@ -962,7 +975,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         commitments, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.ResourceCommitment)
         self.assertEqual(len(commitments),1)
-        self.assertEqual(commitments[0].status,CommitmentStatusEnum.ACTIVE)
+        self.assertNotEqual(commitments[0].lcstate, LCS.RETIRED)
+
+        subjects, _ = self.rr_client.find_subjects(None,PRED.hasCommitment, commitments[0]._id)
+        self.assertEqual(len(subjects),3)
+
+        contracts, _ = self.rr_client.find_subjects(RT.Negotiation,PRED.hasContract, commitments[0]._id)
+        self.assertEqual(len(contracts),1)
 
         #Release the resource
         self.org_client.release_resource(commitments[0]._id, headers=self.sa_user_header)
@@ -970,11 +989,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Check commitment to be inactive
         commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.ResourceCommitment)
         self.assertEqual(len(commitments),1)
-        self.assertEqual(commitments[0].status,CommitmentStatusEnum.INACTIVE)
+        self.assertEqual(commitments[0].lcstate, LCS.RETIRED)
 
         commitments, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.ResourceCommitment)
         self.assertEqual(len(commitments),1)
-        self.assertEqual(commitments[0].status,CommitmentStatusEnum.INACTIVE)
+        self.assertEqual(commitments[0].lcstate, LCS.RETIRED)
 
 
         #Now check some negative cases...
