@@ -4,6 +4,7 @@ import BaseHTTPServer
 import socket
 from BaseHTTPServer import HTTPServer
 from gevent import queue
+from gevent.queue import Empty
 from random import randint
 
 from nose.plugins.attrib import attr
@@ -398,7 +399,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         self.subscribe_events(None)
         try:
             self.await_state_event("test", ProcessStateEnum.SPAWN)
-        except AssertionError, e:
+        except (AssertionError, Empty), e:
             if len(self.get_running_procs()) != 1:
                 raise e
 
