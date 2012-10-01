@@ -294,7 +294,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         http_port = 8919
         http_port = self._start_webserver(port=http_port)
 
-        self.resource_id = "haagent_1234"
+        self.resource_id = "haagent_4567"
         self._haa_name = "high_availability_agent"
         self._haa_config = {
             'highavailability': {
