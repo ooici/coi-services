@@ -85,16 +85,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self._data_subscribers = []
 
 
-        #CustomAttribute:
-        #name: ""
-        #type: ""
-        #description: ""
-        #default:
-
-        custom_attributes = []
-        #create the attributes that are specific to this model type
-        custom_attr_obj = IonObject(OT.CustomAttribute, name='port', type='string', description='the port identifier (ip address) for this ')
-
         # Create PlatformModel
         platformModel_obj = IonObject(RT.PlatformModel, name='RSNPlatformModel', description="RSNPlatformModel", model="RSNPlatformModel" )
         try:
@@ -114,7 +104,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         #maps an agent instance id to a device object with specifics about that device
         agent_device_map = {}
-        topology = {}
+        parent_map = {}
 
         #-------------------------------
         # Platform SS  (Shore Station)
@@ -132,8 +122,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         ports.append(  IonObject(OT.PlatformPort, port_id='ShoreStation_port_1', ip_address='ShoreStation_port_1_IP')  )
         monitor_attributes = []
         #create the attributes that are specific to this model type
-        ports.append(  IonObject(OT.PlatformMonitorAttributes, id='ShoreStation_attr_1', monitor_rate=5, units='xyz')  )
-        ports.append(  IonObject(OT.PlatformMonitorAttributes, id='ShoreStation_attr_2', monitor_rate=5, units='xyz')  )
+        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='ShoreStation_attr_1', monitor_rate=5, units='xyz')  )
+        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='ShoreStation_attr_2', monitor_rate=5, units='xyz')  )
 
         platformSS_device__obj = IonObject(RT.PlatformDevice,
                                         name='PlatformSSDevice',
@@ -174,8 +164,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         ports.append(  IonObject(OT.PlatformPort, port_id='Node1A_port_2', ip_address='Node1A_port_2_IP')  )
         monitor_attributes = []
         #create the attributes that are specific to this model type
-        ports.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1A_attr_1', monitor_rate=5, units='xyz')  )
-        ports.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1A_attr_2', monitor_rate=5, units='xyz')  )
+        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1A_attr_1', monitor_rate=5, units='xyz')  )
+        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1A_attr_2', monitor_rate=5, units='xyz')  )
 
         platform1A_device__obj = IonObject(RT.PlatformDevice,
                                         name='Platform1ADevice',
@@ -197,7 +187,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                           driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1A_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1A_agent_instance_obj, platform1A_agent_id, platform1A_device_id)
 
-        topology[platform1A_agent_instance_id] = [platformSS_agent_instance_id]
+        parent_map[platform1A_agent_instance_id] = [platformSS_agent_instance_id]
         agent_device_map[platform1A_agent_instance_id] = platform1A_device__obj
 
 
@@ -216,8 +206,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         ports.append(  IonObject(OT.PlatformPort, port_id='Node1B_port_2', ip_address='Node1B_port_2_IP')  )
         monitor_attributes = []
         #create the attributes that are specific to this model type
-        ports.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1B_attr_1', monitor_rate=5, units='xyz')  )
-        ports.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1B_attr_2', monitor_rate=5, units='xyz')  )
+        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1B_attr_1', monitor_rate=5, units='xyz')  )
+        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1B_attr_2', monitor_rate=5, units='xyz')  )
 
         platform1B_device__obj = IonObject(RT.PlatformDevice,
             name='Platform1BDevice',
@@ -239,7 +229,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1B_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1B_agent_instance_obj, platform1B_agent_id, platform1B_device_id)
 
-        topology[platform1B_agent_instance_id] = [platform1A_agent_instance_id]
+        parent_map[platform1B_agent_instance_id] = [platform1A_agent_instance_id]
         agent_device_map[platform1B_agent_instance_id] = platform1B_device__obj
 
 
@@ -259,8 +249,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         ports.append(  IonObject(OT.PlatformPort, port_id='Node1C_port_2', ip_address='Node1C_port_2_IP')  )
         monitor_attributes = []
         #create the attributes that are specific to this model type
-        ports.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1C_attr_1', monitor_rate=5, units='xyz')  )
-        ports.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1C_attr_2', monitor_rate=5, units='xyz')  )
+        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1C_attr_1', monitor_rate=5, units='xyz')  )
+        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1C_attr_2', monitor_rate=5, units='xyz')  )
 
 
         platform1C_device__obj = IonObject(RT.PlatformDevice,
@@ -284,293 +274,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1C_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1C_agent_instance_obj, platform1C_agent_id, platform1C_device_id)
 
-        topology[platform1C_agent_instance_id] = [platform1B_agent_instance_id]
+        parent_map[platform1C_agent_instance_id] = [platform1B_agent_instance_id]
         agent_device_map[platform1C_agent_instance_id] = platform1C_device__obj
-
-#
-#        #-------------------------------
-#        # Platform A
-#        #-------------------------------
-#        platformA_site__obj = IonObject(RT.PlatformSite,
-#            name='PlatformASite',
-#            description='PlatformASite platform site')
-#        platformA_site_id = self.omsclient.create_platform_site(platformA_site__obj)
-#        self.rrclient.create_association(subject=platformSS_site_id, predicate=PRED.hasSite, object=platformA_site_id)
-#
-#
-#        platformA_device__obj = IonObject(RT.PlatformDevice,
-#            name='PlatformADevice',
-#            description='PlatformADevice platform device')
-#        platformA_device_id = self.imsclient.create_platform_device(platformA_device__obj)
-#        self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA_device_id)
-#        self.rrclient.create_association(subject=platformSS_device_id, predicate=PRED.hasDevice, object=platformA_device_id)
-#
-#        platformA_agent__obj = IonObject(RT.PlatformAgent,
-#            name='PlatformAAgent',
-#            description='PlatformAAgent platform agent')
-#        platformA_agent_id = self.imsclient.create_platform_agent(platformA_agent__obj)
-#        self.imsclient.assign_platform_model_to_platform_agent(platformModel_id, platformA_agent_id)
-#
-#
-#        platformA_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformAAgentInstance', description="PlatformAAgentInstance",
-#            driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
-#        platformA_agent_instance_id = self.imsclient.create_platform_agent_instance(platformA_agent_instance_obj, platformA_agent_id, platformA_device_id)
-#
-#        #-------------------------------
-#        # Platform A1
-#        #-------------------------------
-#        platformA1_site__obj = IonObject(RT.PlatformSite,
-#                                        name='PlatformA1Site',
-#                                        description='PlatformA1Site platform site')
-#        platformA1_site_id = self.omsclient.create_platform_site(platformA1_site__obj)
-#        self.rrclient.create_association(subject=platformA_site_id, predicate=PRED.hasSite, object=platformA1_site_id)
-#
-#
-#        platformA1_device__obj = IonObject(RT.PlatformDevice,
-#                                        name='PlatformA1Device',
-#                                        description='PlatformA1Device platform device')
-#        platformA1_device_id = self.imsclient.create_platform_device(platformA1_device__obj)
-#        self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1_device_id)
-#        self.rrclient.create_association(subject=platformA_device_id, predicate=PRED.hasDevice, object=platformA1_device_id)
-#
-#        platformA1_agent__obj = IonObject(RT.PlatformAgent,
-#                                        name='PlatformA1Agent',
-#                                        description='PlatformA1Agent platform agent')
-#        platformA1_agent_id = self.imsclient.create_platform_agent(platformA1_agent__obj)
-#        self.imsclient.assign_platform_model_to_platform_agent(platformModel_id, platformA1_agent_id)
-#
-#
-#        platformA1_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformA1AgentInstance', description="PlatformA1AgentInstance",
-#                                          driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
-#        platformA1_agent_instance_id = self.imsclient.create_platform_agent_instance(platformA1_agent_instance_obj, platformA1_agent_id, platformA1_device_id)
-#
-#
-#
-#        #-------------------------------
-#        # Platform A1a
-#        #-------------------------------
-#        platformA1a_site__obj = IonObject(RT.PlatformSite,
-#                                        name='PlatformA1aSite',
-#                                        description='PlatformA1aSite platform site')
-#        platformA1a_site_id = self.omsclient.create_platform_site(platformA1a_site__obj)
-#        self.rrclient.create_association(subject=platformA1_site_id, predicate=PRED.hasSite, object=platformA1a_site_id)
-#
-#
-#        platformA1a_device__obj = IonObject(RT.PlatformDevice,
-#                                        name='PlatformA1aDevice',
-#                                        description='PlatformA1aDevice platform device')
-#        platformA1a_device_id = self.imsclient.create_platform_device(platformA1a_device__obj)
-#        self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1a_device_id)
-#        self.rrclient.create_association(subject=platformA1_device_id, predicate=PRED.hasDevice, object=platformA1a_device_id)
-#
-#        platformA1a_agent__obj = IonObject(RT.PlatformAgent,
-#                                        name='PlatformA1aAgent',
-#                                        description='PlatformA1aAgent platform agent')
-#        platformA1a_agent_id = self.imsclient.create_platform_agent(platformA1a_agent__obj)
-#        self.imsclient.assign_platform_model_to_platform_agent(platformModel_id, platformA1a_agent_id)
-#
-#
-#        platformA1a_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformA1aAgentInstance', description="PlatformA1aAgentInstance",
-#                                          driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
-#        platformA1a_agent_instance_id = self.imsclient.create_platform_agent_instance(platformA1a_agent_instance_obj, platformA1a_agent_id, platformA1a_device_id)
-#
-#
-#        #-------------------------------
-#        # Platform A1b
-#        #-------------------------------
-#        platformA1b_site__obj = IonObject(RT.PlatformSite,
-#                                        name='PlatformA1bSite',
-#                                        description='PlatformA1bSite platform site')
-#        platformA1b_site_id = self.omsclient.create_platform_site(platformA1b_site__obj)
-#        self.rrclient.create_association(subject=platformA1_site_id, predicate=PRED.hasSite, object=platformA1b_site_id)
-#
-#
-#        platformA1b_device__obj = IonObject(RT.PlatformDevice,
-#                                        name='PlatformA1bDevice',
-#                                        description='PlatformA1bDevice platform device')
-#        platformA1b_device_id = self.imsclient.create_platform_device(platformA1b_device__obj)
-#        self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1b_device_id)
-#        self.rrclient.create_association(subject=platformA1_device_id, predicate=PRED.hasDevice, object=platformA1b_device_id)
-#
-#        platformA1b_agent__obj = IonObject(RT.PlatformAgent,
-#                                        name='PlatformA1bAgent',
-#                                        description='PlatformA1bAgent platform agent')
-#        platformA1b_agent_id = self.imsclient.create_platform_agent(platformA1b_agent__obj)
-#        self.imsclient.assign_platform_model_to_platform_agent(platformModel_id, platformA1b_agent_id)
-#
-#
-#        platformA1b_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformA1bAgentInstance', description="PlatformA1bAgentInstance",
-#                                          driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
-#        platformA1b_agent_instance_id = self.imsclient.create_platform_agent_instance(platformA1b_agent_instance_obj, platformA1b_agent_id, platformA1b_device_id)
-#
-#
-#        topology[platformA_agent_id] = [platformA1a_agent_id, platformA1b_agent_id]
-#
-#        #-------------------------------
-#        # Platform A1b1
-#        #-------------------------------
-#        platformA1b1_site__obj = IonObject(RT.PlatformSite,
-#                                        name='PlatformA1b1Site',
-#                                        description='PlatformA1b1Site platform site')
-#        platformA1b1_site_id = self.omsclient.create_platform_site(platformA1b1_site__obj)
-#        self.rrclient.create_association(subject=platformA1b_site_id, predicate=PRED.hasSite, object=platformA1b1_site_id)
-#
-#
-#        platformA1b1_device__obj = IonObject(RT.PlatformDevice,
-#                                        name='PlatformA1b1Device',
-#                                        description='PlatformA1b1Device platform device')
-#        platformA1b1_device_id = self.imsclient.create_platform_device(platformA1b1_device__obj)
-#        self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1b1_device_id)
-#        self.rrclient.create_association(subject=platformA1b_device_id, predicate=PRED.hasDevice, object=platformA1b1_device_id)
-#
-#        platformA1b1_agent__obj = IonObject(RT.PlatformAgent,
-#                                        name='PlatformA1b1Agent',
-#                                        description='PlatformA1b1Agent platform agent')
-#        platformA1b1_agent_id = self.imsclient.create_platform_agent(platformA1b1_agent__obj)
-#        self.imsclient.assign_platform_model_to_platform_agent(platformModel_id, platformA1b1_agent_id)
-#
-#
-#        platformA1b1_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformA1b1AgentInstance', description="PlatformA1b1AgentInstance",
-#                                          driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
-#        platformA1b1_agent_instance_id = self.imsclient.create_platform_agent_instance(platformA1b1_agent_instance_obj, platformA1b1_agent_id, platformA1b1_device_id)
-#
-#
-#        #-------------------------------
-#        # Platform A1b2
-#        #-------------------------------
-#        platformA1b2_site__obj = IonObject(RT.PlatformSite,
-#                                        name='PlatformA1b2Site',
-#                                        description='PlatformA1b2Site platform site')
-#        platformA1b2_site_id = self.omsclient.create_platform_site(platformA1b2_site__obj)
-#        self.rrclient.create_association(subject=platformA1b_site_id, predicate=PRED.hasSite, object=platformA1b2_site_id)
-#
-#
-#        platformA1b2_device__obj = IonObject(RT.PlatformDevice,
-#                                        name='PlatformA1b2Device',
-#                                        description='PlatformA1b2Device platform device')
-#        platformA1b2_device_id = self.imsclient.create_platform_device(platformA1b2_device__obj)
-#        self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformA1b2_device_id)
-#        self.rrclient.create_association(subject=platformA1b_device_id, predicate=PRED.hasDevice, object=platformA1b2_device_id)
-#
-#        platformA1b2_agent__obj = IonObject(RT.PlatformAgent,
-#                                        name='PlatformA1b2Agent',
-#                                        description='PlatformA1b2Agent platform agent')
-#        platformA1b2_agent_id = self.imsclient.create_platform_agent(platformA1b2_agent__obj)
-#        self.imsclient.assign_platform_model_to_platform_agent(platformModel_id, platformA1b2_agent_id)
-#
-#
-#        platformA1b2_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformA1b2AgentInstance', description="PlatformA1b2AgentInstance",
-#                                          driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
-#        platformA1b2_agent_instance_id = self.imsclient.create_platform_agent_instance(platformA1b2_agent_instance_obj, platformA1b2_agent_id, platformA1b2_device_id)
-#
-#        topology[platformA1b_agent_id] = [platformA1b1_agent_id, platformA1b2_agent_id]
-#
-#        #-------------------------------
-#        # Platform B
-#        #-------------------------------
-#        platformB_site__obj = IonObject(RT.PlatformSite,
-#                                        name='PlatformBSite',
-#                                        description='PlatformBSite platform site')
-#        platformB_site_id = self.omsclient.create_platform_site(platformB_site__obj)
-#        self.rrclient.create_association(subject=platformSS_site_id, predicate=PRED.hasSite, object=platformB_site_id)
-#
-#
-#        platformB_device__obj = IonObject(RT.PlatformDevice,
-#                                        name='PlatformBDevice',
-#                                        description='PlatformBDevice platform device')
-#        platformB_device_id = self.imsclient.create_platform_device(platformB_device__obj)
-#        self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformB_device_id)
-#        self.rrclient.create_association(subject=platformSS_device_id, predicate=PRED.hasDevice, object=platformB_device_id)
-#
-#        platformB_agent__obj = IonObject(RT.PlatformAgent,
-#                                        name='PlatformBAgent',
-#                                        description='PlatformBAgent platform agent')
-#        platformB_agent_id = self.imsclient.create_platform_agent(platformB_agent__obj)
-#        self.imsclient.assign_platform_model_to_platform_agent(platformModel_id, platformB_agent_id)
-#
-#
-#        platformB_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformBAgentInstance', description="PlatformBAgentInstance",
-#                                          driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
-#        platformB_agent_instance_id = self.imsclient.create_platform_agent_instance(platformB_agent_instance_obj, platformB_agent_id, platformB_device_id)
-#
-#        topology[platformSS_agent_id] = [platformA_agent_id, platformB_agent_id]
-#
-#        #-------------------------------
-#        # Platform B1
-#        #-------------------------------
-#        platformB1_site__obj = IonObject(RT.PlatformSite,
-#                                        name='PlatformB1Site',
-#                                        description='PlatformB1Site platform site')
-#        platformB1_site_id = self.omsclient.create_platform_site(platformB1_site__obj)
-#        self.rrclient.create_association(subject=platformB_site_id, predicate=PRED.hasSite, object=platformB1_site_id)
-#
-#
-#        platformB1_device__obj = IonObject(RT.PlatformDevice,
-#                                        name='PlatformB1Device',
-#                                        description='PlatformB1Device platform device')
-#        platformB1_device_id = self.imsclient.create_platform_device(platformB1_device__obj)
-#        self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformB1_device_id)
-#        self.rrclient.create_association(subject=platformB_device_id, predicate=PRED.hasDevice, object=platformB1_device_id)
-#
-#        platformB1_agent__obj = IonObject(RT.PlatformAgent,
-#                                        name='PlatformB1Agent',
-#                                        description='PlatformB1Agent platform agent')
-#        platformB1_agent_id = self.imsclient.create_platform_agent(platformB1_agent__obj)
-#        self.imsclient.assign_platform_model_to_platform_agent(platformModel_id, platformB1_agent_id)
-#
-#
-#        platformB1_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformB1AgentInstance', description="PlatformB1AgentInstance",
-#                                          driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
-#        platformB1_agent_instance_id = self.imsclient.create_platform_agent_instance(platformB1_agent_instance_obj, platformB1_agent_id, platformB1_device_id)
-#
-#
-#
-#
-#        #-------------------------------
-#        # Platform B2
-#        #-------------------------------
-#        platformB2_site__obj = IonObject(RT.PlatformSite,
-#                                        name='PlatformB2Site',
-#                                        description='PlatformB2Site platform site')
-#        platformB2_site_id = self.omsclient.create_platform_site(platformB2_site__obj)
-#        self.rrclient.create_association(subject=platformB_site_id, predicate=PRED.hasSite, object=platformB2_site_id)
-#
-#
-#        platformB2_device__obj = IonObject(RT.PlatformDevice,
-#                                        name='PlatformB2Device',
-#                                        description='PlatformB2Device platform device')
-#        platformB2_device_id = self.imsclient.create_platform_device(platformB2_device__obj)
-#        self.imsclient.assign_platform_model_to_platform_device(platformModel_id, platformB2_device_id)
-#        self.rrclient.create_association(subject=platformB_device_id, predicate=PRED.hasDevice, object=platformB2_device_id)
-#
-#        platformB2_agent__obj = IonObject(RT.PlatformAgent,
-#                                        name='PlatformB2Agent',
-#                                        description='PlatformB2Agent platform agent')
-#        platformB2_agent_id = self.imsclient.create_platform_agent(platformB2_agent__obj)
-#        self.imsclient.assign_platform_model_to_platform_agent(platformModel_id, platformB2_agent_id)
-#
-#
-#        platformB2_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='PlatformB2AgentInstance', description="PlatformB2AgentInstance",
-#                                          driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
-#        platformB2_agent_instance_id = self.imsclient.create_platform_agent_instance(platformB2_agent_instance_obj, platformB2_agent_id, platformB2_device_id)
-#
-#        topology[platformB_agent_id] = [platformB1_agent_id, platformB2_agent_id]
-#
-#        #-------------------------------
-#        # quick local test of retrieving associations:
-#        objs, assocs = self.rrclient.find_objects(platformSS_device_id, PRED.hasDevice, RT.PlatformDevice, id_only=True)
-#        log.debug('Found associated devices for platformSS_device_id=%r: objs=%s, assocs=%s' % (platformSS_device_id, objs, assocs))
-#        for obj in objs: log.debug("Retrieved object=%s" % obj)
-#        objs, assocs = self.rrclient.find_objects(platformA_device_id, PRED.hasDevice)
-#        log.debug('Found associated devices for platformA_device_id=%r: objs=%s, assocs=%s' % (platformA_device_id, objs, assocs))
-#        for obj in objs: log.debug("Retrieved object._id=%s" % obj._id)
-#        #-------------------------------
-#
-#
-
-
-
-
 
 
 
@@ -603,10 +308,10 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         PLATFORM_CONFIG = {
             'platform_id': platformSS_agent_id,
-            'platform_topology' : topology,
+            'platform_topology' : parent_map,
             'driver_config': DVR_CONFIG,
             'container_name': self.container.name,
-            'agent_instance_object_list': agent_instance_list
+            'agent_device_map': agent_device_map
 
         }
 
