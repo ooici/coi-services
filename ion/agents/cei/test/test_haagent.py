@@ -362,7 +362,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         self.event_sub.start()
 
     def await_state_event(self, pid, state):
-        event = self.event_queue.get(timeout=120)
+        event = self.event_queue.get(timeout=60)
         log.debug("Got event: %s", event)
         self.assertTrue(event.origin.startswith(pid))
         self.assertEqual(event.state, state)
@@ -396,7 +396,11 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         assert status in ('PENDING', 'READY', 'STEADY')
 
         self.subscribe_events(None)
-        self.await_state_event("test", ProcessStateEnum.SPAWN)
+        try:
+            self.await_state_event("test", ProcessStateEnum.SPAWN)
+        except AssertionError, e:
+            if len(self.get_running_procs()) != 1:
+                raise e
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
