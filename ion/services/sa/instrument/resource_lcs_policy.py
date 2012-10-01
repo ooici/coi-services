@@ -8,6 +8,7 @@
 from pyon.public import PRED, RT, LCS
 from pyon.ion.resource import get_maturity_visibility
 from ion.services.sa.instrument.flag import KeywordFlag
+from ooi.logging import log
 
 class ResourceLCSPolicy(object):
 
@@ -37,14 +38,7 @@ class ResourceLCSPolicy(object):
     def _make_warn(self, message):
         return self._make_result(True, message)
 
-    def _get_resource_type(self, resource):
-        """
-        get the type of a resource... simple wrapper
-        @param resource a resource
-        """
-        restype = type(resource).__name__
 
-        return restype
 
 
     def _get_resource_type_by_id(self, resource_id):
@@ -53,9 +47,10 @@ class ResourceLCSPolicy(object):
         @param resource_id a resource id
         """
         assert(type("") == type(resource_id))
-        return self._get_resource_type(self.RR.read(resource_id))
+        resource = self.RR.read(resource_id)
+        return resource._get_type()
 
-    def _find_having(self, subject_type, association_predicate, some_object):
+    def _find_having(self, subject_type, association_predicate, some_object_id):
         """
         find resources having ____:
           find resource IDs of the predefined type that
@@ -64,9 +59,10 @@ class ResourceLCSPolicy(object):
         @param some_object the object "owned" by the association type
         """
         #log.debug("_find_having, from %s" % self._toplevel_call())
+        assert(type("") == type(some_object_id))
         ret, _ = self.RR.find_subjects(subject_type,
                                        association_predicate,
-                                       some_object,
+                                       some_object_id,
                                        False)
         return ret
 
@@ -80,6 +76,7 @@ class ResourceLCSPolicy(object):
         @param some_object_type the type of associated object
         """
         #log.debug("_find_stemming, from %s" % self._toplevel_call())
+        assert(type("") == type(primary_object_id))
         ret, _ = self.RR.find_objects(primary_object_id,
                                       association_predicate,
                                       some_object_type,
@@ -87,6 +84,7 @@ class ResourceLCSPolicy(object):
         return ret
 
     def _has_keyworded_attachment(self, resource_id, desired_keyword):
+        assert(type("") == type(resource_id))
         for a in self._find_stemming(resource_id, PRED.hasAttachment, RT.Attachment):
             for k in a.keywords:
                 if desired_keyword == k:
@@ -94,7 +92,7 @@ class ResourceLCSPolicy(object):
         return self._make_fail("No attachment found with keyword='%s'" % desired_keyword)
 
     def _resource_lcstate_in(self, resource_obj, permissible_states=None):
-
+        assert(type("") != type(resource_obj))
         if permissible_states is None:
             permissible_states = []
                 
@@ -102,7 +100,7 @@ class ResourceLCSPolicy(object):
 
         return self._make_result(parts[0] in permissible_states,
                                  "'%s' resource is in state '%s', wanted [%s]" %
-                                 (self._get_resource_type(resource_obj), parts[0], str(permissible_states)))
+                                 (resource_obj._get_type(), parts[0], str(permissible_states)))
                       
 
 class AgentPolicy(ResourceLCSPolicy):
@@ -125,7 +123,7 @@ class AgentPolicy(ResourceLCSPolicy):
             return self._make_result(0 < len(self._find_stemming(agent_id, PRED.hasModel, RT.PlatformModel)),
                                      "No model associated with agent")
 
-        return self._make_fail("Wrong resource type (got '%s')" % agent_type)
+        return self._make_fail("Wrong agent resource type (got '%s')" % agent_type)
 
     def lce_precondition_integrate(self, agent_id):
         former = self.lce_precondition_develop(agent_id)
@@ -193,12 +191,13 @@ class ModelPolicy(ResourceLCSPolicy):
                 return self._make_fail("PlatformSite(s) are using this model")
             return self._make_pass()
 
-        return self._make_fail("Wrong resource type (got '%s')" % model_type)
+        return self._make_fail("Wrong model resource type (got '%s')" % model_type)
 
 
 class DevicePolicy(ResourceLCSPolicy):
 
     def invalid_custom_attrs(self, device_id, model_id):
+        assert(type("") == type(device_id) == type(model_id))
         model_obj  = self.RR.read(model_id)
         device_obj = self.RR.read(device_id)
 
@@ -225,7 +224,7 @@ class DevicePolicy(ResourceLCSPolicy):
         #have an agent/deployed, model/deployed
 
         obj = self.RR.read(device_id)
-        device_type = self._get_resource_type(device_id)
+        device_type = self._get_resource_type_by_id(device_id)
 
         if "" == obj.serial_number:
             return self._make_fail("Device has no serial number")
@@ -238,7 +237,7 @@ class DevicePolicy(ResourceLCSPolicy):
                 return self._make_fail("Device's associated model is not in '%s'" % LCS.DEPLOYED)
 
             #validate custom fields
-            bad = self.invalid_custom_attrs(device_id, models[0])
+            bad = self.invalid_custom_attrs(device_id, models[0]._id)
             if "" != bad:
                 return self._make_fail(bad)
 
@@ -252,13 +251,13 @@ class DevicePolicy(ResourceLCSPolicy):
                 return self._make_fail("Device's associated model is not in '%s'" % LCS.DEPLOYED)
 
             #validate custom fields
-            bad = self.invalid_custom_attrs(device_id, models[0])
+            bad = self.invalid_custom_attrs(device_id, models[0]._id)
             if "" != bad:
                 return self._make_fail(bad)
 
             return self._has_keyworded_attachment(device_id, KeywordFlag.VENDOR_TEST_RESULTS)
 
-        return self._make_fail("Wrong resource type (got '%s')" % device_type)
+        return self._make_fail("Wrong device resource type (got '%s')" % device_type)
 
 
     def lce_precondition_integrate(self, device_id):
@@ -270,7 +269,7 @@ class DevicePolicy(ResourceLCSPolicy):
         device_type = self._get_resource_type_by_id(device_id)
 
         if RT.PlatformDevice == device_type:
-            agents = self._find_stemming(device_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance)
+            agents = self._find_stemming(device_id, PRED.hasAgentInstance, RT.PlatformAgentInstance)
             if 0 == len(agents):
                 return self._make_fail("Device has no associated agent instance")
             tmp = self._resource_lcstate_in(agents[0], [LCS.DEPLOYED])
@@ -303,7 +302,7 @@ class DevicePolicy(ResourceLCSPolicy):
 
         #todo: verify comms with device??
 
-        return self._make_fail("Wrong resource type (got '%s')" % device_type)
+        return self._make_fail("Wrong device resource type (got '%s')" % device_type)
 
 
     def lce_precondition_deploy(self, device_id):
@@ -373,7 +372,7 @@ class DevicePolicy(ResourceLCSPolicy):
 
             return self._make_pass()
 
-        return False
+        return self._make_fail("Wrong device resource type (got '%s')" % device_type)
 
     def lce_precondition_retire(self, device_id):
 
@@ -394,7 +393,7 @@ class DevicePolicy(ResourceLCSPolicy):
             if 0 < len(self._find_stemming(device_id, PRED.hasDeployment, RT.Deployment)):
                 return self._make_fail("Device is still assigned to a deployment")
 
-        return False
+        return self._make_fail("Wrong device resource type (got '%s')" % device_type)
 
 class SitePolicy(ResourceLCSPolicy):
     def lce_precondition_plan(self, site_id):
