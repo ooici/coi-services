@@ -530,14 +530,21 @@ class TestAssembly(IonIntegrationTestCase):
 
         deployment_id = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, False)
 
+        c.OMS.deploy_platform_site(platform_site_id, deployment_id)
+        c.IMS.deploy_platform_device(platform_device_id, deployment_id)
+
         c.OMS.deploy_instrument_site(instrument_site_id, deployment_id)
         c.IMS.deploy_instrument_device(instrument_device_id, deployment_id)
 
         c.OMS.activate_deployment(deployment_id, True)
+        self.assertLess(0, len(instrument_site_impl.find_having_device(instrument_device_id)))
+        self.assertLess(0, len(instrument_site_impl.find_stemming_device(instrument_site_id)))
+        self.assertLess(0, len(platform_site_impl.find_having_device(platform_device_id)))
+        self.assertLess(0, len(platform_site_impl.find_stemming_device(platform_site_id)))
 
-        #self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.DEPLOY, LCS.DEPLOYED)
-        #self.generic_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEPLOY, LCS.DEPLOYED)
-        #log.debug("L4-CI-SA-RQ-334")
+        self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.DEPLOY, LCS.DEPLOYED)
+        self.generic_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEPLOY, LCS.DEPLOYED)
+        log.debug("L4-CI-SA-RQ-334")
 
 
         #now along comes a new device
