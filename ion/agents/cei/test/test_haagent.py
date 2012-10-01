@@ -99,6 +99,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self._haa_pid = self.container_client.spawn_process(name=self._haa_name,
             module="ion.agents.cei.high_availability_agent",
             cls="HighAvailabilityAgent", config=self._haa_config)
+        self.subscribe_events(None)
 
         # Start a resource agent client to talk with the instrument agent.
         self._haa_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
@@ -153,7 +154,6 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         result = self.haa_client.dump().result
         self.assertEqual(result['policy'], new_policy)
 
-        self.subscribe_events(None)
         self.await_state_event("test", ProcessStateEnum.SPAWN)
 
         self.assertEqual(len(self.get_running_procs()), 1)
@@ -339,6 +339,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         self._haa_pid = self.container_client.spawn_process(name=self._haa_name,
             module="ion.agents.cei.high_availability_agent",
             cls="HighAvailabilityAgent", config=self._haa_config)
+        self.subscribe_events(None)
 
         # Start a resource agent client to talk with the instrument agent.
         self._haa_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
@@ -396,12 +397,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         # Ensure HA hasn't already failed
         assert status in ('PENDING', 'READY', 'STEADY')
 
-        self.subscribe_events(None)
-        try:
-            self.await_state_event("test", ProcessStateEnum.SPAWN)
-        except (AssertionError, Empty), e:
-            if len(self.get_running_procs()) != 1:
-                raise e
+        self.await_state_event("test", ProcessStateEnum.SPAWN)
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
