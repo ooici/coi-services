@@ -545,16 +545,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
         #retrieve the associated process definition
-        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
-        if not process_def_ids:
-            raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
-        if len(process_def_ids) > 1:
-            raise BadRequest("Instrument Agent should only have ONE Process Definition" + str(instrument_agent_id))
+        process_def_objs = self.instrument_agent.find_stemming_process_definition(instrument_agent_id)
 
-        assoc_ids, _ = self.clients.resource_registry.find_associations(instrument_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
-        self.clients.resource_registry.delete_association(assoc_ids[0])
+#        if not process_def_objs:
+#            raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
+#        if len(process_def_objs) > 1:
+#            raise BadRequest("Instrument Agent should only have ONE Process Definition" + str(instrument_agent_id))
 
-        self.clients.process_dispatcher.delete_process_definition(process_def_ids[0])
+        for pd_obj in process_def_objs:
+            self.instrument_agent.unlink_process_definition(instrument_agent_id, pd_obj._id)
+            self.clients.process_dispatcher.delete_process_definition(pd_obj._id)
 
         self.instrument_agent.advance_lcs(instrument_agent_id, LCE.RETIRE)
         #return self.instrument_agent.delete_one(instrument_agent_id)
