@@ -1,5 +1,6 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
+from ion.agents.port.port_agent_process import PortAgentProcessType
 from pyon.public import IonObject
 from pyon.util.log import log
 from pyon.public import Container, IonObject
@@ -15,7 +16,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from pyon.core.exception import BadRequest, NotFound, Inconsistent, Unauthorized #, Conflict
-from pyon.public import RT, LCS, LCE
+from pyon.public import RT, LCS, LCE, PRED
 from pyon.ion.resource import get_maturity_visibility, OT
 from nose.plugins.attrib import attr
 
@@ -23,6 +24,8 @@ from ion.services.sa.test.helpers import any_old, add_keyworded_attachment
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
+from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
@@ -114,6 +117,8 @@ class TestAssembly(IonIntegrationTestCase):
         instrument_device_impl  = InstrumentDeviceImpl(c2)
         sensor_device_impl      = SensorDeviceImpl(c2)
 
+        instrument_agent_instance_impl = InstrumentAgentInstanceImpl(c2)
+
         #generate a function that finds direct associations, using the more complex one in the service
         def gen_find_oms_association(output_type):
             def freeze():
@@ -193,10 +198,17 @@ class TestAssembly(IonIntegrationTestCase):
                                                      True)
 
         log.info("Create instrument model")
-        instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel, 
+        instModel_obj = IonObject(RT.InstrumentModel,
+                                  name='SBE37IMModel',
+                                  description="SBE37IMModel",
+                                  model="SBE37IMModel",
+                                  custom_attributes= {'streams':{'raw': 'simple_data_particle_raw_param_dict' ,
+                                                                 'parsed': 'simple_data_particle_parsed_param_dict' }})
+        instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel,
                                                         "instrument_model", 
                                                         self.client.IMS, 
-                                                        True)
+                                                        True,
+                                                        actual_obj=instModel_obj)
 
         log.info("Create sensor model")
         sensor_model_id = self.generic_fcruf_script(RT.SensorModel, 
@@ -218,10 +230,16 @@ class TestAssembly(IonIntegrationTestCase):
                                                       False)
         
         log.info("Create instrument agent")
-        instrument_agent_id = self.generic_fcruf_script(RT.InstrumentAgent, 
+        instAgent_obj = IonObject(RT.InstrumentAgent,
+                                  name='agent007',
+                                  description="SBE37IMAgent",
+                                  driver_module="ion.agents.instrument.instrument_agent",
+                                  driver_class="InstrumentAgent" )
+        instrument_agent_id = self.generic_fcruf_script(RT.InstrumentAgent,
                                                         "instrument_agent", 
                                                         self.client.IMS, 
-                                                        False)
+                                                        False,
+                                                        actual_obj=instAgent_obj)
 
 
         ###############################################
@@ -256,7 +274,7 @@ class TestAssembly(IonIntegrationTestCase):
         #
         ###############################################
 
-
+        # we create instrument agent instance below, to verify some lcs checks
 
 
         ###############################################
@@ -358,6 +376,7 @@ class TestAssembly(IonIntegrationTestCase):
                                         instrument_agent_id,
                                         instrument_model_id)
         self.generic_lcs_pass(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.DEVELOP, LCS.DEVELOPED)
+
         self.generic_lcs_fail(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.INTEGRATE)
         add_keyworded_attachment(self.client.RR, instrument_agent_id, [KeywordFlag.EGG_URL])
         self.generic_lcs_pass(self.client.IMS, "instrument_agent", instrument_agent_id, LCE.INTEGRATE, LCS.INTEGRATED)
@@ -372,31 +391,77 @@ class TestAssembly(IonIntegrationTestCase):
         #
         #----------------------------------------------
 
+        log.info("LCS plan")
         self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.PLAN, LCS.PLANNED)
-        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.INTEGRATE)
+
+        log.info("LCS develop")
+        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.DEVELOP)
+        x = self.client.IMS.read_platform_device(platform_device_id)
+        x.serial_number = "12345"
+        self.client.IMS.update_platform_device(x)
+        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.DEVELOP)
         log.info("Associate platform model with platform device")
+        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.DEVELOP)
         self.generic_association_script(c.IMS.assign_platform_model_to_platform_device,
                                         c.IMS.find_platform_device_by_platform_model,
                                         c.IMS.find_platform_model_by_platform_device,
                                         platform_device_id,
                                         platform_model_id)
+        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.DEVELOP)
+        add_keyworded_attachment(self.client.RR, platform_device_id, [KeywordFlag.VENDOR_TEST_RESULTS])
+        self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.DEVELOP, LCS.DEVELOPED)
+
+        log.info("LCS integrate")
         self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.INTEGRATE)
+        add_keyworded_attachment(self.client.RR, platform_device_id, [KeywordFlag.VENDOR_TEST_RESULTS])
+        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.INTEGRATE)
+        platform_agent_instance_id = self.create_plat_agent_instance(platform_agent_id, platform_device_id)
+        self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.INTEGRATE, LCS.INTEGRATED)
 
 
+        log.info("LCS deploy")
+        self.generic_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.DEPLOY)
+
+
+
+
+        log.info("LCS plan")
+        self.generic_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.PLAN, LCS.PLANNED)
+
+        log.info("LCS develop")
+        self.generic_lcs_fail(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEVELOP)
+        x = self.client.IMS.read_instrument_device(instrument_device_id)
+        x.serial_number = "12345"
+        self.client.IMS.update_instrument_device(x)
+        self.generic_lcs_fail(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEVELOP)
         log.info("Associate instrument model with instrument device")
         self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_device,
                                         c.IMS.find_instrument_device_by_instrument_model,
                                         c.IMS.find_instrument_model_by_instrument_device,
                                         instrument_device_id,
                                         instrument_model_id)
+        self.generic_lcs_fail(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEVELOP)
+        add_keyworded_attachment(self.client.RR, instrument_device_id, [KeywordFlag.VENDOR_TEST_RESULTS])
+        self.generic_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEVELOP, LCS.DEVELOPED)
 
-
+        log.info("LCS integrate")
+        self.generic_lcs_fail(self.client.IMS, "instrument_device", instrument_device_id, LCE.INTEGRATE)
         log.info("Associate instrument device with platform device")
         self.generic_association_script(c.IMS.assign_instrument_device_to_platform_device,
                                         c.IMS.find_platform_device_by_instrument_device,
                                         c.IMS.find_instrument_device_by_platform_device,
                                         platform_device_id,
                                         instrument_device_id)
+        self.generic_lcs_fail(self.client.IMS, "instrument_device", instrument_device_id, LCE.INTEGRATE)
+        log.info("Create instrument agent instance")
+        instrument_agent_instance_id = self.create_inst_agent_instance(instrument_agent_id, instrument_device_id)
+        self.generic_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.INTEGRATE, LCS.INTEGRATED)
+
+        log.info("LCS deploy")
+        self.generic_lcs_fail(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEPLOY)
+
+
+
 
 
         log.info("Associate sensor model with sensor device")
@@ -470,6 +535,10 @@ class TestAssembly(IonIntegrationTestCase):
 
         c.OMS.activate_deployment(deployment_id, True)
 
+        #self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.DEPLOY, LCS.DEPLOYED)
+        #self.generic_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEPLOY, LCS.DEPLOYED)
+        #log.debug("L4-CI-SA-RQ-334")
+
 
         #now along comes a new device
         log.info("Create instrument device 2")
@@ -521,6 +590,9 @@ class TestAssembly(IonIntegrationTestCase):
         self.assertEqual(1, len(inst_sites))
         self.assertEqual(instrument_site_id, inst_sites[0]._id)
 
+        c.IMS.delete_instrument_agent(instrument_agent_id)
+        log.debug("L4-CI-SA-RQ-382")
+
 
 
     def create_data_product_obj(self):
@@ -540,6 +612,39 @@ class TestAssembly(IonIntegrationTestCase):
         return any_old(RT.DataProduct, dict(temporal_domain=tdom, spatial_domain=sdom))
 
 
+    def create_inst_agent_instance(self, agent_id, device_id):
+        port_agent_config = {
+            'device_addr': 'sbe37-simulator.oceanobservatories.org',
+            'device_port': 4001,
+            'process_type': PortAgentProcessType.UNIX,
+            'binary_path': "port_agent",
+            'command_port': 4002,
+            'data_port': 4003,
+            'log_level': 5,
+            }
+
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
+                                          description="SBE37IMAgentInstance",
+                                          driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
+                                          driver_class='SBE37Driver',
+                                          comms_device_address='sbe37-simulator.oceanobservatories.org',
+                                          comms_device_port=4001,
+                                          port_agent_config = port_agent_config)
+
+
+        instAgentInstance_id = self.client.IMS.create_instrument_agent_instance(instAgentInstance_obj,
+                                                                                agent_id,
+                                                                                device_id)
+
+        return instAgentInstance_id
+
+    def create_plat_agent_instance(self, agent_id, device_id):
+        #todo : do this for real
+        platAgentInstance_id, _ = self.client.RR.create(any_old(RT.PlatformAgentInstance))
+        self.client.RR.create_association(device_id,
+                                          PRED.hasAgentInstance,
+                                          platAgentInstance_id)
+        return platAgentInstance_id
 
     def template_tst_deployment_context(self, context=None):
         """
@@ -755,7 +860,7 @@ class TestAssembly(IonIntegrationTestCase):
         self.assertRaises(NotFound, del_op, resource_id)
 
 
-    def generic_fcruf_script(self, resource_iontype, resource_label, owner_service, is_simple):
+    def generic_fcruf_script(self, resource_iontype, resource_label, owner_service, is_simple, actual_obj=None):
         """
         run through find, create, read, update, and find ops on a basic resource
 
@@ -812,7 +917,7 @@ class TestAssembly(IonIntegrationTestCase):
         log.info("I found %d %s objects" % (num_objs, resource_label))
 
         log.info("Creating a %s" % resource_label)
-        generic_obj = any_old(resource_iontype)
+        generic_obj = actual_obj or any_old(resource_iontype)
         generic_id = some_service.create_widget(generic_obj)
         self.assertIsNotNone(generic_id, "%s failed its creation" % resource_iontype)
 
