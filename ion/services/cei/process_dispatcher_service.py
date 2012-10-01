@@ -41,21 +41,29 @@ class ProcessStateGate(EventSubscriber):
     Ensure that we get a particular state, now or in the future.
 
     Usage:
-      gate = ProcessStateGate(your_process_dispatcher_client.read_process, process_id, some_state)
+      gate = ProcessStateGate(your_process_dispatcher_client.read_process, process_id, ProcessStateEnum.some_state)
       assert gate.await(timeout_in_seconds)
 
     This pattern returns True immediately upon reaching the desired state, or False if the timeout is reached.
     This pattern avoids a race condition between read_process and using EventGate.
     """
     def __init__(self, read_process_fn=None, process_id='', desired_state=None, *args, **kwargs):
-        EventSubscriber.__init__(self, *args, callback=self.trigger_cb, **kwargs)
+
+        EventSubscriber.__init__(self, *args,
+                                 callback=self.trigger_cb,
+                                 event_type="ProcessLifecycleEvent",
+                                 origin=process_id,
+                                 origin_type="DispatchedProcess",
+                                 **kwargs)
 
         self.desired_state = desired_state
         self.process_id = process_id
         self.read_process_fn = read_process_fn
 
-        #sanity check
-        self.read_process_fn(self.process_id)
+        #sanity check, will error on bad input
+        self.read_process_fn(self.process_id)  # to make sure fn exists
+        log.info("ProcessStateGate going to wait on process '%s' for state '%s'" %
+                (self.process_id, ProcessStateEnum._str_map[self.desired_state])) # make sure state exists
 
     def trigger_cb(self, event, x):
         if event == self.desired_state:
