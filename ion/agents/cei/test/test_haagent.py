@@ -94,6 +94,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self._base_procs = self.pd_cli.list_processes()
 
+        self.event_queue = queue.Queue()
+        self.event_sub = None
         self.subscribe_events(None)
 
         self.container_client = ContainerAgentClient(node=self.container.node,
@@ -108,8 +110,6 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.haa_client = HighAvailabilityAgentClient(self._haa_pyon_client)
 
-        self.event_queue = queue.Queue()
-        self.event_sub = None
 
     def tearDown(self):
         self.event_sub.stop()
@@ -336,6 +336,8 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
         self._base_procs = self.pd_cli.list_processes()
 
+        self.event_queue = queue.Queue()
+        self.event_sub = None
         self.subscribe_events(None)
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
@@ -349,8 +351,6 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
         self.haa_client = HighAvailabilityAgentClient(self._haa_pyon_client)
 
-        self.event_queue = queue.Queue()
-        self.event_sub = None
 
     def tearDown(self):
         self.event_sub.stop()
