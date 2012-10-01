@@ -791,6 +791,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.RequestRoleNegotiationStatusEvent)
         self.assertEquals(len(events_r), 4)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
+        self.assertEqual(events_r[-1][2].role_name, sap_response2.role_name)
 
 
 
@@ -947,6 +948,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
         self.assertEquals(len(events_r), 3)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.COUNTER])
+        self.assertEqual(events_r[-1][2].resource, ia_list[0]._id)
 
 
         #Manager approves Instrument resource proposal
@@ -1024,6 +1026,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
         self.assertEquals(len(events_r), 6)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
+        self.assertEqual(events_r[-1][2].resource, ia_list[0]._id)
 
 
     def test_instrument_agent_policy(self):
