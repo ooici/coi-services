@@ -334,19 +334,6 @@ class DevicePolicy(ResourceLCSPolicy):
             tmp = self._resource_lcstate_in(sites[0], [LCS.DEPLOYED])
             if not tmp[0]: return tmp
 
-            siteagents = self._find_stemming(sites[0]._id, PRED.hasAgent, RT.InstrumentAgent)
-            if 0 == len(siteagents): return self._make_fail("No site agent found")
-        
-            agentinsts = self._find_stemming(device_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance)
-            if 0 == len(agentinsts): return self._make_fail("No agent instance found")
-            agents = self._find_stemming(agentinsts[0], PRED.hasAgentDefinition, RT.InstrumentAgent)
-            # we check the develop precondition here, which checks that there's an agent. so assume it.
-            if siteagents[0]._id != agents[0]._id: return False
-
-            # all sensor devices must be deployed
-            for dev in self._find_stemming(device_id, PRED.hasDevice, RT.SensorDevice):
-                if not self._resource_lcstate_in(dev, [LCS.DEPLOYED]): return False
-
             return self._make_pass()
             
         if RT.PlatformDevice == device_type:
@@ -356,17 +343,7 @@ class DevicePolicy(ResourceLCSPolicy):
             tmp = self._resource_lcstate_in(sites[0], [LCS.DEPLOYED])
             if not tmp[0]: return tmp
 
-            siteagents = self._find_stemming(sites[0]._id, PRED.hasAgent, RT.PlatformAgent)
-            if 0 == len(siteagents): return self._make_fail("No site agent found")
-
-            agentinsts = self._find_stemming(device_id, PRED.hasAgentInstance, RT.PlatformAgentInstance)
-            if 0 == len(agentinsts): return self._make_fail("No agent instance found")
-            agents = self._find_stemming(agentinsts[0], PRED.hasAgentDefinition, RT.PlatformAgent)
-            # we check the develop precondition here, which checks that there's an agent. so assume it.
-
-            #todo: remove "site hasAgent agent"
             #todo: add check that model is supported
-            if siteagents[0]._id != agents[0]._id: return False
 
 
 
