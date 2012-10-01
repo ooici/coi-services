@@ -28,7 +28,7 @@ import ast
 import csv
 import requests
 import StringIO
-
+import time
 from interface import objects
 
 from pyon.core.bootstrap import get_service_registry
@@ -45,6 +45,10 @@ except:
 
 DEBUG = True
 
+DEFAULT_TIME_FORMAT="%y-%m-%dT%H:%M:%S"
+
+#"%04d-%02d-%02d"  % (y,m,d)    if filter(nonzero, (y,m,d))                else ''
+#time = "T%02d:%02d:%02d"
 class IONLoader(ImmediateProcess):
     """
     """
@@ -57,7 +61,9 @@ class IONLoader(ImmediateProcess):
 
     ID_ORG_ION = "ORG_ION"
 
-    unknown_fields = {}
+    unknown_fields = {} # track unknown fields so we only warn once
+    constraint_defs = {} # alias -> value for refs, since not stored in DB
+    contacts = {} # alias -> value for refs, since not stored in DB
 
     def on_start(self):
         self.ui_loader = UILoader(self)
@@ -105,6 +111,7 @@ class IONLoader(ImmediateProcess):
         categories = ['User',
                       'Org',
                       'UserRole',
+                      'Constraint',
                       'PlatformModel',
                       'InstrumentModel',
                       'Observatory',
@@ -114,6 +121,8 @@ class IONLoader(ImmediateProcess):
                       'StreamDefinition',
                       'PlatformDevice',
                       'InstrumentDevice',
+                      'SensorModel',
+                      'SensorDevice',
                       'InstrumentAgent',
                       'InstrumentAgentInstance',
                       'DataProcessDefinition',
@@ -188,7 +197,7 @@ class IONLoader(ImmediateProcess):
 
             log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
 
-    def _create_object_from_row(self, objtype, row, prefix=''):
+    def _create_object_from_row(self, objtype, row, prefix='', constraints=None, constraint_field='constraint_list'):
         log.trace("Create object type=%s, prefix=%s", objtype, prefix)
         schema = self._get_object_class(objtype)._schema
         obj_fields = {}
@@ -221,6 +230,8 @@ class IONLoader(ImmediateProcess):
                     if fieldname not in self.unknown_fields[objtype]:
                         log.warn("Skipping unknown field in %s: %s%s", objtype, prefix, fieldname)
                         self.unknown_fields[objtype].append(fieldname)
+        if constraints:
+            obj_fields[constraint_field] = constraints
         log.trace("Create object type %s from field names %s", objtype, obj_fields.keys())
         obj = IonObject(objtype, **obj_fields)
         return obj
@@ -291,8 +302,8 @@ class IONLoader(ImmediateProcess):
             headers['ion-actor-id'] = owner_id
         return headers
 
-    def _basic_resource_create(self, row, restype, prefix, svcname, svcop, **kwargs):
-        res_obj = self._create_object_from_row(restype, row, prefix)
+    def _basic_resource_create(self, row, restype, prefix, svcname, svcop, constraints=None, constraint_field='constraint_list', **kwargs):
+        res_obj = self._create_object_from_row(restype, row, prefix, constraints=constraints, constraint_field=constraint_field)
         headers = self._get_op_headers(row)
         svc_client = self._get_service_client(svcname)
         res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
@@ -335,9 +346,26 @@ class IONLoader(ImmediateProcess):
             ion_org_id = org_ids[0]
             self._register_id(self.ID_ORG_ION, ion_org_id)
 
+    def _get_constraints(self, row, field='constraint_ids', type=None):
+        constraints = []
+        value = row[field]
+        if value:
+            names = self._get_typed_value(value, targettype="simplelist")
+            if names:
+                for name in names:
+                    if name not in self.constraint_defs:
+                        msg = 'invalid constraint: ' + name + ' (from value=' + value + ')'
+                        if self.COL_ID in row:
+                            msg = 'id ' + row[self.COL_ID] + ' refers to an ' + msg
+                        if type:
+                            msg = type + ' ' + msg
+                        raise iex.BadRequest(msg)
+                    constraint = self.constraint_defs[name]
+                    constraints.append(constraint)
+        return constraints
+
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
-
     def _load_User(self, row):
         subject = row["subject"]
         name = row["name"]
@@ -412,10 +440,54 @@ class IONLoader(ImmediateProcess):
 
             self._load_PlatformModel(fakerow)
 
+    def _load_Constraint(self, row):
+        """ create constraint IonObject but do not insert into DB,
+            cache in dictionary for inclusion in other preload objects """
+        id = row[self.COL_ID]
+        if id in self.constraint_defs:
+            raise iex.BadRequest('constraint with ID already exists: ' + id)
+        type = row['type']
+        if type=='geospatial' or type=='geo' or type=='space':
+            self.constraint_defs[id] = self._create_geospatial_constraint(row)
+        elif type=='temporal' or type=='temp' or type=='time':
+            self.constraint_defs[id] = self._create_temporal_constraint(row)
+        else:
+            raise iex.BadRequest('constraint type must be either geospatial or temporal, not ' + type)
+
+    def _create_geospatial_constraint(self, row):
+        z = row['vertical_direction']
+        if z=='depth':
+            min = float(row['top'])
+            max = float(row['bottom'])
+        elif z=='elevation':
+            min = float(row['bottom'])
+            max = float(row['top'])
+        else:
+            raise iex.BadRequest('vertical_direction must be "depth" or "elevation", not ' + z)
+        constraint = IonObject("GeospatialBounds",
+            geospatial_latitude_limit_north=float(row['north']),
+            geospatial_latitude_limit_south=float(row['south']),
+            geospatial_longitude_limit_east=float(row['east']),
+            geospatial_longitude_limit_west=float(row['west']),
+            geospatial_vertical_min=min,
+            geospatial_vertical_max=max)
+        return constraint
+
+    def _create_temporal_constraint(self, row):
+        format = row['format'] or DEFAULT_TIME_FORMAT
+        start = time.strptime(row['start'], format)
+        end = time.strptime(row['end'], format)
+        return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
+
+    def _load_SensorModel(self, row):
+        row['sm/reference_urls'] = repr(self._get_typed_value(row['sm/reference_urls'], targettype="simplelist"))
+        self._basic_resource_create(row, "SensorModel", "sm/",
+            "instrument_management", "create_sensor_model")
+
     def _load_InstrumentModel(self, row):
-        log.debug('laoding InstrumentModel')
-        res_id = self._basic_resource_create(row, "InstrumentModel", "im/",
-                                            "instrument_management", "create_instrument_model")
+        row['im/reference_urls'] = repr(self._get_typed_value(row['im/reference_urls'], targettype="simplelist"))
+        self._basic_resource_create(row, "InstrumentModel", "im/",
+            "instrument_management", "create_instrument_model")
 
     def _load_InstrumentModel_OOI(self):
         for im_def in self.instrument_models.values():
@@ -430,12 +502,14 @@ class IONLoader(ImmediateProcess):
             self._load_InstrumentModel(fakerow)
 
     def _load_Observatory(self, row):
+        constraints = self._get_constraints(row, type='Observatory')
         res_id = self._basic_resource_create(row, "Observatory", "obs/",
-            "observatory_management", "create_observatory")
+            "observatory_management", "create_observatory", constraints=constraints)
 
     def _load_Subsite(self, row):
+        constraints = self._get_constraints(row, type='Subsite')
         res_id = self._basic_resource_create(row, "Subsite", "site/",
-                                            "observatory_management", "create_subsite")
+                                            "observatory_management", "create_subsite", constraints=constraints)
 
         svc_client = self._get_service_client("observatory_management")
         psite_id = row.get("parent_site_id", None)
@@ -464,8 +538,10 @@ class IONLoader(ImmediateProcess):
             self._load_Subsite(fakerow)
 
     def _load_PlatformSite(self, row):
+        constraints = self._get_constraints(row, type='PlatformSite')
         res_id = self._basic_resource_create(row, "PlatformSite", "ps/",
-                                            "observatory_management", "create_platform_site")
+                                            "observatory_management", "create_platform_site",
+                                            constraints=constraints)
 
         svc_client = self._get_service_client("observatory_management")
         site_id = row["parent_site_id"]
@@ -492,8 +568,10 @@ class IONLoader(ImmediateProcess):
             self._load_PlatformSite(fakerow)
 
     def _load_InstrumentSite(self, row):
+        constraints = self._get_constraints(row, type='InstrumentSite')
         res_id = self._basic_resource_create(row, "InstrumentSite", "is/",
-                                            "observatory_management", "create_instrument_site")
+                                            "observatory_management", "create_instrument_site",
+                                            constraints=constraints)
 
         svc_client = self._get_service_client("observatory_management")
         lp_id = row["parent_site_id"]
@@ -541,9 +619,21 @@ class IONLoader(ImmediateProcess):
             ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
+    def _load_SensorDevice(self, row):
+        res_id = self._basic_resource_create(row, "SensorDevice", "sd/",
+            "instrument_management", "create_sensor_device")
+        ims_client = self._get_service_client("instrument_management")
+        ass_id = row["sensor_model_id"]
+        if ass_id:
+            ims_client.assign_sensor_model_to_sensor_device(self.resource_ids[ass_id], res_id)
+        ass_id = row["instrument_device_id"]
+        if ass_id:
+            ims_client.assign_sensor_device_to_instrument_device(res_id, self.resource_ids[ass_id])
+        self._resource_advance_lcs(row, res_id, "SensorDevice")
+
     def _load_InstrumentDevice(self, row):
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
-                                            "instrument_management", "create_instrument_device")
+            "instrument_management", "create_instrument_device")
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
         if ass_id:
@@ -713,7 +803,8 @@ class IONLoader(ImmediateProcess):
         workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_def_id, self.resource_ids[row["in_dp_id"]], timeout=30)
 
     def _load_Deployment(self,row):
-        deployment = self._create_object_from_row("Deployment", row, "d/")
+        constraints = self._get_constraints(row, type='Deployment')
+        deployment = self._create_object_from_row("Deployment", row, "d/", constraints=constraints)
         device_id = self.resource_ids[row['device_id']]
         site_id = self.resource_ids[row['site_id']]
 
