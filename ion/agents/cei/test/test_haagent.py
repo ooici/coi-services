@@ -111,6 +111,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.event_sub = None
 
     def tearDown(self):
+        self.event_sub.stop()
         self.container.terminate_process(self._haa_pid)
         self._stop_container()
 
@@ -351,6 +352,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         self.event_sub = None
 
     def tearDown(self):
+        self.event_sub.stop()
         self.container.terminate_process(self._haa_pid)
         self._stop_webserver()
         self._stop_container()
