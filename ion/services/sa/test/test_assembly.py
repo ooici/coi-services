@@ -544,7 +544,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.DEPLOY, LCS.DEPLOYED)
         self.generic_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEPLOY, LCS.DEPLOYED)
-        log.debug("L4-CI-SA-RQ-334")
+        log.debug("L4-CI-SA-RQ-334 DEPLOY")
 
 
         #now along comes a new device
@@ -599,6 +599,9 @@ class TestAssembly(IonIntegrationTestCase):
 
         c.IMS.delete_instrument_agent(instrument_agent_id)
         log.debug("L4-CI-SA-RQ-382")
+
+        c.IMS.delete_instrument_device(instrument_device_id)
+        log.debug("L4-CI-SA-RQ-334 RETIRE")
 
 
 
