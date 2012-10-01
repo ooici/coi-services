@@ -94,12 +94,13 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self._base_procs = self.pd_cli.list_processes()
 
+        self.subscribe_events(None)
+
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         self._haa_pid = self.container_client.spawn_process(name=self._haa_name,
             module="ion.agents.cei.high_availability_agent",
             cls="HighAvailabilityAgent", config=self._haa_config)
-        self.subscribe_events(None)
 
         # Start a resource agent client to talk with the instrument agent.
         self._haa_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
@@ -335,12 +336,12 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
         self._base_procs = self.pd_cli.list_processes()
 
+        self.subscribe_events(None)
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         self._haa_pid = self.container_client.spawn_process(name=self._haa_name,
             module="ion.agents.cei.high_availability_agent",
             cls="HighAvailabilityAgent", config=self._haa_config)
-        self.subscribe_events(None)
 
         # Start a resource agent client to talk with the instrument agent.
         self._haa_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
