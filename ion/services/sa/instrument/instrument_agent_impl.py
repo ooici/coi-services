@@ -76,7 +76,7 @@ class InstrumentAgentImpl(ResourceSimpleImpl):
             return ""
         else:
             return "InstrumentAgent LCS requires an associated instrument model"
-    
+
     def link_model(self, instrument_agent_id='', instrument_model_id=''):
         return self._link_resources_single_subject(instrument_agent_id, PRED.hasModel, instrument_model_id)
 
@@ -88,4 +88,16 @@ class InstrumentAgentImpl(ResourceSimpleImpl):
 
     def find_stemming_model(self, instrument_agent_id):
         return self._find_stemming(instrument_agent_id, PRED.hasModel, RT.InstrumentModel)
+
+    def link_process_definition(self, instrument_agent_id='', process_definition_id=''):
+        return self._link_resources_single_subject(instrument_agent_id, PRED.hasProcessDefinition, process_definition_id)
+
+    def unlink_process_definition(self, instrument_agent_id='', process_definition_id=''):
+        return self._unlink_resources(instrument_agent_id, PRED.hasProcessDefinition, process_definition_id)
+
+    def find_having_process_definition(self, process_definition_id):
+        return self._find_having_single(PRED.hasProcessDefinition, process_definition_id)
+
+    def find_stemming_process_definition(self, instrument_agent_id):
+        return self._find_stemming(instrument_agent_id, PRED.hasProcessDefinition, RT.InstrumentModel)
 
