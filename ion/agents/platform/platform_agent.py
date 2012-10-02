@@ -110,6 +110,7 @@ class PlatformAgent(ResourceAgent):
         self._plat_config = None
         self._platform_id = None
         self._topology = None
+        self._agent_device_map = None
         self._plat_driver = None
 
         # Platform ID of my parent, if any. This is mainly used for diagnostic
@@ -214,6 +215,9 @@ class PlatformAgent(ResourceAgent):
         if 'platform_topology' in self._plat_config:
             self._topology = self._plat_config['platform_topology']
 
+        if 'agent_device_map' in self._plat_config:
+            self._agent_device_map = self._plat_config['agent_device_map']
+
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
             self._parent_platform_id = ppid
@@ -282,8 +286,8 @@ class PlatformAgent(ResourceAgent):
         self._plat_driver = driver
         self._plat_driver.set_event_listener(self.evt_recv)
 
-        if self._topology:
-            self._plat_driver.set_topology(self._topology)
+        if self._topology or self._agent_device_map:
+            self._plat_driver.set_topology(self._topology, self._agent_device_map)
 
         log.debug("%r: driver created: %s",
             self._platform_id, str(driver))
@@ -477,6 +481,7 @@ class PlatformAgent(ResourceAgent):
         platform_config = {
             'platform_id': subplatform_id,
             'platform_topology' : self._topology,
+            'agent_device_map' : self._agent_device_map,
             'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],
             'container_name': self._container_name,
@@ -496,6 +501,8 @@ class PlatformAgent(ResourceAgent):
         self._pa_clients.clear()
         subplatform_ids = self._plat_driver.get_subplatform_ids()
         if len(subplatform_ids):
+            if self._parent_platform_id is None:
+                log.debug("%r: I'm the root platform", self._platform_id)
             log.debug("%r: launching subplatforms %s",
                 self._platform_id, str(subplatform_ids))
             for subplatform_id in subplatform_ids:

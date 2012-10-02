@@ -21,6 +21,8 @@ from ion.agents.platform.oms.oms_resource_monitor import OmsResourceMonitor
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.util.network import NNode
+from ion.agents.platform.util.network import Attr
+from ion.agents.platform.util.network import Port
 
 
 class OmsPlatformDriver(PlatformDriver):
@@ -145,6 +147,7 @@ class OmsPlatformDriver(PlatformDriver):
             children according to the given list.
             """
             nnode = NNode(platform_id)
+            self._set_attributes_and_ports_from_agent_device_map(nnode)
 
             log.debug('Created NNode for %r', platform_id)
 
@@ -157,6 +160,39 @@ class OmsPlatformDriver(PlatformDriver):
 
         children = self._topology.get(self._platform_id, [])
         return build(self._platform_id, children)
+
+    def _set_attributes_and_ports_from_agent_device_map(self, nnode):
+        """
+        Sets the attributes and ports for the given NNode from
+        self._agent_device_map if not None.
+        """
+        if self._agent_device_map is None:
+            return
+
+        platform_id = nnode.platform_id
+        if platform_id not in self._agent_device_map:
+            log.warn("%r: no entry in agent_device_map for platform_id",
+                     self._platform_id, platform_id)
+            return
+
+        device_obj = self._agent_device_map[platform_id]
+        log.info("%r: for platform_id=%r device_obj=%s",
+                    self._platform_id, platform_id, device_obj)
+
+        attrs = device_obj.platform_monitor_attributes
+        ports = device_obj.ports
+
+        for attr_obj in attrs:
+            attr = Attr(attr_obj.id, {
+                'name': attr_obj.name,
+                'monitorCycleSeconds': attr_obj.monitor_rate,
+                'units': attr_obj.units,
+                })
+            nnode.add_attribute(attr)
+
+        for port_obj in ports:
+            port = Port(port_obj.port_id, port_obj.ip_address)
+            nnode.add_port(port)
 
     def _build_network_definition_using_oms(self):
         """

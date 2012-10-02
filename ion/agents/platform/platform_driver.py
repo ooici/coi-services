@@ -63,17 +63,22 @@ class PlatformDriver(object):
         # platform system) is used to retrieve the information.
         self._topology = None
 
+        # similar to _topology -- under initial testing -- may be merged
+        self._agent_device_map = None
+
         # The root NNode defining the platform network rooted at the platform
         # identified by self._platform_id. This _nnode is constructed by the
         # driver based on _topology (if given) or other source of information.
         self._nnode = None
 
-    def set_topology(self, topology):
+    def set_topology(self, topology, agent_device_map=None):
         """
         Sets the platform topology.
         """
-        log.debug("set_topology: %s", str(topology))
+        log.debug("set_topology: topology=%s", str(topology))
+        log.debug("set_topology: agent_device_map=%s", str(agent_device_map))
         self._topology = topology
+        self._agent_device_map = agent_device_map
 
     def set_event_listener(self, evt_recv):
         """

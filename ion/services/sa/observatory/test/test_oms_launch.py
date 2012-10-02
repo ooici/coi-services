@@ -23,6 +23,8 @@ from pyon.public import OT
 import unittest
 from ooi.logging import log
 
+import yaml
+
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand, ProcessStateEnum
 
@@ -55,7 +57,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@unittest.skip("Under reconstruction")
+#@unittest.skip("Under reconstruction")
 @attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
@@ -104,7 +106,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         #maps an agent instance id to a device object with specifics about that device
         agent_device_map = {}
-        parent_map = {}
+#        parent_map = {}
+        children_map = {}
 
         #-------------------------------
         # Platform SS  (Shore Station)
@@ -119,7 +122,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         ports = []
         #create the port information for this device
         ports.append(  IonObject(OT.PlatformPort, port_id='ShoreStation_port_1', ip_address='ShoreStation_port_1_IP')  )
-        ports.append(  IonObject(OT.PlatformPort, port_id='ShoreStation_port_1', ip_address='ShoreStation_port_1_IP')  )
+        ports.append(  IonObject(OT.PlatformPort, port_id='ShoreStation_port_2', ip_address='ShoreStation_port_2_IP')  )
         monitor_attributes = []
         #create the attributes that are specific to this model type
         monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='ShoreStation_attr_1', monitor_rate=5, units='xyz')  )
@@ -187,8 +190,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                           driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1A_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1A_agent_instance_obj, platform1A_agent_id, platform1A_device_id)
 
-        parent_map[platform1A_agent_instance_id] = [platformSS_agent_instance_id]
+#        parent_map[platform1A_agent_instance_id] = [platformSS_agent_instance_id]
         agent_device_map[platform1A_agent_instance_id] = platform1A_device__obj
+        children_map[platformSS_agent_instance_id] = [platform1A_agent_instance_id]
 
 
         #-------------------------------
@@ -229,8 +233,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1B_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1B_agent_instance_obj, platform1B_agent_id, platform1B_device_id)
 
-        parent_map[platform1B_agent_instance_id] = [platform1A_agent_instance_id]
+#        parent_map[platform1B_agent_instance_id] = [platform1A_agent_instance_id]
         agent_device_map[platform1B_agent_instance_id] = platform1B_device__obj
+        children_map[platform1A_agent_instance_id] = [platform1B_agent_instance_id]
 
 
 
@@ -274,8 +279,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1C_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1C_agent_instance_obj, platform1C_agent_id, platform1C_device_id)
 
-        parent_map[platform1C_agent_instance_id] = [platform1B_agent_instance_id]
+#        parent_map[platform1C_agent_instance_id] = [platform1B_agent_instance_id]
         agent_device_map[platform1C_agent_instance_id] = platform1C_device__obj
+        children_map[platform1B_agent_instance_id] = [platform1C_agent_instance_id]
 
 
 
@@ -307,15 +313,23 @@ class TestOmsLaunch(IonIntegrationTestCase):
         }
 
         PLATFORM_CONFIG = {
-            'platform_id': platformSS_agent_id,
-            'platform_topology' : parent_map,
+            # for consistency, topology and agent_device_map given in terms of
+            # the same IDs used for platform_ids, in this case agent-instance-ids
+            # (but could be anything else as long as it is consistent)
+            'platform_id': platformSS_agent_instance_id,
+            'platform_topology' : children_map,
+            'agent_device_map': agent_device_map,
+
+#            'platform_id': platformSS_agent_id,
+#            'platform_topology' : parent_map,
+
             'driver_config': DVR_CONFIG,
             'container_name': self.container.name,
-            'agent_device_map': agent_device_map
 
         }
 
-        log.debug("Root PLATFORM_CONFIG = %s", PLATFORM_CONFIG)
+        log.debug("Root PLATFORM_CONFIG =\n%s",
+                  yaml.dump(PLATFORM_CONFIG, default_flow_style=False))
 
         # PING_AGENT can be issued before INITIALIZE
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
