@@ -49,5 +49,6 @@ setup(  name = 'coi-services',
             'elasticpy==0.10',
             'pyparsing==1.5.6', 
             'snakefood==1.4',
+            'xlrd',
         ],
      )
