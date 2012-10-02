@@ -71,7 +71,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('SMOKE', group='safoo')
+@attr('SMOKE', group='sa')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
