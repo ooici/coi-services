@@ -119,6 +119,10 @@ class RecordDictionaryTool(object):
             self._rd[param] = None
 
     @property
+    def fields(self):
+        return self._rd.keys()
+
+    @property
     def domain(self):
         dom = SimpleDomainSet(self._shp)
         return dom
