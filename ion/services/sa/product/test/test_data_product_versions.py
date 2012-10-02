@@ -33,7 +33,7 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='sa')
+@attr('INT', group='safoo')
 #@unittest.skip('not working')
 class TestDataProductVersions(IonIntegrationTestCase):
 
@@ -93,6 +93,8 @@ class TestDataProductVersions(IonIntegrationTestCase):
         #test that the links exist
         version_ids, _ = self.rrclient.find_objects(subject=dpc_id, predicate=PRED.hasVersion, id_only=True)
         log.debug( 'version_ids = %s', str(version_ids))
+        self.assertTrue(version_ids, 'Failed to connect the data product to the version collection.')
+        self.assertTrue(version_ids[0] ==  dp_id, 'Failed to connect the data product to the version collection.')
 
 
         # test creating a subsequent data product version which will update the data product pointers
@@ -107,8 +109,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
         log.debug( 'second dp_id = %s', str(dp2_id))
 
 
-
-        self.client.add_data_product_version_to_collection(data_product_id=dp2_id, data_product_collection_id=dpc_id, version_name='second version', version_description='desc' )
+        self.client.add_data_product_version_to_collection(data_product_id=dp2_id, data_product_collection_id=dpc_id, version_name="second version", version_description="desc" )
 
         #test that the links exist
         version_ids, _ = self.rrclient.find_objects(subject=dpc_id, predicate=PRED.hasVersion, id_only=True)

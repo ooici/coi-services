@@ -321,6 +321,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_collection_id, rev = self.clients.resource_registry.create(dp_collection_obj)
         self.clients.resource_registry.create_association( subject=data_product_collection_id, predicate=PRED.hasVersion, object=data_product_id)
 
+
+
         return data_product_collection_id
 
 
@@ -359,6 +361,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
+
+        #todo: retire the collection and the associations
+
         pass
 
     def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
@@ -366,12 +371,21 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         dp_collection_obj =self.clients.resource_registry.read(data_product_collection_id)
 
+        #retrieve the stream definition for both the new data product to add to this collection and the base data product for this collection
         new_data_product_obj = self.clients.resource_registry.read(data_product_id)
+        new_data_product_streams, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        validate_is_not_none(new_data_product_streams, 'The data product to add to the collection must have an associated stream')
+        new_data_product_streamdefs, _ = self.clients.resource_registry.find_objects(subject=new_data_product_streams[0], predicate=PRED.hasStreamDefinition, object_type=RT.StreamDefinition, id_only=True)
 
-        #base_data_product_obj = self.clients.resource_registry.read(dp_collection_obj.version_list[0])
+        base_data_product_id = dp_collection_obj.version_list[0].data_product_id
+        base_data_product_obj = self.clients.resource_registry.read(base_data_product_id)
+        base_data_product_streams, _ = self.clients.resource_registry.find_objects(subject=base_data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        validate_is_not_none(base_data_product_streams, 'The base data product in the collection must have an associated stream')
+        base_data_product_streamdefs, _ = self.clients.resource_registry.find_objects(subject=base_data_product_streams[0], predicate=PRED.hasStreamDefinition, object_type=RT.StreamDefinition, id_only=True)
+        if not self.clients.pubsub_management.compare_stream_definition(stream_definition1_id=new_data_product_streamdefs[0], stream_definition2_id=base_data_product_streamdefs[0]):
+            raise BadRequest("All Data Products in a collection must have equivelent stream definitions.")
 
-
-        #todo: validate that the parameter dict, spatial/temporal domain match the base data product
+        #todo: validate that the spatial/temporal domain match the base data product
 
 
         dpv = DataProductVersion()
@@ -380,7 +394,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         dpv.data_product_id = data_product_id
 
         dp_collection_obj.version_list.append(dpv)
-
         self.clients.resource_registry.update(dp_collection_obj)
 
         self.clients.resource_registry.create_association( subject=data_product_collection_id, predicate=PRED.hasVersion, object=data_product_id)
