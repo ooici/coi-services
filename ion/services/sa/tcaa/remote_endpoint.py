@@ -27,36 +27,25 @@ from pyon.core.exception import Conflict
 
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.objects import TelemetryStatusType, RemoteCommand
+from pyon.core.bootstrap import get_service_registry
+from pyon.agent.agent import ResourceAgentClient
 
 from interface.services.sa.iremote_endpoint import BaseRemoteEndpoint
 from interface.services.sa.iremote_endpoint import RemoteEndpointProcessClient
 from ion.services.sa.tcaa.endpoint_mixin import EndpointMixin
 
-
 class ServiceCommandQueue(object):
     """
     """
-    def __init__(self, id, callback):
+    def __init__(self, id, client, callback):
         """
         """
         self._id = id
         self._queue = []
-        self._client = None
+        self._client = client
         self._callback = callback
         self._greenlet = None
         
-        if id == 'fake_id':
-            pass
-        
-        else:
-            # Look for a service with name == id.
-            
-            # Then look for a resource with resource_id == id.
-            
-            # If nothing found raise.
-            # raise ValueError
-            pass
-
     def start(self):
         
         def command_loop():
@@ -79,7 +68,7 @@ class ServiceCommandQueue(object):
                     args = cmd.args
                     kwargs = cmd.kwargs
                     try:
-                        func = getattr(self,_client, cmdstr)
+                        func = getattr(self._client, cmdstr)
                         result = func(*args, **kwargs)
                     
                     except AttributeError, TypeError:
@@ -167,6 +156,41 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
             queue.stop()
         self._service_command_queues = {}
 
+    def _get_service_queue(self, request):
+        """
+        """
+        id = request.resource_id
+        svc_name = request.svc_name
+        svc_queue = None
+        if id:
+            svc_queue = self._service_command_queues.get(id, None)
+            if not svc_queue:
+                if id == 'fake_id':
+                    svc_queue = ServiceCommandQueue(id, None, self._result_complete)
+                    svc_queue.start()
+                    self._service_command_queues[id] = svc_queue
+                    
+                else:
+                    res_client = ResourceAgentClient(id, process=self.process)
+                    if client:
+                        # Create and return a new queue with this client.
+                        svc_queue = ServiceCommandQueue(id, res_client, self._result_complete)
+                        svc_queue.start()
+                        self._service_command_queues[id] = svc_queue
+            
+        elif svc_name:
+            svc_queue = self._service_command_queues.get(svc_name, None)
+            if not svc_queue:
+                svc_cls = get_service_registry().get_service_by_name(svc_name)
+                if svc_cls:
+                    svc_client_cls = svc_client.client
+                    svc_client = svc_client_cls(process=self.process)
+                    svc_queue = ServiceCommandQueue(svc_name, svc_client, self._result_complete)
+                    svc_queue.start()
+                    self._service_command_queues[svc_name] = svc_queue
+                    
+        return svc_queue
+
     ######################################################################    
     # Callbacks.
     ######################################################################    
@@ -174,17 +198,18 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
     def _req_callback(self, request):
         """
         """
-        try:
-            id = request.resource_id
-            service_queue = self._service_command_queues[id]
-            
-        except KeyError:
-            service_queue = ServiceCommandQueue(id, self._result_complete)
-            service_queue.start()
-            self._service_command_queues[id] = service_queue
-
-        service_queue.insert(request)
         log.debug('Remote endpoint got request: %s', str(request))
+        svc_queue = self._get_service_queue(request)
+        
+        if svc_queue:
+            # Add command the the service queue.
+            svc_queue.insert(request)
+        
+        else:
+            # No service or resource, return error.
+            errstr = 'resource_id=%s or svc_name=%s not found.' % (request.resource_id, request.svc_name)
+            request.result = BadRequest(errstr)
+            self._result_complete(request)
     
     def _ack_callback(self, result):
         """
