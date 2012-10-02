@@ -69,7 +69,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('SMOKE', group='sa')
+@attr('SMOKE', group='safoo')
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -116,7 +116,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         return pid
 
 
-    @unittest.skip("TBD")
+    #@unittest.skip("TBD")
     def test_activateInstrumentSample(self):
 
         self.loggerpids = []
@@ -201,10 +201,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
         parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
-        parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM', parameter_dictionary=parsed_parameter_dictionary)
+        parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='parsed', parameter_dictionary=parsed_parameter_dictionary.dump())
 
         raw_parameter_dictionary = get_param_dict('simple_data_particle_raw_param_dict')
-        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_RAW', parameter_dictionary=raw_parameter_dictionary)
+        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='raw', parameter_dictionary=raw_parameter_dictionary.dump())
 
 
         #-------------------------------
@@ -217,14 +217,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary)
-        #data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parsed_parameter_dictionary.dump())
-
+        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
-        #self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
@@ -240,13 +238,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary)
-        #data_product_id2 = self.dpclient.create_data_product(dp_obj, raw_stream_def_id, raw_parameter_dictionary.dump())
+        data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
         log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
-        #self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
@@ -405,13 +402,13 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: run %s", str(reply))
 
-#        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
-#        retval = self._ia_client.execute_resource(cmd)
-#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
-#        retval = self._ia_client.execute_resource(cmd)
-#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
-#        retval = self._ia_client.execute_resource(cmd)
-#        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
+        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
+        retval = self._ia_client.execute_resource(cmd)
+        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
+        retval = self._ia_client.execute_resource(cmd)
+        log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
 
 #
 #
