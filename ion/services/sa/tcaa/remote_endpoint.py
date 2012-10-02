@@ -22,8 +22,9 @@ import gevent
 
 
 # Pyon exceptions.
+from pyon.core.exception import IonException
 from pyon.core.exception import BadRequest
-from pyon.core.exception import Conflict
+from pyon.core.exception import ServerError
 
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.objects import TelemetryStatusType, RemoteCommand
@@ -67,18 +68,29 @@ class ServiceCommandQueue(object):
                     cmdstr = cmd.command
                     args = cmd.args
                     kwargs = cmd.kwargs
+                                        
                     try:
                         func = getattr(self._client, cmdstr)
                         result = func(*args, **kwargs)
-                    
+
                     except AttributeError, TypeError:
                         # The command does not exist.
-                        pass
+                        errstr = 'Unable to call remote command %s.' % cmdstr
+                        log.error(errstr)
+                        result = BadRequest(errstr)
+                    
+                    except IonException as ex:
+                        # populate result with error.
+                        errstr = 'Unable to call remote command %s.' % cmdstr
+                        log.error(str(ex))
+                        result = ex
                         
                     except Exception as ex:
                         # populate result with error.
-                        pass
-                
+                        errstr = 'Unable to call remote command %s.' % cmdstr
+                        log.error(str(ex))
+                        result = ServerError(str(ex))
+                    
                 cmd_result = {
                     'command_id' : cmd.command_id,
                     'result' : result
@@ -171,7 +183,7 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
                     self._service_command_queues[id] = svc_queue
                     
                 else:
-                    res_client = ResourceAgentClient(id, process=self.process)
+                    res_client = ResourceAgentClient(id, process=self)
                     if client:
                         # Create and return a new queue with this client.
                         svc_queue = ServiceCommandQueue(id, res_client, self._result_complete)
@@ -183,8 +195,8 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
             if not svc_queue:
                 svc_cls = get_service_registry().get_service_by_name(svc_name)
                 if svc_cls:
-                    svc_client_cls = svc_client.client
-                    svc_client = svc_client_cls(process=self.process)
+                    svc_client_cls = svc_cls.client
+                    svc_client = svc_client_cls(process=self)
                     svc_queue = ServiceCommandQueue(svc_name, svc_client, self._result_complete)
                     svc_queue.start()
                     self._service_command_queues[svc_name] = svc_queue

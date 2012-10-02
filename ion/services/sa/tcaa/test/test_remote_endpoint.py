@@ -45,6 +45,8 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from ion.services.sa.tcaa.r3pc import R3PCServer
 from ion.services.sa.tcaa.r3pc import R3PCClient
 from interface.objects import TelemetryStatusType
+from interface.objects import UserInfo
+
 
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_process_queued
@@ -52,6 +54,11 @@ from interface.objects import TelemetryStatusType
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_terrestrial_late
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_service_commands
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_xxx
+
+"""
+Example code to dynamically create client to container service.        
+https://github.com/ooici/coi-services/blob/master/ion/services/coi/agent_management_service.py#L531        
+"""
 
 class FakeProcess(LocalContextMixin):
     """
@@ -131,6 +138,10 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         # Start the event publisher.
         self._event_publisher = EventPublisher()
       
+    ######################################################################    
+    # Helpers.
+    ######################################################################    
+
     def on_link_up(self):
         """
         Called by a test to simulate turning the link on.
@@ -196,21 +207,33 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
                              command_id = str(uuid.uuid4()))
         return cmd
 
+    ######################################################################    
+    # Tests.
+    ######################################################################    
+
     def test_process_queued(self):
         """
         """        
         
+        # Create and enqueue some requests.
         for i in range(self._no_requests):
             cmd = self.make_fake_command(i)
             self._terrestrial_client.enqueue(cmd)
 
+        # Publish a telemetry available event.
+        # This will cause the endpoint clients to wake up and connect.
         self.on_link_up()
 
-        self._cmd_tx_evt.get(self._no_requests*4)
-        self._done_evt.get(self._no_requests*4)
+        # Wait for all the enqueued commands to be acked.
+        # Wait for all the responses to arrive.
+        self._cmd_tx_evt.get(timeout=self._no_requests*4)
+        self._done_evt.get(timeout=self._no_requests*4)
 
+        # Publish a telemetry unavailable event.
+        # This will cause the endpoint clients to disconnect and go to sleep.
         self.on_link_down()
 
+        # Confirm the results match the commands sent.
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
     
@@ -218,19 +241,30 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         """
         """        
         
+        # Publish a telemetry available event.
+        # This will cause the endpoint clients to wake up and connect.
         self.on_link_up()
 
+        # Wait for the link to be up.
+        # The remote side does not publish public telemetry events
+        # so we can't wait for that.
         gevent.sleep(1)
 
+        # Create and enqueue some requests.
         for i in range(self._no_requests):
             cmd = self.make_fake_command(i)
             self._terrestrial_client.enqueue(cmd)
 
-        self._cmd_tx_evt.get(self._no_requests*4)
-        self._done_evt.get(self._no_requests*4)
+        # Wait for all the enqueued commands to be acked.
+        # Wait for all the responses to arrive.
+        self._cmd_tx_evt.get(timeout=self._no_requests*4)
+        self._done_evt.get(timeout=self._no_requests*4)
 
+        # Publish a telemetry unavailable event.
+        # This will cause the endpoint clients to disconnect and go to sleep.
         self.on_link_down()
 
+        # Confirm the results match the commands sent.
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
 
@@ -238,82 +272,220 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         """
         """        
         
+        # Publish a telemetry available event.
+        # This will cause the endpoint clients to wake up and connect.
         self.on_link_up()
 
+        # Wait for the link to be up.
+        # The remote side does not publish public telemetry events
+        # so we can't wait for that.
         gevent.sleep(1)
 
+        # Manually stop the terrestrial endpoint.
+        # This will cause it to be unavailable when commands are queued
+        # to simulate stability during asynchronous wake ups.
         self._terrestrial_server.stop()
         self._terrestrial_client.stop()
 
+        # Create and enqueue some requests.
         for i in range(self._no_requests):
             cmd = self.make_fake_command(i)
             self._terrestrial_client.enqueue(cmd)
 
+        # Remote side awaits the terrestrial waking up.
         gevent.sleep(3)
-        
+
+        # Terrestrail endpoint eventually wakes up and starts transmitting.        
         self._terrestrial_client.start('localhost', self._this_port)
         self._terrestrial_server.start('*', self._other_port)
+    
+        # Wait for all the enqueued commands to be acked.
+        # Wait for all the responses to arrive.
+        self._cmd_tx_evt.get(timeout=self._no_requests*4)
+        self._done_evt.get(timeout=self._no_requests*4)
 
-        self._cmd_tx_evt.get(self._no_requests*4)
-        self._done_evt.get(self._no_requests*4)
-
+        # Publish a telemetry unavailable event.
+        # This will cause the endpoint clients to disconnect and go to sleep.
         self.on_link_down()
 
+        # Confirm the results match the commands sent.
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
 
-    @unittest.skip('Not ready.')
+    #@unittest.skip('Not ready.')
     def test_service_commands(self):
         """
         """
-
-        """
         
-        https://github.com/ooici/coi-services/blob/master/ion/services/coi/agent_management_service.py#L531        
-        ======================================================================
-        ERROR: test_service_commands (ion.services.sa.tcaa.test.test_remote_endpoint.TestRemoteEndpoint)
-        ----------------------------------------------------------------------
-        Traceback (most recent call last):
-          File "/Users/edward/Documents/Dev/code/coi-services/ion/services/sa/tcaa/test/test_remote_endpoint.py", line 281, in test_service_commands
-            obj_id, obj_rev = svc_client.create(obj)
-        TypeError: unbound method create() must be called with ResourceRegistryServiceProcessClient instance as first argument (got UserInfo instance instead)
-        """
-        
-        svc_name = 'xxresource_registry'
-        from pyon.core.bootstrap import get_service_registry        
-        svc_client_cls = get_service_registry().get_service_by_name(svc_name).client
-        svc_client = svc_client_cls(process=FakeProcess())
-        print '###################'
-        print str(svc_client)
-        
-        
-        # Instantiate an object
-        obj = IonObject("UserInfo", name="some_name")
-        
-        # Persist object and read it back
-        obj_id, obj_rev = svc_client.create(obj)
-        read_obj = svc_client.read(obj_id)
-
-        print '########################'
-        print str(read_obj)
-
-        # Update object
-        read_obj.name = "some_other_name"
-        svc_client.update(read_obj)
-        read_obj = svc_client.read(obj_id)
-
-        print '########################'
-        print str(read_obj)
-        
-        # Delete object
-        svc_client.delete(obj_id)
-    
-    @unittest.skip('Temporary.')
-    def test_xxx(self):
-        """
-        """
-        
+        # Publish a telemetry available event.
+        # This will cause the endpoint clients to wake up and connect.
         self.on_link_up()
-        gevent.sleep(2)
+
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+        
+        # Create user object.
+        obj = IonObject("UserInfo", name="some_name")
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='create',
+                             args=[obj],
+                             kwargs='',
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)
+        
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=5)
+        self._done_evt.get(timeout=5)
+        
+        # Returns obj_id, obj_rev.
+        obj_id, obj_rev = self._results_recv[cmd.command_id]['result']
+        
+        # Confirm the results are valid.
+        """
+        Result is a tuple of strings.
+        {'result': ['ad183ff26bae4f329ddd85fd69d160a9',
+        '1-00a308c45fff459c7cda1db9a7314de6'],
+        'command_id': 'cc2ae00d-40b0-47d2-af61-8ffb87f1aca2'}
+        """
+        self.assertIsInstance(obj_id, str)
+        self.assertNotEqual(obj_id, '')
+        self.assertIsInstance(obj_rev, str)
+        self.assertNotEqual(obj_rev, '')
+        
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Read user object.
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='read',
+                             args=[obj_id],
+                             kwargs='',
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)
+
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=5)
+        self._done_evt.get(timeout=5)
+
+        # Returns read_obj.
+        read_obj = self._results_recv[cmd.command_id]['result']
+        
+        # Confirm the results are valid.
+        """
+        Result is a user info object with the name set.
+        {'lcstate': 'DEPLOYED_AVAILABLE',
+        '_rev': '1-851f067bac3c34b2238c0188b3340d0f',
+        'description': '',
+        'ts_updated': '1349213207638',
+        'type_': 'UserInfo',
+        'contact': <interface.objects.ContactInformation object at 0x10d7df590>,
+        '_id': '27832d93f4cd4535a75ac75c06e00a7e',
+        'ts_created': '1349213207638',
+        'variables': [{'name': '', 'value': ''}],
+        'name': 'some_name'}
+        """
+        self.assertIsInstance(read_obj, UserInfo)
+        self.assertEquals(read_obj.name, 'some_name')
+        
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Update user object.
+        read_obj.name = 'some_other_name'
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='update',
+                             args=[read_obj],
+                             kwargs='',
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)
+
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=5)
+        self._done_evt.get(timeout=5)
+
+        # Returns nothing.
+        
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Read user object.
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='read',
+                             args=[obj_id],
+                             kwargs='',
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)        
+
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=5)
+        self._done_evt.get(timeout=5)
+
+        # Returns read_obj.
+        read_obj = self._results_recv[cmd.command_id]['result']
+        
+        self.assertIsInstance(read_obj, UserInfo)
+        self.assertEquals(read_obj.name, 'some_other_name')
+        
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+        
+        # Delete user object.
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='delete',
+                             args=[obj_id],
+                             kwargs='',
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)        
+
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=5)
+        self._done_evt.get(timeout=5)
+
+        # Returns nothing.
+            
+        # Publish a telemetry unavailable event.
+        # This will cause the endpoint clients to disconnect and go to sleep.
         self.on_link_down()
-        gevent.sleep(2)
+
+
+
