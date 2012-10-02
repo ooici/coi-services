@@ -5,14 +5,13 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.sa.idata_product_management_service import IDataProductManagementService
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
@@ -51,6 +50,9 @@ from coverage_model.parameter_types import QuantityType
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.util.parameter_yaml_IO import get_param_dict
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
+
+from interface.objects import Granule
 
 from nose.plugins.attrib import attr
 
@@ -88,6 +90,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
+        self.dataretrieverclient = DataRetrieverServiceClient(node=self.container.node)
         
         #setup listerner vars
         self._data_greenlets = []
@@ -228,6 +231,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
         log.debug( 'Data product streams1 = %s', stream_ids)
 
+        # Retrieve the id of the OUTPUT stream from the out Data Product
+        dataset_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
+        log.debug( 'Data set for data_product_id1 = %s', dataset_ids[0])
+        self.parsed_dataset = dataset_ids[0]
+
         pid = self.create_logger('ctd_parsed', stream_ids[0] )
         self.loggerpids.append(pid)
 
@@ -248,6 +256,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
         log.debug( 'Data product streams2 = %s', str(stream_ids))
+
+        # Retrieve the id of the OUTPUT stream from the out Data Product
+        dataset_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasDataset, RT.Dataset, True)
+        log.debug( 'Data set for data_product_id2 = %s', dataset_ids[0])
+        self.raw_dataset = dataset_ids[0]
 
 #        #-------------------------------
 #        # L0 Conductivity - Temperature - Pressure: Data Process Definition
@@ -426,15 +439,37 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: return from reset %s", str(reply))
-        time.sleep(1)
+        time.sleep(3)
+
+
+
+        #--------------------------------------------------------------------------------
+        # Now get the data in one chunk using an RPC Call to start_retreive
+        #--------------------------------------------------------------------------------
+
+        replay_data = self.dataretrieverclient.retrieve(self.parsed_dataset)
+        self.assertIsInstance(replay_data, Granule)
+        rdt = RecordDictionaryTool.load_from_granule(replay_data)
+        log.info('RDT parsed: %s' % rdt.pretty_print())
+        temp_vals = rdt['temp']
+        self.assertTrue(len(temp_vals) == 3)
+
+
+        replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
+        self.assertIsInstance(replay_data, Granule)
+        rdt = RecordDictionaryTool.load_from_granule(replay_data)
+        log.info('RDT raw: %s' % rdt.pretty_print())
+
+        raw_vals = rdt['raw']
+        self.assertTrue(len(raw_vals) == 3)
 
         #-------------------------------
         # Deactivate InstrumentAgentInstance
         #-------------------------------
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
-#
-#        for pid in self.loggerpids:
-#            self.processdispatchclient.cancel_process(pid)
+
+        for pid in self.loggerpids:
+            self.processdispatchclient.cancel_process(pid)
 
 
     @unittest.skip("TBD")
