@@ -130,7 +130,7 @@ class IONLoader(ImmediateProcess):
                       #'IngestionConfiguration',
                       'DataProduct',
                       'DataProcess',
-                      #'DataProductLink',
+                      'DataProductLink',
                       'Attachment',
                       'WorkflowDefinition',
                       'Workflow',
