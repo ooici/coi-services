@@ -63,7 +63,7 @@ class IONLoader(ImmediateProcess):
 
     unknown_fields = {} # track unknown fields so we only warn once
     constraint_defs = {} # alias -> value for refs, since not stored in DB
-    contacts = {} # alias -> value for refs, since not stored in DB
+    contact_defs = {} # alias -> value for refs, since not stored in DB
 
     def on_start(self):
         self.ui_loader = UILoader(self)
@@ -112,6 +112,7 @@ class IONLoader(ImmediateProcess):
                       'Org',
                       'UserRole',
                       'Constraint',
+                      'Contact',
                       'PlatformModel',
                       'InstrumentModel',
                       'Observatory',
@@ -439,6 +440,15 @@ class IONLoader(ImmediateProcess):
             fakerow['mf_ids'] = mf_id
 
             self._load_PlatformModel(fakerow)
+
+    def _load_Contact(self, row):
+        """ create constraint IonObject but do not insert into DB,
+            cache in dictionary for inclusion in other preload objects """
+        id = row[self.COL_ID]
+        if id in self.contact_defs:
+            raise iex.BadRequest('contact with ID already exists: ' + id)
+        contact = self._create_object_from_row("ContactInformation", row, "c/")
+        self.contact_defs[id] = contact
 
     def _load_Constraint(self, row):
         """ create constraint IonObject but do not insert into DB,

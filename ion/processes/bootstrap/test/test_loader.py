@@ -19,7 +19,10 @@ class TestLoader(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
     def test_lca_load(self):
-        config = dict(op="load", path="res/preload/r2_ioc", scenario="R2_DEMO")
+        config = dict(op="load",
+            path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls",
+            scenario="R2_DEMO",
+            attachments="res/preload/r2_ioc/attachments")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
         res,_ = self.container.resource_registry.find_resources(RT.Org, id_only=True)
