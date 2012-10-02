@@ -50,6 +50,7 @@ from interface.objects import TelemetryStatusType
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_process_queued
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_process_online
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_terrestrial_late
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_service_commands
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_xxx
 
 class FakeProcess(LocalContextMixin):
@@ -261,6 +262,53 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
 
+    @unittest.skip('Not ready.')
+    def test_service_commands(self):
+        """
+        """
+
+        """
+        
+        https://github.com/ooici/coi-services/blob/master/ion/services/coi/agent_management_service.py#L531        
+        ======================================================================
+        ERROR: test_service_commands (ion.services.sa.tcaa.test.test_remote_endpoint.TestRemoteEndpoint)
+        ----------------------------------------------------------------------
+        Traceback (most recent call last):
+          File "/Users/edward/Documents/Dev/code/coi-services/ion/services/sa/tcaa/test/test_remote_endpoint.py", line 281, in test_service_commands
+            obj_id, obj_rev = svc_client.create(obj)
+        TypeError: unbound method create() must be called with ResourceRegistryServiceProcessClient instance as first argument (got UserInfo instance instead)
+        """
+        
+        svc_name = 'xxresource_registry'
+        from pyon.core.bootstrap import get_service_registry        
+        svc_client_cls = get_service_registry().get_service_by_name(svc_name).client
+        svc_client = svc_client_cls(process=FakeProcess())
+        print '###################'
+        print str(svc_client)
+        
+        
+        # Instantiate an object
+        obj = IonObject("UserInfo", name="some_name")
+        
+        # Persist object and read it back
+        obj_id, obj_rev = svc_client.create(obj)
+        read_obj = svc_client.read(obj_id)
+
+        print '########################'
+        print str(read_obj)
+
+        # Update object
+        read_obj.name = "some_other_name"
+        svc_client.update(read_obj)
+        read_obj = svc_client.read(obj_id)
+
+        print '########################'
+        print str(read_obj)
+        
+        # Delete object
+        svc_client.delete(obj_id)
+    
+    @unittest.skip('Temporary.')
     def test_xxx(self):
         """
         """
