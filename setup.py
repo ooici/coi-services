@@ -33,6 +33,7 @@ setup(  name = 'coi-services',
         ],
         test_suite = 'pyon',
         install_requires = [
+            'pyzmq==2.2.0',
             'utilities',
             'coverage-model',
             'marine-integrations',
