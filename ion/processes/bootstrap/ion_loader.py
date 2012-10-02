@@ -108,11 +108,11 @@ class IONLoader(ImmediateProcess):
 
     def load_ion(self, scenario):
         log.info("Loading from path: %s" % self.path)
-        categories = ['User',
+        categories = ['Constraint',
+                      'Contact',
+                      'User',
                       'Org',
                       'UserRole',
-                      'Constraint',
-                      'Contact',
                       'PlatformModel',
                       'InstrumentModel',
                       'Observatory',
@@ -134,8 +134,7 @@ class IONLoader(ImmediateProcess):
                       'Attachment',
                       'WorkflowDefinition',
                       'Workflow',
-                      'Deployment',
-                      ]
+                      'Deployment', ]
 
         self.obj_classes = {}
         self.resource_ids = {}
@@ -198,7 +197,9 @@ class IONLoader(ImmediateProcess):
 
             log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
 
-    def _create_object_from_row(self, objtype, row, prefix='', constraints=None, constraint_field='constraint_list'):
+    def _create_object_from_row(self, objtype, row, prefix='',
+                                constraints=None, constraint_field='constraint_list',
+                                contacts=None, contact_field='contact_ids'):
         log.trace("Create object type=%s, prefix=%s", objtype, prefix)
         schema = self._get_object_class(objtype)._schema
         obj_fields = {}
@@ -233,6 +234,9 @@ class IONLoader(ImmediateProcess):
                         self.unknown_fields[objtype].append(fieldname)
         if constraints:
             obj_fields[constraint_field] = constraints
+        if contacts:
+            obj_fields[contact_field] = contacts
+
         log.trace("Create object type %s from field names %s", objtype, obj_fields.keys())
         obj = IonObject(objtype, **obj_fields)
         return obj
@@ -303,8 +307,13 @@ class IONLoader(ImmediateProcess):
             headers['ion-actor-id'] = owner_id
         return headers
 
-    def _basic_resource_create(self, row, restype, prefix, svcname, svcop, constraints=None, constraint_field='constraint_list', **kwargs):
-        res_obj = self._create_object_from_row(restype, row, prefix, constraints=constraints, constraint_field=constraint_field)
+    def _basic_resource_create(self, row, restype, prefix, svcname, svcop,
+                               constraints=None, constraint_field='constraint_list',
+                               contacts=None, contact_field='contact_ids',
+                               **kwargs):
+        res_obj = self._create_object_from_row(restype, row, prefix,
+                                               constraints=constraints, constraint_field=constraint_field,
+                                               contacts=contacts, contact_field=contact_field)
         headers = self._get_op_headers(row)
         svc_client = self._get_service_client(svcname)
         res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
@@ -347,23 +356,29 @@ class IONLoader(ImmediateProcess):
             ion_org_id = org_ids[0]
             self._register_id(self.ID_ORG_ION, ion_org_id)
 
+    def _get_contacts(self, row, field='contact_ids', type=None):
+        return self._get_members(self.contact_defs, row, field, type, 'contact')
+
     def _get_constraints(self, row, field='constraint_ids', type=None):
-        constraints = []
+        return self._get_members(self.constraint_defs, row, field, type, 'constraint')
+
+    def _get_members(self, value_map, row, field, obj_type, member_type):
+        values = []
         value = row[field]
         if value:
             names = self._get_typed_value(value, targettype="simplelist")
             if names:
                 for name in names:
-                    if name not in self.constraint_defs:
-                        msg = 'invalid constraint: ' + name + ' (from value=' + value + ')'
+                    if name not in value_map:
+                        msg = 'invalid ' + member_type + ': ' + name + ' (from value=' + value + ')'
                         if self.COL_ID in row:
                             msg = 'id ' + row[self.COL_ID] + ' refers to an ' + msg
-                        if type:
-                            msg = type + ' ' + msg
+                        if obj_type:
+                            msg = obj_type + ' ' + msg
                         raise iex.BadRequest(msg)
-                    constraint = self.constraint_defs[name]
-                    constraints.append(constraint)
-        return constraints
+                    value = value_map[name]
+                    values.append(value)
+        return values
 
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
@@ -387,7 +402,12 @@ class IONLoader(ImmediateProcess):
 
     def _load_Org(self, row):
         log.trace("Loading Org (ID=%s)", row[self.COL_ID])
+        contacts = self._get_contacts(row, field='contact_id', type='Org')
         res_obj = self._create_object_from_row("Org", row, "org/")
+        if contacts:
+            if len(contacts)>1:
+                raise iex.BadRequest('Org contact_id should be single value, not list')
+            res_obj.contact = contacts[0]
         log.trace("Org: %s", res_obj)
 
         headers = self._get_op_headers(row)
@@ -445,6 +465,7 @@ class IONLoader(ImmediateProcess):
         """ create constraint IonObject but do not insert into DB,
             cache in dictionary for inclusion in other preload objects """
         id = row[self.COL_ID]
+        log.debug('creating contact: ' + id)
         if id in self.contact_defs:
             raise iex.BadRequest('contact with ID already exists: ' + id)
         contact = self._create_object_from_row("ContactInformation", row, "c/")

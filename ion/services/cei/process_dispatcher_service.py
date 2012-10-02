@@ -29,6 +29,8 @@ except ImportError:
     PDMatchmaker = None
     EPUManagementClient = None
 
+from time import time
+
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
@@ -65,6 +67,7 @@ class ProcessStateGate(EventSubscriber):
         log.info("ProcessStateGate going to wait on process '%s' for state '%s'" %
                 (self.process_id, ProcessStateEnum._str_map[self.desired_state])) # make sure state exists
 
+
     def trigger_cb(self, event, x):
         if event == self.desired_state:
             self.stop()
@@ -77,28 +80,38 @@ class ProcessStateGate(EventSubscriber):
 
     def await(self, timeout=0):
         #set up the event gate so that we don't miss any events
+        start_time = time()
         self.gate = gevent_event.Event()
         self.start()
 
         #if it's in the desired state, return immediately
         if self.in_desired_state():
             self.stop()
+            log.info("ProcessStateGate found process already in desired state -- NO WAITING")
             return True
 
         #if the state was not where we want it, wait for the event.
         ret = self.gate.wait(timeout)
 
-        # sanity check for this pattern
-        last_chance = self.in_desired_state()
+        last_chance = False
 
         #clean up
-        if not ret:
-            self.stop()
+        if ret:
+            # timer is already stopped in this case
+            log.info("ProcessStateGate received event indicating desired state after %0.2f seconds" %
+                    (time() - start_time))
+        else:
+            self.stop() # stop timer
+            log.info("ProcessStateGate timed out waiting to receive event indicating desired state")
 
-        if last_chance:
-            log.warn("ProcessStateGate was successful on last_chance; " +
-                     ("should the state change for '%s' have taken %d seconds exactly?" %
-                      (self.process_id, timeout)))
+            # sanity check for this pattern
+            last_chance = self.in_desired_state()
+
+            if last_chance:
+                log.warn("ProcessStateGate was successful on last_chance; " +
+                         ("should the state change for '%s' have taken %d seconds exactly?" %
+                          (self.process_id, timeout)))
+
 
         return ret or last_chance
 

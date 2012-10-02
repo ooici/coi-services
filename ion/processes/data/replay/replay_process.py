@@ -6,28 +6,26 @@
 @description Implementation for a replay process.
 '''
 
-
-from interface.services.dm.ireplay_process import BaseReplayProcess
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from pyon.core.exception import BadRequest, IonException, NotFound
+from pyon.core.exception import BadRequest, NotFound
 from pyon.core.object import IonObjectDeserializer
 from pyon.core.bootstrap import get_obj_registry
-from gevent.event import Event
 from pyon.datastore.datastore import DataStore
-import gevent
-from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from ion.services.dm.utility.granule_utils import CoverageCraft
 from pyon.util.log import log
-class ReplayProcessException(IonException):
-    """
-    Exception class for IngestionManagementService exceptions. This class inherits from IonException
-    and implements the __str__() method.
-    """
-    def __str__(self):
-        return str(self.get_status_code()) + str(self.get_error_message())
+
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule import RecordDictionaryTool
+from ion.services.dm.utility.granule_utils import CoverageCraft
+
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
+from interface.services.dm.ireplay_process import BaseReplayProcess
+
+from gevent.event import Event
+import gevent
 
 
 class ReplayProcess(BaseReplayProcess):
+
     '''
     ReplayProcess - A process spawned for the purpose of replaying data
     --------------------------------------------------------------------------------
@@ -43,11 +41,15 @@ class ReplayProcess(BaseReplayProcess):
       
 
     '''
-    process_type = 'standalone'
+    process_type  = 'standalone'
+    publish_limit = 10
 
     def __init__(self, *args, **kwargs):
         super(ReplayProcess,self).__init__(*args,**kwargs)
         self.deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
+        self.publishing   = Event()
+        self.play         = Event()
+        self.end          = Event()
 
     def on_start(self):
         '''
@@ -63,12 +65,16 @@ class ReplayProcess(BaseReplayProcess):
         self.end_time        = self.CFG.get_safe('process.query.end_time', None)
         self.stride_time     = self.CFG.get_safe('process.query.stride_time', None)
         self.parameters      = self.CFG.get_safe('process.query.parameters',None)
-        self.publishing      = Event()
+        self.publish_limit   = self.CFG.get_safe('process.query.publish_limit', 10)
+        self.publishing.clear()
+        self.play.set()
+        self.end.clear()
 
         if self.dataset_id is None:
             raise BadRequest('dataset_id not specified')
 
         self.dataset = dsm_cli.read_dataset(self.dataset_id)
+        self.pubsub = PubsubManagementServiceProcessClient(process=self)
 
 
 
@@ -95,11 +101,25 @@ class ReplayProcess(BaseReplayProcess):
 
     def replay(self):
         self.publishing.set() # Minimal state, supposed to prevent two instances of the same process from replaying on the same stream
-        granule = self.execute_retrieve()
-        self.output.publish(granule)
-        self.output.publish({})
+        for rdt in self._replay():
+            if self.end.is_set():
+                return
+            self.play.wait()
+            self.output.publish(rdt.to_granule())
+
         self.publishing.clear()
-        return True
+        return 
+
+    def pause(self):
+        self.play.clear()
+
+    def resume(self):
+        self.play.set()
+
+    def stop(self):
+        self.end.set()
+
+
 
     @classmethod
     def get_last_granule(cls, container, dataset_id):
@@ -147,8 +167,21 @@ class ReplayProcess(BaseReplayProcess):
         granule = black_box.to_granule()
         return granule
 
+    def _replay(self):
+        coverage = DatasetManagementService._get_coverage(self.dataset_id)
+        crafter = CoverageCraft(coverage)
+        crafter.sync_rdt_with_coverage(start_time=self.start_time, end_time=self.end_time, stride_time=self.stride_time, parameters=self.parameters)
 
-        
+        elements = len(crafter.rdt)
+        stream_id = self.output.stream_id
+        stream_def = self.pubsub.read_stream_definition(stream_id=stream_id)
+        for i in xrange(elements / self.publish_limit):
+            outgoing = RecordDictionaryTool(stream_definition_id=stream_def._id)
+            fields = self.parameters or outgoing.fields
+            for field in fields:
+                outgoing[field] = crafter.rdt[field][(i*self.publish_limit) : ((i+1)*self.publish_limit)]
+            yield outgoing
+        return 
 
 
 
