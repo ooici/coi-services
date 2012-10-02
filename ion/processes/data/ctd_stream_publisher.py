@@ -44,6 +44,7 @@ class SimpleCtdPublisher(TransformStreamPublisher):
         super(SimpleCtdPublisher,self).on_quit() 
 
     def publish(self, msg, to_name=''):
+        log.debug("self._stats: %s" % self._stats)
         self._stats['publish_count'] += 1
         if to_name:
             self.publisher.publish(msg,stream_id=to_name)

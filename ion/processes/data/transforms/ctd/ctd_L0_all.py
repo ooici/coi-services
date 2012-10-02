@@ -56,10 +56,12 @@ class ctd_L0_all(TransformDataProcess):
     def publish(self, msg, stream_id):
         self.publisher.publish(msg=msg, stream_id=stream_id)
 
-    def recv_packet(self, packet,stream_route,stream_id):
+    def recv_packet(self, packet,stream_route, stream_id):
 
         """Processes incoming data!!!!
         """
+        log.debug("ctd_L0_all transform received packet: %s" % packet)
+
         if packet == {}:
             return
 
@@ -71,6 +73,8 @@ class ctd_L0_all(TransformDataProcess):
             self.publish(msg=granule['temp'], stream_id=self.temp_stream)
 
             self.publish(msg=granule['pressure'], stream_id=self.pres_stream)
+
+            log.debug("published: msgs: %s" % granule)
 
 class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
