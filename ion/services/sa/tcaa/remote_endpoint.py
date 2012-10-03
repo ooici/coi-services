@@ -184,7 +184,7 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
                     
                 else:
                     res_client = ResourceAgentClient(id, process=self)
-                    if client:
+                    if res_client:
                         # Create and return a new queue with this client.
                         svc_queue = ServiceCommandQueue(id, res_client, self._result_complete)
                         svc_queue.start()

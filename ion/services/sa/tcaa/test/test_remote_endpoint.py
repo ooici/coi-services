@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-@package ion.services.sa.tcaa.test.test_terrestrial_endpoint
-@file ion/services/sa/tcaa/test/test_terrestrial_endpoint.py
+@package ion.services.sa.tcaa.test.test_remote_endpoint
+@file ion/services/sa/tcaa/test/test_remote_endpoint.py
 @author Edward Hunter
-@brief Test cases for 2CAA terrestrial endpoint.
+@brief Test cases for 2CAA remote endpoint.
 """
 
 __author__ = 'Edward Hunter'
@@ -46,14 +46,33 @@ from ion.services.sa.tcaa.r3pc import R3PCServer
 from ion.services.sa.tcaa.r3pc import R3PCClient
 from interface.objects import TelemetryStatusType
 from interface.objects import UserInfo
+from pyon.agent.agent import ResourceAgentClient
+from pyon.agent.agent import ResourceAgentState
 
+from ion.agents.instrument.test.test_instrument_agent import DRV_MOD
+from ion.agents.instrument.test.test_instrument_agent import DRV_CLS
+from ion.agents.instrument.test.test_instrument_agent import DVR_CONFIG
+from ion.agents.instrument.test.test_instrument_agent import DEV_ADDR
+from ion.agents.instrument.test.test_instrument_agent import DEV_PORT
+from ion.agents.instrument.test.test_instrument_agent import DATA_PORT
+from ion.agents.instrument.test.test_instrument_agent import CMD_PORT
+from ion.agents.instrument.test.test_instrument_agent import PA_BINARY
+from ion.agents.instrument.test.test_instrument_agent import DELIM
+from ion.agents.instrument.test.test_instrument_agent import WORK_DIR
+from ion.agents.instrument.test.test_instrument_agent import IA_RESOURCE_ID
+from ion.agents.instrument.test.test_instrument_agent import IA_NAME
+from ion.agents.instrument.test.test_instrument_agent import IA_MOD
+from ion.agents.instrument.test.test_instrument_agent import IA_CLS
+
+from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
+from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_process_queued
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_process_online
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_terrestrial_late
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_service_commands
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_xxx
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_resource_commands
 
 """
 Example code to dynamically create client to container service.        
@@ -69,6 +88,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
         
 @attr('INT', group='sa')
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestRemoteEndpoint(IonIntegrationTestCase):
     """
     Test cases for 2CAA terrestrial endpoint.
@@ -207,6 +227,63 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
                              command_id = str(uuid.uuid4()))
         return cmd
 
+    def start_agent(self):
+        """
+        """
+        
+        log.info('Creating driver integration test support:')
+        log.info('driver module: %s', DRV_MOD)
+        log.info('driver class: %s', DRV_CLS)
+        log.info('device address: %s', DEV_ADDR)
+        log.info('device port: %s', DEV_PORT)
+        log.info('log delimiter: %s', DELIM)
+        log.info('work dir: %s', WORK_DIR)        
+        self._support = DriverIntegrationTestSupport(DRV_MOD,
+                                                     DRV_CLS,
+                                                     DEV_ADDR,
+                                                     DEV_PORT,
+                                                     DATA_PORT,
+                                                     CMD_PORT,
+                                                     PA_BINARY,
+                                                     DELIM,
+                                                     WORK_DIR)
+        
+        # Start port agent, add stop to cleanup.
+        port = self._support.start_pagent()
+        log.info('Port agent started at port %i',port)
+        
+        # Configure driver to use port agent port number.
+        DVR_CONFIG['comms_config'] = {
+            'addr' : 'localhost',
+            'port' : port
+        }
+        self.addCleanup(self._support.stop_pagent)    
+                        
+        # Create agent config.
+        agent_config = {
+            'driver_config' : DVR_CONFIG,
+            'stream_config' : {},
+            'agent'         : {'resource_id': IA_RESOURCE_ID},
+            'test_mode' : True
+        }
+    
+        # Start instrument agent.
+        log.debug("Starting IA.")
+        container_client = ContainerAgentClient(node=self.container.node,
+            name=self.container.name)
+    
+        ia_pid = container_client.spawn_process(name=IA_NAME,
+            module=IA_MOD,
+            cls=IA_CLS,
+            config=agent_config)
+    
+        log.info('Agent pid=%s.', str(ia_pid))
+    
+        # Start a resource agent client to talk with the instrument agent.
+    
+        self._ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
+        log.info('Got ia client %s.', str(self._ia_client))                
+                
     ######################################################################    
     # Tests.
     ######################################################################    
@@ -226,8 +303,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
         # Wait for all the enqueued commands to be acked.
         # Wait for all the responses to arrive.
-        self._cmd_tx_evt.get(timeout=self._no_requests*4)
-        self._done_evt.get(timeout=self._no_requests*4)
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
 
         # Publish a telemetry unavailable event.
         # This will cause the endpoint clients to disconnect and go to sleep.
@@ -257,8 +334,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
         # Wait for all the enqueued commands to be acked.
         # Wait for all the responses to arrive.
-        self._cmd_tx_evt.get(timeout=self._no_requests*4)
-        self._done_evt.get(timeout=self._no_requests*4)
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
 
         # Publish a telemetry unavailable event.
         # This will cause the endpoint clients to disconnect and go to sleep.
@@ -301,8 +378,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
     
         # Wait for all the enqueued commands to be acked.
         # Wait for all the responses to arrive.
-        self._cmd_tx_evt.get(timeout=self._no_requests*4)
-        self._done_evt.get(timeout=self._no_requests*4)
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
 
         # Publish a telemetry unavailable event.
         # This will cause the endpoint clients to disconnect and go to sleep.
@@ -342,8 +419,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         
         # Wait for command request to be acked.
         # Wait for response to arrive.
-        self._cmd_tx_evt.get(timeout=5)
-        self._done_evt.get(timeout=5)
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
         
         # Returns obj_id, obj_rev.
         obj_id, obj_rev = self._results_recv[cmd.command_id]['result']
@@ -380,8 +457,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
         # Wait for command request to be acked.
         # Wait for response to arrive.
-        self._cmd_tx_evt.get(timeout=5)
-        self._done_evt.get(timeout=5)
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
 
         # Returns read_obj.
         read_obj = self._results_recv[cmd.command_id]['result']
@@ -424,8 +501,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
         # Wait for command request to be acked.
         # Wait for response to arrive.
-        self._cmd_tx_evt.get(timeout=5)
-        self._done_evt.get(timeout=5)
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
 
         # Returns nothing.
         
@@ -449,8 +526,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
         # Wait for command request to be acked.
         # Wait for response to arrive.
-        self._cmd_tx_evt.get(timeout=5)
-        self._done_evt.get(timeout=5)
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
 
         # Returns read_obj.
         read_obj = self._results_recv[cmd.command_id]['result']
@@ -478,12 +555,98 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
         # Wait for command request to be acked.
         # Wait for response to arrive.
-        self._cmd_tx_evt.get(timeout=5)
-        self._done_evt.get(timeout=5)
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
 
         # Returns nothing.
             
         # Publish a telemetry unavailable event.
         # This will cause the endpoint clients to disconnect and go to sleep.
         self.on_link_down()
+
+        gevent.sleep(1)
+        
+    def test_resource_commands(self):
+        """
+        """
+        
+        # Start the IA and check it's out there and behaving.
+        self.start_agent()
+        
+        state = self._ia_client.get_agent_state()
+        log.debug('Agent state is: %s', state)
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        retval = self._ia_client.ping_agent()
+        log.debug('Agent ping is: %s', str(retval))
+        self.assertIn('ping from InstrumentAgent', retval)
+
+        # Publish a telemetry available event.
+        # This will cause the endpoint clients to wake up and connect.
+        self.on_link_up()
+
+        # Wait for the link to be up.
+        # The remote side does not publish public telemetry events
+        # so we can't wait for that.
+        gevent.sleep(1)
+
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Get agent state via remote endpoint.        
+        cmd = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='get_agent_state',
+                             args=[],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)
+        
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
+        
+        # Returns agent state.
+        state = self._results_recv[cmd.command_id]['result']
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Ping agent via remote endpoint. 
+        cmd = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='ping_agent',
+                             args=[],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)
+        
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
+        
+        # Returns agent state.
+        ping = self._results_recv[cmd.command_id]['result']
+        self.assertIn('ping from InstrumentAgent', ping)
+        
+        # Publish a telemetry unavailable event.
+        # This will cause the endpoint clients to disconnect and go to sleep.
+        self.on_link_down()
+
+        gevent.sleep(1)
 
