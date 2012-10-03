@@ -311,60 +311,8 @@ class ExternalDatasetAgentTestBase(object):
     # Test functions
     ########################################
 
-    def test_acquire_data(self):
-        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-        self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.INACTIVE)
-
-        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
-        self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.IDLE)
-
-        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
-        self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
-
-        log.warn('Send an unconstrained request for data (\'new data\')')
-        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
-        self._ia_client.execute_resource(command=cmd)
-        state = self._ia_client.get_agent_state()
-        log.info(state)
-        self.assertEqual(state, ResourceAgentState.COMMAND)
-
-        self._finished_count = 3
-
-        config_mods={}
-
-        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
-        config_mods['stream_id'], config_mods['stream_route'], _ = self.create_stream_and_logger(name='stream_id_for_historical_1')
-        config_mods['constraints']=self.HIST_CONSTRAINTS_1
-        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE, args=[config_mods])
-        retval = self._ia_client.execute_resource(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
-
-        log.info('Send a second constrained request for data: constraints = HIST_CONSTRAINTS_2')
-        config_mods['stream_id'], config_mods['stream_route'], _ = self.create_stream_and_logger(name='stream_id_for_historical_2')
-        config_mods['constraints']=self.HIST_CONSTRAINTS_2
-        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE, args=[config_mods])
-        self._ia_client.execute_resource(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
-
-#        finished = self._async_finished_result.get(timeout=10)
-#        self.assertEqual(finished, self._finished_count)
-
-        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-        _ = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-
     def test_acquire_data_while_streaming(self):
         # Test instrument driver execute interface to start and stop streaming mode.
-
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
@@ -388,7 +336,7 @@ class ExternalDatasetAgentTestBase(object):
         }
         self._ia_client.set_resource(params)
 
-        self._finished_count = 3
+        self._finished_count = 1
 
         cmd = AgentCommand(command=DriverEvent.START_AUTOSAMPLE)
         self._ia_client.execute_resource(cmd)
@@ -400,17 +348,67 @@ class ExternalDatasetAgentTestBase(object):
         config['stream_id'], config['stream_route'], _ = self.create_stream_and_logger(name='stream_id_for_historical_1')
         config['constraints']=self.HIST_CONSTRAINTS_1
         cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE, args=[config])
-        reply = self._ia_client.execute_resource(cmd)
-        self.assertNotEqual(reply.status, 660)
-
-        #Assert that data was received
-#        self._async_finished_result.get(timeout=600)
-#        self.assertTrue(len(self._finished_events_received) >= 3)
+        self._ia_client.execute_resource(cmd)
 
         cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished, self._finished_count)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        _ = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+    def test_acquire_data(self):
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        log.warn('Send an unconstrained request for data (\'new data\')')
+        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
+        self._ia_client.execute_resource(command=cmd)
+        state = self._ia_client.get_agent_state()
+        log.info(state)
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        self._finished_count = 1
+
+        config_mods={}
+
+        log.info('Send a constrained request for data: constraints = HIST_CONSTRAINTS_1')
+        config_mods['stream_id'], config_mods['stream_route'], _ = self.create_stream_and_logger(name='stream_id_for_historical_1')
+        config_mods['constraints']=self.HIST_CONSTRAINTS_1
+        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE, args=[config_mods])
+        retval = self._ia_client.execute_resource(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        log.info('Send a second constrained request for data: constraints = HIST_CONSTRAINTS_2')
+        config_mods['stream_id'], config_mods['stream_route'], _ = self.create_stream_and_logger(name='stream_id_for_historical_2')
+        config_mods['constraints']=self.HIST_CONSTRAINTS_2
+        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE, args=[config_mods])
+        self._ia_client.execute_resource(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        finished = self._async_finished_result.get(timeout=10)
+        self.assertEqual(finished, self._finished_count)
 
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         _ = self._ia_client.execute_agent(cmd)
@@ -844,13 +842,13 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
 
         # Create DataProvider
         dprov = ExternalDataProvider(institution=Institution(), contact=ContactInformation())
-        dprov.contact.name = 'Christopher Mueller'
+        dprov.contact.individual_names_given = 'Christopher Mueller'
         dprov.contact.email = 'cmueller@asascience.com'
 
         # Create DataSource
         dsrc = DataSource(protocol_type='DAP', institution=Institution(), contact=ContactInformation())
         dsrc.connection_params['base_data_url'] = ''
-        dsrc.contact.name='Tim Giguere'
+        dsrc.contact.individual_names_given = 'Tim Giguere'
         dsrc.contact.email = 'tgiguere@asascience.com'
 
         # Create ExternalDataset
