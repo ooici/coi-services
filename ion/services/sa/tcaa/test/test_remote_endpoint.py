@@ -25,6 +25,12 @@ import socket
 import re
 import random
 
+# Pyon exceptions.
+from pyon.core.exception import IonException
+from pyon.core.exception import BadRequest
+from pyon.core.exception import ServerError
+from pyon.core.exception import NotFound
+
 # 3rd party imports.
 import gevent
 from gevent import spawn
@@ -48,6 +54,9 @@ from interface.objects import TelemetryStatusType
 from interface.objects import UserInfo
 from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentEvent
+from interface.objects import AgentCommand
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 from ion.agents.instrument.test.test_instrument_agent import DRV_MOD
 from ion.agents.instrument.test.test_instrument_agent import DRV_CLS
@@ -73,6 +82,9 @@ from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestS
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_terrestrial_late
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_service_commands
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_resource_commands
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_bad_service_name_resource_id
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_bad_commands
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_resource_command_sequence
 
 """
 Example code to dynamically create client to container service.        
@@ -95,6 +107,15 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
     """
     def setUp(self):
         """
+        Start fake terrestrial components and add cleanup.
+        Start terrestrial server and retrieve port.
+        Set internal variables.
+        Start container.
+        Start deployment.
+        Start container agent.
+        Spawn remote endpoint process.
+        Create remote endpoint client and retrieve remote server port.
+        Create event publisher.
         """
         
         self._terrestrial_server = R3PCServer(self.consume_req, self.terrestrial_server_close)
@@ -190,6 +211,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
     
     def consume_req(self, res):
         """
+        Consume a terrestrial request setting async event when necessary.
         """
         command_id = res['command_id']
         self._results_recv[command_id] = res
@@ -198,6 +220,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
     
     def consume_ack(self, cmd):
         """
+        Consume terrestrial ack setting async event when necessary.
         """
         self._requests_sent[cmd.command_id] = cmd
         if len(self._requests_sent) == self._no_requests:
@@ -205,11 +228,13 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         
     def terrestrial_server_close(self):
         """
+        Callback when terrestrial server closes.
         """
         pass
     
     def terrestrial_client_close(self):
         """
+        Callback when terrestrial client closes.
         """
         pass
     
@@ -229,6 +254,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
     def start_agent(self):
         """
+        Start an instrument agent and client.
         """
         
         log.info('Creating driver integration test support:')
@@ -290,6 +316,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
     def test_process_queued(self):
         """
+        Test that queued commands are forwarded to and handled by
+        remote endpoint when link comes up.
         """        
         
         # Create and enqueue some requests.
@@ -316,6 +344,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
     
     def test_process_online(self):
         """
+        Test commands are forwarded and handled while link is up.
         """        
         
         # Publish a telemetry available event.
@@ -347,6 +376,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
     def test_terrestrial_late(self):
         """
+        Test queued commands are forwarded and handled by remote endpoint
+        when terrestrial side is late to come up.
         """        
         
         # Publish a telemetry available event.
@@ -392,6 +423,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
     #@unittest.skip('Not ready.')
     def test_service_commands(self):
         """
+        Test that real service commands are handled by the remote endpoint.
         """
         
         # Publish a telemetry available event.
@@ -568,6 +600,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         
     def test_resource_commands(self):
         """
+        Test that real resource commands are handled by the remote endpoint.
         """
         
         # Start the IA and check it's out there and behaving.
@@ -650,3 +683,395 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
         gevent.sleep(1)
 
+    def test_bad_service_name_resource_id(self):
+        """
+        Test for proper exception behavior when a bad service name or
+        resource id is used in a command forwarded to the remote endpoint.
+        """
+        
+        # Publish a telemetry available event.
+        # This will cause the endpoint clients to wake up and connect.
+        self.on_link_up()
+
+        # Wait for the link to be up.
+        # The remote side does not publish public telemetry events
+        # so we can't wait for that.
+        gevent.sleep(1)
+
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+        
+        # Create user object.
+        obj = IonObject("UserInfo", name="some_name")
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='bogus_service',
+                             command='create',
+                             args=[obj],
+                             kwargs='',
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)
+        
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
+        
+        # Returns NotFound.
+        result = self._results_recv[cmd.command_id]['result']
+        self.assertIsInstance(result, NotFound)
+
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Get agent state via remote endpoint.        
+        cmd = IonObject('RemoteCommand',
+                             resource_id='bogus_resource_id',
+                             svc_name='',
+                             command='get_agent_state',
+                             args=[],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)
+        
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        # Returns NotFound.
+        result = self._results_recv[cmd.command_id]['result']
+        self.assertIsInstance(result, NotFound)
+
+        # Publish a telemetry unavailable event.
+        # This will cause the endpoint clients to disconnect and go to sleep.
+        self.on_link_down()
+
+        gevent.sleep(1)
+
+    def test_bad_commands(self):
+        """
+        Test for correct exception behavior if a bad command name is forwarded
+        to a remote service or resource.
+        """
+        
+        # Start the IA and check it's out there and behaving.
+        self.start_agent()
+        
+        state = self._ia_client.get_agent_state()
+        log.debug('Agent state is: %s', state)
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        retval = self._ia_client.ping_agent()
+        log.debug('Agent ping is: %s', str(retval))
+        self.assertIn('ping from InstrumentAgent', retval)
+        
+        # Publish a telemetry available event.
+        # This will cause the endpoint clients to wake up and connect.
+        self.on_link_up()
+
+        # Wait for the link to be up.
+        # The remote side does not publish public telemetry events
+        # so we can't wait for that.
+        gevent.sleep(1)
+
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+        
+        # Create user object.
+        obj = IonObject("UserInfo", name="some_name")
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='what_the_flunk',
+                             args=[obj],
+                             kwargs='',
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)
+        
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
+        
+        # Returns BadRequest.
+        result = self._results_recv[cmd.command_id]['result']
+        self.assertIsInstance(result, BadRequest)
+
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._done_evt = AsyncResult()
+        self._cmd_tx_evt = AsyncResult()
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Get agent state via remote endpoint.        
+        cmd = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='what_the_flunk',
+                             args=[],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd)
+        
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        # Returns NotFound.
+        result = self._results_recv[cmd.command_id]['result']
+        self.assertIsInstance(result, BadRequest)
+        
+        # Publish a telemetry unavailable event.
+        # This will cause the endpoint clients to disconnect and go to sleep.
+        self.on_link_down()
+
+        gevent.sleep(1)
+
+    def test_resource_command_sequence(self):
+        """
+        Test for successful completion of a properly ordered sequence of
+        resource commands queued for forwarding to the remote endpoint.
+        """
+        # Start the IA and check it's out there and behaving.
+        self.start_agent()
+        
+        state = self._ia_client.get_agent_state()
+        log.debug('Agent state is: %s', state)
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        retval = self._ia_client.ping_agent()
+        log.debug('Agent ping is: %s', str(retval))
+        self.assertIn('ping from InstrumentAgent', retval)
+
+        # We execute a sequence of twelve consecutive events.
+        self._no_requests = 12
+
+        # Get agent state.
+        cmd1 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='get_agent_state',
+                             args=[],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd1)
+        
+        # Initialize agent.
+        cmd2 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='execute_agent',
+                             args=[AgentCommand(command=ResourceAgentEvent.INITIALIZE)],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd2)
+        
+        # Get agent state.
+        cmd3 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='get_agent_state',
+                             args=[],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd3)
+        
+        # Go active.
+        cmd4 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='execute_agent',
+                             args=[AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd4)
+        
+        # Get agent state.
+        cmd5 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='get_agent_state',
+                             args=[],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd5)
+        
+        # Run.
+        cmd6 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='execute_agent',
+                             args=[AgentCommand(command=ResourceAgentEvent.RUN)],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd6)
+        
+        # Get agent state.
+        cmd7 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='get_agent_state',
+                             args=[],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd7)
+        
+        # Acquire sample.
+        cmd8 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='execute_resource',
+                             args=[AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd8)
+        
+        # Acquire sample
+        cmd9 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='execute_resource',
+                             args=[AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd9)
+        
+        # Acquire sample.
+        cmd10 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='execute_resource',
+                             args=[AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd10)
+        
+        # Reset.
+        cmd11 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='execute_agent',
+                             args=[],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd11)
+        
+        # Get agent state.
+        cmd12 = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='get_agent_state',
+                             args=[],
+                             kwargs={},
+                             command_id = str(uuid.uuid4()))
+        self._terrestrial_client.enqueue(cmd12)
+
+        
+        # Publish a telemetry available event.
+        # This will cause the endpoint clients to wake up and connect.
+        self.on_link_up()
+        
+        # Wait for command request to be acked.
+        # Wait for response to arrive.
+        self._cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        # Check results of command sequence.
+        """
+        0ccf1e10-eeca-400d-aefe-f9d6888ec963   {'result': 'RESOURCE_AGENT_STATE_INACTIVE', 'command_id': '0ccf1e10-eeca-400d-aefe-f9d6888ec963'}
+        92531bdf-c2c8-4aa8-817d-5107c7311b37   {'result': <interface.objects.AgentCommandResult object at 0x10d7f11d0>, 'command_id': '92531bdf-c2c8-4aa8-817d-5107c7311b37'}
+        509934a1-5038-40d8-8014-591e2d8042b6   {'result': 'RESOURCE_AGENT_STATE_COMMAND', 'command_id': '509934a1-5038-40d8-8014-591e2d8042b6'}
+        88bacbb7-5366-4d27-9ecf-fff2bec34b2c   {'result': <interface.objects.AgentCommandResult object at 0x10d389190>, 'command_id': '88bacbb7-5366-4d27-9ecf-fff2bec34b2c'}
+        f8b4d3fa-a249-439b-8bd4-ac212b6100aa   {'result': <interface.objects.AgentCommandResult object at 0x10d3893d0>, 'command_id': 'f8b4d3fa-a249-439b-8bd4-ac212b6100aa'}
+        8ae98e39-fdb3-4218-ad8f-584620397d9f   {'result': <interface.objects.AgentCommandResult object at 0x10d739990>, 'command_id': '8ae98e39-fdb3-4218-ad8f-584620397d9f'}
+        746364a1-c4c7-400f-96d4-ee36df5dc1a4   {'result': BadRequest('Execute argument "command" not set.',), 'command_id': '746364a1-c4c7-400f-96d4-ee36df5dc1a4'}
+        d516d3d9-e4f9-4ea5-80e0-34639a6377b5   {'result': <interface.objects.AgentCommandResult object at 0x10d3b2350>, 'command_id': 'd516d3d9-e4f9-4ea5-80e0-34639a6377b5'}
+        c7da03f5-59bc-420a-9e10-0a7794266599   {'result': 'RESOURCE_AGENT_STATE_IDLE', 'command_id': 'c7da03f5-59bc-420a-9e10-0a7794266599'}
+        678d870a-bf18-424a-afb0-f80ecf3277e2   {'result': <interface.objects.AgentCommandResult object at 0x10d739590>, 'command_id': '678d870a-bf18-424a-afb0-f80ecf3277e2'}
+        750c6a30-56eb-4535-99c2-a81fefab1b1f   {'result': 'RESOURCE_AGENT_STATE_COMMAND', 'command_id': '750c6a30-56eb-4535-99c2-a81fefab1b1f'}
+        c17bd658-3775-4aa3-8844-02df70a0e3c0   {'result': 'RESOURCE_AGENT_STATE_UNINITIALIZED', 'command_id': 'c17bd658-3775-4aa3-8844-02df70a0e3c0'}
+        """        
+        
+        # First result is a state string.
+        result1 = self._results_recv[cmd1.command_id]['result']
+        self.assertEqual(result1, ResourceAgentState.UNINITIALIZED)
+        
+        # Second result is an empty AgentCommandResult.
+        result2 = self._results_recv[cmd2.command_id]['result']
+
+        # Third result is a state string.
+        result3 = self._results_recv[cmd3.command_id]['result']
+        self.assertEqual(result3, ResourceAgentState.INACTIVE)
+        
+        # Fourth result is an empty AgentCommandResult.
+        result4 = self._results_recv[cmd4.command_id]['result']
+
+        # Fifth result is a state string.
+        result5 = self._results_recv[cmd5.command_id]['result']
+        self.assertEqual(result5, ResourceAgentState.IDLE)
+
+        # Sixth result is an empty AgentCommandResult.
+        result6 = self._results_recv[cmd6.command_id]['result']
+
+        # Seventh result is a state string.
+        result7 = self._results_recv[cmd7.command_id]['result']
+        self.assertEqual(result7, ResourceAgentState.COMMAND)
+        
+        """
+        {'raw': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp',
+        'stream_name': 'raw', 'pkt_format_id': 'JSON_Data',
+        'pkt_version': 1, '
+        values': [{'binary': True, 'value_id': 'raw',
+        'value': 'NzkuNDM3MywxNy4yMDU2NCwgNzYxLjg4NSwgICA2LjIxOTgsIDE1MDYuMzk3LCAwMSBGZWIgMjAwMSwgMDE6MDE6MDA='}],
+        'driver_timestamp': 3558286748.8039923},
+        'parsed': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp',
+        'stream_name': 'parsed', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1,
+        'values': [{'value_id': 'temp', 'value': 79.4373},
+        {'value_id': 'conductivity', 'value': 17.20564},
+        {'value_id': 'depth', 'value': 761.885}],
+        'driver_timestamp': 3558286748.8039923}}
+        """
+        
+        # Eigth result is an AgentCommandResult containing a sample.
+        result8 = self._results_recv[cmd8.command_id]['result']
+        #self.assertIn('parsed',result8.result )
+        
+        # Ninth result is an AgentCommandResult containing a sample.
+        result9 = self._results_recv[cmd9.command_id]['result']
+        self.assertIn('parsed',result9.result )
+
+        # Tenth result is an AgentCommandResult containing a sample.
+        result10 = self._results_recv[cmd10.command_id]['result']
+        self.assertIn('parsed',result10.result )
+
+        # Eleventh result is an empty AgentCommandResult.
+        result11 = self._results_recv[cmd11.command_id]['result']
+
+        # Twelth result is a state string.
+        result12 = self._results_recv[cmd12.command_id]['result']
+        self.assertEqual(result1, ResourceAgentState.UNINITIALIZED)
+        
+        # Publish a telemetry unavailable event.
+        # This will cause the endpoint clients to disconnect and go to sleep.
+        self.on_link_down()
+
+        gevent.sleep(1)

@@ -25,6 +25,7 @@ import gevent
 from pyon.core.exception import IonException
 from pyon.core.exception import BadRequest
 from pyon.core.exception import ServerError
+from pyon.core.exception import NotFound
 
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.objects import TelemetryStatusType, RemoteCommand
@@ -81,13 +82,11 @@ class ServiceCommandQueue(object):
                     
                     except IonException as ex:
                         # populate result with error.
-                        errstr = 'Unable to call remote command %s.' % cmdstr
                         log.error(str(ex))
                         result = ex
                         
                     except Exception as ex:
                         # populate result with error.
-                        errstr = 'Unable to call remote command %s.' % cmdstr
                         log.error(str(ex))
                         result = ServerError(str(ex))
                     
@@ -183,8 +182,12 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
                     self._service_command_queues[id] = svc_queue
                     
                 else:
-                    res_client = ResourceAgentClient(id, process=self)
-                    if res_client:
+                    try:
+                        res_client = ResourceAgentClient(id, process=self)
+                    except NotFound:
+                        res_client = None
+                        
+                    else:
                         # Create and return a new queue with this client.
                         svc_queue = ServiceCommandQueue(id, res_client, self._result_complete)
                         svc_queue.start()
@@ -220,8 +223,12 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
         else:
             # No service or resource, return error.
             errstr = 'resource_id=%s or svc_name=%s not found.' % (request.resource_id, request.svc_name)
-            request.result = BadRequest(errstr)
-            self._result_complete(request)
+            log.error(errstr)
+            result = {
+                'command_id' : request.command_id,
+                'result' : NotFound(errstr)
+            }
+            self._result_complete(result)
     
     def _ack_callback(self, result):
         """
