@@ -53,7 +53,10 @@ class CTDL1ConductivityTransformAlgorithm(SimpleGranuleTransformFunction):
     @staticmethod
     @SimpleGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
-
+        '''
+        @param input Granule
+        @retval result Granule
+        '''
         rdt = RecordDictionaryTool.load_from_granule(input)
 
         conductivity = get_safe(rdt, 'conductivity')
