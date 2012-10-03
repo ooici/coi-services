@@ -18,9 +18,11 @@ from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
 from pyon.public import RT, PRED
 #from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
+from pyon.util.ion_time import IonTime
 from nose.plugins.attrib import attr
 import unittest
 from ooi.logging import log
+from pyon.public import OT
 
 from ion.services.sa.test.helpers import any_old
 from ion.util.parameter_yaml_IO import get_param_dict
@@ -29,6 +31,8 @@ from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
+
+import datetime
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -63,9 +67,13 @@ class TestDeployment(IonIntegrationTestCase):
                                         description='test platform device')
         device_id = self.imsclient.create_platform_device(platform_device__obj)
 
+        start = IonTime(datetime.datetime(2013,1,1))
+        end = IonTime(datetime.datetime(2014,1,1))
+        temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=start.to_string(), end_datetime=end.to_string())
         deployment_obj = IonObject(RT.Deployment,
                                         name='TestDeployment',
-                                        description='some new deployment')
+                                        description='some new deployment',
+                                        constraint_list=[temporal_bounds])
         deployment_id = self.omsclient.create_deployment(deployment_obj)
         self.omsclient.deploy_platform_site(site_id, deployment_id)
         self.imsclient.deploy_platform_device(device_id, deployment_id)
@@ -205,9 +213,13 @@ class TestDeployment(IonIntegrationTestCase):
         # Create a deployment object
         #----------------------------------------------------------------------------------------------------
 
+        start = IonTime(datetime.datetime(2013,1,1))
+        end = IonTime(datetime.datetime(2014,1,1))
+        temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=start.to_string(), end_datetime=end.to_string())
         deployment_obj = IonObject(RT.Deployment,
                                         name='TestDeployment',
-                                        description='some new deployment')
+                                        description='some new deployment',
+                                        constraint_list=[temporal_bounds])
         deployment_id = self.omsclient.create_deployment(deployment_obj)
         self.omsclient.deploy_instrument_site(instrument_site_id, deployment_id)
         self.imsclient.deploy_instrument_device(instrument_device_id, deployment_id)
