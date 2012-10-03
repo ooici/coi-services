@@ -90,6 +90,10 @@ class AlarmNotifier(object):
             log.trace("No alarm listeners for alarm_type=%s", alarm_type)
             return
 
+        # copy list to get a snapshot of the current dictionary and thus avoid
+        # concurrent modification kind of runtime errors like:
+        # RuntimeError: dictionary changed size during iteration
+        urls = list(urls)
         for url in urls:
             self._notify_listener(url, alarm_instance)
 
