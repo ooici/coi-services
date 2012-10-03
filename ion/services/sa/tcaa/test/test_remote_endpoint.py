@@ -487,5 +487,3 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         # This will cause the endpoint clients to disconnect and go to sleep.
         self.on_link_down()
 
-
-
