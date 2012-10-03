@@ -5,23 +5,25 @@
 @file ion/services/dm/distribution/pubsub_management_service.py
 @brief Publication / Subscription Management Service Implementation
 '''
-
-from interface.services.dm.ipubsub_management_service import BasePubsubManagementService
-from interface.objects import StreamDefinition, Stream, Subscription, Topic
-from pyon.util.arg_check import validate_true, validate_is_instance, validate_false, validate_equal
-from ion.services.dm.utility.granule_utils import ParameterDictionary
-from pyon.core.exception import Conflict, BadRequest
+from pyon.core.exception import Conflict, BadRequest, NotFound
 from pyon.public import RT, PRED
+from pyon.util.arg_check import validate_true, validate_is_instance, validate_false, validate_equal
 from pyon.util.containers import create_unique_identifier
-from pyon.core.exception import NotFound
 from pyon.util.log import log
+
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import ParameterDictionary
+
+from interface.objects import StreamDefinition, Stream, Subscription, Topic
+from interface.services.dm.ipubsub_management_service import BasePubsubManagementService
+
 from collections import deque
 
 class PubsubManagementService(BasePubsubManagementService):
 
     #--------------------------------------------------------------------------------
 
-    def create_stream_definition(self, name='', parameter_dictionary=None, stream_type='', description=''):
+    def create_stream_definition(self, name='', parameter_dictionary=None, parameter_dictionary_id='', stream_type='', description=''):
         parameter_dictionary = parameter_dictionary or {}
         existing = self.clients.resource_registry.find_resources(restype=RT.StreamDefinition, name=name, id_only=True)[0]
         if name and existing:
@@ -34,22 +36,29 @@ class PubsubManagementService(BasePubsubManagementService):
 
         stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description)
         stream_definition_id,_  = self.clients.resource_registry.create(stream_definition)
+        if parameter_dictionary_id:
+            self._associate_pdict_with_definition(parameter_dictionary_id, stream_definition_id)
 
         return stream_definition_id
     
     def read_stream_definition(self, stream_definition_id='', stream_id=''):
+        retval = None
         if stream_id and self.read_stream(stream_id):
             sds, assocs = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition,id_only=False)
             if sds:
-                return sds[0]
+                retval = sds[0]
             else:
                 raise NotFound('No Stream Definition is associated with this Stream')
-        stream_definition = self.clients.resource_registry.read(stream_definition_id)
+        stream_definition = retval or self.clients.resource_registry.read(stream_definition_id)
+        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, object_type=RT.ParameterDictionaryResource, id_only=True)
+        if len(pdicts):
+            stream_definition.parameter_dictionary = DatasetManagementService.get_parameter_dictionary(pdicts[0]).dump()
         validate_is_instance(stream_definition,StreamDefinition)
         return stream_definition
 
     def delete_stream_definition(self, stream_definition_id=''):
         self.read_stream_definition(stream_definition_id) # Ensures the object is a stream definition
+        self._deassociate_definition(stream_definition_id)
         self.clients.resource_registry.delete(stream_definition_id)
         return True
 
@@ -390,6 +399,15 @@ class PubsubManagementService(BasePubsubManagementService):
     def _associate_topic_with_topic(self, parent_topic_id, child_topic_id):
         self.clients.resource_registry.create_association(subject=parent_topic_id, predicate=PRED.hasTopic, object=child_topic_id)
 
+    def _associate_pdict_with_definition(self, pdict_id, stream_def_id):
+        self.clients.resource_registry.create_association(subject=stream_def_id, predicate=PRED.hasParameterDictionary, object=pdict_id)
+
+    def _deassociate_definition(self, stream_def_id):
+        objs, assocs = self.clients.resource_registry.find_objects(subject=stream_def_id, object_type=RT.ParameterDictionaryResource)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+
     def _deassociate_topic(self, topic_id):
         parents, assocs = self.clients.resource_registry.find_subjects(object=topic_id, id_only=True)
         for assoc in assocs:
@@ -436,9 +454,10 @@ class PubsubManagementService(BasePubsubManagementService):
                     traversal_queue.append(e)
             if not len(traversal_queue): done = True
 
-        return list(visited_topics)
-
-    def _compare_pdicts(self, pdict1, pdict2):
+        return list(visited_topics) 
+   
+    @classmethod
+    def _compare_pdicts(cls, pdict1, pdict2):
         if pdict1:
             pdict1 = ParameterDictionary.load(pdict1) or {}
         if pdict2:
