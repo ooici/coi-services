@@ -40,7 +40,6 @@ class BootstrapParameterDefinitions(BootstrapPlugin):
             body = None
             with open(path) as f:
                 body = yaml.load(f)
-            print body
             for name,context_names in body.iteritems():
                 context_ids = [contexts[i] for i in context_names if i in contexts]
                 self.dataset_management.create_parameter_dictionary(name=name, 
