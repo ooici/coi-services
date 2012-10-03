@@ -7,7 +7,7 @@
 
 
 
-from pyon.ion.stream import StreamPublisher, StreamSubscriber, StandaloneStreamPublisher
+from pyon.ion.stream import  StandaloneStreamPublisher, StandaloneStreamSubscriber
 from pyon.public import log
 from pyon.util.containers import DotDict
 from pyon.util.file_sys import FileSystem
@@ -19,7 +19,7 @@ from mock import Mock, sentinel, patch, mocksignature
 from collections import defaultdict
 from interface.objects import ProcessDefinition
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.objects import StreamRoute
+from interface.objects import StreamRoute, Granule
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.processes.data.transforms.ctd.ctd_L0_all import ctd_L0_all
 from ion.processes.data.transforms.ctd.ctd_L1_conductivity import CTDL1ConductivityTransform
@@ -29,7 +29,7 @@ from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.ctd.ctd_L2_density import DensityTransform
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.util.parameter_yaml_IO import get_param_dict
-import unittest, os
+import unittest, os, gevent
 
 @attr('UNIT', group='ctd')
 @unittest.skip('Not working')
@@ -69,7 +69,7 @@ class TestCtdTransforms(IonUnitTestCase):
 
         packet = self.px_ctd._get_new_ctd_packet("STR_ID", length)
 
-        log.info("Packet: %s" % packet)
+        log.debug("Packet: %s" % packet)
 
         self.tx_L0.process(packet)
 
@@ -86,24 +86,24 @@ class TestCtdTransforms(IonUnitTestCase):
         L0_temp = self.tx_L0.temp_publisher.publish.call_args[0][0]
         L0_pres = self.tx_L0.pres_publisher.publish.call_args[0][0]
 
-        log.info("L0 cond: %s" % L0_cond)
-        log.info("L0 temp: %s" % L0_temp)
-        log.info("L0 pres: %s" % L0_pres)
+        log.debug("L0 cond: %s" % L0_cond)
+        log.debug("L0 temp: %s" % L0_temp)
+        log.debug("L0 pres: %s" % L0_pres)
 
         L1_cond = self.tx_L1_C.execute(L0_cond)
-        log.info("L1 cond: %s" % L1_cond)
+        log.debug("L1 cond: %s" % L1_cond)
 
         L1_temp = self.tx_L1_T.execute(L0_temp)
-        log.info("L1 temp: %s" % L1_temp)
+        log.debug("L1 temp: %s" % L1_temp)
 
         L1_pres = self.tx_L1_P.execute(L0_pres)
-        log.info("L1 pres: %s" % L1_pres)
+        log.debug("L1 pres: %s" % L1_pres)
 
         L2_sal = self.tx_L2_S.execute(packet)
-        log.info("L2 sal: %s" % L2_sal)
+        log.debug("L2 sal: %s" % L2_sal)
 
         L2_dens = self.tx_L2_D.execute(packet)
-        log.info("L2 dens: %s" % L2_dens)
+        log.debug("L2 dens: %s" % L2_dens)
 
 @attr('INT', group='dm')
 class CtdTransformsIntTest(IonIntegrationTestCase):
@@ -116,30 +116,29 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         self.pubsub_management = PubsubManagementServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
 
+        self.exchange_name = 'ctd_L0_all_queue'
+        self.exchange_point = 'test_exchange'
+
 
 
 #    @unittest.skip('This version of L0 Transforms are deprecated this test needs to be rewritten')
-    def test_process(self):
+    def test_ctd_L0_all(self):
         '''
         Test that packets are processed by the ctd_L0_all transform
         '''
 
-
         #---------------------------------------------------------------------------------------------
         # Launch a ctd transform
         #---------------------------------------------------------------------------------------------
+        # Create the process definition
         process_definition = ProcessDefinition(
             name='ctd_L0_all',
             description='For testing ctd_L0_all')
         process_definition.executable['module']= 'ion.processes.data.transforms.ctd.ctd_L0_all'
         process_definition.executable['class'] = 'ctd_L0_all'
-        ctd_publisher_proc_def_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
+        ctd_transform_proc_def_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
 
-        log.debug("ctd_publisher_proc_def_id: %s" % ctd_publisher_proc_def_id)
-
-        self.exchange_name = 'ctd_L0_all_queue'
-        self.exchange_point = 'test_exchange'
-
+        # Build the config
         config = DotDict()
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
@@ -152,16 +151,27 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.publish_streams.pressure, _ = self.pubsub_management.create_stream('test_pressure',
             exchange_point='science_data')
 
-        log.debug("test_ctd: config: %s" % config)
+        # Schedule the process
+        self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
 
-        # schedule the process
-        self.process_dispatcher.schedule_process(process_definition_id=ctd_publisher_proc_def_id, configuration=config)
+        # Make a test hook for the publish method of the ctd transform for the purpose of testing
+        proc = None
+        for process_name in self.container.proc_manager.procs.iterkeys():
+            if process_name.find("ctd_L0_all") != -1:
+                proc = self.container.proc_manager.procs[process_name]
+                break
+        ar = gevent.event.AsyncResult()
+        def test_hook(msg, stream_id):
+            ar.set(msg)
 
-        #-------------------------------------------------------------------------------------
-        # Publish packet
-        #-------------------------------------------------------------------------------------
+        proc.publish = test_hook
 
-#        exchange_point = 'test_exchange'
+
+        #------------------------------------------------------------------------------------------------------
+        # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
+        #------------------------------------------------------------------------------------------------------
+
+        # Do all the routing stuff for the publishing
         routing_key = 'stream_id.stream'
         stream_route = StreamRoute(self.exchange_point, routing_key)
 
@@ -171,49 +181,31 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
-
+        # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
         self.px_ctd.last_time = 0
-        packet = self.px_ctd._get_new_ctd_packet(length = 5)
-        log.info("Packet: %s" % packet)
+        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
 
-        pub.publish(packet)
+        # Publish the packet
+        pub.publish(publish_granule)
 
-#        #---------------------------------------------------------------------
-#        # Set up a publisher to publish a packet to the ctd transform
-#        #---------------------------------------------------------------------
-#        pdict = get_param_dict('ctd_parsed_param_dict')
-#        stream_def_id = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary=pdict.dump())
-#        input_stream_id, route = self.pubsub_management.create_stream('input_stream', exchange_point='science_data', stream_definition_id=stream_def_id)
-#
-#        #---------------------------------------------------------------------------------------------
-#        # Launch a SimpleCtdPublisher object that publishes to the transform
-#        #---------------------------------------------------------------------------------------------
-#
-#        # create the process definition
-#        process_definition = ProcessDefinition(
-#            name='SimpleCtdPublisher',
-#            description='Publisher')
-#        process_definition.executable['module']= 'ion.processes.data.ctd_stream_publisher'
-#        process_definition.executable['class'] = 'SimpleCtdPublisher'
-#        proc_def_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
-#
-#        log.debug("proc_def_id: %s" % proc_def_id)
+        #------------------------------------------------------------------------------------------------------
+        # Make assertions about whether the ctd transform executed its algorithm and published the correct
+        # granules
+        #------------------------------------------------------------------------------------------------------
 
-#        config = DotDict()
-#        config.process.stream_id, _ = self.pubsub_management.create_stream('test_ctd',exchange_point='science_data')
-#
-#        log.debug("test_ctd: config: %s" % config)
-#
-#        # schedule the process
-#        self.process_dispatcher.schedule_process(process_definition_id=proc_def_id)
-
+        # Get the granule that is published by the ctd transform post processing
+        result = ar.get(timeout=10)
+        self.assertTrue(isinstance(result, Granule))
+        #todo There can be more assertions put in place later
+        #todo(contd) The ctd_L0_all splits the granules and one can put in more tests
+        # todo(contd) ...to check that the splitting occurs correctly
 
 
     @unittest.skip('write it later')
     def test_execute(self):
         '''
-        Test that the other transforms (temperature, press, density) execute correctly
+        Test that the other transforms (temperature, pressure, density) execute correctly
         '''
 
         pass

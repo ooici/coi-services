@@ -57,11 +57,11 @@ class ctd_L0_all(TransformDataProcess):
         self.publisher.publish(msg=msg, stream_id=stream_id)
 
     def recv_packet(self, packet,stream_route, stream_id):
-
         """Processes incoming data!!!!
+            @param packet granule
+            @param stream_route StreamRoute
+            @param stream_id str
         """
-        log.debug("ctd_L0_all transform received packet: %s" % packet)
-
         if packet == {}:
             return
 
@@ -69,18 +69,19 @@ class ctd_L0_all(TransformDataProcess):
 
         for granule in granules:
             self.publish(msg=granule['conductivity'], stream_id=self.cond_stream)
-
             self.publish(msg=granule['temp'], stream_id=self.temp_stream)
-
             self.publish(msg=granule['pressure'], stream_id=self.pres_stream)
 
-            log.debug("published: msgs: %s" % granule)
 
 class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
     @staticmethod
     @MultiGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
+        '''
+        @param input granule
+        @retval result_list list of dictionaries containing granules as values
+        '''
 
         result_list = []
         for x in input:
@@ -103,6 +104,7 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
             temp_pdict = ctd_L0_algorithm._create_parameter("temp")
 
             # build the granule for conductivity
+            # result is a dictionary with keys such as 'conductivity' and values as granules
             result['conductivity'] = ctd_L0_algorithm._build_granule_settings(cond_pdict, 'conductivity', conductivity, time, latitude, longitude, depth)
             result['temp'] = ctd_L0_algorithm._build_granule_settings(temp_pdict, 'temp', temperature, time, latitude, longitude, depth)
             result['pressure'] = ctd_L0_algorithm._build_granule_settings(pres_pdict, 'pressure', pressure, time, latitude, longitude, depth)
@@ -113,6 +115,10 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
     @staticmethod
     def _create_parameter(name):
+        '''
+        @param name str
+        @retval pdict ParameterDictionary
+        '''
 
         pdict = ParameterDictionary()
 
@@ -140,6 +146,10 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
     @staticmethod
     def _add_location_time_ctxt(pdict):
+        '''
+        @param pdict ParameterDictionary
+        @retval pdict ParameterDictionary
+        '''
 
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
         t_ctxt.reference_frame = AxisTypeEnum.TIME
@@ -169,7 +179,17 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
     @staticmethod
     def _build_granule_settings(param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, depth=None):
+        '''
+        @param param_dictionary ParameterDictionary
+        @param field_name str
+        @param value numpy.array
+        @param time numpy.array
+        @param latitude numpy.array
+        @param longitude numpy.array
+        @param depth numpy.array
 
+        @retval Granule
+        '''
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
 
         root_rdt[field_name] = value
