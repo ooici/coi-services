@@ -396,7 +396,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
     def test_ctd_L1_pressure(self):
         '''
-        Test that packets are processed by the ctd_L1_conductivity transform
+        Test that packets are processed by the ctd_L1_pressure transform
         '''
 
         #---------------------------------------------------------------------------------------------
@@ -473,7 +473,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
     def test_ctd_L1_temperature(self):
         '''
-        Test that packets are processed by the ctd_L1_conductivity transform
+        Test that packets are processed by the ctd_L1_temperature transform
         '''
 
         #---------------------------------------------------------------------------------------------
@@ -550,7 +550,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
     def test_ctd_L2_density(self):
         '''
-        Test that packets are processed by the ctd_L1_conductivity transform
+        Test that packets are processed by the ctd_L1_density transform
         '''
 
         #---------------------------------------------------------------------------------------------
@@ -627,7 +627,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
     def test_ctd_L2_salinity(self):
         '''
-        Test that packets are processed by the ctd_L1_conductivity transform
+        Test that packets are processed by the ctd_L1_salinity transform
         '''
 
         #---------------------------------------------------------------------------------------------
