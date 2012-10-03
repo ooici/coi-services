@@ -136,6 +136,10 @@ class _Launcher(object):
             if err_msg:
                 raise PlatformException(err_msg)
 
+        log.debug("_do_launch_gate: platform agent spawned, platform_id=%s, pid=%r "
+                  "(ProcessStateGate pattern used)",
+                  platform_id, pid)
+
         return pid
 
     def _do_launch(self, platform_id, agent_config, timeout_spawn):
@@ -146,6 +150,11 @@ class _Launcher(object):
         https://confluence.oceanobservatories.org/display/CIDev/R2+Process+Dispatcher+Guide
         as of Sept 14/12.
         """
+
+        log.debug("launching plaform agent, platform_id=%r "
+                  "('create_process/subscribe-to-event/schedule_process/_await_state_event' pattern used)",
+                  platform_id)
+
         self._event_queue = None
         self._event_sub = None
 
@@ -172,6 +181,10 @@ class _Launcher(object):
 
         if timeout_spawn:
             self._await_state_event(pid, ProcessStateEnum.SPAWN, timeout=timeout_spawn)
+
+        log.debug("Plaform agent spawned, platform_id=%r, pid=%r "
+                  "('create_process/subscribe-to-event/schedule_process/_await_state_event' pattern used)",
+                  platform_id, pid)
 
         return pid
 

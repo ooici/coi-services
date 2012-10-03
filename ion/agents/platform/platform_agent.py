@@ -39,6 +39,8 @@ from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
+import logging
+import time
 
 # NOTE: the bigger the platform network size starting from the platform
 # associated with a PlatformAgent instance, the more the time that should be
@@ -454,6 +456,21 @@ class PlatformAgent(ResourceAgent):
 
         return pa_client
 
+    def _execute_agent(self, pa_client, cmd, subplatform_id, timeout=TIMEOUT):
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: _execute_agent: cmd=%r subplatform_id=%r ...",
+                      self._platform_id, cmd.command, subplatform_id)
+
+            time_start = time.time()
+            retval = pa_client.execute_agent(cmd, timeout=timeout)
+            elapsed_time = time.time() - time_start
+            log.debug("%r: _execute_agent: cmd=%r subplatform_id=%r elapsed_time=%s",
+                      self._platform_id, cmd.command, subplatform_id, elapsed_time)
+        else:
+            retval = pa_client.execute_agent(cmd, timeout=timeout)
+
+        return retval
+
     def _ping_subplatform(self, subplatform_id):
         log.debug("%r: _ping_subplatform -> %r",
             self._platform_id, subplatform_id)
@@ -461,7 +478,7 @@ class PlatformAgent(ResourceAgent):
         pa_client, _ = self._pa_clients[subplatform_id]
 
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
-        retval = pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        retval = self._execute_agent(pa_client, cmd, subplatform_id)
         log.debug("%r: _ping_subplatform %r  retval = %s",
             self._platform_id, subplatform_id, str(retval))
 
@@ -489,7 +506,7 @@ class PlatformAgent(ResourceAgent):
 
         kwargs = dict(plat_config=platform_config)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
-        retval = pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        retval = self._execute_agent(pa_client, cmd, subplatform_id)
         log.debug("%r: _initialize_subplatform %r  retval = %s",
             self._platform_id, subplatform_id, str(retval))
 
@@ -540,7 +557,7 @@ class PlatformAgent(ResourceAgent):
 
             # execute command:
             try:
-                retval = pa_client.execute_agent(cmd, timeout=TIMEOUT)
+                retval = self._execute_agent(pa_client, cmd, subplatform_id)
             except Exception as e:
                 exc = "%s: %s" % (e.__class__.__name__, str(e))
                 log.error("%r: exception executing command %r in subplatform %r: %s",
