@@ -142,7 +142,7 @@ class RecordDictionaryTool(object):
             else:
                 raise BadRequest('No shape was defined')
 
-            log.info('Set shape to %s', self._shp)
+            log.trace('Set shape to %s', self._shp)
         else:
             if isinstance(vals, np.ndarray):
                 validate_equal(vals.shape, self._shp, 'Invalid shape on input')
