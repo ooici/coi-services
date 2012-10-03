@@ -166,7 +166,7 @@ class AlarmGenerator(Greenlet):
     def _run(self):
         while self._keep_running:
             self.generate_alarm()
-            sleep(1)
+            sleep(7)
 
     def stop(self):
         self._keep_running = False
