@@ -129,7 +129,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
                                   model="SBE37IMModel",
-                                  custom_attributes= {'streams':{'raw': 'simple_data_particle_raw_param_dict' , 'parsed': 'simple_data_particle_parsed_param_dict' }})
+                                  stream_configuration= {'raw': 'simple_data_particle_raw_param_dict' , 'parsed': 'simple_data_particle_parsed_param_dict' })
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
