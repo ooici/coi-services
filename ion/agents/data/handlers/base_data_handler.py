@@ -50,6 +50,7 @@ class BaseDataHandler(object):
         self._polling_glet = None
         self._dh_config = {}
         self._terminate_polling = None
+        self._acquiring_data = None
         self._params = {
             'POLLING_INTERVAL' : 3600,
             'PATCHABLE_CONFIG_KEYS' : ['stream_id','constraints','stream_route']
@@ -542,11 +543,13 @@ class BaseDataHandler(object):
 
         for count, gran in enumerate(data_generator):
             if isinstance(gran, Granule):
+                log.warn('_publish_data: {0}\n{1}'.format(count, gran))
                 publisher.publish(gran)
             else:
                 log.warn('Could not publish object of {0} returned by _get_data: {1}'.format(type(gran), gran))
 
-            #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
+        publisher.close()
+        #TODO: Persist the 'state' of this operation so that it can be re-established in case of failure
 
         #TODO: When finished publishing, update (either directly, or via an event callback to the agent) the UpdateDescription
 

@@ -24,7 +24,9 @@ from nose.plugins.attrib import attr
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
+from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
+from ion.util.parameter_yaml_IO import get_param_dict
+from coverage_model.coverage import GridDomain, GridShape, CRS
 
 import numpy
 
@@ -58,13 +60,13 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
 
         # Create DataProvider
         dprov = ExternalDataProvider(institution=Institution(), contact=ContactInformation())
-        dprov.contact.name = 'Christopher Mueller'
+        dprov.contact.individual_names_given = 'Christopher Mueller'
         dprov.contact.email = 'cmueller@asascience.com'
 
         # Create DataSource
         dsrc = DataSource(protocol_type='FILE', institution=Institution(), contact=ContactInformation())
         dsrc.connection_params['base_data_url'] = ''
-        dsrc.contact.name='Tim Giguere'
+        dsrc.contact.individual_names_given = 'Tim Giguere'
         dsrc.contact.email = 'tgiguere@asascience.com'
 
         # Create ExternalDataset
@@ -106,12 +108,26 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
 
         #create temp streamdef so the data product can create the stream
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
+
+        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
+
         parameter_dictionary = parameter_dictionary.dump()
+
+        dprod = IonObject(RT.DataProduct,
+            name='usgs_parsed_product',
+            description='parsed usgs product',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
 
         dprod = IonObject(RT.DataProduct,
             name='ruv_parsed_product',

@@ -141,6 +141,7 @@ class NetcdfDataHandler(BaseDataHandler):
                     rdt[key] = d
 
                 g = rdt.to_granule()
+                log.warn('netcdf._get_data:{0}'.format(g))
                 yield g
 
             ds.close()
