@@ -161,12 +161,16 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
             if process_name.find("ctd_L0_all") != -1:
                 proc = self.container.proc_manager.procs[process_name]
                 break
+
+        # For testing...
         ar = gevent.event.AsyncResult()
+        msgs = []
         def test_hook(msg, stream_id):
-            ar.set(msg)
+            msgs.append(msg)
+            if len(msgs) == 3:
+                ar.set(msgs)
 
         proc.publish = test_hook
-
 
         #------------------------------------------------------------------------------------------------------
         # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
@@ -197,13 +201,10 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Get the granule that is published by the ctd transform post processing
         result = ar.get(timeout=10)
-        self.assertTrue(isinstance(result, Granule))
-        #todo There can be more assertions put in place later
-        #todo(contd) The ctd_L0_all splits the granules and one can put in more tests
-        # todo(contd) ...to check that the splitting occurs correctly
 
+        # Check that the transform algorithm was successfully executed
+        self.check_granule_splitting(publish_granule, result)
 
-    #    @unittest.skip('This version of L0 Transforms are deprecated this test needs to be rewritten')
     def test_ctd_L1_conductivity(self):
         '''
         Test that packets are processed by the ctd_L1_conductivity transform
@@ -283,15 +284,39 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
         output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
 
-        input_cond = get_safe(input_rdt_to_transform, 'conductivity')
+        in_cond = get_safe(input_rdt_to_transform, 'conductivity')
         output_cond = get_safe(output_rdt_transform, 'conductivity')
 
-        log.debug("input_cond: %s" % input_cond)
-        log.debug("output_cond: %s" % output_cond)
+        self.assertTrue(((in_cond / 100000.0) - 0.5).all() == output_cond.all())
 
-        self.assertTrue(((input_cond / 100000.0) - 0.5).all() == output_cond.all())
+    def check_granule_splitting(self, publish_granule, out_granules):
+        '''
+        This checks that the ctd_L0_all transform is able to split out one of the
+        granules from the whole granule
+        fed into the transform
+        '''
 
+        input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
+        in_cond = get_safe(input_rdt_to_transform, 'conductivity')
+        in_pressure = get_safe(input_rdt_to_transform, 'pressure')
+        in_temp = get_safe(input_rdt_to_transform, 'temp')
 
+        out_cond = None
+        out_pressure = None
+        out_temp = None
+
+        for granule in out_granules:
+            output_rdt_transform = RecordDictionaryTool.load_from_granule(granule)
+            if output_rdt_transform.__contains__('conductivity'):
+                out_cond = get_safe(output_rdt_transform, 'conductivity')
+            elif output_rdt_transform.__contains__('pressure'):
+                out_pressure = get_safe(output_rdt_transform, 'pressure')
+            elif output_rdt_transform.__contains__('temp'):
+                out_temp = get_safe(output_rdt_transform, 'temp')
+
+        self.assertTrue(in_cond.all() == out_cond.all())
+        self.assertTrue(in_pressure.all() == out_pressure.all())
+        self.assertTrue(in_temp.all() == out_temp.all())
 
 
 
