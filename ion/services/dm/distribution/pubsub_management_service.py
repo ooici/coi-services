@@ -161,10 +161,6 @@ class PubsubManagementService(BasePubsubManagementService):
     #--------------------------------------------------------------------------------
     
     def create_subscription(self, name='', stream_ids=None, exchange_points=None, topic_ids=None, exchange_name='', credentials=None, description=''):
-        if self.clients.resource_registry.find_resources(restype=RT.Subscription,name=name, id_only=True)[0]:
-            raise Conflict('The named subscription already exists.')
-
-
         stream_ids      = stream_ids or []
         exchange_points = exchange_points or []
         topic_ids       = topic_ids or []
