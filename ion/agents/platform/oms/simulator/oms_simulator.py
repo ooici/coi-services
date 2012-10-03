@@ -207,7 +207,6 @@ class OmsSimulator(OmsClient):
 
         port_attrs = self._idp[platform_id].get_port(port_id).attrs
 
-        # result will contain the attributes that were set
         result = {}
         for key, val in attributes.iteritems():
             if key in VALID_PORT_ATTRIBUTES:
@@ -218,6 +217,7 @@ class OmsSimulator(OmsClient):
                 # 2. in the result, indicate that the value was set:
                 result[key] = val
             else:
+                result[key] = InvalidResponse.ATTRIBUTE_NAME
                 log.warn("setUpPort called with unrecognized attribute: %s"% key)
 
         return {platform_id: {port_id: result}}

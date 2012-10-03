@@ -224,10 +224,13 @@ class OmsTestMixin(object):
         ports = self._verify_valid_platform_id(platform_id, retval)
         port_val = self._verify_valid_port_id(port_id, ports)
         self.assertIsInstance(port_val, dict)
-        for attr_name in valid_attributes:
+        for attr_name in all_attributes:
             self.assertTrue(attr_name in port_val)
-        for attr_name in invalid_attributes:
-            self.assertFalse(attr_name in port_val)
+            attr_val = port_val[attr_name]
+            if attr_name in valid_attributes:
+                self.assertTrue(attr_val is not None)  # TODO more specific check
+            else:
+                self.assertEquals(InvalidResponse.ATTRIBUTE_NAME, attr_val)
 
     def test_am_setUpPort_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID
