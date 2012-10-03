@@ -277,17 +277,41 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         result = ar.get(timeout=10)
         self.assertTrue(isinstance(result, Granule))
 
-        self.check_algorithm_execution(publish_granule, result)
+        rdt = RecordDictionaryTool.load_from_granule(result)
+        self.assertTrue(rdt.__contains__('conductivity'))
 
-    def check_algorithm_execution(self, publish_granule, granule_from_transform):
+        self.check_cond_algorithm_execution(publish_granule, result)
+
+    def check_cond_algorithm_execution(self, publish_granule, granule_from_transform):
 
         input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
         output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
 
-        in_cond = get_safe(input_rdt_to_transform, 'conductivity')
-        output_cond = get_safe(output_rdt_transform, 'conductivity')
+        output_data = get_safe(output_rdt_transform, 'conductivity')
+        input_data = get_safe(input_rdt_to_transform, 'conductivity')
 
-        self.assertTrue(((in_cond / 100000.0) - 0.5).all() == output_cond.all())
+        self.assertTrue(((input_data / 100000.0) - 0.5).all() == output_data.all())
+
+    def check_pres_algorithm_execution(self, publish_granule, granule_from_transform):
+
+        input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
+        output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
+
+        output_data = get_safe(output_rdt_transform, 'pressure')
+        input_data = get_safe(input_rdt_to_transform, 'pressure')
+
+        self.assertTrue(input_data.all() == output_data.all())
+
+    def check_temp_algorithm_execution(self, publish_granule, granule_from_transform):
+
+        input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
+        output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
+
+        output_data = get_safe(output_rdt_transform, 'temp')
+        input_data = get_safe(input_rdt_to_transform, 'temp')
+
+        self.assertTrue(((input_data / 100000.0) - 10).all() == output_data.all())
+
 
     def check_granule_splitting(self, publish_granule, out_granules):
         '''
@@ -318,5 +342,157 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         self.assertTrue(in_pressure.all() == out_pressure.all())
         self.assertTrue(in_temp.all() == out_temp.all())
 
+    def test_ctd_L1_pressure(self):
+        '''
+        Test that packets are processed by the ctd_L1_conductivity transform
+        '''
 
+        #---------------------------------------------------------------------------------------------
+        # Launch a ctd transform
+        #---------------------------------------------------------------------------------------------
+        # Create the process definition
+        process_definition = ProcessDefinition(
+            name='CTDL1PressureTransform',
+            description='For testing CTDL1PressureTransform')
+        process_definition.executable['module']= 'ion.processes.data.transforms.ctd.ctd_L1_pressure'
+        process_definition.executable['class'] = 'CTDL1PressureTransform'
+        ctd_transform_proc_def_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
+
+        # Build the config
+        config = DotDict()
+        config.process.queue_name = self.exchange_name
+        config.process.exchange_point = self.exchange_point
+
+        config.process.interval = 1.0
+        config.process.publish_streams.pressure, _ = self.pubsub_management.create_stream('test_pressure',
+            exchange_point='science_data')
+
+        # Schedule the process
+        self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
+
+        # Make a test hook for the publish method of the ctd transform for the purpose of testing
+        proc = None
+        for process_name in self.container.proc_manager.procs.iterkeys():
+            if process_name.find("CTDL1PressureTransform") != -1:
+                proc = self.container.proc_manager.procs[process_name]
+                break
+        ar = gevent.event.AsyncResult()
+        def test_hook(msg, stream_id):
+            ar.set(msg)
+
+        proc.publish = test_hook
+
+
+        #------------------------------------------------------------------------------------------------------
+        # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
+        #------------------------------------------------------------------------------------------------------
+
+        # Do all the routing stuff for the publishing
+        routing_key = 'stream_id.stream'
+        stream_route = StreamRoute(self.exchange_point, routing_key)
+
+        xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
+        xp = self.container.ex_manager.create_xp(self.exchange_point)
+        xn.bind('stream_id.stream', xp)
+
+        pub = StandaloneStreamPublisher('stream_id', stream_route)
+
+        # Build a packet that can be published
+        self.px_ctd = SimpleCtdPublisher()
+        self.px_ctd.last_time = 0
+        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+
+        # Publish the packet
+        pub.publish(publish_granule)
+
+        #------------------------------------------------------------------------------------------------------
+        # Make assertions about whether the ctd transform executed its algorithm and published the correct
+        # granules
+        #------------------------------------------------------------------------------------------------------
+
+        # Get the granule that is published by the ctd transform post processing
+        result = ar.get(timeout=10)
+        self.assertTrue(isinstance(result, Granule))
+
+        rdt = RecordDictionaryTool.load_from_granule(result)
+        self.assertTrue(rdt.__contains__('pressure'))
+
+        self.check_pres_algorithm_execution(publish_granule, result)
+
+    def test_ctd_L1_temperature(self):
+        '''
+        Test that packets are processed by the ctd_L1_conductivity transform
+        '''
+
+        #---------------------------------------------------------------------------------------------
+        # Launch a ctd transform
+        #---------------------------------------------------------------------------------------------
+        # Create the process definition
+        process_definition = ProcessDefinition(
+            name='CTDL1TemperatureTransform',
+            description='For testing CTDL1TemperatureTransform')
+        process_definition.executable['module']= 'ion.processes.data.transforms.ctd.ctd_L1_temperature'
+        process_definition.executable['class'] = 'CTDL1TemperatureTransform'
+        ctd_transform_proc_def_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
+
+        # Build the config
+        config = DotDict()
+        config.process.queue_name = self.exchange_name
+        config.process.exchange_point = self.exchange_point
+
+        config.process.interval = 1.0
+        config.process.publish_streams.temperature, _ = self.pubsub_management.create_stream('test_temperature',
+            exchange_point='science_data')
+
+        # Schedule the process
+        self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
+
+        # Make a test hook for the publish method of the ctd transform for the purpose of testing
+        proc = None
+        for process_name in self.container.proc_manager.procs.iterkeys():
+            if process_name.find("CTDL1TemperatureTransform") != -1:
+                proc = self.container.proc_manager.procs[process_name]
+                break
+        ar = gevent.event.AsyncResult()
+        def test_hook(msg, stream_id):
+            ar.set(msg)
+
+        proc.publish = test_hook
+
+
+        #------------------------------------------------------------------------------------------------------
+        # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
+        #------------------------------------------------------------------------------------------------------
+
+        # Do all the routing stuff for the publishing
+        routing_key = 'stream_id.stream'
+        stream_route = StreamRoute(self.exchange_point, routing_key)
+
+        xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
+        xp = self.container.ex_manager.create_xp(self.exchange_point)
+        xn.bind('stream_id.stream', xp)
+
+        pub = StandaloneStreamPublisher('stream_id', stream_route)
+
+        # Build a packet that can be published
+        self.px_ctd = SimpleCtdPublisher()
+        self.px_ctd.last_time = 0
+        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+
+        # Publish the packet
+        pub.publish(publish_granule)
+
+        #------------------------------------------------------------------------------------------------------
+        # Make assertions about whether the ctd transform executed its algorithm and published the correct
+        # granules
+        #------------------------------------------------------------------------------------------------------
+
+        # Get the granule that is published by the ctd transform post processing
+        result = ar.get(timeout=10)
+        self.assertTrue(isinstance(result, Granule))
+
+        rdt = RecordDictionaryTool.load_from_granule(result)
+        self.assertTrue(rdt.__contains__('temp'))
+
+        self.check_temp_algorithm_execution(publish_granule, result)
 
