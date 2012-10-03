@@ -108,7 +108,7 @@ def build_contexts():
     serial_num_ctxt.fill_value = -1
     contexts.append(serial_num_ctxt)
 
-    count_ctxt = ParameterContext(name='count', param_type=QuantityType(value_encoding=np.int64))
+    count_ctxt = ParameterContext(name='counts', param_type=QuantityType(value_encoding=np.uint64))
     count_ctxt.fill_value = -1
     contexts.append(count_ctxt)
 
@@ -116,7 +116,7 @@ def build_contexts():
     checksum_ctxt.fill_value = -1
     contexts.append(checksum_ctxt)
 
-    pref_ts_ctxt = ParameterContext(name='preferred_timestep', param_type=ArrayType())
+    pref_ts_ctxt = ParameterContext(name='preferred_timestamp', param_type=ArrayType())
     pref_ts_ctxt.description = 'name of preferred timestamp'
     pref_ts_ctxt.fill_value = None
     contexts.append(pref_ts_ctxt)
