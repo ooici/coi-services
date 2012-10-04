@@ -970,7 +970,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
                              resource_id=IA_RESOURCE_ID,
                              svc_name='',
                              command='execute_agent',
-                             args=[],
+                             args=[AgentCommand(command=ResourceAgentEvent.RESET)],
                              kwargs={},
                              command_id = str(uuid.uuid4()))
         self._terrestrial_client.enqueue(cmd11)
@@ -1053,7 +1053,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         
         # Eigth result is an AgentCommandResult containing a sample.
         result8 = self._results_recv[cmd8.command_id]['result']
-        #self.assertIn('parsed',result8.result )
+        self.assertIn('parsed',result8.result )
         
         # Ninth result is an AgentCommandResult containing a sample.
         result9 = self._results_recv[cmd9.command_id]['result']
