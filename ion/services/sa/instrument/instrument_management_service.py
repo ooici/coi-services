@@ -300,7 +300,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                       PRED.hasStreamDefinition,
                                                                       RT.StreamDefinition,
                                                                       True)
+            if not stream_def_ids:
+                            raise NotFound("No Stream Definition attached to the stream for this Data Product. Stream id: %s " + str(stream_def_ids))
             stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_def_ids[0])
+
             log.debug("start_instrument_agent_instance: stream_def_ids:   %s ", str(stream_def_obj) )
             stream_tag = stream_def_obj.name
             model_param_dict = get_param_dict(streams_dict[stream_tag])

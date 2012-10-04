@@ -743,7 +743,7 @@ class IONLoader(ImmediateProcess):
         res_obj.temporal_domain = tdom.dump()
 
         svc_client = self._get_service_client("data_product_management")
-        res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id='', parameter_dictionary = parameter_dictionary)
+        res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=self.resource_ids[strdef], parameter_dictionary = parameter_dictionary)
         self._register_id(row[self.COL_ID], res_id)
         if not DEBUG:
             svc_client.activate_data_product_persistence(res_id)
