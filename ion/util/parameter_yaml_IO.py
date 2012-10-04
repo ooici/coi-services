@@ -146,6 +146,9 @@ def build_contexts():
     content_type_ctxt = ParameterContext(name='content_type', param_type=ArrayType())
     contexts.append(content_type_ctxt)
 
+    json_ctxt = ParameterContext(name='json', param_type=ArrayType())
+    contexts.append(json_ctxt)
+
     return contexts
 
 def dump_param_contexts_to_yml():
