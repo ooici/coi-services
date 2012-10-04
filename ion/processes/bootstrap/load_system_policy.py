@@ -181,59 +181,6 @@ class LoadSystemPolicy(ImmediateProcess):
             policy_text, headers=sa_user_header)
 
 
-
-##############
-
-        policy_text = '''
-            <Rule RuleId="%s" Effect="Permit">
-            <Description>
-                %s
-            </Description>
-
-            <Target>
-
-                <Actions>
-
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">negotiate</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">has_role</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                </Actions>
-
-
-            </Target>
-
-
-            <Condition>
-                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">anonymous</AttributeValue>
-                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-one-and-only">
-                        <SubjectAttributeDesignator
-                             AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-id"
-                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </Apply>
-                    </Apply>
-                </Apply>
-            </Condition>
-
-        </Rule> '''
-
-        policy_id = policy_client.create_common_service_access_policy( 'Allowed_Negotiate_Operations',
-            'A global policy rule which permits non-anonymous access to the negotiate operation in any service or agent',
-            policy_text, headers=sa_user_header)
-
-
-
-
 ##############
 
         policy_text = '''
@@ -402,6 +349,62 @@ class LoadSystemPolicy(ImmediateProcess):
 
         policy_id = policy_client.create_service_access_policy('org_management', 'OMS_Org_Manager_Role_Permitted',
             'Permit these operations in the Org Management Service for the role of Org Manager',
+            policy_text, headers=sa_user_header)
+
+
+##############
+
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">org_management</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+                <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">negotiate</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">has_role</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MEMBER</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+            </Target>
+
+
+        </Rule> '''
+
+        policy_id = policy_client.create_service_access_policy('org_management', 'OMS_Org_Member_Role_Permitted',
+            'Permit these operations in the Org Management Service for any user that is a simple Member of the Org',
             policy_text, headers=sa_user_header)
 
 
@@ -596,5 +599,6 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_id = policy_client.create_service_access_policy('InstrumentDevice', 'RA_Instrument_Operator_Role_Permitted',
             'Permit these operations in an instrument agent for the role of Instrument Operator',
             policy_text, headers=sa_user_header)
+
 
 
