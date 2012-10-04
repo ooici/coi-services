@@ -61,25 +61,35 @@ class ProcessStateGate(EventSubscriber):
         self.desired_state = desired_state
         self.process_id = process_id
         self.read_process_fn = read_process_fn
+        self.last_chance = None
+        self.first_chance = None
+
 
         #sanity check, will error on bad input
         self.read_process_fn(self.process_id)  # to make sure fn exists
-        log.info("ProcessStateGate is going to wait on process '%s' for state '%s'" %
-                (self.process_id, ProcessStateEnum._str_map[self.desired_state])) # make sure state exists
+        _ = ProcessStateEnum._str_map[self.desired_state] # make sure state exists
+        log.info("ProcessStateGate is going to wait on process '%s' for state '%s'",
+                self.process_id,
+                ProcessStateEnum._str_map[self.desired_state])
+
+        if ProcessStateEnum.TERMINATE == self.desired_state:
+            log.warn("Waiting for TERMINATE will return success if the process does not exist")
 
 
     def trigger_cb(self, event, x):
         if event.state == self.desired_state:
-            self.stop()
             self.gate.set()
         else:
-            log.info("ProcessStateGate received an event for state %s; ignored" % event.state)
-            log.info("ProcessStateGate received (also) variable x = %s" % str(x))
+            log.info("ProcessStateGate received an event for state %s, wanted %s",
+                     ProcessStateEnum._str_map[event.state],
+                     ProcessStateEnum._str_map[self.desired_state])
+            log.info("ProcessStateGate received (also) variable x = %s", x)
 
     def in_desired_state(self):
         # check whether the process we are monitoring is in the desired state as of this moment
         process_obj = self.read_process_fn(self.process_id)
-        return process_obj and self.desired_state == process_obj.process_state
+        return (process_obj is None and ProcessStateEnum.TERMINATE == self.desired_state) \
+               or (process_obj and self.desired_state == process_obj.process_state)
 
     def await(self, timeout=0):
         #set up the event gate so that we don't miss any events
@@ -89,35 +99,43 @@ class ProcessStateGate(EventSubscriber):
 
         #if it's in the desired state, return immediately
         if self.in_desired_state():
+            self.first_chance = True
             self.stop()
-            log.info("ProcessStateGate found process already in desired state -- NO WAITING")
+            log.info("ProcessStateGate found process already %s -- NO WAITING",
+                     ProcessStateEnum._str_map[self.desired_state])
             return True
 
         #if the state was not where we want it, wait for the event.
         ret = self.gate.wait(timeout)
+        self.stop()
 
-        last_chance = False
-
-        #clean up
         if ret:
             # timer is already stopped in this case
-            log.info("ProcessStateGate received event indicating desired state after %0.2f seconds" %
-                    (time() - start_time))
+            log.info("ProcessStateGate received %s event after %0.2f seconds",
+                     ProcessStateEnum._str_map[self.desired_state],
+                     time() - start_time)
         else:
-            self.stop() # stop timer
-            log.info("ProcessStateGate timed out waiting to receive event indicating desired state")
+            log.info("ProcessStateGate timed out waiting to receive %s event",
+                     ProcessStateEnum._str_map[self.desired_state])
 
             # sanity check for this pattern
-            last_chance = self.in_desired_state()
+            self.last_chance = self.in_desired_state()
 
-            if last_chance:
-                log.warn("ProcessStateGate was successful on last_chance; " +
-                         ("should the state change for '%s' have taken %d seconds exactly?" %
-                          (self.process_id, timeout)))
+            if self.last_chance:
+                log.warn("ProcessStateGate was successful reading %s on last_chance; " +
+                         "should the state change for '%s' have taken %s seconds exactly?",
+                         ProcessStateEnum._str_map[self.desired_state],
+                         self.process_id,
+                         timeout)
 
 
-        return ret or last_chance
+        return ret or self.last_chance
 
+    def _get_last_chance(self):
+        return self.last_chance
+
+    def _get_first_chance(self):
+        return self.first_chance
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
 
