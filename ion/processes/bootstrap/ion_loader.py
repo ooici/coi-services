@@ -635,10 +635,13 @@ class IONLoader(ImmediateProcess):
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
         sd_module = row["StreamContainer_module"]
         sd_method = row["StreamContainer_method"]
+        sd_pdict_name = row["StreamContainer_pdict_name"]
         creator_func = named_any("%s.%s" % (sd_module, sd_method))
         sd_container = creator_func()
+        dset_mgmt = self._get_service_client("dataset_management")
+        pdict_id = dset_mgmt.read_parameter_dictionary_by_name(sd_pdict_name, id_only=True)
         svc_client = self._get_service_client("pubsub_management")
-        res_id = svc_client.create_stream_definition( name=res_obj.name, description=res_obj.description)
+        res_id = svc_client.create_stream_definition( name=res_obj.name, parameter_dictionary_id=pdict_id, description=res_obj.description)
         self._register_id(row[self.COL_ID], res_id)
 
     def _load_PlatformDevice(self, row):

@@ -44,8 +44,10 @@ class VizTransformGoogleDT(TransformDataProcess):
 
     def on_start(self):
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
-        self.stream_ids = {i:self.pubsub_management.read_stream_route(i) for i in self.CFG.get_safe('process.output_streams',[])}
-        if not self.stream_ids:
+        self.stream_info = self.CFG.get_safe('process.publish_streams', {})
+        self.stream_names = self.stream_info.keys()
+        self.stream_ids = self.stream_info.values()
+        if not self.stream_names:
             raise BadRequest('Google DT Transform has no output streams.')
 
 
@@ -55,14 +57,14 @@ class VizTransformGoogleDT(TransformDataProcess):
 
     def recv_packet(self, packet, in_stream_route, in_stream_id):
         log.info('Received packet')
-        for stream_id, route in self.stream_ids.iteritems():
-            outgoing = self.execute(packet)
-            self.publisher.publish(outgoing, stream_id=stream_id, stream_route=route)
-            log.info('Publishing on: %s', stream_id)
+        outgoing = self.execute(packet)
+        for stream_name in self.stream_names:
+            publisher = getattr(self, stream_name)
+            publisher.publish(outgoing)
 
 
     def get_stream_definition(self):
-        stream_id = self.stream_ids.keys()[0]
+        stream_id = self.stream_ids[0]
         stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
         return stream_def._id
 
