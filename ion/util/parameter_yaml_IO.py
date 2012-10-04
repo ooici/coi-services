@@ -46,6 +46,11 @@ def build_contexts():
     sal_ctxt.fill_value = 0x0
     contexts.append(sal_ctxt)
 
+    den_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=np.float32))
+    den_ctxt.uom = 'kg/m3'
+    den_ctxt.fill_value = 0x0
+    contexts.append(den_ctxt)
+
     temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
     temp_ctxt.uom = 'degree_Celsius'
     temp_ctxt.fill_value = 0e0
