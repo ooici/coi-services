@@ -64,14 +64,17 @@ class ProcessStateGate(EventSubscriber):
 
         #sanity check, will error on bad input
         self.read_process_fn(self.process_id)  # to make sure fn exists
-        log.info("ProcessStateGate going to wait on process '%s' for state '%s'" %
+        log.info("ProcessStateGate is going to wait on process '%s' for state '%s'" %
                 (self.process_id, ProcessStateEnum._str_map[self.desired_state])) # make sure state exists
 
 
     def trigger_cb(self, event, x):
-        if event == self.desired_state:
+        if event.state == self.desired_state:
             self.stop()
             self.gate.set()
+        else:
+            log.info("ProcessStateGate received an event for state %s; ignored" % event.state)
+            log.info("ProcessStateGate received (also) variable x = %s" % str(x))
 
     def in_desired_state(self):
         # check whether the process we are monitoring is in the desired state as of this moment

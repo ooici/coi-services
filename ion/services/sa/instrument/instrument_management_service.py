@@ -245,7 +245,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("activate_instrument:instrument_model %s" % str(instrument_model_id))
 
         #retrive the stream info for this model
-        streams_dict = model_objs[0].custom_attributes['streams']
+        streams_dict = model_objs[0].stream_configuration
         if not streams_dict:
             raise BadRequest("Device model does not contain stream configuration used in launching the agent. Model: '%s",
                              str(model_objs[0]) )

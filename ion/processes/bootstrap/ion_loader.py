@@ -517,8 +517,15 @@ class IONLoader(ImmediateProcess):
 
     def _load_InstrumentModel(self, row):
         row['im/reference_urls'] = repr(self._get_typed_value(row['im/reference_urls'], targettype="simplelist"))
-        self._basic_resource_create(row, "InstrumentModel", "im/",
-            "instrument_management", "create_instrument_model")
+        obj = self._create_object_from_row('InstrumentModel', row, 'im/')
+        raw_stream_def = row['raw_stream_def']
+        parsed_stream_def = row['parsed_stream_def']
+        obj.stream_configuration = { 'raw': raw_stream_def, 'parsed': parsed_stream_def }
+        headers = self._get_op_headers(row)
+        svc_client = self._get_service_client('instrument_management')
+        id = svc_client.create_instrument_model(obj, headers=headers)
+        self._register_id(row[self.COL_ID], id)
+        self._resource_assign_org(row, id)
 
     def _load_InstrumentModel_OOI(self):
         for im_def in self.instrument_models.values():
