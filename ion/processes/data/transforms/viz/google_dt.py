@@ -13,7 +13,6 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
 import numpy as np
-import simplejson as json
 
 from pyon.ion.transforma import TransformDataProcess
 
@@ -98,8 +97,7 @@ class VizTransformGoogleDT(TransformDataProcess):
                     "data_description" : data_description,
                     "data_content" : data_table_content}
 
-        json_dump = json.dumps(out_dict)
-        out_rdt["json"] = np.array([json_dump])
+        out_rdt["google_dt_components"] = np.array([out_dict])
         print out_dict
 
         log.debug('Google DT transform: Sending a granule')
