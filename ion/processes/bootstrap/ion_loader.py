@@ -309,7 +309,7 @@ class IONLoader(ImmediateProcess):
 
     def _basic_resource_create(self, row, restype, prefix, svcname, svcop,
                                constraints=None, constraint_field='constraint_list',
-                               contacts=None, contact_field='contact_ids',
+                               contacts=None, contact_field='contacts',
                                **kwargs):
         res_obj = self._create_object_from_row(restype, row, prefix,
                                                constraints=constraints, constraint_field=constraint_field,
@@ -670,8 +670,9 @@ class IONLoader(ImmediateProcess):
         self._resource_advance_lcs(row, res_id, "SensorDevice")
 
     def _load_InstrumentDevice(self, row):
+        contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
-            "instrument_management", "create_instrument_device")
+            "instrument_management", "create_instrument_device", contacts=contacts)
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
         if ass_id:
