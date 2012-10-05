@@ -65,13 +65,15 @@ class PlatformDriver(object):
 
         # similar to _topology -- under initial testing -- may be merged
         self._agent_device_map = None
+        self._agent_streamconfig_map = None
 
         # The root NNode defining the platform network rooted at the platform
         # identified by self._platform_id. This _nnode is constructed by the
         # driver based on _topology (if given) or other source of information.
         self._nnode = None
 
-    def set_topology(self, topology, agent_device_map=None):
+    def set_topology(self, topology, agent_device_map=None,
+                     agent_streamconfig_map=None):
         """
         Sets the platform topology.
         """
@@ -79,6 +81,7 @@ class PlatformDriver(object):
         log.debug("set_topology: agent_device_map=%s", str(agent_device_map))
         self._topology = topology
         self._agent_device_map = agent_device_map
+        self._agent_streamconfig_map = agent_streamconfig_map
 
     def set_event_listener(self, evt_recv):
         """
@@ -121,6 +124,21 @@ class PlatformDriver(object):
         @retval {attrName : [(attrValue, timestamp), ...], ...}
                 dict indexed by attribute name with list of (value, timestamp)
                 pairs. Timestamps are NTP v4 compliant strings
+        """
+        raise NotImplemented()
+
+    def set_attribute_values(self, attrs):
+        """
+        To be implemented by subclass.
+        Sets values for writable attributes in this platform.
+
+        @param attrs 	[(attrName, attrValue), ...] 	List of attribute values
+
+        @retval {platform_id: {attrName : [(attrValue, timestamp), ...], ...}}
+                dict with a single entry for the requested platform ID and value
+                as a list of (value,timestamp) pairs for each attribute indicated
+                in the input. Returned timestamps are NTP v4 8-byte strings
+                indicating the time when the value was set.
         """
         raise NotImplemented()
 

@@ -782,7 +782,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Refresh headers with new role
         user_header = self.container.governance_controller.get_actor_header(user_id)
 
-        #Not the user with the proper role should be able to create an instrument.
+        #Now the user with the proper role should be able to create an instrument.
         self.ims_client.create_instrument_agent(ia_obj, headers=user_header)
 
         gevent.sleep(2)  # Wait for events to be published
@@ -1049,8 +1049,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try to execute a command anonymously - it should be denied
         with self.assertRaises(Unauthorized) as cm:
-            retval = ia_client.get_agent_state()
-        self.assertIn('(get_agent_state) has been denied',cm.exception.message)
+            retval = ia_client.get_capabilities()
+        self.assertIn('(get_capabilities) has been denied',cm.exception.message)
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
@@ -1063,14 +1063,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         user_header = self.container.governance_controller.get_actor_header(user_id)
 
-        #Next try to execute a command with a user that is not an Instrument Operator - it should be denied
+        #Next try to execute a command with a user that is not an Instrument Operator or Member of Org - it should be denied
         with self.assertRaises(Unauthorized) as cm:
-            retval = ia_client.get_agent_state(headers=user_header)
-        self.assertIn('(get_agent_state) has been denied',cm.exception.message)
+            retval = ia_client.get_capabilities(headers=user_header)
+        self.assertIn('(get_capabilities) has been denied',cm.exception.message)
 
         #However the ION Manager should be allowed
-        retval = ia_client.get_agent_state(headers=self.sa_user_header)
-        self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+        retval = ia_client.get_capabilities(headers=self.sa_user_header)
 
         #Setup appropriate Role for user
         self.org_client.grant_role(self.ion_org._id,user_id, INSTRUMENT_OPERATOR_ROLE, headers=self.sa_user_header)
@@ -1083,6 +1082,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
 
 
+        #The execute commnand should fail if the user has not acquired the resource
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = ia_client.execute_agent(cmd, headers=user_header)
         retval = ia_client.get_agent_state(headers=user_header)

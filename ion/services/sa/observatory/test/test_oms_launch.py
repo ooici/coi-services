@@ -12,6 +12,8 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
+from pyon.ion.stream import StandaloneStreamSubscriber
+
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
 from pyon.public import RT, PRED
@@ -35,7 +37,10 @@ from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.services.dm.utility.granule_utils import CoverageCraft
 from ion.util.parameter_yaml_IO import get_param_dict
 
-from gevent import queue
+from coverage_model.parameter import ParameterDictionary
+
+from gevent.event import AsyncResult
+from gevent import sleep
 
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
@@ -76,9 +81,55 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.pubsubcli = PubsubManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
 
-    def _build_stream_config(self, stream_id=''):
+        self._no_samples = None
+        self._async_data_result = AsyncResult()
+        self._data_subscribers = []
+        self._samples_received = []
 
-        stream_config = {}
+        self.addCleanup(self._stop_data_subscribers)
+
+    def consume_data(self, message, stream_route, stream_id):
+        # A callback for processing subscribed-to data.
+        log.info('Subscriber received data message: %s.' % str(message))
+        self._samples_received.append(message)
+        if self._no_samples and self._no_samples == len(self._samples_received):
+            self._async_data_result.set()
+
+    def _start_data_subscriber(self, stream_name, stream_config):
+        """
+        Starts data subscriber for the given stream_name and stream_config
+        """
+        log.info('_start_data_subscriber stream_name=%r', stream_name)
+
+        stream_id = stream_config['stream_id']
+
+        # Create subscription for the stream
+        exchange_name = '%s_queue' % stream_name
+        self.container.ex_manager.create_xn_queue(exchange_name).purge()
+        sub = StandaloneStreamSubscriber(exchange_name, self.consume_data)
+        sub.start()
+        self._data_subscribers.append(sub)
+        sub_id = self.pubsubcli.create_subscription(name=exchange_name, stream_ids=[stream_id])
+        self.pubsubcli.activate_subscription(sub_id)
+        sub.subscription_id = sub_id
+
+    def _stop_data_subscribers(self):
+        """
+        Stop the data subscribers on cleanup.
+        """
+        try:
+            for sub in self._data_subscribers:
+                if hasattr(sub, 'subscription_id'):
+                    try:
+                        self.pubsubcli.deactivate_subscription(sub.subscription_id)
+                    except:
+                        pass
+                    self.pubsubcli.delete_subscription(sub.subscription_id)
+                sub.stop()
+        finally:
+            self._data_subscribers = []
+
+    def _build_stream_config(self, stream_id=''):
 
         raw_parameter_dictionary = get_param_dict('simple_data_particle_raw_param_dict')
 
@@ -99,19 +150,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         return stream_config
 
 
-    @unittest.skip('targeting')
     def test_oms_create_and_launch(self):
-
-
-        # Start data suscribers, add stop to cleanup.
-        # Define stream_config.
-        self._no_samples = None
-        #self._async_data_result = AsyncResult()
-        self._data_greenlets = []
-        self._stream_config = {}
-        self._samples_received = []
-        self._data_subscribers = []
-
 
         # Create PlatformModel
         platformModel_obj = IonObject(RT.PlatformModel, name='RSNPlatformModel', description="RSNPlatformModel", model="RSNPlatformModel" )
@@ -145,7 +184,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         #maps an agent instance id to a device object with specifics about that device
         agent_device_map = {}
-        #        parent_map = {}
         children_map = {}
         agent_streamconfig_map = {}
 
@@ -201,7 +239,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
         platformSS_agent_instance_id = self.imsclient.create_platform_agent_instance(platformSS_agent_instance_obj, platformSS_agent_id, platformSS_device_id)
 
         agent_device_map[platformSS_agent_instance_id] = platformSS_device__obj
-        agent_streamconfig_map[platformSS_agent_instance_id] = self._build_stream_config(stream_ids[0])
+        stream_config = self._build_stream_config(stream_ids[0])
+        agent_streamconfig_map[platformSS_agent_instance_id] = stream_config
+        self._start_data_subscriber(platformSS_agent_instance_id, stream_config)
 
 
         #-------------------------------
@@ -250,10 +290,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1A_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1A_agent_instance_obj, platform1A_agent_id, platform1A_device_id)
 
-        #        parent_map[platform1A_agent_instance_id] = [platformSS_agent_instance_id]
         agent_device_map[platform1A_agent_instance_id] = platform1A_device__obj
         children_map[platformSS_agent_instance_id] = [platform1A_agent_instance_id]
-        agent_streamconfig_map[platform1A_agent_instance_id] = self._build_stream_config(stream_ids[0])
+        stream_config = self._build_stream_config(stream_ids[0])
+        agent_streamconfig_map[platform1A_agent_instance_id] = stream_config
+        self._start_data_subscriber(platform1A_agent_instance_id, stream_config)
 
 
         #-------------------------------
@@ -302,11 +343,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1B_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1B_agent_instance_obj, platform1B_agent_id, platform1B_device_id)
 
-        #        parent_map[platform1B_agent_instance_id] = [platform1A_agent_instance_id]
         agent_device_map[platform1B_agent_instance_id] = platform1B_device__obj
         children_map[platform1A_agent_instance_id] = [platform1B_agent_instance_id]
-        agent_streamconfig_map[platform1B_agent_instance_id] = self._build_stream_config(stream_ids[0])
-
+        stream_config = self._build_stream_config(stream_ids[0])
+        agent_streamconfig_map[platform1B_agent_instance_id] = stream_config
+        self._start_data_subscriber(platform1B_agent_instance_id, stream_config)
 
         #-------------------------------
         # Platform Node1C
@@ -356,10 +397,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1C_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1C_agent_instance_obj, platform1C_agent_id, platform1C_device_id)
 
-        #        parent_map[platform1C_agent_instance_id] = [platform1B_agent_instance_id]
         agent_device_map[platform1C_agent_instance_id] = platform1C_device__obj
         children_map[platform1B_agent_instance_id] = [platform1C_agent_instance_id]
-        agent_streamconfig_map[platform1C_agent_instance_id] = self._build_stream_config(stream_ids[0])
+        stream_config = self._build_stream_config(stream_ids[0])
+        agent_streamconfig_map[platform1C_agent_instance_id] = stream_config
+        self._start_data_subscriber(platform1C_agent_instance_id, stream_config)
 
 
 
@@ -399,9 +441,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
             'agent_device_map': agent_device_map,
             'agent_streamconfig_map': agent_streamconfig_map,
 
-            #            'platform_id': platformSS_agent_id,
-            #            'platform_topology' : parent_map,
-
             'driver_config': DVR_CONFIG,
             'container_name': self.container.name,
 
@@ -432,10 +471,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'ShoreSide Platform RUN = %s' % str(retval) )
 
-        # TODO: here we could sleep for a little bit to let the resource
-        # monitoring work for a while. But not done yet because the
-        # definition of streams is not yet included. See
-        # test_platform_agent_with_oms.py for a test that includes this.
+        log.info("sleeping to perhaps see some data publications...")
+        sleep(15)
 
 
 

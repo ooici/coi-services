@@ -55,3 +55,8 @@ class TestLoader(IonIntegrationTestCase):
                 self.assertTrue(math.fabs(con.geospatial_longitude_limit_east+117.23)<.01)
         self.assertTrue(found, msg='Did not find InstrumentSite "Logical instrument 1 Demo" -- should have been preloaded')
 
+        # check that InstrumentDevice contacts are loaded
+        res,_ = self.container.resource_registry.find_resources(RT.InstrumentDevice, name='CTD Simulator 1 Demo', id_only=False)
+        self.assertTrue(len(res) == 1)
+        self.assertTrue(len(res[0].contacts)==1)
+        self.assertEquals('Orcutt', res[0].contacts[0].individual_name_family)

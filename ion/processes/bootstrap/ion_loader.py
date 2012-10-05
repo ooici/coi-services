@@ -83,11 +83,26 @@ class IONLoader(ImmediateProcess):
         self.loadui = self.CFG.get("loadui", False)
         self.exportui = self.CFG.get("exportui", False)
 
+
+        self.obj_classes = {}
+        self.resource_ids = {}
+        self.user_ids = {}
+        self._preload_ids()
+
+
+
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, self.path, scenarios))
         if op:
             if op == "load":
                 if not scenarios:
                     raise iex.BadRequest("Must provide scenarios to load: scenario=sc1,sc2,...")
+
+                if self.loadooi:
+                    self.extract_ooi_assets()
+                if self.loadui:
+                    specs_path = 'ui_specs.json' if self.exportui else None
+                    self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
+                    
                 items = scenarios.split(',')
                 for scenario in items:
                     self.load_ion(scenario)
@@ -135,18 +150,6 @@ class IONLoader(ImmediateProcess):
                       'WorkflowDefinition',
                       'Workflow',
                       'Deployment', ]
-
-        self.obj_classes = {}
-        self.resource_ids = {}
-        self.user_ids = {}
-
-        self._preload_ids()
-        if self.loadooi:
-            self.extract_ooi_assets()
-
-        if self.loadui:
-            specs_path = 'ui_specs.json' if self.exportui else None
-            self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
 
         if self.path.startswith('http'):
             preload_doc_str = requests.get(self.path).content
@@ -309,7 +312,7 @@ class IONLoader(ImmediateProcess):
 
     def _basic_resource_create(self, row, restype, prefix, svcname, svcop,
                                constraints=None, constraint_field='constraint_list',
-                               contacts=None, contact_field='contact_ids',
+                               contacts=None, contact_field='contacts',
                                **kwargs):
         res_obj = self._create_object_from_row(restype, row, prefix,
                                                constraints=constraints, constraint_field=constraint_field,
@@ -640,15 +643,12 @@ class IONLoader(ImmediateProcess):
 
     def _load_StreamDefinition(self, row):
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
-        sd_module = row["StreamContainer_module"]
-        sd_method = row["StreamContainer_method"]
-        sd_pdict_name = row["StreamContainer_pdict_name"]
-        creator_func = named_any("%s.%s" % (sd_module, sd_method))
-        sd_container = creator_func()
-        dset_mgmt = self._get_service_client("dataset_management")
-        pdict_id = dset_mgmt.read_parameter_dictionary_by_name(sd_pdict_name, id_only=True)
+#        sd_module = row["StreamContainer_module"]
+#        sd_method = row["StreamContainer_method"]
+        pname = row["param_dict_name"]
+        parameter_dictionary = get_param_dict(pname)
         svc_client = self._get_service_client("pubsub_management")
-        res_id = svc_client.create_stream_definition( name=res_obj.name, parameter_dictionary_id=pdict_id, description=res_obj.description)
+        res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary=parameter_dictionary.dump())
         self._register_id(row[self.COL_ID], res_id)
 
     def _load_PlatformDevice(self, row):
@@ -673,8 +673,9 @@ class IONLoader(ImmediateProcess):
         self._resource_advance_lcs(row, res_id, "SensorDevice")
 
     def _load_InstrumentDevice(self, row):
+        contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
-            "instrument_management", "create_instrument_device")
+            "instrument_management", "create_instrument_device", contacts=contacts)
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
         if ass_id:
@@ -745,7 +746,7 @@ class IONLoader(ImmediateProcess):
         res_obj.temporal_domain = tdom.dump()
 
         svc_client = self._get_service_client("data_product_management")
-        res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id='', parameter_dictionary = parameter_dictionary)
+        res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=self.resource_ids[strdef], parameter_dictionary = parameter_dictionary)
         self._register_id(row[self.COL_ID], res_id)
         if not DEBUG:
             svc_client.activate_data_product_persistence(res_id)
