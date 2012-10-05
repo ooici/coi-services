@@ -65,8 +65,9 @@ class PubsubManagementService(BasePubsubManagementService):
         # Argument Validation
         if name and self.clients.resource_registry.find_resources(restype=RT.Stream,name=name,id_only=True)[0]:
             raise Conflict('The named stream already exists')
-        exchange_point_id = None
+        validate_true(exchange_point, 'An exchange point must be specified')
 
+        exchange_point_id = None
         try:
             xp_obj = self.clients.exchange_management.read_exchange_point(exchange_point)
             exchange_point_id = exchange_point
@@ -75,16 +76,13 @@ class PubsubManagementService(BasePubsubManagementService):
             self.container.ex_manager.create_xp(exchange_point)
             xp_objs, _ = self.clients.resource_registry.find_resources(restype=RT.ExchangePoint,name=exchange_point,id_only=True)
             if not xp_objs:
-                raise BadRequest('The Exchange Management Service failed to create an ExchangePoint for use.')
+                raise BadRequest('failed to create an ExchangePoint: ' + exchange_point)
             exchange_point_id = xp_objs[0]
-
 
         topic_ids = topic_ids or []
 
         if not name: name = create_unique_identifier()
 
-        validate_true(exchange_point, 'An exchange point must be specified')
-        
         # Get topic names and topics
         topic_names = []
         associated_topics = []

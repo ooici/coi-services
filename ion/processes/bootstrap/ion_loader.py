@@ -83,11 +83,26 @@ class IONLoader(ImmediateProcess):
         self.loadui = self.CFG.get("loadui", False)
         self.exportui = self.CFG.get("exportui", False)
 
+
+        self.obj_classes = {}
+        self.resource_ids = {}
+        self.user_ids = {}
+        self._preload_ids()
+
+
+
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, self.path, scenarios))
         if op:
             if op == "load":
                 if not scenarios:
                     raise iex.BadRequest("Must provide scenarios to load: scenario=sc1,sc2,...")
+
+                if self.loadooi:
+                    self.extract_ooi_assets()
+                if self.loadui:
+                    specs_path = 'ui_specs.json' if self.exportui else None
+                    self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
+                    
                 items = scenarios.split(',')
                 for scenario in items:
                     self.load_ion(scenario)
@@ -135,18 +150,6 @@ class IONLoader(ImmediateProcess):
                       'WorkflowDefinition',
                       'Workflow',
                       'Deployment', ]
-
-        self.obj_classes = {}
-        self.resource_ids = {}
-        self.user_ids = {}
-
-        self._preload_ids()
-        if self.loadooi:
-            self.extract_ooi_assets()
-
-        if self.loadui:
-            specs_path = 'ui_specs.json' if self.exportui else None
-            self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
 
         if self.path.startswith('http'):
             preload_doc_str = requests.get(self.path).content
