@@ -102,7 +102,7 @@ class IONLoader(ImmediateProcess):
                 if self.loadui:
                     specs_path = 'ui_specs.json' if self.exportui else None
                     self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
-                    
+
                 items = scenarios.split(',')
                 for scenario in items:
                     self.load_ion(scenario)
@@ -676,6 +676,14 @@ class IONLoader(ImmediateProcess):
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
             "instrument_management", "create_instrument_device", contacts=contacts)
+
+#        rr = self._get_service_client("resource_registry")
+#        attachment_ids = self._get_typed_value(row['attachment_ids'], targettype="simplelist")
+#        if attachment_ids:
+#            log.trace('adding attachments to instrument device %s: %r', res_id, attachment_ids)
+#            for id in attachment_ids:
+#                rr.create_association(res_id, PRED.hasAttachment, self.resource_ids[id])
+
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
         if ass_id:
@@ -737,17 +745,22 @@ class IONLoader(ImmediateProcess):
         ic_id = svc_client.create_ingestion_configuration(name=name, exchange_point_id=xp, queues=[ingest_queue])
 
     def _load_DataProduct(self, row):
-        strdef = row["stream_def_id"]
+        sdom, tdom = CoverageCraft.create_domains()
 
         res_obj = self._create_object_from_row("DataProduct", row, "dp/")
-        parameter_dictionary = get_param_dict(row['param_dict_type'])
-        sdom, tdom = CoverageCraft.create_domains()
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
+        # HACK: cannot parse CSV value directly when field defined as "list"
+        # need to evaluate as simplelist instead and add to object explicitly
+        res_obj.available_formats = self._get_typed_value(row['available_formats'], targettype="simplelist")
 
         svc_client = self._get_service_client("data_product_management")
-        res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=self.resource_ids[strdef], parameter_dictionary = parameter_dictionary)
+        stream_definition_id = self.resource_ids[row["stream_def_id"]]
+        parameter_dictionary = get_param_dict(row['param_dict_type'])
+        res_id = svc_client.create_data_product(data_product=res_obj,
+                    stream_definition_id=stream_definition_id, parameter_dictionary=parameter_dictionary)
         self._register_id(row[self.COL_ID], res_id)
+
         if not DEBUG:
             svc_client.activate_data_product_persistence(res_id)
         self._resource_advance_lcs(row, res_id, "DataProduct")
