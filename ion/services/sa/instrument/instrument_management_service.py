@@ -248,7 +248,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         streams_dict = model_objs[0].stream_configuration
         if not streams_dict:
             raise BadRequest("Device model does not contain stream configuration used in launching the agent. Model: '%s",
-                             str(model_objs[0]) )
+                str(model_objs[0]) )
+
+        for stream_name, param_dict_name in streams_dict.items():
+            param_dict = get_param_dict(param_dict_name)
+            #create a stream def for each param dict to match against the existing data products
+            stream_def_id = self.clients.pubsub_management.create_stream_definition(parameter_dictionary=param_dict.dump())
+            streams_dict[stream_name] = {'param_dict_name':param_dict_name, 'stream_def_id':stream_def_id}
+        log.debug("validate_instrument_agent_instance: model streams_dict: %s", str(streams_dict))
 
         #retrieve the associated instrument agent
         agent_objs = self.instrument_agent.find_having_model(instrument_model_id)
@@ -300,28 +307,26 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                       PRED.hasStreamDefinition,
                                                                       RT.StreamDefinition,
                                                                       True)
-            if not stream_def_ids:
-                            raise NotFound("No Stream Definition attached to the stream for this Data Product. Stream id: %s " + str(stream_def_ids))
-            stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_def_ids[0])
 
-            log.debug("start_instrument_agent_instance: stream_def_ids:   %s ", str(stream_def_obj) )
-            stream_tag = stream_def_obj.name
-            model_param_dict = get_param_dict(streams_dict[stream_tag])
+            #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
+            for model_stream_name, stream_info_dict  in streams_dict.items():
+                log.debug("start_instrument_agent_instance: model_stream_name: %s   stream_info_dict   %s ", str(model_stream_name), str(stream_info_dict) )
 
-            stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
-            log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
-            stream_config_too[stream_tag] = {'routing_key' : stream_route.routing_key,
-                                             'stream_id' : product_stream_id,
-                                             'stream_definition_ref' : stream_def_ids[0],
-                                             'exchange_point' : stream_route.exchange_point,
-                                             'parameter_dictionary':model_param_dict.dump()}
-            log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
-                      str(stream_config_too) )
+                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict['stream_def_id'], stream_def_ids[0]):
+                    log.debug("validate_instrument_agent_instance: pubsub_management.compare_stream_definition = true")
+                    model_param_dict = get_param_dict(stream_info_dict['param_dict_name'])
 
-                    #todo: REIMPL THIS CHECK!
-                #        if len(streams_dict) != len(stream_config_too):
-                #            raise Inconsistent("Stream configuration for agent is not valid: " + str(stream_config_too))
+                    stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
+                    log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
+                    stream_config_too[model_stream_name] = {'routing_key' : stream_route.routing_key,
+                                                            'stream_id' : product_stream_id,
+                                                            'stream_definition_ref' : stream_def_ids[0],
+                                                            'exchange_point' : stream_route.exchange_point,
+                                                            'parameter_dictionary':model_param_dict.dump()}
 
+
+                    log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
+                        str(stream_config_too) )
 
         ret = {}
         ret["instrument_agent_id"] = instrument_agent_id
