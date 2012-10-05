@@ -900,7 +900,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def _get_instrument_producer(self, instrument_device_id=""):
         producer_objs, _ = self.clients.resource_registry.find_objects(subject=instrument_device_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=False)
         if not producer_objs:
-            raise NotFound("No Producers created for this Data Process " + str(instrument_device_id))
+            raise NotFound("No Producers created for this Instrument Device " + str(instrument_device_id))
         return producer_objs[0]
 
 

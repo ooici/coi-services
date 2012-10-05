@@ -10,6 +10,7 @@ from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImp
 from pyon.public import PRED, RT, OT
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.log import log
+from pyon.util.ion_time import IonTime
 from lxml import etree
 
 
@@ -213,14 +214,12 @@ class DataProductImpl(ResourceSimpleImpl):
                 address.text = contact.street_address
                 city = etree.SubElement(contacttag, "city")
                 city.text = contact.city
-                postalcode = etree.SubElement(contacttag, "postalcode")
-                postalcode.text = contact.postalcode
-                state = etree.SubElement(contacttag, "state")
-                state.text = contact.state
+                postalcode = etree.SubElement(contacttag, "postal_code")
+                postalcode.text = contact.postal_code
                 country = etree.SubElement(contacttag, "country")
                 country.text = contact.country
-                phone = etree.SubElement(contacttag, "phone")
-                phone.text = contact.phone
+                phone = etree.SubElement(contacttag, "phones")
+                phone.text = str(contact.phones)
                 email = etree.SubElement(contacttag, "email")
                 email.text = contact.email
 
@@ -270,15 +269,16 @@ class DataProductImpl(ResourceSimpleImpl):
             if not data_producer_objs:
                 raise BadRequest('No Data Producer resource associated with the Producer %s' % str(producer_id))
             data_producer_obj = data_producer_objs[0]
+            log.debug("DataProductManagementService:data_producer_obj  %s ", str(data_producer_obj))
 
 
             producertype = type(producer_obj).__name__
-            log.debug("DataProductManagementService:producertype  %s ", str(producertype))
             if data_producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
-            #if RT.InstrumentDevice == producertype :
-                # retrieve specifics from InstrumentProducerContext
                 activation_time_tag = etree.SubElement(data_producer_tag, "activation_time")
-                activation_time_tag.text = data_producer_obj.producer_context.activation_time
+                activation_time_tag.text = self._format_ion_time(data_producer_obj.producer_context.activation_time)
+                if data_producer_obj.producer_context.deactivation_time:
+                    deactivation_time_tag = etree.SubElement(data_producer_tag, "deactivation_time")
+                    deactivation_time_tag.text = self._format_ion_time(data_producer_obj.producer_context.deactivation_time)
                 execution_configuration_tag = etree.SubElement(data_producer_tag, "execution_configuration")
                 execution_configuration_tag.text = str(data_producer_obj.producer_context.execution_configuration)
 
@@ -297,7 +297,10 @@ class DataProductImpl(ResourceSimpleImpl):
             if data_producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
                 # retrieve specifics from DataProcessProducerContext
                 activation_time_tag = etree.SubElement(data_producer_tag, "activation_time")
-                activation_time_tag.text = data_producer_obj.producer_context.activation_time
+                activation_time_tag.text = self._format_ion_time(data_producer_obj.producer_context.activation_time)
+                if data_producer_obj.producer_context.deactivation_time:
+                    deactivation_time_tag = etree.SubElement(data_producer_tag, "deactivation_time")
+                    deactivation_time_tag.text = self._format_ion_time(data_producer_obj.producer_context.deactivation_time)
                 execution_configuration_tag = etree.SubElement(data_producer_tag, "execution_configuration")
                 execution_configuration_tag.text = str(data_producer_obj.producer_context.execution_configuration)
 
@@ -321,3 +324,7 @@ class DataProductImpl(ResourceSimpleImpl):
                 deployment_sites, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasDeployment, object_type=RT.Deployment)
 
 
+    def _format_ion_time(self, ion_time=''):
+        #ion_time_obj = IonTime.from_string(ion_time)
+        #todo: fix this and return str( ion_time_obj)
+        return str(ion_time)
