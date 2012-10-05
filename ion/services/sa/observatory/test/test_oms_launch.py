@@ -207,7 +207,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='ShoreStation_attr_2', monitor_rate=5, units='xyz')  )
 
         platformSS_device__obj = IonObject(RT.PlatformDevice,
-            name='PlatformSSDevice',
+            name='ShoreStation',
             description='PlatformSSDevice platform device',
             ports = ports,
             platform_monitor_attributes = monitor_attributes)
@@ -263,7 +263,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1A_attr_2', monitor_rate=5, units='xyz')  )
 
         platform1A_device__obj = IonObject(RT.PlatformDevice,
-            name='Platform1ADevice',
+            name='Node1A',
             description='Platform1ADevice platform device',
             ports = ports,
             platform_monitor_attributes = monitor_attributes)
@@ -316,7 +316,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1B_attr_2', monitor_rate=5, units='xyz')  )
 
         platform1B_device__obj = IonObject(RT.PlatformDevice,
-            name='Platform1BDevice',
+            name='Node1B',
             description='Platform1BDevice platform device',
             ports = ports,
             platform_monitor_attributes = monitor_attributes)
@@ -369,7 +369,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
 
         platform1C_device__obj = IonObject(RT.PlatformDevice,
-            name='Platform1CDevice',
+            name='Node1C',
             description='Platform1CDevice platform device',
             ports = ports,
             platform_monitor_attributes = monitor_attributes)
