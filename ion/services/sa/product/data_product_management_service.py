@@ -43,8 +43,11 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         # Create will validate and register a new data product within the system
-        validate_is_not_none(parameter_dictionary, 'A parameter dictionary must be passed to register a data product')
+        # If the stream definition has a parameter dictionary, use that
         validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to register a data product')
+        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id) # Validates and checks for param_dict
+        parameter_dictionary = stream_def_obj.parameter_dictionary or parameter_dictionary
+        validate_is_not_none(parameter_dictionary , 'A parameter dictionary must be passed to register a data product')
         validate_is_not_none(data_product, 'A data product (ion object) must be passed to register a data product')
         exchange_point = exchange_point or 'science_data'
 

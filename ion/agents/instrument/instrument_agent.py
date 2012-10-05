@@ -723,6 +723,7 @@ class InstrumentAgent(ResourceAgent):
             publisher = self._data_publishers[stream_name]
             param_dict = self._param_dicts[stream_name]
             stream_def = self._stream_defs[stream_name]
+            #@TODO Luke: I'm not sure how but the param dicts here need to come out and just use stream defs
             rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
             for (k, v) in val.iteritems():
