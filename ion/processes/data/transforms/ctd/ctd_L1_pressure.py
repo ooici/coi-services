@@ -12,10 +12,12 @@ import numpy as np
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
-from pyon.util.containers import get_safe
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
+
+# For usage: please refer to the integration tests in
+# ion/processes/data/transforms/ctd/test/test_ctd_transforms.py
 
 class CTDL1PressureTransform(TransformDataProcess):
     ''' A basic transform that receives input through a subscription,
@@ -28,14 +30,9 @@ class CTDL1PressureTransform(TransformDataProcess):
     def on_start(self):
         super(CTDL1PressureTransform, self).on_start()
 
-        if self.CFG.process.publish_streams.has_key('pressure'):
-            self.pres_stream = self.CFG.process.publish_streams.pressure
-        elif self.CFG.process.publish_streams.has_key('output'):
-            self.pres_stream = self.CFG.process.publish_streams.output
-
-    def publish(self, msg, stream_id):
-        self.publisher.publish(msg=msg, stream_id=stream_id)
-
+        if not self.CFG.process.publish_streams.has_key('pressure'):
+            raise AssertionError("For CTD transforms, please send the stream_id using "
+                                 "a special keyword (ex: pressure)")
 
     def recv_packet(self, packet, stream_route, stream_id):
         """Processes incoming data!!!!
@@ -43,10 +40,8 @@ class CTDL1PressureTransform(TransformDataProcess):
 
         if packet == {}:
             return
-
         granule = CTDL1PressureTransformAlgorithm.execute(packet)
-
-        self.publish(msg=granule, stream_id=self.pres_stream)
+        self.pressure.publish(msg=granule)
 
 
 class CTDL1PressureTransformAlgorithm(SimpleGranuleTransformFunction):
@@ -57,12 +52,12 @@ class CTDL1PressureTransformAlgorithm(SimpleGranuleTransformFunction):
 
         rdt = RecordDictionaryTool.load_from_granule(input)
 
-        pressure = get_safe(rdt, 'pressure')
+        pressure = rdt['pressure']
 
-        longitude = get_safe(rdt, 'lon')
-        latitude = get_safe(rdt, 'lat')
-        time = get_safe(rdt, 'time')
-        depth = get_safe(rdt, 'depth')
+        longitude = rdt['lon']
+        latitude = rdt['lat']
+        time = rdt['time']
+        depth = rdt['depth']
 
         # create parameter settings
         pres_pdict = CTDL1PressureTransformAlgorithm._create_parameter()

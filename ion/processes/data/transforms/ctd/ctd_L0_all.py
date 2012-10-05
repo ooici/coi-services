@@ -8,7 +8,6 @@ from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
-from pyon.util.containers import get_safe
 from pyon.util.arg_check import validate_true
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
@@ -23,39 +22,23 @@ import re
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import MultiGranuleTransformFunction
 
-#from pyon.util.containers import DotDict
-#from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-#pmsc = PubsubManagementServiceClient(node=cc.node)
-#
-#c_stream_id = pmsc.create_stream(name='conductivity')
-#t_stream_id = pmsc.create_stream(name='temperature')
-#p_stream_id = pmsc.create_stream(name='pressure')
-#
-#config = DotDict()
-#config.process.queue_name = 'test_queue'
-#config.process.exchange_point = 'output_xp'
-#config.process.publish_streams.conductivity = c_stream_id
-#config.process.publish_streams.pressure = p_stream_id
-#config.process.publish_streams.temperature = t_stream_id
-#pid2 = cc.spawn_process(name='ctd_test', module='ion.processes.data.transforms.ctd.ctd_L0_all', cls='ctd_L0_all', config=config)
+# For usage: please refer to the integration tests in
+# ion/processes/data/transforms/ctd/test/test_ctd_transforms.py
 
 class ctd_L0_all(TransformDataProcess):
     """Model for a TransformDataProcess
 
     """
-
     def on_start(self):
         super(ctd_L0_all, self).on_start()
-#        validate_true(hasattr(self, 'conductivity'))
-#        validate_true(hasattr(self, 'temperature'))
-#        validate_true(hasattr(self, 'pressure'))
+        config_streams = self.CFG.process.publish_streams
+        requirement = config_streams.has_key('conductivity') \
+                        and config_streams.has_key('pressure') \
+                        and config_streams.has_key('temperature')
 
-        if self.CFG.process.publish_streams.has_key('output'):
-            raise AssertionError("For CTD transforms, please send the stream_id using a special keyword (ex: conductivity) instead of \'output \'")
-
-        self.cond_stream = self.CFG.process.publish_streams.conductivity
-        self.temp_stream = self.CFG.process.publish_streams.temperature
-        self.pres_stream = self.CFG.process.publish_streams.pressure
+        if not requirement:
+            raise AssertionError("For CTD transforms, please send the stream_ids for conductivity, temperature, pressure"
+                                 " using special keywords (ex: conductivity) for each instead of just \'output \'")
 
     def recv_packet(self, packet,stream_route, stream_id):
         """Processes incoming data!!!!
@@ -65,18 +48,11 @@ class ctd_L0_all(TransformDataProcess):
         """
         if packet == {}:
             return
-
         granules = ctd_L0_algorithm.execute([packet])
-
         for granule in granules:
             self.conductivity.publish(msg = granule['conductivity'])
             self.temperature.publish(msg = granule['temp'])
             self.pressure.publish(msg = granule['pressure'])
-#
-#            self.publish(msg=granule['conductivity'], stream_id=self.cond_stream)
-#            self.publish(msg=granule['temp'], stream_id=self.temp_stream)
-#            self.publish(msg=granule['pressure'], stream_id=self.pres_stream)
-
 
 class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
@@ -92,14 +68,14 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
         for x in input:
             rdt = RecordDictionaryTool.load_from_granule(x)
 
-            conductivity = get_safe(rdt, 'conductivity')
-            pressure = get_safe(rdt, 'pressure')
-            temperature = get_safe(rdt, 'temp')
+            conductivity = rdt['conductivity']
+            pressure = rdt['pressure']
+            temperature = rdt['temp']
 
-            longitude = get_safe(rdt, 'lon')
-            latitude = get_safe(rdt, 'lat')
-            time = get_safe(rdt, 'time')
-            depth = get_safe(rdt, 'depth')
+            longitude = rdt['lon']
+            latitude = rdt['lat']
+            time = rdt['time']
+            depth = rdt['depth']
 
             result = {}
 
@@ -108,8 +84,7 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
             pres_pdict = ctd_L0_algorithm._create_parameter("pressure")
             temp_pdict = ctd_L0_algorithm._create_parameter("temp")
 
-            # build the granule for conductivity
-            # result is a dictionary with keys such as 'conductivity' and values as granules
+            # build the granules for conductivity, temperature and pressure
             result['conductivity'] = ctd_L0_algorithm._build_granule_settings(cond_pdict, 'conductivity', conductivity, time, latitude, longitude, depth)
             result['temp'] = ctd_L0_algorithm._build_granule_settings(temp_pdict, 'temp', temperature, time, latitude, longitude, depth)
             result['pressure'] = ctd_L0_algorithm._build_granule_settings(pres_pdict, 'pressure', pressure, time, latitude, longitude, depth)

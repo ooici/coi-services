@@ -175,14 +175,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         # Schedule the process
         pid = self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
 
-#        # Make a test hook for the publish method of the ctd transform for the purpose of testing
-#        proc = None
-#        for process_name in self.container.proc_manager.procs.iterkeys():
-#            if process_name.find("ctd_L0_all") != -1:
-#                proc = self.container.proc_manager.procs[process_name]
-#                break
-
-
         #---------------------------------------------------------------------------------------------
         # Create subscribers that will receive the conductivity, temperature and pressure granules from
         # the ctd transform
@@ -191,17 +183,19 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         def subscriber1(m, r, s):
             ar_cond.set(m)
         sub_cond = StandaloneStreamSubscriber('sub_cond', subscriber1)
+        self.addCleanup(sub_cond.stop)
 
         ar_temp = gevent.event.AsyncResult()
         def subscriber2(m,r,s):
             ar_temp.set(m)
         sub_temp = StandaloneStreamSubscriber('sub_temp', subscriber2)
+        self.addCleanup(sub_temp.stop)
 
         ar_pres = gevent.event.AsyncResult()
         def subscriber3(m,r,s):
             ar_pres.set(m)
         sub_pres = StandaloneStreamSubscriber('sub_pres', subscriber3)
-
+        self.addCleanup(sub_pres.stop)
 
         sub_cond_id = self.pubsub_management.create_subscription('subscription_cond',
                                                                             stream_ids=[cond_stream_id],
@@ -262,9 +256,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         log.debug("result_cond: %s" % result_cond)
         log.debug("result_temp: %s" % result_temp)
         log.debug("result_pres: %s" % result_pres)
-#
-#        # Check that the transform algorithm was successfully executed
-        self.check_granule_splitting(publish_granule, result)
+
+        # Check that the transform algorithm was successfully executed
+        self.check_granule_splitting(publish_granule, [result_cond, result_temp, result_pres])
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -290,24 +284,33 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.exchange_point = self.exchange_point
 
         config.process.interval = 1.0
-        config.process.publish_streams.conductivity, _ = self.pubsub_management.create_stream('test_conductivity',
+
+        cond_stream_id, _ = self.pubsub_management.create_stream('test_conductivity',
             exchange_point='science_data')
+
+        config.process.publish_streams.conductivity = cond_stream_id
 
         # Schedule the process
         self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
 
-        # Make a test hook for the publish method of the ctd transform for the purpose of testing
-        proc = None
-        for process_name in self.container.proc_manager.procs.iterkeys():
-            if process_name.find("CTDL1ConductivityTransform") != -1:
-                proc = self.container.proc_manager.procs[process_name]
-                break
-        ar = gevent.event.AsyncResult()
-        def test_hook(msg, stream_id):
-            ar.set(msg)
+        #---------------------------------------------------------------------------------------------
+        # Create subscribers that will receive the conductivity, temperature and pressure granules from
+        # the ctd transform
+        #---------------------------------------------------------------------------------------------
+        ar_cond = gevent.event.AsyncResult()
+        def subscriber1(m, r, s):
+            ar_cond.set(m)
+        sub_cond = StandaloneStreamSubscriber('sub_cond', subscriber1)
 
-        proc.publish = test_hook
+        sub_cond_id = self.pubsub_management.create_subscription('subscription_cond',
+            stream_ids=[cond_stream_id],
+            exchange_name='sub_cond')
 
+        self.pubsub_management.activate_subscription(sub_cond_id)
+
+        self.queue_cleanup.append(sub_cond.xn.queue)
+
+        sub_cond.start()
 
         #------------------------------------------------------------------------------------------------------
         # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
@@ -337,21 +340,23 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------------
 
         # Get the granule that is published by the ctd transform post processing
-        result = ar.get(timeout=10)
-        self.assertTrue(isinstance(result, Granule))
+        result_cond = ar_cond.get(timeout=10)
+        log.debug("result_cond: %s" % result_cond)
 
-        rdt = RecordDictionaryTool.load_from_granule(result)
+        self.assertTrue(isinstance(result_cond, Granule))
+
+        rdt = RecordDictionaryTool.load_from_granule(result_cond)
         self.assertTrue(rdt.__contains__('conductivity'))
 
-        self.check_cond_algorithm_execution(publish_granule, result)
+        self.check_cond_algorithm_execution(publish_granule, result_cond)
 
     def check_cond_algorithm_execution(self, publish_granule, granule_from_transform):
 
         input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
         output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
 
-        output_data = get_safe(output_rdt_transform, 'conductivity')
-        input_data = get_safe(input_rdt_to_transform, 'conductivity')
+        output_data = output_rdt_transform['conductivity']
+        input_data = input_rdt_to_transform['conductivity']
 
         self.assertTrue(((input_data / 100000.0) - 0.5).all() == output_data.all())
 
@@ -360,8 +365,8 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
         output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
 
-        output_data = get_safe(output_rdt_transform, 'pressure')
-        input_data = get_safe(input_rdt_to_transform, 'pressure')
+        output_data = output_rdt_transform['pressure']
+        input_data = input_rdt_to_transform['pressure']
 
         self.assertTrue(input_data.all() == output_data.all())
 
@@ -370,8 +375,8 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
         output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
 
-        output_data = get_safe(output_rdt_transform, 'temp')
-        input_data = get_safe(input_rdt_to_transform, 'temp')
+        output_data = output_rdt_transform['temp']
+        input_data = input_rdt_to_transform['temp']
 
         self.assertTrue(((input_data / 100000.0) - 10).all() == output_data.all())
 
@@ -383,18 +388,18 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
         output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
 
-        conductivity = get_safe(input_rdt_to_transform, 'conductivity')
-        pressure = get_safe(input_rdt_to_transform, 'pressure')
-        temperature = get_safe(input_rdt_to_transform, 'temp')
+        conductivity = input_rdt_to_transform['conductivity']
+        pressure = input_rdt_to_transform['pressure']
+        temperature = input_rdt_to_transform['temp']
 
-        longitude = get_safe(input_rdt_to_transform, 'lon')
-        latitude = get_safe(input_rdt_to_transform, 'lat')
+        longitude = input_rdt_to_transform['lon']
+        latitude = input_rdt_to_transform['lat']
 
         sp = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
         sa = SA_from_SP(sp, pressure, longitude, latitude)
         dens_value = rho(sa, temperature, pressure)
 
-        out_density = get_safe(output_rdt_transform, 'density')
+        out_density = output_rdt_transform['density']
 
         #-----------------------------------------------------------------------------
         # Check that the output data from the transform has the correct density values
@@ -409,23 +414,23 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
         output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
 
-        conductivity = get_safe(input_rdt_to_transform, 'conductivity')
-        pressure = get_safe(input_rdt_to_transform, 'pressure')
-        temperature = get_safe(input_rdt_to_transform, 'temp')
+        conductivity = input_rdt_to_transform['conductivity']
+        pressure = input_rdt_to_transform['pressure']
+        temperature = input_rdt_to_transform['temp']
 
-        longitude = get_safe(input_rdt_to_transform, 'lon')
-        latitude = get_safe(input_rdt_to_transform, 'lat')
+        longitude = input_rdt_to_transform['lon']
+        latitude = input_rdt_to_transform['lat']
 
         sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
 
-        out_salinity = get_safe(output_rdt_transform, 'salinity')
+        out_salinity = output_rdt_transform['salinity']
 
         #-----------------------------------------------------------------------------
         # Check that the output data from the transform has the correct density values
         #-----------------------------------------------------------------------------
         self.assertTrue(sal_value.all() == out_salinity.all())
 
-    def check_granule_splitting(self, publish_granule, out_granule):
+    def check_granule_splitting(self, publish_granule, out_granules):
         '''
         This checks that the ctd_L0_all transform is able to split out one of the
         granules from the whole granule
@@ -434,21 +439,22 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
 
-        in_cond = get_safe(input_rdt_to_transform, 'conductivity')
-        in_pressure = get_safe(input_rdt_to_transform, 'pressure')
-        in_temp = get_safe(input_rdt_to_transform, 'temp')
+        in_cond = input_rdt_to_transform['conductivity']
+        in_pressure = input_rdt_to_transform['pressure']
+        in_temp = input_rdt_to_transform['temp']
 
         out_cond = None
         out_pressure = None
         out_temp = None
 
-        output_rdt_transform = RecordDictionaryTool.load_from_granule(out_granule)
-        if output_rdt_transform.__contains__('conductivity'):
-            out_cond = get_safe(output_rdt_transform, 'conductivity')
-        elif output_rdt_transform.__contains__('pressure'):
-            out_pressure = get_safe(output_rdt_transform, 'pressure')
-        elif output_rdt_transform.__contains__('temp'):
-            out_temp = get_safe(output_rdt_transform, 'temp')
+        for out_granule in out_granules:
+            output_rdt_transform = RecordDictionaryTool.load_from_granule(out_granule)
+            if output_rdt_transform.__contains__('conductivity'):
+                out_cond = output_rdt_transform['conductivity']
+            elif output_rdt_transform.__contains__('pressure'):
+                out_pressure = output_rdt_transform['pressure']
+            elif output_rdt_transform.__contains__('temp'):
+                out_temp = output_rdt_transform['temp']
 
         self.assertTrue(in_cond.all() == out_cond.all())
         self.assertTrue(in_pressure.all() == out_pressure.all())
@@ -478,24 +484,33 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.exchange_point = self.exchange_point
 
         config.process.interval = 1.0
-        config.process.publish_streams.pressure, _ = self.pubsub_management.create_stream('test_pressure',
+        pres_stream_id, _ = self.pubsub_management.create_stream('test_pressure',
             exchange_point='science_data')
+
+        config.process.publish_streams.pressure = pres_stream_id
 
         # Schedule the process
         self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
 
-        # Make a test hook for the publish method of the ctd transform for the purpose of testing
-        proc = None
-        for process_name in self.container.proc_manager.procs.iterkeys():
-            if process_name.find("CTDL1PressureTransform") != -1:
-                proc = self.container.proc_manager.procs[process_name]
-                break
-        ar = gevent.event.AsyncResult()
-        def test_hook(msg, stream_id):
-            ar.set(msg)
+        #---------------------------------------------------------------------------------------------
+        # Create subscribers that will receive the pressure granules from
+        # the ctd transform
+        #---------------------------------------------------------------------------------------------
 
-        proc.publish = test_hook
+        ar_pres = gevent.event.AsyncResult()
+        def subscriber3(m,r,s):
+            ar_pres.set(m)
+        sub_pres = StandaloneStreamSubscriber('sub_pres', subscriber3)
 
+        sub_pres_id = self.pubsub_management.create_subscription('subscription_pres',
+            stream_ids=[pres_stream_id],
+            exchange_name='sub_pres')
+
+        self.pubsub_management.activate_subscription(sub_pres_id)
+
+        self.queue_cleanup.append(sub_pres.xn.queue)
+
+        sub_pres.start()
 
         #------------------------------------------------------------------------------------------------------
         # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
@@ -525,7 +540,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------------
 
         # Get the granule that is published by the ctd transform post processing
-        result = ar.get(timeout=10)
+        result = ar_pres.get(timeout=10)
         self.assertTrue(isinstance(result, Granule))
 
         rdt = RecordDictionaryTool.load_from_granule(result)
@@ -557,24 +572,33 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.exchange_point = self.exchange_point
 
         config.process.interval = 1.0
-        config.process.publish_streams.temperature, _ = self.pubsub_management.create_stream('test_temperature',
+        temp_stream_id, _ = self.pubsub_management.create_stream('test_temperature',
             exchange_point='science_data')
+
+        config.process.publish_streams.temperature = temp_stream_id
 
         # Schedule the process
         self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
 
-        # Make a test hook for the publish method of the ctd transform for the purpose of testing
-        proc = None
-        for process_name in self.container.proc_manager.procs.iterkeys():
-            if process_name.find("CTDL1TemperatureTransform") != -1:
-                proc = self.container.proc_manager.procs[process_name]
-                break
-        ar = gevent.event.AsyncResult()
-        def test_hook(msg, stream_id):
-            ar.set(msg)
+        #---------------------------------------------------------------------------------------------
+        # Create subscriber that will receive the temperature granule from
+        # the ctd transform
+        #---------------------------------------------------------------------------------------------
 
-        proc.publish = test_hook
+        ar_temp = gevent.event.AsyncResult()
+        def subscriber2(m,r,s):
+            ar_temp.set(m)
+        sub_temp = StandaloneStreamSubscriber('sub_temp', subscriber2)
 
+        sub_temp_id = self.pubsub_management.create_subscription('subscription_temp',
+            stream_ids=[temp_stream_id],
+            exchange_name='sub_temp')
+
+        self.pubsub_management.activate_subscription(sub_temp_id)
+
+        self.queue_cleanup.append(sub_temp.xn.queue)
+
+        sub_temp.start()
 
         #------------------------------------------------------------------------------------------------------
         # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
@@ -604,7 +628,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------------
 
         # Get the granule that is published by the ctd transform post processing
-        result = ar.get(timeout=10)
+        result = ar_temp.get(timeout=10)
         self.assertTrue(isinstance(result, Granule))
 
         rdt = RecordDictionaryTool.load_from_granule(result)
@@ -636,24 +660,32 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.exchange_point = self.exchange_point
 
         config.process.interval = 1.0
-        config.process.publish_streams.density, _ = self.pubsub_management.create_stream('test_density',
+
+        dens_stream_id, _ = self.pubsub_management.create_stream('test_density',
             exchange_point='science_data')
+        config.process.publish_streams.density = dens_stream_id
 
         # Schedule the process
         self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
 
-        # Make a test hook for the publish method of the ctd transform for the purpose of testing
-        proc = None
-        for process_name in self.container.proc_manager.procs.iterkeys():
-            if process_name.find("DensityTransform") != -1:
-                proc = self.container.proc_manager.procs[process_name]
-                break
-        ar = gevent.event.AsyncResult()
-        def test_hook(msg, stream_id):
-            ar.set(msg)
+        #---------------------------------------------------------------------------------------------
+        # Create a subscriber that will receive the density granule from the ctd transform
+        #---------------------------------------------------------------------------------------------
 
-        proc.publish = test_hook
+        ar_dens = gevent.event.AsyncResult()
+        def subscriber3(m,r,s):
+            ar_dens.set(m)
+        sub_dens = StandaloneStreamSubscriber('sub_dens', subscriber3)
 
+        sub_dens_id = self.pubsub_management.create_subscription('subscription_dens',
+            stream_ids=[dens_stream_id],
+            exchange_name='sub_dens')
+
+        self.pubsub_management.activate_subscription(sub_dens_id)
+
+        self.queue_cleanup.append(sub_dens.xn.queue)
+
+        sub_dens.start()
 
         #------------------------------------------------------------------------------------------------------
         # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
@@ -683,7 +715,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------------
 
         # Get the granule that is published by the ctd transform post processing
-        result = ar.get(timeout=10)
+        result = ar_dens.get(timeout=10)
         self.assertTrue(isinstance(result, Granule))
 
         rdt = RecordDictionaryTool.load_from_granule(result)
@@ -715,24 +747,33 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.exchange_point = self.exchange_point
 
         config.process.interval = 1.0
-        config.process.publish_streams.salinity, _ = self.pubsub_management.create_stream('test_salinity',
+
+        sal_stream_id, _ = self.pubsub_management.create_stream('test_salinity',
             exchange_point='science_data')
+
+        config.process.publish_streams.salinity = sal_stream_id
 
         # Schedule the process
         self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
 
-        # Make a test hook for the publish method of the ctd transform for the purpose of testing
-        proc = None
-        for process_name in self.container.proc_manager.procs.iterkeys():
-            if process_name.find("SalinityTransform") != -1:
-                proc = self.container.proc_manager.procs[process_name]
-                break
-        ar = gevent.event.AsyncResult()
-        def test_hook(msg, stream_id):
-            ar.set(msg)
+        #---------------------------------------------------------------------------------------------
+        # Create a subscriber that will receive the salinity granule from the ctd transform
+        #---------------------------------------------------------------------------------------------
 
-        proc.publish = test_hook
+        ar_sal = gevent.event.AsyncResult()
+        def subscriber3(m,r,s):
+            ar_sal.set(m)
+        sub_sal = StandaloneStreamSubscriber('sub_sal', subscriber3)
 
+        sub_sal_id = self.pubsub_management.create_subscription('subscription_sal',
+            stream_ids=[sal_stream_id],
+            exchange_name='sub_sal')
+
+        self.pubsub_management.activate_subscription(sub_sal_id)
+
+        self.queue_cleanup.append(sub_sal.xn.queue)
+
+        sub_sal.start()
 
         #------------------------------------------------------------------------------------------------------
         # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
@@ -762,7 +803,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------------
 
         # Get the granule that is published by the ctd transform post processing
-        result = ar.get(timeout=10)
+        result = ar_sal.get(timeout=10)
         self.assertTrue(isinstance(result, Granule))
 
         rdt = RecordDictionaryTool.load_from_granule(result)
