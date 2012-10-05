@@ -437,7 +437,7 @@ class SitePolicy(ResourceLCSPolicy):
 
     def lce_precondition_retire(self, site_id):
         # todo: Sites and all subclasses can not be retired if they have children or if they are
-        # not associated to a deployment
+        # not associated to a deployment
         site_type = self._get_resource_type_by_id(site_id)
 
         if RT.InstrumentSite == site_type:
