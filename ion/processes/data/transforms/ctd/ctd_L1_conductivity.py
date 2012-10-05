@@ -10,6 +10,7 @@ from pyon.public import log
 import numpy as np
 
 ### For new granule and stream interface
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from coverage_model.parameter import ParameterDictionary, ParameterContext
@@ -28,17 +29,25 @@ class CTDL1ConductivityTransform(TransformDataProcess):
 
     def on_start(self):
         super(CTDL1ConductivityTransform, self).on_start()
+        pubsub = PubsubManagementServiceClient()
 
         if not self.CFG.process.publish_streams.has_key('conductivity'):
             raise AssertionError("For CTD transforms, please send the stream_id using "
                                  "a special keyword (ex: conductivity)")
+        self.cond_stream = self.CFG.process.publish_streams.conductivity
 
-    def recv_packet(self, granule, stream_route, stream_id):
+        # Read the parameter dict from the stream def of the stream
+        stream_definition = pubsub.read_stream_definition(stream_id=self.cond_stream)
+        pdict = stream_definition.parameter_dictionary
+        self.cond_pdict = ParameterDictionary.load(pdict)
+
+    def recv_packet(self, packet, stream_route, stream_id):
         """Processes incoming data!!!!
         """
-        if granule == {}:
+        if packet == {}:
             returns
-        granule = CTDL1ConductivityTransformAlgorithm.execute(granule)
+
+        granule = CTDL1ConductivityTransformAlgorithm.execute(packet, params=self.cond_pdict)
         self.conductivity.publish(msg=granule)
 
 class CTDL1ConductivityTransformAlgorithm(SimpleGranuleTransformFunction):
@@ -50,83 +59,23 @@ class CTDL1ConductivityTransformAlgorithm(SimpleGranuleTransformFunction):
         @param input Granule
         @retval result Granule
         '''
-        rdt = RecordDictionaryTool.load_from_granule(input)
 
+        rdt = RecordDictionaryTool.load_from_granule(input)
         conductivity = rdt['conductivity']
 
-        longitude = rdt['lon']
-        latitude = rdt['lat']
-        time = rdt['time']
-        depth = rdt['depth']
-
         # create parameter settings
-        cond_pdict = CTDL1ConductivityTransformAlgorithm._create_parameter()
-
         cond_value = (conductivity / 100000.0) - 0.5
         # build the granule for conductivity
-        result = CTDL1ConductivityTransformAlgorithm._build_granule_settings(cond_pdict, 'conductivity', cond_value, time, latitude, longitude, depth)
-
+        result = CTDL1ConductivityTransformAlgorithm._build_granule(param_dictionary = params,
+                                                                    field_name ='conductivity',
+                                                                    value=cond_value)
         return result
 
     @staticmethod
-    def _create_parameter():
-
-        pdict = ParameterDictionary()
-
-        pdict = CTDL1ConductivityTransformAlgorithm._add_location_time_ctxt(pdict)
-
-        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.float32))
-        cond_ctxt.uom = 'unknown'
-        cond_ctxt.fill_value = 0e0
-        pdict.add_context(cond_ctxt)
-
-        return pdict
-
-    @staticmethod
-    def _add_location_time_ctxt(pdict):
-
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 1970-01-01'
-        t_ctxt.fill_value = 0x0
-        pdict.add_context(t_ctxt)
-
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
-        lat_ctxt.reference_frame = AxisTypeEnum.LAT
-        lat_ctxt.uom = 'degree_north'
-        lat_ctxt.fill_value = 0e0
-        pdict.add_context(lat_ctxt)
-
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
-        lon_ctxt.reference_frame = AxisTypeEnum.LON
-        lon_ctxt.uom = 'degree_east'
-        lon_ctxt.fill_value = 0e0
-        pdict.add_context(lon_ctxt)
-
-        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
-        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        depth_ctxt.uom = 'meters'
-        depth_ctxt.fill_value = 0e0
-        pdict.add_context(depth_ctxt)
-
-        return pdict
-
-    @staticmethod
-    def _build_granule_settings(param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, depth=None):
+    def _build_granule(param_dictionary=None, field_name='', value=None):
 
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
-
         root_rdt[field_name] = value
-
-        if not time is None:
-            root_rdt['time'] = time
-        if not latitude is None:
-            root_rdt['lat'] = latitude
-        if not longitude is None:
-            root_rdt['lon'] = longitude
-        if not depth is None:
-            root_rdt['depth'] = depth
-
         log.debug("CTDL1ConductivityTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
 
         return root_rdt.to_granule()

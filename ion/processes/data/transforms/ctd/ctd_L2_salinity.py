@@ -71,7 +71,9 @@ class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
         # build the granule for salinity
-        result = CTDL2SalinityTransformAlgorithm._build_granule_settings(sal_pdict, 'salinity', sal_value, time, latitude, longitude, depth)
+        result = CTDL2SalinityTransformAlgorithm._build_granule_settings(param_dictionary=sal_pdict,
+                                                                        field_name='salinity',
+                                                                        value=sal_value)
 
         return result
 
@@ -119,19 +121,9 @@ class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
         return pdict
 
     @staticmethod
-    def _build_granule_settings(param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, depth=None):
+    def _build_granule_settings(param_dictionary=None, field_name='', value=None):
+
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
-
         root_rdt[field_name] = value
-
-        if not time is None:
-            root_rdt['time'] = time
-        if not latitude is None:
-            root_rdt['lat'] = latitude
-        if not longitude is None:
-            root_rdt['lon'] = longitude
-        if not depth is None:
-            root_rdt['depth'] = depth
-
         log.debug("CTDL2SalinityTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
         return root_rdt.to_granule()

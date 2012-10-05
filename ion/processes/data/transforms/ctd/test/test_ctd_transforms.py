@@ -31,6 +31,7 @@ from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.ctd.ctd_L2_density import DensityTransform
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.util.parameter_yaml_IO import get_param_dict
 import unittest, os, gevent
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
@@ -121,7 +122,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         self.exchange_cleanup = []
 
 
-        self.pubsub_management = PubsubManagementServiceClient()
+        self.pubsub = PubsubManagementServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
 
         self.exchange_name = 'ctd_L0_all_queue'
@@ -161,13 +162,13 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         config.process.interval = 1.0
 
-        cond_stream_id, _ = self.pubsub_management.create_stream('test_conductivity', exchange_point='science_data')
+        cond_stream_id, _ = self.pubsub.create_stream('test_conductivity', exchange_point='science_data')
         config.process.publish_streams.conductivity = cond_stream_id
 
-        temp_stream_id, _ = self.pubsub_management.create_stream('test_temperature', exchange_point='science_data')
+        temp_stream_id, _ = self.pubsub.create_stream('test_temperature', exchange_point='science_data')
         config.process.publish_streams.temperature = temp_stream_id
 
-        pres_stream_id, _ = self.pubsub_management.create_stream('test_pressure',  exchange_point='science_data')
+        pres_stream_id, _ = self.pubsub.create_stream('test_pressure',  exchange_point='science_data')
         config.process.publish_streams.pressure = pres_stream_id
 
         log.debug("config:: %s" % config)
@@ -197,21 +198,21 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         sub_pres = StandaloneStreamSubscriber('sub_pres', subscriber3)
         self.addCleanup(sub_pres.stop)
 
-        sub_cond_id = self.pubsub_management.create_subscription('subscription_cond',
+        sub_cond_id = self.pubsub.create_subscription('subscription_cond',
                                                                             stream_ids=[cond_stream_id],
                                                                             exchange_name='sub_cond')
 
-        sub_temp_id = self.pubsub_management.create_subscription('subscription_temp',
+        sub_temp_id = self.pubsub.create_subscription('subscription_temp',
             stream_ids=[temp_stream_id],
             exchange_name='sub_temp')
 
-        sub_pres_id = self.pubsub_management.create_subscription('subscription_pres',
+        sub_pres_id = self.pubsub.create_subscription('subscription_pres',
             stream_ids=[pres_stream_id],
             exchange_name='sub_pres')
 
-        self.pubsub_management.activate_subscription(sub_cond_id)
-        self.pubsub_management.activate_subscription(sub_temp_id)
-        self.pubsub_management.activate_subscription(sub_pres_id)
+        self.pubsub.activate_subscription(sub_cond_id)
+        self.pubsub.activate_subscription(sub_temp_id)
+        self.pubsub.activate_subscription(sub_pres_id)
 
         self.queue_cleanup.append(sub_cond.xn.queue)
         self.queue_cleanup.append(sub_temp.xn.queue)
@@ -285,8 +286,15 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         config.process.interval = 1.0
 
-        cond_stream_id, _ = self.pubsub_management.create_stream('test_conductivity',
-            exchange_point='science_data')
+        pdict = get_param_dict('simple_data_particle_parsed_param_dict')
+
+        log.debug("pdict: %s" % pdict)
+        log.debug("type of pdict: %s" % type(pdict))
+
+        stream_def_id =  self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary=pdict.dump())
+        cond_stream_id, _ = self.pubsub.create_stream('test_conductivity',
+                                                        exchange_point='science_data',
+                                                        stream_definition_id=stream_def_id)
 
         config.process.publish_streams.conductivity = cond_stream_id
 
@@ -303,11 +311,11 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         sub_cond = StandaloneStreamSubscriber('sub_cond', subscriber1)
         self.addCleanup(sub_cond.stop)
 
-        sub_cond_id = self.pubsub_management.create_subscription('subscription_cond',
+        sub_cond_id = self.pubsub.create_subscription('subscription_cond',
             stream_ids=[cond_stream_id],
             exchange_name='sub_cond')
 
-        self.pubsub_management.activate_subscription(sub_cond_id)
+        self.pubsub.activate_subscription(sub_cond_id)
 
         self.queue_cleanup.append(sub_cond.xn.queue)
 
@@ -485,7 +493,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.exchange_point = self.exchange_point
 
         config.process.interval = 1.0
-        pres_stream_id, _ = self.pubsub_management.create_stream('test_pressure',
+        pres_stream_id, _ = self.pubsub.create_stream('test_pressure',
             exchange_point='science_data')
 
         config.process.publish_streams.pressure = pres_stream_id
@@ -504,11 +512,11 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         sub_pres = StandaloneStreamSubscriber('sub_pres', subscriber3)
         self.addCleanup(sub_pres.stop)
 
-        sub_pres_id = self.pubsub_management.create_subscription('subscription_pres',
+        sub_pres_id = self.pubsub.create_subscription('subscription_pres',
             stream_ids=[pres_stream_id],
             exchange_name='sub_pres')
 
-        self.pubsub_management.activate_subscription(sub_pres_id)
+        self.pubsub.activate_subscription(sub_pres_id)
 
         self.queue_cleanup.append(sub_pres.xn.queue)
 
@@ -574,7 +582,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.exchange_point = self.exchange_point
 
         config.process.interval = 1.0
-        temp_stream_id, _ = self.pubsub_management.create_stream('test_temperature',
+        temp_stream_id, _ = self.pubsub.create_stream('test_temperature',
             exchange_point='science_data')
 
         config.process.publish_streams.temperature = temp_stream_id
@@ -593,11 +601,11 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         sub_temp = StandaloneStreamSubscriber('sub_temp', subscriber2)
         self.addCleanup(sub_temp.stop)
 
-        sub_temp_id = self.pubsub_management.create_subscription('subscription_temp',
+        sub_temp_id = self.pubsub.create_subscription('subscription_temp',
             stream_ids=[temp_stream_id],
             exchange_name='sub_temp')
 
-        self.pubsub_management.activate_subscription(sub_temp_id)
+        self.pubsub.activate_subscription(sub_temp_id)
 
         self.queue_cleanup.append(sub_temp.xn.queue)
 
@@ -664,7 +672,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         config.process.interval = 1.0
 
-        dens_stream_id, _ = self.pubsub_management.create_stream('test_density',
+        dens_stream_id, _ = self.pubsub.create_stream('test_density',
             exchange_point='science_data')
         config.process.publish_streams.density = dens_stream_id
 
@@ -681,11 +689,11 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         sub_dens = StandaloneStreamSubscriber('sub_dens', subscriber3)
         self.addCleanup(sub_dens.stop)
 
-        sub_dens_id = self.pubsub_management.create_subscription('subscription_dens',
+        sub_dens_id = self.pubsub.create_subscription('subscription_dens',
             stream_ids=[dens_stream_id],
             exchange_name='sub_dens')
 
-        self.pubsub_management.activate_subscription(sub_dens_id)
+        self.pubsub.activate_subscription(sub_dens_id)
 
         self.queue_cleanup.append(sub_dens.xn.queue)
 
@@ -752,7 +760,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         config.process.interval = 1.0
 
-        sal_stream_id, _ = self.pubsub_management.create_stream('test_salinity',
+        sal_stream_id, _ = self.pubsub.create_stream('test_salinity',
             exchange_point='science_data')
 
         config.process.publish_streams.salinity = sal_stream_id
@@ -770,11 +778,11 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         sub_sal = StandaloneStreamSubscriber('sub_sal', subscriber3)
         self.addCleanup(sub_sal.stop)
 
-        sub_sal_id = self.pubsub_management.create_subscription('subscription_sal',
+        sub_sal_id = self.pubsub.create_subscription('subscription_sal',
             stream_ids=[sal_stream_id],
             exchange_name='sub_sal')
 
-        self.pubsub_management.activate_subscription(sub_sal_id)
+        self.pubsub.activate_subscription(sub_sal_id)
 
         self.queue_cleanup.append(sub_sal.xn.queue)
 

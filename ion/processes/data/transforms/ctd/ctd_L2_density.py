@@ -69,7 +69,9 @@ class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         sa = SA_from_SP(sp, pressure, longitude, latitude)
         dens_value = rho(sa, temperature, pressure)
         # build the granule for density
-        result = CTDL2DensityTransformAlgorithm._build_granule_settings(dens_pdict, 'density', dens_value, time, latitude, longitude, depth)
+        result = CTDL2DensityTransformAlgorithm._build_granule_settings(param_dictionary=dens_pdict,
+                                                                        field_name='density',
+                                                                        value=dens_value)
 
         return result
 
@@ -117,20 +119,9 @@ class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         return pdict
 
     @staticmethod
-    def _build_granule_settings(param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, depth=None):
+    def _build_granule_settings(param_dictionary=None, field_name='', value=None):
 
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
-
         root_rdt[field_name] = value
-
-        if not time is None:
-            root_rdt['time'] = time
-        if not latitude is None:
-            root_rdt['lat'] = latitude
-        if not longitude is None:
-            root_rdt['lon'] = longitude
-        if not depth is None:
-            root_rdt['depth'] = depth
-
         log.debug("CTDL2DensityTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
         return root_rdt.to_granule()
