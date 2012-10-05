@@ -122,38 +122,6 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
 
 
 
-    @unittest.skip('Requires platform agent, plus interaction between it and instrument agent')
-    def test_l4_ci_sa_rq_315(self):
-        """
-        Instrument management shall implement physical resource command queueing
-
-        For use on intermittently-connected platforms.
-        The batch file is executed the next time the platform is connected.
-        """
-        pass
-
-
-    @unittest.skip('Capabilities not yet available')
-    def test_l4_ci_sa_rq_314_320_321_225_335(self):
-        """
-        314: Instrument management control capabilities shall submit requests to control a physical resource as
-              required by policy
-        320:Instrument management shall implement the acquire life cycle activity
-        321:Instrument management shall implement the release life cycle activity
-
-        225: The instrument activation services shall support the deactivation of physical resources.
-        225: Instrument activation shall support transition to the deactivated state of instruments
-        225: Deactivation means the instrument is no longer available for use. This takes the instrument off-line,
-              powers it down and shuts down its Instrument Agent.
-        The predecessor to the actual submission of a command.  Then release instrument
-
-        335: Instrument activation shall support transition to the retired state of instruments
-
-
-        note from maurice 2012-05-18: coord with stephen
-        """
-        pass
-
 
     def test_l4_ci_sa_rq_139(self):
         """
@@ -178,6 +146,37 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
 
 
     ###### not done yet
+
+
+    @unittest.skip('Requires platform agent, plus interaction between it and instrument agent')
+    def test_l4_ci_sa_rq_315(self):
+        """
+        Instrument management shall implement physical resource command queueing
+
+        For use on intermittently-connected platforms.
+        The batch file is executed the next time the platform is connected.
+        """
+        pass
+
+
+    @unittest.skip('Capabilities not yet available')
+    def test_l4_ci_sa_rq_314_320_321_225(self):
+        """
+        314: Instrument management control capabilities shall submit requests to control a physical resource as
+              required by policy
+        320:Instrument management shall implement the acquire life cycle activity
+        321:Instrument management shall implement the release life cycle activity
+
+        225: The instrument activation services shall support the deactivation of physical resources.
+        225: Instrument activation shall support transition to the deactivated state of instruments
+        225: Deactivation means the instrument is no longer available for use. This takes the instrument off-line,
+              powers it down and shuts down its Instrument Agent.
+        The predecessor to the actual submission of a command.  Then release instrument
+
+
+        note from maurice 2012-05-18: coord with stephen
+        """
+        pass
 
 
     @unittest.skip('Policy capabilities not yet available')

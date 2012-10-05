@@ -602,7 +602,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         c.IMS.delete_instrument_device(instrument_device_id)
         log.debug("L4-CI-SA-RQ-334 RETIRE")
-
+        log.debug("L4-CI-SA-RQ-335: Instrument activation shall support transition to the retired state of instruments")
 
 
     def create_data_product_obj(self):
