@@ -14,7 +14,6 @@ import gevent
 class BetterDataProducer(SimpleCtdPublisher):
     def on_start(self):
         self.pdict = None
-
         stream_id = self.CFG.get_safe('process.stream_id')
         pubsub_cli = PubsubManagementServiceProcessClient(process=self)
         try: 

@@ -5,18 +5,22 @@
 @file ion/services/dm/distribution/test/test_pubsub.py
 @brief Publication / Subscription Management Service Test Cases
 '''
-
-from nose.plugins.attrib import attr
-from pyon.util.unit_test import PyonTestCase
-from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.exception import NotFound
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from pyon.public import PRED
+from pyon.util.unit_test import PyonTestCase
+from pyon.util.int_test import IonIntegrationTestCase
+
+from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
 from gevent.event import Event
 from gevent.queue import Queue, Empty
+from nose.plugins.attrib import attr
 
 @attr('UNIT',group='dm')
 class PubsubManagementUnitTest(PyonTestCase):
@@ -28,8 +32,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        self.pubsub_management = PubsubManagementServiceClient()
-        self.resource_registry = ResourceRegistryServiceClient()
+        self.pubsub_management  = PubsubManagementServiceClient()
+        self.resource_registry  = ResourceRegistryServiceClient()
+        self.dataset_management = DatasetManagementServiceClient()
 
 
         self.queue_cleanup = list()
@@ -44,12 +49,22 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
             xp.delete()
 
     def test_stream_def_crud(self):
-        stream_definition_id = self.pubsub_management.create_stream_definition('test_definition', parameter_dictionary={1:1}, stream_type='stream')
+
+        # Test Creation
+        pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        stream_definition_id = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict.identifier)
+
+        # Make sure there is an assoc
+        self.assertTrue(self.resource_registry.find_associations(subject=stream_definition_id, predicate=PRED.hasParameterDictionary, object=pdict.identifier, id_only=True))
+
+        # Test Reading
         stream_definition = self.pubsub_management.read_stream_definition(stream_definition_id)
-        self.assertEquals(stream_definition.name,'test_definition')
+        self.assertTrue(PubsubManagementService._compare_pdicts(pdict.dump(), stream_definition.parameter_dictionary))
+
+        # Test Deleting
         self.pubsub_management.delete_stream_definition(stream_definition_id)
-        with self.assertRaises(NotFound):
-            self.pubsub_management.read_stream_definition(stream_definition_id)
+        self.assertFalse(self.resource_registry.find_associations(subject=stream_definition_id, predicate=PRED.hasParameterDictionary, object=pdict.identifier, id_only=True))
+
 
     def publish_on_stream(self, stream_id, msg):
         stream = self.pubsub_management.read_stream(stream_id)
@@ -58,7 +73,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         publisher.publish(msg)
 
     def test_stream_crud(self):
-        stream_def_id = self.pubsub_management.create_stream_definition('test_definition', parameter_dictionary={1:1}, stream_type='stream')
+        stream_def_id = self.pubsub_management.create_stream_definition('test_definition', stream_type='stream')
         topic_id = self.pubsub_management.create_topic(name='test_topic', exchange_point='test_exchange')
         self.exchange_cleanup.append('test_exchange')
         topic2_id = self.pubsub_management.create_topic(name='another_topic', exchange_point='outside')
@@ -89,7 +104,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
 
     def test_subscription_crud(self):
-        stream_def_id = self.pubsub_management.create_stream_definition('test_definition', parameter_dictionary={1:1}, stream_type='stream')
+        stream_def_id = self.pubsub_management.create_stream_definition('test_definition', stream_type='stream')
         stream_id, route = self.pubsub_management.create_stream(name='test_stream', exchange_point='test_exchange', stream_definition_id=stream_def_id)
         subscription_id = self.pubsub_management.create_subscription(name='test subscription', stream_ids=[stream_id], exchange_name='test_queue')
         self.exchange_cleanup.append('test_exchange')

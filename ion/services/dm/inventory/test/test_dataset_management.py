@@ -4,7 +4,6 @@
 @description Unit and Integration test implementations for the data set management service class.
 '''
 from pyon.core.exception import NotFound
-from pyon.datastore.datastore import DataStore
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
@@ -20,10 +19,7 @@ from coverage_model.parameter import QuantityType, ParameterContext, ParameterDi
 from nose.plugins.attrib import attr
 from mock import Mock, patch
 
-
 import numpy as np
-import unittest
-
 
 
 @attr('UNIT',group='dm')
@@ -149,6 +145,7 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
 
         self.resource_registry = ResourceRegistryServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
+   
     
     def test_context_crud(self):
         context_ids = self.create_contexts()
@@ -175,15 +172,6 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         self.assertEquals(pdict.identifier, pdict_res_id)
 
         self.assertEquals(set(pdict_contexts), set(context_ids))
-
-        context_id = context_ids.pop()
-        self.dataset_management.remove_context(parameter_dictionary_id=pdict_res_id, parameter_context_ids=[context_id])
-
-        self.assertTrue(context_id not in self.dataset_management.read_parameter_contexts(parameter_dictionary_id=pdict_res_id, id_only=True))
-
-        self.dataset_management.add_context(parameter_dictionary_id=pdict_res_id, parameter_context_ids=[context_id])
-
-        self.assertTrue(context_id in self.dataset_management.read_parameter_contexts(parameter_dictionary_id=pdict_res_id, id_only=True))
 
         self.dataset_management.delete_parameter_dictionary(parameter_dictionary_id=pdict_res_id)
         with self.assertRaises(NotFound):
@@ -218,3 +206,4 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         context_ids.append(self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump()))
 
         return context_ids
+

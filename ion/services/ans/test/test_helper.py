@@ -40,6 +40,10 @@ from pyon.util.containers import get_safe
 
 class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
+    def on_start(self):
+        super(VisualizationIntegrationTestHelper, self).on_start()
+
+
     def create_ctd_input_stream_and_data_product(self, data_product_name='ctd_parsed'):
 
         cc = self.container
@@ -363,6 +367,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
     def create_google_dt_data_process_definition(self):
 
         #First look to see if it exists and if not, then create it
+        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
         dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
         if len(dpd) > 0:
             return dpd[0]
@@ -380,9 +385,10 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         except Exception as ex:
             self.fail("failed to create new VizTransformGoogleDT data process definition: %s" %ex)
 
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('google_dt', id_only=True)
 
         # create a stream definition for the data from the
-        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformGoogleDT')
+        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
 
         return procdef_id
