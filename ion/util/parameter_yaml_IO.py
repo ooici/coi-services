@@ -17,7 +17,7 @@ pdict_as_python_dictionary = pdict.dump()
 '''
 
 from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType, ArrayType
+from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
 import yaml
 from pyon.util.log import log
@@ -150,6 +150,9 @@ def build_contexts():
 
     content_type_ctxt = ParameterContext(name='content_type', param_type=ArrayType())
     contexts.append(content_type_ctxt)
+
+    gdt_ctxt = ParameterContext(name='google_dt_components', param_type=RecordType())
+    contexts.append(gdt_ctxt)
 
     return contexts
 
