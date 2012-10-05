@@ -39,6 +39,9 @@ from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
+from coverage_model.parameter import ParameterDictionary
+from interface.objects import StreamRoute
+
 import logging
 import time
 
@@ -114,6 +117,7 @@ class PlatformAgent(ResourceAgent):
         self._platform_id = None
         self._topology = None
         self._agent_device_map = None
+        self._agent_streamconfig_map = None
         self._plat_driver = None
 
         # Platform ID of my parent, if any. This is mainly used for diagnostic
@@ -125,6 +129,7 @@ class PlatformAgent(ResourceAgent):
         self._data_streams = {}
 
         self._param_dicts = {}
+        self._stream_defs = {}
 
         # Dictionary of data stream publishers. Constructed by
         # stream_config agent config member during process on_init.
@@ -221,6 +226,9 @@ class PlatformAgent(ResourceAgent):
         if 'agent_device_map' in self._plat_config:
             self._agent_device_map = self._plat_config['agent_device_map']
 
+        if 'agent_streamconfig_map' in self._plat_config:
+            self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']
+
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
             self._parent_platform_id = ppid
@@ -235,10 +243,44 @@ class PlatformAgent(ResourceAgent):
         return publisher
 
     def _construct_data_publishers(self):
+        if self._agent_streamconfig_map:
+            self._construct_data_publishers_using_agent_streamconfig_map()
+        else:
+            self._construct_data_publishers_using_CFG_stream_config()
+
+    def _construct_data_publishers_using_agent_streamconfig_map(self):
+        log.debug("%r: _agent_streamconfig_map = %s",
+            self._platform_id, self._agent_streamconfig_map)
+
+        stream_config = self._agent_streamconfig_map[self._platform_id]
+
+        routing_key = stream_config['routing_key']
+        stream_id = stream_config['stream_id']
+        exchange_point = stream_config['exchange_point']
+
+        #
+        # TODO Note: using my platform_if as the name of the single stream
+        # for this platform: Maurice's initial idea is to have a single
+        # stream and eventually bundle multiple attributes there
+        #
+        stream_name = self._platform_id
+
+        log.debug("%r: stream_name=%r, routing_key=%r",
+            self._platform_id, stream_name, routing_key)
+
+        self._data_streams[stream_name] = stream_id
+        self._param_dicts[stream_name] = ParameterDictionary.load(stream_config['parameter_dictionary'])
+        self._stream_defs[stream_name] = stream_config['stream_definition_ref']
+        stream_route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
+        publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
+        self._data_publishers[stream_name] = publisher
+        log.debug("%r: created publisher for stream_name=%r",
+              self._platform_id, stream_name)
+
+    def _construct_data_publishers_using_CFG_stream_config(self):
         """
         Construct the stream publishers from the stream_config agent
         config variable.
-        @retval None
         """
 
         stream_info = self.CFG.stream_config
@@ -289,8 +331,10 @@ class PlatformAgent(ResourceAgent):
         self._plat_driver = driver
         self._plat_driver.set_event_listener(self.evt_recv)
 
-        if self._topology or self._agent_device_map:
-            self._plat_driver.set_topology(self._topology, self._agent_device_map)
+        if self._topology or self._agent_device_map or self._agent_streamconfig_map:
+            self._plat_driver.set_topology(self._topology,
+                                           self._agent_device_map,
+                                           self._agent_streamconfig_map)
 
         log.debug("%r: driver created: %s",
             self._platform_id, str(driver))
@@ -347,11 +391,51 @@ class PlatformAgent(ResourceAgent):
         log.debug('%r: in state=%s: received driver_event=%s',
             self._platform_id, self.get_agent_state(), str(driver_event))
 
-        if not isinstance(driver_event, AttributeValueDriverEvent):
+        if isinstance(driver_event, AttributeValueDriverEvent):
+            self._handle_attribute_value_event(driver_event)
+
+        #
+        # TODO handle other possible events.
+        #
+
+        else:
             log.warn('%r: driver_event not handled: %s',
                 self._platform_id, str(type(driver_event)))
             return
 
+    def _handle_attribute_value_event(self, driver_event):
+
+        if self._agent_streamconfig_map:
+            self._handle_attribute_value_event_using_agent_streamconfig_map()
+        else:
+            self._handle_attribute_value_event_using_CFG_stream_config()
+
+    def _handle_attribute_value_event_using_agent_streamconfig_map(self, driver_event):
+
+        # NOTE: we are using platform_id as the stream_name, see comment
+        # elsewhere in this file.
+        stream_name = self._platform_id
+
+        publisher = self._data_publishers[stream_name]
+        param_dict = self._param_dicts[stream_name]
+        stream_def = self._stream_defs[stream_name]
+        rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
+
+        rdt['value'] =  numpy.array([driver_event._value])
+        rdt['lat'] =    numpy.array([self._lat])
+        rdt['lon'] =    numpy.array([self._lon])
+        rdt['height'] = numpy.array([self._height])
+
+        g = rdt.to_granule(data_producer_id=self.resource_id)
+        publisher.publish(g)
+
+        log.debug('%r: published data granule on stream %r, rdt=%r',
+            self._platform_id, stream_name, str(rdt))
+
+    def _handle_attribute_value_event_using_CFG_stream_config(self, driver_event):
+        """
+        Old mechanism, before using _agent_streamconfig_map
+        """
         stream_name = driver_event._attr_id
         if not stream_name in self._data_streams:
             log.warn('%r: got attribute value event for unconfigured stream %r',

@@ -22,16 +22,19 @@ class OmsResourceMonitor(object):
     """
     """
 
-    def __init__(self, oms, platform_id, attr_defn, notify_driver_event):
+    def __init__(self, oms, platform_id, attr_id, attr_defn, notify_driver_event):
         """
         @param oms
         @param platform_id
+        @param attr_id
         @param attr_defn
         @param notify_driver_event
         """
 
+        log.debug("%r: OmsResourceMonitor entered. attr_defn=%s",
+                  platform_id, attr_defn)
+
         assert platform_id, "must give a valid platform ID"
-        assert 'attr_id' in attr_defn, "must include monitorCycleSeconds"
         assert 'monitorCycleSeconds' in attr_defn, "must include monitorCycleSeconds"
 
         self._oms = oms
@@ -39,13 +42,16 @@ class OmsResourceMonitor(object):
         self._attr_defn = attr_defn
         self._notify_driver_event = notify_driver_event
 
-        self._attr_id = attr_defn['attr_id']
+        self._attr_id = attr_id
         self._monitorCycleSeconds = attr_defn['monitorCycleSeconds']
 
         # timestamp of last retrieved attribute value
         self._last_ts = None
 
         self._active = False
+
+        log.debug("%r: OmsResourceMonitor created. attr_defn=%s",
+                  self._platform_id, attr_defn)
 
     def __str__(self):
         return "%s{platform_id=%r; attr_defn=%r}" % (self.__class__.__name__,
