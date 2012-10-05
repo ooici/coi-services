@@ -14,6 +14,7 @@ from pyon.util.file_sys import FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import IonUnitTestCase
 from pyon.util.containers import get_safe
+from pyon.ion.stream import StandaloneStreamSubscriber
 from nose.plugins.attrib import attr
 
 from mock import Mock, sentinel, patch, mocksignature
@@ -116,11 +117,23 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        self.queue_cleanup = []
+        self.exchange_cleanup = []
+
+
         self.pubsub_management = PubsubManagementServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
 
         self.exchange_name = 'ctd_L0_all_queue'
         self.exchange_point = 'test_exchange'
+
+    def tearDown(self):
+        for queue in self.queue_cleanup:
+            xn = self.container.ex_manager.create_xn_queue(queue)
+            xn.delete()
+        for exchange in self.exchange_cleanup:
+            xp = self.container.ex_manager.create_xp(exchange)
+            xp.delete()
 
 
     @attr('LOCOINT')
@@ -147,32 +160,72 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.exchange_point = self.exchange_point
 
         config.process.interval = 1.0
-        config.process.publish_streams.conductivity, _ = self.pubsub_management.create_stream('test_conductivity',
-            exchange_point='science_data')
-        config.process.publish_streams.temperature, _ = self.pubsub_management.create_stream('test_temperature',
-            exchange_point='science_data')
-        config.process.publish_streams.pressure, _ = self.pubsub_management.create_stream('test_pressure',
-            exchange_point='science_data')
+
+        cond_stream_id, _ = self.pubsub_management.create_stream('test_conductivity', exchange_point='science_data')
+        config.process.publish_streams.conductivity = cond_stream_id
+
+        temp_stream_id, _ = self.pubsub_management.create_stream('test_temperature', exchange_point='science_data')
+        config.process.publish_streams.temperature = temp_stream_id
+
+        pres_stream_id, _ = self.pubsub_management.create_stream('test_pressure',  exchange_point='science_data')
+        config.process.publish_streams.pressure = pres_stream_id
+
+        log.debug("config:: %s" % config)
 
         # Schedule the process
         pid = self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
 
-        # Make a test hook for the publish method of the ctd transform for the purpose of testing
-        proc = None
-        for process_name in self.container.proc_manager.procs.iterkeys():
-            if process_name.find("ctd_L0_all") != -1:
-                proc = self.container.proc_manager.procs[process_name]
-                break
+#        # Make a test hook for the publish method of the ctd transform for the purpose of testing
+#        proc = None
+#        for process_name in self.container.proc_manager.procs.iterkeys():
+#            if process_name.find("ctd_L0_all") != -1:
+#                proc = self.container.proc_manager.procs[process_name]
+#                break
 
-        # For testing...
-        ar = gevent.event.AsyncResult()
-        msgs = []
-        def test_hook(msg, stream_id):
-            msgs.append(msg)
-            if len(msgs) == 3:
-                ar.set(msgs)
 
-        proc.publish = test_hook
+        #---------------------------------------------------------------------------------------------
+        # Create subscribers that will receive the conductivity, temperature and pressure granules from
+        # the ctd transform
+        #---------------------------------------------------------------------------------------------
+        ar_cond = gevent.event.AsyncResult()
+        def subscriber1(m, r, s):
+            ar_cond.set(m)
+        sub_cond = StandaloneStreamSubscriber('sub_cond', subscriber1)
+
+        ar_temp = gevent.event.AsyncResult()
+        def subscriber2(m,r,s):
+            ar_temp.set(m)
+        sub_temp = StandaloneStreamSubscriber('sub_temp', subscriber2)
+
+        ar_pres = gevent.event.AsyncResult()
+        def subscriber3(m,r,s):
+            ar_pres.set(m)
+        sub_pres = StandaloneStreamSubscriber('sub_pres', subscriber3)
+
+
+        sub_cond_id = self.pubsub_management.create_subscription('subscription_cond',
+                                                                            stream_ids=[cond_stream_id],
+                                                                            exchange_name='sub_cond')
+
+        sub_temp_id = self.pubsub_management.create_subscription('subscription_temp',
+            stream_ids=[temp_stream_id],
+            exchange_name='sub_temp')
+
+        sub_pres_id = self.pubsub_management.create_subscription('subscription_pres',
+            stream_ids=[pres_stream_id],
+            exchange_name='sub_pres')
+
+        self.pubsub_management.activate_subscription(sub_cond_id)
+        self.pubsub_management.activate_subscription(sub_temp_id)
+        self.pubsub_management.activate_subscription(sub_pres_id)
+
+        self.queue_cleanup.append(sub_cond.xn.queue)
+        self.queue_cleanup.append(sub_temp.xn.queue)
+        self.queue_cleanup.append(sub_pres.xn.queue)
+
+        sub_cond.start()
+        sub_temp.start()
+        sub_pres.start()
 
         #------------------------------------------------------------------------------------------------------
         # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
@@ -202,9 +255,15 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------------
 
         # Get the granule that is published by the ctd transform post processing
-        result = ar.get(timeout=10)
+        result_cond = ar_cond.get(timeout=10)
+        result_temp = ar_temp.get(timeout=10)
+        result_pres = ar_pres.get(timeout=10)
 
-        # Check that the transform algorithm was successfully executed
+        log.debug("result_cond: %s" % result_cond)
+        log.debug("result_temp: %s" % result_temp)
+        log.debug("result_pres: %s" % result_pres)
+#
+#        # Check that the transform algorithm was successfully executed
         self.check_granule_splitting(publish_granule, result)
 
     @attr('LOCOINT')
@@ -366,7 +425,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #-----------------------------------------------------------------------------
         self.assertTrue(sal_value.all() == out_salinity.all())
 
-    def check_granule_splitting(self, publish_granule, out_granules):
+    def check_granule_splitting(self, publish_granule, out_granule):
         '''
         This checks that the ctd_L0_all transform is able to split out one of the
         granules from the whole granule
@@ -383,14 +442,13 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         out_pressure = None
         out_temp = None
 
-        for granule in out_granules:
-            output_rdt_transform = RecordDictionaryTool.load_from_granule(granule)
-            if output_rdt_transform.__contains__('conductivity'):
-                out_cond = get_safe(output_rdt_transform, 'conductivity')
-            elif output_rdt_transform.__contains__('pressure'):
-                out_pressure = get_safe(output_rdt_transform, 'pressure')
-            elif output_rdt_transform.__contains__('temp'):
-                out_temp = get_safe(output_rdt_transform, 'temp')
+        output_rdt_transform = RecordDictionaryTool.load_from_granule(out_granule)
+        if output_rdt_transform.__contains__('conductivity'):
+            out_cond = get_safe(output_rdt_transform, 'conductivity')
+        elif output_rdt_transform.__contains__('pressure'):
+            out_pressure = get_safe(output_rdt_transform, 'pressure')
+        elif output_rdt_transform.__contains__('temp'):
+            out_temp = get_safe(output_rdt_transform, 'temp')
 
         self.assertTrue(in_cond.all() == out_cond.all())
         self.assertTrue(in_pressure.all() == out_pressure.all())

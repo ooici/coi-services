@@ -9,6 +9,7 @@ from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
 from pyon.util.containers import get_safe
+from pyon.util.arg_check import validate_true
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
@@ -45,6 +46,9 @@ class ctd_L0_all(TransformDataProcess):
 
     def on_start(self):
         super(ctd_L0_all, self).on_start()
+#        validate_true(hasattr(self, 'conductivity'))
+#        validate_true(hasattr(self, 'temperature'))
+#        validate_true(hasattr(self, 'pressure'))
 
         if self.CFG.process.publish_streams.has_key('output'):
             raise AssertionError("For CTD transforms, please send the stream_id using a special keyword (ex: conductivity) instead of \'output \'")
@@ -52,9 +56,6 @@ class ctd_L0_all(TransformDataProcess):
         self.cond_stream = self.CFG.process.publish_streams.conductivity
         self.temp_stream = self.CFG.process.publish_streams.temperature
         self.pres_stream = self.CFG.process.publish_streams.pressure
-
-    def publish(self, msg, stream_id):
-        self.publisher.publish(msg=msg, stream_id=stream_id)
 
     def recv_packet(self, packet,stream_route, stream_id):
         """Processes incoming data!!!!
@@ -68,9 +69,13 @@ class ctd_L0_all(TransformDataProcess):
         granules = ctd_L0_algorithm.execute([packet])
 
         for granule in granules:
-            self.publish(msg=granule['conductivity'], stream_id=self.cond_stream)
-            self.publish(msg=granule['temp'], stream_id=self.temp_stream)
-            self.publish(msg=granule['pressure'], stream_id=self.pres_stream)
+            self.conductivity.publish(msg = granule['conductivity'])
+            self.temperature.publish(msg = granule['temp'])
+            self.pressure.publish(msg = granule['pressure'])
+#
+#            self.publish(msg=granule['conductivity'], stream_id=self.cond_stream)
+#            self.publish(msg=granule['temp'], stream_id=self.temp_stream)
+#            self.publish(msg=granule['pressure'], stream_id=self.pres_stream)
 
 
 class ctd_L0_algorithm(MultiGranuleTransformFunction):
