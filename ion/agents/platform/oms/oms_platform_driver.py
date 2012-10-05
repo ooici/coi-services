@@ -235,6 +235,19 @@ class OmsPlatformDriver(PlatformDriver):
         attr_values = retval[self._platform_id]
         return attr_values
 
+    def set_attribute_values(self, attrs):
+        """
+        """
+        retval = self._oms.setPlatformAttributeValues(self._platform_id, attrs)
+        log.debug("setPlatformAttributeValues = %s", retval)
+
+        if not self._platform_id in retval:
+            raise PlatformException("Unexpected: response does not include "
+                                    "requested platform '%s'" % self._platform_id)
+
+        attr_values = retval[self._platform_id]
+        return attr_values
+
     def _verify_platform_id_in_response(self, response):
         """
         Verifies the presence of my platform_id in the response.

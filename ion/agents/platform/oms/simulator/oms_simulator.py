@@ -188,6 +188,32 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: vals}
 
+    def setPlatformAttributeValues(self, platform_id, input_attrs):
+        if platform_id not in self._idp:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        assert isinstance(input_attrs, list)
+
+        timestamp = time.time()
+        attrs = self._idp[platform_id].attrs
+        vals = {}
+        for (attrName, attrValue) in input_attrs:
+            if attrName in attrs:
+                attr = attrs[attrName]
+                if attr.writable:
+                    #
+                    # TODO check given attrValue
+                    #
+                    vals[attrName] = (attrValue, timestamp)
+                else:
+                    vals[attrName] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
+            else:
+                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+
+        retval = {platform_id: vals}
+        log.debug("setPlatformAttributeValues returning: %s", str(retval))
+        return retval
+
     def getPlatformPorts(self, platform_id):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}

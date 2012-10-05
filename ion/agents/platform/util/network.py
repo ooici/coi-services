@@ -22,6 +22,8 @@ class Attr(object):
         self._attr_id = attr_id
         self._defn = defn
 
+        self._writable = 'read_write' in defn and defn['read_write'].lower().find("write") >= 0
+
         self._value = defn['value'] if 'value' in defn else None
 
     def __repr__(self):
@@ -35,6 +37,10 @@ class Attr(object):
     @property
     def defn(self):
         return self._defn
+
+    @property
+    def writable(self):
+        return self._writable
 
     @property
     def value(self):
