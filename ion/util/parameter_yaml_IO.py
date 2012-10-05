@@ -154,6 +154,9 @@ def build_contexts():
     gdt_ctxt = ParameterContext(name='google_dt_components', param_type=RecordType())
     contexts.append(gdt_ctxt)
 
+    dummy_ctxt = ParameterContext(name='dummy', param_type=QuantityType(value_encoding=np.int64))
+    contexts.append(dummy_ctxt)
+    
     return contexts
 
 def dump_param_contexts_to_yml():

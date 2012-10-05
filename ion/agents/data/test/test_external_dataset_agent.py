@@ -960,7 +960,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
 
         #create temp streamdef so the data product can create the stream
         #@TODO Luke - I do not know if this param dict is the right choice here please review Tim G
-        parameter_dictionary = dataset_management_cli.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        parameter_dictionary = dataset_management_cli.read_parameter_dictionary_by_name('dummy', id_only=True)
         
         streamdef_id = pubsub_cli.create_stream_definition(name="temp", parameter_dictionary_id=parameter_dictionary, description="temp")
 
