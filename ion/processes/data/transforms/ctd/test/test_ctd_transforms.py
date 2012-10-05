@@ -301,6 +301,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         def subscriber1(m, r, s):
             ar_cond.set(m)
         sub_cond = StandaloneStreamSubscriber('sub_cond', subscriber1)
+        self.addCleanup(sub_cond.stop)
 
         sub_cond_id = self.pubsub_management.create_subscription('subscription_cond',
             stream_ids=[cond_stream_id],
@@ -501,6 +502,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         def subscriber3(m,r,s):
             ar_pres.set(m)
         sub_pres = StandaloneStreamSubscriber('sub_pres', subscriber3)
+        self.addCleanup(sub_pres.stop)
 
         sub_pres_id = self.pubsub_management.create_subscription('subscription_pres',
             stream_ids=[pres_stream_id],
@@ -589,6 +591,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         def subscriber2(m,r,s):
             ar_temp.set(m)
         sub_temp = StandaloneStreamSubscriber('sub_temp', subscriber2)
+        self.addCleanup(sub_temp.stop)
 
         sub_temp_id = self.pubsub_management.create_subscription('subscription_temp',
             stream_ids=[temp_stream_id],
@@ -676,6 +679,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         def subscriber3(m,r,s):
             ar_dens.set(m)
         sub_dens = StandaloneStreamSubscriber('sub_dens', subscriber3)
+        self.addCleanup(sub_dens.stop)
 
         sub_dens_id = self.pubsub_management.create_subscription('subscription_dens',
             stream_ids=[dens_stream_id],
@@ -764,6 +768,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         def subscriber3(m,r,s):
             ar_sal.set(m)
         sub_sal = StandaloneStreamSubscriber('sub_sal', subscriber3)
+        self.addCleanup(sub_sal.stop)
 
         sub_sal_id = self.pubsub_management.create_subscription('subscription_sal',
             stream_ids=[sal_stream_id],
