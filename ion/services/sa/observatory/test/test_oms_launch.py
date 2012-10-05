@@ -90,7 +90,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
     def consume_data(self, message, stream_route, stream_id):
         # A callback for processing subscribed-to data.
-        log.info('Subscriber received data message: %s.' % str(message))
+        log.info('Subscriber received data message: %s.', str(message))
         self._samples_received.append(message)
         if self._no_samples and self._no_samples == len(self._samples_received):
             self._async_data_result.set()
@@ -158,7 +158,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
             platformModel_id = self.imsclient.create_platform_model(platformModel_obj)
         except BadRequest as ex:
             self.fail("failed to create new PLatformModel: %s" %ex)
-        log.debug( 'new PlatformModel id = %s' % platformModel_id)
+        log.debug( 'new PlatformModel id = %s', platformModel_id)
 
 
         # Create data product object to be used for each of the platform log streams
@@ -424,7 +424,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         # Start a resource agent client to talk with the instrument agent.
         self._pa_client = ResourceAgentClient('paclient', name=platformSS_agent_instance_obj.agent_process_id,  process=FakeProcess())
-        log.debug(" test_oms_create_and_launch:: got pa client %s" % str(self._pa_client))
+        log.debug(" test_oms_create_and_launch:: got pa client %s", str(self._pa_client))
 
         DVR_CONFIG = {
             'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
@@ -452,24 +452,24 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # PING_AGENT can be issued before INITIALIZE
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'ShoreSide Platform PING_AGENT = %s' % str(retval) )
+        log.debug( 'ShoreSide Platform PING_AGENT = %s', str(retval) )
 
         # INITIALIZE should trigger the creation of the whole platform
         # hierarchy rooted at PLATFORM_CONFIG['platform_id']
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'ShoreSide Platform INITIALIZE = %s' % str(retval) )
+        log.debug( 'ShoreSide Platform INITIALIZE = %s', str(retval) )
 
 
         # GO_ACTIVE
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'ShoreSide Platform GO_ACTIVE = %s' % str(retval) )
+        log.debug( 'ShoreSide Platform GO_ACTIVE = %s', str(retval) )
 
         # RUN
         cmd = AgentCommand(command=PlatformAgentEvent.RUN)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'ShoreSide Platform RUN = %s' % str(retval) )
+        log.debug( 'ShoreSide Platform RUN = %s', str(retval) )
 
         log.info("sleeping to perhaps see some data publications...")
         sleep(15)

@@ -195,7 +195,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
                                                                              ctd_stream_def_id,
                                                                              parameter_dictionary)
 
-        log.debug('new ctd_parsed_data_product_id = %s' % ctd_parsed_data_product)
+        log.debug('new ctd_parsed_data_product_id = %s', ctd_parsed_data_product)
 
 #        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
@@ -203,10 +203,10 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
 
 #        Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
-        log.debug('test_createTransformsThenActivateInstrument: Data product streams1 = %s' % stream_ids)
+        log.debug('test_createTransformsThenActivateInstrument: Data product streams1 = %s', stream_ids)
         self.parsed_stream_id = stream_ids[0]
 
-        log.debug("got the parsed stream id: %s" % self.parsed_stream_id)
+        log.debug("got the parsed stream id: %s" , self.parsed_stream_id)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Event Alert Transform... set up the event types to listen to
@@ -228,7 +228,7 @@ class TestCTDTransformsNoSim(IonIntegrationTestCase):
             class_name='SimpleCtdDataProducer',
             configuration= configuration)
 
-        log.debug("Created an example data producer process with the following id: %s" % producer_procdef_id)
+        log.debug("Created an example data producer process with the following id: %s", producer_procdef_id)
 
         self.assertIsNotNone(producer_procdef_id)
 

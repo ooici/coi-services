@@ -96,7 +96,7 @@ class ResourceImplMetatest(object):
         
         def fun():
             #ret = Mock()
-            self.log.debug("Creating sample %s" % iontype)
+            self.log.debug("Creating sample %s", iontype)
             ret = IonObject(iontype)
             ret.name = "sample %s" % iontype
             ret.description = "description of sample %s" % iontype

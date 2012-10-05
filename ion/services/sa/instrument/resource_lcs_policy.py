@@ -58,7 +58,6 @@ class ResourceLCSPolicy(object):
         @param association_predicate one of the association types
         @param some_object the object "owned" by the association type
         """
-        #log.debug("_find_having, from %s" % self._toplevel_call())
         assert(type("") == type(some_object_id))
         ret, _ = self.RR.find_subjects(subject_type,
                                        association_predicate,
@@ -75,7 +74,6 @@ class ResourceLCSPolicy(object):
         @param association_predicate the association type
         @param some_object_type the type of associated object
         """
-        #log.debug("_find_stemming, from %s" % self._toplevel_call())
         assert(type("") == type(primary_object_id))
         ret, _ = self.RR.find_objects(primary_object_id,
                                       association_predicate,

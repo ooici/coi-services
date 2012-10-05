@@ -232,7 +232,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
             self.platformModel_id = self.imsclient.create_platform_model(platformModel_obj)
         except BadRequest as ex:
             self.fail("failed to create new PLatformModel: %s" %ex)
-        log.debug( 'new PlatformModel id = %s' % self.platformModel_id)
+        log.debug( 'new PlatformModel id = %s', self.platformModel_id)
 
 
 
@@ -250,8 +250,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # quick local test of retrieving associations:
         device_id = base_platform_objs['device_id']
         objs, assocs = self.rrclient.find_objects(device_id, PRED.hasDevice, RT.PlatformDevice, id_only=True)
-        log.debug('Found associated devices for device_id=%r: objs=%s, assocs=%s' % (device_id, objs, assocs))
-        for obj in objs: log.debug("Retrieved object=%s" % obj)
+        log.debug('Found associated devices for device_id=%r: objs=%s, assocs=%s', device_id, objs, assocs)
+        for obj in objs: log.debug("Retrieved object=%s", obj)
         #-------------------------------
 
         #-------------------------------
@@ -274,7 +274,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         # Start a resource agent client to talk with the instrument agent.
         self._pa_client = ResourceAgentClient('paclient', name=agent_instance_obj.agent_process_id,  process=FakeProcess())
-        log.debug(" test_oms_create_and_launch:: got pa client %s" % str(self._pa_client))
+        log.debug(" test_oms_create_and_launch:: got pa client %s", str(self._pa_client))
 
         DVR_CONFIG = {
             'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
@@ -297,24 +297,24 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # PING_AGENT can be issued before INITIALIZE
         cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform PING_AGENT = %s' % str(retval) )
+        log.debug( 'Base Platform PING_AGENT = %s', str(retval) )
 
         # INITIALIZE should trigger the creation of the whole platform
         # hierarchy rooted at PLATFORM_CONFIG['platform_id']
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform INITIALIZE = %s' % str(retval) )
+        log.debug( 'Base Platform INITIALIZE = %s', str(retval) )
 
 
         # GO_ACTIVE
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform GO_ACTIVE = %s' % str(retval) )
+        log.debug( 'Base Platform GO_ACTIVE = %s', str(retval) )
 
         # RUN
         cmd = AgentCommand(command=PlatformAgentEvent.RUN)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform RUN = %s' % str(retval) )
+        log.debug( 'Base Platform RUN = %s', str(retval) )
 
         # TODO: here we could sleep for a little bit to let the resource
         # monitoring work for a while. But not done yet because the

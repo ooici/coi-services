@@ -76,7 +76,7 @@ class DataProductImpl(ResourceSimpleImpl):
     def _find_producers(self, data_product_id='', provenance_results=''):
         source_ids = []
         # get the link to the DataProducer resource
-        log.debug("DataProductManagementService:_find_producers start %s" % str(data_product_id))
+        log.debug("DataProductManagementService:_find_producers start %s", data_product_id)
         producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
         for producer_id in producer_ids:
             # get the link to that resources parent DataProducer
@@ -89,7 +89,7 @@ class DataProductImpl(ResourceSimpleImpl):
 
                 for nxt_producer_id in nxt_producer_ids:
                     nxt_producer_obj = self.clients.resource_registry.read(nxt_producer_id)
-                    log.debug("DataProductManagementService:_find_producers nxt_producer %s" % nxt_producer_obj.name)
+                    log.debug("DataProductManagementService:_find_producers nxt_producer %s", nxt_producer_obj.name)
                     #todo: check the type of resource; instrument, data process or extDataset'
                     #todo: check if this is a SiteDataProduct name=SiteDataProduct and desc=site_id
                     inputs_to_nxt_producer = self._find_producer_in_products(nxt_producer_id)
@@ -103,7 +103,7 @@ class DataProductImpl(ResourceSimpleImpl):
 
                     provenance_results[data_product_id] = { 'producer': producer_list, 'inputs': inputs }
 
-        log.debug("DataProductManagementService:_find_producers: %s" % str(source_ids))
+        log.debug("DataProductManagementService:_find_producers: %s", str(source_ids))
         return
 
     def _extract_producer_context(self, producer_id=''):
@@ -138,7 +138,7 @@ class DataProductImpl(ResourceSimpleImpl):
                                                                             id_only=True)
         for product_id in product_ids:
             product_obj = self.clients.resource_registry.read(product_id)
-            log.debug("DataProductManagementService:_find_producer_in_products: %s" % product_obj.name)
+            log.debug("DataProductManagementService:_find_producer_in_products: %s", product_obj.name)
 
         return product_ids
 
@@ -163,25 +163,28 @@ class DataProductImpl(ResourceSimpleImpl):
         #get the set of inputs to the producer which created this data product
         for key, value in provenance_results[data_product_id]['inputs'].items():
             in_data_products.extend(value)
-        log.debug("DataProductManagementService:_write_product_provenance_report in_data_products: %s" % str(in_data_products))
+        log.debug("DataProductManagementService:_write_product_provenance_report in_data_products: %s",
+                  str(in_data_products))
 
         while in_data_products:
             for in_data_product in in_data_products:
                 # write the provenance for each of those products
                 self._write_product_info(in_data_product, provenance_results)
-                log.debug("DataProductManagementService:_write_product_provenance_report next_input_set: %s" % str(provenance_results[in_data_product]['inputs']))
+                log.debug("DataProductManagementService:_write_product_provenance_report next_input_set: %s",
+                          str(provenance_results[in_data_product]['inputs']))
                 # provenance_results[in_data_product]['inputs'] contains a dict that is produce_id:[input_product_list]
                 for key, value in provenance_results[in_data_product]['inputs'].items():
                     next_input_set.extend(value)
             #switch to the input for these producers
             in_data_products =  next_input_set
             next_input_set = []
-            log.debug("DataProductManagementService:_write_product_provenance_report in_data_products (end loop): %s" % str(in_data_products))
+            log.debug("DataProductManagementService:_write_product_provenance_report in_data_products (end loop): %s",
+                      str(in_data_products))
 
 
         result = etree.tostring(self.page, pretty_print=True, encoding=None)
 
-        log.debug("DataProductManagementService:_write_product_provenance_report result: %s" % str(result))
+        log.debug("DataProductManagementService:_write_product_provenance_report result: %s", str(result))
 
         return results
 
