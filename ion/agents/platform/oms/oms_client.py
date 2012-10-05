@@ -16,6 +16,7 @@ class InvalidResponse(object):
     PLATFORM_ID          = 'INVALID-PLATFORM-ID'
     ATTRIBUTE_NAME       = 'INVALID-ATTRIBUTE-NAME'
     ATTRIBUTE_NAME_VALUE = ('INVALID-ATTRIBUTE-NAME', '')
+    ATTRIBUTE_NOT_WRITABLE = 'ATTRIBUTE-NOT-WRITABLE'
     PORT_ID              = 'INVALID-PORT-ID'
 
     PLATFORM_TYPE        = 'INVALID-PLATFORM-TYPE'
@@ -127,6 +128,12 @@ class OmsClient(object):
         """
         raise NotImplemented()
 
+    def setPlatformAttributeValues(self, platform_id, attrs):
+        """
+        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
+        """
+        raise NotImplemented()
+
     def getPlatformPorts(self, platform_id):
         """
         Returns information for each port in a given platform.
@@ -174,16 +181,31 @@ class OmsClient(object):
         raise NotImplemented()
 
     def describeAlarmTypes(self, alarm_type_ids):
+        """
+        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
+        """
         raise NotImplemented()
 
     def getAlarmsByPlatformType(self, platform_types):
+        """
+        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
+        """
         raise NotImplemented()
 
     def registerAlarmListener(self, url, alarm_types):
+        """
+        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
+        """
         raise NotImplemented()
 
     def unregisterAlarmListener(self, url, alarm_types):
+        """
+        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
+        """
         raise NotImplemented()
 
     def getRegisteredAlarmListeners(self):
+        """
+        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
+        """
         raise NotImplemented()

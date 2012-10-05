@@ -26,6 +26,12 @@ from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
+from ion.agents.platform.test.helper import PLATFORM_ID
+from ion.agents.platform.test.helper import SUBPLATFORM_IDS
+from ion.agents.platform.test.helper import ATTR_NAMES
+from ion.agents.platform.test.helper import WRITABLE_ATTR_NAMES
+from ion.agents.platform.test.helper import HelperTestMixin
+
 from pyon.ion.stream import StandaloneStreamSubscriber
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 
@@ -39,14 +45,6 @@ import time
 import unittest
 import os
 from nose.plugins.attrib import attr
-
-
-# The ID of the root platform for this test and the IDs of its sub-platforms.
-# These Ids and names should correspond to corresponding entries in network.yml,
-# which is used by the OMS simulator.
-PLATFORM_ID = 'Node1A'
-SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
-ATTR_NAMES = ['Node1A_attr_1', 'Node1A_attr_2']
 
 
 # TIMEOUT: timeout for each execute_agent call.
@@ -90,7 +88,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-class TestPlatformAgent(IonIntegrationTestCase):
+class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def setUp(self):
 
@@ -258,7 +256,27 @@ class TestPlatformAgent(IonIntegrationTestCase):
         attr_values = retval.result
         self.assertIsInstance(attr_values, dict)
         for attr_name in ATTR_NAMES:
-            self.assertTrue(attr_name in attr_values)
+            self._verify_valid_attribute_id(attr_name, attr_values)
+
+    def _set_resource(self):
+        attrNames = ATTR_NAMES
+
+        def valueFor(attrName):
+            # simple string value, ok because there is no strict value check yet
+            # TODO more realistic value depending on attribute's type
+            return "test_value_for_%s" % attrName
+
+        attrs = [(attrName, valueFor(attrName)) for attrName in attrNames]
+        kwargs = dict(attrs=attrs)
+        cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        attr_values = retval.result
+        self.assertIsInstance(attr_values, dict)
+        for attr_name in attrNames:
+            if attrName in WRITABLE_ATTR_NAMES:
+                self._verify_valid_attribute_id(attrName, attr_values)
+            else:
+                self._verify_not_writable_attribute_id(attrName, attr_values)
 
     def _initialize(self):
         kwargs = dict(plat_config=PLATFORM_CONFIG)
@@ -302,6 +320,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
+            PlatformAgentEvent.SET_RESOURCE,
 
             PlatformAgentEvent.PING_AGENT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
@@ -460,6 +479,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
             PlatformAgentEvent.PING_AGENT,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
+            PlatformAgentEvent.SET_RESOURCE,
         ]
 
         res_cmds_command = [
@@ -501,6 +521,7 @@ class TestPlatformAgent(IonIntegrationTestCase):
         self._ping_resource()
 
         self._get_resource()
+        self._set_resource()
 
         log.info("sleeping...")
         sleep(15)

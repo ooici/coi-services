@@ -124,6 +124,21 @@ class PlatformDriver(object):
         """
         raise NotImplemented()
 
+    def set_attribute_values(self, attrs):
+        """
+        To be implemented by subclass.
+        Sets values for writable attributes in this platform.
+
+        @param attrs 	[(attrName, attrValue), ...] 	List of attribute values
+
+        @retval {platform_id: {attrName : [(attrValue, timestamp), ...], ...}}
+                dict with a single entry for the requested platform ID and value
+                as a list of (value,timestamp) pairs for each attribute indicated
+                in the input. Returned timestamps are NTP v4 8-byte strings
+                indicating the time when the value was set.
+        """
+        raise NotImplemented()
+
     def get_subplatform_ids(self):
         """
         Gets the IDs of the subplatforms of this driver's associated

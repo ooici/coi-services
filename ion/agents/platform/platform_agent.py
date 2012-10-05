@@ -77,6 +77,7 @@ class PlatformAgentCapability(BaseEnum):
     GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
     PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
     GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
+    SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
 
     PING_AGENT                = 'PLATFORM_AGENT_PING_AGENT'
     GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
@@ -805,6 +806,27 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
+    def _handler_set_resource(self, *args, **kwargs):
+        """
+        """
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        attrs = kwargs.get('attrs', None)
+        if attrs is None:
+            raise BadRequest('set_resource missing attrs argument.')
+
+        try:
+            result = self._plat_driver.set_attribute_values(attrs)
+
+            next_state = self.get_agent_state()
+
+        except Exception as ex:
+            log.error("error in set_attribute_values %s", str(ex)) #, exc_Info=True)
+            raise
+
+        return (next_state, result)
+
     def _handler_ping_agent(self, *args, **kwargs):
         """
         Pings the agent.
@@ -877,5 +899,4 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
-#        ...
-
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
