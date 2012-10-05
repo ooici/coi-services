@@ -533,7 +533,7 @@ class ResourceImplMetatest(object):
 
                 #call the impl
                 response = myfind("111")
-                self.assertEqual(response, fo.call_count * ['333'])
+                self.assertIn('333', response)
 
                 if all_in_one: svc.clients.resource_registry.find_objects.reset_mock()
 
