@@ -208,7 +208,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory_id    str
         @throws NotFound    object with specified id does not exist
         """
-        return self.observatory.delete_one(observatory_id)
+        self.observatory.advance_lcs(observatory_id, LCE.RETIRE)
+        #return self.observatory.delete_one(observatory_id)
 
 
     def create_subsite(self, subsite=None, parent_id=''):
@@ -251,7 +252,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.subsite.delete_one(subsite_id)
+        self.subsite.advance_lcs(subsite_id, LCE.RETIRE)
+        #self.subsite.delete_one(subsite_id)
 
 
 
@@ -295,7 +297,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.platform_site.delete_one(platform_site_id)
+        self.platform_site.advance_lcs(platform_site_id, LCE.RETIRE)
+        #self.platform_site.delete_one(platform_site_id)
 
 
 
@@ -340,9 +343,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
         # todo: give InstrumentSite a lifecycle in COI so that we can remove the "True" argument here
-        self.instrument_site.delete_one(instrument_site_id)
+        self.instrument_site.advance_lcs(instrument_site_id, LCE.RETIRE)
+        #self.instrument_site.delete_one(instrument_site_id)
 
 
+
+    #todo: convert to resource_impl
 
     def create_deployment(self, deployment=None, site_id="", device_id=""):
         """
