@@ -68,7 +68,6 @@ class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         longitude = rdt['lon']
         latitude = rdt['lat']
 
-        # create parameter settings
         sp = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
         sa = SA_from_SP(sp, pressure, longitude, latitude)
         dens_value = rho(sa, temperature, pressure)
@@ -84,5 +83,4 @@ class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
         root_rdt[field_name] = value
-        log.debug("CTDL2DensityTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
         return root_rdt.to_granule()

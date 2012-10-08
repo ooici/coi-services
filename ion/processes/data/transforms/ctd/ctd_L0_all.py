@@ -101,8 +101,6 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
             pressure = rdt['pressure']
             temperature = rdt['temp']
 
-            log.debug("Got conductivity::: %s" % conductivity)
-
             result = {}
 
             # build the granules for conductivity, temperature and pressure
@@ -117,12 +115,6 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
             result['pressure'] = ctd_L0_algorithm._build_granule(param_dictionary= params['pressure'],
                                                                  field_name= 'pressure',
                                                                  value= pressure)
-
-            log.debug("got the result: %s" % result)
-
-            #todo remove this later
-            rdt_transform = RecordDictionaryTool.load_from_granule(result['conductivity'])
-            log.debug('got it here::: %s' % rdt_transform['conductivity'])
 
             result_list.append(result)
 
@@ -141,15 +133,8 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
         @retval Granule
         '''
-        log.debug("got the param dictionary here: %s" % param_dictionary)
-        log.debug("got value here::: %s" % value)
-
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
         root_rdt[field_name] = value
-
-        log.debug("root_rdt[%s]:: %s" % ( field_name, root_rdt[field_name]))
-
-        log.debug("ctd_L0_all:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
 
         return root_rdt.to_granule()
 

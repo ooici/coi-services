@@ -37,7 +37,7 @@ from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
 @attr('UNIT', group='ctd')
-@unittest.skip('Not working')
+@unittest.skip('The UNIT tests have to be completely redone')
 class TestCtdTransforms(IonUnitTestCase):
 
     def setUp(self):
@@ -73,9 +73,6 @@ class TestCtdTransforms(IonUnitTestCase):
         length = 1
 
         packet = self.px_ctd._get_new_ctd_packet("STR_ID", length)
-
-        log.debug("Packet: %s" % packet)
-
         self.tx_L0.process(packet)
 
         self.tx_L0.cond_publisher.publish = mocksignature(self.tx_L0.cond_publisher.publish)
@@ -137,8 +134,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
             xp.delete()
 
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ctd_L0_all(self):
         '''
         Test that packets are processed by the ctd_L0_all transform
@@ -260,22 +255,14 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         result_temp = ar_temp.get(timeout=10)
         result_pres = ar_pres.get(timeout=10)
 
-        log.debug("result_cond:::: %s" % result_cond)
-        log.debug("result_temp:::: %s" % result_temp)
-        log.debug("result_pres:::: %s" % result_pres)
-
-        log.debug("type of result_cond: %s" % type(result_cond))
         out_dict = {}
         out_dict['c'] = RecordDictionaryTool.load_from_granule(result_cond)['conductivity']
         out_dict['t'] = RecordDictionaryTool.load_from_granule(result_temp)['temp']
         out_dict['p'] = RecordDictionaryTool.load_from_granule(result_pres)['pressure']
 
-        log.debug("out_rdt~~~ %s" % out_dict)
         # Check that the transform algorithm was successfully executed
         self.check_granule_splitting(publish_granule, out_dict)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ctd_L1_conductivity(self):
         '''
         Test that packets are processed by the ctd_L1_conductivity transform
@@ -358,8 +345,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Get the granule that is published by the ctd transform post processing
         result_cond = ar_cond.get(timeout=10)
-        log.debug("result_cond: %s" % result_cond)
-
         self.assertTrue(isinstance(result_cond, Granule))
 
         rdt = RecordDictionaryTool.load_from_granule(result_cond)
@@ -460,23 +445,14 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         in_pressure = input_rdt_to_transform['pressure']
         in_temp = input_rdt_to_transform['temp']
 
-        log.debug("in_cond:: %s" % in_cond)
-        log.debug("out_dict::: %s" % out_dict)
-
         out_cond = out_dict['c']
         out_pres = out_dict['p']
         out_temp = out_dict['t']
-
-        log.debug( "out_cond::: %s" % out_cond)
-        log.debug( "out_pres::: %s" % out_pres)
-        log.debug( "out_temp::: %s" % out_temp)
 
         self.assertTrue(in_cond.all() == out_cond.all())
         self.assertTrue(in_pressure.all() == out_pres.all())
         self.assertTrue(in_temp.all() == out_temp.all())
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ctd_L1_pressure(self):
         '''
         Test that packets are processed by the ctd_L1_pressure transform
@@ -567,8 +543,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         self.check_pres_algorithm_execution(publish_granule, result)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ctd_L1_temperature(self):
         '''
         Test that packets are processed by the ctd_L1_temperature transform
@@ -658,8 +632,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         self.check_temp_algorithm_execution(publish_granule, result)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ctd_L2_density(self):
         '''
         Test that packets are processed by the ctd_L1_density transform
@@ -749,8 +721,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         self.check_density_algorithm_execution(publish_granule, result)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_ctd_L2_salinity(self):
         '''
         Test that packets are processed by the ctd_L1_salinity transform

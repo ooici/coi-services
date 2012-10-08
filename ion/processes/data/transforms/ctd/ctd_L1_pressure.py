@@ -74,6 +74,4 @@ class CTDL1PressureTransformAlgorithm(SimpleGranuleTransformFunction):
 
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
         root_rdt[field_name] = value
-        log.debug("CTDL1PressureTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
-
         return root_rdt.to_granule()

@@ -58,8 +58,8 @@ class CTDL1ConductivityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         rdt = RecordDictionaryTool.load_from_granule(input)
         conductivity = rdt['conductivity']
-
         cond_value = (conductivity / 100000.0) - 0.5
+
         # build the granule for conductivity
         result = CTDL1ConductivityTransformAlgorithm._build_granule(param_dictionary = params,
                                                                     field_name ='conductivity',
@@ -71,6 +71,4 @@ class CTDL1ConductivityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
         root_rdt[field_name] = value
-        log.debug("CTDL1ConductivityTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
-
         return root_rdt.to_granule()

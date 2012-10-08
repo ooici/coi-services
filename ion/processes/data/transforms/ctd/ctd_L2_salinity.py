@@ -69,7 +69,6 @@ class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
         pressure = rdt['pressure']
         temperature = rdt['temp']
 
-        # create parameter settings
         sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
         # build the granule for salinity
         result = CTDL2SalinityTransformAlgorithm._build_granule(param_dictionary=params,
@@ -83,5 +82,4 @@ class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
         root_rdt[field_name] = value
-        log.debug("CTDL2SalinityTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
         return root_rdt.to_granule()

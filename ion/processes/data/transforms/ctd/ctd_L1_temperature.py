@@ -67,8 +67,6 @@ class CTDL1TemperatureTransformAlgorithm(SimpleGranuleTransformFunction):
 
         rdt = RecordDictionaryTool.load_from_granule(input)
         temperature = rdt['temp']
-
-        # create parameter settings
         temp_value = (temperature / 100000.0) - 10
 
         #build the granule for temperature
@@ -83,5 +81,4 @@ class CTDL1TemperatureTransformAlgorithm(SimpleGranuleTransformFunction):
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
 
         root_rdt[field_name] = value
-        log.debug("CTDL1TemperatureTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
         return root_rdt.to_granule()
