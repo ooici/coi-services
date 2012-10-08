@@ -329,7 +329,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         # Create the output data product of the transform
 
         tdom, sdom = time_series_domain()
-        print '>>>>> data process name %s' % data_process_name
 
         transform_dp_obj = IonObject(RT.DataProduct,
             name=data_process_name,

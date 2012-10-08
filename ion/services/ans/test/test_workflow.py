@@ -85,7 +85,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         # Salinity: Data Process Definition
         ctd_L2_salinity_dprocdef_id = self.create_salinity_data_process_definition()
 
-        l2_salinity_all_data_process_id, ctd_l2_salinity_output_dp_id = self.create_transform_process(ctd_L2_salinity_dprocdef_id,ctd_parsed_data_product_id )
+        l2_salinity_all_data_process_id, ctd_l2_salinity_output_dp_id = self.create_transform_process(ctd_L2_salinity_dprocdef_id,ctd_parsed_data_product_id,'salinity' )
 
         ## get the stream id for the transform outputs
         stream_ids, _ = self.rrclient.find_objects(ctd_l2_salinity_output_dp_id, PRED.hasStream, None, True)
@@ -101,7 +101,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         # Salinity Doubler: Data Process Definition
         salinity_doubler_dprocdef_id = self.create_salinity_doubler_data_process_definition()
 
-        salinity_double_data_process_id, salinity_doubler_output_dp_id = self.create_transform_process(salinity_doubler_dprocdef_id, ctd_l2_salinity_output_dp_id )
+        salinity_double_data_process_id, salinity_doubler_output_dp_id = self.create_transform_process(salinity_doubler_dprocdef_id, ctd_l2_salinity_output_dp_id, 'salinity' )
 
         stream_ids, _ = self.rrclient.find_objects(salinity_doubler_output_dp_id, PRED.hasStream, None, True)
         assertions(len(stream_ids) > 0 )
