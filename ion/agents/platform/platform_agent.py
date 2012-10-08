@@ -259,11 +259,10 @@ class PlatformAgent(ResourceAgent):
         exchange_point = stream_config['exchange_point']
 
         #
-        # TODO Note: using my platform_if as the name of the single stream
-        # for this platform: Maurice's initial idea is to have a single
-        # stream and eventually bundle multiple attributes there
+        # TODO Note: using a single stream for the platform
         #
-        stream_name = self._platform_id
+
+        stream_name = self._get_platform_name(self._platform_id)
 
         log.debug("%r: stream_name=%r, routing_key=%r",
             self._platform_id, stream_name, routing_key)
@@ -301,6 +300,22 @@ class PlatformAgent(ResourceAgent):
             self._data_publishers[stream_name] = publisher
             log.debug("%r: created publisher for stream_name=%r",
                   self._platform_id, stream_name)
+
+    def _get_platform_name(self, platform_id):
+        """
+        Interim helper to get the platform name associated with a platform_id.
+        """
+
+        # simply returning the same platform_id, because those are the IDs
+        # currently passed from configuration -- see test_oms_launch
+        return platform_id
+
+#        if self._agent_device_map:
+#            platform_name = self._agent_device_map[platform_id].name
+#        else:
+#            platform_name = platform_id
+#
+#        return platform_name
 
     def _create_driver(self):
         """
@@ -406,31 +421,61 @@ class PlatformAgent(ResourceAgent):
     def _handle_attribute_value_event(self, driver_event):
 
         if self._agent_streamconfig_map:
-            self._handle_attribute_value_event_using_agent_streamconfig_map()
+            self._handle_attribute_value_event_using_agent_streamconfig_map(driver_event)
         else:
-            self._handle_attribute_value_event_using_CFG_stream_config()
+            self._handle_attribute_value_event_using_CFG_stream_config(driver_event)
 
     def _handle_attribute_value_event_using_agent_streamconfig_map(self, driver_event):
 
         # NOTE: we are using platform_id as the stream_name, see comment
         # elsewhere in this file.
-        stream_name = self._platform_id
+        stream_name = self._get_platform_name(self._platform_id)
 
-        publisher = self._data_publishers[stream_name]
+        publisher = self._data_publishers.get(stream_name, None)
+        if not publisher:
+            log.warn('%r: no publisher configured for stream_name=%r',
+                     self._platform_id, stream_name)
+            return
+
         param_dict = self._param_dicts[stream_name]
         stream_def = self._stream_defs[stream_name]
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
-        rdt['value'] =  numpy.array([driver_event._value])
-        rdt['lat'] =    numpy.array([self._lat])
-        rdt['lon'] =    numpy.array([self._lon])
-        rdt['height'] = numpy.array([self._height])
+        # because currently using param-dict for 'simple_data_particle_raw_param_dict',
+        # the following are invalid:
+#        rdt['value'] =  numpy.array([driver_event._value])
+#        rdt['lat'] =    numpy.array([self._lat])
+#        rdt['lon'] =    numpy.array([self._lon])
+#        rdt['height'] = numpy.array([self._height])
+
+        # ... so, simply fill in 'raw':
+        rdt['raw'] =  numpy.array([driver_event._value])
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
-        publisher.publish(g)
+        try:
+            publisher.publish(g)
+        except Exception as e:
+            #
+            # The exception that occasionally occurs is AssertionError:
+            # ...
+            # File "/Users/carueda/workspace/coi-services/extern/pyon/pyon/net/channel.py", line 156, in _declare_exchange
+            # assert self._transport
+            #
+            # seems like it happens when the publisher has been closed (or
+            # similar operation).
+            #
+            exc_msg = "%s: %s" % (e.__class__.__name__, str(e))
+            msg = "%r: exception while calling publisher.publish(g) on stream %r, exception=%s" % (
+                            self._platform_id, stream_name, exc_msg)
+            print msg
+            import traceback
+            traceback.print_exc()
+            log.error(msg)
+            return
 
-        log.debug('%r: published data granule on stream %r, rdt=%r',
-            self._platform_id, stream_name, str(rdt))
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
+                self._platform_id, stream_name, str(rdt), str(g))
 
     def _handle_attribute_value_event_using_CFG_stream_config(self, driver_event):
         """
@@ -466,8 +511,9 @@ class PlatformAgent(ResourceAgent):
 
         stream_id = self._data_streams[stream_name]
         publisher.publish(g, stream_id=stream_id)
-        log.debug('%r: published data granule on stream %r, rdt=%r',
-            self._platform_id, stream_name, str(rdt))
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
+                self._platform_id, stream_name, str(rdt), str(g))
 
     ##########################################################################
     # TBD
@@ -505,7 +551,7 @@ class PlatformAgent(ResourceAgent):
             'test_mode':        True
         }
 
-        log.debug("%r: launching sub-platform agent %s",
+        log.debug("%r: launching sub-platform agent %r",
             self._platform_id, subplatform_id)
         pid = self._launcher.launch(subplatform_id, agent_config)
 
@@ -584,6 +630,7 @@ class PlatformAgent(ResourceAgent):
             'platform_id': subplatform_id,
             'platform_topology' : self._topology,
             'agent_device_map' : self._agent_device_map,
+            'agent_streamconfig_map': self._agent_streamconfig_map,
             'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],
             'container_name': self._container_name,
