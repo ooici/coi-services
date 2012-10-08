@@ -46,9 +46,10 @@ class VizTransformGoogleDT(TransformDataProcess):
 
     def on_start(self):
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
-        self.stream_info = self.CFG.get_safe('process.publish_streams', {})
+
+        self.stream_info  = self.CFG.get_safe('process.publish_streams', {})
         self.stream_names = self.stream_info.keys()
-        self.stream_ids = self.stream_info.values()
+        self.stream_ids   = self.stream_info.values()
         if not self.stream_names:
             raise BadRequest('Google DT Transform has no output streams.')
 
