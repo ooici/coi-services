@@ -152,7 +152,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
 
             sample_resource_id = myimpl.create_one(good_sample_resource)
             
-            log.debug("got resource id: %s" % sample_resource_id)
+            log.debug("got resource id: %s", sample_resource_id)
 
             if all_in_one: myimpl.delete_one(sample_resource_id, True)
 
@@ -436,7 +436,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             # put in an object
             sample_resource_id = myimpl.create_one(sample_resource())
 
-            log.debug("Attempting to delete newly created object with id=%s" % 
+            log.debug("Attempting to delete newly created object with id=%s",
                       sample_resource_id)
 
             #delete

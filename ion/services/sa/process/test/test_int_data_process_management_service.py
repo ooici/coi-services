@@ -98,7 +98,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         # Register the instrument so that the data producer and stream object are created
         data_producer_id = self.damsclient.register_instrument(instrument_id)
-        log.debug("TestIntDataProcessMgmtServiceMultiOut  data_producer_id %s" % data_producer_id)
+        log.debug("TestIntDataProcessMgmtServiceMultiOut  data_producer_id %s", data_producer_id)
 
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data')

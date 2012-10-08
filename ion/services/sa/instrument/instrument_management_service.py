@@ -242,7 +242,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
                              (str(instrument_device_id), len(model_objs)))
         instrument_model_id = model_objs[0]
-        log.debug("activate_instrument:instrument_model %s" % str(instrument_model_id))
+        log.debug("activate_instrument:instrument_model %s", str(instrument_model_id))
 
         #retrive the stream info for this model
         streams_dict = model_objs[0].stream_configuration
@@ -263,7 +263,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentModel '%s', got %d" %
                              (str(instrument_model_id), len(agent_objs)))
         instrument_agent_id = agent_objs[0]._id
-        log.debug("start_instrument_agent_instance: Got instrument agent '%s'" % instrument_agent_id)
+        log.debug("start_instrument_agent_instance: Got instrument agent '%s'", instrument_agent_id)
 
         out_streams = []
         out_streams_and_param_dicts = {}
@@ -585,13 +585,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         
         def zip_of_b64(b64_data, title):
 
-            log.debug("decoding base64 zipfile for %s" % title)
+            log.debug("decoding base64 zipfile for %s", title)
             try:
                 zip_str  = base64.decodestring(b64_data)
             except:
                 raise BadRequest("could not base64 decode supplied %s" % title)
 
-            log.debug("opening zipfile for %s" % title)
+            log.debug("opening zipfile for %s", title)
             try:
                 zip_file = StringIO(zip_str)
                 zip_obj  = zipfile.ZipFile(zip_file)
@@ -633,7 +633,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         except csv.Error:
             dialect = csv.excel
         except Exception as e:
-            raise BadRequest("%s - %s" % (str(type(e)), str(e.args)))
+            raise BadRequest("%s - %s", str(type(e)), str(e.args))
         csv_reader = csv.DictReader(StringIO(csv_contents), dialect=dialect)
 
         #validate fields in manifest file
@@ -653,7 +653,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         pkg_info_data = {}
         pkg_info = egg_zip_obj.read("EGG-INFO/PKG-INFO")
         for l in pkg_info.splitlines():
-            log.debug("Reading %s" % l)
+            log.debug("Reading %s", l)
             tmp = l.partition(": ")
             pkg_info_data[tmp[0]] = tmp[2]
 
@@ -663,12 +663,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #determine egg name
         egg_filename = "%s-%s-py2.7.egg" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
-        log.info("Egg filename is '%s'" % egg_filename)
+        log.info("Egg filename is '%s'", egg_filename)
 
         egg_url = "http://%s%s/%s" % (CFG.service.instrument_management.driver_release_host,
                                       CFG.service.instrument_management.driver_release_directory,
                                       egg_filename)
-        log.info("Egg url will be '%s'" % egg_url)
+        log.info("Egg url will be '%s'", egg_url)
 
         egg_urlfile = "%s v%s.url" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
 
@@ -697,8 +697,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             
         log.debug("Sanity checking manifest vs zip file")
         if len(qa_zip_obj.namelist()) - 1 > len(attachments):
-            log.warn("There were %d files in the zip but only %d in the manifest" % 
-                     (len(qa_zip_obj.namelist()) - 1, len(attachments)))
+            log.warn("There were %d files in the zip but only %d in the manifest",
+                     len(qa_zip_obj.namelist()) - 1,
+                     len(attachments))
             
 
         
@@ -707,15 +708,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         log.debug("creating tempfile for egg output")
         f_handle, tempfilename = tempfile.mkstemp()
-        log.debug("writing egg data to disk at '%s'" % tempfilename)
+        log.debug("writing egg data to disk at '%s'", tempfilename)
         os.write(f_handle, base64.decodestring(agent_egg))
 
-        remotefilename = "%s@%s:%s/%s" % (cfg_user, 
+        remotefilename = "%s@%s:%s/%s" % (cfg_user,
                                           cfg_host, 
                                           cfg_remotepath, 
                                           egg_filename)
 
-        log.info("executing scp: '%s' to '%s'" % (tempfilename, remotefilename))
+        log.info("executing scp: '%s' to '%s'", tempfilename, remotefilename)
         scp_proc = subprocess.Popen(["scp", "-v", "-o", "PasswordAuthentication=no",
                                       "-o", "StrictHostKeyChecking=no",
                                       tempfilename, remotefilename],
@@ -725,7 +726,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         scp_out, scp_err = scp_proc.communicate()
 
         # clean up
-        log.debug("removing tempfile at '%s'" % tempfilename)
+        log.debug("removing tempfile at '%s'", tempfilename)
         os.unlink(tempfilename)
 
         # check scp status
@@ -900,7 +901,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def _get_instrument_producer(self, instrument_device_id=""):
         producer_objs, _ = self.clients.resource_registry.find_objects(subject=instrument_device_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=False)
         if not producer_objs:
-            raise NotFound("No Producers created for this Data Process " + str(instrument_device_id))
+            raise NotFound("No Producers created for this Instrument Device " + str(instrument_device_id))
         return producer_objs[0]
 
 
@@ -991,7 +992,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected 1 PlatformDevice attached to  PlatformAgentInstance '%s', got %d" %
                              (str(platform_device_id), len(platform_models_objs)))
         platform_model_id = platform_models_objs[0]
-        log.debug("start_platform_agent_instance:platform_model %s" % str(platform_model_id))
+        log.debug("start_platform_agent_instance:platform_model %s", str(platform_model_id))
 
         #retrive the stream info for this model
         #todo: add stream info to the platofrom model create
@@ -1005,7 +1006,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentAgentInstance '%s', got %d" %
                            (str(platform_agent_instance_id), len(platform_agent_objs)))
         platform_agent_id = platform_agent_objs[0]._id
-        log.debug("Got platform agent '%s'" % platform_agent_id)
+        log.debug("Got platform agent '%s'", platform_agent_id)
 
 
         #retrieve the associated process definition

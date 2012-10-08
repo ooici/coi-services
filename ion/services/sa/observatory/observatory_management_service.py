@@ -121,21 +121,27 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        log.debug("ObservatoryManagementService.create_marine_facility(): %s" % org)
+        log.debug("ObservatoryManagementService.create_marine_facility(): %s", org)
         
         # create the org
         org.org_type = OrgTypeEnum.MARINE_FACILITY
         org_id = self.clients.org_management.create_org(org)
 
         #Instantiate initial set of User Roles for this marine facility
-        instrument_operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE, 
-                                             label='Instrument Operator', description='Marine Facility Instrument Operator')
+        instrument_operator_role = IonObject(RT.UserRole,
+                                             name=INSTRUMENT_OPERATOR_ROLE,
+                                             label='Instrument Operator',
+                                             description='Marine Facility Instrument Operator')
         self.clients.org_management.add_user_role(org_id, instrument_operator_role)
-        observatory_operator_role = IonObject(RT.UserRole, name=OBSERVATORY_OPERATOR_ROLE, 
-                                             label='Observatory Operator', description='Marine Facility Observatory Operator')
+        observatory_operator_role = IonObject(RT.UserRole,
+                                              name=OBSERVATORY_OPERATOR_ROLE,
+                                             label='Observatory Operator',
+                                             description='Marine Facility Observatory Operator')
         self.clients.org_management.add_user_role(org_id, observatory_operator_role)
-        data_operator_role = IonObject(RT.UserRole, name=DATA_OPERATOR_ROLE, 
-                                             label='Data Operator', description='Marine Facility Data Operator')
+        data_operator_role = IonObject(RT.UserRole,
+                                       name=DATA_OPERATOR_ROLE,
+                                       label='Data Operator',
+                                       description='Marine Facility Data Operator')
         self.clients.org_management.add_user_role(org_id, data_operator_role)
         
         return org_id
@@ -152,7 +158,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        log.debug("ObservatoryManagementService.create_virtual_observatory(): %s" % org)
+        log.debug("ObservatoryManagementService.create_virtual_observatory(): %s", org)
 
         # create the org
         org.org_type = OrgTypeEnum.VIRTUAL_OBSERVATORY
@@ -202,7 +208,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory_id    str
         @throws NotFound    object with specified id does not exist
         """
-        return self.observatory.delete_one(observatory_id)
+        self.observatory.advance_lcs(observatory_id, LCE.RETIRE)
+        #return self.observatory.delete_one(observatory_id)
 
 
     def create_subsite(self, subsite=None, parent_id=''):
@@ -245,7 +252,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.subsite.delete_one(subsite_id)
+        self.subsite.advance_lcs(subsite_id, LCE.RETIRE)
+        #self.subsite.delete_one(subsite_id)
 
 
 
@@ -289,7 +297,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.platform_site.delete_one(platform_site_id)
+        self.platform_site.advance_lcs(platform_site_id, LCE.RETIRE)
+        #self.platform_site.delete_one(platform_site_id)
 
 
 
@@ -334,9 +343,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
         # todo: give InstrumentSite a lifecycle in COI so that we can remove the "True" argument here
-        self.instrument_site.delete_one(instrument_site_id)
+        self.instrument_site.advance_lcs(instrument_site_id, LCE.RETIRE)
+        #self.instrument_site.delete_one(instrument_site_id)
 
 
+
+    #todo: convert to resource_impl
 
     def create_deployment(self, deployment=None, site_id="", device_id=""):
         """
@@ -366,7 +378,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def read_deployment(self, deployment_id=''):
         # Read Deployment object with _id matching id
-        log.debug("Reading Deployment object id: %s" % deployment_id)
+        log.debug("Reading Deployment object id: %s", deployment_id)
         deployment_obj = self.clients.resource_registry.read(deployment_id)
 
         return deployment_obj
@@ -378,7 +390,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #Verify that the deployment exist
         deployment_obj = self.clients.resource_registry.read(deployment_id)
         if not deployment_obj:
-            raise NotFound("Deployment  %s does not exist" % deployment_id)
+            raise NotFound("Deployment %s does not exist" % deployment_id)
 
         # Remove the link between the Stream Definition resource and the Data Process Definition resource
         associations = self.clients.resource_registry.find_associations(None, PRED.hasDeployment, deployment_id, id_only=True)
@@ -494,7 +506,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if not resource_id:
             raise BadRequest("Resource id not given")
 
-        log.debug("assign_resource_to_observatory_org: org_id=%s, resource_id=%s " % (org_id, resource_id))
+        log.debug("assign_resource_to_observatory_org: org_id=%s, resource_id=%s ", org_id, resource_id)
         self.clients.org_management.share_resource(org_id, resource_id)
 
     def unassign_resource_from_observatory_org(self, resource_id='', org_id=''):
@@ -660,20 +672,20 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #now the full list of data producers, with children
         pdcs = child_data_producers(pdcs)
-        log.debug("Got %d data producers" % len(pdcs))
+        log.debug("Got %s data producers", len(pdcs))
 
         streamdefs = {}
         for pdc in pdcs:
-            log.debug("Checking data prodcer %s" % pdc)
+            log.debug("Checking data prodcer %s", pdc)
             prods, _ = self.RR.find_subjects(RT.DataProduct, PRED.hasDataProducer, pdc, True)
             for p in prods:
-                log.debug("Checking product %s" % p)
+                log.debug("Checking product %s", p)
                 streams, _ = self.RR.find_objects(p, PRED.hasStream, RT.Stream, True)
                 for s in streams:
-                    log.debug("Checking stream %s" % s)
+                    log.debug("Checking stream %s", s)
                     sdefs, _ = self.RR.find_objects(s, PRED.hasStreamDefinition, RT.StreamDefinition, True)
                     for sd in sdefs:
-                        log.debug("Checking streamdef %s" % sd)
+                        log.debug("Checking streamdef %s", sd)
                         if sd in streamdefs:
                             raise BadRequest("Got a duplicate stream definition stemming from device %s" % device_id)
                         streamdefs[sd] = s
@@ -684,11 +696,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         assert(type("") == type(site_id))
         assert(type(RT.Resource) == type(site_type) == type(model_type))
 
-        log.debug("checking %s for deployment, will return %s" % (site_type, model_type))
+        log.debug("checking %s for deployment, will return %s", site_type, model_type)
         # validate and return supported models
         models, _ = self.RR.find_objects(site_id, PRED.hasModel, model_type, True)
         if 1 > len(models):
-            raise BadRequest("Expected at least 1 model for %s '%s', got %d" % (site_type, site_id, len(models)))
+            raise BadRequest("Expected at least 1 model for %s '%s', got %s", site_type, site_id, len(models))
 
         log.debug("checking site data products")
 
@@ -696,7 +708,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if site_type != RT.PlatformSite:
             prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
             if 1 != len(prods):
-                raise BadRequest("Expected 1 output data product on %s '%s', got %d" % (site_type, site_id, len(prods)))
+                raise BadRequest("Expected 1 output data product on %s '%s', got %s", site_type, site_id, len(prods))
         return models
 
 
@@ -705,17 +717,17 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         assert(type("") == type(device_id))
         assert(type(RT.Resource) == type(device_type) == type(model_type))
 
-        log.debug("checking %s for deployment, will return %s" % (device_type, model_type))
+        log.debug("checking %s for deployment, will return %s", device_type, model_type)
         # validate and return model
         models, _ = self.RR.find_objects(device_id, PRED.hasModel, model_type, True)
         if 1 != len(models):
-            raise BadRequest("Expected 1 model for %s '%s', got %d" % (device_type, device_id, len(models)))
+            raise BadRequest("Expected 1 model for %s '%s', got %d", device_type, device_id, len(models))
         return models[0]
 
     def check_site_device_pair_for_deployment(self, site_id, device_id, site_type=None, device_type=None):
         assert(type("") == type(site_id) == type(device_id))
 
-        log.debug("checking %s/%s pair for deployment" % (site_type, device_type))
+        log.debug("checking %s/%s pair for deployment", site_type, device_type)
         #return a pair that should be REMOVED, or None
 
         if site_type is None:
@@ -733,7 +745,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         elif 0 < len(devices):
             if devices[0] != device_id:
                 ret = (site_id, devices[0])
-                log.info("%s '%s' is already hasDevice with a %s" % (site_type, site_id, device_type))
+                log.info("%s '%s' is already hasDevice with a %s", site_type, site_id, device_type)
 
         return ret
 
@@ -759,14 +771,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             for s in site_ids:
                 models = self.check_site_for_deployment(s, site_type, model_type)
                 if s in site_models:
-                    log.warn("Site '%s' was already collected in deployment '%s'" % (s, deployment_id))
+                    log.warn("Site '%s' was already collected in deployment '%s'", s, deployment_id)
                 site_models[s] = models
 
         def add_devices(device_ids, device_type, model_type):
             for d in device_ids:
                 model = self.check_device_for_deployment(d, device_type, model_type)
                 if d in device_models:
-                    log.warn("Device '%s' was already collected in deployment '%s'" % (d, deployment_id))
+                    log.warn("Device '%s' was already collected in deployment '%s'", d, deployment_id)
                 device_models[d] = model
 
 
@@ -859,10 +871,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
                              "model and streamdefs")
         elif 1 < len(solutions):
-            log.warn("Found %d possible ways to map device and site, but just picking the first one" % len(solutions))
-            log.warn("Here is the %s of all of them:" % type(solutions).__name__)
+            log.warn("Found %d possible ways to map device and site, but just picking the first one", len(solutions))
+            log.warn("Here is the %s of all of them:", type(solutions).__name__)
             for i, s in enumerate(solutions):
-                log.warn("Option %d: %s" % (i+1, solution_to_string(s)))
+                log.warn("Option %d: %s" , i+1, solution_to_string(s))
         else:
             log.info("Found one possible way to map devices and sites.  Best case scenario!")
 
@@ -881,15 +893,15 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         # process any removals
         for site_id, device_id in pairs_rem:
-            log.info("Unassigning hasDevice; device '%s' from site '%s'" % (device_id, site_id))
+            log.info("Unassigning hasDevice; device '%s' from site '%s'", device_id, site_id)
             if not activate_subscriptions:
-                log.warn("The input to the data product for site '%s' will no longer come from its primary device" %
+                log.warn("The input to the data product for site '%s' will no longer come from its primary device",
                          site_id)
             self.unassign_device_from_site(device_id, site_id)
 
         # process the additions
         for site_id, device_id in pairs_add:
-            log.info("Setting primary device '%s' for site '%s'" % (device_id, site_id))
+            log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
             if activate_subscriptions:
                 log.info("Activating subscription too")
@@ -1077,7 +1089,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 if depth[deepest_type] < depth[output_type]:
                     deepest_type = output_type
 
-            log.debug("Deepest level for search will be '%s'" % deepest_type)
+            log.debug("Deepest level for search will be '%s'", deepest_type)
 
             acc = self._traverse_entity_tree(acc, input_type, deepest_type, True)
 
@@ -1089,7 +1101,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 if depth[highest_type] > depth[output_type]:
                     highest_type = output_type
 
-            log.debug("Highest level for search will be '%s'" % highest_type)
+            log.debug("Highest level for search will be '%s'", highest_type)
 
             acc = self._traverse_entity_tree(acc, highest_type, input_type, False)
 
@@ -1149,7 +1161,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
             for pair in tmp:
                 if not pair in call_list:
-                    #log.debug("adding %s" % str(pair))
+                    #log.debug("adding %s", str(pair))
                     call_list.append(pair)
 
         return call_list
@@ -1174,7 +1186,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         
         if not parent_type in acc: acc[parent_type] = []
 
-        log.debug("Subordinates: '%s'x%d->'%s'" % (parent_type, len(acc[parent_type]), child_type))
+        log.debug("Subordinates: '%s'x%s->'%s'", parent_type, len(acc[parent_type]), child_type)
 
         #for all parents in the acc, add all their children
         for parent_obj in acc[parent_type]:
@@ -1192,7 +1204,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def _find_superior(self, acc, parent_type, child_type):
         # acc is an accumualted dictionary
 
-        #log.debug("Superiors: '%s'->'%s'" % (parent_type, child_type))
+        #log.debug("Superiors: '%s'->'%s'", parent_type, child_type)
         #if True:
         #    return acc
             
@@ -1211,7 +1223,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         
         if not child_type in acc: acc[child_type] = []
 
-        log.debug("Superiors: '%s'->'%s'x%d" % (parent_type, child_type, len(acc[child_type])))
+        log.debug("Superiors: '%s'->'%s'x%s", parent_type, child_type, len(acc[child_type]))
 
         #for all children in the acc, add all their parents
         for child_obj in acc[child_type]:

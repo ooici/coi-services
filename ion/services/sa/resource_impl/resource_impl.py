@@ -129,14 +129,14 @@ class ResourceImpl(object):
             ret = self.RR.retire(resource_id)
             return ret
         else:
-            log.debug("Moving %s resource life cycle with transition event=%s"
-                      % (self.iontype, transition_event))
+            log.debug("Moving %s resource life cycle with transition event=%s",
+                      self.iontype, transition_event)
 
             ret = self.RR.execute_lifecycle_transition(resource_id=resource_id,
                                                        transition_event=transition_event)
 
-            log.info("%s lifecycle transition=%s resulted in lifecycle state=%s" %
-                     (self.iontype, transition_event, str(ret)))
+            log.info("%s lifecycle transition=%s resulted in lifecycle state=%s",
+                     self.iontype, transition_event, str(ret))
 
         return ret
 
@@ -147,13 +147,19 @@ class ResourceImpl(object):
                 #The validation interceptor should have already verified that these are in the msg dict
                 resource_id = msg[id_field]
                 lifecycle_event = msg['lifecycle_event']
-                log.debug("policy_fn got LCE=%s for %s=(%s)'%s'" %
-                          (lifecycle_event, id_field, type(resource_id).__name__, resource_id))
+                log.debug("policy_fn got LCE=%s for %s=(%s)'%s'",
+                          lifecycle_event,
+                          id_field,
+                          type(resource_id).__name__,
+                          resource_id)
 
                 ret = self.check_lcs_precondition_satisfied(resource_id, lifecycle_event)
                 isok, msg = ret
-                log.debug("policy_fn for '%s %s' successfully returning %s - %s" %
-                          (lifecycle_event, id_field, isok, msg))
+                log.debug("policy_fn for '%s %s' successfully returning %s - %s",
+                          lifecycle_event,
+                          id_field,
+                          isok,
+                          msg)
                 return ret
 
             return policy_fn
@@ -410,7 +416,7 @@ class ResourceImpl(object):
         @param association_predicate one of the association types
         @param some_object the object "owned" by the association type
         """
-        #log.debug("_find_having, from %s" % self._toplevel_call())
+        #log.debug("_find_having, from %s", self._toplevel_call())
         ret, _ = self.RR.find_subjects(self.iontype,
                                        association_predicate,
                                        some_object,
@@ -426,7 +432,7 @@ class ResourceImpl(object):
         @param association_predicate the association type
         @param some_object_type the type of associated object
         """
-        #log.debug("_find_stemming, from %s" % self._toplevel_call())
+        #log.debug("_find_stemming, from %s", self._toplevel_call())
         ret, _ = self.RR.find_objects(primary_object_id,
                                       association_predicate,
                                       some_object_type,
@@ -512,19 +518,19 @@ class ResourceImpl(object):
         if check_duplicates:
             dups = self._resource_link_exists(subject_id, association_type, object_id)
             if dups:
-                log.debug("Create %s Association from '%s': ALREADY EXISTS"
-                          % (self._assn_name(association_type),
-                             self._toplevel_call()))
+                log.debug("Create %s Association from '%s': ALREADY EXISTS",
+                          self._assn_name(association_type),
+                          self._toplevel_call())
                 return dups
 
         associate_success = self.RR.create_association(subject_id,
                                                        association_type,
                                                        object_id)
 
-        log.debug("Create %s Association from '%s': %s"
-                  % (self._assn_name(association_type),
-                     self._toplevel_call(),
-                      str(associate_success)))
+        log.debug("Create %s Association from '%s': %s",
+                  self._assn_name(association_type),
+                  self._toplevel_call(),
+                  str(associate_success))
 
         return associate_success
         
@@ -560,9 +566,9 @@ class ResourceImpl(object):
         if len(existing_links) > 0:
             dups = self._resource_link_exists(subject_id, association_type, object_id)
             if dups:
-                log.debug("Create %s Association (single object) from '%s': ALREADY EXISTS"
-                          % (self._assn_name(association_type),
-                             self._toplevel_call()))
+                log.debug("Create %s Association (single object) from '%s': ALREADY EXISTS",
+                          self._assn_name(association_type),
+                          self._toplevel_call())
                 return dups
 
             if raise_exn:
@@ -598,9 +604,9 @@ class ResourceImpl(object):
         if len(existing_links) > 0:
             dups = self._resource_link_exists(subject_id, association_type, object_id)
             if dups:
-                log.debug("Create %s Association (single subject) from '%s': ALREADY EXISTS"
-                          % (self._assn_name(association_type),
-                             self._toplevel_call()))
+                log.debug("Create %s Association (single subject) from '%s': ALREADY EXISTS",
+                          self._assn_name(association_type),
+                          self._toplevel_call())
                 return dups
 
             if raise_exn:
@@ -629,18 +635,19 @@ class ResourceImpl(object):
                                         object=object_id)
         dessociate_success = self.RR.delete_association(assoc)
 
-        log.debug("Delete %s Association through %s: %s"
-                  % (self._assn_name(association_type),
-                     self._toplevel_call(),
-                     str(dessociate_success)))
+        log.debug("Delete %s Association through %s: %s",
+                  self._assn_name(association_type),
+                  self._toplevel_call(),
+                  str(dessociate_success))
         return dessociate_success
 
     def _unlink_all_objects_by_association_type(self, subject_id='', association_type=''):
         """
         delete all assocations of a given type
         """
-        log.debug("Deleting all %s object associations from subject with id='%s'" %
-                  (association_type, subject_id))
+        log.debug("Deleting all %s object associations from subject with id='%s'",
+                  association_type,
+                  subject_id)
         associations = self.RR.find_associations(subject=subject_id, predicate=association_type)
         
         for a in associations:
@@ -651,8 +658,9 @@ class ResourceImpl(object):
         """
         delete all assocations of a given type
         """
-        log.debug("Deleting all %s associations to object with id='%s'" %
-                  (association_type, object_id))
+        log.debug("Deleting all %s associations to object with id='%s'",
+                  association_type,
+                  object_id)
         associations = self.RR.find_associations(object=object_id, predicate=association_type)
         
         for a in associations:
