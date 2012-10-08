@@ -159,7 +159,7 @@ class ProcessStateGateIntTest(IonIntegrationTestCase):
         print "Done stopping process"
 
 
-    def test_create_schedule_cancel(self):
+    def test_process_state_gate(self):
 
         self.assertFalse(self.await_state(ProcessStateEnum.SPAWN, 1),
                          "The process was reported as spawned, but we didn't yet")
