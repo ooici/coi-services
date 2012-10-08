@@ -419,9 +419,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         pressure = input_rdt_to_transform['pressure']
         temperature = input_rdt_to_transform['temp']
 
-        longitude = input_rdt_to_transform['lon']
-        latitude = input_rdt_to_transform['lat']
-
         sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
 
         out_salinity = output_rdt_transform['salinity']
@@ -652,7 +649,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         config.process.interval = 1.0
 
-        pdict = get_param_dict('simple_salinity_density_param_dict')
+        pdict = get_param_dict('simple_density_param_dict')
 
         stream_def_id =  self.pubsub.create_stream_definition('dens_stream_def', parameter_dictionary=pdict.dump())
         dens_stream_id, _ = self.pubsub.create_stream('test_density', stream_definition_id=stream_def_id,
@@ -738,7 +735,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        pdict = get_param_dict('simple_salinity_density_param_dict')
+        pdict = get_param_dict('simple_salinity_param_dict')
 
         stream_def_id =  self.pubsub.create_stream_definition('sal_stream_def', parameter_dictionary=pdict.dump())
         sal_stream_id, _ = self.pubsub.create_stream('test_salinity', stream_definition_id=stream_def_id,
@@ -809,23 +806,8 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
-        #Explicitly make these numpy arrays...
-        c = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
-        t = numpy.array([random.uniform(-1.7, 21.0) for i in xrange(length)])
-        p = numpy.array([random.lognormvariate(1,2) for i in xrange(length)])
-        lat = numpy.array([random.uniform(-90.0, 90.0) for i in xrange(length)])
-        lon = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)])
-        h = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)])
-        tvar = numpy.array([i for i in xrange(1,length+1)])
-        self.last_time = max(tvar)
-
-        rdt['time'] = tvar
-        rdt['lat'] = lat
-        rdt['lon'] = lon
-        rdt['depth'] = h
-        rdt['temp'] = t
-        rdt['conductivity'] = c
-        rdt['pressure'] = p
+        for key in parameter_dictionary.keys():
+            rdt[key] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
 
         g = rdt.to_granule()
 
