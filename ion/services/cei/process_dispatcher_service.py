@@ -65,8 +65,6 @@ class ProcessStateGate(EventSubscriber):
         self.first_chance = None
 
 
-        #sanity check, will error on bad input
-        self.read_process_fn(self.process_id)  # to make sure fn exists
         _ = ProcessStateEnum._str_map[self.desired_state] # make sure state exists
         log.info("ProcessStateGate is going to wait on process '%s' for state '%s'",
                 self.process_id,
@@ -84,8 +82,11 @@ class ProcessStateGate(EventSubscriber):
     def in_desired_state(self):
         # check whether the process we are monitoring is in the desired state as of this moment
         # Once pd creates the process, process_obj is never None
-        process_obj = self.read_process_fn(self.process_id)
-        return (process_obj and self.desired_state == process_obj.process_state)
+        try:
+            process_obj = self.read_process_fn(self.process_id)
+            return (process_obj and self.desired_state == process_obj.process_state)
+        except NotFound:
+            return false
 
     def await(self, timeout=0):
         #set up the event gate so that we don't miss any events
