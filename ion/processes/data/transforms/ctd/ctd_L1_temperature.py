@@ -58,18 +58,15 @@ class CTDL1TemperatureTransformAlgorithm(SimpleGranuleTransformFunction):
     def execute(input=None, context=None, config=None, params=None, state=None):
 
         rdt = RecordDictionaryTool.load_from_granule(input)
+        out_rdt = RecordDictionaryTool(stream_definition_id=params)
+
         temperature = rdt['temp']
         temp_value = (temperature / 100000.0) - 10
 
-        #build the granule for temperature
-        result = CTDL1TemperatureTransformAlgorithm._build_granule_settings( stream_definition_id= params,
-                                                                            field_name ='temp',
-                                                                            value=temp_value)
-        return result
+        for key, value in rdt.iteritems():
+            if key in out_rdt:
+                out_rdt[key] = value[:]
 
-    @staticmethod
-    def _build_granule_settings(stream_definition_id=None, field_name='', value=None):
+        out_rdt['temp'] = temp_value
 
-        root_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
-        root_rdt[field_name] = value
-        return root_rdt.to_granule()
+        return out_rdt.to_granule()

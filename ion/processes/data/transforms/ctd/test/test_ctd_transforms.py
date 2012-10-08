@@ -33,6 +33,7 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.util.parameter_yaml_IO import get_param_dict
 import unittest, gevent
+import numpy, random
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
@@ -72,7 +73,7 @@ class TestCtdTransforms(IonUnitTestCase):
 
         length = 1
 
-        packet = self.px_ctd._get_new_ctd_packet("STR_ID", length)
+        packet = self._get_new_ctd_packet("STR_ID", length)
         self.tx_L0.process(packet)
 
         self.tx_L0.cond_publisher.publish = mocksignature(self.tx_L0.cond_publisher.publish)
@@ -239,8 +240,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -332,8 +332,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -523,8 +522,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -612,8 +610,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -701,8 +698,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet( parameter_dictionary=pdict,length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -789,8 +785,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -808,3 +803,30 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         self.assertTrue(rdt.__contains__('salinity'))
 
         self.check_salinity_algorithm_execution(publish_granule, result)
+
+
+    def _get_new_ctd_packet(self, parameter_dictionary, length):
+
+        rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
+
+        #Explicitly make these numpy arrays...
+        c = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
+        t = numpy.array([random.uniform(-1.7, 21.0) for i in xrange(length)])
+        p = numpy.array([random.lognormvariate(1,2) for i in xrange(length)])
+        lat = numpy.array([random.uniform(-90.0, 90.0) for i in xrange(length)])
+        lon = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)])
+        h = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)])
+        tvar = numpy.array([i for i in xrange(1,length+1)])
+        self.last_time = max(tvar)
+
+        rdt['time'] = tvar
+        rdt['lat'] = lat
+        rdt['lon'] = lon
+        rdt['depth'] = h
+        rdt['temp'] = t
+        rdt['conductivity'] = c
+        rdt['pressure'] = p
+
+        g = rdt.to_granule()
+
+        return g

@@ -53,18 +53,15 @@ class CTDL1PressureTransformAlgorithm(SimpleGranuleTransformFunction):
     def execute(input=None, context=None, config=None, params=None, state=None):
 
         rdt = RecordDictionaryTool.load_from_granule(input)
+        out_rdt = RecordDictionaryTool(stream_definition_id=params)
+
         pressure = rdt['pressure']
         pres_value = (pressure / 100.0) + 0.5
 
-        # build the granule for pressure
-        result = CTDL1PressureTransformAlgorithm._build_granule(stream_definition_id = params,
-            field_name ='pressure',
-            value=pres_value)
-        return result
+        for key, value in rdt.iteritems():
+            if key in out_rdt:
+                out_rdt[key] = value[:]
 
-    @staticmethod
-    def _build_granule(stream_definition_id=None, field_name='', value=None):
+        out_rdt['pressure'] = pres_value
 
-        root_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
-        root_rdt[field_name] = value
-        return root_rdt.to_granule()
+        return out_rdt.to_granule()
