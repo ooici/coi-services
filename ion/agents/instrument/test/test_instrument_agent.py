@@ -179,7 +179,7 @@ class FakeProcess(LocalContextMixin):
 #Refactored as stand alone method for starting an instrument agent for use in other tests, like governance
 #to do policy testing for resource agents
 #shenrie
-def start_instrument_agent_process(container, stream_config={}, resource_id=IA_RESOURCE_ID, resource_name=IA_NAME, message_headers=None):
+def start_instrument_agent_process(container, stream_config={}, resource_id=IA_RESOURCE_ID, resource_name=IA_NAME, org_name=None, message_headers=None):
 
     # Create agent config.
     agent_config = {
@@ -188,6 +188,10 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
         'agent'         : {'resource_id': resource_id},
         'test_mode' : True
     }
+
+    if org_name is not None:
+        agent_config['org_name'] = org_name
+
 
     # Start instrument agent.
 

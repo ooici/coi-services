@@ -234,6 +234,55 @@ class PlatformAgent(ResourceAgent):
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
 
+    def on_init(self):
+        """
+        Instrument agent pyon process initialization.
+        Init objects that depend on the container services and start state
+        machine.
+        """
+        if self._is_policy_enabled():
+            self.container.governance_controller.register_process_operation_precondition(self, 'execute_resource', self.check_execute_resource)
+            self.container.governance_controller.register_process_operation_precondition(self, 'set_resource', self.check_set_resource)
+            self.container.governance_controller.register_process_operation_precondition(self, 'ping_resource', self.check_ping_resource)
+
+    ##############################################################
+    # Governance interfaces
+    ##############################################################
+
+    def check_set_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the set_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
+    def check_execute_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the execute_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        if msg['command'].command == ResourceAgentEvent.GO_DIRECT_ACCESS and not com.commitment.exclusive:
+            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
+    def check_ping_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the ping_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
+
     def _create_publisher(self, stream_id=None, stream_route=None):
         if self._standalone:
             publisher = StandaloneStreamPublisher(stream_id, stream_route)
