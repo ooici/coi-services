@@ -22,13 +22,14 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
-from interface.objects import LastUpdate
+from interface.objects import LastUpdate, ComputedValueAvailability
+
+from nose.plugins.attrib import attr
 from interface.objects import ProcessDefinition
 
 from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
 from coverage_model.coverage import CRS, GridDomain, GridShape
 
-from nose.plugins.attrib import attr
 
 import unittest
 
@@ -209,6 +210,13 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # now get the dp back to see if it was updated
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
         self.assertEquals(dp_obj.description,'the very first dp')
+
+        #test extension
+        extended_product = self.dpsc_cli.get_data_product_extension(dp_id)
+        self.assertEqual(dp_id, extended_product._id)
+        self.assertEqual(ComputedValueAvailability.PROVIDED,
+                         extended_product.computed.product_download_size_estimated.status)
+        self.assertEqual(1024, extended_product.computed.product_download_size_estimated.value)
 
         # now 'delete' the data product
         log.debug("deleting data product: %s" % dp_id)
