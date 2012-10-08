@@ -164,9 +164,6 @@ class ProcessStateGateIntTest(IonIntegrationTestCase):
         self.assertFalse(self.await_state(ProcessStateEnum.SPAWN, 1),
                          "The process was reported as spawned, but we didn't yet")
 
-        self.assertTrue(self.await_state(ProcessStateEnum.TERMINATE),
-                         "The process failed to be reported as terminated when it is unstarted")
-
         print "GOING TO ACTUALLY START PROCESS NOW"
         spawn_later(1, self.process_start)
 
