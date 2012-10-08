@@ -160,18 +160,24 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        config.process.interval = 1.0
+        pdict = get_param_dict('ctd_parsed_param_dict')
+        stream_def_id =  self.pubsub.create_stream_definition('ctd_all_stream_def', parameter_dictionary=pdict.dump())
 
-        cond_stream_id, _ = self.pubsub.create_stream('test_conductivity', exchange_point='science_data')
+        cond_stream_id, _ = self.pubsub.create_stream('test_cond',
+            exchange_point='science_data',
+            stream_definition_id=stream_def_id)
+
+        pres_stream_id, _ = self.pubsub.create_stream('test_pres',
+            exchange_point='science_data',
+            stream_definition_id=stream_def_id)
+
+        temp_stream_id, _ = self.pubsub.create_stream('test_temp',
+            exchange_point='science_data',
+            stream_definition_id=stream_def_id)
+
         config.process.publish_streams.conductivity = cond_stream_id
-
-        temp_stream_id, _ = self.pubsub.create_stream('test_temperature', exchange_point='science_data')
-        config.process.publish_streams.temperature = temp_stream_id
-
-        pres_stream_id, _ = self.pubsub.create_stream('test_pressure',  exchange_point='science_data')
         config.process.publish_streams.pressure = pres_stream_id
-
-        log.debug("config:: %s" % config)
+        config.process.publish_streams.temperature = temp_stream_id
 
         # Schedule the process
         pid = self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
@@ -198,9 +204,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         sub_pres = StandaloneStreamSubscriber('sub_pres', subscriber3)
         self.addCleanup(sub_pres.stop)
 
-        sub_cond_id = self.pubsub.create_subscription('subscription_cond',
-                                                                            stream_ids=[cond_stream_id],
-                                                                            exchange_name='sub_cond')
+        sub_cond_id= self.pubsub.create_subscription('subscription_cond',
+                                stream_ids=[cond_stream_id],
+                                exchange_name='sub_cond')
 
         sub_temp_id = self.pubsub.create_subscription('subscription_temp',
             stream_ids=[temp_stream_id],
@@ -254,12 +260,19 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         result_temp = ar_temp.get(timeout=10)
         result_pres = ar_pres.get(timeout=10)
 
-        log.debug("result_cond: %s" % result_cond)
-        log.debug("result_temp: %s" % result_temp)
-        log.debug("result_pres: %s" % result_pres)
+        log.debug("result_cond:::: %s" % result_cond)
+        log.debug("result_temp:::: %s" % result_temp)
+        log.debug("result_pres:::: %s" % result_pres)
 
+        log.debug("type of result_cond: %s" % type(result_cond))
+        out_dict = {}
+        out_dict['c'] = RecordDictionaryTool.load_from_granule(result_cond)['conductivity']
+        out_dict['t'] = RecordDictionaryTool.load_from_granule(result_temp)['temp']
+        out_dict['p'] = RecordDictionaryTool.load_from_granule(result_pres)['pressure']
+
+        log.debug("out_rdt~~~ %s" % out_dict)
         # Check that the transform algorithm was successfully executed
-        self.check_granule_splitting(publish_granule, [result_cond, result_temp, result_pres])
+        self.check_granule_splitting(publish_granule, out_dict)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -284,12 +297,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        config.process.interval = 1.0
-
         pdict = get_param_dict('simple_data_particle_parsed_param_dict')
-
-        log.debug("pdict: %s" % pdict)
-        log.debug("type of pdict: %s" % type(pdict))
 
         stream_def_id =  self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary=pdict.dump())
         cond_stream_id, _ = self.pubsub.create_stream('test_conductivity',
@@ -439,7 +447,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #-----------------------------------------------------------------------------
         self.assertTrue(sal_value.all() == out_salinity.all())
 
-    def check_granule_splitting(self, publish_granule, out_granules):
+    def check_granule_splitting(self, publish_granule, out_dict):
         '''
         This checks that the ctd_L0_all transform is able to split out one of the
         granules from the whole granule
@@ -452,21 +460,19 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         in_pressure = input_rdt_to_transform['pressure']
         in_temp = input_rdt_to_transform['temp']
 
-        out_cond = None
-        out_pressure = None
-        out_temp = None
+        log.debug("in_cond:: %s" % in_cond)
+        log.debug("out_dict::: %s" % out_dict)
 
-        for out_granule in out_granules:
-            output_rdt_transform = RecordDictionaryTool.load_from_granule(out_granule)
-            if output_rdt_transform.__contains__('conductivity'):
-                out_cond = output_rdt_transform['conductivity']
-            elif output_rdt_transform.__contains__('pressure'):
-                out_pressure = output_rdt_transform['pressure']
-            elif output_rdt_transform.__contains__('temp'):
-                out_temp = output_rdt_transform['temp']
+        out_cond = out_dict['c']
+        out_pres = out_dict['p']
+        out_temp = out_dict['t']
+
+        log.debug( "out_cond::: %s" % out_cond)
+        log.debug( "out_pres::: %s" % out_pres)
+        log.debug( "out_temp::: %s" % out_temp)
 
         self.assertTrue(in_cond.all() == out_cond.all())
-        self.assertTrue(in_pressure.all() == out_pressure.all())
+        self.assertTrue(in_pressure.all() == out_pres.all())
         self.assertTrue(in_temp.all() == out_temp.all())
 
     @attr('LOCOINT')
@@ -492,9 +498,12 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        config.process.interval = 1.0
+        pdict = get_param_dict('ctd_parsed_param_dict')
+
+        stream_def_id =  self.pubsub.create_stream_definition('pres_stream_def', parameter_dictionary=pdict.dump())
         pres_stream_id, _ = self.pubsub.create_stream('test_pressure',
-            exchange_point='science_data')
+                                                        stream_definition_id=stream_def_id,
+                                                        exchange_point='science_data')
 
         config.process.publish_streams.pressure = pres_stream_id
 
@@ -581,9 +590,11 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        config.process.interval = 1.0
-        temp_stream_id, _ = self.pubsub.create_stream('test_temperature',
-            exchange_point='science_data')
+        pdict = get_param_dict('simple_data_particle_parsed_param_dict')
+
+        stream_def_id =  self.pubsub.create_stream_definition('temp_stream_def', parameter_dictionary=pdict.dump())
+        temp_stream_id, _ = self.pubsub.create_stream('test_temperature', stream_definition_id=stream_def_id,
+                                                        exchange_point='science_data')
 
         config.process.publish_streams.temperature = temp_stream_id
 
@@ -672,7 +683,10 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         config.process.interval = 1.0
 
-        dens_stream_id, _ = self.pubsub.create_stream('test_density',
+        pdict = get_param_dict('simple_salinity_density_param_dict')
+
+        stream_def_id =  self.pubsub.create_stream_definition('dens_stream_def', parameter_dictionary=pdict.dump())
+        dens_stream_id, _ = self.pubsub.create_stream('test_density', stream_definition_id=stream_def_id,
             exchange_point='science_data')
         config.process.publish_streams.density = dens_stream_id
 
@@ -758,9 +772,10 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        config.process.interval = 1.0
+        pdict = get_param_dict('simple_salinity_density_param_dict')
 
-        sal_stream_id, _ = self.pubsub.create_stream('test_salinity',
+        stream_def_id =  self.pubsub.create_stream_definition('sal_stream_def', parameter_dictionary=pdict.dump())
+        sal_stream_id, _ = self.pubsub.create_stream('test_salinity', stream_definition_id=stream_def_id,
             exchange_point='science_data')
 
         config.process.publish_streams.salinity = sal_stream_id
