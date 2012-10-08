@@ -6,7 +6,7 @@ from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.example_double_salinity import SalinityDoubler
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
 from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphs
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -67,25 +67,21 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         # Create CTD Parsed as the initial data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data')
+        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=ctd_pdict_id)
 
 
         log.debug('Creating new CDM data product with a stream definition')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
+        tdom, sdom = time_series_domain()
 
         dp_obj = IonObject(RT.DataProduct,
             name=data_product_name,
             description='ctd stream test',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            temporal_domain = tdom.dump(),
+            spatial_domain = sdom.dump())
 
-        ctd_parsed_data_product_id = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        ctd_parsed_data_product_id = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
 
         log.debug('new ctd_parsed_data_product_id = %s' % ctd_parsed_data_product_id)
 
@@ -281,7 +277,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             self.fail("failed to create new SalinityTransform data process definition: %s" %ex)
 
         # create a stream definition for the data from the salinity Transform
-        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
+        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         sal_stream_def_id = self.pubsubclient.create_stream_definition(name='Salinity', parameter_dictionary_id=ctd_pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id )
 
@@ -309,7 +306,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
         # create a stream definition for the data from the salinity Transform
-        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(name='SalinityDoubler')
+        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(name='SalinityDoubler', parameter_dictionary_id=ctd_pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id )
 
         return salinity_doubler_dprocdef_id
@@ -330,20 +328,15 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         # Create the output data product of the transform
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
+        tdom, sdom = time_series_domain()
 
         transform_dp_obj = IonObject(RT.DataProduct,
             name=data_process_name,
             description=data_process_definition.description,
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            temporal_domain = tdom.dump(),
+            spatial_domain = sdom.dump())
 
-        transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id, parameter_dictionary)
+        transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id)
 
         self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id)
 
