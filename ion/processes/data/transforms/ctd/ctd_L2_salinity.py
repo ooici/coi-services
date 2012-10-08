@@ -39,8 +39,6 @@ class SalinityTransform(TransformDataProcess):
         """
         Processes incoming data!!!!
         """
-        log.info('Received incoming packet')
-
         if packet == {}:
             return
 
