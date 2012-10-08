@@ -281,7 +281,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             self.fail("failed to create new SalinityTransform data process definition: %s" %ex)
 
         # create a stream definition for the data from the salinity Transform
-        sal_stream_def_id = self.pubsubclient.create_stream_definition(name='Salinity')
+        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        sal_stream_def_id = self.pubsubclient.create_stream_definition(name='Salinity', parameter_dictionary_id=ctd_pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id )
 
         return ctd_L2_salinity_dprocdef_id

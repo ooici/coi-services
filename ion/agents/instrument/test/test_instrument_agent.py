@@ -51,11 +51,6 @@ from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestS
 from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverConnectionState
 
-# Parameter dicts and publishing.
-from ion.agents.instrument.taxy_factory import get_taxonomy
-from ion.util.parameter_yaml_IO import get_param_dict
-from coverage_model.parameter import ParameterDictionary
-
 # Objects and clients.
 from interface.objects import AgentCommand
 from interface.objects import CapabilityType
