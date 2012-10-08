@@ -2,24 +2,19 @@
 @author Stephen Henrie
 @description Example Transform to double salinity
 '''
-from prototype.sci_data.stream_defs import L2_practical_salinity_stream_definition
 from pyon.util.log import log
-from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
-from prototype.sci_data.constructor_apis import PointSupplementConstructor
+from ion.core.process.transform import TransformDataProcess
+from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
-from pyon.ion.stream import StreamPublisher
 import numpy, re
 
 class SalinityDoubler(TransformDataProcess):
 
-    outgoing_stream_def = L2_practical_salinity_stream_definition()
-    incoming_stream_def = L2_practical_salinity_stream_definition()
 
     def on_start(self):
 
@@ -38,9 +33,18 @@ class SalinityDoubler(TransformDataProcess):
         """
         Example process to double the salinity value
         """
-        # Use the PointSupplementStreamParser to pull data from a granule
-        #psd = PointSupplementStreamParser(stream_definition=self.incoming_stream_def, stream_granule=packet)
-        rdt = RecordDictionaryTool.load_from_granule(granule)
+        g = ctd_L2_salinity_algorithm.execute(granule)
+
+        self.publish(msg=g, stream_id=self.sal_stream)
+
+        return g
+
+class ctd_L2_salinity_algorithm(SimpleGranuleTransformFunction):
+
+    @staticmethod
+    @SimpleGranuleTransformFunction.validate_inputs
+    def execute(input=None, context=None, config=None, params=None, state=None):
+        rdt = RecordDictionaryTool.load_from_granule(input)
 
         salinity = get_safe(rdt, 'salinity')
 
@@ -49,33 +53,24 @@ class SalinityDoubler(TransformDataProcess):
         time = get_safe(rdt, 'time')
         depth = get_safe(rdt, 'depth')
 
-        # Use the constructor to put data into a granule
-#        psc = PointSupplementConstructor(point_definition=self.outgoing_stream_def, stream_id=self.streams['output'])
-#
-#        for i in xrange(len(salinity)):
-#            point_id = psc.add_point(time=time[i],location=(longitude[i],latitude[i],depth[i]))
-#            psc.add_scalar_point_coverage(point_id=point_id, coverage_id='salinity', value=salinity[i])
-#
-#        return psc.close_stream_granule()
-        parameter_dictionary = self._create_parameter()
+        parameter_dictionary = ctd_L2_salinity_algorithm._create_parameter()
         root_rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
-        root_rdt['salinity'] = ctd_L2_salinity_algorithm.execute(salinity)
+        root_rdt['salinity'] = 2 * salinity
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
         root_rdt['depth'] = depth
 
         g = root_rdt.to_granule()
-        self.publish(msg=g, stream_id=self.sal_stream)
-
         return g
 
-    def _create_parameter(self):
+    @staticmethod
+    def _create_parameter():
 
         pdict = ParameterDictionary()
 
-        pdict = self._add_location_time_ctxt(pdict)
+        pdict = ctd_L2_salinity_algorithm._add_location_time_ctxt(pdict)
 
         sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.float32))
         sal_ctxt.uom = 'PSU'
@@ -84,7 +79,8 @@ class SalinityDoubler(TransformDataProcess):
 
         return pdict
 
-    def _add_location_time_ctxt(self, pdict):
+    @staticmethod
+    def _add_location_time_ctxt(pdict):
 
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.int64))
         t_ctxt.reference_frame = AxisTypeEnum.TIME
@@ -111,9 +107,3 @@ class SalinityDoubler(TransformDataProcess):
         pdict.add_context(depth_ctxt)
 
         return pdict
-
-class ctd_L2_salinity_algorithm(TransformAlgorithm):
-
-    @staticmethod
-    def execute(*args, **kwargs):
-        return 2*args[0]

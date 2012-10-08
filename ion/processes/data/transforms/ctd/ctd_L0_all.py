@@ -4,7 +4,7 @@
 @description Transforms CTD parsed data into L0 streams
 '''
 
-from pyon.ion.transforma import TransformDataProcess, TransformAlgorithm
+from ion.core.process.transform import TransformDataProcess
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
