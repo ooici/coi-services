@@ -7,9 +7,11 @@ from pyon.public import  log, IonObject
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from interface.objects import DataProduct, DataProductVersion
+from interface.objects import ComputedValueAvailability
 
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import RT, PRED, LCS
+from pyon.public import RT, OT, PRED, LCS
+from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false
 
 
@@ -461,7 +463,28 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_data_product_extension(self, data_product_id='', ext_associations=None, ext_exclude=None):
         #Returns an DataProductExtension object containing additional related information
 
-        pass
+        if not data_product_id:
+            raise BadRequest("The data_product_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_product = extended_resource_handler.create_extended_resource_container(
+            OT.DataProductExtension,
+            data_product_id,
+            OT.DataProductComputedAttributes,
+            ext_associations,
+            ext_exclude)
+
+        #Loop through any attachments and remove the actual content since we don't need
+        #   to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_product, 'attachments'):
+            for att in extended_product.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
+
+        return extended_product
+
 
     def get_data_datetime(self, data_product_id=''):
         # Returns a temporal bounds object of the span of data product life span (may exist without getting a granule)
@@ -473,10 +496,21 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         pass
 
+
     def get_product_download_size_estimated(self, data_product_id=''):
         # Returns the size of the full data product if downloaded/presented in a given presentation form
+        ret = IonObject(OT.ComputedIntValue)
+        try:
+            ret.status = ComputedValueAvailability.PROVIDED
+            ret.value = 1024
+        except NotFound:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+        except Exception as e:
+            raise e
 
-        pass
+        return ret
+
 
     def get_stored_data_size(self, data_product_id=''):
         # Returns the storage size occupied by the data content of the resource, in bytes.
