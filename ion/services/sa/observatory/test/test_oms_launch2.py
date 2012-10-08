@@ -62,6 +62,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
+unittest.skip("skipped while trying new mechanisms in test_oms_launch")
 @attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
