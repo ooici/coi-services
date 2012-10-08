@@ -843,7 +843,7 @@ class PDNativeBackend(object):
             return
 
         try:
-            self.core.ee_heartbeart(resource_id, beat)
+            self.core.ee_heartbeat(resource_id, beat)
         except (NotFound, ResourceNotFound, ServerError):
             # This exception catches a race condition, where:
             # 1. EEagent spawns and starts heartbeater
