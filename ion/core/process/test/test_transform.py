@@ -28,7 +28,7 @@ class TestTrasforms(IonIntegrationTestCase):
             xp.delete()
         
     def test_stats(self):
-        self.container.spawn_process('test','ion.core.transform','TransformBase', {}, 'test_transform')
+        self.container.spawn_process('test','ion.core.process.transform','TransformBase', {}, 'test_transform')
         test_transform = self.container.proc_manager.procs['test_transform']
         test_transform._stats['hits'] = 100
 
@@ -54,7 +54,7 @@ class TestTrasforms(IonIntegrationTestCase):
         publisher = StreamPublisher(process=pub_proc, stream_route=input_route)
         
 
-        transform = self.container.spawn_process('transform','pyon.ion.test.test_transform','EmptyDataProcess',{'process':{'queue_name':'transform_input', 'exchange_point':output_route.exchange_point, 'routing_key':output_route.routing_key}}, 'transformpid')
+        transform = self.container.spawn_process('transform','ion.core.process.test.test_transform','EmptyDataProcess',{'process':{'queue_name':'transform_input', 'exchange_point':output_route.exchange_point, 'routing_key':output_route.routing_key}}, 'transformpid')
         transform = self.container.proc_manager.procs[transform]
 
         sub_proc = TransformBase()
