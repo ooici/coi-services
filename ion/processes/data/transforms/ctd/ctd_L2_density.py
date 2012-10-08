@@ -6,14 +6,10 @@
 '''
 
 from pyon.ion.transforma import TransformDataProcess
-from pyon.public import log
+from pyon.core.exception import BadRequest
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
@@ -35,10 +31,8 @@ class DensityTransform(TransformDataProcess):
         self.dens_stream = self.CFG.process.publish_streams.density
 
         # Read the parameter dict from the stream def of the stream
-        pubsub = PubsubManagementServiceClient()
-        stream_definition = pubsub.read_stream_definition(stream_id=self.dens_stream)
-        pdict = stream_definition.parameter_dictionary
-        self.dens_pdict = ParameterDictionary.load(pdict)
+        pubsub = PubsubManagementServiceProcessClient(process=self)
+        self.stream_definition = pubsub.read_stream_definition(stream_id=self.dens_stream)
 
     def recv_packet(self, packet, stream_route, stream_id):
         """
@@ -46,7 +40,7 @@ class DensityTransform(TransformDataProcess):
         """
         if packet == {}:
             return
-        granule = CTDL2DensityTransformAlgorithm.execute(packet, params=self.dens_pdict)
+        granule = CTDL2DensityTransformAlgorithm.execute(packet, params=self.stream_definition._id)
         self.density.publish(msg=granule)
 
 
@@ -69,15 +63,15 @@ class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         sa = SA_from_SP(sp, pressure, longitude, latitude)
         dens_value = rho(sa, temperature, pressure)
         # build the granule for density
-        result = CTDL2DensityTransformAlgorithm._build_granule(param_dictionary=params,
+        result = CTDL2DensityTransformAlgorithm._build_granule(stream_definition_id=params,
                                                                         field_name='density',
                                                                         value=dens_value)
 
         return result
 
     @staticmethod
-    def _build_granule(param_dictionary=None, field_name='', value=None):
+    def _build_granule(stream_definition_id=None, field_name='', value=None):
 
-        root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
+        root_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
         root_rdt[field_name] = value
         return root_rdt.to_granule()
