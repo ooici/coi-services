@@ -29,6 +29,7 @@ import csv
 import requests
 import StringIO
 import time
+import calendar
 from interface import objects
 
 from pyon.core.bootstrap import get_service_registry
@@ -45,7 +46,7 @@ except:
 
 DEBUG = True
 
-DEFAULT_TIME_FORMAT="%y-%m-%dT%H:%M:%S"
+DEFAULT_TIME_FORMAT="%Y-%m-%dT%H:%M:%S"
 
 #"%04d-%02d-%02d"  % (y,m,d)    if filter(nonzero, (y,m,d))                else ''
 #time = "T%02d:%02d:%02d"
@@ -386,21 +387,27 @@ class IONLoader(ImmediateProcess):
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
     def _load_User(self, row):
+        alias = row['ID']
         subject = row["subject"]
         name = row["name"]
-        email = row["email"]
-
+        description = row['description']
         ims = self._get_service_client("identity_management")
 
-        actor_identity_obj = IonObject("ActorIdentity", {"name": subject})
+        fields = {"name": subject, 'description': description}
+        actor_identity_obj = IonObject("ActorIdentity", fields)
         user_id = ims.create_actor_identity(actor_identity_obj)
         self._register_user_id(name, user_id)
         self._register_id(row[self.COL_ID], user_id)
 
-        user_credentials_obj = IonObject("UserCredentials", {"name": subject})
+        user_credentials_obj = IonObject("UserCredentials", fields)
         ims.register_user_credentials(user_id, user_credentials_obj)
 
-        user_info_obj = IonObject("UserInfo", {"name": name, "contact": {"email": email}})
+        contacts = self._get_contacts(row, field='contact_id', type='User')
+        if len(contacts)>1:
+            raise iex.BadRequest('User '+alias+' defined with too many contacts (should be 1)')
+        if len(contacts)==1:
+            fields['contact'] = contacts[0]
+        user_info_obj = IonObject("UserInfo", fields)
         ims.create_user_info(user_id, user_info_obj)
 
     def _load_Org(self, row):
@@ -508,9 +515,9 @@ class IONLoader(ImmediateProcess):
         return constraint
 
     def _create_temporal_constraint(self, row):
-        format = row['format'] or DEFAULT_TIME_FORMAT
-        start = time.strptime(row['start'], format)
-        end = time.strptime(row['end'], format)
+        format = row['time_format'] or DEFAULT_TIME_FORMAT
+        start = calendar.timegm(time.strptime(row['start'], format))
+        end = calendar.timegm(time.strptime(row['end'], format))
         return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
 
     def _load_SensorModel(self, row):

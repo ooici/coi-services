@@ -53,10 +53,12 @@ class TestLoader(IonIntegrationTestCase):
                 self.assertFalse(found, msg='Found more than one InstrumentSite "Logical instrument 1 Demo" -- should have preloaded one')
                 found = True
                 self.assertFalse(site.constraint_list is None)
-                self.assertEquals(1, len(site.constraint_list))
+                self.assertEquals(2, len(site.constraint_list))
                 con = site.constraint_list[0]
                 self.assertTrue(math.fabs(con.geospatial_latitude_limit_north-32.88)<.01)
                 self.assertTrue(math.fabs(con.geospatial_longitude_limit_east+117.23)<.01)
+                con = site.constraint_list[1]
+                self.assertEquals('TemporalBounds', con.type_)
         self.assertTrue(found, msg='Did not find InstrumentSite "Logical instrument 1 Demo" -- should have been preloaded')
 
         # make sure we have attachments
