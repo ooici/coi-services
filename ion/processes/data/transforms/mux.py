@@ -5,7 +5,7 @@
 @file ion/processes/data/transforms/mux.py
 @brief Multiplexing and Demultiplexing Transforms
 '''
-from pyon.ion.transforma import TransformStreamListener
+from ion.core.process.transform import TransformStreamListener
 from pyon.ion.stream import StreamPublisher
 from pyon.util.log import log
 

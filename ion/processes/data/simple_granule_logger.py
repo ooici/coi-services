@@ -2,7 +2,7 @@
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.objects import Granule
 from pyon.util.log import log
-from pyon.ion.transforma import TransformStreamListener
+from ion.core.process.transform import TransformStreamListener
 
 '''
 To Launch:

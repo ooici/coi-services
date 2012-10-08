@@ -7,7 +7,7 @@
 @brief A process which produces a simple data stream
 '''
 
-from pyon.ion.transforma import TransformStreamPublisher
+from ion.core.process.transform import TransformStreamPublisher
 from pyon.public import log
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient

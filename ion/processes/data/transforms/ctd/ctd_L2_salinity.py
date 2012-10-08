@@ -5,7 +5,7 @@
 @description Transforms CTD parsed data into L2 product for salinity
 '''
 
-from pyon.ion.transforma import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess
 from pyon.core.exception import BadRequest
 from pyon.public import log
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool

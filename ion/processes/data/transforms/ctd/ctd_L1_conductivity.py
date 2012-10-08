@@ -5,7 +5,7 @@
 @description Transforms CTD parsed data into L1 product for conductivity
 '''
 
-from pyon.ion.transforma import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess
 from pyon.core.exception import BadRequest
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient

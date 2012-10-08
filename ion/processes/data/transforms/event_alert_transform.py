@@ -5,7 +5,7 @@
         satisfy a condition. Its uses an algorithm to check the latter
 @author Swarbhanu Chatterjee
 '''
-from pyon.ion.transforma import TransformEventListener, TransformStreamListener, TransformAlgorithm
+from ion.core.process.transform import TransformEventListener, TransformStreamListener
 from pyon.util.log import log
 from pyon.event.event import EventPublisher
 

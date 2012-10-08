@@ -5,7 +5,7 @@
 @description Transforms CTD parsed data into L1 product for pressure
 '''
 
-from pyon.ion.transforma import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess
 from pyon.core.exception import BadRequest
 ### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool

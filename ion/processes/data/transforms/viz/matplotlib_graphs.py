@@ -1,12 +1,13 @@
 
-from pyon.ion.transform import TransformFunction
+from ion.core.process.transform import TransformStreamListener
+from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from pyon.service.service import BaseService
+from pyon.ion.streamproc import StreamProcess
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log
 
 import time
 import numpy
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
@@ -31,8 +32,6 @@ except:
     import sys
     print >> sys.stderr, "Cannot import matplotlib"
 
-tx = TaxyTool()
-tx.add_taxonomy_set('matplotlib_graphs','Matplotlib generated graphs for a particular data product')
 
 class VizTransformMatplotlibGraphs(TransformDataProcess):
 
@@ -45,11 +44,24 @@ class VizTransformMatplotlibGraphs(TransformDataProcess):
 
     def on_start(self):
 
+<<<<<<< HEAD
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
 
         self.stream_info  = self.CFG.get_safe('process.publish_streams',{})
         self.stream_names = self.stream_info.keys()
         self.stream_ids   = self.stream_info.values()
+=======
+        ### Parameter dictionaries
+        #self.define_parameter_dictionary()
+
+    def recv_packet(self, msg, stream_route, stream_id):
+        pass
+
+class VizTransformMatplotlibGraphsFunction(SimpleGranuleTransformFunction):
+
+    @staticmethod
+    def define_parameter_dictionary():
+>>>>>>> ddf720014d01c7f756e97b7395f6de69e89ba455
 
         if not self.stream_names:
             raise BadRequest('MPL Transform has no output streams.')
@@ -71,10 +83,22 @@ class VizTransformMatplotlibGraphs(TransformDataProcess):
         return stream_def._id
 
 
+<<<<<<< HEAD
 class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
     @classmethod
     @SimpleGranuleTransformFunction.validate_inputs
     def execute(cls, input=None, context=None, config=None, params=None, state=None):
+=======
+        # Define the parameter dictionary objects
+        mpl_paramdict = ParameterDictionary()
+        mpl_paramdict.add_context(mpl_graph_ctxt)
+        return mpl_paramdict
+
+
+    @staticmethod
+    @SimpleGranuleTransformFunction.validate_inputs
+    def execute(input=None, context=None, config=None, params=None, state=None):
+>>>>>>> ddf720014d01c7f756e97b7395f6de69e89ba455
         log.debug('Matplotlib transform: Received Viz Data Packet')
         stream_definition_id = params
 
@@ -109,12 +133,21 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             else:
                 graph_data[varname].extend(vardict[varname])
 
+<<<<<<< HEAD
         out_granule = cls.render_graphs(graph_data, stream_definition_id)
 
         return out_granule
 
     @classmethod
     def render_graphs(cls, graph_data, stream_definition_id):
+=======
+        out_granule = VizTransformMatplotlibGraphs.render_graphs(graph_data)
+
+        return out_granule
+
+    @staticmethod
+    def render_graphs(graph_data):
+>>>>>>> ddf720014d01c7f756e97b7395f6de69e89ba455
 
         # init Matplotlib
         fig = Figure(figsize=(8,4), dpi=200, frameon=True)
@@ -140,7 +173,11 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             yAxisFloatData = graph_data[varName]
 
             # Generate the plot
+<<<<<<< HEAD
             ax.plot(xAxisFloatData, yAxisFloatData, cls.line_style(idx), label=varName)
+=======
+            ax.plot(xAxisFloatData, yAxisFloatData, VizTransformMatplotlibGraphs.line_style(idx), label=varName)
+>>>>>>> ddf720014d01c7f756e97b7395f6de69e89ba455
             idx += 1
 
         yAxisLabel = ""
@@ -164,7 +201,11 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
         imgInMem.seek(0)
 
         # Create output dictionary from the param dict
+<<<<<<< HEAD
         out_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
+=======
+        out_rdt = RecordDictionaryTool(param_dictionary=VizTransformMatplotlibGraphs.define_parameter_dictionary())
+>>>>>>> ddf720014d01c7f756e97b7395f6de69e89ba455
 
         # Prepare granule content
         out_dict = {}
@@ -179,8 +220,13 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
 
     # This method picks out a matplotlib line style based on an index provided. These styles are set in an order
     # as a utility. No other reason
+<<<<<<< HEAD
     @classmethod
     def line_style(cls, index):
+=======
+    @staticmethod
+    def line_style(index):
+>>>>>>> ddf720014d01c7f756e97b7395f6de69e89ba455
 
         color = ['b','g','r','c','m','y','k','w']
         stroke = ['-','--','-.',':','.',',','o','+','x','*']

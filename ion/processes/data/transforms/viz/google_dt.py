@@ -16,7 +16,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 
 import numpy as np
 
-from pyon.ion.transforma import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess
 
 class VizTransformGoogleDT(TransformDataProcess):
 
