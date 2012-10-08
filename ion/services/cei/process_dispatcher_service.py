@@ -86,7 +86,7 @@ class ProcessStateGate(EventSubscriber):
             process_obj = self.read_process_fn(self.process_id)
             return (process_obj and self.desired_state == process_obj.process_state)
         except NotFound:
-            return false
+            return False
 
     def await(self, timeout=0):
         #set up the event gate so that we don't miss any events
@@ -573,7 +573,10 @@ class PDLocalBackend(object):
         return True
 
     def read_process(self, process_id):
-        return self._get_process(process_id)
+        process = self._get_process(process_id)
+        if process is None:
+            raise NotFound("process %s unknown" % process_id)
+        return process
 
     def _add_process(self, pid, config, state):
         proc = Process(process_id=pid, process_state=state,
@@ -925,6 +928,8 @@ class PDNativeBackend(object):
 
     def read_process(self, process_id):
         d_process = self.core.describe_process(None, process_id)
+        if d_process is None:
+            raise NotFound("process %s unknown" % process_id)
         process = _ion_process_from_core(d_process)
 
         return process
@@ -1075,6 +1080,8 @@ class PDBridgeBackend(object):
 
     def read_process(self, process_id):
         d_process = self.dashi.call(self.topic, "describe_process", upid=process_id)
+        if d_process is None:
+            raise NotFound("process %s unknown" % process_id)
         process = _ion_process_from_core(d_process)
 
         return process
