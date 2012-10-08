@@ -7,9 +7,7 @@
 
 from pyon.ion.transforma import TransformDataProcess
 from pyon.public import log
-import numpy as np
 
-### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from coverage_model.parameter import ParameterDictionary, ParameterContext
@@ -79,6 +77,5 @@ class CTDL1TemperatureTransformAlgorithm(SimpleGranuleTransformFunction):
     def _build_granule_settings(param_dictionary=None, field_name='', value=None):
 
         root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
-
         root_rdt[field_name] = value
         return root_rdt.to_granule()

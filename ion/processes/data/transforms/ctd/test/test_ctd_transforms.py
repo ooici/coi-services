@@ -32,7 +32,7 @@ from ion.processes.data.transforms.ctd.ctd_L2_density import DensityTransform
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.util.parameter_yaml_IO import get_param_dict
-import unittest, os, gevent
+import unittest, gevent
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 

@@ -7,9 +7,6 @@
 
 from pyon.ion.transforma import TransformDataProcess
 from pyon.public import log
-import numpy as np
-
-### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from coverage_model.parameter import ParameterDictionary, ParameterContext

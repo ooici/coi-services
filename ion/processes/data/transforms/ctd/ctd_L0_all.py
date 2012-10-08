@@ -13,12 +13,9 @@ from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 from pyon.net.endpoint import Publisher
-import numpy as np
 from pyon.core.bootstrap import get_sys_name
 from pyon.net.transport import NameTrio
-import re
 
-### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import MultiGranuleTransformFunction
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -126,10 +123,6 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
         @param param_dictionary ParameterDictionary
         @param field_name str
         @param value numpy.array
-        @param time numpy.array
-        @param latitude numpy.array
-        @param longitude numpy.array
-        @param depth numpy.array
 
         @retval Granule
         '''
