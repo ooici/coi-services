@@ -43,6 +43,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         log.info('Creating DataProduct: %s', data_product.name)
         log.debug('%s', data_product.__dict__)
 
+        print '>>>> data product name %s' % data_product.name
 
         # Create will validate and register a new data product within the system
         # If the stream definition has a parameter dictionary, use that

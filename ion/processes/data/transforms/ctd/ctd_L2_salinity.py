@@ -6,13 +6,11 @@
 '''
 
 from pyon.ion.transforma import TransformDataProcess
+from pyon.core.exception import BadRequest
 from pyon.public import log
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
 from seawater.gibbs import SP_from_cndr
 from seawater.gibbs import cte
@@ -30,16 +28,14 @@ class SalinityTransform(TransformDataProcess):
     def on_start(self):
         super(SalinityTransform, self).on_start()
         if not self.CFG.process.publish_streams.has_key('salinity'):
-            raise AssertionError("For CTD transforms, please send the stream_id "
+            raise BadRequest("For CTD transforms, please send the stream_id "
                                  "using a special keyword (ex: salinity)")
 
         self.sal_stream = self.CFG.process.publish_streams.salinity
 
         # Read the parameter dict from the stream def of the stream
-        pubsub = PubsubManagementServiceClient()
-        stream_definition = pubsub.read_stream_definition(stream_id=self.sal_stream)
-        pdict = stream_definition.parameter_dictionary
-        self.sal_pdict = ParameterDictionary.load(pdict)
+        pubsub = PubsubManagementServiceProcessClient(process=self)
+        self.stream_definition = pubsub.read_stream_definition(stream_id=self.sal_stream)
 
     def recv_packet(self, packet, stream_route, stream_id):
         """
@@ -50,7 +46,7 @@ class SalinityTransform(TransformDataProcess):
         if packet == {}:
             return
 
-        granule = CTDL2SalinityTransformAlgorithm.execute(packet, params=self.sal_pdict)
+        granule = CTDL2SalinityTransformAlgorithm.execute(packet, params=self.stream_definition._id)
         self.salinity.publish(msg=granule)
 
 
@@ -68,15 +64,15 @@ class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
         # build the granule for salinity
-        result = CTDL2SalinityTransformAlgorithm._build_granule(param_dictionary=params,
+        result = CTDL2SalinityTransformAlgorithm._build_granule(stream_definition_id=params,
                                                                         field_name='salinity',
                                                                         value=sal_value)
 
         return result
 
     @staticmethod
-    def _build_granule(param_dictionary=None, field_name='', value=None):
+    def _build_granule(stream_definition_id=None, field_name='', value=None):
 
-        root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
+        root_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
         root_rdt[field_name] = value
         return root_rdt.to_granule()

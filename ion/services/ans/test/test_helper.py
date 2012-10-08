@@ -313,7 +313,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         return salinity_doubler_dprocdef_id
 
 
-    def create_transform_process(self, data_process_definition_id, data_process_input_dp_id):
+    def create_transform_process(self, data_process_definition_id, data_process_input_dp_id, stream_name):
 
         data_process_definition = self.rrclient.read(data_process_definition_id)
 
@@ -329,6 +329,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         # Create the output data product of the transform
 
         tdom, sdom = time_series_domain()
+        print '>>>>> data process name %s' % data_process_name
 
         transform_dp_obj = IonObject(RT.DataProduct,
             name=data_process_name,
@@ -345,7 +346,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         # Create the  transform data process
         log.debug("create data_process and start it")
-        data_process_id = self.dataprocessclient.create_data_process(data_process_definition._id, [data_process_input_dp_id], {'output':transform_dp_id})
+        data_process_id = self.dataprocessclient.create_data_process(data_process_definition._id, [data_process_input_dp_id], {stream_name:transform_dp_id})
         self.dataprocessclient.activate_data_process(data_process_id)
 
 

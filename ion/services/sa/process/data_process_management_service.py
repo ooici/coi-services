@@ -168,6 +168,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         configuration = configuration or DotDict()
 
         validate_is_not_none( out_data_products, "No output data products passed in")
+        print '>>>> Out data products %s' % out_data_products
 
         #---------------------------------------------------------------------------------------
         # Read the data process definition
@@ -222,6 +223,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
 
         for name, output_data_product_id in out_data_products.iteritems():
+            print '>>>>> OUTPUT NAME IS %s' % name
 
             # check that the product is not already associated with a producer
             producer_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
@@ -336,6 +338,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
         Launches the process
         """
+        print '>>>>>>>> OUTPUT STREAMS %s' % out_streams
 
         # ------------------------------------------------------------------------------------
         # Spawn Configuration and Parameters
