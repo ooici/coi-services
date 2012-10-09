@@ -217,7 +217,7 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
 
 
 @attr('HARDWARE', group='mi')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
     """
     Test cases for instrument agent class. Functions in this class provide
