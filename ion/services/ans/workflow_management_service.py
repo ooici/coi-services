@@ -149,6 +149,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         data_process_input_dp_id = input_data_product_id
 
         output_data_products = {}
+        output_data_product_id = None # Overall product id to return
 
         #Iterate through the workflow steps to setup the data processes and connect them together.
         for wf_step in workflow_definition.workflow_steps:
