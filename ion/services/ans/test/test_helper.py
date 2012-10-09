@@ -252,7 +252,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
         ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         sal_stream_def_id = self.pubsubclient.create_stream_definition(name='Salinity', parameter_dictionary_id=ctd_pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id, binding='salinity' )
 
         return ctd_L2_salinity_dprocdef_id
 
@@ -280,7 +280,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         # create a stream definition for the data from the salinity Transform
         ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(name='SalinityDoubler', parameter_dictionary_id=ctd_pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id, binding='salinity' )
 
         return salinity_doubler_dprocdef_id
 
@@ -355,7 +355,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         # create a stream definition for the data from the
         stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
 
         return procdef_id
 
@@ -410,7 +410,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('mpl_graph',id_only=True)
         # create a stream definition for the data
         stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformMatplotlibGraphs', parameter_dictionary_id=pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='matplotlib_graphs' )
 
         return procdef_id
 
