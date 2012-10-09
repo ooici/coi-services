@@ -65,16 +65,10 @@ class ProcessStateGate(EventSubscriber):
         self.first_chance = None
 
 
-        #sanity check, will error on bad input
-        self.read_process_fn(self.process_id)  # to make sure fn exists
         _ = ProcessStateEnum._str_map[self.desired_state] # make sure state exists
         log.info("ProcessStateGate is going to wait on process '%s' for state '%s'",
                 self.process_id,
                 ProcessStateEnum._str_map[self.desired_state])
-
-        if ProcessStateEnum.TERMINATE == self.desired_state:
-            log.warn("Waiting for TERMINATE will return success if the process does not exist")
-
 
     def trigger_cb(self, event, x):
         if event.state == self.desired_state:
@@ -87,9 +81,12 @@ class ProcessStateGate(EventSubscriber):
 
     def in_desired_state(self):
         # check whether the process we are monitoring is in the desired state as of this moment
-        process_obj = self.read_process_fn(self.process_id)
-        return (process_obj is None and ProcessStateEnum.TERMINATE == self.desired_state) \
-               or (process_obj and self.desired_state == process_obj.process_state)
+        # Once pd creates the process, process_obj is never None
+        try:
+            process_obj = self.read_process_fn(self.process_id)
+            return (process_obj and self.desired_state == process_obj.process_state)
+        except NotFound:
+            return False
 
     def await(self, timeout=0):
         #set up the event gate so that we don't miss any events
@@ -576,7 +573,10 @@ class PDLocalBackend(object):
         return True
 
     def read_process(self, process_id):
-        return self._get_process(process_id)
+        process = self._get_process(process_id)
+        if process is None:
+            raise NotFound("process %s unknown" % process_id)
+        return process
 
     def _add_process(self, pid, config, state):
         proc = Process(process_id=pid, process_state=state,
@@ -928,6 +928,8 @@ class PDNativeBackend(object):
 
     def read_process(self, process_id):
         d_process = self.core.describe_process(None, process_id)
+        if d_process is None:
+            raise NotFound("process %s unknown" % process_id)
         process = _ion_process_from_core(d_process)
 
         return process
@@ -1078,6 +1080,8 @@ class PDBridgeBackend(object):
 
     def read_process(self, process_id):
         d_process = self.dashi.call(self.topic, "describe_process", upid=process_id)
+        if d_process is None:
+            raise NotFound("process %s unknown" % process_id)
         process = _ion_process_from_core(d_process)
 
         return process

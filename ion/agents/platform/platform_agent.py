@@ -19,7 +19,6 @@ from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
-from pyon.util.context import LocalContextMixin
 
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
@@ -87,17 +86,6 @@ class PlatformAgentCapability(BaseEnum):
 
 
 
-# TODO Use appropriate process in ResourceAgentClient instance construction below.
-# for now, just replicating typical mechanism in test cases.
-class FakeProcess(LocalContextMixin):
-    """
-    A fake process used because the test case is not an ion process.
-    """
-    name = ''
-    id=''
-    process_type = ''
-
-
 class PlatformAgent(ResourceAgent):
     """
     Platform resource agent.
@@ -124,15 +112,10 @@ class PlatformAgent(ResourceAgent):
         # purposes
         self._parent_platform_id = None
 
-        # Dictionary of data stream IDs for data publishing. Constructed
-        # by stream_config agent config member during process on_init.
+        # Dictionaries used for data publishing. Constructed in _do_initialize
         self._data_streams = {}
-
         self._param_dicts = {}
         self._stream_defs = {}
-
-        # Dictionary of data stream publishers. Constructed by
-        # stream_config agent config member during process on_init.
         self._data_publishers = {}
 
         # {subplatform_id: (ResourceAgentClient, PID), ...}
@@ -140,15 +123,6 @@ class PlatformAgent(ResourceAgent):
 
         self._launcher = LauncherFactory.createLauncher(standalone=standalone)
         log.debug("launcher created: %s", str(type(self._launcher)))
-
-        #
-        # TODO the following defined here as in InstrumentAgent,
-        # but these will likely be part of the platform (or associated
-        # instruments) metadata
-        self._lat = 0
-        self._lon = 0
-        self._height = 0
-
 
         # standalone stuff
         self.container = None
@@ -234,6 +208,55 @@ class PlatformAgent(ResourceAgent):
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
 
+    def on_init(self):
+        """
+        Instrument agent pyon process initialization.
+        Init objects that depend on the container services and start state
+        machine.
+        """
+        if self._is_policy_enabled():
+            self.container.governance_controller.register_process_operation_precondition(self, 'execute_resource', self.check_execute_resource)
+            self.container.governance_controller.register_process_operation_precondition(self, 'set_resource', self.check_set_resource)
+            self.container.governance_controller.register_process_operation_precondition(self, 'ping_resource', self.check_ping_resource)
+
+    ##############################################################
+    # Governance interfaces
+    ##############################################################
+
+    def check_set_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the set_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
+    def check_execute_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the execute_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        if msg['command'].command == ResourceAgentEvent.GO_DIRECT_ACCESS and not com.commitment.exclusive:
+            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
+    def check_ping_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the ping_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
+
     def _create_publisher(self, stream_id=None, stream_route=None):
         if self._standalone:
             publisher = StandaloneStreamPublisher(stream_id, stream_route)
@@ -259,11 +282,10 @@ class PlatformAgent(ResourceAgent):
         exchange_point = stream_config['exchange_point']
 
         #
-        # TODO Note: using my platform_if as the name of the single stream
-        # for this platform: Maurice's initial idea is to have a single
-        # stream and eventually bundle multiple attributes there
+        # TODO Note: using a single stream for the platform
         #
-        stream_name = self._platform_id
+
+        stream_name = self._get_platform_name(self._platform_id)
 
         log.debug("%r: stream_name=%r, routing_key=%r",
             self._platform_id, stream_name, routing_key)
@@ -301,6 +323,22 @@ class PlatformAgent(ResourceAgent):
             self._data_publishers[stream_name] = publisher
             log.debug("%r: created publisher for stream_name=%r",
                   self._platform_id, stream_name)
+
+    def _get_platform_name(self, platform_id):
+        """
+        Interim helper to get the platform name associated with a platform_id.
+        """
+
+        # simply returning the same platform_id, because those are the IDs
+        # currently passed from configuration -- see test_oms_launch
+        return platform_id
+
+#        if self._agent_device_map:
+#            platform_name = self._agent_device_map[platform_id].name
+#        else:
+#            platform_name = platform_id
+#
+#        return platform_name
 
     def _create_driver(self):
         """
@@ -406,7 +444,7 @@ class PlatformAgent(ResourceAgent):
     def _handle_attribute_value_event(self, driver_event):
 
         if self._agent_streamconfig_map:
-            self._handle_attribute_value_event_using_agent_streamconfig_map()
+            self._handle_attribute_value_event_using_agent_streamconfig_map(driver_event)
         else:
             self._handle_attribute_value_event_using_CFG_stream_config(driver_event)
 
@@ -414,23 +452,69 @@ class PlatformAgent(ResourceAgent):
 
         # NOTE: we are using platform_id as the stream_name, see comment
         # elsewhere in this file.
-        stream_name = self._platform_id
+        stream_name = self._get_platform_name(self._platform_id)
 
-        publisher = self._data_publishers[stream_name]
+        publisher = self._data_publishers.get(stream_name, None)
+        if not publisher:
+            log.warn('%r: no publisher configured for stream_name=%r',
+                     self._platform_id, stream_name)
+            return
+
         param_dict = self._param_dicts[stream_name]
         stream_def = self._stream_defs[stream_name]
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
-        rdt['value'] =  numpy.array([driver_event._value])
-        rdt['lat'] =    numpy.array([self._lat])
-        rdt['lon'] =    numpy.array([self._lon])
-        rdt['height'] = numpy.array([self._height])
+        # because currently using param-dict for 'simple_data_particle_raw_param_dict',
+        # the following are invalid:
+#        rdt['value'] =  numpy.array([driver_event._value])
+
+        # ... so, simply fill in 'raw':
+        rdt['raw'] =  numpy.array([driver_event._value])
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
-        publisher.publish(g)
+        try:
+            publisher.publish(g)
+        except AssertionError as e:
+            #
+            # Occurs but not always, at least locally. But it shows up
+            # repeatedly in the coi_coverage buildbot with test_oms_launch:
+            #
+            # Traceback (most recent call last):
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/ion/agents/platform/platform_agent.py", line 505, in _handle_attribute_value_event_using_agent_streamconfig_map
+            #     publisher.publish(g)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/ion/stream.py", line 80, in publish
+            #     super(StreamPublisher,self).publish(msg, to_name=xp.create_route(stream_route.routing_key), headers={'exchange_point':stream_route.exchange_point, 'stream':stream_id or self.stream_id})
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 647, in publish
+            #     self._pub_ep.send(msg, headers)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 133, in send
+            #     return self._send(_msg, _header, **kwargs)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 153, in _send
+            #     self.channel.send(new_msg, new_headers)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/channel.py", line 691, in send
+            #     self._declare_exchange(self._send_name.exchange)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/channel.py", line 156, in _declare_exchange
+            #     assert self._transport
+            # AssertionError
+            #
+            # Not sure what the reason is, perhaps the route is no longer
+            # valid, or the publisher gets closed somehow (?)
+            # TODO determine what's going on here
+            #
+            exc_msg = "%s: %s" % (e.__class__.__name__, str(e))
+            msg = "%r: AssertionError while calling publisher.publish(g) on stream %r, exception=%s" % (
+                            self._platform_id, stream_name, exc_msg)
 
-        log.debug('%r: published data granule on stream %r, rdt=%r',
-            self._platform_id, stream_name, str(rdt))
+            # do not inundate the output with stacktraces, just log an error
+            # line for the time being.
+#            print msg
+#            import traceback
+#            traceback.print_exc()
+            log.error(msg)
+            return
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
+                self._platform_id, stream_name, str(rdt), str(g))
 
     def _handle_attribute_value_event_using_CFG_stream_config(self, driver_event):
         """
@@ -457,17 +541,15 @@ class PlatformAgent(ResourceAgent):
         rdt = RecordDictionaryTool(param_dictionary=param_dict)
 
         rdt['value'] =  numpy.array([driver_event._value])
-        rdt['lat'] =    numpy.array([self._lat])
-        rdt['lon'] =    numpy.array([self._lon])
-        rdt['height'] = numpy.array([self._height])
 
         g = build_granule(data_producer_id=self.resource_id,
             param_dictionary=param_dict, record_dictionary=rdt)
 
         stream_id = self._data_streams[stream_name]
         publisher.publish(g, stream_id=stream_id)
-        log.debug('%r: published data granule on stream %r, rdt=%r',
-            self._platform_id, stream_name, str(rdt))
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
+                self._platform_id, stream_name, str(rdt), str(g))
 
     ##########################################################################
     # TBD
@@ -505,7 +587,7 @@ class PlatformAgent(ResourceAgent):
             'test_mode':        True
         }
 
-        log.debug("%r: launching sub-platform agent %s",
+        log.debug("%r: launching sub-platform agent %r",
             self._platform_id, subplatform_id)
         pid = self._launcher.launch(subplatform_id, agent_config)
 
@@ -528,7 +610,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _create_resource_agent_client: subplatform_id=%s",
             self._platform_id, subplatform_id)
 
-        pa_client = ResourceAgentClient(subplatform_id, process=FakeProcess())
+        pa_client = ResourceAgentClient(subplatform_id, process=self)
 
         log.debug("%r: got platform agent client %s",
             self._platform_id, str(pa_client))
@@ -584,6 +666,7 @@ class PlatformAgent(ResourceAgent):
             'platform_id': subplatform_id,
             'platform_topology' : self._topology,
             'agent_device_map' : self._agent_device_map,
+            'agent_streamconfig_map': self._agent_streamconfig_map,
             'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],
             'container_name': self._container_name,

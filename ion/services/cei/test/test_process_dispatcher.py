@@ -123,6 +123,10 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.assertEqual(process.process_id, pid)
         self.assertEqual(process.process_state, ProcessStateEnum.SPAWN)
 
+    def test_read_process_notfound(self):
+        with self.assertRaises(NotFound):
+            self.pd_service.read_process("processid")
+
     def test_schedule_process_notfound(self):
         proc_schedule = DotDict()
         configuration = {}
@@ -434,6 +438,14 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.assertEqual(proc.process_state, ProcessStateEnum.SPAWN)
         self.assertEqual(proc.process_configuration, {})
 
+    def test_read_process_notfound(self):
+
+        self.mock_core.describe_process.return_value = None
+
+        with self.assertRaises(NotFound):
+            proc = self.pd_service.read_process("processid")
+        assert self.mock_core.describe_process.called
+
     def test_read_process_with_config(self):
         config = {"hats": 4}
         self.mock_core.describe_process.return_value = dict(upid="processid",
@@ -579,6 +591,14 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         self.assertEqual(proc.process_id, "processid")
         self.assertEqual(proc.process_state, ProcessStateEnum.SPAWN)
         self.assertEqual(proc.process_configuration, {})
+
+    def test_read_process_notfound(self):
+
+        self.mock_dashi.call.return_value = None
+
+        with self.assertRaises(NotFound):
+            self.pd_service.read_process("processid")
+        assert self.mock_dashi.call.called
 
     def test_read_process_with_config(self):
         config = {"hats": 4}

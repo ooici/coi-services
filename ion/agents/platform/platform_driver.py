@@ -52,6 +52,8 @@ class PlatformDriver(object):
                     This is mainly used for diagnostic purposes
         """
 
+        log.debug("%r: PlatformDriver constructor called", platform_id)
+
         self._platform_id = platform_id
         self._driver_config = driver_config
         self._parent_platform_id = parent_platform_id

@@ -182,7 +182,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
         #units: ""
 
 
-        #maps an agent instance id to a device object with specifics about that device
+        # NOTE: the following dicts (which are passed to the main platform
+        # agent via corresponding PLATFORM_CONFIG, see below), are indexed with
+        # the IDs used in network.yml.
         agent_device_map = {}
         children_map = {}
         agent_streamconfig_map = {}
@@ -238,9 +240,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platformSS_agent_instance_id = self.imsclient.create_platform_agent_instance(platformSS_agent_instance_obj, platformSS_agent_id, platformSS_device_id)
 
-        agent_device_map[platformSS_agent_instance_id] = platformSS_device__obj
+#        agent_device_map[platformSS_agent_instance_id] = platformSS_device__obj
+        agent_device_map['ShoreStation'] = platformSS_device__obj
         stream_config = self._build_stream_config(stream_ids[0])
-        agent_streamconfig_map[platformSS_agent_instance_id] = stream_config
+#        agent_streamconfig_map[platformSS_agent_instance_id] = stream_config
+        agent_streamconfig_map['ShoreStation'] = stream_config
         self._start_data_subscriber(platformSS_agent_instance_id, stream_config)
 
 
@@ -290,10 +294,13 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1A_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1A_agent_instance_obj, platform1A_agent_id, platform1A_device_id)
 
-        agent_device_map[platform1A_agent_instance_id] = platform1A_device__obj
-        children_map[platformSS_agent_instance_id] = [platform1A_agent_instance_id]
+#        agent_device_map[platform1A_agent_instance_id] = platform1A_device__obj
+        agent_device_map['Node1A'] = platform1A_device__obj
+#        children_map[platformSS_agent_instance_id] = [platform1A_agent_instance_id]
+        children_map['ShoreStation'] = ['Node1A']
         stream_config = self._build_stream_config(stream_ids[0])
-        agent_streamconfig_map[platform1A_agent_instance_id] = stream_config
+#        agent_streamconfig_map[platform1A_agent_instance_id] = stream_config
+        agent_streamconfig_map['Node1A'] = stream_config
         self._start_data_subscriber(platform1A_agent_instance_id, stream_config)
 
 
@@ -343,10 +350,13 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1B_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1B_agent_instance_obj, platform1B_agent_id, platform1B_device_id)
 
-        agent_device_map[platform1B_agent_instance_id] = platform1B_device__obj
-        children_map[platform1A_agent_instance_id] = [platform1B_agent_instance_id]
+#        agent_device_map[platform1B_agent_instance_id] = platform1B_device__obj
+        agent_device_map['Node1B'] = platform1B_device__obj
+#        children_map[platform1A_agent_instance_id] = [platform1B_agent_instance_id]
+        children_map['Node1A'] = ['Node1B']
         stream_config = self._build_stream_config(stream_ids[0])
-        agent_streamconfig_map[platform1B_agent_instance_id] = stream_config
+#        agent_streamconfig_map[platform1B_agent_instance_id] = stream_config
+        agent_streamconfig_map['Node1B'] = stream_config
         self._start_data_subscriber(platform1B_agent_instance_id, stream_config)
 
         #-------------------------------
@@ -397,10 +407,13 @@ class TestOmsLaunch(IonIntegrationTestCase):
             driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
         platform1C_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1C_agent_instance_obj, platform1C_agent_id, platform1C_device_id)
 
-        agent_device_map[platform1C_agent_instance_id] = platform1C_device__obj
+#        agent_device_map[platform1C_agent_instance_id] = platform1C_device__obj
+        agent_device_map['Node1C'] = platform1C_device__obj
         children_map[platform1B_agent_instance_id] = [platform1C_agent_instance_id]
+        children_map['Node1B'] = ['Node1C']
         stream_config = self._build_stream_config(stream_ids[0])
-        agent_streamconfig_map[platform1C_agent_instance_id] = stream_config
+#        agent_streamconfig_map[platform1C_agent_instance_id] = stream_config
+        agent_streamconfig_map['Node1C'] = stream_config
         self._start_data_subscriber(platform1C_agent_instance_id, stream_config)
 
 
@@ -433,13 +446,10 @@ class TestOmsLaunch(IonIntegrationTestCase):
         }
 
         PLATFORM_CONFIG = {
-            # for consistency, topology and agent_device_map given in terms of
-            # the same IDs used for platform_ids, in this case agent-instance-ids
-            # (but could be anything else as long as it is consistent)
-            'platform_id': platformSS_agent_instance_id,
-            'platform_topology' : children_map,
-            'agent_device_map': agent_device_map,
-            'agent_streamconfig_map': agent_streamconfig_map,
+            'platform_id':             'ShoreStation',
+            'platform_topology' :      children_map,
+            'agent_device_map':        agent_device_map,
+            'agent_streamconfig_map':  agent_streamconfig_map,
 
             'driver_config': DVR_CONFIG,
             'container_name': self.container.name,

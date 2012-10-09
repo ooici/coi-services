@@ -604,6 +604,9 @@ class OrgManagementService(BaseOrgManagementService):
         user = param_objects['user']
         user_role = param_objects['user_role']
 
+        if not self.is_enrolled(org_id,user_id):
+            raise BadRequest("The user is not a member of the specified Org (%s)" % org.name)
+
         return self._add_role_association(org, user, user_role)
 
     def _add_role_association(self, org, user, user_role):
