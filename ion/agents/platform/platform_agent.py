@@ -408,7 +408,7 @@ class PlatformAgent(ResourceAgent):
         if self._agent_streamconfig_map:
             self._handle_attribute_value_event_using_agent_streamconfig_map()
         else:
-            self._handle_attribute_value_event_using_CFG_stream_config()
+            self._handle_attribute_value_event_using_CFG_stream_config(driver_event)
 
     def _handle_attribute_value_event_using_agent_streamconfig_map(self, driver_event):
 
