@@ -65,8 +65,8 @@ class VizTransformGoogleDT(TransformDataProcess):
 
     def get_stream_definition(self):
         stream_id = self.stream_ids[0]
-        stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
-        return stream_def._id
+        self.stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        return self.stream_def._id
 
     def execute(self, granule):
 
@@ -105,6 +105,7 @@ class VizTransformGoogleDT(TransformDataProcess):
         log.debug('Google DT transform: Sending a granule')
 
         out_granule = out_rdt.to_granule()
+
         return out_granule
 
 
