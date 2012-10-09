@@ -26,6 +26,7 @@ __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 
 import ast
 import csv
+import re
 import requests
 import StringIO
 import time
@@ -82,7 +83,7 @@ class IONLoader(ImmediateProcess):
         if self.path=='master':
             self.path = MASTER_DOC
         self.attachment_path = self.CFG.get("attachments", self.path + '/attachments')
-        self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets")
+        self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets1")
         default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
         self.ui_path = self.CFG.get("ui_path", default_ui_path)
         scenarios = self.CFG.get("scenario", None)
@@ -116,6 +117,8 @@ class IONLoader(ImmediateProcess):
                     self.load_ion(scenario)
             elif op == "loadooi":
                 self.extract_ooi_assets()
+            elif op == "loadooi1":
+                self.extract_ooi_assets1()
             elif op == "loadui":
                 specs_path = 'ui_specs.json' if self.exportui else None
                 self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
@@ -1078,6 +1081,155 @@ class IONLoader(ImmediateProcess):
 #
 #        return parameter_dictionary, tdom, sdom
 
+    def extract_ooi_assets1(self):
+        if not self.asset_path:
+            raise iex.BadRequest("Must provide path for assets: path=dir or assets=dir")
+        if self.asset_path.startswith('http'):
+            raise iex.BadRequest('Asset path must be local directory, not URL: ' + self.asset_path)
+
+        log.info("Parsing OOI assets from path=%s", self.asset_path)
+
+        categories = [ 'AttributeReportClass',
+                       'AttributeReportDataProducts',
+                       'AttributeReportMakeModel',
+                       'AttributeReportPorts',
+                       'AttributeReportReferenceDesignator',
+                       'AttributeReportSubsites',
+                       'InstrumentTableDetailed',
+                       'InstrumentCatalogFull']
+
+        self.ooi_objects = {}
+        self.ooi_obj_attrs = {}
+        self.warnings = []
+
+        for category in categories:
+            row_do, row_skip = 0, 0
+
+            funcname = "_parse_%s" % category
+            catfunc = getattr(self, funcname)
+            filename = "%s/%s.csv" % (self.asset_path, category)
+            log.debug("Loading category %s from file %s", category, filename)
+            try:
+                with open(filename, "rb") as csvfile:
+                    for i in xrange(9):
+                        # Skip the first rows, because they are garbage
+                        csvfile.readline()
+                    reader = csv.DictReader(csvfile, delimiter=',')
+                    for row in reader:
+                        row_do += 1
+
+                        catfunc(row)
+            except IOError, ioe:
+                log.warn("OOI asset file %s error: %s" % (filename, str(ioe)))
+
+            log.debug("Loaded assets %s: %d rows read" % (category, row_do))
+
+        # Post processing
+        if self.warnings:
+            log.warn("WARNINGS:\n%s", "\n".join(["%s: %s" % (a, b) for a, b in self.warnings]))
+
+        for ot, oo in self.ooi_objects.iteritems():
+            log.warn("Type %s has %s entries", ot, len(oo))
+            log.warn("Type %s has %s attributes", ot, self.ooi_obj_attrs[ot])
+            #print ot
+            #print "\n".join(sorted(list(self.ooi_obj_attrs[ot])))
+
+    def _add_object_attribute(self, objtype, objid, key, value, **kwargs):
+        if objtype not in self.ooi_objects:
+            self.ooi_objects[objtype] = {}
+        ot_objects = self.ooi_objects[objtype]
+        if objtype not in self.ooi_obj_attrs:
+            self.ooi_obj_attrs[objtype] = set()
+        ot_obj_attrs = self.ooi_obj_attrs[objtype]
+
+        if objid not in ot_objects:
+            ot_objects[objid] = {}
+        obj_entry = ot_objects[objid]
+        if key:
+            if key in obj_entry:
+                msg = "duplicate_key: %s.%s has duplicate key: %s (old=%s, new=%s)" % (objtype, objid, key, obj_entry[key], value)
+                self.warnings.append((objid, msg))
+            else:
+                obj_entry[key] = value
+            ot_obj_attrs.add(key)
+        for okey, oval in kwargs.iteritems():
+            if okey in obj_entry and obj_entry[okey] != oval:
+                msg = "different_static: %s.%s has different value for key: %s (old=%s, new=%s)" % (objtype, objid, okey, obj_entry[okey], oval)
+                self.warnings.append((objid, msg))
+            else:
+                obj_entry[okey] = oval
+            ot_obj_attrs.add(okey)
+
+    def _parse_AttributeReportClass(self, row):
+        self._add_object_attribute('class',
+            row['Class'], row['Attribute'], row['AttributeValue'],
+            Class_Name=row['Class_Name'])
+
+    def _parse_AttributeReportDataProducts(self, row):
+        self._add_object_attribute('data_product',
+            row['Data_Product_Identifier'], row['Attribute'], row['AttributeValue'],
+            Data_Product_Name=row['Data_Product_Name'], Data_Product_Level=row['Data_Product_Level'])
+
+    def _parse_AttributeReportMakeModel(self, row):
+        self._add_object_attribute('model',
+            row['Make_Model'], row['Attribute'], row['Attribute_Value'],
+            Manufacturer=row['Manufacturer'], Make_Model_Description=row['Make_Model_Description'])
+
+    def _parse_AttributeReportPorts(self, row):
+        self._add_object_attribute('port',
+            row['Port'], row['Attribute'], row['AttributeValue'])
+
+    def _parse_AttributeReportReferenceDesignator(self, row):
+        self._add_object_attribute('sensor',
+            row['Reference_Designator'], row['Attribute'], row['AttributeValue'], Class=row['Class'])
+
+    def _parse_AttributeReportSubsites(self, row):
+        self._add_object_attribute('subsite',
+            row['Subsite'], row['Attribute'], row['AttributeValue'], Subsite_Name=row['Subsite_Name'])
+
+    def _parse_InstrumentTableDetailed(self, row):
+        refid = row['ReferenceDesignator']
+        entry = dict(
+            observatory_id=row['LArray_PublicID'],
+            subsite_id=row['LSubsite_PublicID'],
+            node_type_id=row['NodeType'],
+            sensor_class_id=row['SClass_PublicID'],
+            model_id=row['MMInstrument_PublicID']
+        )
+        self._add_object_attribute('sensor',
+            refid, None, None, **entry)
+
+    def _parse_InstrumentCatalogFull(self, row):
+        #		LSlot_InstrumentSequence			MMInstrument_Manufacturer	MMInstrument_PublicID	MMInstrument_Description	First_Deployment_Date
+        refid = row['ReferenceDesignator']
+        entry = dict(
+            sensor_series=row['SSeries_PublicID'],
+            sensor_subseries=row['SSubseries_PublicID']
+        )
+        self._add_object_attribute('sensor',
+            refid, None, None, **entry)
+
+        # Build up the series here
+        sid = "%s-%s" % (row['SClass_PublicID'], row['SSeries_PublicID'])
+        self._add_object_attribute('series',
+            sid, None, None)
+
+        # Build up the subseries here
+        ssid = "%s-%s-%s" % (row['SClass_PublicID'], row['SSeries_PublicID'], row['SSubseries_PublicID'])
+        ssentry = dict(description=row['SSubseries_Description'])
+        self._add_object_attribute('subseries',
+            ssid, None, None, **ssentry)
+
+        # Build up the node type here
+        ntype_txt = row['Textbox11']
+        #re.match('(\w+)\s+\((.+)\)\s*')
+        ntype_id = ntype_txt[:2]
+        ntype_desc = ntype_txt[3:-1].strip('()')
+        self._add_object_attribute('nodetype',
+            ntype_id, None, None, description=ntype_desc)
+
+    def _scan_ooi_reference_designators(self):
+        pass
 
 class XLSParser(object):
 
@@ -1130,4 +1282,6 @@ class XLSParser(object):
 
     def utf8ize(self, l):
         return [unicode(s).encode("utf-8") if hasattr(s,'encode') else s for s in l]
+
+
 
