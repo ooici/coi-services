@@ -26,6 +26,8 @@ class DensityTransform(TransformDataProcess):
 
     def on_start(self):
         super(DensityTransform, self).on_start()
+        self.output_bindings = []
+
         if not self.CFG.process.publish_streams.has_key('density'):
             raise BadRequest("For CTD transforms, please send the stream_id "
                                  "using a special keyword (ex: density)")
