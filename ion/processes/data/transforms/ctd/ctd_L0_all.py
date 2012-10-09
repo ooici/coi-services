@@ -20,6 +20,8 @@ class ctd_L0_all(TransformDataProcess):
     """
     def on_start(self):
         super(ctd_L0_all, self).on_start()
+        self.output_bindings = []
+
         config_streams = self.CFG.process.publish_streams
         requirement = config_streams.has_key('conductivity') \
                         and config_streams.has_key('pressure') \

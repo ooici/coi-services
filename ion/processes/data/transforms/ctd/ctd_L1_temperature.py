@@ -22,6 +22,7 @@ class CTDL1TemperatureTransform(TransformDataProcess):
     '''
     def on_start(self):
         super(CTDL1TemperatureTransform, self).on_start()
+        self.output_bindings = []
 
         if not self.CFG.process.publish_streams.has_key('temperature'):
             raise BadRequest("For CTD transforms, please send the stream_id using a "

@@ -25,6 +25,7 @@ class CTDL1PressureTransform(TransformDataProcess):
 
     def on_start(self):
         super(CTDL1PressureTransform, self).on_start()
+        self.output_bindings = []
 
         if not self.CFG.process.publish_streams.has_key('pressure'):
             raise BadRequest("For CTD transforms, please send the stream_id using "
