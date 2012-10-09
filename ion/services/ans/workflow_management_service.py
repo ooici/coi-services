@@ -206,52 +206,6 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
 
             # Find the link between the output Stream Definition resource and the Data Process Definition resource
-            process_output_stream_def_id = stream_def_ids[0]
-
-            #If an output name has been specified than use it for the final output product name
-            if wf_step.output_data_product_name is not '':
-                data_product_name = wf_step.output_data_product_name
-            else:
-                #Concatenate the name of the workflow and data process definition for the name of the data product output + plus
-                #a unique identifier for multiple instances of a workflow definition.
-                data_product_name = create_unique_identifier(workflow_definition.name + '_' + data_process_definition.name)
-
-            tdom, sdom = time_series_domain()
-
-            transform_dp_obj = IonObject(RT.DataProduct,
-                name=data_product_name,
-                description=data_process_definition.description,
-                temporal_domain = tdom.dump(),
-                spatial_domain = sdom.dump())
-
-            transform_dp_id = self.clients.data_product_management.create_data_product(transform_dp_obj, process_output_stream_def_id)
-            if wf_step.persist_process_output_data:
-                self.clients.data_product_management.activate_data_product_persistence(data_product_id=transform_dp_id)
-
-            #Associate the intermediate data products with the workflow
-            self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProduct, transform_dp_id )
-
-            # Create the  transform data process
-            log.debug("create data_process and start it")
-            stream_name = get_safe(wf_step.configuration,'stream_name','output')
-            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], {stream_name:transform_dp_id}, configuration=wf_step.configuration)
-            self.clients.data_process_management.activate_data_process(data_process_id)
-
-            #Track the the data process with an association to the workflow
-            self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProcess, data_process_id )
-
-            #last one out of the for loop is the output product id
-            output_data_product_id = transform_dp_id
-
-            #Save the id of the output data stream for input to the next process in the workflow.
-            data_process_input_dp_id = transform_dp_id
-
-
-        #Track the output data product with an association
-        self.clients.resource_registry.create_association(workflow_id, PRED.hasOutputProduct, output_data_product_id )
-
-        return workflow_id, output_data_product_id
-
 
     def terminate_data_process_workflow(self, workflow_id='', delete_data_products=True):
         """Terminates a Workflow specific by a Workflow Definition resource which includes all internal processes.
