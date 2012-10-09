@@ -5,20 +5,11 @@
 '''
 
 from ion.core.process.transform import TransformDataProcess
-from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
-from pyon.public import IonObject, RT, log
-from pyon.util.arg_check import validate_true
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
-from pyon.net.endpoint import Publisher
-from pyon.core.bootstrap import get_sys_name
-from pyon.net.transport import NameTrio
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import MultiGranuleTransformFunction
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
 # For usage: please refer to the integration tests in
 # ion/processes/data/transforms/ctd/test/test_ctd_transforms.py
@@ -35,7 +26,7 @@ class ctd_L0_all(TransformDataProcess):
                         and config_streams.has_key('temperature')
 
         if not requirement:
-            raise AssertionError("For CTD transforms, please send the stream_ids for conductivity, temperature, pressure"
+            raise BadRequest("For CTD transforms, please send the stream_ids for conductivity, temperature, pressure"
                                  " using special keywords (ex: conductivity) for each instead of just \'output \'")
 
         self.cond_stream = self.CFG.process.publish_streams.conductivity
@@ -47,24 +38,16 @@ class ctd_L0_all(TransformDataProcess):
 
     def _get_param_dicts_from_streams(self):
 
-        pubsub = PubsubManagementServiceClient()
+        pubsub = PubsubManagementServiceProcessClient(process=self)
 
-        stream_def_cond = pubsub.read_stream_definition(stream_id=self.cond_stream)
-        pdict = stream_def_cond.parameter_dictionary
-        cond_pdict = ParameterDictionary.load(pdict)
-
-        stream_def_pres = pubsub.read_stream_definition(stream_id=self.pres_stream)
-        pdict = stream_def_pres.parameter_dictionary
-        pres_pdict = ParameterDictionary.load(pdict)
-
-        stream_def_temp = pubsub.read_stream_definition(stream_id=self.temp_stream)
-        pdict = stream_def_temp.parameter_dictionary
-        temp_pdict = ParameterDictionary.load(pdict)
+        self.stream_def_cond = pubsub.read_stream_definition(stream_id=self.cond_stream)
+        self.stream_def_pres = pubsub.read_stream_definition(stream_id=self.pres_stream)
+        self.stream_def_temp = pubsub.read_stream_definition(stream_id=self.temp_stream)
 
         self.params = {}
-        self.params['conductivity'] = cond_pdict
-        self.params['pressure'] = pres_pdict
-        self.params['temperature'] = temp_pdict
+        self.params['conductivity'] = self.stream_def_cond._id
+        self.params['pressure'] = self.stream_def_pres._id
+        self.params['temperature'] = self.stream_def_temp._id
 
     def recv_packet(self, packet,stream_route, stream_id):
         """Processes incoming data!!!!
@@ -101,15 +84,15 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
             result = {}
 
             # build the granules for conductivity, temperature and pressure
-            result['conductivity'] = ctd_L0_algorithm._build_granule(   param_dictionary= params['conductivity'],
+            result['conductivity'] = ctd_L0_algorithm._build_granule(   stream_definition_id= params['conductivity'],
                                                                         field_name= 'conductivity',
                                                                         value= conductivity)
 
-            result['temp'] = ctd_L0_algorithm._build_granule(param_dictionary= params['temperature'],
+            result['temp'] = ctd_L0_algorithm._build_granule(stream_definition_id= params['temperature'],
                                                            field_name= 'temp',
                                                            value= temperature)
 
-            result['pressure'] = ctd_L0_algorithm._build_granule(param_dictionary= params['pressure'],
+            result['pressure'] = ctd_L0_algorithm._build_granule(stream_definition_id= params['pressure'],
                                                                  field_name= 'pressure',
                                                                  value= pressure)
 
@@ -118,7 +101,7 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
         return result_list
 
     @staticmethod
-    def _build_granule(param_dictionary=None, field_name='', value=None):
+    def _build_granule(stream_definition_id=None, field_name='', value=None):
         '''
         @param param_dictionary ParameterDictionary
         @param field_name str
@@ -126,7 +109,7 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
         @retval Granule
         '''
-        root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
+        root_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
         root_rdt[field_name] = value
 
         return root_rdt.to_granule()

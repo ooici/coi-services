@@ -33,6 +33,7 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.util.parameter_yaml_IO import get_param_dict
 import unittest, gevent
+import numpy, random
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
@@ -72,7 +73,7 @@ class TestCtdTransforms(IonUnitTestCase):
 
         length = 1
 
-        packet = self.px_ctd._get_new_ctd_packet("STR_ID", length)
+        packet = self._get_new_ctd_packet("STR_ID", length)
         self.tx_L0.process(packet)
 
         self.tx_L0.cond_publisher.publish = mocksignature(self.tx_L0.cond_publisher.publish)
@@ -239,8 +240,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -332,8 +332,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -419,9 +418,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         conductivity = input_rdt_to_transform['conductivity']
         pressure = input_rdt_to_transform['pressure']
         temperature = input_rdt_to_transform['temp']
-
-        longitude = input_rdt_to_transform['lon']
-        latitude = input_rdt_to_transform['lat']
 
         sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
 
@@ -523,8 +519,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -612,8 +607,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -655,7 +649,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         config.process.interval = 1.0
 
-        pdict = get_param_dict('simple_salinity_density_param_dict')
+        pdict = get_param_dict('simple_density_param_dict')
 
         stream_def_id =  self.pubsub.create_stream_definition('dens_stream_def', parameter_dictionary=pdict.dump())
         dens_stream_id, _ = self.pubsub.create_stream('test_density', stream_definition_id=stream_def_id,
@@ -701,8 +695,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet( parameter_dictionary=pdict,length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -742,7 +735,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        pdict = get_param_dict('simple_salinity_density_param_dict')
+        pdict = get_param_dict('simple_salinity_param_dict')
 
         stream_def_id =  self.pubsub.create_stream_definition('sal_stream_def', parameter_dictionary=pdict.dump())
         sal_stream_id, _ = self.pubsub.create_stream('test_salinity', stream_definition_id=stream_def_id,
@@ -789,8 +782,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-        publish_granule = self.px_ctd._get_new_ctd_packet(length = 5)
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -808,3 +800,15 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         self.assertTrue(rdt.__contains__('salinity'))
 
         self.check_salinity_algorithm_execution(publish_granule, result)
+
+
+    def _get_new_ctd_packet(self, parameter_dictionary, length):
+
+        rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
+
+        for key in parameter_dictionary.keys():
+            rdt[key] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
+
+        g = rdt.to_granule()
+
+        return g

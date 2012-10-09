@@ -27,7 +27,7 @@ class CTDL1ConductivityTransform(TransformDataProcess):
 
         if not self.CFG.process.publish_streams.has_key('conductivity'):
             raise BadRequest("For CTD transforms, please send the stream_id using "
-                                 "a special keyword (ex: conductivity)")
+                             "a special keyword (ex: conductivity)")
         self.cond_stream = self.CFG.process.publish_streams.conductivity
 
         # Read the parameter dict from the stream def of the stream
@@ -50,18 +50,17 @@ class CTDL1ConductivityTransformAlgorithm(SimpleGranuleTransformFunction):
     def execute(input=None, context=None, config=None, params=None, state=None):
 
         rdt = RecordDictionaryTool.load_from_granule(input)
+        out_rdt = RecordDictionaryTool(stream_definition_id=params)
+
         conductivity = rdt['conductivity']
         cond_value = (conductivity / 100000.0) - 0.5
 
+        for key, value in rdt.iteritems():
+            if key in out_rdt:
+                out_rdt[key] = value[:]
+
+        # Update the conductivity values
+        out_rdt['conductivity'] = cond_value
+
         # build the granule for conductivity
-        result = CTDL1ConductivityTransformAlgorithm._build_granule(stream_definition_id = params,
-                                                                    field_name ='conductivity',
-                                                                    value=cond_value)
-        return result
-
-    @staticmethod
-    def _build_granule(param_dictionary=None, field_name='', value=None):
-
-        root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
-        root_rdt[field_name] = value
-        return root_rdt.to_granule()
+        return out_rdt.to_granule()

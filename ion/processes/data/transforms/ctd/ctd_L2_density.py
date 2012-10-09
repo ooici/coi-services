@@ -52,6 +52,7 @@ class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):
     def execute(input=None, context=None, config=None, params=None, state=None):
 
         rdt = RecordDictionaryTool.load_from_granule(input)
+        out_rdt = RecordDictionaryTool(stream_definition_id=params)
 
         conductivity = rdt['conductivity']
         pressure = rdt['pressure']
@@ -63,16 +64,11 @@ class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         sp = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
         sa = SA_from_SP(sp, pressure, longitude, latitude)
         dens_value = rho(sa, temperature, pressure)
-        # build the granule for density
-        result = CTDL2DensityTransformAlgorithm._build_granule(stream_definition_id=params,
-                                                                field_name='density',
-                                                                value=dens_value)
 
-        return result
+        for key, value in rdt.iteritems():
+            if key in out_rdt:
+                out_rdt[key] = value[:]
 
-    @staticmethod
-    def _build_granule(stream_definition_id=None, field_name='', value=None):
+        out_rdt['density'] = dens_value
 
-        root_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
-        root_rdt[field_name] = value
-        return root_rdt.to_granule()
+        return out_rdt.to_granule()
