@@ -5,6 +5,7 @@ from nose.plugins.attrib import attr
 
 from pyon.public import CFG, RT, LCS, PRED,IonObject, log
 from pyon.core.exception import BadRequest, Inconsistent
+from pyon.util.containers import DotDict
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -133,14 +134,20 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         workflow_data_product_name = 'TEST-Workflow_Output_Product' #Set a specific output product name
 
-        #Add a transformation process definition
+        #-------------------------------------------------------------------------------------------------------------------------
+        #Add a transformation process definition for salinity
+        #-------------------------------------------------------------------------------------------------------------------------
+
         ctd_L2_salinity_dprocdef_id = self.create_salinity_data_process_definition()
         workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_process_output_data=False)  #Don't persist the intermediate data product
         configuration = {'stream_name' : 'salinity'}
         workflow_step_obj.configuration = configuration
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
-        #Add a transformation process definition
+        #-------------------------------------------------------------------------------------------------------------------------
+        #Add a transformation process definition for salinity doubler
+        #-------------------------------------------------------------------------------------------------------------------------
+
         salinity_doubler_dprocdef_id = self.create_salinity_doubler_data_process_definition()
         workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id, output_data_product_name=workflow_data_product_name, persist_process_output_data=True)
         configuration = {'stream_name' : 'salinity'}
