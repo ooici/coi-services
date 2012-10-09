@@ -181,7 +181,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         #Verify the output data product name matches what was specified in the workflow definition
         workflow_product = self.rrclient.read(workflow_product_id)
-        assertions(workflow_product.name == workflow_data_product_name)
+        assertions(workflow_product.name.startswith(workflow_data_product_name), 'Nope: %s != %s' % (workflow_product.name, workflow_data_product_name))
 
         #Walk the associations to find the appropriate output data streams to validate the messages
         workflow_dp_ids,_ = self.rrclient.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)

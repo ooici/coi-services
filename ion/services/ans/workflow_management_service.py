@@ -164,7 +164,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 #--------------------------------------------------------------------------------
 
                 data_product_name = wf_step.output_data_product_name or create_unique_identifier(workflow_definition.name + '_' + data_process_definition.name)
-                data_product_name = '%s_%s' % (binding, data_product_name)
+                data_product_name = '%s_%s' % (data_product_name,binding)
 
                 tdom, sdom = time_series_domain()
 
