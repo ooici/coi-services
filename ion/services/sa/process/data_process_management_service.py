@@ -114,7 +114,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
-    def assign_stream_definition_to_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
+    def assign_stream_definition_to_data_process_definition(self, stream_definition_id='', data_process_definition_id='', binding=''):
         """Connect the output  stream with a data process definition
         """
         # Verify that both ids are valid, RR will throw if not found
@@ -126,6 +126,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                                                           " definition id: %s" % data_process_definition_id)
 
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasStreamDefinition,  stream_definition_id)
+        data_process_definition_obj.output_bindings[binding] = stream_definition_id
+        self.clients.resource_registry.update(data_process_definition_obj)
 
     def unassign_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
         """
@@ -173,6 +175,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Read the data process definition
         #---------------------------------------------------------------------------------------
         data_process_definition = self.read_data_process_definition(data_process_definition_id)
+
+        #---------------------------------------------------------------------------------------
+        # Read the output bindings from the definition
+        #---------------------------------------------------------------------------------------
+
+        output_bindings = data_process_definition.output_bindings
 
         #---------------------------------------------------------------------------------------
         # Find the process definition associated with this data process definition.
