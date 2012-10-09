@@ -1,3 +1,5 @@
+import gevent
+
 from pyon.agent.simple_agent import SimpleResourceAgent
 from pyon.event.event import EventPublisher
 from pyon.public import log
@@ -69,8 +71,23 @@ class HighAvailabilityAgent(SimpleResourceAgent):
 
         self.policy_thread = looping_call(self.policy_interval, self.core.apply_policy)
 
+        dashi_name = self.CFG.get_safe("highavailability.dashi_name")
+        dashi_uri = self.CFG.get_safe("highavailability.dashi_uri")
+        dashi_exchange = self.CFG.get_safe("highavailability.dashi_exchange")
+
+        if dashi_name and dashi_uri:
+            self.dashi_handler = HADashiHandler(self, dashi_name, dashi_uri, dashi_exchange)
+        else:
+            self.dashi_handler = None
+
+    def on_start(self):
+        if self.dashi_handler:
+            self.dashi_handler.start()
+
     def on_quit(self):
         self.policy_thread.kill(block=True, timeout=3)
+        if self.dashi_handler:
+            self.dashi_handler.stop()
 
     def rcmd_reconfigure_policy(self, new_policy):
         """Service operation: Change the parameters of the policy used for service
@@ -89,6 +106,42 @@ class HighAvailabilityAgent(SimpleResourceAgent):
 
     def rcmd_dump(self):
         return self.core.dump()
+
+
+class HADashiHandler(object):
+    """Passthrough dashi handlers for agent commands
+
+    Used for messaging from the launch plan.
+    """
+    def __init__(self, agent, dashi_name, dashi_uri, dashi_exchange):
+        self.agent = agent
+
+        self.dashi = self._get_dashi(dashi_name, dashi_uri, dashi_exchange)
+        self.dashi.handle(self.status)
+        self.dashi.handle(self.reconfigure_policy)
+
+        self.consumer_thread = None
+
+    def start(self):
+        self.consumer_thread = gevent.spawn(self.dashi.consume)
+
+    def stop(self):
+        self.dashi.cancel()
+        if self.consumer_thread:
+            self.consumer_thread.join()
+            self.consumer_thread = None
+
+    def status(self):
+        return self.agent.rcmd_status()
+
+    def reconfigure_policy(self, new_policy):
+        return self.agent.rcmd_reconfigure_policy(new_policy)
+
+    def _get_dashi(self, *args, **kwargs):
+
+        # broken out to ease testing when dashi is not present
+        import dashi
+        return dashi.DashiConnection(*args, **kwargs)
 
 
 class HighAvailabilityAgentClient(object):
