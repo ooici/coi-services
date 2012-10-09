@@ -380,9 +380,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             if 'DataProcessInput' in words:
                 configuration[attachment_obj.name] = attachment_obj.content
-                log.debug("Lookup table, %s, found in attachment %s", (attachment_obj.content, attachment_obj.name))
+                log.debug("Lookup table, %s, found in attachment %s" % (attachment_obj.content, attachment_obj.name))
             else:
-                log.debug("NO lookup table in attachment %s", attachment_obj.name)
+                log.debug("NO lookup table in attachment %s" % attachment_obj.name)
 
         return configuration
 
