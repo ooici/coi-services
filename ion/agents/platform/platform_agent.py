@@ -19,7 +19,6 @@ from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
-from pyon.util.context import LocalContextMixin
 
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
@@ -87,17 +86,6 @@ class PlatformAgentCapability(BaseEnum):
 
 
 
-# TODO Use appropriate process in ResourceAgentClient instance construction below.
-# for now, just replicating typical mechanism in test cases.
-class FakeProcess(LocalContextMixin):
-    """
-    A fake process used because the test case is not an ion process.
-    """
-    name = ''
-    id=''
-    process_type = ''
-
-
 class PlatformAgent(ResourceAgent):
     """
     Platform resource agent.
@@ -124,15 +112,10 @@ class PlatformAgent(ResourceAgent):
         # purposes
         self._parent_platform_id = None
 
-        # Dictionary of data stream IDs for data publishing. Constructed
-        # by stream_config agent config member during process on_init.
+        # Dictionaries used for data publishing. Constructed in _do_initialize
         self._data_streams = {}
-
         self._param_dicts = {}
         self._stream_defs = {}
-
-        # Dictionary of data stream publishers. Constructed by
-        # stream_config agent config member during process on_init.
         self._data_publishers = {}
 
         # {subplatform_id: (ResourceAgentClient, PID), ...}
@@ -140,15 +123,6 @@ class PlatformAgent(ResourceAgent):
 
         self._launcher = LauncherFactory.createLauncher(standalone=standalone)
         log.debug("launcher created: %s", str(type(self._launcher)))
-
-        #
-        # TODO the following defined here as in InstrumentAgent,
-        # but these will likely be part of the platform (or associated
-        # instruments) metadata
-        self._lat = 0
-        self._lon = 0
-        self._height = 0
-
 
         # standalone stuff
         self.container = None
@@ -493,9 +467,6 @@ class PlatformAgent(ResourceAgent):
         # because currently using param-dict for 'simple_data_particle_raw_param_dict',
         # the following are invalid:
 #        rdt['value'] =  numpy.array([driver_event._value])
-#        rdt['lat'] =    numpy.array([self._lat])
-#        rdt['lon'] =    numpy.array([self._lon])
-#        rdt['height'] = numpy.array([self._height])
 
         # ... so, simply fill in 'raw':
         rdt['raw'] =  numpy.array([driver_event._value])
@@ -570,9 +541,6 @@ class PlatformAgent(ResourceAgent):
         rdt = RecordDictionaryTool(param_dictionary=param_dict)
 
         rdt['value'] =  numpy.array([driver_event._value])
-        rdt['lat'] =    numpy.array([self._lat])
-        rdt['lon'] =    numpy.array([self._lon])
-        rdt['height'] = numpy.array([self._height])
 
         g = build_granule(data_producer_id=self.resource_id,
             param_dictionary=param_dict, record_dictionary=rdt)
@@ -642,7 +610,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _create_resource_agent_client: subplatform_id=%s",
             self._platform_id, subplatform_id)
 
-        pa_client = ResourceAgentClient(subplatform_id, process=FakeProcess())
+        pa_client = ResourceAgentClient(subplatform_id, process=self)
 
         log.debug("%r: got platform agent client %s",
             self._platform_id, str(pa_client))
