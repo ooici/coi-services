@@ -20,7 +20,7 @@ from interface.services.ans.iworkflow_management_service import WorkflowManageme
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
-
+from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
 from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
 
@@ -111,6 +111,8 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         #Start the output stream listener to monitor and collect messages
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
+
+        print '>>>> Results: %s' % results
 
         #Stop the transform processes
         self.dataprocessclient.deactivate_data_process(salinity_double_data_process_id)

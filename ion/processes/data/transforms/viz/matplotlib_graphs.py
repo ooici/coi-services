@@ -1,27 +1,16 @@
 
-from ion.core.process.transform import TransformStreamListener
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
-from pyon.service.service import BaseService
-from pyon.ion.streamproc import StreamProcess
 from pyon.core.exception import BadRequest
-from pyon.public import IonObject, RT, log
+from pyon.public import log
 
-import time
-import numpy
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
 import numpy as np
 
 import StringIO
-from numpy import array, append
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from pyon.ion.transforma import TransformDataProcess
-from ion.core.function.transform_function import SimpleGranuleTransformFunction
 
 # Matplotlib related imports
 # Need try/catch because of weird import error
@@ -59,7 +48,7 @@ class VizTransformMatplotlibGraphs(TransformDataProcess):
     def recv_packet(self, packet, in_stream_route, in_stream_id):
         log.info('Received packet')
         print type(packet)
-        outgoing = VizTransformMatplotlibGraphsAlgorithm.execute(input=packet, params=self.get_stream_definition())
+        outgoing = VizTransformMatplotlibGraphsAlgorithm.execute(packet, params=self.get_stream_definition())
         for stream_name in self.stream_names:
             publisher = getattr(self, stream_name)
             publisher.publish(outgoing)
@@ -71,9 +60,9 @@ class VizTransformMatplotlibGraphs(TransformDataProcess):
 
 
 class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
-    @classmethod
+    @staticmethod
     @SimpleGranuleTransformFunction.validate_inputs
-    def execute(cls, input=None, context=None, config=None, params=None, state=None):
+    def execute(input=None, context=None, config=None, params=None, state=None):
         log.debug('Matplotlib transform: Received Viz Data Packet')
         stream_definition_id = params
 
@@ -108,7 +97,7 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             else:
                 graph_data[varname].extend(vardict[varname])
 
-        out_granule = cls.render_graphs(graph_data, stream_definition_id)
+        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(graph_data, stream_definition_id)
 
         return out_granule
 

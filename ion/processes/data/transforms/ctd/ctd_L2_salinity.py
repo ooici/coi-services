@@ -44,6 +44,7 @@ class SalinityTransform(TransformDataProcess):
             return
 
         granule = CTDL2SalinityTransformAlgorithm.execute(packet, params=self.stream_definition._id)
+        granule.data_producer_id=self.id
         self.salinity.publish(msg=granule)
 
 

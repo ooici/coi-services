@@ -106,7 +106,6 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
                     "data_content" : data_table_content}
 
         out_rdt["google_dt_components"] = np.array([out_dict])
-        print out_dict
 
         log.debug('Google DT transform: Sending a granule')
 

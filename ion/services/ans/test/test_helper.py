@@ -189,51 +189,23 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         assertions = self.assertTrue
 
-        first_salinity_values = None
+        salinity_bins = [None,None]
+        i=0
+
 
         for message in results:
             rdt = RecordDictionaryTool.load_from_granule(message)
 
-            try:
-                temp = get_safe(rdt, 'temp')
-            #                psd = PointSupplementStreamParser(stream_definition=self.ctd_stream_def, stream_granule=message)
-            #                temp = psd.get_values('temperature')
-            #                log.info(psd.list_field_names())
-            except KeyError as ke:
-                temp = None
+            if 'salinity' in rdt and rdt['salinity'] is not None:
+                salinity_bins[i % 2] = rdt['salinity']
 
-            if temp is not None:
-                assertions(isinstance(temp, numpy.ndarray))
+                if (i%2):
+                    proper_dbl = salinity_bins[0] * 2.0
+                    assertions((salinity_bins[1] == proper_dbl).all())
+                    log.info('Salinity test satisfactory')
 
-                log.info( 'temperature=' + str(numpy.nanmin(temp)))
+                i+=1 
 
-                first_salinity_values = None
-
-            else:
-                #psd = PointSupplementStreamParser(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
-                #log.info( psd.list_field_names())
-
-                # Test the handy info method for the names of fields in the stream def
-                #assertions('salinity' in psd.list_field_names())
-
-                # you have to know the name of the coverage in stream def
-                salinity = get_safe(rdt, 'salinity')
-                #salinity = psd.get_values('salinity')
-                log.info( 'salinity=' + str(numpy.nanmin(salinity)))
-
-                # Check to see if salinity has values
-                assertions(salinity != None)
-
-                assertions(isinstance(salinity, numpy.ndarray))
-                assertions(numpy.nanmin(salinity) > 0.0) # salinity should always be greater than 0
-
-                if first_salinity_values is None:
-                    first_salinity_values = salinity.tolist()
-                else:
-                    second_salinity_values = salinity.tolist()
-                    assertions(len(first_salinity_values) == len(second_salinity_values))
-                    for idx in range(0,len(first_salinity_values)):
-                        assertions(first_salinity_values[idx]*2.0 == second_salinity_values[idx])
 
 
     def validate_data_ingest_retrieve(self, dataset_id):
