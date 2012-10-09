@@ -126,7 +126,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                                                           " definition id: %s" % data_process_definition_id)
 
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasStreamDefinition,  stream_definition_id)
-        data_process_definition_obj[binding] = stream_definition_id
+        data_process_definition_obj.output_bindings[binding] = stream_definition_id
         self.clients.resource_registry.update(data_process_definition_obj)
 
     def unassign_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
