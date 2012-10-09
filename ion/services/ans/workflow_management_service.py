@@ -157,10 +157,10 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             data_process_definition = self.clients.resource_registry.read(wf_step.data_process_definition_id)
 
             # Find the link between the output Stream Definition resource and the Data Process Definition resource
-            stream_ids,_ = self.clients.resource_registry.find_objects(data_process_definition._id, PRED.hasStreamDefinition, RT.StreamDefinition,  id_only=True)
-            if not stream_ids:
+            stream_def_ids,_ = self.clients.resource_registry.find_objects(data_process_definition._id, PRED.hasStreamDefinition, RT.StreamDefinition,  id_only=True)
+            if not stream_def_ids:
                 raise Inconsistent("The data process definition %s is missing an association to an output stream definition" % data_process_definition._id )
-            process_output_stream_def_id = stream_ids[0]
+            process_output_stream_def_id = stream_def_ids[0]
 
             #If an output name has been specified than use it for the final output product name
             if wf_step.output_data_product_name is not '':
@@ -170,19 +170,15 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 #a unique identifier for multiple instances of a workflow definition.
                 data_product_name = create_unique_identifier(workflow_definition.name + '_' + data_process_definition.name)
 
-            # Create the output data product of the transform
-            parameter_dictionary = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
-            parameter_dictionary = parameter_dictionary.dump()
-
             tdom, sdom = time_series_domain()
 
             transform_dp_obj = IonObject(RT.DataProduct,
                 name=data_product_name,
                 description=data_process_definition.description,
-                temporal_domain = tdom,
-                spatial_domain = sdom)
+                temporal_domain = tdom.dump(),
+                spatial_domain = sdom.dump())
 
-            transform_dp_id = self.clients.data_product_management.create_data_product(transform_dp_obj, process_output_stream_def_id, parameter_dictionary)
+            transform_dp_id = self.clients.data_product_management.create_data_product(transform_dp_obj, process_output_stream_def_id)
             if wf_step.persist_process_output_data:
                 self.clients.data_product_management.activate_data_product_persistence(data_product_id=transform_dp_id)
 
@@ -191,7 +187,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
             # Create the  transform data process
             log.debug("create data_process and start it")
-            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], {'output':transform_dp_id}, configuration=wf_step.configuration)
+            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], {wf_step.configuration['stream_name']:transform_dp_id}, configuration=wf_step.configuration)
             self.clients.data_process_management.activate_data_process(data_process_id)
 
             #Track the the data process with an association to the workflow
