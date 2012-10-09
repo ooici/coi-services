@@ -9,6 +9,8 @@ from pyon.util.containers import is_basic_identifier, create_unique_identifier
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.public import Container, log, IonObject, RT,PRED, OT
 from ion.services.dm.utility.granule_utils import CoverageCraft
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 class WorkflowManagementService(BaseWorkflowManagementService):
 
@@ -169,13 +171,10 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 data_product_name = create_unique_identifier(workflow_definition.name + '_' + data_process_definition.name)
 
             # Create the output data product of the transform
-
-            craft = CoverageCraft
-            sdom, tdom = craft.create_domains()
-            sdom = sdom.dump()
-            tdom = tdom.dump()
-            parameter_dictionary = craft.create_parameters()
+            parameter_dictionary = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
             parameter_dictionary = parameter_dictionary.dump()
+
+            tdom, sdom = time_series_domain()
 
             transform_dp_obj = IonObject(RT.DataProduct,
                 name=data_product_name,
