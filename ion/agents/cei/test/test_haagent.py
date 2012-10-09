@@ -4,7 +4,6 @@ import BaseHTTPServer
 import socket
 from BaseHTTPServer import HTTPServer
 from gevent import queue
-from gevent.queue import Empty
 from random import randint
 
 from nose.plugins.attrib import attr
@@ -20,8 +19,11 @@ from pyon.util.containers import DotDict
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
+from pyon.core import bootstrap
+
 from interface.services.icontainer_agent import ContainerAgentClient
-from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, ProcessDispatcherSimpleAPIClient
+from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, \
+    ProcessDispatcherSimpleAPIClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessStateEnum, ProcessDefinition
 
@@ -75,6 +77,9 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.resource_id = "haagent_1234"
         self._haa_name = "high_availability_agent"
+        self._haa_dashi_name = "dashi_haa_" + uuid4().hex
+        self._haa_dashi_uri = "amqp://guest:guest@localhost/"
+        self._haa_dashi_exchange = "%s.hatests" % bootstrap.get_sys_name()
         self._haa_config = {
             'highavailability': {
                 'policy': {
@@ -87,7 +92,10 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                 'process_definition_id': self.process_definition_id,
                 "process_dispatchers": [
                     'process_dispatcher'
-                ]
+                ],
+                'dashi_uri': self._haa_dashi_uri,
+                'dashi_exchange': self._haa_dashi_exchange,
+                'dashi_name': self._haa_dashi_name
             },
             'agent': {'resource_id': self.resource_id},
         }
@@ -191,6 +199,22 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.await_state_event("test", ProcessStateEnum.TERMINATE)
         self.assertEqual(len(self.get_running_procs()), 0)
+
+    @needs_epu
+    def test_dashi(self):
+
+        import dashi
+
+        dashi_conn = dashi.DashiConnection("something", self._haa_dashi_uri,
+            self._haa_dashi_exchange)
+
+        status = dashi_conn.call(self._haa_dashi_name, "status")
+        assert status in ('PENDING', 'READY', 'STEADY')
+
+        new_policy = {'preserve_n': 0}
+        dashi_conn.call(self._haa_dashi_name, "reconfigure_policy",
+            new_policy=new_policy)
+
 
 @attr('UNIT', group='cei')
 class ProcessDispatcherSimpleAPIClientTest(PyonTestCase):

@@ -29,6 +29,7 @@ import csv
 import requests
 import StringIO
 import time
+import calendar
 from interface import objects
 
 from pyon.core.bootstrap import get_service_registry
@@ -45,7 +46,7 @@ except:
 
 DEBUG = True
 
-DEFAULT_TIME_FORMAT="%y-%m-%dT%H:%M:%S"
+DEFAULT_TIME_FORMAT="%Y-%m-%dT%H:%M:%S"
 
 #"%04d-%02d-%02d"  % (y,m,d)    if filter(nonzero, (y,m,d))                else ''
 #time = "T%02d:%02d:%02d"
@@ -102,7 +103,7 @@ class IONLoader(ImmediateProcess):
                 if self.loadui:
                     specs_path = 'ui_specs.json' if self.exportui else None
                     self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
-                    
+
                 items = scenarios.split(',')
                 for scenario in items:
                     self.load_ion(scenario)
@@ -386,21 +387,27 @@ class IONLoader(ImmediateProcess):
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
     def _load_User(self, row):
+        alias = row['ID']
         subject = row["subject"]
         name = row["name"]
-        email = row["email"]
-
+        description = row['description']
         ims = self._get_service_client("identity_management")
 
-        actor_identity_obj = IonObject("ActorIdentity", {"name": subject})
+        fields = {"name": subject, 'description': description}
+        actor_identity_obj = IonObject("ActorIdentity", fields)
         user_id = ims.create_actor_identity(actor_identity_obj)
         self._register_user_id(name, user_id)
         self._register_id(row[self.COL_ID], user_id)
 
-        user_credentials_obj = IonObject("UserCredentials", {"name": subject})
+        user_credentials_obj = IonObject("UserCredentials", fields)
         ims.register_user_credentials(user_id, user_credentials_obj)
 
-        user_info_obj = IonObject("UserInfo", {"name": name, "contact": {"email": email}})
+        contacts = self._get_contacts(row, field='contact_id', type='User')
+        if len(contacts)>1:
+            raise iex.BadRequest('User '+alias+' defined with too many contacts (should be 1)')
+        if len(contacts)==1:
+            fields['contact'] = contacts[0]
+        user_info_obj = IonObject("UserInfo", fields)
         ims.create_user_info(user_id, user_info_obj)
 
     def _load_Org(self, row):
@@ -508,9 +515,9 @@ class IONLoader(ImmediateProcess):
         return constraint
 
     def _create_temporal_constraint(self, row):
-        format = row['format'] or DEFAULT_TIME_FORMAT
-        start = time.strptime(row['start'], format)
-        end = time.strptime(row['end'], format)
+        format = row['time_format'] or DEFAULT_TIME_FORMAT
+        start = calendar.timegm(time.strptime(row['start'], format))
+        end = calendar.timegm(time.strptime(row['end'], format))
         return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
 
     def _load_SensorModel(self, row):
@@ -676,6 +683,14 @@ class IONLoader(ImmediateProcess):
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
             "instrument_management", "create_instrument_device", contacts=contacts)
+
+#        rr = self._get_service_client("resource_registry")
+#        attachment_ids = self._get_typed_value(row['attachment_ids'], targettype="simplelist")
+#        if attachment_ids:
+#            log.trace('adding attachments to instrument device %s: %r', res_id, attachment_ids)
+#            for id in attachment_ids:
+#                rr.create_association(res_id, PRED.hasAttachment, self.resource_ids[id])
+
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
         if ass_id:
@@ -737,17 +752,22 @@ class IONLoader(ImmediateProcess):
         ic_id = svc_client.create_ingestion_configuration(name=name, exchange_point_id=xp, queues=[ingest_queue])
 
     def _load_DataProduct(self, row):
-        strdef = row["stream_def_id"]
+        sdom, tdom = CoverageCraft.create_domains()
 
         res_obj = self._create_object_from_row("DataProduct", row, "dp/")
-        parameter_dictionary = get_param_dict(row['param_dict_type'])
-        sdom, tdom = CoverageCraft.create_domains()
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
+        # HACK: cannot parse CSV value directly when field defined as "list"
+        # need to evaluate as simplelist instead and add to object explicitly
+        res_obj.available_formats = self._get_typed_value(row['available_formats'], targettype="simplelist")
 
         svc_client = self._get_service_client("data_product_management")
-        res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=self.resource_ids[strdef], parameter_dictionary = parameter_dictionary)
+        stream_definition_id = self.resource_ids[row["stream_def_id"]]
+        parameter_dictionary = get_param_dict(row['param_dict_type'])
+        res_id = svc_client.create_data_product(data_product=res_obj,
+                    stream_definition_id=stream_definition_id, parameter_dictionary=parameter_dictionary)
         self._register_id(row[self.COL_ID], res_id)
+
         if not DEBUG:
             svc_client.activate_data_product_persistence(res_id)
         self._resource_advance_lcs(row, res_id, "DataProduct")

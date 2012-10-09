@@ -38,8 +38,12 @@ class TestLoader(IonIntegrationTestCase):
                 self.assertEquals('Delaney', org.contact.individual_name_family)
         self.assertTrue(found, msg='Did not find Org "RSN" -- should have been preloaded')
 
-        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, id_only=True)
-        self.assertTrue(len(res) > 1)
+        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='CTDBP-1012-REC1 Raw Endurance OR Offshore Benthic Pkg Demo', id_only=False)
+        self.assertEquals(1, len(res))
+        dp = res[0]
+        formats = dp.available_formats
+        self.assertEquals(2, len(formats))
+        self.assertEquals('csv', formats[0])
 
         res,_ = self.container.resource_registry.find_resources(RT.InstrumentSite, id_only=False)
         self.assertTrue(len(res) > 1)
@@ -49,14 +53,21 @@ class TestLoader(IonIntegrationTestCase):
                 self.assertFalse(found, msg='Found more than one InstrumentSite "Logical instrument 1 Demo" -- should have preloaded one')
                 found = True
                 self.assertFalse(site.constraint_list is None)
-                self.assertEquals(1, len(site.constraint_list))
+                self.assertEquals(2, len(site.constraint_list))
                 con = site.constraint_list[0]
                 self.assertTrue(math.fabs(con.geospatial_latitude_limit_north-32.88)<.01)
                 self.assertTrue(math.fabs(con.geospatial_longitude_limit_east+117.23)<.01)
+                con = site.constraint_list[1]
+                self.assertEquals('TemporalBounds', con.type_)
         self.assertTrue(found, msg='Did not find InstrumentSite "Logical instrument 1 Demo" -- should have been preloaded')
+
+        # make sure we have attachments
 
         # check that InstrumentDevice contacts are loaded
         res,_ = self.container.resource_registry.find_resources(RT.InstrumentDevice, name='CTD Simulator 1 Demo', id_only=False)
         self.assertTrue(len(res) == 1)
         self.assertTrue(len(res[0].contacts)==1)
         self.assertEquals('Orcutt', res[0].contacts[0].individual_name_family)
+        # check has attachments
+        attachments,_ = self.container.resource_registry.find_attachments(res[0]._id)
+        self.assertTrue(len(attachments)>0)

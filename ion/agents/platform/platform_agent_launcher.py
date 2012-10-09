@@ -60,10 +60,11 @@ class _Launcher(object):
     def __init__(self, use_gate=True):
         """
         @param use_gate True (the default) to use ProcessStateGate pattern.
-                        Otherwise, the create_process/schedule_process/_await_state_event
+                        Otherwise, use the
+                        "create_process/subscribe-to-event/schedule_process/_await_state_event"
                         pattern (as described in
                         https://confluence.oceanobservatories.org/display/CIDev/R2+Process+Dispatcher+Guide
-                        as of Sept 14/12) is used.
+                        as of Sept 14/12).
         """
         self._use_gate = use_gate
         self._pd_client = ProcessDispatcherServiceClient()
@@ -125,18 +126,21 @@ class _Launcher(object):
             err_msg = None
             try:
                 if not gate.await(timeout_spawn):
-                    err_msg = "The platform agent instance did not spawn in %s seconds" %\
+                    err_msg = "The platform agent instance did not spawn in " \
+                              "%s seconds.  gate.wait returned false. " % \
                           timeout_spawn
                     log.error(err_msg)
+
             except Exception as e:
                 log.error("Exception while waiting for platform agent instance "
                           "(platform_id=%r) "
                           "to spawn in %s seconds: %s",
                           platform_id, timeout_spawn, str(e)) #,exc_Info=True)
+
             if err_msg:
                 raise PlatformException(err_msg)
 
-        log.debug("_do_launch_gate: platform agent spawned, platform_id=%s, pid=%r "
+        log.debug("_do_launch_gate: platform_id=%r: agent spawned, pid=%r "
                   "(ProcessStateGate pattern used)",
                   platform_id, pid)
 
