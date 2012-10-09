@@ -229,7 +229,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if out_data_products is None:
             raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
 
-        for name, output_data_product_id in out_data_products.iteritems():
+        for binding, output_data_product_id in out_data_products.iteritems():
 
             # check that the product is not already associated with a producer
             producer_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
@@ -254,7 +254,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             if len(stream_ids) != 1:
                 raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
 
-            output_stream_dict[name] = stream_ids[0]
+            output_stream_dict[binding] = stream_ids[0]
 
         #------------------------------------------------------------------------------------------------------------------------------------------
         #Check for attached objects and put them into the configuration

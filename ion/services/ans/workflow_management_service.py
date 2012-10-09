@@ -148,18 +148,64 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         #Setup the input data product id as the initial input product stream
         data_process_input_dp_id = input_data_product_id
 
-        output_data_product_id = None
+        output_data_products = {}
 
         #Iterate through the workflow steps to setup the data processes and connect them together.
         for wf_step in workflow_definition.workflow_steps:
             log.debug("wf_step.data_process_definition_id: " + wf_step.data_process_definition_id)
 
             data_process_definition = self.clients.resource_registry.read(wf_step.data_process_definition_id)
+            for binding, stream_definition_id in data_process_definition.output_bindings.iteritems():
+
+                #--------------------------------------------------------------------------------
+                # Create an output data product for each binding/stream definition
+                #--------------------------------------------------------------------------------
+
+                data_product_name = wf_step.output_data_product_name or create_unique_identifier(workflow_definition.name + '_' + data_process_definition.name)
+                data_product_name = '%s_%s' % (binding, data_product_name)
+
+                tdom, sdom = time_series_domain()
+
+                data_product_obj = IonObject(RT.DataProduct, 
+                                             name            = data_product_name,
+                                             description     = data_process_definition.description,
+                                             temporal_domain = tdom.dump(),
+                                             spatial_domain  = sdom.dump())
+                data_product_id = self.clients.data_product_management.create_data_product(data_product_obj, stream_definition_id=stream_definition_id)
+
+                # Persist if necessary
+                if wf_step.persist_process_output_data:
+                    self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
+
+
+                #Associate the intermediate data products with the workflow
+                self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProduct, data_product_id )
+                output_data_products[binding] = data_product_id
+
+            
+            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], output_data_products, configuration=wf_step.configuration)
+            self.clients.data_process_management.activate_data_process(data_process_id)
+
+            #Track the the data process with an association to the workflow
+            self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProcess, data_process_id )
+
+            #last one out of the for loop is the output product id
+            output_data_product_id = output_data_products.values()[0]
+
+            #Save the id of the output data stream for input to the next process in the workflow.
+            data_process_input_dp_id = output_data_products.values()[0]
+
+
+
+        #Track the output data product with an association
+        self.clients.resource_registry.create_association(workflow_id, PRED.hasOutputProduct, output_data_product_id )
+
+        return workflow_id, {output_data_products}
+
+
+
 
             # Find the link between the output Stream Definition resource and the Data Process Definition resource
-            stream_def_ids,_ = self.clients.resource_registry.find_objects(data_process_definition._id, PRED.hasStreamDefinition, RT.StreamDefinition,  id_only=True)
-            if not stream_def_ids:
-                raise Inconsistent("The data process definition %s is missing an association to an output stream definition" % data_process_definition._id )
             process_output_stream_def_id = stream_def_ids[0]
 
             #If an output name has been specified than use it for the final output product name
