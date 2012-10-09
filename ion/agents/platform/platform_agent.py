@@ -503,22 +503,41 @@ class PlatformAgent(ResourceAgent):
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
             publisher.publish(g)
-        except Exception as e:
+        except AssertionError as e:
             #
-            # The exception that occasionally occurs is AssertionError:
-            # ...
-            # File "/Users/carueda/workspace/coi-services/extern/pyon/pyon/net/channel.py", line 156, in _declare_exchange
-            # assert self._transport
+            # Occurs but not always, at least locally. But it shows up
+            # repeatedly in the coi_coverage buildbot with test_oms_launch:
             #
-            # seems like it happens when the publisher has been closed (or
-            # similar operation).
+            # Traceback (most recent call last):
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/ion/agents/platform/platform_agent.py", line 505, in _handle_attribute_value_event_using_agent_streamconfig_map
+            #     publisher.publish(g)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/ion/stream.py", line 80, in publish
+            #     super(StreamPublisher,self).publish(msg, to_name=xp.create_route(stream_route.routing_key), headers={'exchange_point':stream_route.exchange_point, 'stream':stream_id or self.stream_id})
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 647, in publish
+            #     self._pub_ep.send(msg, headers)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 133, in send
+            #     return self._send(_msg, _header, **kwargs)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 153, in _send
+            #     self.channel.send(new_msg, new_headers)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/channel.py", line 691, in send
+            #     self._declare_exchange(self._send_name.exchange)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/channel.py", line 156, in _declare_exchange
+            #     assert self._transport
+            # AssertionError
+            #
+            # Not sure what the reason is, perhaps the route is no longer
+            # valid, or the publisher gets closed somehow (?)
+            # TODO determine what's going on here
             #
             exc_msg = "%s: %s" % (e.__class__.__name__, str(e))
-            msg = "%r: exception while calling publisher.publish(g) on stream %r, exception=%s" % (
+            msg = "%r: AssertionError while calling publisher.publish(g) on stream %r, exception=%s" % (
                             self._platform_id, stream_name, exc_msg)
-            print msg
-            import traceback
-            traceback.print_exc()
+
+            # do not inundate the output with stacktraces, just log an error
+            # line for the time being.
+#            print msg
+#            import traceback
+#            traceback.print_exc()
             log.error(msg)
             return
 
