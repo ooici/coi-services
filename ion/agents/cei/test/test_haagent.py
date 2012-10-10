@@ -147,7 +147,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         current = self.pd_cli.list_processes()
         current_pids = [proc.process_id for proc in current]
         print "filtering base procs %s from %s" % (base_pids, current_pids)
-        normal = [cproc for cproc in current if cproc.process_id not in base_pids and cproc.process_state == ProcessStateEnum.SPAWN]
+        normal = [cproc for cproc in current if cproc.process_id not in base_pids and cproc.process_state == ProcessStateEnum.RUNNING]
         return normal
 
     def test_features(self):
@@ -161,7 +161,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         result = self.haa_client.dump().result
         self.assertEqual(result['policy'], new_policy)
 
-        self.await_state_event("test", ProcessStateEnum.SPAWN)
+        self.await_state_event("test", ProcessStateEnum.RUNNING)
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
@@ -180,21 +180,21 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         new_policy = {'preserve_n': 2}
         self.haa_client.reconfigure_policy(new_policy)
 
-        self.await_state_event("test", ProcessStateEnum.SPAWN)
+        self.await_state_event("test", ProcessStateEnum.RUNNING)
 
         self.assertEqual(len(self.get_running_procs()), 2)
 
         new_policy = {'preserve_n': 1}
         self.haa_client.reconfigure_policy(new_policy)
 
-        self.await_state_event("test", ProcessStateEnum.TERMINATE)
+        self.await_state_event("test", ProcessStateEnum.TERMINATED)
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
         new_policy = {'preserve_n': 0}
         self.haa_client.reconfigure_policy(new_policy)
 
-        self.await_state_event("test", ProcessStateEnum.TERMINATE)
+        self.await_state_event("test", ProcessStateEnum.TERMINATED)
         self.assertEqual(len(self.get_running_procs()), 0)
 
     def test_dashi(self):
@@ -404,7 +404,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         current = self.pd_cli.list_processes()
         current_pids = [proc.process_id for proc in current]
         print "filtering base procs %s from %s" % (base_pids, current_pids)
-        normal = [cproc for cproc in current if cproc.process_id not in base_pids and cproc.process_state == ProcessStateEnum.SPAWN]
+        normal = [cproc for cproc in current if cproc.process_id not in base_pids and cproc.process_state == ProcessStateEnum.RUNNING]
         return normal
 
     def _get_managed_upids(self):
@@ -420,7 +420,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         # Ensure HA hasn't already failed
         assert status in ('PENDING', 'READY', 'STEADY')
 
-        self.await_state_event("test", ProcessStateEnum.SPAWN)
+        self.await_state_event("test", ProcessStateEnum.RUNNING)
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
@@ -440,7 +440,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         for upid in upids:
             response += "%s,ml=5\n"
         self._set_response(response)
-        self.await_state_event("test", ProcessStateEnum.SPAWN)
+        self.await_state_event("test", ProcessStateEnum.RUNNING)
 
         self.assertEqual(len(self.get_running_procs()), 2)
 
@@ -470,7 +470,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
             response += "%s,ml=0.5\n"
         self._set_response(response)
 
-        self.await_state_event("test", ProcessStateEnum.TERMINATE)
+        self.await_state_event("test", ProcessStateEnum.TERMINATED)
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
