@@ -1,19 +1,27 @@
 
-
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.ion.stream import StandaloneStreamSubscriber
+from pyon.util.containers import DotDict
+from pyon.ion.transforma import TransformStreamListener
 
 
-my_subscriber = ''
-my_subscription_id = ''
+def start_ctd_subscriber(container):
 
-def start_ctd_listener(container):
+    config = DotDict()
+    config.process.queue_name = 'output_queue'  #Give the queue a name
 
-    pubsubclient = PubsubManagementServiceClient(node=container.node)
-    rrclient = ResourceRegistryServiceClient(node=container.node)
+    #spawn the process. ExampleDataReceiver will create the queue
+    container.spawn_process(name='stream_subscriber', module='examples.stream.subscribe', cls='StreamSubscriber', config=config)
 
-    def message_received(msg, stream_route, stream_id):
+    xn2 = container.ex_manager.create_xn_queue(config.process.queue_name)     #create_xn_queue gets the queue with the given name or creates it if it doesn't exist
+    xp2 = container.ex_manager.create_xp('science_data')              #create_xp gets the xp with the given name or creates it
+    xn2.bind('ctd_publisher.stream', xp2)                             #bind the queue to the xp
+
+
+
+
+class StreamSubscriber(TransformStreamListener):
+
+
+    def recv_packet(self, msg, stream_route, stream_id):
         from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
         rdt = RecordDictionaryTool.load_from_granule(msg)
         #print 'Message Received: {0}'.format(rdt.pretty_print())
@@ -24,15 +32,4 @@ def start_ctd_listener(container):
         for i in xrange(len(rdt)):
             var_tuple = [ float(rdt[field][i]) if rdt[field] is not None else 0.0 for field in rdt.fields]
             print var_tuple
-
-
-    stream_id,_ = rrclient.find_resources(name='ctd_publisher', id_only=True)
-
-    my_subscription_id = pubsubclient.create_subscription(name='sub1',exchange_name='ctd_listener', stream_ids= stream_id)
-
-    my_subscriber = StandaloneStreamSubscriber(exchange_name='ctd_listener', callback=message_received)
-
-    my_subscriber.start()
-
-    pubsubclient.activate_subscription(subscription_id=my_subscription_id)
 
