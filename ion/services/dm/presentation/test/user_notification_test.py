@@ -1130,13 +1130,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_publish_event_on_time(self):
+    def test_publish_event(self):
         '''
         Test the publish_event method of UNS
         '''
-        interval_timer_params = {'interval':3,
-                                'number_of_intervals':4}
-
         #--------------------------------------------------------------------------------
         # Create an event object
         #--------------------------------------------------------------------------------
@@ -1175,7 +1172,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Use the UNS publish_event
         #--------------------------------------------------------------------------------
 
-        self.unsc.publish_event(event=event, interval_timer_params = interval_timer_params )
+        self.unsc.publish_event(event=event)
 
         ar.wait(timeout=10)
 
