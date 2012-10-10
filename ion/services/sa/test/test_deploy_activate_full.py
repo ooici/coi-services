@@ -424,13 +424,13 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id, binding='conductivity' )
 
         outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id, binding='pressure' )
 
         outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
         self.output_products={}
@@ -502,7 +502,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         instance_obj = self.imsclient.read_instrument_agent_instance(oldInstAgentInstance_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
             instance_obj.agent_process_id,
-            ProcessStateEnum.SPAWN)
+            ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
                                         instance_obj.agent_process_id)
 
@@ -524,7 +524,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         instance_obj = self.imsclient.read_instrument_agent_instance(newInstAgentInstance_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
             instance_obj.agent_process_id,
-            ProcessStateEnum.SPAWN)
+            ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
                                         instance_obj.agent_process_id)
 

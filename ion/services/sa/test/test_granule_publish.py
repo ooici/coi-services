@@ -1,46 +1,29 @@
+#!/usr/bin/env python
+'''
+@file ion/services/sa/test/test_granule_publish.py
+@date Wed Oct 10 12:06:20 EDT 2012
+@description Tests for Tomato/Granule alignment
+'''
 
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.context import LocalContextMixin
-
-from pyon.public import RT, PRED
-from pyon.public import log, IonObject
-
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-
-### For new granule and stream interface
-from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 
 from pyon.ion.stream import StandaloneStreamPublisher
+from pyon.public import RT, PRED, log, IonObject
+from pyon.util.int_test import IonIntegrationTestCase
 
-
-from ion.services.dm.utility.granule_utils import CoverageCraft
-from ooi.logging import log
-from coverage_model.parameter import ParameterContext, ParameterDictionary
-from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
-
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.objects import ProcessDefinition
-
-from ion.util.parameter_yaml_IO import get_param_dict
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 
 from nose.plugins.attrib import attr
 import numpy
 import time
-
-class FakeProcess(LocalContextMixin):
-    """
-    A fake process used because the test case is not an ion process.
-    """
-    name = ''
-    id=''
-    process_type = ''
 
 
 @attr('INT', group='sa')
@@ -60,6 +43,7 @@ class TestGranulePublish(IonIntegrationTestCase):
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
 
 
     def create_logger(self, name, stream_id=''):
@@ -89,27 +73,19 @@ class TestGranulePublish(IonIntegrationTestCase):
 
 
         #retrieve the param dict from the repository
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        stream_definition_id = self.pubsubclient.create_stream_definition('parsed stream', parameter_dictionary_id=pdict_id)
 
-        # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
 
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-
+        tdom, sdom = time_series_domain()
 
         dp_obj = IonObject(RT.DataProduct,
             name='the parsed data',
             description='ctd stream test',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            temporal_domain = tdom.dump(),
+            spatial_domain = sdom.dump())
 
-        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id='', parameter_dictionary = parameter_dictionary)
+        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=stream_definition_id)
 
 
         # Retrieve the id of the output stream of the out Data Product
@@ -119,7 +95,7 @@ class TestGranulePublish(IonIntegrationTestCase):
         pid = self.create_logger('ctd_parsed', stream_ids[0] )
         self.loggerpids.append(pid)
 
-        rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
 
         #create the publisher from the stream route
         stream_route = self.pubsubclient.read_stream_route(stream_ids[0])
@@ -131,7 +107,7 @@ class TestGranulePublish(IonIntegrationTestCase):
         for value in tomato['values']:
             log.debug("test_granule_publish: Looping tomato values  key: %s    val: %s ", str(value['value']), str(value['value_id']))
 
-            if value['value_id'] in parameter_dictionary:
+            if value['value_id'] in rdt:
                 rdt[value['value_id']] = numpy.array( [ value['value'] ] )
                 log.debug("test_granule_publish: Added data item  %s  val: %s ", str(value['value']), str(value['value_id']) )
 

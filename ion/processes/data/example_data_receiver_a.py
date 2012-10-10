@@ -21,7 +21,7 @@ xn2.bind(stream_id + '.data', xp2)                      #bind the queue to the x
 '''
 
 
-from pyon.ion.transforma import TransformStreamListener
+from ion.core.process.transform import TransformStreamListener
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.public import log
 

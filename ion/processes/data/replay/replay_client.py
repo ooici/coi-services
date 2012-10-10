@@ -55,7 +55,7 @@ class ReplayClient(object):
             pd_cli = ProcessDispatcherServiceProcessClient(process=self.process)
         else:
             pd_cli = ProcessDispatcherServiceClient()
-        process_gate = ProcessStateGate(pd_cli.read_process, self.replay_process_id, ProcessStateEnum.SPAWN)
+        process_gate = ProcessStateGate(pd_cli.read_process, self.replay_process_id, ProcessStateEnum.RUNNING)
         return process_gate.await(replay_timeout)
 
     def start_replay(self):

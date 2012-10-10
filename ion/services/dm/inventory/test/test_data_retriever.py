@@ -16,7 +16,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from pyon.datastore.datastore import DataStore
 from pyon.core.bootstrap import get_sys_name
-from pyon.ion.transforma import TransformAlgorithm
+from ion.core.function.transform_function import SimpleTransformFunction
 from numbers import Number
 
 
@@ -58,10 +58,11 @@ class DataRetrieverIntTest(IonIntegrationTestCase):
 #--------------------------------------------------------------------------------
 # FakeTransform
 #--------------------------------------------------------------------------------
-class FakeTransform(TransformAlgorithm):
+class FakeTransform(SimpleTransformFunction):
     @staticmethod
-    def execute(data):
-        validate_is_instance(data,Number)
-        return data+1
+    @SimpleTransformFunction.validate_inputs
+    def execute(input=None, context=None, config=None, params=None, state=None):
+        validate_is_instance(input, Number)
+        return input + 1
 
 

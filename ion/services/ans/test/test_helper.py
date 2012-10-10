@@ -6,7 +6,7 @@ from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.example_double_salinity import SalinityDoubler
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
 from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphs
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -67,25 +67,21 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         # Create CTD Parsed as the initial data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data')
+        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=ctd_pdict_id)
 
 
         log.debug('Creating new CDM data product with a stream definition')
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
+        tdom, sdom = time_series_domain()
 
         dp_obj = IonObject(RT.DataProduct,
             name=data_product_name,
             description='ctd stream test',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            temporal_domain = tdom.dump(),
+            spatial_domain = sdom.dump())
 
-        ctd_parsed_data_product_id = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        ctd_parsed_data_product_id = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
 
         log.debug('new ctd_parsed_data_product_id = %s' % ctd_parsed_data_product_id)
 
@@ -193,51 +189,23 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         assertions = self.assertTrue
 
-        first_salinity_values = None
+        salinity_bins = [None,None]
+        i=0
+
 
         for message in results:
             rdt = RecordDictionaryTool.load_from_granule(message)
 
-            try:
-                temp = get_safe(rdt, 'temp')
-            #                psd = PointSupplementStreamParser(stream_definition=self.ctd_stream_def, stream_granule=message)
-            #                temp = psd.get_values('temperature')
-            #                log.info(psd.list_field_names())
-            except KeyError as ke:
-                temp = None
+            if 'salinity' in rdt and rdt['salinity'] is not None:
+                salinity_bins[i % 2] = rdt['salinity']
 
-            if temp is not None:
-                assertions(isinstance(temp, numpy.ndarray))
+                if (i%2):
+                    proper_dbl = salinity_bins[0] * 2.0
+                    assertions((salinity_bins[1] == proper_dbl).all())
+                    log.info('Salinity test satisfactory')
 
-                log.info( 'temperature=' + str(numpy.nanmin(temp)))
+                i+=1 
 
-                first_salinity_values = None
-
-            else:
-                #psd = PointSupplementStreamParser(stream_definition=SalinityTransform.outgoing_stream_def, stream_granule=message)
-                #log.info( psd.list_field_names())
-
-                # Test the handy info method for the names of fields in the stream def
-                #assertions('salinity' in psd.list_field_names())
-
-                # you have to know the name of the coverage in stream def
-                salinity = get_safe(rdt, 'salinity')
-                #salinity = psd.get_values('salinity')
-                log.info( 'salinity=' + str(numpy.nanmin(salinity)))
-
-                # Check to see if salinity has values
-                assertions(salinity != None)
-
-                assertions(isinstance(salinity, numpy.ndarray))
-                assertions(numpy.nanmin(salinity) > 0.0) # salinity should always be greater than 0
-
-                if first_salinity_values is None:
-                    first_salinity_values = salinity.tolist()
-                else:
-                    second_salinity_values = salinity.tolist()
-                    assertions(len(first_salinity_values) == len(second_salinity_values))
-                    for idx in range(0,len(first_salinity_values)):
-                        assertions(first_salinity_values[idx]*2.0 == second_salinity_values[idx])
 
 
     def validate_data_ingest_retrieve(self, dataset_id):
@@ -281,8 +249,10 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             self.fail("failed to create new SalinityTransform data process definition: %s" %ex)
 
         # create a stream definition for the data from the salinity Transform
-        sal_stream_def_id = self.pubsubclient.create_stream_definition(name='Salinity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id )
+        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
+        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        sal_stream_def_id = self.pubsubclient.create_stream_definition(name='Salinity', parameter_dictionary_id=ctd_pdict_id)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id, binding='salinity' )
 
         return ctd_L2_salinity_dprocdef_id
 
@@ -308,13 +278,14 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
         # create a stream definition for the data from the salinity Transform
-        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(name='SalinityDoubler')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id )
+        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(name='SalinityDoubler', parameter_dictionary_id=ctd_pdict_id)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id, binding='salinity' )
 
         return salinity_doubler_dprocdef_id
 
 
-    def create_transform_process(self, data_process_definition_id, data_process_input_dp_id):
+    def create_transform_process(self, data_process_definition_id, data_process_input_dp_id, stream_name):
 
         data_process_definition = self.rrclient.read(data_process_definition_id)
 
@@ -329,20 +300,15 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         # Create the output data product of the transform
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
+        tdom, sdom = time_series_domain()
 
         transform_dp_obj = IonObject(RT.DataProduct,
             name=data_process_name,
             description=data_process_definition.description,
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            temporal_domain = tdom.dump(),
+            spatial_domain = sdom.dump())
 
-        transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id, parameter_dictionary)
+        transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id)
 
         self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id)
 
@@ -351,7 +317,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         # Create the  transform data process
         log.debug("create data_process and start it")
-        data_process_id = self.dataprocessclient.create_data_process(data_process_definition._id, [data_process_input_dp_id], {'output':transform_dp_id})
+        data_process_id = self.dataprocessclient.create_data_process(data_process_definition._id, [data_process_input_dp_id], {stream_name:transform_dp_id})
         self.dataprocessclient.activate_data_process(data_process_id)
 
 
@@ -389,7 +355,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         # create a stream definition for the data from the
         stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
 
         return procdef_id
 
@@ -426,6 +392,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         if len(dpd) > 0:
             return dpd[0]
 
+        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
         #Data Process Definition
         log.debug("Create data process definition MatplotlibGraphsTransform")
         dpd_obj = IonObject(RT.DataProcessDefinition,
@@ -440,9 +407,10 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             self.fail("failed to create new VizTransformMatplotlibGraphs data process definition: %s" %ex)
 
 
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('mpl_graph',id_only=True)
         # create a stream definition for the data
-        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformMatplotlibGraphs')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
+        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformMatplotlibGraphs', parameter_dictionary_id=pdict_id)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='matplotlib_graphs' )
 
         return procdef_id
 
