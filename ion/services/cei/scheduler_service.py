@@ -6,19 +6,22 @@ __license__ = 'Apache 2.0'
 from pyon.public import IonObject, RT, log
 from pyon.core.exception import BadRequest
 from pyon.event.event import EventPublisher
+from pyon.core.bootstrap import CFG
 from interface.services.cei.ischeduler_service import BaseSchedulerService
-from interface.objects import IntervalTimer, TimeOfDayTimer, TimerSchedulerEntry, SchedulerEntry
+from interface.objects import IntervalTimer, TimeOfDayTimer
 
 from datetime import datetime, timedelta
 from math import ceil
 import time
 import gevent
-from copy import deepcopy
-import uuid
 
 
 class SchedulerService(BaseSchedulerService):
     schedule_entries = {}
+
+    def on_start(self):
+        if CFG.get_safe("process.start_mode") == "RESTART":
+            self.on_system_restart()
 
     def __notify(self, task, id, index):
         log.debug("SchedulerService:__notify: - " + task.event_origin + " - Time: " + str(self.__now()) + " - ID: " + id + " -Index:" + str(index))
@@ -42,9 +45,7 @@ class SchedulerService(BaseSchedulerService):
             next_interval = task.start_time
             while (next_interval < current_time):
                 next_interval = next_interval + task.interval
-            return  (next_interval - current_time)
-            #print "\n$$$$final interval:", next_interval - current_time , "\n\n"
-            #return 3
+            return (next_interval - current_time)
         else:
             return (task.start_time - current_time) + task.interval
 
@@ -58,7 +59,6 @@ class SchedulerService(BaseSchedulerService):
                 expires_in.append(ceil((expire_time - now).total_seconds()))
         elif type(task) == IntervalTimer and (task.end_time == -1 or ((now_posix + task.interval) <= task.end_time)):
             expires_in = [(self.__calculate_next_interval(task, now_posix))]
-            print "\n\n$$$$ expires in:", expires_in , "\n\n"
         return expires_in
 
     def __get_reschedule_expire_time(self, task, index):
@@ -87,7 +87,7 @@ class SchedulerService(BaseSchedulerService):
                 return False
         return True
 
-    def __schedule(self, scheduler_entry, id = False):
+    def __schedule(self, scheduler_entry, id=False):
         # if "id" is set, it means scheduler_entry is already in Resource Regsitry. This can occur during a sytsem restart
         spawns = []
         task = scheduler_entry.entry
@@ -120,7 +120,6 @@ class SchedulerService(BaseSchedulerService):
             log.debug("SchedulerService:__reschedule: timer expired. Removed from RR  : - " + task.event_origin + " - Now: " + str(self.__now()) +
                       " - Expire: " + str(expire_time) + " - ID: " + id + " -Index:" + str(index))
         return False
-
 
     def __create_entry(self, task, spawns, id):
         self.schedule_entries[id] = {"task": task, "spawns": spawns}

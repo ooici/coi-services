@@ -5,6 +5,7 @@ from pyon.core.exception import BadRequest, NotFound
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.event.event import EventSubscriber
+from pyon.core.bootstrap import CFG
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from nose.plugins.attrib import attr
@@ -198,7 +199,6 @@ class TestSchedulerService(IonIntegrationTestCase):
         time_diff = math.fabs( ((self.interval_timer_received_time - self.interval_timer_sent_time).total_seconds())
                                - (self.interval_timer_interval * self.interval_timer_count) )
         # Assert expire time is within +-10 seconds
-        print "\n\n\n!!!![", time_diff, "]\n\n"
         self.assertTrue(time_diff <= 10)
 
     def test_cancel_single_timer(self):
