@@ -21,7 +21,7 @@ class TestLoader(IonIntegrationTestCase):
 
     def test_lca_load(self):
         config = dict(op="load",
-            path="https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydGkxMS1KUVVWY1RLQzZsTEE2ZjRhLXc&output=xls",
+            path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls",
             scenario="R2_DEMO",
             attachments="res/preload/r2_ioc/attachments")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
