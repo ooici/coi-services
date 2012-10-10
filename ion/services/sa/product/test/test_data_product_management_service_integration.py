@@ -1,40 +1,37 @@
-#from pyon.ion.endpoint import ProcessRPCClient
-from pyon.util.log import log
+#!/usr/bin/env python
+'''
+@file ion/services/sa/product/test/test_data_product_management_service_integration.py
+@brief Data Product Management Service Integration Tests
+'''
+from pyon.core.exception import NotFound
 from pyon.public import  IonObject
+from pyon.public import RT, PRED
 from pyon.util.int_test import IonIntegrationTestCase
-from ion.services.sa.product.data_product_management_service import DataProductManagementService
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
-from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
-from interface.objects import HdfStorage, CouchStorage, DataProduct, LastUpdate
-from interface.objects import ComputedValueAvailability
-
+from pyon.util.log import log
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
-from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, PRED
-from mock import Mock
-from pyon.util.unit_test import PyonTestCase
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
+
+from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.util.parameter_yaml_IO import get_param_dict
+
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
+from interface.objects import LastUpdate, ComputedValueAvailability
+
 from nose.plugins.attrib import attr
 from interface.objects import ProcessDefinition
-import unittest
-import time
-import numpy as np
-from coverage_model.basic_types import AbstractIdentifiable, AbstractBase, AxisTypeEnum, MutabilityEnum
-from coverage_model.coverage import CRS, GridDomain, GridShape
-from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
-from ion.util.parameter_yaml_IO import get_param_dict
+from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
+from coverage_model.coverage import CRS, GridDomain, GridShape
+
+
+import unittest
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -57,6 +54,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.pubsubcli =  PubsubManagementServiceClient(node=self.container.node)
         self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
         self.process_dispatcher   = ProcessDispatcherServiceClient()
+        self.dataset_management = DatasetManagementServiceClient()
 
         #------------------------------------------
         # Create the environment
@@ -131,7 +129,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # create a stream definition for the data from the ctd simulator
         #------------------------------------------------------------------------------------------------
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='Simulated CTD data')
+        parameter_dictionary_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=parameter_dictionary_id)
         log.debug("Created stream def id %s" % ctd_stream_def_id)
 
         #------------------------------------------------------------------------------------------------
@@ -139,37 +138,25 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         log.debug('test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)')
 
-        # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+        # Generic time-series data domain creation
+        tdom, sdom = time_series_domain()
 
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
 
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
             description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            temporal_domain = tdom.dump(), 
+            spatial_domain = sdom.dump())
 
         log.debug("Created an IonObject for a data product: %s" % dp_obj)
 
         #------------------------------------------------------------------------------------------------
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
         #------------------------------------------------------------------------------------------------
-        log.debug("parameter dictionary: %s" % parameter_dictionary)
 
         dp_id = self.dpsc_cli.create_data_product( data_product= dp_obj,
-                                            stream_definition_id=ctd_stream_def_id,
-                                            parameter_dictionary= parameter_dictionary)
+                                            stream_definition_id=ctd_stream_def_id)
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
 
@@ -184,10 +171,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dp_obj = IonObject(RT.DataProduct,
             name='DP2',
             description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            temporal_domain = tdom.dump(),
+            spatial_domain = sdom.dump())
 
-        dp_id2 = self.dpsc_cli.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        dp_id2 = self.dpsc_cli.create_data_product(dp_obj, ctd_stream_def_id)
         log.debug('new dp_id = %s' % dp_id2)
 
         #------------------------------------------------------------------------------------------------

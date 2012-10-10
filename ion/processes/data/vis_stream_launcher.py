@@ -87,7 +87,6 @@ class VisStreamLauncher(ImmediateProcess):
         dp_ids,_ = self.rrclient.find_resources(RT.DataProduct, None, self.data_source_name, True)
         if len(dp_ids) > 0:
             data_product_id = dp_ids[0]
-            print '>>>>>>>>>>>>> Found dp_id = ', data_product_id
         else:
             # Create InstrumentModel
             instModel_obj = IonObject(RT.InstrumentModel, name=self.data_source_name, description=self.data_source_name, model=self.data_source_name)
@@ -120,7 +119,6 @@ class VisStreamLauncher(ImmediateProcess):
             self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id)
             #self.dpclient.activate_data_product_persistence(data_product_id=data_product_id)
 
-            print '>>>>>>>>>>>> New dp_id = ', data_product_id
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)

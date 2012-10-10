@@ -7,7 +7,7 @@
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 from interface.objects import Replay 
 from pyon.core.exception import BadRequest 
-from pyon.ion.transforma import TransformAlgorithm
+from ion.core.function.transform_function import TransformFunction
 from pyon.util.arg_check import validate_is_instance, validate_true
 from ion.processes.data.replay.replay_process import ReplayProcess
 from pyon.public import PRED, RT
@@ -170,6 +170,6 @@ class DataRetrieverService(BaseDataRetrieverService):
     @classmethod
     def _transform_data(binding, data, module, cls, kwargs={}):
         transform = for_name(module,cls)
-        validate_is_instance(transform,TransformAlgorithm,'%s.%s is not a TransformAlgorithm' % (module,cls))
+        validate_is_instance(transform,TransformFunction,'%s.%s is not a TransformFunction' % (module,cls))
         return transform.execute(data,**kwargs)
 

@@ -3,7 +3,7 @@ import time
 from gevent.greenlet import Greenlet
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from pyon.ion.streamproc import StreamProcess
-from pyon.ion.transforma import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess
 from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
 from pyon.public import IonObject, RT, log

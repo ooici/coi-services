@@ -27,6 +27,13 @@ class PubsubManagementService(BasePubsubManagementService):
         parameter_dictionary = parameter_dictionary or {}
         existing = self.clients.resource_registry.find_resources(restype=RT.StreamDefinition, name=name, id_only=True)[0]
         if name and existing:
+            if parameter_dictionary_id:
+                pdict_ids, _ = self.clients.resource_registry.find_objects(subject=existing[0], predicate=PRED.hasParameterDictionary, id_only=True)
+                if pdict_ids and parameter_dictionary_id==pdict_ids[0]:
+                    return existing[0]
+                else:
+                    raise Conflict('StreamDefinition with the specified name already exists. (%s)' % name)
+
             stream_def = self.read_stream_definition(existing[0])
             if self._compare_pdicts(parameter_dictionary,stream_def.parameter_dictionary):
                 return existing[0]

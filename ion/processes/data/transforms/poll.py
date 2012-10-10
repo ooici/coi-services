@@ -6,7 +6,7 @@
 @description Contains class to handle polling against queues
 '''
 from pyon.core.exception import Timeout, BadRequest
-from pyon.ion.transforma import TransformStreamListener
+from ion.core.process.transform import TransformStreamListener
 from pyon.ion.stream import StreamSubscriber
 from pyon.util.fsm import FSM
 from pyon.util.log import log
