@@ -72,3 +72,4 @@ class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
         out_rdt['salinity'] = sal_value
 
         return out_rdt.to_granule()
+
