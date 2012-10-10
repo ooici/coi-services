@@ -9,12 +9,14 @@
 from pyon.core.exception import BadRequest
 from pyon.public import log
 
+
+from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
 import numpy as np
 
-from pyon.ion.transforma import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess
 
 class VizTransformGoogleDT(TransformDataProcess):
 
@@ -44,9 +46,10 @@ class VizTransformGoogleDT(TransformDataProcess):
 
     def on_start(self):
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
-        self.stream_info = self.CFG.get_safe('process.publish_streams', {})
+
+        self.stream_info  = self.CFG.get_safe('process.publish_streams', {})
         self.stream_names = self.stream_info.keys()
-        self.stream_ids = self.stream_info.values()
+        self.stream_ids   = self.stream_info.values()
         if not self.stream_names:
             raise BadRequest('Google DT Transform has no output streams.')
 
@@ -57,7 +60,7 @@ class VizTransformGoogleDT(TransformDataProcess):
 
     def recv_packet(self, packet, in_stream_route, in_stream_id):
         log.info('Received packet')
-        outgoing = self.execute(packet)
+        outgoing = VizTransformGoogleDTAlgorithm.execute(packet, params=self.get_stream_definition())
         for stream_name in self.stream_names:
             publisher = getattr(self, stream_name)
             publisher.publish(outgoing)
@@ -68,16 +71,19 @@ class VizTransformGoogleDT(TransformDataProcess):
         stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
         return stream_def._id
 
-    def execute(self, granule):
 
-        log.debug('(Google DT transform): Received Viz Data Packet' )
+class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
+    @staticmethod
+    @SimpleGranuleTransformFunction.validate_inputs
+    def execute(input=None, context=None, config=None, params=None, state=None):
+        stream_definition_id = params
 
         #init stuff
         var_tuple = []
         data_description = []
         data_table_content = []
 
-        rdt = RecordDictionaryTool.load_from_granule(granule)
+        rdt = RecordDictionaryTool.load_from_granule(input)
         data_description = []
 
         for field in rdt.fields:
@@ -92,7 +98,7 @@ class VizTransformGoogleDT(TransformDataProcess):
             data_table_content.append(var_tuple)
 
 
-        out_rdt = RecordDictionaryTool(stream_definition_id=self.get_stream_definition())
+        out_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
 
         # Prepare granule content
         out_dict = {"viz_product_type" : "google_dt",
@@ -100,11 +106,8 @@ class VizTransformGoogleDT(TransformDataProcess):
                     "data_content" : data_table_content}
 
         out_rdt["google_dt_components"] = np.array([out_dict])
-        print out_dict
 
         log.debug('Google DT transform: Sending a granule')
 
         out_granule = out_rdt.to_granule()
         return out_granule
-
-

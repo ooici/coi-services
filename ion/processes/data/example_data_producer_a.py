@@ -18,7 +18,7 @@ pid = cc.spawn_process(name='test', module='ion.processes.data.example_data_prod
 '''
 
 from interface.objects import Granule
-from pyon.ion.transforma import TransformStreamPublisher, TransformAlgorithm
+from ion.core.process.transform import TransformStreamPublisher
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.public import log

@@ -15,7 +15,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from ion.services.dm.utility.granule_utils import CoverageCraft
 from interface.objects import Granule
 from couchdb import ResourceNotFound
-from pyon.ion.transforma import TransformStreamListener
+from ion.core.process.transform import TransformStreamListener
 import re
 import collections
 import numpy
