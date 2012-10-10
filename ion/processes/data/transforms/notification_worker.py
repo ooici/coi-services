@@ -11,7 +11,7 @@ from pyon.public import log, RT
 from pyon.util.async import spawn
 from pyon.core.exception import BadRequest, NotFound
 from pyon.ion.transforma import TransformEventListener
-from pyon.event.event import EventSubscriber, EventPublisher
+from pyon.event.event import EventSubscriber
 from ion.services.dm.utility.uns_utility_methods import send_email, calculate_reverse_user_info
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, check_user_notification_interest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -23,7 +23,6 @@ class NotificationWorker(TransformEventListener):
     Instances of this class acts as a Notification Worker.
     """
     def on_init(self):
-        self.event_pub = EventPublisher()
         self.user_info = {}
         self.resource_registry = ResourceRegistryServiceClient()
 
