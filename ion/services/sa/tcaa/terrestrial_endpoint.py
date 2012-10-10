@@ -62,7 +62,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         """
         super(BaseTerrestrialEndpoint, self).on_start()
         self.mixin_on_start()
-                
+                        
     def on_stop(self):
         """
         Process about to be stopped.

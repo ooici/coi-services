@@ -35,6 +35,7 @@ from mock import patch
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
+from pyon.core.bootstrap import get_sys_name
 
 from pyon.public import IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
@@ -120,12 +121,30 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
 
+        # The following spawn config creates the process with the remote
+        # name tagged to the service name.
+        """
+        listen_name = terrestrial_endpointremote1
+        2012-10-10 11:34:46,654 DEBUG    ion.services.sa.tcaa.terrestrial_endpoint recv name: NP (ion_test_8257ab,terrestrial_endpointremote1,B: terrestrial_endpointremote1)
+        2012-10-10 11:34:46,654 DEBUG    ion.services.sa.tcaa.terrestrial_endpoint startup listener recv name: NP (ion_test_8257ab,terrestrial_endpointremote1,B: terrestrial_endpointremote1)
+        2012-10-10 11:34:46,654 DEBUG    ion.services.sa.tcaa.terrestrial_endpoint startup listener recv name: NP (ion_test_8257ab,Edwards-MacBook-Pro_local_2624.33,B: Edwards-MacBook-Pro_local_2624.33)
+        """
+        
+        # Create the remote name.
+        sys_name = get_sys_name()
+        xs_name = 'remote1'
+        svc_name = 'terrestrial_endpoint'
+        listen_name = svc_name + xs_name
+
         # Create agent config.
         endpoint_config = {
             'other_host' : self._other_host,
             'other_port' : self._other_port,
             'this_port' : 0,
-            'platform_resource_id' : self._platform_resource_id
+            'platform_resource_id' : self._platform_resource_id,
+            'process' : {
+                'listen_name' : listen_name
+            }
         }
         
         # Spawn the terrestrial enpoint process.
@@ -138,9 +157,12 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         log.debug('Endpoint pid=%s.', str(te_pid))
 
         # Create an endpoint client.
+        # The to_name may be either the process pid or
+        # the listen_name, which for this remote bridge
+        # is svc_name + remote_name as above.
         self.te_client = TerrestrialEndpointClient(
             process=FakeProcess(),
-            to_name=te_pid)
+            to_name=listen_name)
         log.debug('Got te client %s.', str(self.te_client))
         
         # Remember the terrestrial port.
@@ -643,5 +665,4 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
                 
         pending = self.te_client.get_pending()
         self.assertEqual(len(pending), 0)        
-
 

@@ -209,9 +209,6 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
 
     return ia_client
 
-
-
-
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
