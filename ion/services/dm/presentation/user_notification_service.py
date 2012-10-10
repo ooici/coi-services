@@ -532,7 +532,8 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
-    def find_events(self, origin='', type='', min_datetime='', max_datetime='', limit=-1, descending=False):
+    #todo Uses Elastic Search. Later extend this to a larger search criteria
+    def find_events_extended(self, origin='', type='', min_datetime='', max_datetime='', limit=-1, descending=False):
         """Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
         if no events exist for the given parameters.
 

@@ -1097,7 +1097,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_find_events(self):
+    def test_find_events_extended(self):
         '''
         Test the find events functionality of UNS
         '''
@@ -1112,7 +1112,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
         gevent.sleep(4)
-        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime=4, max_datetime=7)
+        events = self.unsc.find_events_extended(origin='Some_Resource_Agent_ID1', min_datetime=4, max_datetime=7)
 
         self.assertEquals(len(events), 4)
 
