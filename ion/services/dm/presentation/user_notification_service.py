@@ -532,7 +532,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
-    def find_events(self, origin='', event_type='', min_datetime='', max_datetime='', limit= -1, descending=False):
+    def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit= -1, descending=False):
         """
         This method leverages couchdb view and simple filters. It does not use elastic search.
 
@@ -541,8 +541,8 @@ class UserNotificationService(BaseUserNotificationService):
 
         @param origin         str
         @param event_type     str
-        @param min_datetime   str
-        @param max_datetime   str
+        @param min_datetime   int  seconds
+        @param max_datetime   int  seconds
         @param limit          int         (integer limiting the number of results (0 means unlimited))
         @param descending     boolean     (if True, reverse order (of production time) is applied, e.g. most recent first)
         @retval event_list    []
@@ -553,21 +553,25 @@ class UserNotificationService(BaseUserNotificationService):
 
         #        datastore.query_view('event/by_origintype', {'start_key':[origin,0], 'end_key':[origin,{}]})
 
-        min_time = self.makeEpochTime(min_datetime)
-        max_time = self.makeEpochTime(max_datetime)
+#        min_time = self.makeEpochTime(min_datetime)
+#        max_time = self.makeEpochTime(max_datetime)
 
         if limit == -1:
             limit = None
 
         opts = dict(
-            start_key = [origin, event_type or 0, min_time or 0],
-            end_key   = [origin, event_type or {}, max_time or {}],
+            start_key = [origin, event_type or 0, min_datetime or 0],
+            end_key   = [origin, event_type or {}, max_datetime or {}],
             descending = descending,
             limit = limit,
             include_docs = True
         )
 
+        log.debug("opts:: %s" % opts)
+
         results = datastore.query_view('event/by_origintype',opts=opts)
+
+        log.debug("results::: %s" % results)
 
         events = []
         for res in results:

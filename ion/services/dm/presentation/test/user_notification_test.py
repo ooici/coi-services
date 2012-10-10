@@ -1102,23 +1102,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         Test the find events functionality of UNS
         '''
 
-        now = datetime.utcnow()
-        then = datetime.utcnow() + timedelta(seconds=15)
-
-
         # publish some events for the event repository
         event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
         event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
 
-        seconds = UserNotificationIntTest.makeEpochTime(now)
-        while seconds < UserNotificationIntTest.makeEpochTime(then):
-            event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = seconds)
-            event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = seconds)
-            seconds += 1
+        for i in xrange(10):
+            event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
+            event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
 
         # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
         gevent.sleep(4)
-        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime= now, max_datetime=then)
+        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime= 4, max_datetime=7)
 
         self.assertEquals(len(events), 4)
 
