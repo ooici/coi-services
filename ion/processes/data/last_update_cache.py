@@ -6,7 +6,7 @@
 from prototype.sci_data.stream_parser import PointSupplementStreamParser
 from pyon.core.exception import NotFound
 from pyon.public import log
-from pyon.ion.transforma import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess
 from pyon.datastore.datastore import DataStore
 from pyon.util.file_sys import FileSystem
 from interface.objects import StreamGranuleContainer, LastUpdate

@@ -294,7 +294,7 @@ class VisualizationService(BaseVisualizationService):
 
         # create a stream definition for the data from the
         stream_def_id = self.clients.pubsub_management.create_stream_definition(name='VizTransformGoogleDT')
-        self.clients.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id )
+        self.clients.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
 
         return procdef_id
 

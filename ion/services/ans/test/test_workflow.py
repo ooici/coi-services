@@ -5,7 +5,7 @@ from nose.plugins.attrib import attr
 
 from pyon.public import CFG, RT, LCS, PRED,IonObject, log
 from pyon.core.exception import BadRequest, Inconsistent
-
+from pyon.util.containers import DotDict
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -20,7 +20,7 @@ from interface.services.ans.iworkflow_management_service import WorkflowManageme
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
-
+from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
 from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
 
@@ -85,7 +85,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         # Salinity: Data Process Definition
         ctd_L2_salinity_dprocdef_id = self.create_salinity_data_process_definition()
 
-        l2_salinity_all_data_process_id, ctd_l2_salinity_output_dp_id = self.create_transform_process(ctd_L2_salinity_dprocdef_id,ctd_parsed_data_product_id )
+        l2_salinity_all_data_process_id, ctd_l2_salinity_output_dp_id = self.create_transform_process(ctd_L2_salinity_dprocdef_id,ctd_parsed_data_product_id,'salinity' )
 
         ## get the stream id for the transform outputs
         stream_ids, _ = self.rrclient.find_objects(ctd_l2_salinity_output_dp_id, PRED.hasStream, None, True)
@@ -101,7 +101,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         # Salinity Doubler: Data Process Definition
         salinity_doubler_dprocdef_id = self.create_salinity_doubler_data_process_definition()
 
-        salinity_double_data_process_id, salinity_doubler_output_dp_id = self.create_transform_process(salinity_doubler_dprocdef_id, ctd_l2_salinity_output_dp_id )
+        salinity_double_data_process_id, salinity_doubler_output_dp_id = self.create_transform_process(salinity_doubler_dprocdef_id, ctd_l2_salinity_output_dp_id, 'salinity' )
 
         stream_ids, _ = self.rrclient.find_objects(salinity_doubler_output_dp_id, PRED.hasStream, None, True)
         assertions(len(stream_ids) > 0 )
@@ -111,6 +111,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         #Start the output stream listener to monitor and collect messages
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
+
 
         #Stop the transform processes
         self.dataprocessclient.deactivate_data_process(salinity_double_data_process_id)
@@ -132,14 +133,24 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         workflow_data_product_name = 'TEST-Workflow_Output_Product' #Set a specific output product name
 
-        #Add a transformation process definition
+        #-------------------------------------------------------------------------------------------------------------------------
+        #Add a transformation process definition for salinity
+        #-------------------------------------------------------------------------------------------------------------------------
+
         ctd_L2_salinity_dprocdef_id = self.create_salinity_data_process_definition()
         workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_process_output_data=False)  #Don't persist the intermediate data product
+        configuration = {'stream_name' : 'salinity'}
+        workflow_step_obj.configuration = configuration
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
-        #Add a transformation process definition
+        #-------------------------------------------------------------------------------------------------------------------------
+        #Add a transformation process definition for salinity doubler
+        #-------------------------------------------------------------------------------------------------------------------------
+
         salinity_doubler_dprocdef_id = self.create_salinity_doubler_data_process_definition()
         workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id, output_data_product_name=workflow_data_product_name, persist_process_output_data=True)
+        configuration = {'stream_name' : 'salinity'}
+        workflow_step_obj.configuration = configuration
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -169,7 +180,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         #Verify the output data product name matches what was specified in the workflow definition
         workflow_product = self.rrclient.read(workflow_product_id)
-        assertions(workflow_product.name == workflow_data_product_name)
+        assertions(workflow_product.name.startswith(workflow_data_product_name), 'Nope: %s != %s' % (workflow_product.name, workflow_data_product_name))
 
         #Walk the associations to find the appropriate output data streams to validate the messages
         workflow_dp_ids,_ = self.rrclient.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
@@ -180,9 +191,12 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
 
+        log.debug("data_product_stream_ids: %s" % data_product_stream_ids)
 
         #Start the output stream listener to monitor and collect messages
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
+
+        log.debug("results::: %s" % results)
 
         #Stop the workflow processes
         self.workflowclient.terminate_data_process_workflow(workflow_id, False, timeout=25)  # Should test true at some point
