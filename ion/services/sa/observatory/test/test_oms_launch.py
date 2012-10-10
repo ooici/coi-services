@@ -429,7 +429,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         instance_obj = self.imsclient.read_platform_agent_instance(platformSS_agent_instance_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
             instance_obj.agent_process_id,
-            ProcessStateEnum.SPAWN)
+            ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The platform agent instance did not spawn in 30 seconds")
 
         platformSS_agent_instance_obj= self.imsclient.read_instrument_agent_instance(platformSS_agent_instance_id)

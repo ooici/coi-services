@@ -197,9 +197,9 @@ class ProcessDispatcherSimpleAPIClient(object):
     unknown_state = "400-PENDING"
 
     state_map = {
-        ProcessStateEnum.SPAWN: '500-RUNNING',
-        ProcessStateEnum.TERMINATE: '700-TERMINATED',
-        ProcessStateEnum.ERROR: '850-FAILED'
+        ProcessStateEnum.RUNNING: '500-RUNNING',
+        ProcessStateEnum.TERMINATED: '700-TERMINATED',
+        ProcessStateEnum.FAILED: '850-FAILED'
     }
 
     def __init__(self, name, real_client=None, **kwargs):
@@ -232,7 +232,7 @@ class ProcessDispatcherSimpleAPIClient(object):
         definition = self.real_client.read_process_definition(definition_id)
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=definition.name, origin_type="DispatchedHAProcess",
-            state=ProcessStateEnum.SPAWN)
+            state=ProcessStateEnum.RUNNING)
 
         pid = self.real_client.create_process(definition_id)
 

@@ -122,7 +122,7 @@ class _Launcher(object):
 
         if timeout_spawn:
             # ProcessStateGate used as indicated in its pydoc (9/21/12)
-            gate = ProcessStateGate(self._pd_client.read_process, pid, ProcessStateEnum.SPAWN)
+            gate = ProcessStateGate(self._pd_client.read_process, pid, ProcessStateEnum.RUNNING)
             err_msg = None
             try:
                 if not gate.await(timeout_spawn):
@@ -184,7 +184,7 @@ class _Launcher(object):
                                          configuration=agent_config)
 
         if timeout_spawn:
-            self._await_state_event(pid, ProcessStateEnum.SPAWN, timeout=timeout_spawn)
+            self._await_state_event(pid, ProcessStateEnum.RUNNING, timeout=timeout_spawn)
 
         log.debug("Plaform agent spawned, platform_id=%r, pid=%r "
                   "('create_process/subscribe-to-event/schedule_process/_await_state_event' pattern used)",

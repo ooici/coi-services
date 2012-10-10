@@ -382,7 +382,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
                                 instance_obj.agent_process_id,
-                                ProcessStateEnum.SPAWN)
+                                ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
                                         instance_obj.agent_process_id)
 

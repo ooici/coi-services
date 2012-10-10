@@ -545,11 +545,11 @@ class PDLocalBackend(object):
 
         # update state on the existing process
         process = self._get_process(process_id)
-        process.process_state = ProcessStateEnum.SPAWN
+        process.process_state = ProcessStateEnum.RUNNING
 
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=process_id, origin_type="DispatchedProcess",
-            state=ProcessStateEnum.SPAWN)
+            state=ProcessStateEnum.RUNNING)
 
         if self.SPAWN_DELAY:
             glet = gevent.getcurrent()
@@ -568,7 +568,7 @@ class PDLocalBackend(object):
 
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=process_id, origin_type="DispatchedProcess",
-            state=ProcessStateEnum.TERMINATE)
+            state=ProcessStateEnum.TERMINATED)
 
         return True
 
@@ -601,22 +601,26 @@ class PDLocalBackend(object):
 # map from internal PD states to external ProcessStateEnum values
 
 # some states are known and ignored
-_PD_IGNORED_STATE = object()
+_PD_IGNORED_STATE = object()        # @TODO: remove?
 
 _PD_PROCESS_STATE_MAP = {
-    "400-PENDING": _PD_IGNORED_STATE,
-    "500-RUNNING": ProcessStateEnum.SPAWN,
-    "600-TERMINATING": ProcessStateEnum.TERMINATE,
-    "700-TERMINATED": ProcessStateEnum.TERMINATE,
-    "800-EXITED": ProcessStateEnum.TERMINATE,
-    "850-FAILED": ProcessStateEnum.ERROR,
-    "900-REJECTED": ProcessStateEnum.ERROR
+    "400-PENDING": ProcessStateEnum.PENDING,
+    "500-RUNNING": ProcessStateEnum.RUNNING,
+    "600-TERMINATING": ProcessStateEnum.TERMINATING,
+    "700-TERMINATED": ProcessStateEnum.TERMINATED,
+    "800-EXITED": ProcessStateEnum.EXITED,
+    "850-FAILED": ProcessStateEnum.FAILED,
+    "900-REJECTED": ProcessStateEnum.REJECTED
 }
 
 _PD_PYON_PROCESS_STATE_MAP = {
-    ProcessStateEnum.SPAWN: "500-RUNNING",
-    ProcessStateEnum.TERMINATE: "800-EXITED",
-    ProcessStateEnum.ERROR: "850-FAILED"
+    ProcessStateEnum.PENDING: "400-PENDING",
+    ProcessStateEnum.RUNNING: "500-RUNNING",
+    ProcessStateEnum.TERMINATING: "600-TERMINATING",
+    ProcessStateEnum.TERMINATED: "700-TERMINATED",
+    ProcessStateEnum.EXITED: "800-EXITED",
+    ProcessStateEnum.FAILED: "850-FAILED",
+    ProcessStateEnum.REJECTED: "900-REJECTED"
 }
 
 class Notifier(object):

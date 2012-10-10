@@ -121,7 +121,7 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
 
         process = self.pd_service.read_process(pid)
         self.assertEqual(process.process_id, pid)
-        self.assertEqual(process.process_state, ProcessStateEnum.SPAWN)
+        self.assertEqual(process.process_state, ProcessStateEnum.RUNNING)
 
     def test_read_process_notfound(self):
         with self.assertRaises(NotFound):
@@ -435,7 +435,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         assert self.mock_core.describe_process.called
 
         self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.SPAWN)
+        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
         self.assertEqual(proc.process_configuration, {})
 
     def test_read_process_notfound(self):
@@ -454,7 +454,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         assert self.mock_core.describe_process.called
 
         self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.SPAWN)
+        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
         self.assertEqual(proc.process_configuration, config)
 
     def test_list_processes(self):
@@ -464,7 +464,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         procs = self.pd_service.list_processes()
         proc = procs[0]
         self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.SPAWN)
+        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
 
 
 @attr('UNIT', group='cei')
@@ -589,7 +589,7 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         assert self.mock_dashi.call.called
 
         self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.SPAWN)
+        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
         self.assertEqual(proc.process_configuration, {})
 
     def test_read_process_notfound(self):
@@ -608,7 +608,7 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         assert self.mock_dashi.call.called
 
         self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.SPAWN)
+        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
         self.assertEqual(proc.process_configuration, config)
 
     def test_list_processes(self):
@@ -618,7 +618,7 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         procs = self.pd_service.list_processes()
         proc = procs[0]
         self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.SPAWN)
+        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
 
 
 class TestProcess(BaseService):
@@ -705,12 +705,12 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
         # verifies L4-CI-CEI-RQ141 and L4-CI-CEI-RQ142
 
-        self.await_state_event(pid, ProcessStateEnum.SPAWN)
+        self.await_state_event(pid, ProcessStateEnum.RUNNING)
 
         proc = self.pd_cli.read_process(pid)
         self.assertEqual(proc.process_id, pid)
         self.assertEqual(proc.process_configuration, {})
-        self.assertEqual(proc.process_state, ProcessStateEnum.SPAWN)
+        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
 
         # now try communicating with the process to make sure it is really running
         test_client = TestClient()
@@ -722,7 +722,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         # kill the process and start it again
         self.pd_cli.cancel_process(pid)
 
-        self.await_state_event(pid, ProcessStateEnum.TERMINATE)
+        self.await_state_event(pid, ProcessStateEnum.TERMINATED)
 
         oldpid = pid
 
@@ -734,14 +734,14 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.assertEqual(pid, pid2)
         self.assertNotEqual(oldpid, pid)
 
-        self.await_state_event(pid, ProcessStateEnum.SPAWN)
+        self.await_state_event(pid, ProcessStateEnum.RUNNING)
 
         for i in range(5):
             self.assertEqual(i + 1, test_client.count(timeout=10))
 
         # kill the process for good
         self.pd_cli.cancel_process(pid)
-        self.await_state_event(pid, ProcessStateEnum.TERMINATE)
+        self.await_state_event(pid, ProcessStateEnum.TERMINATED)
 
     def test_schedule_with_config(self):
 
@@ -762,7 +762,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
             process_schedule, configuration=configuration, process_id=pid)
         self.assertEqual(pid, pid2)
 
-        self.await_state_event(pid, ProcessStateEnum.SPAWN)
+        self.await_state_event(pid, ProcessStateEnum.RUNNING)
 
         test_client = TestClient()
 
@@ -779,7 +779,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
         # kill the process for good
         self.pd_cli.cancel_process(pid)
-        self.await_state_event(pid, ProcessStateEnum.TERMINATE)
+        self.await_state_event(pid, ProcessStateEnum.TERMINATED)
 
     def test_schedule_bad_config(self):
 
