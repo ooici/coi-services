@@ -601,22 +601,26 @@ class PDLocalBackend(object):
 # map from internal PD states to external ProcessStateEnum values
 
 # some states are known and ignored
-_PD_IGNORED_STATE = object()
+_PD_IGNORED_STATE = object()        # @TODO: remove?
 
 _PD_PROCESS_STATE_MAP = {
-    "400-PENDING": _PD_IGNORED_STATE,       # @TODO ProcessStateEnum.PENDING
+    "400-PENDING": ProcessStateEnum.PENDING,
     "500-RUNNING": ProcessStateEnum.RUNNING,
     "600-TERMINATING": ProcessStateEnum.TERMINATING,
     "700-TERMINATED": ProcessStateEnum.TERMINATED,
-    "800-EXITED": ProcessStateEnum.EXITED,          # @TODO see below
+    "800-EXITED": ProcessStateEnum.EXITED,
     "850-FAILED": ProcessStateEnum.FAILED,
     "900-REJECTED": ProcessStateEnum.REJECTED
 }
 
 _PD_PYON_PROCESS_STATE_MAP = {
+    ProcessStateEnum.PENDING: "400-PENDING",
     ProcessStateEnum.RUNNING: "500-RUNNING",
-    ProcessStateEnum.TERMINATED: "800-EXITED",      # @TODO: ProcessStateEnum.EXITED is only for Immediate processes when they exit immediatly
-    ProcessStateEnum.FAILED: "850-FAILED"
+    ProcessStateEnum.TERMINATING: "600-TERMINATING",
+    ProcessStateEnum.TERMINATED: "700-TERMINATED",
+    ProcessStateEnum.EXITED: "800-EXITED",
+    ProcessStateEnum.FAILED: "850-FAILED",
+    ProcessStateEnum.REJECTED: "900-REJECTED"
 }
 
 class Notifier(object):
