@@ -161,16 +161,16 @@ class ProcessStateGateIntTest(IonIntegrationTestCase):
 
     def test_process_state_gate(self):
 
-        self.assertFalse(self.await_state(ProcessStateEnum.SPAWN, 1),
+        self.assertFalse(self.await_state(ProcessStateEnum.RUNNING, 1),
                          "The process was reported as spawned, but we didn't yet")
 
         print "GOING TO ACTUALLY START PROCESS NOW"
         spawn_later(1, self.process_start)
 
-        self.assertTrue(self.await_state(ProcessStateEnum.SPAWN),
+        self.assertTrue(self.await_state(ProcessStateEnum.RUNNING),
                         "The process did not spawn")
 
-        self.assertFalse(self.await_state(ProcessStateEnum.TERMINATE, 1),
+        self.assertFalse(self.await_state(ProcessStateEnum.TERMINATED, 1),
                         "The process claims to have terminated, but we didn't kill it")
 
 
@@ -181,10 +181,10 @@ class ProcessStateGateIntTest(IonIntegrationTestCase):
 
         spawn_later(1, self.process_stop)
 
-        self.assertTrue(self.await_state(ProcessStateEnum.TERMINATE),
+        self.assertTrue(self.await_state(ProcessStateEnum.TERMINATED),
                         "The process failed to be reported as terminated when it was terminated")
 
-        self.assertFalse(self.await_state(ProcessStateEnum.SPAWN, 1),
+        self.assertFalse(self.await_state(ProcessStateEnum.RUNNING, 1),
                          "The process was reported as spawned, but we killed it")
 
 
