@@ -21,7 +21,7 @@ class CTDL1ConductivityTransform(TransformDataProcess):
     the defined algorithm. If the transform
     has an output_stream it will publish the output on the output stream.
     '''
-    output_bindings = 'conductivity'
+    output_bindings = ['conductivity']
 
     def on_start(self):
         super(CTDL1ConductivityTransform, self).on_start()
