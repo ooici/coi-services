@@ -58,6 +58,7 @@ PA_CLS = 'PlatformAgent'
 # TODO clean up log-and-throw anti-idiom in several places, which is used
 # because the exception alone does not show up in the logs!
 
+
 class PlatformAgentState(ResourceAgentState):
     """
     Platform agent state enum.
@@ -66,7 +67,9 @@ class PlatformAgentState(ResourceAgentState):
 
 
 class PlatformAgentEvent(ResourceAgentEvent):
-    GET_SUBPLATFORM_IDS   = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
+    GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
+    START_ALARM_DISPATCH      = 'PLATFORM_AGENT_START_ALARM_DISPATCH'
+    STOP_ALARM_DISPATCH       = 'PLATFORM_AGENT_STOP_ALARM_DISPATCH'
 
 
 class PlatformAgentCapability(BaseEnum):
@@ -80,7 +83,10 @@ class PlatformAgentCapability(BaseEnum):
     GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
     SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
 
-    GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
+    GET_SUBPLATFORM_IDS       = PlatformAgentEvent.GET_SUBPLATFORM_IDS
+
+    START_ALARM_DISPATCH      = PlatformAgentEvent.START_ALARM_DISPATCH
+    STOP_ALARM_DISPATCH       = PlatformAgentEvent.STOP_ALARM_DISPATCH
 
 
 
@@ -1001,6 +1007,44 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
+    def _handler_start_alarm_dispatch(self, *args, **kwargs):
+        """
+        """
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        params = kwargs.get('params', None)
+        if params is None:
+            raise BadRequest('start_alarm_dispatch missing params argument.')
+
+        try:
+            result = self._plat_driver.start_alarm_dispatch(params)
+
+            next_state = self.get_agent_state()
+
+        except Exception as ex:
+            log.error("error in start_alarm_dispatch %s", str(ex)) #, exc_Info=True)
+            raise
+
+        return (next_state, result)
+
+    def _handler_stop_alarm_dispatch(self, *args, **kwargs):
+        """
+        """
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        try:
+            result = self._plat_driver.stop_alarm_dispatch()
+
+            next_state = self.get_agent_state()
+
+        except Exception as ex:
+            log.error("error in stop_alarm_dispatch %s", str(ex)) #, exc_Info=True)
+            raise
+
+        return (next_state, result)
+
     ##############################################################
     # FSM setup.
     ##############################################################
@@ -1044,3 +1088,5 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.START_ALARM_DISPATCH, self._handler_start_alarm_dispatch)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.STOP_ALARM_DISPATCH, self._handler_stop_alarm_dispatch)

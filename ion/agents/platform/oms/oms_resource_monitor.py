@@ -117,8 +117,8 @@ class OmsResourceMonitor(object):
         value, ts = value_and_ts
         self._last_ts = ts
 
-        driver_event = AttributeValueDriverEvent(self._platform_id,
-                                              self._attr_id, value, ts)
+        driver_event = AttributeValueDriverEvent(ts, self._platform_id,
+                                              self._attr_id, value)
         self._notify_driver_event(driver_event)
 
     def stop(self):

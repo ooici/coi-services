@@ -271,7 +271,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         retval = self._execute_agent(cmd)
         attr_values = retval.result
         self.assertIsInstance(attr_values, dict)
-        for attr_name in attrNames:
+        for attrName in attrNames:
             if attrName in WRITABLE_ATTR_NAMES:
                 self._verify_valid_attribute_id(attrName, attr_values)
             else:
@@ -306,6 +306,19 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(x in retval.result for x in SUBPLATFORM_IDS)
         return retval.result
 
+    def _start_alarm_dispatch(self):
+        kwargs = dict(params="TODO set params")
+        cmd = AgentCommand(command=PlatformAgentEvent.START_ALARM_DISPATCH, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        self.assertTrue(retval.result is not None)
+        return retval.result
+
+    def _stop_alarm_dispatch(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
+        retval = self._execute_agent(cmd)
+        self.assertTrue(retval.result is not None)
+        return retval.result
+
     def test_capabilities(self):
 
         log.info("test_capabilities starting.  Default timeout=%s", TIMEOUT)
@@ -322,6 +335,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.SET_RESOURCE,
 
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
+
+            PlatformAgentEvent.START_ALARM_DISPATCH,
+            PlatformAgentEvent.STOP_ALARM_DISPATCH,
         ]
 
 
@@ -474,6 +490,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
+
+            PlatformAgentEvent.START_ALARM_DISPATCH,
+            PlatformAgentEvent.STOP_ALARM_DISPATCH,
         ]
 
         res_cmds_command = [
@@ -517,8 +536,12 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._get_resource()
         self._set_resource()
 
+        self._start_alarm_dispatch()
+
         log.info("sleeping...")
         sleep(15)
+
+        self._stop_alarm_dispatch()
 
         self._get_subplatform_ids()
 

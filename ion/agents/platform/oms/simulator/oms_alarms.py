@@ -103,14 +103,16 @@ class AlarmNotifier(object):
         """
         log.debug("Notifying alarm_instance=%s to listener=%s", str(alarm_instance), url)
 
-        # remove "http://" prefix
-        if url.lower().startswith("http://"):
-            url = url[len("http://"):]
-
         # include url in alarm instance:
         alarm_instance['url'] = url
 
-        conn = httplib.HTTPConnection(url)
+        # remove "http://" prefix for the connection itself
+        if url.lower().startswith("http://"):
+            url4conn = url[len("http://"):]
+        else:
+            url4conn = url
+
+        conn = httplib.HTTPConnection(url4conn)
         try:
             payload = yaml.dump(alarm_instance, default_flow_style=False)
             log.trace("payload=\n\t%s", payload.replace('\n', '\n\t'))
@@ -164,6 +166,7 @@ class AlarmGenerator(Greenlet):
         self._notifier.notify(alarm_instance)
 
     def _run(self):
+        sleep(3)  # wait a bit before first alarm
         while self._keep_running:
             self.generate_alarm()
             sleep(7)
