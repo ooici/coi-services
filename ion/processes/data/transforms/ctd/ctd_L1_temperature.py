@@ -20,9 +20,10 @@ class CTDL1TemperatureTransform(TransformDataProcess):
     the defined algorithm. If the transform
     has an output_stream it will publish the output on the output stream.
     '''
+    output_bindings = ['temperature']
+
     def on_start(self):
         super(CTDL1TemperatureTransform, self).on_start()
-        self.output_bindings = []
 
         if not self.CFG.process.publish_streams.has_key('temperature'):
             raise BadRequest("For CTD transforms, please send the stream_id using a "

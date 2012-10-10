@@ -21,10 +21,10 @@ class CTDL1ConductivityTransform(TransformDataProcess):
     the defined algorithm. If the transform
     has an output_stream it will publish the output on the output stream.
     '''
+    output_bindings = 'conductivity'
 
     def on_start(self):
         super(CTDL1ConductivityTransform, self).on_start()
-        self.output_bindings = []
 
         if not self.CFG.process.publish_streams.has_key('conductivity'):
             raise BadRequest("For CTD transforms, please send the stream_id using "

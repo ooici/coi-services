@@ -23,10 +23,10 @@ class DensityTransform(TransformDataProcess):
     the defined algorithm. If the transform
     has an output_stream it will publish the output on the output stream.
     '''
+    output_bindings = ['density']
 
     def on_start(self):
         super(DensityTransform, self).on_start()
-        self.output_bindings = []
 
         if not self.CFG.process.publish_streams.has_key('density'):
             raise BadRequest("For CTD transforms, please send the stream_id "
