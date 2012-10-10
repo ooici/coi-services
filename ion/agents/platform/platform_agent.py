@@ -27,6 +27,7 @@ from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver import AttributeValueDriverEvent
+from ion.agents.platform.platform_driver import AlarmDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -435,6 +436,11 @@ class PlatformAgent(ResourceAgent):
 
         if isinstance(driver_event, AttributeValueDriverEvent):
             self._handle_attribute_value_event(driver_event)
+            return
+
+        if isinstance(driver_event, AlarmDriverEvent):
+            self._handle_alarm_driver_event(driver_event)
+            return
 
         #
         # TODO handle other possible events.
@@ -554,6 +560,12 @@ class PlatformAgent(ResourceAgent):
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
                 self._platform_id, stream_name, str(rdt), str(g))
+
+    def _handle_alarm_driver_event(self, driver_event):
+        #
+        # TODO How are alarm events to be notified? Publish to some stream?
+        #
+        log.debug("Got alarm event but nothing done with it yet: %s", str(driver_event))
 
     ##########################################################################
     # TBD

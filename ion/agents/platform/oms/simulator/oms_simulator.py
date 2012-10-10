@@ -316,7 +316,7 @@ class OmsSimulator(OmsClient):
         return True
 
     def registerAlarmListener(self, url, alarm_types):
-        log.info("registerAlarmListener: url=%r, alarm_types=%s",
+        log.debug("registerAlarmListener called: url=%r, alarm_types=%s",
                  url, str(alarm_types))
 
         if not self._validate_alarm_listener_url(url):
@@ -354,10 +354,12 @@ class OmsSimulator(OmsClient):
                 existing_pairs.append((alarm_type, reg_time))
                 result_list.append((alarm_type, reg_time))
 
+                log.info("%r registered for alarm_type=%r", url, alarm_type)
+
         return {url: result_list}
 
     def unregisterAlarmListener(self, url, alarm_types):
-        log.info("unregisterAlarmListener: url=%r, alarm_types=%s",
+        log.debug("unregisterAlarmListener called: url=%r, alarm_types=%s",
                  url, str(alarm_types))
 
         if not url in self._reg_alarm_listeners:
@@ -392,6 +394,8 @@ class OmsSimulator(OmsClient):
                     existing_types, reg_times = zip(*existing_pairs)
                 else:
                     existing_types = reg_times = []
+
+                log.info("%r unregistered for alarm_type=%r", url, alarm_type)
 
             else:
                 # not registered, report 0
