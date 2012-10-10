@@ -22,14 +22,10 @@ import os
 import pwd
 import pickle
 import gevent
-import base64
-import zipfile
+
 import string
 import csv
 from StringIO import StringIO
-import tempfile
-import subprocess
-import signal
 
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
@@ -49,6 +45,9 @@ from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
+from ion.services.sa.common.module_uploader import RegisterModulePreparer
+from ion.services.sa.common.qa_doc_parser import QADocParser
+
 # TODO: these are for methods which may belong in DAMS/DPMS/MFMS
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
@@ -61,7 +60,6 @@ from interface.objects import ComputedValueAvailability
 from ion.util.parameter_yaml_IO import get_param_dict
 
 
-INSTRUMENT_AGENT_MANIFEST_FILE = "MANIFEST.csv"
  
 
 class InstrumentManagementService(BaseInstrumentManagementService):
@@ -76,6 +74,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.override_clients(self.clients)
         self._pagent = None
         self.extended_resource_handler = ExtendedResourceContainer(self)
+
+        self.init_module_uploader()
+
 
         # set up all of the policy interceptions
         if self.container and self.container.governance_controller:
@@ -101,6 +102,24 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             reg_precondition(self, 'execute_sensor_device_lifecycle',
                              self.sensor_device.policy_fn_lcs_precondition("sensor_device_id"))
 
+
+    def init_module_uploader(self):
+        if self.CFG:
+            #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
+            cfg_host        = self.CFG.get_safe("service.instrument_management.driver_release_host", None)
+            cfg_remotepath  = self.CFG.get_safe("service.instrument_management.driver_release_directory", None)
+            cfg_user        = self.CFG.get_safe("service.instrument_management.driver_release_user",
+                                                pwd.getpwuid(os.getuid())[0])
+            cfg_wwwroot     = self.CFG.get_safe("service.instrument_management.driver_release_wwwroot", "/")
+
+            if cfg_host is None or cfg_remotepath is None:
+                raise BadRequest("Missing configuration items for host and directory -- destination of driver release")
+
+
+            self.module_uploader = RegisterModulePreparer(dest_user=cfg_user,
+                                                          dest_host=cfg_host,
+                                                          dest_path=cfg_remotepath,
+                                                          dest_wwwroot=cfg_wwwroot)
 
     def override_clients(self, new_clients):
         """
@@ -582,166 +601,42 @@ class InstrumentManagementService(BaseInstrumentManagementService):
          - content_type
          - keywords
         """
-        
-        def zip_of_b64(b64_data, title):
-
-            log.debug("decoding base64 zipfile for %s", title)
-            try:
-                zip_str  = base64.decodestring(b64_data)
-            except:
-                raise BadRequest("could not base64 decode supplied %s" % title)
-
-            log.debug("opening zipfile for %s", title)
-            try:
-                zip_file = StringIO(zip_str)
-                zip_obj  = zipfile.ZipFile(zip_file)
-            except:
-                raise BadRequest("could not parse zipfile contained in %s" % title)
-
-            return zip_obj
 
         # retrieve the resource
         log.debug("reading inst agent resource (for proof of existence)")
         self.instrument_agent.read_one(instrument_agent_id)
 
+        qa_doc_parser = QADocParser()
 
-        #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
-        cfg_host        = self.CFG.get_safe("service.instrument_management.driver_release_host", None)
-        cfg_remotepath  = self.CFG.get_safe("service.instrument_management.driver_release_directory", None)
-        cfg_user        = self.CFG.get_safe("service.instrument_management.driver_release_user",
-                                            pwd.getpwuid(os.getuid())[0])
-
-        if cfg_host is None or cfg_remotepath is None:
-            raise BadRequest("Missing configuration items for host and directory -- destination of driver release")
-
-        #process the input files (base64-encoded zips)
-        qa_zip_obj  = zip_of_b64(qa_documents, "qa_documents")
-        egg_zip_obj = zip_of_b64(agent_egg, "agent_egg")
+        #process the input files (base64-encoded qa documents)
+        qa_parse_result, err  = qa_doc_parser.prepare(qa_documents)
+        if not qa_parse_result:
+            raise BadRequest("Processing qa_documents file failed: %s" % err)
 
 
-        #parse the manifest file
-        if not INSTRUMENT_AGENT_MANIFEST_FILE in qa_zip_obj.namelist():
-            raise BadRequest("provided qa_documents zipfile lacks manifest CSV file called %s" % 
-                             INSTRUMENT_AGENT_MANIFEST_FILE)
+        #process the input files (base64-encoded egg)
+        uploader_obj, err = self.module_uploader.prepare(agent_egg)
+        if None is uploader_obj:
+            raise BadRequest("Egg failed validation: %s" % err)
 
-        log.debug("extracting manifest csv file")
-        csv_contents = qa_zip_obj.read(INSTRUMENT_AGENT_MANIFEST_FILE)
+        attachments, err = qa_doc_parser.convert_to_attachments()
 
-        log.debug("parsing manifest csv file")
-        try:
-            dialect = csv.Sniffer().sniff(csv_contents)
-        except csv.Error:
-            dialect = csv.excel
-        except Exception as e:
-            raise BadRequest("%s - %s", str(type(e)), str(e.args))
-        csv_reader = csv.DictReader(StringIO(csv_contents), dialect=dialect)
+        if None is attachments:
+            raise BadRequest("QA Docs processing failed: %s" % err)
 
-        #validate fields in manifest file
-        log.debug("validing manifest csv file")
-        for f in ["filename", "name", "description", "content_type", "keywords"]:
-            if not f in csv_reader.fieldnames:
-                raise BadRequest("Manifest file %s missing required field %s" % 
-                                 (INSTRUMENT_AGENT_MANIFEST_FILE, f))
-
-
-        #validate egg
-        log.debug("validating egg")
-        if not "EGG-INFO/PKG-INFO" in egg_zip_obj.namelist():
-            raise BadRequest("no PKG-INFO found in egg; found %s" % str(egg_zip_obj.namelist()))
-
-        log.debug("processing driver")
-        pkg_info_data = {}
-        pkg_info = egg_zip_obj.read("EGG-INFO/PKG-INFO")
-        for l in pkg_info.splitlines():
-            log.debug("Reading %s", l)
-            tmp = l.partition(": ")
-            pkg_info_data[tmp[0]] = tmp[2]
-
-        for f in ["Name", "Version"]:
-            if not f in pkg_info_data:
-                raise BadRequest("Agent egg's PKG-INFO did not include a field called '%s'" % f)
-
-        #determine egg name
-        egg_filename = "%s-%s-py2.7.egg" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
-        log.info("Egg filename is '%s'", egg_filename)
-
-        egg_url = "http://%s%s/%s" % (CFG.service.instrument_management.driver_release_host,
-                                      CFG.service.instrument_management.driver_release_directory,
-                                      egg_filename)
-        log.info("Egg url will be '%s'", egg_url)
-
-        egg_urlfile = "%s v%s.url" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
-
-
-
-
-        #create attachment resources for each document in the zip
-        log.debug("creating attachment objects")
-        attachments = []
-        for row in csv_reader:
-            att_name = row["filename"]
-            att_desc = row["description"]
-            att_content_type = row["content_type"]
-            att_keywords = string.split(row["keywords"], ",")
-
-            if not att_name in qa_zip_obj.namelist():
-                raise BadRequest("Manifest refers to a file called '%s' which is not in the zip" % att_name)
-
-            attachments.append(IonObject(RT.Attachment,
-                                         name=att_name,
-                                         description=att_desc,
-                                         content=qa_zip_obj.read(att_name), 
-                                         content_type=att_content_type,
-                                         keywords=att_keywords,
-                                         attachment_type=AttachmentType.BLOB))
-            
-        log.debug("Sanity checking manifest vs zip file")
-        if len(qa_zip_obj.namelist()) - 1 > len(attachments):
-            log.warn("There were %d files in the zip but only %d in the manifest",
-                     len(qa_zip_obj.namelist()) - 1,
-                     len(attachments))
-            
-
-        
-
-        #move output egg to another directory / upload it somewhere
-
-        log.debug("creating tempfile for egg output")
-        f_handle, tempfilename = tempfile.mkstemp()
-        log.debug("writing egg data to disk at '%s'", tempfilename)
-        os.write(f_handle, base64.decodestring(agent_egg))
-
-        remotefilename = "%s@%s:%s/%s" % (cfg_user,
-                                          cfg_host, 
-                                          cfg_remotepath, 
-                                          egg_filename)
-
-        log.info("executing scp: '%s' to '%s'", tempfilename, remotefilename)
-        scp_proc = subprocess.Popen(["scp", "-v", "-o", "PasswordAuthentication=no",
-                                      "-o", "StrictHostKeyChecking=no",
-                                      tempfilename, remotefilename],
-                                     stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE
-                                    )
-        scp_out, scp_err = scp_proc.communicate()
-
-        # clean up
-        log.debug("removing tempfile at '%s'", tempfilename)
-        os.unlink(tempfilename)
-
-        # check scp status
-        if 0 != scp_proc.returncode:
-            raise BadRequest("Secure copy to %s:%s failed.  (STDOUT: %s) (STDERR: %s)"
-            % (cfg_host, cfg_remotepath, scp_out, scp_err))
+        # actually upload
+        up_success, err = uploader_obj.upload()
+        if not up_success:
+            raise BadRequest("Upload failed: %s" % err)
 
 
         #now we can do the ION side of things
 
         #make an attachment for the url
         attachments.append(IonObject(RT.Attachment,
-                                     name=egg_urlfile,
+                                     name=uploader_obj.get_destination_egg_url_filename(),
                                      description="url to egg",
-                                     content="[InternetShortcut]\nURL=%s" % egg_url,
+                                     content="[InternetShortcut]\nURL=%s" % uploader_obj.get_destination_egg_url(),
                                      content_type="text/url",
                                      keywords=[KeywordFlag.EGG_URL],
                                      attachment_type=AttachmentType.ASCII))
