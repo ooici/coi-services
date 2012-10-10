@@ -112,7 +112,6 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         #Start the output stream listener to monitor and collect messages
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
-        print '>>>> Results: %s' % results
 
         #Stop the transform processes
         self.dataprocessclient.deactivate_data_process(salinity_double_data_process_id)

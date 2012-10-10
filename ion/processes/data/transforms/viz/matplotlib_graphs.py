@@ -47,7 +47,6 @@ class VizTransformMatplotlibGraphs(TransformDataProcess):
 
     def recv_packet(self, packet, in_stream_route, in_stream_id):
         log.info('Received packet')
-        print type(packet)
         outgoing = VizTransformMatplotlibGraphsAlgorithm.execute(packet, params=self.get_stream_definition())
         for stream_name in self.stream_names:
             publisher = getattr(self, stream_name)

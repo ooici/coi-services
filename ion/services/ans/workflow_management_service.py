@@ -157,7 +157,6 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
             data_process_definition = self.clients.resource_registry.read(wf_step.data_process_definition_id)
             for binding, stream_definition_id in data_process_definition.output_bindings.iteritems():
-                print 'going through the bindings'
 
                 #--------------------------------------------------------------------------------
                 # Create an output data product for each binding/stream definition
@@ -183,12 +182,9 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 #Associate the intermediate data products with the workflow
                 self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProduct, data_product_id )
                 output_data_products[binding] = data_product_id
-                print 'output_data_products bindings'
 
             
-            print 'calling data process'
             data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], output_data_products, configuration=wf_step.configuration)
-            print 'done'
             self.clients.data_process_management.activate_data_process(data_process_id)
 
             #Track the the data process with an association to the workflow
