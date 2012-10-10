@@ -168,6 +168,16 @@ class TestIMSRegisterAgent(PyonTestCase):
                                                                    stdout=self.mock_dict["subprocess"].PIPE,
                                                                    stderr=self.mock_dict["subprocess"].PIPE)
 
+        self.assertEqual(4, self.RR.create_attachment.call_count)
+
+        url_content = "[InternetShortcut]\nURL=http://my_host/my/path/seabird_sbe37smb_ooicore-0.1-py2.7.egg"
+        found = False
+        for acall in self.mock_ionobj.call_args_list:
+            if ("Attachment",) == acall[0]:
+                self.assertEqual(url_content, acall[1]["content"])
+                found = True
+        self.assertTrue(found, "URL attachment not found")
+
 
 
 
