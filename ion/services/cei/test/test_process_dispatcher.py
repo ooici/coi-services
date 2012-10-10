@@ -535,12 +535,11 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         self.assertEqual(call_args, ("pd", "schedule_process"))
         self.assertEqual(self.event_pub.publish_event.call_count, 0)
 
-        # trigger some fake async state updates from dashi. first
-        # should not trigger an event
+        # trigger some fake async state updates from dashi
 
         self.pd_service.backend._process_state(dict(upid=pid,
             state="400-PENDING"))
-        self.assertEqual(self.event_pub.publish_event.call_count, 0)
+        self.assertEqual(self.event_pub.publish_event.call_count, 1)
 
         self.pd_service.backend._process_state(dict(upid=pid,
             state="500-RUNNING"))
