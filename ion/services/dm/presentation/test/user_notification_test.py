@@ -1097,6 +1097,35 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_find_events(self):
+        '''
+        Test the find events functionality of UNS
+        '''
+
+        now = datetime.utcnow()
+        then = datetime.utcnow() + timedelta(seconds=15)
+
+
+        # publish some events for the event repository
+        event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
+        event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
+
+        seconds = UserNotificationIntTest.makeEpochTime(now)
+        while seconds < UserNotificationIntTest.makeEpochTime(then):
+            event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = seconds)
+            event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = seconds)
+            seconds += 1
+
+        # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
+        gevent.sleep(4)
+        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime= now, max_datetime=then)
+
+        self.assertEquals(len(events), 4)
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_find_events_extended(self):
         '''
         Test the find events functionality of UNS
@@ -1112,7 +1141,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
         gevent.sleep(4)
-        events = self.unsc.find_events_extended(origin='Some_Resource_Agent_ID1', min_datetime=4, max_datetime=7)
+        events = self.unsc.find_events_extended(origin='Some_Resource_Agent_ID1', min_time=4, max_time=7)
 
         self.assertEquals(len(events), 4)
 

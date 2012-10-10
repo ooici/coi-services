@@ -532,13 +532,15 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
-    #todo Uses Elastic Search. Later extend this to a larger search criteria
-    def find_events_extended(self, origin='', type='', min_datetime='', max_datetime='', limit=-1, descending=False):
-        """Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
+    def find_events(self, origin='', event_type='', min_datetime='', max_datetime='', limit= -1, descending=False):
+        """
+        This method leverages couchdb view and simple filters. It does not use elastic search.
+
+        Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
         if no events exist for the given parameters.
 
         @param origin         str
-        @param type           str
+        @param event_type     str
         @param min_datetime   str
         @param max_datetime   str
         @param limit          int         (integer limiting the number of results (0 means unlimited))
@@ -547,9 +549,60 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         @throws NotFound    object with specified parameters does not exist
         """
+        datastore = self.datastore_manager.get_datastore('events')
 
-        if min_datetime and max_datetime:
-            search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (min_datetime, max_datetime)
+        #        datastore.query_view('event/by_origintype', {'start_key':[origin,0], 'end_key':[origin,{}]})
+
+        min_time = self.makeEpochTime(min_datetime)
+        max_time = self.makeEpochTime(max_datetime)
+
+        if limit == -1:
+            limit = None
+
+        opts = dict(
+            start_key = [origin, event_type or 0, min_time or 0],
+            end_key   = [origin, event_type or {}, max_time or {}],
+            descending = descending,
+            limit = limit,
+            include_docs = True
+        )
+
+        results = datastore.query_view('event/by_origintype',opts=opts)
+
+        events = []
+        for res in results:
+            event_obj = datastore.read(res['id'])
+            events.append(event_obj)
+
+        log.debug("(find_events) UNS found the following relevant events: %s" % events)
+
+        if limit:
+            list = []
+            for i in xrange(limit):
+                list.append(events[i])
+            return list
+
+        return events
+
+
+    #todo Uses Elastic Search. Later extend this to a larger search criteria
+    def find_events_extended(self, origin='', type='', min_time= 0, max_time=0, limit=-1, descending=False):
+        """Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
+        if no events exist for the given parameters.
+
+        @param origin         str
+        @param type           str
+        @param min_time   int seconds
+        @param max_time   int seconds
+        @param limit          int         (integer limiting the number of results (0 means unlimited))
+        @param descending     boolean     (if True, reverse order (of production time) is applied, e.g. most recent first)
+        @retval event_list    []
+        @throws NotFound    object with specified parameters does not exist
+        @throws NotFound    object with specified parameters does not exist
+        """
+
+        if min_time and max_time:
+            search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (min_time, max_time)
         else:
             search_time = 'search "ts_created" is "*" from "events_index"'
 
