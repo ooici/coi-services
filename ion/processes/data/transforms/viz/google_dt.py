@@ -39,6 +39,7 @@ class VizTransformGoogleDT(TransformDataProcess):
     Usage: https://gist.github.com/3834918
 
     """
+    output_bindings = ['google_dt']
 
 
     def __init__(self):

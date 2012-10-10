@@ -37,7 +37,7 @@ from pyon.ion.resource import get_restype_lcsm
 from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any, get_ion_ts
 from ion.processes.bootstrap.ui_loader import UILoader
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.parameter_yaml_IO import get_param_dict
 try:
     import xlrd
@@ -653,9 +653,10 @@ class IONLoader(ImmediateProcess):
 #        sd_module = row["StreamContainer_module"]
 #        sd_method = row["StreamContainer_method"]
         pname = row["param_dict_name"]
-        parameter_dictionary = get_param_dict(pname)
+        svc_client = self._get_service_client("dataset_management")
+        parameter_dictionary_id = svc_client.read_parameter_dictionary_by_name(pname, id_only=True)
         svc_client = self._get_service_client("pubsub_management")
-        res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary=parameter_dictionary.dump())
+        res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id)
         self._register_id(row[self.COL_ID], res_id)
 
     def _load_PlatformDevice(self, row):
@@ -737,9 +738,11 @@ class IONLoader(ImmediateProcess):
 
         output_strdef = row["output_stream_defs"]
         if output_strdef:
-            output_strdef = self._get_typed_value(output_strdef, targettype="simplelist")
-        for outsd in output_strdef:
-            svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[outsd], res_id)
+            output_strdef = self._get_typed_value(output_strdef, targettype="dict")
+        for binding, strdef in output_strdef.iteritems():
+            svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[strdef], res_id, binding)
+            
+        
 
     def _load_IngestionConfiguration(self, row):
         if DEBUG:
@@ -752,7 +755,7 @@ class IONLoader(ImmediateProcess):
         ic_id = svc_client.create_ingestion_configuration(name=name, exchange_point_id=xp, queues=[ingest_queue])
 
     def _load_DataProduct(self, row):
-        sdom, tdom = CoverageCraft.create_domains()
+        tdom, sdom = time_series_domain()
 
         res_obj = self._create_object_from_row("DataProduct", row, "dp/")
         res_obj.spatial_domain = sdom.dump()
@@ -763,9 +766,9 @@ class IONLoader(ImmediateProcess):
 
         svc_client = self._get_service_client("data_product_management")
         stream_definition_id = self.resource_ids[row["stream_def_id"]]
-        parameter_dictionary = get_param_dict(row['param_dict_type'])
+        #parameter_dictionary = get_param_dict(row['param_dict_type'])
         res_id = svc_client.create_data_product(data_product=res_obj,
-                    stream_definition_id=stream_definition_id, parameter_dictionary=parameter_dictionary)
+                    stream_definition_id=stream_definition_id)
         self._register_id(row[self.COL_ID], res_id)
 
         if not DEBUG:
