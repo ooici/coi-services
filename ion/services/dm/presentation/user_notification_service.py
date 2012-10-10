@@ -403,18 +403,6 @@ class UserNotificationService(BaseUserNotificationService):
         user = self.event_processor.add_notification_for_user(notification_request=notification, user_id=user_id)
 
         #-------------------------------------------------------------------------------------------------------------------
-        # Allow the indexes to be updated for ElasticSearch
-        # We publish event only after this so that the reload of the user info works by the
-        # notification workers work properly
-        #-------------------------------------------------------------------------------------------------------------------
-
-        # todo: This is to allow time for the indexes to be created before publishing ReloadUserInfoEvent for notification workers.
-        # todo: When things are more refined, it will be nice to have an event generated when the
-        # indexes are updated so that a subscriber here when it received that event will publish
-        # the reload user info event.
-        time.sleep(4)
-
-        #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
         log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)

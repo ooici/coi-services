@@ -128,20 +128,6 @@ class NotificationWorker(SimpleProcess):
         self.event_subscriber.stop()
         self.reload_user_info_subscriber.stop()
 
-    def poll(self, tries, callback, *args, **kwargs):
-        '''
-        Polling wrapper for queries
-        Elasticsearch may not index and cache the changes right away so we may need
-        a couple of tries and a little time to go by before the results show.
-        '''
-        for i in xrange(tries):
-            retval = callback(*args, **kwargs)
-            if retval:
-                return retval
-            time.sleep(0.2)
-        return None
-
-
     def load_user_info(self):
         '''
         Method to load the user info dictionary used by the notification workers and the UNS
