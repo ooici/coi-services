@@ -62,6 +62,7 @@ class TestProcess(BaseService):
 @attr('INT', group='cei')
 class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
+    @needs_epu
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2cei.yml')
@@ -90,11 +91,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                     }
                 },
                 'process_definition_id': self.process_definition_id,
-                "process_dispatchers": [
-                    'process_dispatcher'
-                ],
-                'dashi_uri': self._haa_dashi_uri,
-                'dashi_exchange': self._haa_dashi_exchange,
+                'dashi_messaging' : True,
+                'dashi_exchange' : self._haa_dashi_exchange,
                 'dashi_name': self._haa_dashi_name
             },
             'agent': {'resource_id': self.resource_id},
@@ -152,7 +150,6 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         normal = [cproc for cproc in current if cproc.process_id not in base_pids and cproc.process_state == ProcessStateEnum.SPAWN]
         return normal
 
-    @needs_epu
     def test_features(self):
         status = self.haa_client.status().result
         # Ensure HA hasn't already failed
@@ -200,7 +197,6 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.await_state_event("test", ProcessStateEnum.TERMINATE)
         self.assertEqual(len(self.get_running_procs()), 0)
 
-    @needs_epu
     def test_dashi(self):
 
         import dashi
@@ -306,6 +302,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
             gevent.sleep(2)
             self._web_glet.kill()
 
+    @needs_epu
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2cei.yml')
@@ -418,7 +415,6 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
     def _set_response(self, response):
         self._webserver.response = response
 
-    @needs_epu
     def test_sensor_policy(self):
         status = self.haa_client.status().result
         # Ensure HA hasn't already failed
