@@ -543,7 +543,7 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
 
         self.pd_service.backend._process_state(dict(upid=pid,
             state="500-RUNNING"))
-        self.assertEqual(self.event_pub.publish_event.call_count, 1)
+        self.assertEqual(self.event_pub.publish_event.call_count, 2)
 
     def test_cancel(self):
 
