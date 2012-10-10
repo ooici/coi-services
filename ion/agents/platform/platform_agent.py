@@ -66,7 +66,6 @@ class PlatformAgentState(ResourceAgentState):
 
 
 class PlatformAgentEvent(ResourceAgentEvent):
-    PING_AGENT            = 'PLATFORM_AGENT_PING_AGENT'
     GET_SUBPLATFORM_IDS   = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
 
 
@@ -81,7 +80,6 @@ class PlatformAgentCapability(BaseEnum):
     GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
     SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
 
-    PING_AGENT                = 'PLATFORM_AGENT_PING_AGENT'
     GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
 
 
@@ -644,13 +642,13 @@ class PlatformAgent(ResourceAgent):
 
         pa_client, _ = self._pa_clients[subplatform_id]
 
-        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
-        retval = self._execute_agent(pa_client, cmd, subplatform_id)
+        retval = pa_client.ping_agent(timeout=TIMEOUT)
         log.debug("%r: _ping_subplatform %r  retval = %s",
             self._platform_id, subplatform_id, str(retval))
 
-        if "PONG" != retval.result:
-            msg = "unexpected ping response from sub-platform agent: %s " % retval.result
+        if retval is None:
+            msg = "%r: unexpected None ping response from sub-platform agent: %r" % (
+                    self._platform_id, subplatform_id)
             log.error(msg)
             raise PlatformException(msg)
 
@@ -762,10 +760,6 @@ class PlatformAgent(ResourceAgent):
     ##############################################################
     # major operations
     ##############################################################
-
-    def _ping_agent(self, *args, **kwargs):
-        result = "PONG"
-        return result
 
     def _initialize(self, *args, **kwargs):
         self._plat_config = kwargs.get('plat_config', None)
@@ -994,19 +988,6 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
-    def _handler_ping_agent(self, *args, **kwargs):
-        """
-        Pings the agent.
-        """
-        log.debug("%r/%s args=%s kwargs=%s",
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        result = self._ping_agent(*args, **kwargs)
-
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
-
     def _handler_ping_resource(self, *args, **kwargs):
         """
         Pings the driver.
@@ -1040,13 +1021,11 @@ class PlatformAgent(ResourceAgent):
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
         self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
-        self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         # INACTIVE state event handlers.
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.RESET, self._handler_inactive_reset)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_command_get_subplatform_ids)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
-        self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
@@ -1054,7 +1033,6 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RESET, self._handler_idle_reset)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RUN, self._handler_idle_run)
-        self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
@@ -1063,7 +1041,6 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.RESET, self._handler_command_reset)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_command_get_subplatform_ids)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
-        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)

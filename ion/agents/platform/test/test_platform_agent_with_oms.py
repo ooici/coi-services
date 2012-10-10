@@ -234,9 +234,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
     def _ping_agent(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
-        retval = self._execute_agent(cmd)
-        self.assertEquals("PONG", retval.result)
+        retval = self._pa_client.ping_agent()
+        self.assertIsInstance(retval, str)
 
     def _ping_resource(self):
         cmd = AgentCommand(command=PlatformAgentEvent.PING_RESOURCE)
@@ -322,7 +321,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
 
-            PlatformAgentEvent.PING_AGENT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
         ]
 
@@ -367,7 +365,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         agt_cmds_uninitialized = [
             PlatformAgentEvent.INITIALIZE,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
-            PlatformAgentEvent.PING_AGENT,
         ]
         self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
         self.assertItemsEqual(agt_pars, agt_pars_all)
@@ -401,7 +398,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.RESET,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GO_ACTIVE,
-            PlatformAgentEvent.PING_AGENT,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
         ]
@@ -438,7 +434,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.RESET,
             PlatformAgentEvent.GO_INACTIVE,
             PlatformAgentEvent.RUN,
-            PlatformAgentEvent.PING_AGENT,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
         ]
@@ -476,7 +471,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.RESET,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
-            PlatformAgentEvent.PING_AGENT,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,

@@ -459,10 +459,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
         log.debug("Root PLATFORM_CONFIG =\n%s",
             yaml.dump(PLATFORM_CONFIG, default_flow_style=False))
 
-        # PING_AGENT can be issued before INITIALIZE
-        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
-        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'ShoreSide Platform PING_AGENT = %s', str(retval) )
+        # ping_agent can be issued before INITIALIZE
+        retval = self._pa_client.ping_agent(timeout=TIMEOUT)
+        log.debug( 'ShoreSide Platform ping_agent = %s', str(retval) )
 
         # INITIALIZE should trigger the creation of the whole platform
         # hierarchy rooted at PLATFORM_CONFIG['platform_id']
