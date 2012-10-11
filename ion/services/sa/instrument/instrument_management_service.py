@@ -20,12 +20,6 @@ from pyon.core.object import ion_serializer
 from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
-import pickle
-import gevent
-
-import string
-import csv
-from StringIO import StringIO
 
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
@@ -45,8 +39,8 @@ from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
-from ion.services.sa.common.module_uploader import RegisterModulePreparer
-from ion.services.sa.common.qa_doc_parser import QADocParser
+from ion.util.module_uploader import RegisterModulePreparer
+from ion.util.qa_doc_parser import QADocParser
 
 # TODO: these are for methods which may belong in DAMS/DPMS/MFMS
 from ion.services.sa.product.data_product_impl import DataProductImpl

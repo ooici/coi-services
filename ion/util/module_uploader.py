@@ -3,7 +3,8 @@ import base64
 import tempfile
 import subprocess
 
-from ion.services.sa.common.tools import zip_of_b64, path_subtract
+from ion.util.zip import zip_of_b64
+from ion.util.path import path_subtract
 
 from ooi.logging import log
 
