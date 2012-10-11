@@ -3,7 +3,7 @@
 
 __author__ = 'Thomas R. Lennan, Michael Meisinger, Stephen Henrie'
 __license__ = 'Apache 2.0'
-
+import types
 from pyon.core.exception import BadRequest, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.public import log
@@ -171,6 +171,13 @@ class ResourceRegistryService(BaseResourceRegistryService):
             raise BadRequest("The extended_resource parameter not set")
 
         extended_resource_handler = ExtendedResourceContainer(self, self)
+
+        #Handle differently if the resource_id parameter is a list of ids
+        if resource_id.find('[') > -1:
+            res_input = eval(resource_id)
+            extended_resource_list = extended_resource_handler.create_extended_resource_container_list(resource_extension,
+                res_input, None, ext_associations, ext_exclude)
+            return extended_resource_list
 
         extended_resource = extended_resource_handler.create_extended_resource_container(resource_extension,
             resource_id, None, ext_associations, ext_exclude)
