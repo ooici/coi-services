@@ -9,15 +9,21 @@
 '''
 
 from pyon.core.exception import BadRequest
+from pyon.core.object import IonObjectSerializer
+from pyon.core.interceptor.encode import encode_ion
+from pyon.util.arg_check import validate_equal
+from pyon.util.log import log
+from pyon.util.memoize import memoize_lru
+
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.objects import Granule
+
 from coverage_model.parameter import ParameterDictionary
 from coverage_model.parameter_values import get_value_class, AbstractParameterValue
 from coverage_model.coverage import SimpleDomainSet
-from pyon.util.log import log
-from pyon.util.arg_check import validate_equal
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.objects import Granule
-from pyon.util.memoize import memoize_lru
+
 import numpy as np
+import msgpack
 
 class RecordDictionaryTool(object):
     """
@@ -238,6 +244,18 @@ class RecordDictionaryTool(object):
 
     def __ne__(self, comp):
         return not (self == comp)
+
+    def size(self):
+        '''
+        Truly poor way to calculate the size of a granule...
+        returns the size in bytes.
+        '''
+        granule = self.to_granule()
+        serializer = IonObjectSerializer()
+        flat = serializer.serialize(granule)
+        byte_stream = msgpack.packb(flat, default=encode_ion)
+        return len(byte_stream)
+
     
     @staticmethod
     @memoize_lru(maxsize=100)
