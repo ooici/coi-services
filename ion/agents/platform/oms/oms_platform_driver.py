@@ -20,6 +20,7 @@ from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.oms.oms_resource_monitor import OmsResourceMonitor
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from ion.agents.platform.oms.oms_client import InvalidResponse
+from ion.agents.platform.oms.oms_alarm_listener import OmsAlarmListener
 from ion.agents.platform.util.network import NNode
 from ion.agents.platform.util.network import Attr
 from ion.agents.platform.util.network import Port
@@ -56,6 +57,10 @@ class OmsPlatformDriver(PlatformDriver):
 
         # _monitors: dict { attr_id: OmsResourceMonitor }
         self._monitors = {}
+
+        # we can instantiate this here as the the actual http server is
+        # started via corresponding method.
+        self._alarm_listener = OmsAlarmListener(self._notify_driver_event)
 
     def ping(self):
         """
@@ -350,3 +355,35 @@ class OmsPlatformDriver(PlatformDriver):
         for resmon in self._monitors.itervalues():
             resmon.stop()
         self._monitors.clear()
+
+    def _register_alarm_listener(self, url):
+        """
+        Registers given url for all alarm types.
+        """
+        result = self._oms.registerAlarmListener(url, [])
+        log.info("registerAlarmListener url=%r returned: %s", url, str(result))
+
+    def _unregister_alarm_listener(self, url):
+        """
+        Unregisters given url for all alarm types.
+        """
+        result = self._oms.unregisterAlarmListener(url, [])
+        log.info("unregisterAlarmListener url=%r returned: %s", url, str(result))
+
+    def start_alarm_dispatch(self, params):
+        # start http server:
+        self._alarm_listener.start_http_server()
+
+        # then, register my listener:
+        self._register_alarm_listener(self._alarm_listener.url)
+
+        return "OK"
+
+    def stop_alarm_dispatch(self):
+        # unregister my listener:
+        self._unregister_alarm_listener(self._alarm_listener.url)
+
+        # then, stop http server:
+        self._alarm_listener.stop_http_server()
+
+        return "OK"

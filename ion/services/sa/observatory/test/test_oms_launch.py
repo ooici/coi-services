@@ -429,7 +429,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         instance_obj = self.imsclient.read_platform_agent_instance(platformSS_agent_instance_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
             instance_obj.agent_process_id,
-            ProcessStateEnum.SPAWN)
+            ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The platform agent instance did not spawn in 30 seconds")
 
         platformSS_agent_instance_obj= self.imsclient.read_instrument_agent_instance(platformSS_agent_instance_id)
@@ -480,10 +480,21 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'ShoreSide Platform RUN = %s', str(retval) )
 
-        log.info("sleeping to perhaps see some data publications...")
+        # START_ALARM_DISPATCH
+        kwargs = dict(params="TODO set params")
+        cmd = AgentCommand(command=PlatformAgentEvent.START_ALARM_DISPATCH, kwargs=kwargs)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        self.assertTrue(retval.result is not None)
+
+
+        log.info("sleeping to eventually see some event notifications/data pubs...")
         sleep(15)
 
 
+        # STOP_ALARM_DISPATCH
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        self.assertTrue(retval.result is not None)
 
         #-------------------------------
         # Stop Platform SS AgentInstance,

@@ -59,7 +59,7 @@ class AlarmNotifier(object):
 
         if not url in url_dict:
             url_dict[url] = time.time()
-            log.info("added listener=%s for alarm_type=%s", url, alarm_type)
+            log.trace("added listener=%s for alarm_type=%s", url, alarm_type)
 
         return url_dict[url]
 
@@ -72,7 +72,7 @@ class AlarmNotifier(object):
         if url in url_dict:
             unreg_time = time.time()
             del url_dict[url]
-            log.info("removed listener=%s for alarm_type=%s", url, alarm_type)
+            log.trace("removed listener=%s for alarm_type=%s", url, alarm_type)
 
         return unreg_time
 
@@ -87,7 +87,7 @@ class AlarmNotifier(object):
 
         urls = self._listeners[alarm_type]
         if not len(urls):
-            log.trace("No alarm listeners for alarm_type=%s", alarm_type)
+            # no alarm listeners for alarm_type; just ignore notification:
             return
 
         # copy list to get a snapshot of the current dictionary and thus avoid
@@ -103,14 +103,16 @@ class AlarmNotifier(object):
         """
         log.debug("Notifying alarm_instance=%s to listener=%s", str(alarm_instance), url)
 
-        # remove "http://" prefix
-        if url.lower().startswith("http://"):
-            url = url[len("http://"):]
-
         # include url in alarm instance:
         alarm_instance['url'] = url
 
-        conn = httplib.HTTPConnection(url)
+        # remove "http://" prefix for the connection itself
+        if url.lower().startswith("http://"):
+            url4conn = url[len("http://"):]
+        else:
+            url4conn = url
+
+        conn = httplib.HTTPConnection(url4conn)
         try:
             payload = yaml.dump(alarm_instance, default_flow_style=False)
             log.trace("payload=\n\t%s", payload.replace('\n', '\n\t'))
@@ -137,7 +139,8 @@ class AlarmGenerator(Greenlet):
 
     def generate_alarm(self):
         """
-        Generates a synthetic alarm.
+        Generates a synthetic alarm and notifies it only if
+        notify_if_listener is True and there is a listener for the alarm_type
         """
         if self._index >= len(AlarmInfo.ALARM_TYPES):
             self._index = 0
@@ -160,10 +163,12 @@ class AlarmGenerator(Greenlet):
             'timestamp':    timestamp,
             'group':        group,
         }
+
         log.debug("notifying alarm_instance=%s", str(alarm_instance))
         self._notifier.notify(alarm_instance)
 
     def _run(self):
+        sleep(3)  # wait a bit before first alarm
         while self._keep_running:
             self.generate_alarm()
             sleep(7)

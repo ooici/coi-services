@@ -54,8 +54,10 @@ from pyon.ion.resource import PRED, RT
 # MI imports
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 from ion.agents.instrument.exceptions import InstrumentParameterException
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import time_series_domain
 
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 
@@ -898,6 +900,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         dpms_cli = DataProductManagementServiceClient()
         rr_cli = ResourceRegistryServiceClient()
         pubsub_cli = PubsubManagementServiceClient()
+        dataset_management_cli = DatasetManagementServiceClient()
 
         eda = ExternalDatasetAgent()
         eda_id = dams_cli.create_external_dataset_agent(eda)
@@ -957,15 +960,13 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         dams_cli.assign_external_dataset_to_agent_instance(external_dataset_id=ds_id, agent_instance_id=eda_inst_id)
 
         #create temp streamdef so the data product can create the stream
-        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
+        #@TODO Luke - I do not know if this param dict is the right choice here please review Tim G
+        parameter_dictionary = dataset_management_cli.read_parameter_dictionary_by_name('dummy', id_only=True)
+        
+        streamdef_id = pubsub_cli.create_stream_definition(name="temp", parameter_dictionary_id=parameter_dictionary, description="temp")
 
-        # Generate the data product and associate it to the ExternalDataset
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
+        tdom, sdom = time_series_domain()
+        tdom, sdom = tdom.dump(), sdom.dump()
 
         dprod = IonObject(RT.DataProduct,
             name='dummy_dataset',
@@ -974,8 +975,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
             spatial_domain = sdom)
 
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,
-                                                    stream_definition_id=streamdef_id,
-                                                    parameter_dictionary=parameter_dictionary)
+                                                    stream_definition_id=streamdef_id)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id) #, create_stream=True)
 
@@ -992,26 +992,8 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
 #        ttool.add_taxonomy_set('lat','latitude')
 #        ttool.add_taxonomy_set('dummy', 'dummy')
 
-        pdict = ParameterDictionary()
+        pdict = DatasetManagementService.get_parameter_dictionary(parameter_dictionary)
 
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 01-01-1970'
-        pdict.add_context(t_ctxt)
-
-        t_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-        t_ctxt.reference_frame = AxisTypeEnum.LON
-        t_ctxt.uom = 'degree_east'
-        pdict.add_context(t_ctxt)
-
-        t_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-        t_ctxt.reference_frame = AxisTypeEnum.LON
-        t_ctxt.uom = 'degree_north'
-        pdict.add_context(t_ctxt)
-
-        t_ctxt = ParameterContext('dummy', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
-        t_ctxt.uom = 'unkown'
-        pdict.add_context(t_ctxt)
 
         # Create the logger for receiving publications
         self.create_stream_and_logger(name='dummy',stream_id=stream_id)

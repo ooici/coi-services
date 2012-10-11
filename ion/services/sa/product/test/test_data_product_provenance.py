@@ -271,13 +271,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id, binding='conductivity' )
 
         outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id, binding='pressure' )
 
         outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
         self.output_products={}
@@ -327,13 +327,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(name='L1_conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_conductivity_id, ctd_L1_conductivity_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_conductivity_id, ctd_L1_conductivity_dprocdef_id, binding='conductivity' )
 
         outgoing_stream_l1_pressure_id = self.pubsubclient.create_stream_definition(name='L1_Pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_pressure_id, ctd_L1_pressure_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_pressure_id, ctd_L1_pressure_dprocdef_id, binding='pressure' )
 
         outgoing_stream_l1_temperature_id = self.pubsubclient.create_stream_definition(name='L1_Temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_temperature_id, ctd_L1_temperature_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_temperature_id, ctd_L1_temperature_dprocdef_id, binding='temperature' )
 
         log.debug("TestDataProductProvenance: create output data product L1 conductivity")
 
@@ -378,10 +378,10 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(name='L2_salinity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_salinity_id, ctd_L2_salinity_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_salinity_id, ctd_L2_salinity_dprocdef_id, binding='salinity' )
 
         outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(name='L2_Density')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id, ctd_L2_density_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id, ctd_L2_density_dprocdef_id, binding='density' )
 
         log.debug("TestDataProductProvenance: create output data product L2 Salinity")
 

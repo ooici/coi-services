@@ -316,7 +316,7 @@ class OmsSimulator(OmsClient):
         return True
 
     def registerAlarmListener(self, url, alarm_types):
-        log.info("registerAlarmListener: url=%r, alarm_types=%s",
+        log.debug("registerAlarmListener called: url=%r, alarm_types=%s",
                  url, str(alarm_types))
 
         if not self._validate_alarm_listener_url(url):
@@ -332,6 +332,9 @@ class OmsSimulator(OmsClient):
             existing_types, reg_times = zip(*existing_pairs)
         else:
             existing_types = reg_times = []
+
+        if len(alarm_types) == 0:
+            alarm_types = list(AlarmInfo.ALARM_TYPES.keys())
 
         result_list = []
         for alarm_type in alarm_types:
@@ -351,10 +354,12 @@ class OmsSimulator(OmsClient):
                 existing_pairs.append((alarm_type, reg_time))
                 result_list.append((alarm_type, reg_time))
 
+                log.info("%r registered for alarm_type=%r", url, alarm_type)
+
         return {url: result_list}
 
     def unregisterAlarmListener(self, url, alarm_types):
-        log.info("unregisterAlarmListener: url=%r, alarm_types=%s",
+        log.debug("unregisterAlarmListener called: url=%r, alarm_types=%s",
                  url, str(alarm_types))
 
         if not url in self._reg_alarm_listeners:
@@ -365,6 +370,9 @@ class OmsSimulator(OmsClient):
         assert len(existing_pairs), "we don't keep any url with empty list"
 
         existing_types, reg_times = zip(*existing_pairs)
+
+        if len(alarm_types) == 0:
+            alarm_types = list(AlarmInfo.ALARM_TYPES.keys())
 
         result_list = []
         for alarm_type in alarm_types:
@@ -377,14 +385,27 @@ class OmsSimulator(OmsClient):
                 # registered, so remove it
                 #
                 unreg_time = self._alarm_notifier.remove_listener(url, alarm_type)
-                del existing_pairs[existing_types.index(alarm_type)]
+                idx = existing_types.index(alarm_type)
+                del existing_pairs[idx]
                 result_list.append((alarm_type, unreg_time))
+
+                # update for next iteration (index for next proper removal):
+                if len(existing_pairs):
+                    existing_types, reg_times = zip(*existing_pairs)
+                else:
+                    existing_types = reg_times = []
+
+                log.info("%r unregistered for alarm_type=%r", url, alarm_type)
+
             else:
                 # not registered, report 0
                 unreg_time = 0
                 result_list.append((alarm_type, unreg_time))
 
-        if not len(existing_pairs):
+        if len(existing_pairs):
+            # reflect the updates:
+            self._reg_alarm_listeners[url] = existing_pairs
+        else:
             # we don't keep any url with empty list
             del self._reg_alarm_listeners[url]
 
