@@ -525,15 +525,12 @@ class UserNotificationService(BaseUserNotificationService):
 
         user_ids, assocs = self.clients.resource_registry.find_subjects(object=notification_id, predicate=PRED.hasNotification, id_only=True)
 
-        log.debug("assocs found ::: %s" % assocs)
-
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
         for user_id in user_ids:
 
             user = self.clients.resource_registry.read(user_id)
-            log.debug("user_name::: %s" % user.name)
             value = self.event_processor.user_info[user.name]
 
             for notif in value['notifications']:
@@ -542,14 +539,6 @@ class UserNotificationService(BaseUserNotificationService):
                     value['notifications'].remove(notif)
                     # remove the notification_subscription
                     self.event_processor.user_info[user.name]['notification_subscriptions'].pop(notification_id)
-
-#        for user_name, value in self.event_processor.user_info.iteritems():
-#            for notif in value['notifications']:
-#                if notification_id == notif._id:
-#                    # remove the notification
-#                    value['notifications'].remove(notif)
-#                    # remove the notification_subscription
-#                    self.event_processor.user_info[user_name]['notification_subscriptions'].pop(notification_id)
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
