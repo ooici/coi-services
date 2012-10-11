@@ -9,7 +9,7 @@ from pyon.core.exception import BadRequest, Inconsistent
 from pyon.public import PRED, RT, LCE
 
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
-from ion.services.sa.instrument.resource_lcs_policy import DevicePolicy
+from ion.util.resource_lcs_policy import DevicePolicy
 
 class PlatformDeviceImpl(ResourceImpl):
     """

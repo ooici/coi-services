@@ -7,7 +7,7 @@
 
 
 #from pyon.core.exception import BadRequest, NotFound
-from ion.services.sa.instrument.resource_lcs_policy import SitePolicy
+from ion.util.resource_lcs_policy import SitePolicy
 from pyon.ion.resource import LCE
 from pyon.public import PRED, RT
 
