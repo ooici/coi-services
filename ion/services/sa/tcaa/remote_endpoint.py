@@ -289,8 +289,22 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
     
     def get_port(self):
         """
+        Get the remote server port number.
         """
         return self._this_port
+    
+    def set_client_port(self, port):
+        """
+        Set the remote client port number.
+        """
+        self._other_port = port
+    
+    def get_client_port(self):
+        """
+        Get the remote client port number.
+        """
+        return self._other_port
+    
     
 class RemoteEndpointClient(RemoteEndpointProcessClient):
     """

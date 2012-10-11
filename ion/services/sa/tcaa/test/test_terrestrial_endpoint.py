@@ -108,6 +108,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._done_queue_mod_evts = AsyncResult()
         self._done_telem_evts = AsyncResult()
         self._done_cmd_tx_evts = AsyncResult()
+        
         # Start container.
         log.debug('Staring capability container.')
         self._start_container()
