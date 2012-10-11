@@ -556,16 +556,28 @@ class UserNotificationService(BaseUserNotificationService):
 #        min_time = self.makeEpochTime(min_datetime)
 #        max_time = self.makeEpochTime(max_datetime)
 
-        if limit == -1:
-            limit = None
+        log.debug("min_datetime :: %s" % min_datetime)
+        log.debug("min_datetime :: %s" % max_datetime)
 
-        opts = dict(
-            start_key = [origin, event_type or 0, min_datetime or 0],
-            end_key   = [origin, event_type or {}, max_datetime or {}],
-            descending = descending,
-            limit = limit,
-            include_docs = True
-        )
+
+        # Doing a hack here... couchdb query_view does not support Null or -1 for limit
+        # If no limit is meant to be provided, one has to just omit it from the opts dictionary
+        # Passing a null or negative to query view through opts results in a ServerError
+        if limit > -1:
+            opts = dict(
+                start_key = [origin, type or 0, min_datetime or 0],
+                end_key   = [origin, type or {}, max_datetime or {}],
+                descending = descending,
+                limit = limit,
+                include_docs = True
+            )
+        else:
+            opts = dict(
+                start_key = [origin, type or 0, min_datetime or 0],
+                end_key   = [origin, type or {}, max_datetime or {}],
+                descending = descending,
+                include_docs = True
+            )
 
         log.debug("opts:: %s" % opts)
 
@@ -573,14 +585,17 @@ class UserNotificationService(BaseUserNotificationService):
 
         log.debug("results::: %s" % results)
 
+
         events = []
         for res in results:
-            event_obj = datastore.read(res['id'])
+#            event_obj = datastore.read(res['id'])
+            log.debug("key:::: %s" % res['key'])
+            event_obj = res['doc']
             events.append(event_obj)
 
         log.debug("(find_events) UNS found the following relevant events: %s" % events)
 
-        if limit:
+        if limit > -1:
             list = []
             for i in xrange(limit):
                 list.append(events[i])
@@ -591,7 +606,7 @@ class UserNotificationService(BaseUserNotificationService):
 
     #todo Uses Elastic Search. Later extend this to a larger search criteria
     def find_events_extended(self, origin='', type='', min_time= 0, max_time=0, limit=-1, descending=False):
-        """Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
+        """Uses Elastic Search. Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
         if no events exist for the given parameters.
 
         @param origin         str
@@ -624,7 +639,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         # get the list of ids corresponding to the events
         ret_vals = self.discovery.parse(search_string)
-        log.debug("(find_events) Discovery search returned the following event ids: %s" % ret_vals)
+        log.debug("(find_events_extended) Discovery search returned the following event ids: %s" % ret_vals)
 
         events = []
         for event_id in ret_vals:
@@ -632,7 +647,7 @@ class UserNotificationService(BaseUserNotificationService):
             event_obj = datastore.read(event_id)
             events.append(event_obj)
 
-        log.debug("(find_events) UNS found the following relevant events: %s" % events)
+        log.debug("(find_events_extended) UNS found the following relevant events: %s" % events)
 
         if limit > -1:
             list = []

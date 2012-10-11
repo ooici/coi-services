@@ -1112,7 +1112,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
         gevent.sleep(4)
-        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime= 4, max_datetime=7)
+        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', type = 'ResourceLifecycleEvent', min_datetime= 4, max_datetime=7)
 
         self.assertEquals(len(events), 4)
 
