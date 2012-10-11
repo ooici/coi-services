@@ -102,7 +102,8 @@ class Test2CAA(IonIntegrationTestCase):
         ###################################################################
         
         # Internal parameters.        
-        self._platform_resource_id = 'abc123'
+        self._terrestrial_platform_id = 'terrestrial_id'
+        self._remote_platform_id = 'remote_id'
         self._resource_id = 'fake_id'
         self._remote_port = 0
         self._terrestrial_port = 0
@@ -138,7 +139,7 @@ class Test2CAA(IonIntegrationTestCase):
             'other_host' : 'localhost',
             'other_port' : self._remote_port,
             'this_port' : 0,
-            'platform_resource_id' : self._platform_resource_id,
+            'platform_resource_id' : self._terrestrial_platform_id,
             'process' : {
                 'listen_name' : terrestrial_listen_name
             }
@@ -173,7 +174,7 @@ class Test2CAA(IonIntegrationTestCase):
             'other_host' : 'localhost',
             'other_port' : self._remote_port,
             'this_port' : 0,
-            'platform_resource_id' : self._platform_resource_id,
+            'platform_resource_id' : self._remote_platform_id,
             'process' : {
                 'listen_name' : remote_listen_name
             }
@@ -198,9 +199,79 @@ class Test2CAA(IonIntegrationTestCase):
         self._remote_port = self.re_client.get_port()
         log.debug('The remote port is: %i.', self._remote_port)
         
+        ###################################################################
+        # Assign client ports.
+        # This is primarily for test purposes as the IP config in
+        # deployment will be fixed in advance.
+        ###################################################################
     
+        self.te_client.set_client_port(self._remote_port)
+        check_port = self.te_client.get_client_port()
+        log.debug('Terrestrial client port is: %i', check_port)
+    
+        self.re_client.set_client_port(self._terrestrial_port)
+        check_port = self.re_client.get_client_port()
+        log.debug('Remote client port is: %i', check_port)
+
+        ###################################################################
+        # Start the event publisher.
+        # Used to send fake agent telemetry publications to the endpoints.
+        ###################################################################
+        self._event_publisher = EventPublisher()
+
+    ###################################################################
+    # Telemetry publications to start/top endpoint.
+    # (Normally be published by appropriate platform agents.)
+    ###################################################################
+
+    def terrestrial_link_up(self):
+        """
+        Publish telemetry available to the terrestrial endpoint.
+        """
+        # Publish a link up event to be caught by the terrestrial endpoint.
+        log.debug('Publishing terrestrial telemetry available event.')
+        self._event_publisher.publish_event(
+                            event_type='PlatformTelemetryEvent',
+                            origin=self._terrestrial_platform_id,
+                            status = TelemetryStatusType.AVAILABLE)
+        
+    def terrestrial_link_down(self):
+        """
+        Publish telemetry unavailable to the terrestrial endpoint.
+        """
+        # Publish a link up event to be caught by the terrestrial endpoint.
+        log.debug('Publishing terrestrial telemetry unavailable event.')
+        self._event_publisher.publish_event(
+                            event_type='PlatformTelemetryEvent',
+                            origin=self._terrestrial_platform_id,
+                            status = TelemetryStatusType.UNAVAILABLE)
+    
+    def remote_link_up(self):
+        """
+        Publish telemetry available to the remote endpoint.
+        """
+        # Publish a link up event to be caught by the remote endpoint.
+        log.debug('Publishing remote telemetry available event.')
+        self._event_publisher.publish_event(
+                            event_type='PlatformTelemetryEvent',
+                            origin=self._remote_platform_id,
+                            status = TelemetryStatusType.AVAILABLE)
+    
+    def remote_link_down(self):
+        """
+        Publish telemetry unavailable to the remote endpoint.
+        """
+        # Publish a link down event to be caught by the remote endpoint.
+        log.debug('Publishing remote telemetry unavailable event.')
+        self._event_publisher.publish_event(
+                            event_type='PlatformTelemetryEvent',
+                            origin=self._remote_platform_id,
+                            status = TelemetryStatusType.UNAVAILABLE)
+
     def test_xxx(sefl):
         """
         """
         gevent.sleep(2)
-        
+
+
+
