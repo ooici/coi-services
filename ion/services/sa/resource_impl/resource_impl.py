@@ -122,7 +122,8 @@ class ResourceImpl(object):
         assert(type("") == type(resource_id))
         assert(type(LCE.PLAN) == type(transition_event))
 
-        self.check_lcs_precondition_satisfied(resource_id, transition_event)
+        # no checking here.  the policy framework does the work.
+        #self.check_lcs_precondition_satisfied(resource_id, transition_event)
 
         if LCE.RETIRE == transition_event:
             log.debug("Using RR.retire")
