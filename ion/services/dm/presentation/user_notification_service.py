@@ -626,6 +626,16 @@ class UserNotificationService(BaseUserNotificationService):
                                                            event_subtype='')
         self._schedule_ids.append(sid)
 
+
+
+
+    def get_recent_events(self, resource_id=''):
+        pass
+
+    def get_user_notifications(self, user_id=''):
+        pass
+
+
     def create_worker(self, number_of_workers=1):
         '''
         Creates notification workers
