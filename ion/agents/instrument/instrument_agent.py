@@ -168,7 +168,7 @@ class InstrumentAgent(ResourceAgent):
         # Construct stream publishers.
         self._construct_data_publishers()
 
-        if self._is_policy_enabled():
+        if self._is_governance_enabled():
             self.container.governance_controller.register_process_operation_precondition(self, 'execute_resource', self.check_execute_resource)
             self.container.governance_controller.register_process_operation_precondition(self, 'set_resource', self.check_set_resource)
             self.container.governance_controller.register_process_operation_precondition(self, 'ping_resource', self.check_ping_resource)

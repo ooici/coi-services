@@ -1125,6 +1125,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
             retval = ia_client.get_resource(params, headers=user_header)
         self.assertIn('(get_resource) has been denied',cm.exception.message)
 
+        #This agent operation should not be allowed for a user that is not an Instrument Operator
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia_client.get_agent_state(headers=user_header)
+            self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+        self.assertIn('(get_agent_state) has been denied',cm.exception.message)
+
         #Grant the role of Instrument Operator to the user
         self.org_client.grant_role(org2_id,user_id, INSTRUMENT_OPERATOR_ROLE, headers=self.sa_user_header)
 
@@ -1141,16 +1147,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
             retval = ia_client.get_resource(params, headers=user_header)
 
 
-        #This agent operation should not be allowed for a user that is an Instrument Operator
-        with self.assertRaises(Unauthorized) as cm:
-            retval = ia_client.get_agent_state(headers=user_header)
-            self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
-        self.assertIn('(get_agent_state) has been denied',cm.exception.message)
-
-
-        #This agent operation should  be allowed for a the ION System Actor
-        retval = ia_client.get_agent_state(headers=self.sa_user_header)
+        #This agent operation should now be allowed for a user that is an Instrument Operator
+        retval = ia_client.get_agent_state(headers=user_header)
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+
 
         #The execute commnand should fail if the user has not acquired the resource
         with self.assertRaises(Unauthorized) as cm:

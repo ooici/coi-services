@@ -219,7 +219,7 @@ class PlatformAgent(ResourceAgent):
         Init objects that depend on the container services and start state
         machine.
         """
-        if self._is_policy_enabled():
+        if self._is_governance_enabled():
             self.container.governance_controller.register_process_operation_precondition(self, 'execute_resource', self.check_execute_resource)
             self.container.governance_controller.register_process_operation_precondition(self, 'set_resource', self.check_set_resource)
             self.container.governance_controller.register_process_operation_precondition(self, 'ping_resource', self.check_ping_resource)
