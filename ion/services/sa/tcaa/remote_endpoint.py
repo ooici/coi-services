@@ -13,13 +13,13 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 from pyon.public import CFG
 
+# Standard imports.
 import uuid
 import time
 import random
 
-#
+#3rd party imports.
 import gevent
-
 
 # Pyon exceptions.
 from pyon.core.exception import IonException

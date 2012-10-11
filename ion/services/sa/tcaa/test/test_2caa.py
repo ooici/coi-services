@@ -76,6 +76,9 @@ from ion.agents.instrument.test.test_instrument_agent import start_instrument_ag
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_queued_fake
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_remote_late
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_remote_down
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_xxx
 
 
@@ -112,10 +115,20 @@ class Test2CAA(IonIntegrationTestCase):
         self._remote_pid = None
         self._terrestrial_pid = None
 
+        # Async test results.
+        self._no_requests = 10
+        self._no_telem_evts = 2
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._telem_evts = []
+        self._queue_mod_evts = []
+        self._cmd_tx_evts = []
+        self._results_recv = {}
+        self._requests_sent = {}
         self._done_telem_evt = AsyncResult()
         self._done_queue_mod_evt = AsyncResult()
         self._done_cmd_tx_evt = AsyncResult()
-        self._done_cmd_evnt = AsyncResult()
+        self._done_cmd_evt = AsyncResult()
 
         # Start container.
         log.debug('Staring capability container.')
@@ -127,83 +140,17 @@ class Test2CAA(IonIntegrationTestCase):
 
         # Create a container client.
         log.debug('Creating container client.')
-        container_client = ContainerAgentClient(node=self.container.node,
+        self._container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         
         ###################################################################
-        # Terrestrial endpoint.
+        # Start endpoints, agent.
         ###################################################################
 
-        # Create the remote name.
-        xs_name = 'remote1'
-        terrestrial_svc_name = 'terrestrial_endpoint'
-        terrestrial_listen_name = terrestrial_svc_name + xs_name
-
-        # Create terrestrial config.
-        terrestrial_endpoint_config = {
-            'other_host' : 'localhost',
-            'other_port' : self._remote_port,
-            'this_port' : 0,
-            'platform_resource_id' : self._terrestrial_platform_id,
-            'process' : {
-                'listen_name' : terrestrial_listen_name
-            }
-        }
-        
-        # Spawn the terrestrial enpoint process.
-        log.debug('Spawning terrestrial endpoint process.')
-        self._terrestrial_pid = container_client.spawn_process(
-            name=terrestrial_listen_name,
-            module='ion.services.sa.tcaa.terrestrial_endpoint',
-            cls='TerrestrialEndpoint',
-            config=terrestrial_endpoint_config)
-        log.debug('Terrestrial endpoint pid=%s.', str(self._terrestrial_pid))
-
-        # Create a terrestrial client.
-        self.te_client = TerrestrialEndpointClient(
-            process=FakeProcess(),
-            to_name=terrestrial_listen_name)
-        log.debug('Got te client %s.', str(self.te_client))
-        self._terrestrial_port = self.te_client.get_port()
-        log.debug('Terrestrial port is: %i', self._terrestrial_port)
-    
-        ###################################################################
-        # Remote endpoint.
-        ###################################################################
-    
-        remote_svc_name = 'remote_endpoint'
-        remote_listen_name = remote_svc_name + xs_name
-        
-        # Create agent config.
-        remote_endpoint_config = {
-            'other_host' : 'localhost',
-            'other_port' : self._remote_port,
-            'this_port' : 0,
-            'platform_resource_id' : self._remote_platform_id,
-            'process' : {
-                'listen_name' : remote_listen_name
-            }
-        }
-        
-        # Spawn the remote enpoint process.
-        log.debug('Spawning remote endpoint process.')
-        self._remote_pid = container_client.spawn_process(
-            name=remote_listen_name,
-            module='ion.services.sa.tcaa.remote_endpoint',
-            cls='RemoteEndpoint',
-            config=remote_endpoint_config)
-        log.debug('Remote endpoint pid=%s.', str(self._remote_pid))
-
-        # Create an endpoint client.
-        self.re_client = RemoteEndpointClient(
-            process=FakeProcess(),
-            to_name=remote_listen_name)
-        log.debug('Got re client %s.', str(self.re_client))
-        
-        # Remember the remote port.
-        self._remote_port = self.re_client.get_port()
-        log.debug('The remote port is: %i.', self._remote_port)
-        
+        self._start_terrestrial()
+        self._start_remote()
+        self._start_agent()
+            
         ###################################################################
         # Assign client ports.
         # This is primarily for test purposes as the IP config in
@@ -244,10 +191,10 @@ class Test2CAA(IonIntegrationTestCase):
         self.addCleanup(self._result_subscriber.stop)
 
     ###################################################################
-    # Agent startup.
+    # Start/stop helpers.
     ###################################################################
 
-    def start_agent(self):
+    def _start_agent(self):
         """
         Start an instrument agent and client.
         """
@@ -305,6 +252,80 @@ class Test2CAA(IonIntegrationTestCase):
         self._ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
         log.info('Got ia client %s.', str(self._ia_client))
         
+    def _start_terrestrial(self):
+        """
+        """
+        # Create the remote name.
+        xs_name = 'remote1'
+        terrestrial_svc_name = 'terrestrial_endpoint'
+        terrestrial_listen_name = terrestrial_svc_name + xs_name
+
+        # Create terrestrial config.
+        terrestrial_endpoint_config = {
+            'other_host' : 'localhost',
+            'other_port' : self._remote_port,
+            'this_port' : self._terrestrial_port,
+            'platform_resource_id' : self._terrestrial_platform_id,
+            'process' : {
+                'listen_name' : terrestrial_listen_name
+            }
+        }
+        
+        # Spawn the terrestrial enpoint process.
+        log.debug('Spawning terrestrial endpoint process.')
+        self._terrestrial_pid = self._container_client.spawn_process(
+            name=terrestrial_listen_name,
+            module='ion.services.sa.tcaa.terrestrial_endpoint',
+            cls='TerrestrialEndpoint',
+            config=terrestrial_endpoint_config)
+        log.debug('Terrestrial endpoint pid=%s.', str(self._terrestrial_pid))
+
+        # Create a terrestrial client.
+        self.te_client = TerrestrialEndpointClient(
+            process=FakeProcess(),
+            to_name=terrestrial_listen_name)
+        log.debug('Got te client %s.', str(self.te_client))
+        self._terrestrial_port = self.te_client.get_port()
+        log.debug('Terrestrial port is: %i', self._terrestrial_port)
+        
+    def _start_remote(self):
+        """
+        """
+        xs_name = 'remote1'        
+        remote_svc_name = 'remote_endpoint'
+        remote_listen_name = remote_svc_name + xs_name
+        
+        # Create agent config.
+        remote_endpoint_config = {
+            'other_host' : 'localhost',
+            'other_port' : self._terrestrial_port,
+            'this_port' : self._remote_port,
+            'platform_resource_id' : self._remote_platform_id,
+            'process' : {
+                'listen_name' : remote_listen_name
+            }
+        }
+        
+        # Spawn the remote enpoint process.
+        log.debug('Spawning remote endpoint process.')
+        self._remote_pid = self._container_client.spawn_process(
+            name=remote_listen_name,
+            module='ion.services.sa.tcaa.remote_endpoint',
+            cls='RemoteEndpoint',
+            config=remote_endpoint_config)
+        log.debug('Remote endpoint pid=%s.', str(self._remote_pid))
+
+        # Create an endpoint client.
+        self.re_client = RemoteEndpointClient(
+            process=FakeProcess(),
+            to_name=remote_listen_name)
+        log.debug('Got re client %s.', str(self.re_client))
+        
+        # Remember the remote port.
+        self._remote_port = self.re_client.get_port()
+        log.debug('The remote port is: %i.', self._remote_port)
+        
+        
     ###################################################################
     # Telemetry publications to start/top endpoint.
     # (Normally be published by appropriate platform agents.)
@@ -361,7 +382,6 @@ class Test2CAA(IonIntegrationTestCase):
         log.debug('Test got event: %s, args: %s, kwargs: %s',
                   str(evt), str(args), str(kwargs))
         
-        """
         if evt.type_ == 'PublicPlatformTelemetryEvent':
             self._telem_evts.append(evt)
             if self._no_telem_evts > 0 and self._no_telem_evts == len(self._telem_evts):
@@ -382,15 +402,104 @@ class Test2CAA(IonIntegrationTestCase):
             self._results_recv[cmd.command_id] = cmd
             if len(self._results_recv) == self._no_requests:
                 self._done_cmd_evt.set()
-        """
         
-    def test_xxx(self):
-        """
-        """
+    ###################################################################
+    # Misc helpers.
+    ###################################################################
         
-        gevent.sleep(2)
+    def make_fake_command(self, no):
+        """
+        Build a fake command for use in tests.
+        """
+            
+        cmdstr = 'fake_cmd_%i' % no
+        cmd = IonObject('RemoteCommand',
+                             resource_id='fake_id',
+                             command=cmdstr,
+                             args=['arg1', 23],
+                             kwargs={'kwargs1':'someval'})
+        return cmd
+        
+    ###################################################################
+    # Tests.
+    ###################################################################
+
+    def test_queued_fake(self):
+        """
+        Test fake resource commands queued prior to linkup.
+        """
+                
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+
+        self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
+
         self.terrestrial_link_up()
-        gevent.sleep(2)
-        self.terrestrial_link_down()
+        self.remote_link_up()
         
+        self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)                
+        self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)
+        
+        self.terrestrial_link_down()
+        self.remote_link_down()
+        
+        self._done_telem_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+    def test_remote_late(self):
+        """
+        Test fake resource commands queued prior to linkup.
+        Delay remote side linkup substantially to test terrestrial
+        behavior when remote server not initially available.
+        """
+                
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+
+        self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        # Shut down remote side.
+        self._container_client.terminate_process(self._remote_pid)
+
+        self.terrestrial_link_up()
+        gevent.sleep(5)
+        
+        # Start up remote side.
+        self._start_remote()
+        self.remote_link_up()
+        
+        self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)                
+        self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)
+        
+        self.terrestrial_link_down()
+        self.remote_link_down()
+        
+        self._done_telem_evt.get(timeout=CFG.endpoint.receive.timeout)
+    
+    def test_remote_goes_down(self):
+        """
+        Test fake resource commands queued prior to linkup.
+        Cause the remote side to go down half way through the queue
+        to see if reestablishing the link successfully completes transmissions.
+        """
+        pass
+
+    def test_terrestrial_goes_down(self):
+        """
+        """
+        pass
+    
+    def test_resource_commands(self):
+        """
+        """
+        pass
+    
+    def test_service_commands(self):
+        """
+        """
+        pass
+
 
