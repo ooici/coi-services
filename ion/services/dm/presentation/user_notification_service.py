@@ -331,15 +331,10 @@ class UserNotificationService(BaseUserNotificationService):
         published by the scheduler with origin = process_batch_key.
         '''
 
-        log.warning("process_batch_key= %s" % process_batch_key)
-
         def process(event_msg, headers):
             assert event_msg.origin == process_batch_key
 
             self.end_time = UserNotificationService.makeEpochTime(self.__now())
-
-            log.warning("start_time : %s" % self.start_time)
-            log.warning("end_time: %s" % self.end_time)
 
             # run the process_batch() method
             self.process_batch(start_time=self.start_time, end_time=self.end_time)
@@ -551,14 +546,6 @@ class UserNotificationService(BaseUserNotificationService):
         """
         datastore = self.datastore_manager.get_datastore('events')
 
-        #        datastore.query_view('event/by_origintype', {'start_key':[origin,0], 'end_key':[origin,{}]})
-
-#        min_time = self.makeEpochTime(min_datetime)
-#        max_time = self.makeEpochTime(max_datetime)
-
-        log.debug("min_datetime :: %s" % min_datetime)
-        log.debug("min_datetime :: %s" % max_datetime)
-
 
         # Doing a hack here... couchdb query_view does not support Null or -1 for limit
         # If no limit is meant to be provided, one has to just omit it from the opts dictionary
@@ -579,17 +566,10 @@ class UserNotificationService(BaseUserNotificationService):
                 include_docs = True
             )
 
-        log.debug("opts:: %s" % opts)
-
         results = datastore.query_view('event/by_origintype',opts=opts)
-
-        log.debug("results::: %s" % results)
-
 
         events = []
         for res in results:
-#            event_obj = datastore.read(res['id'])
-            log.debug("key:::: %s" % res['key'])
             event_obj = res['doc']
             events.append(event_obj)
 
@@ -744,20 +724,12 @@ class UserNotificationService(BaseUserNotificationService):
         the digest of all the events.
         '''
 
-        log.warning("Processing notifications that arrived between %s seconds and %s seconds" % (start_time, end_time))
-
-        log.warning("(In process batch) time now: %s" % UserNotificationService.makeEpochTime(self.__now()))
-
         if end_time <= start_time:
             return
-
-        log.warning("self.event_processor.user_info: %s" % self.event_processor.user_info)
 
         for user_name, value in self.event_processor.user_info.iteritems():
 
             notifications = value['notifications']
-
-            log.warning("notifications of interest: %s" % notifications)
 
             events_for_message = []
 
@@ -782,12 +754,8 @@ class UserNotificationService(BaseUserNotificationService):
 
                 search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
 
-                log.warning("search_string: %s" % search_string)
-
                 # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
-
-                log.warning ("ret_vals: %s" % ret_vals)
 
                 for event_id in ret_vals:
                     datastore = self.datastore_manager.get_datastore('events')
@@ -795,7 +763,6 @@ class UserNotificationService(BaseUserNotificationService):
                     events_for_message.append(event_obj)
 
             log.debug("Found following events of interest to user, %s: %s" % (user_name, events_for_message))
-            log.warning("Found following events of interest to user, %s: %s" % (user_name, events_for_message))
 
             # send a notification email to each user using a _send_email() method
             if events_for_message:
@@ -807,7 +774,7 @@ class UserNotificationService(BaseUserNotificationService):
         '''
 
         message = str(events_for_message)
-        log.info("The user, %s, will get the following events in his batch notification email: %s" % (user_name, message))
+        log.debug("The user, %s, will get the following events in his batch notification email: %s" % (user_name, message))
 
         msg_body = ''
         count = 1
