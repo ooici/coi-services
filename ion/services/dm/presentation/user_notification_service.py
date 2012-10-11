@@ -398,6 +398,12 @@ class UserNotificationService(BaseUserNotificationService):
         user = self.event_processor.add_notification_for_user(notification_request=notification, user_id=user_id)
 
         #-------------------------------------------------------------------------------------------------------------------
+        # Link the user and the notification with a hasNotification association
+        #-------------------------------------------------------------------------------------------------------------------
+
+        self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
+
+        #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
         log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
@@ -517,13 +523,33 @@ class UserNotificationService(BaseUserNotificationService):
         Helper method to delete the notification from the user_info dictionary
         '''
 
-        for user_name, value in self.event_processor.user_info.iteritems():
+        user_ids, assocs = self.clients.resource_registry.find_subjects(object=notification_id, predicate=PRED.hasNotification, id_only=True)
+
+        log.debug("assocs found ::: %s" % assocs)
+
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+        for user_id in user_ids:
+
+            user = self.clients.resource_registry.read(user_id)
+            log.debug("user_name::: %s" % user.name)
+            value = self.event_processor.user_info[user.name]
+
             for notif in value['notifications']:
                 if notification_id == notif._id:
                     # remove the notification
                     value['notifications'].remove(notif)
                     # remove the notification_subscription
-                    self.event_processor.user_info[user_name]['notification_subscriptions'].pop(notification_id)
+                    self.event_processor.user_info[user.name]['notification_subscriptions'].pop(notification_id)
+
+#        for user_name, value in self.event_processor.user_info.iteritems():
+#            for notif in value['notifications']:
+#                if notification_id == notif._id:
+#                    # remove the notification
+#                    value['notifications'].remove(notif)
+#                    # remove the notification_subscription
+#                    self.event_processor.user_info[user_name]['notification_subscriptions'].pop(notification_id)
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
