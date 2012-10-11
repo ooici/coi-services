@@ -147,7 +147,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         if data_product_obj.lcstate != LCS.RETIRED:
             self.data_product.delete_one(data_product_id)
 
-    def hard_delete_data_product(self, data_product_id=''):
+    def force_delete_data_product(self, data_product_id=''):
         pass
 
     def remove_streams(self, data_product_id=''):
@@ -369,6 +369,9 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         #todo: retire the collection and the associations
 
+        pass
+
+    def force_delete_data_product_collection(self, data_product_collection_id=''):
         pass
 
     def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):

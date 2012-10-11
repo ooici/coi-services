@@ -76,6 +76,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def delete_data_process_definition(self, data_process_definition_id=''):
         self.clients.resource_registry.delete(data_process_definition_id)
 
+    def force_delete_data_process_definition(self, data_process_definition_id=''):
+        pass
+
     def find_data_process_definitions(self, filters=None):
         """
         @param      filters: dict of parameters to filter down
@@ -432,7 +435,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self._stop_process(data_process_obj)
 
-
         #--------------------------------------------------------------------------------
         # Finalize the Data Products by Removing streams associated with the dataset and product
         #--------------------------------------------------------------------------------
@@ -444,9 +446,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
             self.clients.data_acquisition_management.unassign_data_product(data_process_id, out_product)
-
-
-
 
 
         # Delete the input products link
@@ -461,8 +460,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         except BadRequest:
             pass
 
-
-
         subscription_id = data_process_obj.input_subscription_id
         self.clients.pubsub_management.delete_subscription(subscription_id)
         data_process_obj.input_subscription_id = None
@@ -473,6 +470,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Delete the data process
         self.clients.resource_registry.delete(data_process_id)
         return
+
+    def force_delete_data_process(self, data_process_id=""):
+        pass
 
     def _stop_process(self, data_process):
         pid = data_process.process_id
