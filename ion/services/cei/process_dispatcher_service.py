@@ -2,6 +2,7 @@
 
 import uuid
 import json
+from time import time
 
 import gevent
 from couchdb.http import ResourceNotFound
@@ -29,7 +30,6 @@ except ImportError:
     PDMatchmaker = None
     EPUManagementClient = None
 
-from time import time
 
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 
@@ -538,6 +538,10 @@ class PDLocalBackend(object):
         module = definition.executable['module']
         cls = definition.executable['class']
 
+        self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
+            origin=process_id, origin_type="DispatchedProcess",
+            state=ProcessStateEnum.PENDING)
+
         # Spawn the process
         pid = self.container.spawn_process(name=name, module=module, cls=cls,
             config=configuration, process_id=process_id)
@@ -839,7 +843,7 @@ class PDNativeBackend(object):
             return
 
         try:
-            self.core.ee_heartbeart(resource_id, beat)
+            self.core.ee_heartbeat(resource_id, beat)
         except (NotFound, ResourceNotFound, ServerError):
             # This exception catches a race condition, where:
             # 1. EEagent spawns and starts heartbeater

@@ -229,6 +229,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return
 
+    def force_delete_instrument_agent_instance(self, instrument_agent_instance_id=''):
+        pass
+
 
     def validate_instrument_agent_instance(self, instrument_agent_instance_obj):
         """
@@ -586,6 +589,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent.advance_lcs(instrument_agent_id, LCE.RETIRE)
         #return self.instrument_agent.delete_one(instrument_agent_id)
 
+    def force_delete_instrument_agent(self, instrument_agent_id=''):
+        pass
+
 
     def register_instrument_agent(self, instrument_agent_id='', agent_egg='', qa_documents=''):
         """
@@ -699,7 +705,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_model.advance_lcs(instrument_model_id, LCE.RETIRE)
         #return self.instrument_model.delete_one(instrument_model_id)
 
-
+    def force_delete_instrument_model(self, instrument_model_id=''):
+        pass
 
 
 
@@ -755,12 +762,33 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #return self.instrument_device.delete_one(instrument_device_id)
 
 
+    def force_delete_instrument_device(self, instrument_device_id=''):
+        pass
 
     ##
     ##
     ##  DIRECT ACCESS
     ##
     ##
+
+    def check_exclusive_commitment(self, msg,  headers):
+        '''
+        This function is used for governance validation for the request_direct_access and stop_direct_access operation.
+        '''
+
+        user_id = headers['ion-actor-id']
+        resource_id = msg['instrument_device_id']
+
+        commitment =  self.container.governance_controller.get_resource_commitment(user_id, resource_id)
+
+        if commitment is None:
+            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (user_id, resource_id)
+
+        #Look for any active commitments that are exclusive - and only allow for exclusive commitment
+        if not commitment.commitment.exclusive:
+            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (user_id, resource_id)
+
+        return True, ''
 
     def request_direct_access(self, instrument_device_id=''):
         """
@@ -857,7 +885,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.platform_agent.advance_lcs(platform_agent_instance_id, LCE.RETIRE)
         #return self.platform_agent_instance.delete_one(platform_agent_instance_id)
 
-
+    def force_delete_platform_agent_instance(self, platform_agent_instance_id=''):
+        pass
 
     def start_platform_agent_instance(self, platform_agent_instance_id=''):
         """
@@ -1040,7 +1069,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.platform_agent.advance_lcs(platform_agent_id, LCE.RETIRE)
         #return self.platform_agent.delete_one(platform_agent_id)
 
-
+    def force_delete_platform_agent(self, platform_agent_id=''):
+        pass
 
 
     ##########################################################################
@@ -1089,6 +1119,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.platform_model.advance_lcs(platform_model_id, LCE.RETIRE)
         #return self.platform_model.delete_one(platform_model_id)
 
+    def force_delete_platform_model(self, platform_model_id=''):
+        pass
 
 
     ##########################################################################
@@ -1139,7 +1171,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.platform_device.advance_lcs(platform_device_id, LCE.RETIRE)
         #return self.platform_device.delete_one(platform_device_id)
 
-
+    def force_delete_platform_device(self, platform_device_id=''):
+        pass
 
 
 
@@ -1190,7 +1223,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.sensor_model.advance_lcs(sensor_model_id, LCE.RETIRE)
         #return self.sensor_model.delete_one(sensor_model_id)
 
-
+    def force_delete_sensor_model(self, sensor_model_id=''):
+        pass
 
     ##########################################################################
     #
@@ -1239,6 +1273,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.sensor_device.advance_lcs(sensor_device_id, LCE.RETIRE)
         #return self.sensor_device.delete_one(sensor_device_id)
 
+    def force_delete_sensor_device(self, sensor_device_id=''):
+        pass
 
 
     ##########################################################################

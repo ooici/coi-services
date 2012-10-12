@@ -667,6 +667,16 @@ class UserNotificationService(BaseUserNotificationService):
         log.info("The publish_event() method of UNS was used to publish an event.")
 
 
+
+
+
+    def get_recent_events(self, resource_id=''):
+        pass
+
+    def get_user_notifications(self, user_id=''):
+        pass
+
+
     def create_worker(self, number_of_workers=1):
         '''
         Creates notification workers

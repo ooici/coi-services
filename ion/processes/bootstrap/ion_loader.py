@@ -48,6 +48,12 @@ DEBUG = True
 
 DEFAULT_TIME_FORMAT="%Y-%m-%dT%H:%M:%S"
 
+### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
+TESTED_DOC="https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDJtVnJycUJwZVVVX2hBRjN0Z2ZKSmc&output=xls"
+
+### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
+MASTER_DOC="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
+
 #"%04d-%02d-%02d"  % (y,m,d)    if filter(nonzero, (y,m,d))                else ''
 #time = "T%02d:%02d:%02d"
 class IONLoader(ImmediateProcess):
@@ -71,9 +77,9 @@ class IONLoader(ImmediateProcess):
 
         global DEBUG
         op = self.CFG.get("op", None)
-        self.path = self.CFG.get("path", None)
-        if not self.path:
-            raise iex.BadRequest("Must provide path")
+        self.path = self.CFG.get("path", TESTED_DOC)
+        if self.path=='master':
+            self.path = MASTER_DOC
         self.attachment_path = self.CFG.get("attachments", self.path + '/attachments')
         self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets")
         default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"

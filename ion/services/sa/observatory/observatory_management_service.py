@@ -211,6 +211,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.observatory.advance_lcs(observatory_id, LCE.RETIRE)
         #return self.observatory.delete_one(observatory_id)
 
+    def force_delete_observatory(self, observatory_id=''):
+        pass
+
 
     def create_subsite(self, subsite=None, parent_id=''):
         """Create a Subsite resource. A subsite is a frame of reference within an observatory. Its parent is
@@ -255,6 +258,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.subsite.advance_lcs(subsite_id, LCE.RETIRE)
         #self.subsite.delete_one(subsite_id)
 
+    def force_delete_subsite(self, subsite_id=''):
+        pass
 
 
     def create_platform_site(self, platform_site=None, parent_id=''):
@@ -300,7 +305,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.platform_site.advance_lcs(platform_site_id, LCE.RETIRE)
         #self.platform_site.delete_one(platform_site_id)
 
-
+    def force_delete_platform_site(self, platform_site_id=''):
+        pass
 
     def create_instrument_site(self, instrument_site=None, parent_id=''):
         """Create a InstrumentSite resource. A instrument_site is a frame of reference within an observatory. Its parent is
@@ -346,6 +352,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.instrument_site.advance_lcs(instrument_site_id, LCE.RETIRE)
         #self.instrument_site.delete_one(instrument_site_id)
 
+    def force_delete_instrument_site(self, instrument_site_id=''):
+        pass
 
 
     #todo: convert to resource_impl
@@ -401,6 +409,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         # Delete the deployment
         self.clients.resource_registry.delete(deployment_id)
+
+    def force_delete_deployment(self, deployment_id=''):
+        pass
 
 
     ############################

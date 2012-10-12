@@ -284,6 +284,18 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         """
         return self._this_port
 
+    def set_client_port(self, port):
+        """
+        Set the terrestrial client port.
+        """
+        self._other_port = port
+
+    def get_client_port(self):
+        """
+        Get the terrestrial client port.
+        """
+        return self._other_port
+
 
 class TerrestrialEndpointClient(TerrestrialEndpointProcessClient):
     """

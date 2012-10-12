@@ -6,8 +6,6 @@ import os
 
 from mock import Mock, patch, DEFAULT
 from nose.plugins.attrib import attr
-from gevent import queue
-from gevent.queue import Empty
 
 from pyon.net.endpoint import RPCClient
 from pyon.service.service import BaseService
@@ -16,7 +14,6 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import log
-from pyon.event.event import EventSubscriber
 from pyon.core import bootstrap
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -27,6 +24,7 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
     PDLocalBackend, PDNativeBackend, PDBridgeBackend, get_dashi, get_pd_dashi_name,\
     PDDashiHandler
+from ion.services.cei.test import ProcessStateWaiter
 
 try:
     from epu.states import InstanceState
@@ -117,7 +115,8 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         called_config = call_kwargs['config']
         self.assertEqual(called_config, configuration)
 
-        self.assertEqual(event_pub.publish_event.call_count, 1)
+        # PENDING followed by RUNNING
+        self.assertEqual(event_pub.publish_event.call_count, 2)
 
         process = self.pd_service.read_process(pid)
         self.assertEqual(process.process_id, pid)
@@ -663,48 +662,25 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.process_definition.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
                                               'class': 'TestProcess'}
         self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
-        self.event_queue = queue.Queue()
 
-        self.event_sub = None
+        self.waiter = ProcessStateWaiter()
 
     def tearDown(self):
-        if self.event_sub:
-            self.event_sub.stop()
-        self._stop_container()
-
-    def _event_callback(self, event, *args, **kwargs):
-        self.event_queue.put(event)
-
-    def subscribe_events(self, origin):
-        self.event_sub = EventSubscriber(event_type="ProcessLifecycleEvent",
-            callback=self._event_callback, origin=origin, origin_type="DispatchedProcess")
-        self.event_sub.start()
-
-    def await_state_event(self, pid, state, timeout=30):
-        try:
-            event = self.event_queue.get(timeout=timeout)
-        except Empty:
-            state_str = ProcessStateEnum._str_map.get(state)
-            self.fail("Event timeout! Waited %s seconds for process %s state %s" % (timeout, pid, state_str))
-        log.debug("Got event: %s", event)
-        self.assertEqual(event.origin, pid)
-        self.assertEqual(event.state, state)
-        return event
+        self.waiter.stop()
 
     def test_create_schedule_cancel(self):
         process_schedule = ProcessSchedule()
         process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
 
         pid = self.pd_cli.create_process(self.process_definition_id)
-        self.subscribe_events(pid)
+        self.waiter.start(pid)
 
         pid2 = self.pd_cli.schedule_process(self.process_definition_id,
             process_schedule, configuration={}, process_id=pid)
         self.assertEqual(pid, pid2)
 
         # verifies L4-CI-CEI-RQ141 and L4-CI-CEI-RQ142
-
-        self.await_state_event(pid, ProcessStateEnum.RUNNING)
+        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
 
         proc = self.pd_cli.read_process(pid)
         self.assertEqual(proc.process_id, pid)
@@ -721,26 +697,27 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         # kill the process and start it again
         self.pd_cli.cancel_process(pid)
 
-        self.await_state_event(pid, ProcessStateEnum.TERMINATED)
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
+        self.waiter.stop()
 
         oldpid = pid
 
         pid = self.pd_cli.create_process(self.process_definition_id)
-        self.subscribe_events(pid)
+        self.waiter.start(pid)
 
         pid2 = self.pd_cli.schedule_process(self.process_definition_id,
             process_schedule, configuration={}, process_id=pid)
         self.assertEqual(pid, pid2)
         self.assertNotEqual(oldpid, pid)
 
-        self.await_state_event(pid, ProcessStateEnum.RUNNING)
+        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
 
         for i in range(5):
             self.assertEqual(i + 1, test_client.count(timeout=10))
 
         # kill the process for good
         self.pd_cli.cancel_process(pid)
-        self.await_state_event(pid, ProcessStateEnum.TERMINATED)
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
 
     def test_schedule_with_config(self):
 
@@ -748,7 +725,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
 
         pid = self.pd_cli.create_process(self.process_definition_id)
-        self.subscribe_events(pid)
+        self.waiter.start(pid)
 
         # verifies L4-CI-CEI-RQ66
 
@@ -761,7 +738,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
             process_schedule, configuration=configuration, process_id=pid)
         self.assertEqual(pid, pid2)
 
-        self.await_state_event(pid, ProcessStateEnum.RUNNING)
+        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
 
         test_client = TestClient()
 
@@ -778,7 +755,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
         # kill the process for good
         self.pd_cli.cancel_process(pid)
-        self.await_state_event(pid, ProcessStateEnum.TERMINATED)
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
 
     def test_schedule_bad_config(self):
 
@@ -839,9 +816,6 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self.process_definition.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
                                               'class': 'TestProcess'}
         self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
-        self.event_queue = queue.Queue()
-
-        self.event_sub = None
 
         self.resource_id = "eeagent_123456789"
         self._eea_name = "eeagent"
@@ -876,6 +850,8 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             cls="ExecutionEngineAgent", config=self.agent_config)
         log.info('Agent pid=%s.', str(self._eea_pid))
 
+        self.waiter = ProcessStateWaiter()
+
     def _start_eeagent(self):
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
@@ -891,7 +867,4 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self.container.terminate_process(self._eea_pid)
         shutil.rmtree(self.persistence_directory)
 
-        if self.event_sub:
-            self.event_sub.stop()
-        self._stop_container()
-
+        self.waiter.stop()
