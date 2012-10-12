@@ -77,9 +77,9 @@ class IONLoader(ImmediateProcess):
 
         global DEBUG
         op = self.CFG.get("op", None)
-        self.path = self.CFG.get("path", None)
-        if not self.path:
-            raise iex.BadRequest("Must provide path")
+        self.path = self.CFG.get("path", TESTED_DOC)
+        if self.path=='master':
+            self.path = MASTER_DOC
         self.attachment_path = self.CFG.get("attachments", self.path + '/attachments')
         self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets")
         default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
