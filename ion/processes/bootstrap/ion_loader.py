@@ -48,14 +48,15 @@ DEBUG = True
 
 DEFAULT_TIME_FORMAT="%Y-%m-%dT%H:%M:%S"
 
-### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC="https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDJtVnJycUJwZVVVX2hBRjN0Z2ZKSmc&output=xls"
-
 ### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
 MASTER_DOC="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
-#"%04d-%02d-%02d"  % (y,m,d)    if filter(nonzero, (y,m,d))                else ''
-#time = "T%02d:%02d:%02d"
+### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
+TESTED_DOC="https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDJtVnJycUJwZVVVX2hBRjN0Z2ZKSmc&output=xls"
+#
+### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
+#TESTED_DOC=MASTER_DOC
+
 class IONLoader(ImmediateProcess):
     """
     """
@@ -135,6 +136,7 @@ class IONLoader(ImmediateProcess):
                       'User',
                       'Org',
                       'UserRole',
+                      'CoordinateSystem',
                       'PlatformModel',
                       'InstrumentModel',
                       'Observatory',
@@ -501,6 +503,11 @@ class IONLoader(ImmediateProcess):
         else:
             raise iex.BadRequest('constraint type must be either geospatial or temporal, not ' + type)
 
+    def _load_CoordinateSystem(self, row):
+        gcrs = self._create_object_from_row("GeospatialCoordinateReferenceSystem", row, "m/")
+        id = row[self.COL_ID]
+        self.resource_ids[id] = gcrs
+
     def _create_geospatial_constraint(self, row):
         z = row['vertical_direction']
         if z=='depth':
@@ -557,15 +564,30 @@ class IONLoader(ImmediateProcess):
 
     def _load_Observatory(self, row):
         constraints = self._get_constraints(row, type='Observatory')
-        res_id = self._basic_resource_create(row, "Observatory", "obs/",
-            "observatory_management", "create_observatory", constraints=constraints)
+        res_obj = self._create_object_from_row("Observatory", row, "obs/",
+            constraints=constraints, constraint_field='constraint_list')
+        coordinate_name = row['coordinate_system']
+        if coordinate_name:
+            res_obj.coordinate_reference_system = self.resource_ids[coordinate_name]
+        headers = self._get_op_headers(row)
+        svc_client = self._get_service_client("observatory_management")
+        res_id = svc_client.create_observatory(res_obj, headers=headers)
+        self._register_id(row[self.COL_ID], res_id)
+        self._resource_assign_org(row, res_id)
+
 
     def _load_Subsite(self, row):
         constraints = self._get_constraints(row, type='Subsite')
-        res_id = self._basic_resource_create(row, "Subsite", "site/",
-                                            "observatory_management", "create_subsite", constraints=constraints)
-
+        res_obj = self._create_object_from_row("Subsite", row, "site/", constraints=constraints)
+        coordinate_name = row['coordinate_system']
+        if coordinate_name:
+            res_obj.coordinate_reference_system = self.resource_ids[coordinate_name]
+        headers = self._get_op_headers(row)
         svc_client = self._get_service_client("observatory_management")
+        res_id = svc_client.create_subsite(res_obj, headers=headers)
+        self._register_id(row[self.COL_ID], res_id)
+        self._resource_assign_org(row, res_id)
+
         psite_id = row.get("parent_site_id", None)
         if psite_id:
             svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id])
@@ -593,14 +615,17 @@ class IONLoader(ImmediateProcess):
 
     def _load_PlatformSite(self, row):
         constraints = self._get_constraints(row, type='PlatformSite')
-        res_id = self._basic_resource_create(row, "PlatformSite", "ps/",
-                                            "observatory_management", "create_platform_site",
-                                            constraints=constraints)
-
+        res_obj = self._create_object_from_row("PlatformSite", row, "ps/", constraints=constraints)
+        coordinate_name = row['coordinate_system']
+        if coordinate_name:
+            res_obj.coordinate_reference_system = self.resource_ids[coordinate_name]
+        headers = self._get_op_headers(row)
         svc_client = self._get_service_client("observatory_management")
+        res_id = svc_client.create_platform_site(res_obj, headers=headers)
         site_id = row["parent_site_id"]
         if site_id:
             svc_client.assign_site_to_site(res_id, self.resource_ids[site_id])
+        self._register_id(row[self.COL_ID], res_id)
 
         pm_ids = row["platform_model_ids"]
         if pm_ids:
@@ -623,11 +648,19 @@ class IONLoader(ImmediateProcess):
 
     def _load_InstrumentSite(self, row):
         constraints = self._get_constraints(row, type='InstrumentSite')
-        res_id = self._basic_resource_create(row, "InstrumentSite", "is/",
-                                            "observatory_management", "create_instrument_site",
-                                            constraints=constraints)
 
+        res_obj = self._create_object_from_row("InstrumentSite", row, "is/",
+            constraints=constraints, constraint_field='constraint_list')
+        coordinate_name = row['coordinate_system']
+        if coordinate_name:
+            res_obj.coordinate_reference_system = self.resource_ids[coordinate_name]
+
+        headers = self._get_op_headers(row)
         svc_client = self._get_service_client("observatory_management")
+        res_id = svc_client.create_instrument_site(res_obj, headers=headers)
+        self._register_id(row[self.COL_ID], res_id)
+        self._resource_assign_org(row, res_id)
+
         lp_id = row["parent_site_id"]
         if lp_id:
             svc_client.assign_site_to_site(res_id, self.resource_ids[lp_id])
@@ -772,9 +805,7 @@ class IONLoader(ImmediateProcess):
 
         svc_client = self._get_service_client("data_product_management")
         stream_definition_id = self.resource_ids[row["stream_def_id"]]
-        #parameter_dictionary = get_param_dict(row['param_dict_type'])
-        res_id = svc_client.create_data_product(data_product=res_obj,
-                    stream_definition_id=stream_definition_id)
+        res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id)
         self._register_id(row[self.COL_ID], res_id)
 
         if not DEBUG:
@@ -876,6 +907,10 @@ class IONLoader(ImmediateProcess):
     def _load_Deployment(self,row):
         constraints = self._get_constraints(row, type='Deployment')
         deployment = self._create_object_from_row("Deployment", row, "d/", constraints=constraints)
+        coordinate_name = row['coordinate_system']
+        if coordinate_name:
+            deployment.coordinate_reference_system = self.resource_ids[coordinate_name]
+
         device_id = self.resource_ids[row['device_id']]
         site_id = self.resource_ids[row['site_id']]
 
