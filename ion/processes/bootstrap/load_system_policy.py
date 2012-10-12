@@ -516,6 +516,18 @@ class LoadSystemPolicy(ImmediateProcess):
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">request_direct_access</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">stop_direct_access</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
                 </Actions>
 
                 <Subjects>
@@ -729,3 +741,42 @@ class LoadSystemPolicy(ImmediateProcess):
         policy_id = policy_client.create_service_access_policy('InstrumentDevice', 'Instrument_Agent_Instrument_Operator_Permitted',
             'Permit these operations in an instrument agent for an Instrument Operator',
             policy_text, headers=sa_user_header)
+
+
+#########  Load Operation Specific Preconditions #############
+
+
+        #Add precondition policies for the Instrument Agents
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='execute_resource',
+                policy_content='check_execute_resource', headers=sa_user_header )
+
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='set_resource',
+            policy_content='check_set_resource', headers=sa_user_header )
+
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='ping_resource',
+            policy_content='check_ping_resource', headers=sa_user_header )
+
+
+        #Add precondition policies for the Platform Agents
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='execute_resource',
+            policy_content='check_execute_resource', headers=sa_user_header )
+
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='set_resource',
+            policy_content='check_set_resource', headers=sa_user_header )
+
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='ping_resource',
+            policy_content='check_ping_resource', headers=sa_user_header )
+
+        #Add precondition policies for IMS Direct Access operations
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='request_direct_access',
+            policy_content='check_exclusive_commitment', headers=sa_user_header )
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='stop_direct_access',
+            policy_content='check_exclusive_commitment', headers=sa_user_header )
+
