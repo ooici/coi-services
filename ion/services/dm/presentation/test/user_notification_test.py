@@ -18,7 +18,8 @@ from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from interface.objects import UserInfo, DeliveryConfig
 from interface.objects import DeviceEvent
-from ion.services.cei.scheduler_service import SchedulerService
+from pyon.util.context import LocalContextMixin
+from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
@@ -37,6 +38,12 @@ from datetime import datetime, timedelta
 from sets import Set
 
 use_es = CFG.get_safe('system.elasticsearch',False)
+
+
+class FakeProcess(LocalContextMixin):
+    name = 'scheduler_for_user_notification_test'
+    id = 'scheduler_client'
+    process_type = 'simple'
 
 @attr('UNIT',group='dm')
 class UserNotificationTest(PyonTestCase):
@@ -243,6 +250,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient()
         self.imc = IdentityManagementServiceClient()
         self.discovery = DiscoveryServiceClient()
+
+        process = FakeProcess()
+        self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=process)
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
@@ -1289,22 +1299,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Set up the scheduler to publish daily events that should kick off process_batch()
         #--------------------------------------------------------------------------------
-        ss = SchedulerService()
-        sid = ss.create_time_of_day_timer(   times_of_day=times_of_day,
+        sid = self.ssclient.create_time_of_day_timer(   times_of_day=times_of_day,
                                              expires=time.time()+25200+60,
                                              event_origin= newkey,
                                              event_subtype="")
-        def cleanup_timer(schedule_service, schedule_id):
+        def cleanup_timer(scheduler, schedule_id):
             """
             Do a friendly cancel of the scheduled event.
             If it fails, it's ok.
             """
             try:
-                schedule_service.cancel_timer(schedule_id)
+                scheduler.cancel_timer(schedule_id)
             except:
                 log.warn("Couldn't cancel")
 
-        self.addCleanup(cleanup_timer, ss, sid)
+        self.addCleanup(cleanup_timer, self.ssclient, sid)
 
         #--------------------------------------------------------------------------------
         # Assert that emails were sent
