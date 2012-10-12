@@ -17,7 +17,6 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 import string
 import time
@@ -34,7 +33,6 @@ from interface.objects import ProcessDefinition
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
 from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
-from ion.services.cei.scheduler_service import SchedulerService
 
 
 """
@@ -562,9 +560,10 @@ class UserNotificationService(BaseUserNotificationService):
         datastore = self.datastore_manager.get_datastore('events')
 
 
-        # Doing a hack here... couchdb query_view does not support Null or -1 for limit
-        # If no limit is meant to be provided, one has to just omit it from the opts dictionary
-        # Passing a null or negative to query view through opts results in a ServerError
+        # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
+        # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
+        # provide a limit, one has to just omit it from the opts dictionary and pass that into the query_view() method.
+        # Passing a null or negative for the limit to query view through opts results in a ServerError so we cannot do that.
         if limit > -1:
             opts = dict(
                 start_key = [origin, type or 0, min_datetime or 0],
@@ -662,9 +661,6 @@ class UserNotificationService(BaseUserNotificationService):
         @param interval_timer_params dict Ex: {'interval':3, 'number_of_intervals':4}
         '''
 
-        #--------------------------------------------------------------------------------
-        # Set up a subscriber to get the nod from the scheduler to publish the event
-        #--------------------------------------------------------------------------------
         self.event_publisher._publish_event( event_msg = event,
             origin=event.origin,
             event_type = event.type_)

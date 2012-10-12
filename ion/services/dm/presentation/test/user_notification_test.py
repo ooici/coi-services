@@ -15,12 +15,10 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
-from interface.services.cei.ischeduler_service import SchedulerServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from interface.objects import UserInfo, DeliveryConfig
 from interface.objects import DeviceEvent
 from ion.services.cei.scheduler_service import SchedulerService
-from interface.services.cei.ischeduler_service import SchedulerServiceClient
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
@@ -245,7 +243,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient()
         self.imc = IdentityManagementServiceClient()
         self.discovery = DiscoveryServiceClient()
-        self.scheduler = SchedulerServiceClient()
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
