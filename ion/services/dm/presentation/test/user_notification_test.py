@@ -1372,3 +1372,66 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
 
         return seconds_since_epoch
+
+    @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_get_user_notification(self):
+        '''
+        Test that the get_user_notifications() method returns the notifications for a user
+        '''
+
+        #--------------------------------------------------------------------------------------
+        # create user with email address in RR
+        #--------------------------------------------------------------------------------------
+
+        user = UserInfo()
+        user.name = 'user_1'
+        user.contact.email = 'user_1@gmail.com'
+
+        user_id, _ = self.rrc.create(user)
+
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects -- Remember to put names
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(   name = "notification_1",
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(   name = "notification_2",
+            origin="instrument_2",
+            origin_type="type_2",
+            event_type='DetectionEvent')
+
+        #--------------------------------------------------------------------------------------
+        # Create notifications using UNS.
+        #--------------------------------------------------------------------------------------
+
+        notification_id1 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+        notification_id2 =  self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+
+        #--------------------------------------------------------------------------------------
+        # Get the notifications for the user
+        #--------------------------------------------------------------------------------------
+
+        notifications = self.unsc.get_user_notifications(user_id=user_id)
+
+        names = []
+        origins = []
+        origin_types = []
+        event_types = []
+        for notification in notifications:
+            names.append(notification.name)
+            origins.append(notification.origin)
+            origin_types.append(notification.origin_type)
+            event_types.append(notification.event_type)
+
+        self.assertEquals(Set(names), Set(['notification_1', 'notification_2']) )
+        self.assertEquals(Set(origins), Set(['instrument_1', 'instrument_2']) )
+        self.assertEquals(Set(origin_types), Set(['type_1', 'type_2']) )
+        self.assertEquals(Set(event_types), Set(['ResourceLifecycleEvent', 'DetectionEvent']) )
+
+
