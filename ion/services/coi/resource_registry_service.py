@@ -138,9 +138,10 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     @mask_couch_error
     def find_resources_ext(self, restype='', lcstate='', name='', keyword='', nested_type='', attr_name='', attr_value='',
-                           limit=0, skip=0, descending=False, id_only=False):
+                           alt_id='', alt_id_ns='', limit=0, skip=0, descending=False, id_only=False):
         return self.resource_registry.find_resources_ext(restype=restype, lcstate=lcstate, name=name,
             keyword=keyword, nested_type=nested_type, attr_name=attr_name, attr_value=attr_value,
+            alt_id=alt_id, alt_id_ns=alt_id_ns,
             limit=limit, skip=skip, descending=descending,
             id_only=id_only)
 
