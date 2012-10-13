@@ -171,7 +171,11 @@ class AlarmGenerator(Greenlet):
         sleep(3)  # wait a bit before first alarm
         while self._keep_running:
             self.generate_alarm()
-            sleep(7)
+            # sleep for a few secs regularly checking we still are running
+            secs = 7
+            while self._keep_running and secs > 0:
+                sleep(0.3)
+                secs -= 0.3
 
     def stop(self):
         self._keep_running = False
