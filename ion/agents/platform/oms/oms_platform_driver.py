@@ -238,9 +238,89 @@ class OmsPlatformDriver(PlatformDriver):
         attr_values = retval[self._platform_id]
         return attr_values
 
+    def _validate_set_attribute_values(self, attrs):
+        """
+        Does some pre-validation of the passed values according to the
+        definition of the attributes.
+
+        NOTE: We don't yet check everything here, just some basics.
+        TODO determine appropriate validations at this level.
+        Note that the basic checks here follow what the OMS system
+        will do if we just send the request directly to it. So,
+        need to determine what exactly should be done on the CI side.
+        """
+        # TODO determine appropriate validations at this level.
+
+        # get definitions rto verify the values against
+        attr_defs = self._get_platform_attributes()
+        log.debug("validating passed attributes: %s against defs %s", attrs, attr_defs)
+
+        # to collect errors, if any:
+        vals = {}
+        errors = False
+        for attr_name, attr_value in attrs:
+
+            # assume ok:
+            vals[attr_name] = (attr_value, '')
+            # fake timestamp--value not actually set here, of course. But we
+            # need to include OK entries in case there're other bad entries.
+
+            attr_def = attr_defs.get(attr_name, None)
+
+            log.debug("validating %s against %s", attr_name, str(attr_def))
+
+            if not attr_def:
+                vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+                errors = True
+                log.debug("Attribute %s not in associated platform %s",
+                    attr_name, self._platform_id)
+                continue
+
+            type = attr_def.get('type', None)
+            units = attr_def.get('units', None)
+            min_val = attr_def.get('min_val', None)
+            max_val = attr_def.get('max_val', None)
+            read_write = attr_def.get('read_write', None)
+            group = attr_def.get('group', None)
+
+            if "write" != read_write:
+                vals[attr_name] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
+                errors = True
+                log.debug(
+                    "Trying to set read-only attribute %s in platform %s",
+                    attr_name, self._platform_id)
+                continue
+
+            if min_val and attr_value < min_val:
+                vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+                errors = True
+                log.debug(
+                    "Value %s for attribute %s is less than specified minimum "
+                    "value %s in associated platform %s",
+                    attr_value, attr_name, min_val,
+                    self._platform_id)
+                continue
+
+            if max_val and attr_value > max_val:
+                vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+                errors = True
+                log.debug(
+                    "Value %s for attribute %s is greater than specified maximum "
+                    "value %s in associated platform %s",
+                    attr_value, attr_name, max_val,
+                    self._platform_id)
+                continue
+
+        return vals if errors else None
+
     def set_attribute_values(self, attrs):
         """
         """
+        attr_values = self._validate_set_attribute_values(attrs)
+        if attr_values:  # some error
+            return attr_values
+
+        # ok, now make the request to RSN OMS:
         retval = self._oms.setPlatformAttributeValues(self._platform_id, attrs)
         log.debug("setPlatformAttributeValues = %s", retval)
 

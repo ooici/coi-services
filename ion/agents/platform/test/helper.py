@@ -60,7 +60,7 @@ class HelperTestMixin:
         verifies the attr_id is an entry in the dict with a
         valid value. Returns dic[attr_id].
         """
-        self.assertTrue(attr_id in dic)
+        self.assertTrue(attr_id in dic, "%s in %s" %(attr_id, dic))
         val = dic[attr_id]
         self.assertIsInstance(val, (tuple, list))
         self.assertNotEquals(InvalidResponse.ATTRIBUTE_NAME_VALUE, val)
