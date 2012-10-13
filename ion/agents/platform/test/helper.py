@@ -25,6 +25,8 @@ PLATFORM_ID = 'Node1A'
 SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
 ATTR_NAMES = ['Node1A_attr_1', 'Node1A_attr_2']
 WRITABLE_ATTR_NAMES = ['Node1A_attr_2']
+VALID_ATTR_VALUE = "7"  # within the range
+INVALID_ATTR_VALUE = "9876"  # out of range
 PORT_ID = 'Node1A_port_1'
 
 

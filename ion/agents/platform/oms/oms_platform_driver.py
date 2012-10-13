@@ -291,25 +291,29 @@ class OmsPlatformDriver(PlatformDriver):
                     attr_name, self._platform_id)
                 continue
 
-            if min_val and attr_value < min_val:
-                vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
-                errors = True
-                log.debug(
-                    "Value %s for attribute %s is less than specified minimum "
-                    "value %s in associated platform %s",
-                    attr_value, attr_name, min_val,
-                    self._platform_id)
-                continue
+            #
+            # TODO the following value-related checks are minimal
+            #
+            if "int" == type:
+                if min_val and int(attr_value) < int(min_val):
+                    vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+                    errors = True
+                    log.debug(
+                        "Value %s for attribute %s is less than specified minimum "
+                        "value %s in associated platform %s",
+                        attr_value, attr_name, min_val,
+                        self._platform_id)
+                    continue
 
-            if max_val and attr_value > max_val:
-                vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
-                errors = True
-                log.debug(
-                    "Value %s for attribute %s is greater than specified maximum "
-                    "value %s in associated platform %s",
-                    attr_value, attr_name, max_val,
-                    self._platform_id)
-                continue
+                if max_val and int(attr_value) > int(max_val):
+                    vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+                    errors = True
+                    log.debug(
+                        "Value %s for attribute %s is greater than specified maximum "
+                        "value %s in associated platform %s",
+                        attr_value, attr_name, max_val,
+                        self._platform_id)
+                    continue
 
         return vals if errors else None
 
