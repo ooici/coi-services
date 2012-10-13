@@ -176,8 +176,10 @@ class AlarmGenerator(Greenlet):
             while self._keep_running and secs > 0:
                 sleep(0.3)
                 secs -= 0.3
+        log.trace("alarm generation stopped.")
 
     def stop(self):
+        log.trace("stopping alarm generation...")
         self._keep_running = False
 
 

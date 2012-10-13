@@ -61,6 +61,17 @@ class OmsSimulator(OmsClient):
             self._alarm_generator.stop()
             self._alarm_generator = None
 
+    def _deactivate_simulator(self):
+        """
+        Special method only intended to be called for when the simulator is run
+        in "embedded" form. See test_oms_simulator for the particular case.
+        """
+        log.info("_deactivate_simulator called. alarm_generator=%s; %s listeners registered",
+                 self._alarm_generator, len(self._reg_alarm_listeners))
+        if self._alarm_generator:
+            self._alarm_generator.stop()
+            self._alarm_generator = None
+
     def _get_platform_types(self, pyobj):
         """
         Constructs:
