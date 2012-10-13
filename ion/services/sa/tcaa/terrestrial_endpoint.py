@@ -19,6 +19,7 @@ import time
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
+from pyon.core.exception import ConfigNotFound
 
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.objects import TelemetryStatusType, RemoteCommand
@@ -52,6 +53,9 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         super(BaseTerrestrialEndpoint, self).on_init()
         self.mixin_on_init()
         self._tx_dict = {}
+        if not self.CFG.xs_name:
+            raise ConfigNotFound('Terrestrial endpoint missing required xs_name parameter.')
+        self._xs_name = self.CFG.xs_name    
     
     def on_start(self):
         """
@@ -96,26 +100,34 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
             cmd = self._tx_dict.pop(id)
             cmd.time_completed = time.time()
             cmd.result = _result
+            if cmd.resource_id:
+                origin = cmd.resource_id
+            elif cmd.svc_name:
+                origin = cmd.svc_name + self._xs_name
+            else:
+                raise KeyError
+            
             self._publisher.publish_event(
                                     event_type='RemoteCommandResult',
                                     command=cmd,
-                                    origin=cmd.resource_id)
+                                    origin=origin)
             log.debug('Published remote result: %s.', str(result))
         except KeyError:
-            log.warning('Error publishing remote result: %s.', str(result))
-    
+            log.warning('#############################################')
+            log.warning('Error publishing remote result: %s.', str(_result))
+            log.warning('Command: %s.', str(cmd))
+            log.warning('Result: %s.', str(_result))
+            
     def _ack_callback(self, request):
         """
         Terrestrial client callback for command transmission acks.
         Insert command into pending command dictionary.
         """
-        log.debug('#######################################################')
-        log.debug('%s   %s',request.command, request.command_id)
         log.debug('Terrestrial client got ack for request: %s', str(request))
-        self._tx_dict[request.command_id] = request
+        #self._tx_dict[request.command_id] = request
         self._publisher.publish_event(
                                 event_type='RemoteCommandTransmittedEvent',
-                                origin=self._platform_resource_id,
+                                origin=self._xs_name,
                                 queue_size=len(self._client._queue))        
 
     def _server_close_callback(self):
@@ -159,7 +171,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         self._client.start(self._other_host, self._other_port)
         self._publisher.publish_event(
                                 event_type='PublicPlatformTelemetryEvent',
-                                origin=self._platform_resource_id,
+                                origin=self._xs_name,
                                 status=TelemetryStatusType.AVAILABLE)        
 
     def _on_link_down(self):
@@ -170,7 +182,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         self._client.stop()
         self._publisher.publish_event(
                                 event_type='PublicPlatformTelemetryEvent',
-                                origin=self._platform_resource_id,
+                                origin=self._xs_name,
                                 status=TelemetryStatusType.UNAVAILABLE)        
         
     ######################################################################    
@@ -189,10 +201,11 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         
         command.time_queued = time.time()
         command.command_id = str(uuid.uuid4())
+        self._tx_dict[command.command_id] = command
         self._client.enqueue(command)
         self._publisher.publish_event(
                                 event_type='RemoteQueueModifiedEvent',
-                                origin=self._platform_resource_id,
+                                origin=self._xs_name,
                                 queue_size=len(self._client._queue))        
         return command
     
@@ -220,12 +233,16 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
             else:
                 new_queue = [x for x in self._client._queue if x.resource_id != resource_id]
                 popped = [x for x in self._client._queue if x.resource_id == resource_id]
-                
+            
+            for x in popped:
+                if x.command_id in self._tx_dict:
+                    self._tx_dict.pop(x.command_id)
+                    
             self._client._queue = new_queue
             if len(popped)>0:
                 self._publisher.publish_event(
                                 event_type='RemoteQueueModifiedEvent',
-                                origin=self._platform_resource_id,
+                                origin=self._xs_name,
                                 queue_size=len(self._client._queue))        
             
         return popped
@@ -240,9 +257,12 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
             for x in range(len(self._client._queue)):
                 if self._client._queue[x].command_id == command_id:
                     poped = self._client._queue.pop(x)
+                    if poped.command_id in self._tx_dict:
+                        self._tx_dict.pop(poped.command_id)
+                        
                     self._publisher.publish_event(
                                 event_type='RemoteQueueModifiedEvent',
-                                origin=self._platform_resource_id,
+                                origin=self._xs_name,
                                 queue_size=len(self._client._queue))
                     break
                     
