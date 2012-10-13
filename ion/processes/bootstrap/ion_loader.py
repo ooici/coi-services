@@ -3,8 +3,10 @@
 """Process that loads ION resources via service calls based on given definitions
 
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master scenario=R2_DEMO
+
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
 
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
@@ -47,13 +49,13 @@ except:
 
 DEBUG = True
 
-DEFAULT_TIME_FORMAT="%Y-%m-%dT%H:%M:%S"
+DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 ### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
-MASTER_DOC="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
+MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC="https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDJtVnJycUJwZVVVX2hBRjN0Z2ZKSmc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdHV0WmNqRnZ6Q1lEd3p5Vkk5cjVSR3c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -92,13 +94,11 @@ class IONLoader(ImmediateProcess):
         self.loadui = self.CFG.get("loadui", False)
         self.exportui = self.CFG.get("exportui", False)
 
-
         self.obj_classes = {}
-        self.resource_ids = {}
-        self.user_ids = {}
+        self.resource_ids = {}    # Holds a mapping of preload labels to resource ids
+        self.existing_resources = None
+
         self._preload_ids()
-
-
 
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, self.path, scenarios))
         if op:
@@ -109,8 +109,11 @@ class IONLoader(ImmediateProcess):
                 if self.loadooi:
                     self.extract_ooi_assets()
                 if self.loadui:
-                    specs_path = 'ui_specs.json' if self.exportui else None
+                    specs_path = 'interface/ui_specs.json' if self.exportui else None
                     self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
+
+                # Load existing resources by preload ID
+                self._prepare_incremental()
 
                 items = scenarios.split(',')
                 for scenario in items:
@@ -120,7 +123,7 @@ class IONLoader(ImmediateProcess):
             elif op == "loadooi1":
                 self.extract_ooi_assets1()
             elif op == "loadui":
-                specs_path = 'ui_specs.json' if self.exportui else None
+                specs_path = 'interface/ui_specs.json' if self.exportui else None
                 self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
             elif op == "deleteui":
                 self.ui_loader.delete_ui()
@@ -162,6 +165,7 @@ class IONLoader(ImmediateProcess):
                       'WorkflowDefinition',
                       'Workflow',
                       'Deployment', ]
+
 
         if self.path.startswith('http'):
             preload_doc_str = requests.get(self.path).content
@@ -212,6 +216,23 @@ class IONLoader(ImmediateProcess):
 
             log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
 
+    def _prepare_incremental(self):
+        log.debug("Preparing for incremental preload. Loading prior preloaded resources for reference")
+
+        res_objs, res_keys = self.container.resource_registry.find_resources_ext(alt_id_ns="PRE", id_only=False)
+        res_preload_ids = [key['alt_id'] for key in res_keys]
+        res_ids = [obj._id for obj in res_objs]
+
+        log.debug("Found %s previously preloaded resources", len(res_objs))
+
+        self.existing_resources = dict(zip(res_preload_ids, res_objs))
+
+        if len(self.existing_resources) != len(res_objs):
+            raise iex.BadRequest("Stored preload IDs are NOT UNIQUE!!! Cannot link to old resources")
+
+        res_id_mapping = dict(zip(res_preload_ids, res_ids))
+        self.resource_ids.update(res_id_mapping)
+
     def _create_object_from_row(self, objtype, row, prefix='',
                                 constraints=None, constraint_field='constraint_list',
                                 contacts=None, contact_field='contact_ids'):
@@ -251,6 +272,8 @@ class IONLoader(ImmediateProcess):
             obj_fields[constraint_field] = constraints
         if contacts:
             obj_fields[contact_field] = contacts
+        if row[self.COL_ID] and 'alt_ids' in schema:
+            obj_fields['alt_ids'] = ["PRE:"+row[self.COL_ID]]
 
         log.trace("Create object type %s from field names %s", objtype, obj_fields.keys())
         obj = IonObject(objtype, **obj_fields)
@@ -309,10 +332,6 @@ class IONLoader(ImmediateProcess):
             raise iex.BadRequest("ID alias %s used twice" % alias)
         self.resource_ids[alias] = resid
         log.debug("Added resource alias=%s to id=%s", alias, resid)
-
-    def _register_user_id(self, name, id):
-        self.user_ids[name] = id
-        log.debug("Added user name|id=%s|%s", name, id)
 
     def _get_op_headers(self, row):
         headers = {}
@@ -404,21 +423,29 @@ class IONLoader(ImmediateProcess):
         description = row['description']
         ims = self._get_service_client("identity_management")
 
-        fields = {"name": subject, 'description': description}
-        actor_identity_obj = IonObject("ActorIdentity", fields)
-        user_id = ims.create_actor_identity(actor_identity_obj)
-        self._register_user_id(name, user_id)
-        self._register_id(row[self.COL_ID], user_id)
+        # Prepare contact and UserInfo attributes
+        contacts = self._get_contacts(row, field='contact_id', type='User')
+        if len(contacts) > 1:
+            raise iex.BadRequest('User %s defined with too many contacts (should be 1)' % alias)
+        contact = contacts[0] if len(contacts)==1 else None
+        user_attrs = dict(name=name, description=description)
+        if contact:
+            user_attrs['name'] = "%s %s" % (contact.individual_names_given, contact.individual_name_family)
+            user_attrs['contact'] = contact
 
-        user_credentials_obj = IonObject("UserCredentials", fields)
+        # Build ActorIdentity
+        actor_name = "Identity for %s" % user_attrs['name']
+        actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
+        user_id = ims.create_actor_identity(actor_identity_obj)
+        self._register_id(alias, user_id)
+
+        # Build UserCredentials
+        user_credentials_obj = IonObject("UserCredentials", name=subject,
+            description="Default credentials for %s" % user_attrs['name'])
         ims.register_user_credentials(user_id, user_credentials_obj)
 
-        contacts = self._get_contacts(row, field='contact_id', type='User')
-        if len(contacts)>1:
-            raise iex.BadRequest('User '+alias+' defined with too many contacts (should be 1)')
-        if len(contacts)==1:
-            fields['contact'] = contacts[0]
-        user_info_obj = IonObject("UserInfo", fields)
+        # Build UserInfo
+        user_info_obj = IonObject("UserInfo", **user_attrs)
         ims.create_user_info(user_id, user_info_obj)
 
     def _load_Org(self, row):
@@ -1070,16 +1097,6 @@ class IONLoader(ImmediateProcess):
         li['instrument_series'] = row["InstrumentSeries"]
         li['port_min_depth'] = row["PortMinDepth"]
         li['port_max_depth'] = row["PortMaxDepth"]
-
-#    def _create_parameter_dictionary(self, type):
-#        craft = CoverageCraft
-#        sdom, tdom = craft.create_domains()
-#        sdom = sdom.dump()
-#        tdom = tdom.dump()
-#        parameter_dictionary = craft.create_parameters()
-#        parameter_dictionary = parameter_dictionary.dump()
-#
-#        return parameter_dictionary, tdom, sdom
 
     def extract_ooi_assets1(self):
         if not self.asset_path:
