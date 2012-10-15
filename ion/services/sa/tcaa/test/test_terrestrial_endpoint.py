@@ -92,6 +92,9 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         
         # Set internal variables.
         self._other_host = 'localhost'
+        self._xs_name = 'remote1'
+        self._svc_name = 'terrestrial_endpoint'
+        self._listen_name = self._svc_name + self._xs_name
         self._platform_resource_id = 'abc123'
         self._resource_id = 'fake_id'
         self._no_requests = 10
@@ -131,20 +134,15 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         2012-10-10 11:34:46,654 DEBUG    ion.services.sa.tcaa.terrestrial_endpoint startup listener recv name: NP (ion_test_8257ab,Edwards-MacBook-Pro_local_2624.33,B: Edwards-MacBook-Pro_local_2624.33)
         """
         
-        # Create the remote name.
-        sys_name = get_sys_name()
-        xs_name = 'remote1'
-        svc_name = 'terrestrial_endpoint'
-        listen_name = svc_name + xs_name
-
         # Create agent config.
         endpoint_config = {
             'other_host' : self._other_host,
             'other_port' : self._other_port,
             'this_port' : 0,
+            'xs_name' : self._xs_name,
             'platform_resource_id' : self._platform_resource_id,
             'process' : {
-                'listen_name' : listen_name
+                'listen_name' : self._listen_name
             }
         }
         
@@ -163,7 +161,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         # is svc_name + remote_name as above.
         self.te_client = TerrestrialEndpointClient(
             process=FakeProcess(),
-            to_name=listen_name)
+            to_name=self._listen_name)
         log.debug('Got te client %s.', str(self.te_client))
         
         # Remember the terrestrial port.
@@ -176,7 +174,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._event_subscriber = EventSubscriber(
             event_type='PlatformEvent',
             callback=self.consume_event,
-            origin=self._platform_resource_id)
+            origin=self._xs_name)
         self._event_subscriber.start()
         self._event_subscriber._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
         self.addCleanup(self._event_subscriber.stop)
@@ -228,7 +226,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         log.debug('Publishing telemetry event.')
         self._event_publisher.publish_event(
                             event_type='PlatformTelemetryEvent',
-                            origin=self._platform_resource_id,
+                            origin = self._platform_resource_id,
                             status = TelemetryStatusType.AVAILABLE)
     
     def on_link_down(self):
@@ -303,6 +301,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
     
     def test_process_queued(self):
         """
+        test_process_queued
         Test forwarding of queued commands upon link up.
         """
         
@@ -335,6 +334,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_process_online(self):
         """
+        test_process_online
         Test forwarding commands when the link is up.
         """
 
@@ -366,6 +366,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_remote_late(self):
         """
+        test_remote_late
         Test simulates behavior when the remote side is initially unavailable.
         """
         
@@ -407,6 +408,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_get_clear_queue(self):
         """
+        test_get_clear_queue
         Test endpoint queue get and clear manipulators.
         """
         
@@ -516,6 +518,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         
     def test_pop_pending_queue(self):
         """
+        test_pop_pending_queue
         Test endpoint queue pop manipulators.
         """
         
@@ -577,6 +580,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_repeated_clear_pop(self):
         """
+        test_repeated_clear_pop
         Test endpoint queue pop manipulators.
         """
 

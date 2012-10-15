@@ -208,11 +208,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.observatory.advance_lcs(observatory_id, LCE.RETIRE)
-        #return self.observatory.delete_one(observatory_id)
+        return self.observatory.delete_one(observatory_id)
 
     def force_delete_observatory(self, observatory_id=''):
-        pass
+        return self.observatory.force_delete_one(observatory_id)
+
 
 
     def create_subsite(self, subsite=None, parent_id=''):
@@ -255,11 +255,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.subsite.advance_lcs(subsite_id, LCE.RETIRE)
-        #self.subsite.delete_one(subsite_id)
+        self.subsite.delete_one(subsite_id)
 
     def force_delete_subsite(self, subsite_id=''):
-        pass
+        self.subsite.force_delete_one(subsite_id)
+
 
 
     def create_platform_site(self, platform_site=None, parent_id=''):
@@ -302,11 +302,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.platform_site.advance_lcs(platform_site_id, LCE.RETIRE)
-        #self.platform_site.delete_one(platform_site_id)
+        self.platform_site.delete_one(platform_site_id)
 
     def force_delete_platform_site(self, platform_site_id=''):
-        pass
+        self.platform_site.force_delete_one(platform_site_id)
+
 
     def create_instrument_site(self, instrument_site=None, parent_id=''):
         """Create a InstrumentSite resource. A instrument_site is a frame of reference within an observatory. Its parent is
@@ -349,11 +349,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
         # todo: give InstrumentSite a lifecycle in COI so that we can remove the "True" argument here
-        self.instrument_site.advance_lcs(instrument_site_id, LCE.RETIRE)
-        #self.instrument_site.delete_one(instrument_site_id)
+        self.instrument_site.delete_one(instrument_site_id)
 
     def force_delete_instrument_site(self, instrument_site_id=''):
-        pass
+        self.instrument_site.force_delete_one(instrument_site_id)
+
 
 
     #todo: convert to resource_impl

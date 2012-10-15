@@ -106,6 +106,11 @@ class AlarmNotifier(object):
         # include url in alarm instance:
         alarm_instance['url'] = url
 
+        payload = yaml.dump(alarm_instance, default_flow_style=False)
+        log.trace("payload=\n\t%s", payload.replace('\n', '\n\t'))
+        headers = {"Content-type": "text/plain",
+                   "Accept": "text/plain"}
+
         # remove "http://" prefix for the connection itself
         if url.lower().startswith("http://"):
             url4conn = url[len("http://"):]
@@ -114,14 +119,13 @@ class AlarmNotifier(object):
 
         conn = httplib.HTTPConnection(url4conn)
         try:
-            payload = yaml.dump(alarm_instance, default_flow_style=False)
-            log.trace("payload=\n\t%s", payload.replace('\n', '\n\t'))
-            headers = {"Content-type": "text/plain",
-                       "Accept": "text/plain"}
             conn.request("POST", "", body=payload, headers=headers)
             response = conn.getresponse()
             data = response.read()
             log.trace("RESPONSE: %s, %s, %s", response.status, response.reason, data)
+        except Exception as e:
+            # the actual listener is no longer there; just log a message
+            log.warn("alarm notification HTTP request failed: %r: %s", url, e)
         finally:
             conn.close()
 
@@ -137,11 +141,7 @@ class AlarmGenerator(Greenlet):
         self._keep_running = True
         self._index = 0  # in AlarmInfo.ALARM_TYPES
 
-    def generate_alarm(self):
-        """
-        Generates a synthetic alarm and notifies it only if
-        notify_if_listener is True and there is a listener for the alarm_type
-        """
+    def generate_and_notify_alarm(self):
         if self._index >= len(AlarmInfo.ALARM_TYPES):
             self._index = 0
 
@@ -170,10 +170,16 @@ class AlarmGenerator(Greenlet):
     def _run(self):
         sleep(3)  # wait a bit before first alarm
         while self._keep_running:
-            self.generate_alarm()
-            sleep(7)
+            self.generate_and_notify_alarm()
+            # sleep for a few secs regularly checking we still are running
+            secs = 7
+            while self._keep_running and secs > 0:
+                sleep(0.3)
+                secs -= 0.3
+        log.trace("alarm generation stopped.")
 
     def stop(self):
+        log.trace("stopping alarm generation...")
         self._keep_running = False
 
 

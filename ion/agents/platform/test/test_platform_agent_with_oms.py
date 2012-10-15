@@ -30,6 +30,8 @@ from ion.agents.platform.test.helper import PLATFORM_ID
 from ion.agents.platform.test.helper import SUBPLATFORM_IDS
 from ion.agents.platform.test.helper import ATTR_NAMES
 from ion.agents.platform.test.helper import WRITABLE_ATTR_NAMES
+from ion.agents.platform.test.helper import VALID_ATTR_VALUE
+from ion.agents.platform.test.helper import INVALID_ATTR_VALUE
 from ion.agents.platform.test.helper import HelperTestMixin
 
 from pyon.ion.stream import StandaloneStreamSubscriber
@@ -260,12 +262,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
     def _set_resource(self):
         attrNames = ATTR_NAMES
 
-        def valueFor(attrName):
-            # simple string value, ok because there is no strict value check yet
-            # TODO more realistic value depending on attribute's type
-            return "test_value_for_%s" % attrName
-
-        attrs = [(attrName, valueFor(attrName)) for attrName in attrNames]
+        # TODO more realistic value depending on attribute's type
+        attrs = [(attrName, VALID_ATTR_VALUE) for attrName in attrNames]
         kwargs = dict(attrs=attrs)
         cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
@@ -276,6 +274,16 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
                 self._verify_valid_attribute_id(attrName, attr_values)
             else:
                 self._verify_not_writable_attribute_id(attrName, attr_values)
+
+        # now test setting invalid values to writable attributes:
+        attrs = [(attrName, INVALID_ATTR_VALUE) for attrName in WRITABLE_ATTR_NAMES]
+        kwargs = dict(attrs=attrs)
+        cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        attr_values = retval.result
+        self.assertIsInstance(attr_values, dict)
+        for attrName in WRITABLE_ATTR_NAMES:
+            self._verify_invalid_attribute_id(attrName, attr_values)
 
     def _initialize(self):
         kwargs = dict(plat_config=PLATFORM_CONFIG)

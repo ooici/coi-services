@@ -1,5 +1,14 @@
 platform agent framework
 
+2012-10-12:
+Resolved/Fixed:
+- CIDEVSA-385 CI and platform agent interaction
+- CIDEVSA-388 Resource provisioning
+- CIDEVSA-387 Notification of alarms defined on the external platform network
+DROPPED NO-IMPACT:
+- CIDEVSA-389 Instrument activation/deactivation
+
+
 2012-09-27:
 - initial version of alarm management including support from the simulator,
   both embedded and external:

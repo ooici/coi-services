@@ -608,6 +608,28 @@ class TestAssembly(IonIntegrationTestCase):
         log.debug("L4-CI-SA-RQ-335: Instrument activation shall support transition to the retired state of instruments")
 
 
+        #----------------------------------------------
+        #
+        # force_deletes
+        #
+        #----------------------------------------------
+
+        self.generic_fd_script(observatory_id, "observatory", c.OMS)
+        self.generic_fd_script(subsite_id, "subsite", c.OMS)
+        self.generic_fd_script(platform_site_id, "platform_site", c.OMS)
+        self.generic_fd_script(instrument_site_id, "instrument_site", c.OMS)
+        self.generic_fd_script(platform_model_id, "platform_model", c.IMS)
+        self.generic_fd_script(instrument_model_id, "instrument_model", c.IMS)
+        self.generic_fd_script(sensor_model_id, "sensor_model", c.IMS)
+        self.generic_fd_script(platform_agent_id, "platform_agent", c.IMS)
+        #self.generic_fd_script(instrument_agent_id, "instrument_agent", c.IMS)
+        self.generic_fd_script(platform_device_id, "platform_device", c.IMS)
+        self.generic_fd_script(instrument_device_id, "instrument_device", c.IMS)
+        self.generic_fd_script(sensor_device_id, "sensor_device", c.IMS)
+        self.generic_fd_script(platform_agent_instance_id, "platform_agent_instance", c.IMS)
+        #self.generic_fd_script(instrument_agent_instance_id, "instrument_agent_instance", c.IMS)
+
+
     def create_data_product_obj(self):
 
         # Construct temporal and spatial Coordinate Reference System objects
@@ -856,7 +878,7 @@ class TestAssembly(IonIntegrationTestCase):
 
 
 
-    def generic_d_script(self, resource_id, resource_label, owner_service):
+    def generic_fd_script(self, resource_id, resource_label, owner_service):
         """
         delete a resource and check that it was properly deleted
 
@@ -865,7 +887,7 @@ class TestAssembly(IonIntegrationTestCase):
         @param owner_service service client instance
         """
 
-        del_op = getattr(owner_service, "delete_%s" % resource_label)
+        del_op = getattr(owner_service, "force_delete_%s" % resource_label)
         
         del_op(resource_id)
 

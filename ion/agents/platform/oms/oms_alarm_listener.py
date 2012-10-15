@@ -56,7 +56,7 @@ class OmsAlarmListener(object):
         """
         By default, received alarm notifications are not kept. Call this with
         True (the default) to keep them, or with False to not keep them.
-        If they are currently kept and the reset param in False,
+        If they are currently kept and the reset param is True (the default),
         then the notifications dict is reinitialized.
         """
         if keep:

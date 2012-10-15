@@ -658,17 +658,12 @@ class UserNotificationService(BaseUserNotificationService):
         Publish a general event at a certain time using the UNS
 
         @param event Event
-        @param interval_timer_params dict Ex: {'interval':3, 'number_of_intervals':4}
         '''
 
         self.event_publisher._publish_event( event_msg = event,
             origin=event.origin,
             event_type = event.type_)
         log.info("The publish_event() method of UNS was used to publish an event.")
-
-
-
-
 
     def get_recent_events(self, resource_id=''):
         pass
