@@ -106,6 +106,22 @@ class ResourceImpl(object):
         """
         return
 
+    def on_pre_force_delete(self, obj_id, obj):
+        """
+        hook to be run before an object is force_deleted
+        @param obj_id the ID of the object
+        @param obj the object
+        """
+        return
+
+    def on_post_force_delete(self, obj_id, obj):
+        """
+        hook to be run after an object is force_deleted
+        @param obj_id the ID of the object
+        @param obj the object
+        """
+        return
+
     ##################################################
     #
     #   LIFECYCLE TRANSITION ... THIS IS IMPORTANT
@@ -122,7 +138,8 @@ class ResourceImpl(object):
         assert(type("") == type(resource_id))
         assert(type(LCE.PLAN) == type(transition_event))
 
-        self.check_lcs_precondition_satisfied(resource_id, transition_event)
+        # no checking here.  the policy framework does the work.
+        #self.check_lcs_precondition_satisfied(resource_id, transition_event)
 
         if LCE.RETIRE == transition_event:
             log.debug("Using RR.retire")
@@ -378,10 +395,10 @@ class ResourceImpl(object):
         """
         return self._return_read(primary_object_id)
 
-    def delete_one(self, primary_object_id='', destroy=False):
+    def delete_one(self, primary_object_id=''):
         """
-        delete a single object of the predefined type AND its history
-        (i.e., NOT retiring!)
+        alias for LCS retire -- the default "delete operation" in ION
+
         @param primary_object_id the id to be deleted
         """
 
@@ -389,14 +406,39 @@ class ResourceImpl(object):
 
         self.on_pre_delete(primary_object_id, primary_object_obj)
 
-        if destroy:
-            self.RR.delete(primary_object_id)
-        else:
-            self.advance_lcs(primary_object_id, LCE.RETIRE)
+        self.advance_lcs(primary_object_id, LCE.RETIRE)
 
         self.on_post_delete(primary_object_id, primary_object_obj)
 
         return
+
+    def force_delete_one(self, primary_object_id=''):
+        """
+        delete a single object of the predefined type
+        AND its history
+        AND any associations to/from it
+        (i.e., NOT retiring!)
+        @param primary_object_id the id to be deleted
+        """
+
+        primary_object_obj = self.RR.read(primary_object_id)
+
+        self.on_pre_force_delete(primary_object_id, primary_object_obj)
+
+        # delete all associations where this is the subject
+        _, assns = self.RR.find_objects(subject=primary_object_id, id_only=True)
+        for assn in assns:
+            self.RR.delete_association(assn)
+
+        # delete all associations where this is the object
+        _, assns = self.RR.find_subjects(object=primary_object_id, id_only=True)
+        for assn in assns:
+            self.RR.delete_association(assn)
+
+        self.RR.delete(primary_object_id)
+
+        self.on_post_force_delete(primary_object_id, primary_object_obj)
+
 
 
     def find_some(self, filters=None):

@@ -1,9 +1,9 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 import tempfile
-from ion.services.sa.common.module_uploader import RegisterModulePreparer
+from ion.util.module_uploader import RegisterModulePreparer
 from pyon.ion.resource import LCE
-from pyon.public import Container, log, IonObject
+from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -23,7 +23,6 @@ import unittest
 from ooi.logging import log
 
 import string
-import base64
 import subprocess
 import os
 import pwd

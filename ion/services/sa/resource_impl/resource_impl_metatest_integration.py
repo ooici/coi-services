@@ -154,7 +154,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             
             log.debug("got resource id: %s", sample_resource_id)
 
-            if all_in_one: myimpl.delete_one(sample_resource_id, True)
+            if all_in_one: myimpl.force_delete_one(sample_resource_id)
 
 
         def gen_test_create():
@@ -206,7 +206,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             sample_resource_id = myimpl.create_one(good_sample_resource)
             self.assertRaises(BadRequest, myimpl.create_one, good_sample_resource)
 
-            if all_in_one: myimpl.delete_one(sample_resource_id, True)
+            if all_in_one: myimpl.force_delete_one(sample_resource_id)
 
 
         def gen_test_create_bad_dupname():
@@ -265,7 +265,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             self.assertEqual(returned_resource._id,
                              sample_resource_id)
 
-            if all_in_one: myimpl.delete_one(sample_resource_id, True)
+            if all_in_one: myimpl.force_delete_one(sample_resource_id)
 
         def gen_test_read():
             """
@@ -320,7 +320,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             good_sample_triplicate = myimpl.read_one(res_id)
             self.assertEqual(good_sample_duplicate.name, good_sample_triplicate.name)
 
-            if all_in_one: myimpl.delete_one(res_id, True)
+            if all_in_one: myimpl.force_delete_one(res_id)
 
         def gen_test_update_samename():
             """
@@ -354,7 +354,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             good_sample_triplicate = myimpl.read_one(res_id)
             self.assertEqual(newname, good_sample_triplicate.name)
 
-            if all_in_one: myimpl.delete_one(res_id, True)
+            if all_in_one: myimpl.force_delete_one(res_id)
 
 
         def gen_test_update_differentname():
@@ -411,8 +411,8 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             self.assertRaises(BadRequest, myimpl.update_one, good_sample_duplicate)
             
             if all_in_one: 
-                myimpl.delete_one(res_id, True)
-                myimpl.delete_one(dup_id, True)
+                myimpl.force_delete_one(res_id)
+                myimpl.force_delete_one(dup_id)
 
 
 
@@ -431,7 +431,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             """
             # get objects
             svc = self._rimi_getservice()
-            myimpl = getattr(svc, impl_attr)                 
+            myimpl = getattr(svc, impl_attr)
 
             # put in an object
             sample_resource_id = myimpl.create_one(sample_resource())
@@ -440,10 +440,13 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                       sample_resource_id)
 
             #delete
-            myimpl.delete_one(sample_resource_id, True)
+            myimpl.delete_one(sample_resource_id)
 
             # verify delete
-            self.assertRaises(NotFound, myimpl.delete_one, sample_resource_id)
+            #self.assertRaises(NotFound, myimpl.delete_one, sample_resource_id)
+
+            if all_in_one:
+                myimpl.force_delete_one(sample_resource_id)
 
 
         def gen_test_delete():
@@ -452,6 +455,36 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             """
             name = make_name("resource_impl_delete")
             doc  = make_doc("Deleting a %s resource" % impl_instance.iontype)
+            add_test_method(name, doc, test_delete_fun)
+
+
+        def test_force_delete_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            # get objects
+            svc = self._rimi_getservice()
+            myimpl = getattr(svc, impl_attr)
+
+            # put in an object
+            sample_resource_id = myimpl.create_one(sample_resource())
+
+            log.debug("Attempting to force-delete newly created object with id=%s",
+                      sample_resource_id)
+
+            #delete
+            myimpl.force_delete_one(sample_resource_id)
+
+            # verify delete
+            self.assertRaises(NotFound, myimpl.delete_one, sample_resource_id)
+
+
+        def gen_force_test_delete():
+            """
+            generate the function to test the delete
+            """
+            name = make_name("resource_impl_force_delete")
+            doc  = make_doc("Force-deleting a %s resource" % impl_instance.iontype)
             add_test_method(name, doc, test_delete_fun)
 
 
@@ -505,8 +538,8 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             self.assertIn(sample_resource_id2, resource_ids)
 
             if all_in_one: 
-                myimpl.delete_one(sample_resource_id, True)
-                myimpl.delete_one(sample_resource_id2, True)
+                myimpl.force_delete_one(sample_resource_id)
+                myimpl.force_delete_one(sample_resource_id2)
 
 
 
@@ -538,6 +571,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
                 test_update_bad_noid_fun(self)
                 test_update_bad_dupname_fun(self)
                 test_delete_fun(self)
+                test_force_delete_fun(self)
                 test_delete_notfound_fun(self)
                 test_find_fun(self)
 
@@ -566,6 +600,7 @@ class ResourceImplMetatestIntegration(ResourceImplMetatest):
             gen_test_update_bad_noid()
             gen_test_update_bad_dupname()
             gen_test_delete()
+            gen_test_force_delete()
             gen_test_delete_notfound()
             gen_test_find()
 

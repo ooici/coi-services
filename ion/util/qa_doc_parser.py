@@ -5,7 +5,7 @@ from StringIO import StringIO
 
 from interface.objects import AttachmentType
 from pyon.public import IonObject, RT
-from ion.services.sa.common.tools import zip_of_b64
+from ion.util.zip import zip_of_b64
 from ooi.logging import log
 
 QA_DOCS_MANIFEST_FILE = "MANIFEST.csv"

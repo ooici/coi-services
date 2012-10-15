@@ -77,9 +77,10 @@ from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestS
 
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_queued_fake
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_process_online
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_remote_late
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_remote_down
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_xxx
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_resource_commands
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_service_command_sequence
 
 
 class FakeProcess(LocalContextMixin):
@@ -108,6 +109,11 @@ class Test2CAA(IonIntegrationTestCase):
         self._terrestrial_platform_id = 'terrestrial_id'
         self._remote_platform_id = 'remote_id'
         self._resource_id = 'fake_id'
+        self._xs_name = 'remote1'
+        self._terrestrial_svc_name = 'terrestrial_endpoint'
+        self._terrestrial_listen_name = self._terrestrial_svc_name + self._xs_name
+        self._remote_svc_name = 'remote_endpoint'
+        self._remote_listen_name = self._remote_svc_name + self._xs_name
         self._remote_port = 0
         self._terrestrial_port = 0
         self._te_client = None
@@ -172,23 +178,42 @@ class Test2CAA(IonIntegrationTestCase):
         ###################################################################
         self._event_publisher = EventPublisher()
 
-        # Start the event subscriber.
+        # Start the event subscriber for remote namespace platform events.
+        # This event could be changed to RemoteNamespaceEvent.
         self._event_subscriber = EventSubscriber(
             event_type='PlatformEvent',
             callback=self.consume_event,
-            origin=self._terrestrial_platform_id)
+            origin=self._xs_name)
         self._event_subscriber.start()
         self._event_subscriber._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
         self.addCleanup(self._event_subscriber.stop)
 
-        # Start the result subscriber.        
-        self._result_subscriber = EventSubscriber(
+        # Start the result subscriber for remote resource events.
+        self._resource_result_subscriber = EventSubscriber(
+            event_type='RemoteCommandResult',
+            origin=IA_RESOURCE_ID,
+            callback=self.consume_event)
+        self._resource_result_subscriber.start()
+        self._resource_result_subscriber._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
+        self.addCleanup(self._resource_result_subscriber.stop)
+
+        # Start the result subscriber for remote service events.
+        self._service_result_subscriber = EventSubscriber(
+            event_type='RemoteCommandResult',
+            origin='resource_registry' + 'remote1',
+            callback=self.consume_event)
+        self._service_result_subscriber.start()
+        self._service_result_subscriber._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
+        self.addCleanup(self._service_result_subscriber.stop)
+
+        # Start the result subscriber for fake resource results.      
+        self._fake_result_subscriber = EventSubscriber(
             event_type='RemoteCommandResult',
             origin=self._resource_id,
             callback=self.consume_event)
-        self._result_subscriber.start()
-        self._result_subscriber._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
-        self.addCleanup(self._result_subscriber.stop)
+        self._fake_result_subscriber.start()
+        self._fake_result_subscriber._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
+        self.addCleanup(self._fake_result_subscriber.stop)
 
     ###################################################################
     # Start/stop helpers.
@@ -255,26 +280,22 @@ class Test2CAA(IonIntegrationTestCase):
     def _start_terrestrial(self):
         """
         """
-        # Create the remote name.
-        xs_name = 'remote1'
-        terrestrial_svc_name = 'terrestrial_endpoint'
-        terrestrial_listen_name = terrestrial_svc_name + xs_name
-
         # Create terrestrial config.
         terrestrial_endpoint_config = {
             'other_host' : 'localhost',
             'other_port' : self._remote_port,
             'this_port' : self._terrestrial_port,
             'platform_resource_id' : self._terrestrial_platform_id,
+            'xs_name' : self._xs_name,
             'process' : {
-                'listen_name' : terrestrial_listen_name
+                'listen_name' : self._terrestrial_listen_name
             }
         }
         
         # Spawn the terrestrial enpoint process.
         log.debug('Spawning terrestrial endpoint process.')
         self._terrestrial_pid = self._container_client.spawn_process(
-            name=terrestrial_listen_name,
+            name=self._terrestrial_listen_name,
             module='ion.services.sa.tcaa.terrestrial_endpoint',
             cls='TerrestrialEndpoint',
             config=terrestrial_endpoint_config)
@@ -283,33 +304,30 @@ class Test2CAA(IonIntegrationTestCase):
         # Create a terrestrial client.
         self.te_client = TerrestrialEndpointClient(
             process=FakeProcess(),
-            to_name=terrestrial_listen_name)
+            to_name=self._terrestrial_listen_name)
         log.debug('Got te client %s.', str(self.te_client))
         self._terrestrial_port = self.te_client.get_port()
         log.debug('Terrestrial port is: %i', self._terrestrial_port)
         
     def _start_remote(self):
         """
-        """
-        xs_name = 'remote1'        
-        remote_svc_name = 'remote_endpoint'
-        remote_listen_name = remote_svc_name + xs_name
-        
+        """        
         # Create agent config.
         remote_endpoint_config = {
             'other_host' : 'localhost',
             'other_port' : self._terrestrial_port,
             'this_port' : self._remote_port,
             'platform_resource_id' : self._remote_platform_id,
+            'xs_name' : self._xs_name,
             'process' : {
-                'listen_name' : remote_listen_name
+                'listen_name' : self._remote_listen_name
             }
         }
         
         # Spawn the remote enpoint process.
         log.debug('Spawning remote endpoint process.')
         self._remote_pid = self._container_client.spawn_process(
-            name=remote_listen_name,
+            name=self._remote_listen_name,
             module='ion.services.sa.tcaa.remote_endpoint',
             cls='RemoteEndpoint',
             config=remote_endpoint_config)
@@ -318,7 +336,7 @@ class Test2CAA(IonIntegrationTestCase):
         # Create an endpoint client.
         self.re_client = RemoteEndpointClient(
             process=FakeProcess(),
-            to_name=remote_listen_name)
+            to_name=self._remote_listen_name)
         log.debug('Got re client %s.', str(self.re_client))
         
         # Remember the remote port.
@@ -426,29 +444,71 @@ class Test2CAA(IonIntegrationTestCase):
 
     def test_queued_fake(self):
         """
+        test_queued_fake
         Test fake resource commands queued prior to linkup.
         """
                 
+        # Queue up a series of fake commands to be handled by the remote side.
         for i in range(self._no_requests):
             cmd = self.make_fake_command(i)
             cmd = self.te_client.enqueue_command(cmd)
             self._requests_sent[cmd.command_id] = cmd
 
+        # Block on queue mod events.
         self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
 
+        # Publish link up events.
         self.terrestrial_link_up()
         self.remote_link_up()
         
+        # Block on command transmissions and results.
         self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)                
         self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)
         
+        # Publish link down events.
         self.terrestrial_link_down()
         self.remote_link_down()
         
+        # Block on terrestrial public telemetry events.
         self._done_telem_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
+
+    def test_process_online(self):
+        """
+        test_process_online
+        Test fake resource commands queued while link is up.
+        """
+                
+        # Publish link up events.
+        self.terrestrial_link_up()
+        self.remote_link_up()
+
+        # Queue up a series of fake commands to be handled by the remote side.
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+
+        # Block on queue mods, command transmissions and results.
+        self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)                
+        self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)
+        
+        # Publish link down events.
+        self.terrestrial_link_down()
+        self.remote_link_down()
+        
+        # Block on terrestrial public telemetry events.
+        self._done_telem_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
 
     def test_remote_late(self):
         """
+        test_remote_late
         Test fake resource commands queued prior to linkup.
         Delay remote side linkup substantially to test terrestrial
         behavior when remote server not initially available.
@@ -459,47 +519,295 @@ class Test2CAA(IonIntegrationTestCase):
             cmd = self.te_client.enqueue_command(cmd)
             self._requests_sent[cmd.command_id] = cmd
 
+        # Block on queue mod events.
         self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
 
-        # Shut down remote side.
+        # Actually stop the remote process, since the server is
+        # available even if it hasn't linked up yet and the test is running
+        # in the same container. The test will remember the appropriate
+        # remote port numbers.
         self._container_client.terminate_process(self._remote_pid)
-
         self.terrestrial_link_up()
-        gevent.sleep(5)
+        gevent.sleep(10)
         
-        # Start up remote side.
+        # Restart remote side and publish remote link up.
         self._start_remote()
         self.remote_link_up()
         
+        # Block for transmission and result events.
         self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)                
         self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)
         
+        # Publish link down events.
         self.terrestrial_link_down()
         self.remote_link_down()
         
         self._done_telem_evt.get(timeout=CFG.endpoint.receive.timeout)
-    
-    def test_remote_goes_down(self):
-        """
-        Test fake resource commands queued prior to linkup.
-        Cause the remote side to go down half way through the queue
-        to see if reestablishing the link successfully completes transmissions.
-        """
-        pass
 
-    def test_terrestrial_goes_down(self):
-        """
-        """
-        pass
-    
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
+        
     def test_resource_commands(self):
         """
+        test_resource_commands
         """
-        pass
-    
-    def test_service_commands(self):
-        """
-        """
-        pass
 
+        # Set up to verify the two commands queued.        
+        self._no_requests = 2
+        self._no_telem_evts = 2
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
 
+        # Use IA client to verify IA.
+        state = self._ia_client.get_agent_state()
+        log.debug('Agent state is: %s', state)
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        retval = self._ia_client.ping_agent()
+        log.debug('Agent ping is: %s', str(retval))
+        self.assertIn('ping from InstrumentAgent', retval)
+
+        # Create and enqueue commands.
+        state_cmd = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='get_agent_state',
+                             args=[],
+                             kwargs={})
+        state_cmd = self.te_client.enqueue_command(state_cmd)
+        self._requests_sent[state_cmd.command_id] = state_cmd
+
+        ping_cmd = IonObject('RemoteCommand',
+                             resource_id=IA_RESOURCE_ID,
+                             svc_name='',
+                             command='ping_agent',
+                             args=[],
+                             kwargs={})
+        ping_cmd = self.te_client.enqueue_command(ping_cmd)
+        self._requests_sent[ping_cmd.command_id] = ping_cmd
+
+        # Block on queue mod events.
+        self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        # Publish link up events.
+        self.terrestrial_link_up()
+        self.remote_link_up()
+
+        # Block on command transmissions and results.
+        self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)                
+        self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        # Publish link down events.
+        self.terrestrial_link_down()
+        self.remote_link_down()
+
+        # Block on terrestrial public telemetry events.
+        self._done_telem_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())        
+        
+        self.assertEqual(self._results_recv[state_cmd.command_id].result,
+                         ResourceAgentState.UNINITIALIZED)
+        self.assertIn('ping from InstrumentAgent',
+                      self._results_recv[ping_cmd.command_id].result)
+        
+    def test_service_command_sequence(self):
+        """
+        test_service_commands
+        """
+        # Publish link up events.
+        self.terrestrial_link_up()
+        self.remote_link_up()
+
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._done_queue_mod_evt = AsyncResult()
+        self._done_cmd_tx_evt = AsyncResult()
+        self._done_cmd_evt = AsyncResult()
+        self._queue_mod_evts = []        
+        self._cmd_tx_evts = []
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Create user object.
+        obj = IonObject("UserInfo", name="some_name")
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='create',
+                             args=[obj],
+                             kwargs='')
+        cmd = self.te_client.enqueue_command(cmd)
+
+        # Block for the queue to be modified, the command to be transmitted,
+        # and the result to be received.
+        self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        # Returns obj_id, obj_rev.
+        obj_id, obj_rev = self._results_recv[cmd.command_id].result
+        
+        # Confirm the results are valid.
+        
+        #Result is a tuple of strings.
+        #{'result': ['ad183ff26bae4f329ddd85fd69d160a9',
+        #'1-00a308c45fff459c7cda1db9a7314de6'],
+        #'command_id': 'cc2ae00d-40b0-47d2-af61-8ffb87f1aca2'}
+        
+        self.assertIsInstance(obj_id, str)
+        self.assertNotEqual(obj_id, '')
+        self.assertIsInstance(obj_rev, str)
+        self.assertNotEqual(obj_rev, '')
+        
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._done_queue_mod_evt = AsyncResult()
+        self._done_cmd_tx_evt = AsyncResult()
+        self._done_cmd_evt = AsyncResult()
+        self._queue_mod_evts = []        
+        self._cmd_tx_evts = []
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Create user object.
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='read',
+                             args=[obj_id],
+                             kwargs='')
+        cmd = self.te_client.enqueue_command(cmd)
+
+        # Block for the queue to be modified, the command to be transmitted,
+        # and the result to be received.
+        self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)        
+                
+        # Returns read_obj.
+        read_obj = self._results_recv[cmd.command_id].result
+        
+        # Confirm the results are valid.
+        
+        #Result is a user info object with the name set.
+        #{'lcstate': 'DEPLOYED_AVAILABLE',
+        #'_rev': '1-851f067bac3c34b2238c0188b3340d0f',
+        #'description': '',
+        #'ts_updated': '1349213207638',
+        #'type_': 'UserInfo',
+        #'contact': <interface.objects.ContactInformation object at 0x10d7df590>,
+        #'_id': '27832d93f4cd4535a75ac75c06e00a7e',
+        #'ts_created': '1349213207638',
+        #'variables': [{'name': '', 'value': ''}],
+        #'name': 'some_name'}
+        
+        self.assertIsInstance(read_obj, UserInfo)
+        self.assertEquals(read_obj.name, 'some_name')
+
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._done_queue_mod_evt = AsyncResult()
+        self._done_cmd_tx_evt = AsyncResult()
+        self._done_cmd_evt = AsyncResult()
+        self._queue_mod_evts = []
+        self._cmd_tx_evts = []        
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Create user object.
+        read_obj.name = 'some_other_name'
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='update',
+                             args=[read_obj],
+                             kwargs='')
+        cmd = self.te_client.enqueue_command(cmd)
+
+        # Block for the queue to be modified, the command to be transmitted,
+        # and the result to be received.
+        self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)        
+
+        # Returns nothing.
+
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._done_queue_mod_evt = AsyncResult()
+        self._done_cmd_tx_evt = AsyncResult()
+        self._done_cmd_evt = AsyncResult()
+        self._queue_mod_evts = []
+        self._cmd_tx_evts = []        
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Create user object.
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='read',
+                             args=[obj_id],
+                             kwargs='')
+        cmd = self.te_client.enqueue_command(cmd)
+
+        # Block for the queue to be modified, the command to be transmitted,
+        # and the result to be received.
+        self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)        
+        
+        # Returns read_obj.
+        read_obj = self._results_recv[cmd.command_id].result
+        
+        self.assertIsInstance(read_obj, UserInfo)
+        self.assertEquals(read_obj.name, 'some_other_name')
+        
+        # Send commands one at a time.
+        # Reset queues and events.
+        self._no_requests = 1
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._done_queue_mod_evt = AsyncResult()
+        self._done_cmd_tx_evt = AsyncResult()
+        self._done_cmd_evt = AsyncResult()
+        self._queue_mod_evts = []
+        self._cmd_tx_evts = []        
+        self._requests_sent = {}
+        self._results_recv = {}
+
+        # Create user object.
+        cmd = IonObject('RemoteCommand',
+                             resource_id='',
+                             svc_name='resource_registry',
+                             command='delete',
+                             args=[obj_id],
+                             kwargs='')
+        cmd = self.te_client.enqueue_command(cmd)
+
+        # Block for the queue to be modified, the command to be transmitted,
+        # and the result to be received.
+        self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)        
+
+        # Returns nothing.
+        
+        # Publish link down events.
+        self.terrestrial_link_down()
+        self.remote_link_down()
+        
