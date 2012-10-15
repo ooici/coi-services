@@ -12,7 +12,7 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 # Pyon imports
-from pyon.public import IonObject, log, RT
+from pyon.public import IonObject, log, RT, PRED, LCS, OT
 from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentEvent
@@ -166,8 +166,9 @@ class InstrumentAgent(ResourceAgent):
         self._test_mode = self.CFG.get('test_mode', False)
 
         # Construct stream publishers.
-        self._construct_data_publishers()        
-                                       
+        self._construct_data_publishers()
+
+
     ##############################################################
     # Capabilities interface and event handlers.
     ##############################################################    
@@ -189,6 +190,44 @@ class InstrumentAgent(ResourceAgent):
     ##############################################################
     # Agent interface.
     ##############################################################    
+
+    ##############################################################
+    # Governance interfaces
+    ##############################################################
+
+    def check_set_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the set_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
+    def check_execute_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the execute_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        #if msg['command'].command == ResourceAgentEvent.GO_DIRECT_ACCESS and not com.commitment.exclusive:
+        #    return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
+    def check_ping_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the ping_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
 
 
     ##############################################################
@@ -723,6 +762,7 @@ class InstrumentAgent(ResourceAgent):
             publisher = self._data_publishers[stream_name]
             param_dict = self._param_dicts[stream_name]
             stream_def = self._stream_defs[stream_name]
+            #@TODO Luke: I'm not sure how but the param dicts here need to come out and just use stream defs
             rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
             for (k, v) in val.iteritems():
@@ -801,6 +841,7 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         try:
+            evt = "Unknown"
             if (self._da_server):
                 if (val):
                     self._da_server.send(val)

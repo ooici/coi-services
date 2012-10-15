@@ -2,6 +2,7 @@
 
 import uuid
 import json
+from time import time
 
 import gevent
 from couchdb.http import ResourceNotFound
@@ -29,7 +30,6 @@ except ImportError:
     PDMatchmaker = None
     EPUManagementClient = None
 
-from time import time
 
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 
@@ -61,22 +61,32 @@ class ProcessStateGate(EventSubscriber):
         self.desired_state = desired_state
         self.process_id = process_id
         self.read_process_fn = read_process_fn
+        self.last_chance = None
+        self.first_chance = None
 
-        #sanity check, will error on bad input
-        self.read_process_fn(self.process_id)  # to make sure fn exists
-        log.info("ProcessStateGate going to wait on process '%s' for state '%s'" %
-                (self.process_id, ProcessStateEnum._str_map[self.desired_state])) # make sure state exists
 
+        _ = ProcessStateEnum._str_map[self.desired_state] # make sure state exists
+        log.info("ProcessStateGate is going to wait on process '%s' for state '%s'",
+                self.process_id,
+                ProcessStateEnum._str_map[self.desired_state])
 
     def trigger_cb(self, event, x):
-        if event == self.desired_state:
-            self.stop()
+        if event.state == self.desired_state:
             self.gate.set()
+        else:
+            log.info("ProcessStateGate received an event for state %s, wanted %s",
+                     ProcessStateEnum._str_map[event.state],
+                     ProcessStateEnum._str_map[self.desired_state])
+            log.info("ProcessStateGate received (also) variable x = %s", x)
 
     def in_desired_state(self):
         # check whether the process we are monitoring is in the desired state as of this moment
-        process_obj = self.read_process_fn(self.process_id)
-        return process_obj and self.desired_state == process_obj.process_state
+        # Once pd creates the process, process_obj is never None
+        try:
+            process_obj = self.read_process_fn(self.process_id)
+            return (process_obj and self.desired_state == process_obj.process_state)
+        except NotFound:
+            return False
 
     def await(self, timeout=0):
         #set up the event gate so that we don't miss any events
@@ -86,35 +96,43 @@ class ProcessStateGate(EventSubscriber):
 
         #if it's in the desired state, return immediately
         if self.in_desired_state():
+            self.first_chance = True
             self.stop()
-            log.info("ProcessStateGate found process already in desired state -- NO WAITING")
+            log.info("ProcessStateGate found process already %s -- NO WAITING",
+                     ProcessStateEnum._str_map[self.desired_state])
             return True
 
         #if the state was not where we want it, wait for the event.
         ret = self.gate.wait(timeout)
+        self.stop()
 
-        last_chance = False
-
-        #clean up
         if ret:
             # timer is already stopped in this case
-            log.info("ProcessStateGate received event indicating desired state after %0.2f seconds" %
-                    (time() - start_time))
+            log.info("ProcessStateGate received %s event after %0.2f seconds",
+                     ProcessStateEnum._str_map[self.desired_state],
+                     time() - start_time)
         else:
-            self.stop() # stop timer
-            log.info("ProcessStateGate timed out waiting to receive event indicating desired state")
+            log.info("ProcessStateGate timed out waiting to receive %s event",
+                     ProcessStateEnum._str_map[self.desired_state])
 
             # sanity check for this pattern
-            last_chance = self.in_desired_state()
+            self.last_chance = self.in_desired_state()
 
-            if last_chance:
-                log.warn("ProcessStateGate was successful on last_chance; " +
-                         ("should the state change for '%s' have taken %d seconds exactly?" %
-                          (self.process_id, timeout)))
+            if self.last_chance:
+                log.warn("ProcessStateGate was successful reading %s on last_chance; " +
+                         "should the state change for '%s' have taken %s seconds exactly?",
+                         ProcessStateEnum._str_map[self.desired_state],
+                         self.process_id,
+                         timeout)
 
 
-        return ret or last_chance
+        return ret or self.last_chance
 
+    def _get_last_chance(self):
+        return self.last_chance
+
+    def _get_first_chance(self):
+        return self.first_chance
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
 
@@ -520,6 +538,10 @@ class PDLocalBackend(object):
         module = definition.executable['module']
         cls = definition.executable['class']
 
+        self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
+            origin=process_id, origin_type="DispatchedProcess",
+            state=ProcessStateEnum.PENDING)
+
         # Spawn the process
         pid = self.container.spawn_process(name=name, module=module, cls=cls,
             config=configuration, process_id=process_id)
@@ -527,11 +549,11 @@ class PDLocalBackend(object):
 
         # update state on the existing process
         process = self._get_process(process_id)
-        process.process_state = ProcessStateEnum.SPAWN
+        process.process_state = ProcessStateEnum.RUNNING
 
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=process_id, origin_type="DispatchedProcess",
-            state=ProcessStateEnum.SPAWN)
+            state=ProcessStateEnum.RUNNING)
 
         if self.SPAWN_DELAY:
             glet = gevent.getcurrent()
@@ -550,12 +572,15 @@ class PDLocalBackend(object):
 
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=process_id, origin_type="DispatchedProcess",
-            state=ProcessStateEnum.TERMINATE)
+            state=ProcessStateEnum.TERMINATED)
 
         return True
 
     def read_process(self, process_id):
-        return self._get_process(process_id)
+        process = self._get_process(process_id)
+        if process is None:
+            raise NotFound("process %s unknown" % process_id)
+        return process
 
     def _add_process(self, pid, config, state):
         proc = Process(process_id=pid, process_state=state,
@@ -580,22 +605,26 @@ class PDLocalBackend(object):
 # map from internal PD states to external ProcessStateEnum values
 
 # some states are known and ignored
-_PD_IGNORED_STATE = object()
+_PD_IGNORED_STATE = object()        # @TODO: remove?
 
 _PD_PROCESS_STATE_MAP = {
-    "400-PENDING": _PD_IGNORED_STATE,
-    "500-RUNNING": ProcessStateEnum.SPAWN,
-    "600-TERMINATING": ProcessStateEnum.TERMINATE,
-    "700-TERMINATED": ProcessStateEnum.TERMINATE,
-    "800-EXITED": ProcessStateEnum.TERMINATE,
-    "850-FAILED": ProcessStateEnum.ERROR,
-    "900-REJECTED": ProcessStateEnum.ERROR
+    "400-PENDING": ProcessStateEnum.PENDING,
+    "500-RUNNING": ProcessStateEnum.RUNNING,
+    "600-TERMINATING": ProcessStateEnum.TERMINATING,
+    "700-TERMINATED": ProcessStateEnum.TERMINATED,
+    "800-EXITED": ProcessStateEnum.EXITED,
+    "850-FAILED": ProcessStateEnum.FAILED,
+    "900-REJECTED": ProcessStateEnum.REJECTED
 }
 
 _PD_PYON_PROCESS_STATE_MAP = {
-    ProcessStateEnum.SPAWN: "500-RUNNING",
-    ProcessStateEnum.TERMINATE: "800-EXITED",
-    ProcessStateEnum.ERROR: "850-FAILED"
+    ProcessStateEnum.PENDING: "400-PENDING",
+    ProcessStateEnum.RUNNING: "500-RUNNING",
+    ProcessStateEnum.TERMINATING: "600-TERMINATING",
+    ProcessStateEnum.TERMINATED: "700-TERMINATED",
+    ProcessStateEnum.EXITED: "800-EXITED",
+    ProcessStateEnum.FAILED: "850-FAILED",
+    ProcessStateEnum.REJECTED: "900-REJECTED"
 }
 
 class Notifier(object):
@@ -814,7 +843,7 @@ class PDNativeBackend(object):
             return
 
         try:
-            self.core.ee_heartbeart(resource_id, beat)
+            self.core.ee_heartbeat(resource_id, beat)
         except (NotFound, ResourceNotFound, ServerError):
             # This exception catches a race condition, where:
             # 1. EEagent spawns and starts heartbeater
@@ -907,6 +936,8 @@ class PDNativeBackend(object):
 
     def read_process(self, process_id):
         d_process = self.core.describe_process(None, process_id)
+        if d_process is None:
+            raise NotFound("process %s unknown" % process_id)
         process = _ion_process_from_core(d_process)
 
         return process
@@ -1057,6 +1088,8 @@ class PDBridgeBackend(object):
 
     def read_process(self, process_id):
         d_process = self.dashi.call(self.topic, "describe_process", upid=process_id)
+        if d_process is None:
+            raise NotFound("process %s unknown" % process_id)
         process = _ion_process_from_core(d_process)
 
         return process

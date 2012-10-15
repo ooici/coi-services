@@ -13,13 +13,13 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 from pyon.public import CFG
 
+# Standard imports.
 import uuid
 import time
 import random
 
-#
+#3rd party imports.
 import gevent
-
 
 # Pyon exceptions.
 from pyon.core.exception import IonException
@@ -289,8 +289,22 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
     
     def get_port(self):
         """
+        Get the remote server port number.
         """
         return self._this_port
+    
+    def set_client_port(self, port):
+        """
+        Set the remote client port number.
+        """
+        self._other_port = port
+    
+    def get_client_port(self):
+        """
+        Get the remote client port number.
+        """
+        return self._other_port
+    
     
 class RemoteEndpointClient(RemoteEndpointProcessClient):
     """

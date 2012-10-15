@@ -17,7 +17,7 @@ pdict_as_python_dictionary = pdict.dump()
 '''
 
 from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType, ArrayType
+from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
 import yaml
 from pyon.util.log import log
@@ -45,6 +45,11 @@ def build_contexts():
     sal_ctxt.uom = 'PSU'
     sal_ctxt.fill_value = 0x0
     contexts.append(sal_ctxt)
+
+    den_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=np.float32))
+    den_ctxt.uom = 'kg/m3'
+    den_ctxt.fill_value = 0x0
+    contexts.append(den_ctxt)
 
     temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
     temp_ctxt.uom = 'degree_Celsius'
@@ -146,6 +151,15 @@ def build_contexts():
     content_type_ctxt = ParameterContext(name='content_type', param_type=ArrayType())
     contexts.append(content_type_ctxt)
 
+    gdt_ctxt = ParameterContext(name='google_dt_components', param_type=RecordType())
+    contexts.append(gdt_ctxt)
+
+    mpl_ctxt = ParameterContext(name='mpl_graph', param_type=RecordType())
+    contexts.append(mpl_ctxt)
+
+    dummy_ctxt = ParameterContext(name='dummy', param_type=QuantityType(value_encoding=np.int64))
+    contexts.append(dummy_ctxt)
+    
     return contexts
 
 def dump_param_contexts_to_yml():

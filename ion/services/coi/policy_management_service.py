@@ -128,65 +128,7 @@ class PolicyManagementService(BasePolicyManagementService):
         policy_obj = IonObject(RT.Policy, name=policy_name, description=description, policy_type=service_policy_obj)
 
         return self.create_policy(policy_obj)
-    '''
-    def add_resource_operation_precondition_policy(self, resource_id='', op='', policy_content=''):
-        """Helper operation for adding a precondition policy for a specific agent ooperation for a specific resource. The id
-        string returned is the internal id by which Policy will be identified in the data store. The precondition
-        method must return a tuple (boolean, string).
 
-        @param resource_id    str
-        @param op    str
-        @param policy_content    str
-        @retval policy_id    str
-        @throws BadRequest    If any of the parameters are not set.
-        """
-        if not resource_id:
-            raise BadRequest("The resource_id parameter is missing")
-
-        resource = self.clients.resource_registry.read(resource_id)
-        if not resource:
-            raise BadRequest("The resource %s cannot be found", resource_id)
-
-        if not op:
-            raise BadRequest("The op parameter is missing")
-
-        if not policy_content:
-            raise BadRequest("The policy_content parameter is missing")
-
-        policy_name = resource.name + "_" + op + "_Precondition_Policies"
-
-        policies,_ = self.clients.resource_registry.find_resources(restype=RT.Policy, name=policy_name)
-        if policies:
-            #Update existing policy by adding to list
-            if len(policies) > 1:
-                raise Inconsistent('There should only be one Policy object per operation')
-
-            if policies[0].policy_type.op != op or  policies[0].policy_type.type_ != OT.OperationPreconditionPolicy:
-                raise Inconsistent('There Policy object %s does not match the requested operation %s: %s' % ( policies[0].name,resource.name, op ))
-
-            policies[0].policy_type.preconditions.append(policy_content)
-
-            self.update_policy(policies[0])
-
-            return policies[0]._id
-
-        else:
-            #Create a new policy object
-
-            op_policy_obj = IonObject(OT.OperationPreconditionPolicy,  op=op)
-            op_policy_obj.preconditions.append(policy_content)
-
-            policy_obj = IonObject(RT.Policy, name=policy_name, policy_type=op_policy_obj, description='List of operation precondition policies')
-
-            policy_id =  self.create_policy(policy_obj)
-            policy = self.clients.resource_registry.read(policy_id)
-            if not policy:
-                raise NotFound("Policy %s does not exist" % policy_id)
-
-            self._add_resource_policy(resource, policy)
-
-            return policy_id
-    '''
 
     def add_process_operation_precondition_policy(self, process_name='', op='', policy_content=''):
         """Helper operation for adding a precondition policy for a specific process operation; could be a service or agent.
@@ -577,16 +519,19 @@ class PolicyManagementService(BasePolicyManagementService):
         if not process_name:
             raise BadRequest("The process_name parameter is missing")
 
-        if not op:
-            raise BadRequest("The op parameter is missing")
 
         #TODO - extend to handle Org specific service policies at some point.
 
         preconditions = list()
         policy_set,_ = self.clients.resource_registry.find_resources_ext(restype=RT.Policy, nested_type=OT.ProcessOperationPreconditionPolicy)
         for p in policy_set:
-            if p.enabled and p.policy_type.process_name == process_name and p.policy_type.op == op:
-                return p.policy_type.preconditions
+
+            if op:
+                if p.enabled and p.policy_type.process_name == process_name and p.policy_type.op == op:
+                    preconditions.append(p.policy_type)
+            else:
+                if p.enabled and p.policy_type.process_name == process_name:
+                    preconditions.append(p.policy_type)
 
         return preconditions
 

@@ -9,7 +9,7 @@
 from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImpl
 from pyon.public import PRED, RT, LCE
 
-from ion.services.sa.instrument.resource_lcs_policy import DevicePolicy
+from ion.util.resource_lcs_policy import DevicePolicy
 
 class SensorDeviceImpl(ResourceSimpleImpl):
     """

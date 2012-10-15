@@ -19,8 +19,7 @@ class DriverEvent(object):
     """
     Base class for driver events.
     """
-    def __init__(self, value, ts):
-        self._value = value
+    def __init__(self, ts):
         self._ts = ts
 
 
@@ -28,15 +27,31 @@ class AttributeValueDriverEvent(DriverEvent):
     """
     Event to notify the retrieved value for a platform attribute.
     """
-    def __init__(self, platform_id, attr_id, value, ts):
-        DriverEvent.__init__(self, value, ts)
+    def __init__(self, ts, platform_id, attr_id, value):
+        DriverEvent.__init__(self, ts)
         self._platform_id = platform_id
         self._attr_id = attr_id
+        self._value = value
 
     def __str__(self):
         return "%s(platform_id=%r, attr_id=%r, value=%r, ts=%r)" % (
             self.__class__.__name__, self._platform_id, self._attr_id,
             self._value, self._ts)
+
+
+class AlarmDriverEvent(DriverEvent):
+    """
+    Event to notify an alarm.
+    """
+    def __init__(self, ts, alarm_type, alarm_instance):
+        DriverEvent.__init__(self, ts)
+        self._alarm_type = alarm_type
+        self._alarm_instance = alarm_instance
+
+    def __str__(self):
+        return "%s(alarm_type=%r, alarm_instance=%s, ts=%r)" % (
+            self.__class__.__name__, self._alarm_type, self._alarm_instance,
+            self._ts)
 
 
 class PlatformDriver(object):
@@ -52,6 +67,8 @@ class PlatformDriver(object):
                     This is mainly used for diagnostic purposes
         """
 
+        log.debug("%r: PlatformDriver constructor called", platform_id)
+
         self._platform_id = platform_id
         self._driver_config = driver_config
         self._parent_platform_id = parent_platform_id
@@ -65,13 +82,15 @@ class PlatformDriver(object):
 
         # similar to _topology -- under initial testing -- may be merged
         self._agent_device_map = None
+        self._agent_streamconfig_map = None
 
         # The root NNode defining the platform network rooted at the platform
         # identified by self._platform_id. This _nnode is constructed by the
         # driver based on _topology (if given) or other source of information.
         self._nnode = None
 
-    def set_topology(self, topology, agent_device_map=None):
+    def set_topology(self, topology, agent_device_map=None,
+                     agent_streamconfig_map=None):
         """
         Sets the platform topology.
         """
@@ -79,6 +98,7 @@ class PlatformDriver(object):
         log.debug("set_topology: agent_device_map=%s", str(agent_device_map))
         self._topology = topology
         self._agent_device_map = agent_device_map
+        self._agent_streamconfig_map = agent_streamconfig_map
 
     def set_event_listener(self, evt_recv):
         """
@@ -121,6 +141,21 @@ class PlatformDriver(object):
         @retval {attrName : [(attrValue, timestamp), ...], ...}
                 dict indexed by attribute name with list of (value, timestamp)
                 pairs. Timestamps are NTP v4 compliant strings
+        """
+        raise NotImplemented()
+
+    def set_attribute_values(self, attrs):
+        """
+        To be implemented by subclass.
+        Sets values for writable attributes in this platform.
+
+        @param attrs 	[(attrName, attrValue), ...] 	List of attribute values
+
+        @retval {platform_id: {attrName : [(attrValue, timestamp), ...], ...}}
+                dict with a single entry for the requested platform ID and value
+                as a list of (value,timestamp) pairs for each attribute indicated
+                in the input. Returned timestamps are NTP v4 8-byte strings
+                indicating the time when the value was set.
         """
         raise NotImplemented()
 
@@ -172,3 +207,18 @@ class PlatformDriver(object):
         else:
             log.warn("self._send_event not set to notify driver_event=%s",
                      str(driver_event))
+
+    def start_alarm_dispatch(self, params):
+        """
+        To be implemented by subclass.
+        Starts the dispatch of alarms received from the platform network to do
+        corresponding event notifications.
+        """
+        raise NotImplemented()
+
+    def stop_alarm_dispatch(self):
+        """
+        To be implemented by subclass.
+        Stops the dispatch of alarms received from the platform network.
+        """
+        raise NotImplemented()

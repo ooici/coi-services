@@ -16,7 +16,6 @@ from ion.processes.data.replay.replay_client import ReplayClient
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
-from ion.util.parameter_yaml_IO import get_param_dict
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
@@ -170,15 +169,15 @@ class TestDMEnd2End(IonIntegrationTestCase):
             now = time.time()
 
 
-    def create_dataset(self, parameter_dict=None):
+    def create_dataset(self, parameter_dict_id=''):
         craft = CoverageCraft
         sdom, tdom = craft.create_domains()
         sdom = sdom.dump()
         tdom = tdom.dump()
-        pdict = craft.create_parameters()
-        pdict = pdict.dump()
+        if not parameter_dict_id:
+            parameter_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
-        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dict=parameter_dict or pdict, spatial_domain=sdom, temporal_domain=tdom)
+        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dictionary_id=parameter_dict_id, spatial_domain=sdom, temporal_domain=tdom)
         return dataset_id
 
     @attr('LOCOINT')
@@ -242,19 +241,22 @@ class TestDMEnd2End(IonIntegrationTestCase):
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_replay_pause(self):
         # Get a precompiled parameter dictionary with basic ctd fields
-        pdict = get_param_dict('ctd_parsed_param_dict')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
+
         # Add a field that supports binary data input.
         bin_context = ParameterContext('binary',  param_type=ArrayType())
+        context_ids.append(self.dataset_management.create_parameter_context('binary', bin_context.dump()))
         # Add another field that supports dictionary elements.
         rec_context = ParameterContext('records', param_type=RecordType())
+        context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
 
-        pdict.add_context(bin_context)
-        pdict.add_context(rec_context)
+        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids)
         
 
-        stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary=pdict.dump())
+        stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
         replay_stream, replay_route = self.pubsub_management.create_stream('replay', 'xp1', stream_definition_id=stream_def_id)
-        dataset_id = self.create_dataset(pdict.dump())
+        dataset_id = self.create_dataset(pdict_id)
         scov = DatasetManagementService._get_coverage(dataset_id)
 
         bb = CoverageCraft(scov)
@@ -262,7 +264,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         bb.rdt['temp'] = np.random.random(100) + 30
         bb.sync_with_granule()
 
-        DatasetManagementService._persist_coverage(dataset_id, bb.coverage)
+        DatasetManagementService._persist_coverage(dataset_id, bb.coverage) # This invalidates it for multi-host configurations
         # Set up the subscriber to verify the data
         subscriber = StandaloneStreamSubscriber(self.exchange_space_name, self.validate_granule_subscription)
         xp = self.container.ex_manager.create_xp('xp1')
@@ -317,16 +319,19 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.event.clear()
 
         # Get a precompiled parameter dictionary with basic ctd fields
-        pdict = get_param_dict('ctd_parsed_param_dict')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
+
         # Add a field that supports binary data input.
         bin_context = ParameterContext('binary',  param_type=ArrayType())
+        context_ids.append(self.dataset_management.create_parameter_context('binary', bin_context.dump()))
         # Add another field that supports dictionary elements.
         rec_context = ParameterContext('records', param_type=RecordType())
+        context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
 
-        pdict.add_context(bin_context)
-        pdict.add_context(rec_context)
+        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids)
         
-        stream_definition = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary=pdict.dump())
+        stream_definition = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary_id=pdict_id)
 
 
         stream_id, route = self.pubsub_management.create_stream('producer', exchange_point=self.exchange_point_name, stream_definition_id=stream_definition)
@@ -343,7 +348,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         ingest_config_id = self.get_ingestion_config()
-        dataset_id = self.create_dataset(pdict.dump())
+        dataset_id = self.create_dataset(pdict_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
 
         #--------------------------------------------------------------------------------
@@ -401,6 +406,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         stream_id, route  = self.pubsub_management.create_stream('last_granule', exchange_point=self.exchange_point_name)
         config_id         = self.get_ingestion_config()
         dataset_id        = self.create_dataset()
+
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         #--------------------------------------------------------------------------------
         # Create the datastore first,
@@ -426,20 +432,25 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Create the configurations and the dataset
         #--------------------------------------------------------------------------------
-        pdict = get_param_dict('ctd_parsed_param_dict')
+        # Get a precompiled parameter dictionary with basic ctd fields
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
+
         # Add a field that supports binary data input.
         bin_context = ParameterContext('binary',  param_type=ArrayType())
+        context_ids.append(self.dataset_management.create_parameter_context('binary', bin_context.dump()))
         # Add another field that supports dictionary elements.
         rec_context = ParameterContext('records', param_type=RecordType())
+        context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
 
-        pdict.add_context(bin_context)
-        pdict.add_context(rec_context)
+        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids)
         
-        stream_definition = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary=pdict.dump())
+
+        stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
         
-        stream_id, route  = self.pubsub_management.create_stream('replay_with_params', exchange_point=self.exchange_point_name, stream_definition_id=stream_definition)
+        stream_id, route  = self.pubsub_management.create_stream('replay_with_params', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
         config_id  = self.get_ingestion_config()
-        dataset_id = self.create_dataset(pdict.dump())
+        dataset_id = self.create_dataset(pdict_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
 
 

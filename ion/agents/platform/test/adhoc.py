@@ -25,6 +25,8 @@ def adhoc_get_parameter_dictionary(stream_name):
     @retval corresponding ParameterDictionary.
     """
 
+    #@TODO Luke - Maybe we can make this a bit more versatile, we could make this a standard pdict...
+
     pdict = ParameterDictionary()
 
     ctxt = ParameterContext('value', param_type=QuantityType(value_encoding=numpy.float32))

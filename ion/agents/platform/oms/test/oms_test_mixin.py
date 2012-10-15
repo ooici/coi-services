@@ -15,19 +15,19 @@ __license__ = 'Apache 2.0'
 from ion.agents.platform.oms.simulator.logger import Logger
 log = Logger.get_logger()
 
+from ion.agents.platform.test.helper import HelperTestMixin
+from ion.agents.platform.test.helper import PLATFORM_ID
+from ion.agents.platform.test.helper import SUBPLATFORM_IDS
+from ion.agents.platform.test.helper import ATTR_NAMES
+from ion.agents.platform.test.helper import WRITABLE_ATTR_NAMES
+from ion.agents.platform.test.helper import PORT_ID
+
 from ion.agents.platform.oms.oms_client import InvalidResponse
 
 import time
 from gevent.pywsgi import WSGIServer
 import yaml
 
-
-# Some IDs used in the tests (which must be defined in network.yml
-# if testing against the simulator)
-PLATFORM_ID = 'Node1A'
-SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
-ATTR_NAMES = ['Node1A_attr_1', 'Node1A_attr_2']
-PORT_ID = 'Node1A_port_1'
 
 # some bogus IDs
 BOGUS_PLATFORM_ID = 'bogus_plat_id'
@@ -36,72 +36,10 @@ BOGUS_PORT_ID = 'bogus_port_id'
 BOGUS_ALARM_TYPE = "bogus_alarm_type"
 
 
-class OmsTestMixin(object):
+class OmsTestMixin(HelperTestMixin):
     """
     A mixin to facilitate test cases for OMS objects following the OMS-CI interface.
     """
-
-    def _verify_valid_platform_id(self, platform_id, dic):
-        """
-        verifies the platform_id is the only entry in the dict with a
-        valid value. Returns dic[platform_id].
-        """
-        self.assertTrue(platform_id in dic)
-        self.assertEquals(1, len(dic))
-        val = dic[platform_id]
-        self.assertNotEquals(InvalidResponse.PLATFORM_ID, val)
-        return val
-
-    def _verify_invalid_platform_id(self, platform_id, dic):
-        """
-        verifies the platform_id is the only entry in the dict with a
-        value equal to InvalidResponse.PLATFORM_ID.
-        """
-        self.assertTrue(platform_id in dic)
-        self.assertEquals(1, len(dic))
-        val = dic[platform_id]
-        self.assertEquals(InvalidResponse.PLATFORM_ID, val)
-
-    def _verify_valid_attribute_id(self, attr_id, dic):
-        """
-        verifies the attr_id is an entry in the dict with a
-        valid value. Returns dic[attr_id].
-        """
-        self.assertTrue(attr_id in dic)
-        val = dic[attr_id]
-        self.assertIsInstance(val, (tuple, list))
-        self.assertNotEquals(InvalidResponse.ATTRIBUTE_NAME_VALUE, val)
-        return val
-
-    def _verify_invalid_attribute_id(self, attr_id, dic):
-        """
-        verifies the attr_id is an entry in the dict with a
-        value equal to InvalidResponse.ATTRIBUTE_NAME_VALUE.
-        """
-        self.assertTrue(attr_id in dic)
-        val = dic[attr_id]
-        self.assertIsInstance(val, (tuple, list))
-        self.assertEquals(InvalidResponse.ATTRIBUTE_NAME_VALUE, tuple(val))
-
-    def _verify_valid_port_id(self, port_id, dic):
-        """
-        verifies the port_id is an entry in the dict with a
-        valid value. Returns dic[port_id].
-        """
-        self.assertTrue(port_id in dic)
-        val = dic[port_id]
-        self.assertNotEquals(InvalidResponse.PORT_ID, val)
-        return val
-
-    def _verify_invalid_port_id(self, port_id, dic):
-        """
-        verifies the port_id is an entry in the dict with a
-        value equal to InvalidResponse.PORT_ID.
-        """
-        self.assertTrue(port_id in dic)
-        val = dic[port_id]
-        self.assertEquals(InvalidResponse.PORT_ID, val)
-
     def test_aa_ping(self):
         response = self.oms.hello.ping()
         self.assertEquals(response, "pong")
@@ -119,7 +57,7 @@ class OmsTestMixin(object):
     def test_ab_getSubplatformIDs(self):
         platform_id = PLATFORM_ID
         retval = self.oms.config.getSubplatformIDs(platform_id)
-        print("getSubplatformIDs(%r) = %s" % (platform_id,  retval))
+        log.info("getSubplatformIDs(%r) = %s" % (platform_id,  retval))
         subplatform_ids = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(subplatform_ids, list)
         self.assertTrue(x in subplatform_ids for x in SUBPLATFORM_IDS)
@@ -188,6 +126,28 @@ class OmsTestMixin(object):
         self.assertIsInstance(vals, dict)
         for attrName in attrNames:
             self._verify_invalid_attribute_id(attrName, vals)
+
+    def test_ah_setPlatformAttributeValues(self):
+        platform_id = PLATFORM_ID
+        # try for all test attributes, but check below for both those writable
+        # and not writable
+        attrNames = ATTR_NAMES
+
+        def valueFor(attrName):
+            # simple string value, ok because there is no strict value check yet
+            # TODO more realistic value depending on attribute's type
+            return "test_value_for_%s" % attrName
+
+        attrs = [(attrName, valueFor(attrName)) for attrName in attrNames]
+        retval = self.oms.setPlatformAttributeValues(platform_id, attrs)
+        log.info("setPlatformAttributeValues = %s" % retval)
+        vals = self._verify_valid_platform_id(platform_id, retval)
+        self.assertIsInstance(vals, dict)
+        for attrName in attrNames:
+            if attrName in WRITABLE_ATTR_NAMES:
+                self._verify_valid_attribute_id(attrName, vals)
+            else:
+                self._verify_not_writable_attribute_id(attrName, vals)
 
     def _getPlatformPorts(self, platform_id):
         retval = self.oms.getPlatformPorts(platform_id)
@@ -343,11 +303,10 @@ class OmsTestMixin(object):
         log.info("HTTP SERVER: ... http server started: address: host=%r port=%r" % address)
 
     @classmethod
-    def _get_url(cls):
+    def __get_url(cls):
         """
-        Not to be called by subclasses. Rather is used here to compose the
-        URL for various tests. This URL is based on the HTTP server launched
-        via start_http_server (if called), or just an ad hoc url.
+        Used here to compose the URL for various tests. This URL is based on the
+        HTTP server launched via start_http_server (if called), or just an ad hoc url.
         """
         if cls._http_server:
             # use actual URL corresponding to the launched server
@@ -447,7 +406,7 @@ class OmsTestMixin(object):
         # arbitrarily pick first alarm type
         alarm_type_id = all_alarms.keys()[0]
 
-        url = self._get_url()
+        url = self.__get_url()
         res = self._register_alarm_listener(url, [alarm_type_id])[0]
 
         # check that it's registered
@@ -466,7 +425,7 @@ class OmsTestMixin(object):
             time.sleep(6)
 
     def test_bf_registerAlarmListener_invalid_alarm_type(self):
-        url = self._get_url()
+        url = self.__get_url()
         alarm_type_id = BOGUS_ALARM_TYPE
         res = self._register_alarm_listener(url, [alarm_type_id])
         self.assertEquals(len(res), 1)

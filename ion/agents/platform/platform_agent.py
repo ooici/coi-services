@@ -19,7 +19,6 @@ from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
-from pyon.util.context import LocalContextMixin
 
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
@@ -28,6 +27,7 @@ from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver import AttributeValueDriverEvent
+from ion.agents.platform.platform_driver import AlarmDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -38,6 +38,9 @@ from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
 from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
+
+from coverage_model.parameter import ParameterDictionary
+from interface.objects import StreamRoute
 
 import logging
 import time
@@ -56,6 +59,7 @@ PA_CLS = 'PlatformAgent'
 # TODO clean up log-and-throw anti-idiom in several places, which is used
 # because the exception alone does not show up in the logs!
 
+
 class PlatformAgentState(ResourceAgentState):
     """
     Platform agent state enum.
@@ -64,8 +68,9 @@ class PlatformAgentState(ResourceAgentState):
 
 
 class PlatformAgentEvent(ResourceAgentEvent):
-    PING_AGENT            = 'PLATFORM_AGENT_PING_AGENT'
-    GET_SUBPLATFORM_IDS   = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
+    GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
+    START_ALARM_DISPATCH      = 'PLATFORM_AGENT_START_ALARM_DISPATCH'
+    STOP_ALARM_DISPATCH       = 'PLATFORM_AGENT_STOP_ALARM_DISPATCH'
 
 
 class PlatformAgentCapability(BaseEnum):
@@ -77,21 +82,13 @@ class PlatformAgentCapability(BaseEnum):
     GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
     PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
     GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
+    SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
 
-    PING_AGENT                = 'PLATFORM_AGENT_PING_AGENT'
-    GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
+    GET_SUBPLATFORM_IDS       = PlatformAgentEvent.GET_SUBPLATFORM_IDS
 
+    START_ALARM_DISPATCH      = PlatformAgentEvent.START_ALARM_DISPATCH
+    STOP_ALARM_DISPATCH       = PlatformAgentEvent.STOP_ALARM_DISPATCH
 
-
-# TODO Use appropriate process in ResourceAgentClient instance construction below.
-# for now, just replicating typical mechanism in test cases.
-class FakeProcess(LocalContextMixin):
-    """
-    A fake process used because the test case is not an ion process.
-    """
-    name = ''
-    id=''
-    process_type = ''
 
 
 class PlatformAgent(ResourceAgent):
@@ -113,20 +110,17 @@ class PlatformAgent(ResourceAgent):
         self._platform_id = None
         self._topology = None
         self._agent_device_map = None
+        self._agent_streamconfig_map = None
         self._plat_driver = None
 
         # Platform ID of my parent, if any. This is mainly used for diagnostic
         # purposes
         self._parent_platform_id = None
 
-        # Dictionary of data stream IDs for data publishing. Constructed
-        # by stream_config agent config member during process on_init.
+        # Dictionaries used for data publishing. Constructed in _do_initialize
         self._data_streams = {}
-
         self._param_dicts = {}
-
-        # Dictionary of data stream publishers. Constructed by
-        # stream_config agent config member during process on_init.
+        self._stream_defs = {}
         self._data_publishers = {}
 
         # {subplatform_id: (ResourceAgentClient, PID), ...}
@@ -134,15 +128,6 @@ class PlatformAgent(ResourceAgent):
 
         self._launcher = LauncherFactory.createLauncher(standalone=standalone)
         log.debug("launcher created: %s", str(type(self._launcher)))
-
-        #
-        # TODO the following defined here as in InstrumentAgent,
-        # but these will likely be part of the platform (or associated
-        # instruments) metadata
-        self._lat = 0
-        self._lon = 0
-        self._height = 0
-
 
         # standalone stuff
         self.container = None
@@ -220,10 +205,49 @@ class PlatformAgent(ResourceAgent):
         if 'agent_device_map' in self._plat_config:
             self._agent_device_map = self._plat_config['agent_device_map']
 
+        if 'agent_streamconfig_map' in self._plat_config:
+            self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']
+
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
+
+
+    ##############################################################
+    # Governance interfaces
+    ##############################################################
+
+    def check_set_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the set_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
+    def check_execute_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the execute_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
+    def check_ping_resource(self, msg,  headers):
+        '''
+        This function is used for governance validation for the ping_resource operation.
+        '''
+        com = self._get_resource_commitments(headers['ion-actor-id'])
+        if com is None:
+            return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+
+        return True, ''
+
 
     def _create_publisher(self, stream_id=None, stream_route=None):
         if self._standalone:
@@ -234,10 +258,43 @@ class PlatformAgent(ResourceAgent):
         return publisher
 
     def _construct_data_publishers(self):
+        if self._agent_streamconfig_map:
+            self._construct_data_publishers_using_agent_streamconfig_map()
+        else:
+            self._construct_data_publishers_using_CFG_stream_config()
+
+    def _construct_data_publishers_using_agent_streamconfig_map(self):
+        log.debug("%r: _agent_streamconfig_map = %s",
+            self._platform_id, self._agent_streamconfig_map)
+
+        stream_config = self._agent_streamconfig_map[self._platform_id]
+
+        routing_key = stream_config['routing_key']
+        stream_id = stream_config['stream_id']
+        exchange_point = stream_config['exchange_point']
+
+        #
+        # TODO Note: using a single stream for the platform
+        #
+
+        stream_name = self._get_platform_name(self._platform_id)
+
+        log.debug("%r: stream_name=%r, routing_key=%r",
+            self._platform_id, stream_name, routing_key)
+
+        self._data_streams[stream_name] = stream_id
+        self._param_dicts[stream_name] = ParameterDictionary.load(stream_config['parameter_dictionary'])
+        self._stream_defs[stream_name] = stream_config['stream_definition_ref']
+        stream_route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
+        publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
+        self._data_publishers[stream_name] = publisher
+        log.debug("%r: created publisher for stream_name=%r",
+              self._platform_id, stream_name)
+
+    def _construct_data_publishers_using_CFG_stream_config(self):
         """
         Construct the stream publishers from the stream_config agent
         config variable.
-        @retval None
         """
 
         stream_info = self.CFG.stream_config
@@ -258,6 +315,22 @@ class PlatformAgent(ResourceAgent):
             self._data_publishers[stream_name] = publisher
             log.debug("%r: created publisher for stream_name=%r",
                   self._platform_id, stream_name)
+
+    def _get_platform_name(self, platform_id):
+        """
+        Interim helper to get the platform name associated with a platform_id.
+        """
+
+        # simply returning the same platform_id, because those are the IDs
+        # currently passed from configuration -- see test_oms_launch
+        return platform_id
+
+#        if self._agent_device_map:
+#            platform_name = self._agent_device_map[platform_id].name
+#        else:
+#            platform_name = platform_id
+#
+#        return platform_name
 
     def _create_driver(self):
         """
@@ -288,8 +361,10 @@ class PlatformAgent(ResourceAgent):
         self._plat_driver = driver
         self._plat_driver.set_event_listener(self.evt_recv)
 
-        if self._topology or self._agent_device_map:
-            self._plat_driver.set_topology(self._topology, self._agent_device_map)
+        if self._topology or self._agent_device_map or self._agent_streamconfig_map:
+            self._plat_driver.set_topology(self._topology,
+                                           self._agent_device_map,
+                                           self._agent_streamconfig_map)
 
         log.debug("%r: driver created: %s",
             self._platform_id, str(driver))
@@ -346,11 +421,102 @@ class PlatformAgent(ResourceAgent):
         log.debug('%r: in state=%s: received driver_event=%s',
             self._platform_id, self.get_agent_state(), str(driver_event))
 
-        if not isinstance(driver_event, AttributeValueDriverEvent):
+        if isinstance(driver_event, AttributeValueDriverEvent):
+            self._handle_attribute_value_event(driver_event)
+            return
+
+        if isinstance(driver_event, AlarmDriverEvent):
+            self._handle_alarm_driver_event(driver_event)
+            return
+
+        #
+        # TODO handle other possible events.
+        #
+
+        else:
             log.warn('%r: driver_event not handled: %s',
                 self._platform_id, str(type(driver_event)))
             return
 
+    def _handle_attribute_value_event(self, driver_event):
+
+        if self._agent_streamconfig_map:
+            self._handle_attribute_value_event_using_agent_streamconfig_map(driver_event)
+        else:
+            self._handle_attribute_value_event_using_CFG_stream_config(driver_event)
+
+    def _handle_attribute_value_event_using_agent_streamconfig_map(self, driver_event):
+
+        # NOTE: we are using platform_id as the stream_name, see comment
+        # elsewhere in this file.
+        stream_name = self._get_platform_name(self._platform_id)
+
+        publisher = self._data_publishers.get(stream_name, None)
+        if not publisher:
+            log.warn('%r: no publisher configured for stream_name=%r',
+                     self._platform_id, stream_name)
+            return
+
+        param_dict = self._param_dicts[stream_name]
+        stream_def = self._stream_defs[stream_name]
+        rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
+
+        # because currently using param-dict for 'simple_data_particle_raw_param_dict',
+        # the following are invalid:
+#        rdt['value'] =  numpy.array([driver_event._value])
+
+        # ... so, simply fill in 'raw':
+        rdt['raw'] =  numpy.array([driver_event._value])
+
+        g = rdt.to_granule(data_producer_id=self.resource_id)
+        try:
+            publisher.publish(g)
+        except AssertionError as e:
+            #
+            # Occurs but not always, at least locally. But it shows up
+            # repeatedly in the coi_coverage buildbot with test_oms_launch:
+            #
+            # Traceback (most recent call last):
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/ion/agents/platform/platform_agent.py", line 505, in _handle_attribute_value_event_using_agent_streamconfig_map
+            #     publisher.publish(g)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/ion/stream.py", line 80, in publish
+            #     super(StreamPublisher,self).publish(msg, to_name=xp.create_route(stream_route.routing_key), headers={'exchange_point':stream_route.exchange_point, 'stream':stream_id or self.stream_id})
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 647, in publish
+            #     self._pub_ep.send(msg, headers)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 133, in send
+            #     return self._send(_msg, _header, **kwargs)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 153, in _send
+            #     self.channel.send(new_msg, new_headers)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/channel.py", line 691, in send
+            #     self._declare_exchange(self._send_name.exchange)
+            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/channel.py", line 156, in _declare_exchange
+            #     assert self._transport
+            # AssertionError
+            #
+            # Not sure what the reason is, perhaps the route is no longer
+            # valid, or the publisher gets closed somehow (?)
+            # TODO determine what's going on here
+            #
+            exc_msg = "%s: %s" % (e.__class__.__name__, str(e))
+            msg = "%r: AssertionError while calling publisher.publish(g) on stream %r, exception=%s" % (
+                            self._platform_id, stream_name, exc_msg)
+
+            # do not inundate the output with stacktraces, just log an error
+            # line for the time being.
+#            print msg
+#            import traceback
+#            traceback.print_exc()
+            log.error(msg)
+            return
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
+                self._platform_id, stream_name, str(rdt), str(g))
+
+    def _handle_attribute_value_event_using_CFG_stream_config(self, driver_event):
+        """
+        Old mechanism, before using _agent_streamconfig_map
+        """
         stream_name = driver_event._attr_id
         if not stream_name in self._data_streams:
             log.warn('%r: got attribute value event for unconfigured stream %r',
@@ -372,17 +538,21 @@ class PlatformAgent(ResourceAgent):
         rdt = RecordDictionaryTool(param_dictionary=param_dict)
 
         rdt['value'] =  numpy.array([driver_event._value])
-        rdt['lat'] =    numpy.array([self._lat])
-        rdt['lon'] =    numpy.array([self._lon])
-        rdt['height'] = numpy.array([self._height])
 
         g = build_granule(data_producer_id=self.resource_id,
             param_dictionary=param_dict, record_dictionary=rdt)
 
         stream_id = self._data_streams[stream_name]
         publisher.publish(g, stream_id=stream_id)
-        log.debug('%r: published data granule on stream %r, rdt=%r',
-            self._platform_id, stream_name, str(rdt))
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
+                self._platform_id, stream_name, str(rdt), str(g))
+
+    def _handle_alarm_driver_event(self, driver_event):
+        #
+        # TODO How are alarm events to be notified? Publish to some stream?
+        #
+        log.debug("Got alarm event but nothing done with it yet: %s", str(driver_event))
 
     ##########################################################################
     # TBD
@@ -420,7 +590,7 @@ class PlatformAgent(ResourceAgent):
             'test_mode':        True
         }
 
-        log.debug("%r: launching sub-platform agent %s",
+        log.debug("%r: launching sub-platform agent %r",
             self._platform_id, subplatform_id)
         pid = self._launcher.launch(subplatform_id, agent_config)
 
@@ -443,7 +613,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _create_resource_agent_client: subplatform_id=%s",
             self._platform_id, subplatform_id)
 
-        pa_client = ResourceAgentClient(subplatform_id, process=FakeProcess())
+        pa_client = ResourceAgentClient(subplatform_id, process=self)
 
         log.debug("%r: got platform agent client %s",
             self._platform_id, str(pa_client))
@@ -477,13 +647,13 @@ class PlatformAgent(ResourceAgent):
 
         pa_client, _ = self._pa_clients[subplatform_id]
 
-        cmd = AgentCommand(command=PlatformAgentEvent.PING_AGENT)
-        retval = self._execute_agent(pa_client, cmd, subplatform_id)
+        retval = pa_client.ping_agent(timeout=TIMEOUT)
         log.debug("%r: _ping_subplatform %r  retval = %s",
             self._platform_id, subplatform_id, str(retval))
 
-        if "PONG" != retval.result:
-            msg = "unexpected ping response from sub-platform agent: %s " % retval.result
+        if retval is None:
+            msg = "%r: unexpected None ping response from sub-platform agent: %r" % (
+                    self._platform_id, subplatform_id)
             log.error(msg)
             raise PlatformException(msg)
 
@@ -499,6 +669,7 @@ class PlatformAgent(ResourceAgent):
             'platform_id': subplatform_id,
             'platform_topology' : self._topology,
             'agent_device_map' : self._agent_device_map,
+            'agent_streamconfig_map': self._agent_streamconfig_map,
             'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],
             'container_name': self._container_name,
@@ -594,10 +765,6 @@ class PlatformAgent(ResourceAgent):
     ##############################################################
     # major operations
     ##############################################################
-
-    def _ping_agent(self, *args, **kwargs):
-        result = "PONG"
-        return result
 
     def _initialize(self, *args, **kwargs):
         self._plat_config = kwargs.get('plat_config', None)
@@ -805,16 +972,24 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
-    def _handler_ping_agent(self, *args, **kwargs):
+    def _handler_set_resource(self, *args, **kwargs):
         """
-        Pings the agent.
         """
         log.debug("%r/%s args=%s kwargs=%s",
             self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._ping_agent(*args, **kwargs)
+        attrs = kwargs.get('attrs', None)
+        if attrs is None:
+            raise BadRequest('set_resource missing attrs argument.')
 
-        next_state = self.get_agent_state()
+        try:
+            result = self._plat_driver.set_attribute_values(attrs)
+
+            next_state = self.get_agent_state()
+
+        except Exception as ex:
+            log.error("error in set_attribute_values %s", str(ex)) #, exc_Info=True)
+            raise
 
         return (next_state, result)
 
@@ -828,6 +1003,44 @@ class PlatformAgent(ResourceAgent):
         result = self._ping_resource(*args, **kwargs)
 
         next_state = self.get_agent_state()
+
+        return (next_state, result)
+
+    def _handler_start_alarm_dispatch(self, *args, **kwargs):
+        """
+        """
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        params = kwargs.get('params', None)
+        if params is None:
+            raise BadRequest('start_alarm_dispatch missing params argument.')
+
+        try:
+            result = self._plat_driver.start_alarm_dispatch(params)
+
+            next_state = self.get_agent_state()
+
+        except Exception as ex:
+            log.error("error in start_alarm_dispatch %s", str(ex)) #, exc_Info=True)
+            raise
+
+        return (next_state, result)
+
+    def _handler_stop_alarm_dispatch(self, *args, **kwargs):
+        """
+        """
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        try:
+            result = self._plat_driver.stop_alarm_dispatch()
+
+            next_state = self.get_agent_state()
+
+        except Exception as ex:
+            log.error("error in stop_alarm_dispatch %s", str(ex)) #, exc_Info=True)
+            raise
 
         return (next_state, result)
 
@@ -851,13 +1064,11 @@ class PlatformAgent(ResourceAgent):
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
         self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
-        self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
 
         # INACTIVE state event handlers.
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.RESET, self._handler_inactive_reset)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_command_get_subplatform_ids)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
-        self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
@@ -865,7 +1076,6 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RESET, self._handler_idle_reset)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RUN, self._handler_idle_run)
-        self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
@@ -874,8 +1084,8 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.RESET, self._handler_command_reset)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_command_get_subplatform_ids)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
-        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_AGENT, self._handler_ping_agent)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
-#        ...
-
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.START_ALARM_DISPATCH, self._handler_start_alarm_dispatch)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.STOP_ALARM_DISPATCH, self._handler_stop_alarm_dispatch)

@@ -22,6 +22,8 @@ class Attr(object):
         self._attr_id = attr_id
         self._defn = defn
 
+        self._writable = 'read_write' in defn and defn['read_write'].lower().find("write") >= 0
+
         self._value = defn['value'] if 'value' in defn else None
 
     def __repr__(self):
@@ -35,6 +37,10 @@ class Attr(object):
     @property
     def defn(self):
         return self._defn
+
+    @property
+    def writable(self):
+        return self._writable
 
     @property
     def value(self):
@@ -242,7 +248,8 @@ class NNode(object):
         """
         Partial string representation in yaml.
         *NOTE*: Very ad hoc, just to help capture some of the real info from
-        the RSN OMS interface into network.yml (the file used by the simulator).
+        the RSN OMS interface into network.yml (the file used by the simulator)
+        along with values for testing purposes.
         """
 
         result = ""
@@ -257,12 +264,22 @@ class NNode(object):
             lines.append('  platform_types: []')
 
             lines.append('  attrs:')
+            write_attr = False
             for i in range(2):
+                read_write = "write" if write_attr else "read"
+                write_attr = not write_attr
+
+                # attr_id here is the "ref_id" in the CI-OMS interface spec
                 attr_id = '%s_attr_%d' % (pid, i + 1)
+
                 lines.append('  - attr_id: %s' % attr_id)
-                lines.append('    monitorCycleSeconds: 5')
+                lines.append('    type: int')
                 lines.append('    units: xyz')
-#                lines.append('    value: %s_dummy_value' % attr_id)
+                lines.append('    min_val: -2')
+                lines.append('    max_val: 10')
+                lines.append('    read_write: %s' % read_write)
+                lines.append('    group: power')
+                lines.append('    monitorCycleSeconds: 5')
 
             lines.append('  ports:')
             for i in range(2):

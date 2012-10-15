@@ -98,7 +98,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         # Register the instrument so that the data producer and stream object are created
         data_producer_id = self.damsclient.register_instrument(instrument_id)
-        log.debug("TestIntDataProcessMgmtServiceMultiOut  data_producer_id %s" % data_producer_id)
+        log.debug("TestIntDataProcessMgmtServiceMultiOut  data_producer_id %s", data_producer_id)
 
         # create a stream definition for the data from the ctd simulator
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data')
@@ -150,13 +150,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_conductivity_id = self.pubsubclient.create_stream_definition(name='conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_conductivity_id, dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_conductivity_id, dprocdef_id,binding='conductivity' )
 
         outgoing_stream_pressure_id = self.pubsubclient.create_stream_definition(name='pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_pressure_id, dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_pressure_id, dprocdef_id, binding='pressure' )
 
         outgoing_stream_temperature_id = self.pubsubclient.create_stream_definition(name='temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_temperature_id, dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_temperature_id, dprocdef_id, binding='temperature' )
 
 
         self.output_products={}
@@ -365,13 +365,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id, binding='conductivity' )
 
         outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id, binding='pressure' )
 
         outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
         self.output_products={}

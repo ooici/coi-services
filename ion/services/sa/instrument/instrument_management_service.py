@@ -20,16 +20,6 @@ from pyon.core.object import ion_serializer
 from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
-import pickle
-import gevent
-import base64
-import zipfile
-import string
-import csv
-from StringIO import StringIO
-import tempfile
-import subprocess
-import signal
 
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
@@ -49,6 +39,9 @@ from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
+from ion.util.module_uploader import RegisterModulePreparer
+from ion.util.qa_doc_parser import QADocParser
+
 # TODO: these are for methods which may belong in DAMS/DPMS/MFMS
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
@@ -61,7 +54,6 @@ from interface.objects import ComputedValueAvailability
 from ion.util.parameter_yaml_IO import get_param_dict
 
 
-INSTRUMENT_AGENT_MANIFEST_FILE = "MANIFEST.csv"
  
 
 class InstrumentManagementService(BaseInstrumentManagementService):
@@ -76,6 +68,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.override_clients(self.clients)
         self._pagent = None
         self.extended_resource_handler = ExtendedResourceContainer(self)
+
+        self.init_module_uploader()
+
 
         # set up all of the policy interceptions
         if self.container and self.container.governance_controller:
@@ -101,6 +96,24 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             reg_precondition(self, 'execute_sensor_device_lifecycle',
                              self.sensor_device.policy_fn_lcs_precondition("sensor_device_id"))
 
+
+    def init_module_uploader(self):
+        if self.CFG:
+            #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
+            cfg_host        = self.CFG.get_safe("service.instrument_management.driver_release_host", None)
+            cfg_remotepath  = self.CFG.get_safe("service.instrument_management.driver_release_directory", None)
+            cfg_user        = self.CFG.get_safe("service.instrument_management.driver_release_user",
+                                                pwd.getpwuid(os.getuid())[0])
+            cfg_wwwroot     = self.CFG.get_safe("service.instrument_management.driver_release_wwwroot", "/")
+
+            if cfg_host is None or cfg_remotepath is None:
+                raise BadRequest("Missing configuration items for host and directory -- destination of driver release")
+
+
+            self.module_uploader = RegisterModulePreparer(dest_user=cfg_user,
+                                                          dest_host=cfg_host,
+                                                          dest_path=cfg_remotepath,
+                                                          dest_wwwroot=cfg_wwwroot)
 
     def override_clients(self, new_clients):
         """
@@ -205,10 +218,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance,
                                                                                 instrument_agent_instance_id)
 
-        self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCE.RETIRE)
-        #self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
+        self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
 
-        return
+
+    def force_delete_instrument_agent_instance(self, instrument_agent_instance_id=''):
+
+        self.instrument_agent_instance.force_delete_one(instrument_agent_instance_id)
 
 
     def validate_instrument_agent_instance(self, instrument_agent_instance_obj):
@@ -242,13 +257,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
                              (str(instrument_device_id), len(model_objs)))
         instrument_model_id = model_objs[0]
-        log.debug("activate_instrument:instrument_model %s" % str(instrument_model_id))
+        log.debug("activate_instrument:instrument_model %s", str(instrument_model_id))
 
         #retrive the stream info for this model
         streams_dict = model_objs[0].stream_configuration
         if not streams_dict:
             raise BadRequest("Device model does not contain stream configuration used in launching the agent. Model: '%s",
-                             str(model_objs[0]) )
+                str(model_objs[0]) )
+
+        for stream_name, param_dict_name in streams_dict.items():
+            param_dict = get_param_dict(param_dict_name)
+            #create a stream def for each param dict to match against the existing data products
+            stream_def_id = self.clients.pubsub_management.create_stream_definition(parameter_dictionary=param_dict.dump())
+            streams_dict[stream_name] = {'param_dict_name':param_dict_name, 'stream_def_id':stream_def_id}
+        log.debug("validate_instrument_agent_instance: model streams_dict: %s", str(streams_dict))
 
         #retrieve the associated instrument agent
         agent_objs = self.instrument_agent.find_having_model(instrument_model_id)
@@ -256,7 +278,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentModel '%s', got %d" %
                              (str(instrument_model_id), len(agent_objs)))
         instrument_agent_id = agent_objs[0]._id
-        log.debug("start_instrument_agent_instance: Got instrument agent '%s'" % instrument_agent_id)
+        log.debug("start_instrument_agent_instance: Got instrument agent '%s'", instrument_agent_id)
 
         out_streams = []
         out_streams_and_param_dicts = {}
@@ -300,25 +322,26 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                       PRED.hasStreamDefinition,
                                                                       RT.StreamDefinition,
                                                                       True)
-            stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_def_ids[0])
-            log.debug("start_instrument_agent_instance: stream_def_ids:   %s ", str(stream_def_obj) )
-            stream_tag = stream_def_obj.name
-            model_param_dict = get_param_dict(streams_dict[stream_tag])
 
-            stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
-            log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
-            stream_config_too[stream_tag] = {'routing_key' : stream_route.routing_key,
-                                             'stream_id' : product_stream_id,
-                                             'stream_definition_ref' : stream_def_ids[0],
-                                             'exchange_point' : stream_route.exchange_point,
-                                             'parameter_dictionary':model_param_dict.dump()}
-            log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
-                      str(stream_config_too) )
+            #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
+            for model_stream_name, stream_info_dict  in streams_dict.items():
+                log.debug("start_instrument_agent_instance: model_stream_name: %s   stream_info_dict   %s ", str(model_stream_name), str(stream_info_dict) )
 
-                    #todo: REIMPL THIS CHECK!
-                #        if len(streams_dict) != len(stream_config_too):
-                #            raise Inconsistent("Stream configuration for agent is not valid: " + str(stream_config_too))
+                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict['stream_def_id'], stream_def_ids[0]):
+                    log.debug("validate_instrument_agent_instance: pubsub_management.compare_stream_definition = true")
+                    model_param_dict = get_param_dict(stream_info_dict['param_dict_name'])
 
+                    stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
+                    log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
+                    stream_config_too[model_stream_name] = {'routing_key' : stream_route.routing_key,
+                                                            'stream_id' : product_stream_id,
+                                                            'stream_definition_ref' : stream_def_ids[0],
+                                                            'exchange_point' : stream_route.exchange_point,
+                                                            'parameter_dictionary':model_param_dict.dump()}
+
+
+                    log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
+                        str(stream_config_too) )
 
         ret = {}
         ret["instrument_agent_id"] = instrument_agent_id
@@ -556,8 +579,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             self.instrument_agent.unlink_process_definition(instrument_agent_id, pd_obj._id)
             self.clients.process_dispatcher.delete_process_definition(pd_obj._id)
 
-        self.instrument_agent.advance_lcs(instrument_agent_id, LCE.RETIRE)
-        #return self.instrument_agent.delete_one(instrument_agent_id)
+        self.instrument_agent.delete_one(instrument_agent_id)
+
+    def force_delete_instrument_agent(self, instrument_agent_id=''):
+        self.instrument_agent.force_delete_one(instrument_agent_id)
 
 
     def register_instrument_agent(self, instrument_agent_id='', agent_egg='', qa_documents=''):
@@ -574,165 +599,42 @@ class InstrumentManagementService(BaseInstrumentManagementService):
          - content_type
          - keywords
         """
-        
-        def zip_of_b64(b64_data, title):
-
-            log.debug("decoding base64 zipfile for %s" % title)
-            try:
-                zip_str  = base64.decodestring(b64_data)
-            except:
-                raise BadRequest("could not base64 decode supplied %s" % title)
-
-            log.debug("opening zipfile for %s" % title)
-            try:
-                zip_file = StringIO(zip_str)
-                zip_obj  = zipfile.ZipFile(zip_file)
-            except:
-                raise BadRequest("could not parse zipfile contained in %s" % title)
-
-            return zip_obj
 
         # retrieve the resource
         log.debug("reading inst agent resource (for proof of existence)")
         self.instrument_agent.read_one(instrument_agent_id)
 
+        qa_doc_parser = QADocParser()
 
-        #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
-        cfg_host        = self.CFG.get_safe("service.instrument_management.driver_release_host", None)
-        cfg_remotepath  = self.CFG.get_safe("service.instrument_management.driver_release_directory", None)
-        cfg_user        = self.CFG.get_safe("service.instrument_management.driver_release_user",
-                                            pwd.getpwuid(os.getuid())[0])
-
-        if cfg_host is None or cfg_remotepath is None:
-            raise BadRequest("Missing configuration items for host and directory -- destination of driver release")
-
-        #process the input files (base64-encoded zips)
-        qa_zip_obj  = zip_of_b64(qa_documents, "qa_documents")
-        egg_zip_obj = zip_of_b64(agent_egg, "agent_egg")
+        #process the input files (base64-encoded qa documents)
+        qa_parse_result, err  = qa_doc_parser.prepare(qa_documents)
+        if not qa_parse_result:
+            raise BadRequest("Processing qa_documents file failed: %s" % err)
 
 
-        #parse the manifest file
-        if not INSTRUMENT_AGENT_MANIFEST_FILE in qa_zip_obj.namelist():
-            raise BadRequest("provided qa_documents zipfile lacks manifest CSV file called %s" % 
-                             INSTRUMENT_AGENT_MANIFEST_FILE)
+        #process the input files (base64-encoded egg)
+        uploader_obj, err = self.module_uploader.prepare(agent_egg)
+        if None is uploader_obj:
+            raise BadRequest("Egg failed validation: %s" % err)
 
-        log.debug("extracting manifest csv file")
-        csv_contents = qa_zip_obj.read(INSTRUMENT_AGENT_MANIFEST_FILE)
+        attachments, err = qa_doc_parser.convert_to_attachments()
 
-        log.debug("parsing manifest csv file")
-        try:
-            dialect = csv.Sniffer().sniff(csv_contents)
-        except csv.Error:
-            dialect = csv.excel
-        except Exception as e:
-            raise BadRequest("%s - %s" % (str(type(e)), str(e.args)))
-        csv_reader = csv.DictReader(StringIO(csv_contents), dialect=dialect)
+        if None is attachments:
+            raise BadRequest("QA Docs processing failed: %s" % err)
 
-        #validate fields in manifest file
-        log.debug("validing manifest csv file")
-        for f in ["filename", "name", "description", "content_type", "keywords"]:
-            if not f in csv_reader.fieldnames:
-                raise BadRequest("Manifest file %s missing required field %s" % 
-                                 (INSTRUMENT_AGENT_MANIFEST_FILE, f))
-
-
-        #validate egg
-        log.debug("validating egg")
-        if not "EGG-INFO/PKG-INFO" in egg_zip_obj.namelist():
-            raise BadRequest("no PKG-INFO found in egg; found %s" % str(egg_zip_obj.namelist()))
-
-        log.debug("processing driver")
-        pkg_info_data = {}
-        pkg_info = egg_zip_obj.read("EGG-INFO/PKG-INFO")
-        for l in pkg_info.splitlines():
-            log.debug("Reading %s" % l)
-            tmp = l.partition(": ")
-            pkg_info_data[tmp[0]] = tmp[2]
-
-        for f in ["Name", "Version"]:
-            if not f in pkg_info_data:
-                raise BadRequest("Agent egg's PKG-INFO did not include a field called '%s'" % f)
-
-        #determine egg name
-        egg_filename = "%s-%s-py2.7.egg" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
-        log.info("Egg filename is '%s'" % egg_filename)
-
-        egg_url = "http://%s%s/%s" % (CFG.service.instrument_management.driver_release_host,
-                                      CFG.service.instrument_management.driver_release_directory,
-                                      egg_filename)
-        log.info("Egg url will be '%s'" % egg_url)
-
-        egg_urlfile = "%s v%s.url" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
-
-
-
-
-        #create attachment resources for each document in the zip
-        log.debug("creating attachment objects")
-        attachments = []
-        for row in csv_reader:
-            att_name = row["filename"]
-            att_desc = row["description"]
-            att_content_type = row["content_type"]
-            att_keywords = string.split(row["keywords"], ",")
-
-            if not att_name in qa_zip_obj.namelist():
-                raise BadRequest("Manifest refers to a file called '%s' which is not in the zip" % att_name)
-
-            attachments.append(IonObject(RT.Attachment,
-                                         name=att_name,
-                                         description=att_desc,
-                                         content=qa_zip_obj.read(att_name), 
-                                         content_type=att_content_type,
-                                         keywords=att_keywords,
-                                         attachment_type=AttachmentType.BLOB))
-            
-        log.debug("Sanity checking manifest vs zip file")
-        if len(qa_zip_obj.namelist()) - 1 > len(attachments):
-            log.warn("There were %d files in the zip but only %d in the manifest" % 
-                     (len(qa_zip_obj.namelist()) - 1, len(attachments)))
-            
-
-        
-
-        #move output egg to another directory / upload it somewhere
-
-        log.debug("creating tempfile for egg output")
-        f_handle, tempfilename = tempfile.mkstemp()
-        log.debug("writing egg data to disk at '%s'" % tempfilename)
-        os.write(f_handle, base64.decodestring(agent_egg))
-
-        remotefilename = "%s@%s:%s/%s" % (cfg_user, 
-                                          cfg_host, 
-                                          cfg_remotepath, 
-                                          egg_filename)
-
-        log.info("executing scp: '%s' to '%s'" % (tempfilename, remotefilename))
-        scp_proc = subprocess.Popen(["scp", "-v", "-o", "PasswordAuthentication=no",
-                                      "-o", "StrictHostKeyChecking=no",
-                                      tempfilename, remotefilename],
-                                     stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE
-                                    )
-        scp_out, scp_err = scp_proc.communicate()
-
-        # clean up
-        log.debug("removing tempfile at '%s'" % tempfilename)
-        os.unlink(tempfilename)
-
-        # check scp status
-        if 0 != scp_proc.returncode:
-            raise BadRequest("Secure copy to %s:%s failed.  (STDOUT: %s) (STDERR: %s)"
-            % (cfg_host, cfg_remotepath, scp_out, scp_err))
+        # actually upload
+        up_success, err = uploader_obj.upload()
+        if not up_success:
+            raise BadRequest("Upload failed: %s" % err)
 
 
         #now we can do the ION side of things
 
         #make an attachment for the url
         attachments.append(IonObject(RT.Attachment,
-                                     name=egg_urlfile,
+                                     name=uploader_obj.get_destination_egg_url_filename(),
                                      description="url to egg",
-                                     content="[InternetShortcut]\nURL=%s" % egg_url,
+                                     content="[InternetShortcut]\nURL=%s" % uploader_obj.get_destination_egg_url(),
                                      content_type="text/url",
                                      keywords=[KeywordFlag.EGG_URL],
                                      attachment_type=AttachmentType.ASCII))
@@ -792,10 +694,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.instrument_model.advance_lcs(instrument_model_id, LCE.RETIRE)
-        #return self.instrument_model.delete_one(instrument_model_id)
+        self.instrument_model.delete_one(instrument_model_id)
 
-
+    def force_delete_instrument_model(self, instrument_model_id=''):
+        self.instrument_model.force_delete_one(instrument_model_id)
 
 
 
@@ -847,16 +749,36 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.instrument_device.advance_lcs(instrument_device_id, LCE.RETIRE)
-        #return self.instrument_device.delete_one(instrument_device_id)
+        self.instrument_device.delete_one(instrument_device_id)
 
 
+    def force_delete_instrument_device(self, instrument_device_id=''):
+        self.instrument_device.force_delete_one(instrument_device_id)
 
     ##
     ##
     ##  DIRECT ACCESS
     ##
     ##
+
+    def check_exclusive_commitment(self, msg,  headers):
+        '''
+        This function is used for governance validation for the request_direct_access and stop_direct_access operation.
+        '''
+
+        user_id = headers['ion-actor-id']
+        resource_id = msg['instrument_device_id']
+
+        commitment =  self.container.governance_controller.get_resource_commitment(user_id, resource_id)
+
+        if commitment is None:
+            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (user_id, resource_id)
+
+        #Look for any active commitments that are exclusive - and only allow for exclusive commitment
+        if not commitment.commitment.exclusive:
+            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (user_id, resource_id)
+
+        return True, ''
 
     def request_direct_access(self, instrument_device_id=''):
         """
@@ -892,7 +814,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def _get_instrument_producer(self, instrument_device_id=""):
         producer_objs, _ = self.clients.resource_registry.find_objects(subject=instrument_device_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=False)
         if not producer_objs:
-            raise NotFound("No Producers created for this Data Process " + str(instrument_device_id))
+            raise NotFound("No Producers created for this Instrument Device " + str(instrument_device_id))
         return producer_objs[0]
 
 
@@ -950,10 +872,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_agent.advance_lcs(platform_agent_instance_id, LCE.RETIRE)
-        #return self.platform_agent_instance.delete_one(platform_agent_instance_id)
+        self.platform_agent_instance.delete_one(platform_agent_instance_id)
 
-
+    def force_delete_platform_agent_instance(self, platform_agent_instance_id=''):
+        self.platform_agent_instance.force_delete_one(platform_agent_instance_id)
 
     def start_platform_agent_instance(self, platform_agent_instance_id=''):
         """
@@ -983,7 +905,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected 1 PlatformDevice attached to  PlatformAgentInstance '%s', got %d" %
                              (str(platform_device_id), len(platform_models_objs)))
         platform_model_id = platform_models_objs[0]
-        log.debug("start_platform_agent_instance:platform_model %s" % str(platform_model_id))
+        log.debug("start_platform_agent_instance:platform_model %s", str(platform_model_id))
 
         #retrive the stream info for this model
         #todo: add stream info to the platofrom model create
@@ -997,7 +919,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentAgentInstance '%s', got %d" %
                            (str(platform_agent_instance_id), len(platform_agent_objs)))
         platform_agent_id = platform_agent_objs[0]._id
-        log.debug("Got platform agent '%s'" % platform_agent_id)
+        log.debug("Got platform agent '%s'", platform_agent_id)
 
 
         #retrieve the associated process definition
@@ -1133,10 +1055,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_agent.advance_lcs(platform_agent_id, LCE.RETIRE)
-        #return self.platform_agent.delete_one(platform_agent_id)
+        self.platform_agent.delete_one(platform_agent_id)
 
-
+    def force_delete_platform_agent(self, platform_agent_id=''):
+        self.platform_agent.force_delete_one(platform_agent_id)
 
 
     ##########################################################################
@@ -1182,9 +1104,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_model.advance_lcs(platform_model_id, LCE.RETIRE)
-        #return self.platform_model.delete_one(platform_model_id)
+        self.platform_model.delete_one(platform_model_id)
 
+    def force_delete_platform_model(self, platform_model_id=''):
+        self.platform_model.force_delete_one(platform_model_id)
 
 
     ##########################################################################
@@ -1232,9 +1155,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_device.advance_lcs(platform_device_id, LCE.RETIRE)
-        #return self.platform_device.delete_one(platform_device_id)
+        self.platform_device.delete_one(platform_device_id)
 
+    def force_delete_platform_device(self, platform_device_id=''):
+        self.platform_device.force_delete_one(platform_device_id)
 
 
 
@@ -1283,9 +1207,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.sensor_model.advance_lcs(sensor_model_id, LCE.RETIRE)
-        #return self.sensor_model.delete_one(sensor_model_id)
+        self.sensor_model.delete_one(sensor_model_id)
 
+    def force_delete_sensor_model(self, sensor_model_id=''):
+        self.sensor_model.force_delete_one(sensor_model_id)
 
 
     ##########################################################################
@@ -1332,8 +1257,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.sensor_device.advance_lcs(sensor_device_id, LCE.RETIRE)
-        #return self.sensor_device.delete_one(sensor_device_id)
+        self.sensor_device.delete_one(sensor_device_id)
+
+    def force_delete_sensor_device(self, sensor_device_id=''):
+        self.sensor_device.force_delete_one(sensor_device_id)
 
 
 

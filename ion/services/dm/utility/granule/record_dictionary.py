@@ -9,15 +9,21 @@
 '''
 
 from pyon.core.exception import BadRequest
+from pyon.core.object import IonObjectSerializer
+from pyon.core.interceptor.encode import encode_ion
+from pyon.util.arg_check import validate_equal
+from pyon.util.log import log
+from pyon.util.memoize import memoize_lru
+
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.objects import Granule
+
 from coverage_model.parameter import ParameterDictionary
 from coverage_model.parameter_values import get_value_class, AbstractParameterValue
 from coverage_model.coverage import SimpleDomainSet
-from pyon.util.log import log
-from pyon.util.arg_check import validate_equal
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.objects import Granule
-from pyon.util.memoize import memoize_lru
+
 import numpy as np
+import msgpack
 
 class RecordDictionaryTool(object):
     """
@@ -81,16 +87,17 @@ class RecordDictionaryTool(object):
             instance._pdict = ParameterDictionary.load(g.param_dictionary)
         
        
-        if g.domain['shape']:
-            instance._shp = (g.domain['shape'][0],)
+        if g.domain:
+            instance._shp = g.domain
         
         for k,v in g.record_dictionary.iteritems():
             if v is not None:
-                g.record_dictionary[k]['domain_set'] = g.domain
                 ptype = instance._pdict.get_context(k).param_type
-                g.record_dictionary[k]['parameter_type'] = ptype.dump()
+                paramval = get_value_class(ptype, domain_set = instance.domain)
+                paramval[:] = v
+                paramval.storage._storage.flags.writeable = False
 
-                instance._rd[k] = AbstractParameterValue.load(g.record_dictionary[k])
+                instance._rd[k] = paramval
         
         return instance
 
@@ -101,15 +108,13 @@ class RecordDictionaryTool(object):
         
         for key,val in self._rd.iteritems():
             if val is not None:
-                granule.record_dictionary[key] = val.dump()
-                granule.record_dictionary[key]['domain_set'] = None
-                granule.record_dictionary[key]['parameter_type'] = None
+                granule.record_dictionary[key] = val._storage._storage
             else:
                 granule.record_dictionary[key] = None
         
         granule.param_dictionary = self._stream_def or self._pdict.dump()
         granule.locator = self._locator
-        granule.domain = self.domain.dump()
+        granule.domain = self.domain.shape
         granule.data_producer_id=data_producer_id
         return granule
 
@@ -238,6 +243,18 @@ class RecordDictionaryTool(object):
 
     def __ne__(self, comp):
         return not (self == comp)
+
+    def size(self):
+        '''
+        Truly poor way to calculate the size of a granule...
+        returns the size in bytes.
+        '''
+        granule = self.to_granule()
+        serializer = IonObjectSerializer()
+        flat = serializer.serialize(granule)
+        byte_stream = msgpack.packb(flat, default=encode_ion)
+        return len(byte_stream)
+
     
     @staticmethod
     @memoize_lru(maxsize=100)

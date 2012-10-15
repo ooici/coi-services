@@ -1,23 +1,16 @@
 
-from pyon.ion.transform import TransformFunction
-from pyon.service.service import BaseService
+from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from pyon.core.exception import BadRequest
-from pyon.public import IonObject, RT, log
+from pyon.public import log
 
-import time
-import numpy
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
 import numpy as np
 
 import StringIO
-from numpy import array, append
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
+from pyon.ion.transforma import TransformDataProcess
 
 # Matplotlib related imports
 # Need try/catch because of weird import error
@@ -28,70 +21,55 @@ except:
     import sys
     print >> sys.stderr, "Cannot import matplotlib"
 
-tx = TaxyTool()
-tx.add_taxonomy_set('matplotlib_graphs','Matplotlib generated graphs for a particular data product')
 
-class VizTransformMatplotlibGraphs(TransformFunction):
+class VizTransformMatplotlibGraphs(TransformDataProcess):
 
     """
     This class is used for instantiating worker processes that have subscriptions to data streams and convert
     incoming data from CDM format to Matplotlib graphs
 
     """
-
-    # Need to extract the incoming stream def automatically
-    outgoing_stream_def = SBE37_RAW_stream_definition()
-    incoming_stream_def = SBE37_CDM_stream_definition()
-
-    def __init__(self):
-        super(VizTransformMatplotlibGraphs, self).__init__()
-
-        ### Parameter dictionaries
-        self.define_parameter_dictionary()
-
-    def define_parameter_dictionary(self):
-
-        """
-        viz_product_type_ctxt = ParameterContext('viz_product_type', param_type=QuantityType(value_encoding=np.str))
-        viz_product_type_ctxt.uom = 'unknown'
-        viz_product_type_ctxt.fill_value = 0x0
-
-        image_obj_ctxt = ParameterContext('image_obj', param_type=QuantityType(value_encoding=np.int8))
-        image_obj_ctxt.uom = 'unknown'
-        image_obj_ctxt.fill_value = 0x0
-
-        image_name_ctxt = ParameterContext('image_name', param_type=QuantityType(value_encoding=np.str))
-        image_name_ctxt.uom = 'unknown'
-        image_name_ctxt.fill_value = 0x0
-
-        content_type_ctxt = ParameterContext('content_type', param_type=QuantityType(value_encoding=np.str))
-        content_type_ctxt.uom = 'unknown'
-        content_type_ctxt.fill_value = 0x0
-
-        # Define the parameter dictionary objects
-        self.mpl_paramdict = ParameterDictionary()
-        self.mpl_paramdict.add_context(viz_product_type_ctxt)
-        self.mpl_paramdict.add_context(image_obj_ctxt)
-        self.mpl_paramdict.add_context(image_name_ctxt)
-        self.mpl_paramdict.add_context(content_type_ctxt)
-        """
-
-        mpl_graph_ctxt = ParameterContext('mpl_graph', param_type=QuantityType(value_encoding=np.int8))
-        mpl_graph_ctxt.uom = 'unknown'
-        mpl_graph_ctxt.fill_value = 0x0
-
-        # Define the parameter dictionary objects
-        self.mpl_paramdict = ParameterDictionary()
-        self.mpl_paramdict.add_context(mpl_graph_ctxt)
+    output_bindings = ['graph']
 
 
-    def execute(self, granule):
+    def on_start(self):
+
+        self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
+
+        self.stream_info  = self.CFG.get_safe('process.publish_streams',{})
+        self.stream_names = self.stream_info.keys()
+        self.stream_ids   = self.stream_info.values()
+
+        if not self.stream_names:
+            raise BadRequest('MPL Transform has no output streams.')
+
+
+        super(VizTransformMatplotlibGraphs,self).on_start()
+
+    def recv_packet(self, packet, in_stream_route, in_stream_id):
+        log.info('Received packet')
+        outgoing = VizTransformMatplotlibGraphsAlgorithm.execute(packet, params=self.get_stream_definition())
+        for stream_name in self.stream_names:
+            publisher = getattr(self, stream_name)
+            publisher.publish(outgoing)
+
+    def get_stream_definition(self):
+        stream_id = self.stream_ids[0]
+        stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        return stream_def._id
+
+
+class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
+    @staticmethod
+    @SimpleGranuleTransformFunction.validate_inputs
+    def execute(input=None, context=None, config=None, params=None, state=None):
         log.debug('Matplotlib transform: Received Viz Data Packet')
+        stream_definition_id = params
 
         #init stuff
 
         # parse the incoming data
-        rdt = RecordDictionaryTool.load_from_granule(granule)
+        rdt = RecordDictionaryTool.load_from_granule(input)
 
         vardict = {}
         vardict['time'] = get_safe(rdt, 'time')
@@ -119,11 +97,12 @@ class VizTransformMatplotlibGraphs(TransformFunction):
             else:
                 graph_data[varname].extend(vardict[varname])
 
-        out_granule = self.render_graphs(graph_data)
+        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(graph_data, stream_definition_id)
 
         return out_granule
 
-    def render_graphs(self, graph_data):
+    @classmethod
+    def render_graphs(cls, graph_data, stream_definition_id):
 
         # init Matplotlib
         fig = Figure(figsize=(8,4), dpi=200, frameon=True)
@@ -149,7 +128,7 @@ class VizTransformMatplotlibGraphs(TransformFunction):
             yAxisFloatData = graph_data[varName]
 
             # Generate the plot
-            ax.plot(xAxisFloatData, yAxisFloatData, self.line_style(idx), label=varName)
+            ax.plot(xAxisFloatData, yAxisFloatData, cls.line_style(idx), label=varName)
             idx += 1
 
         yAxisLabel = ""
@@ -173,7 +152,7 @@ class VizTransformMatplotlibGraphs(TransformFunction):
         imgInMem.seek(0)
 
         # Create output dictionary from the param dict
-        out_rdt = RecordDictionaryTool(param_dictionary=self.mpl_paramdict)
+        out_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
 
         # Prepare granule content
         out_dict = {}
@@ -188,7 +167,8 @@ class VizTransformMatplotlibGraphs(TransformFunction):
 
     # This method picks out a matplotlib line style based on an index provided. These styles are set in an order
     # as a utility. No other reason
-    def line_style(self, index):
+    @classmethod
+    def line_style(cls, index):
 
         color = ['b','g','r','c','m','y','k','w']
         stroke = ['-','--','-.',':','.',',','o','+','x','*']

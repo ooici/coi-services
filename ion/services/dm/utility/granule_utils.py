@@ -269,3 +269,14 @@ class CoverageCraft(object):
     def build_coverage(self):
         pass
 
+def time_series_domain():
+    '''
+    Domain set for simple time-series data
+    '''
+    tcrs = CRS([AxisTypeEnum.TIME])
+    scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT, AxisTypeEnum.HEIGHT])
+
+    tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE)
+    sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # Dimensionality is excluded for now
+    return tdom, sdom
+

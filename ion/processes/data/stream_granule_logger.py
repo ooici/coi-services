@@ -7,7 +7,7 @@
 '''
 
 
-from pyon.ion.transforma import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.log import log
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient

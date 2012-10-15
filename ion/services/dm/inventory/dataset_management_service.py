@@ -5,8 +5,8 @@
 @date Tue Jul 24 08:59:29 EDT 2012
 @brief Dataset Management Service implementation
 '''
-from pyon.public import PRED
-from pyon.core.exception import BadRequest
+from pyon.public import PRED, RT
+from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance, validate_true, validate_is_not_none
 from pyon.util.file_sys import FileSystem, FS
@@ -33,11 +33,16 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None,temporal_domain=None, description=''):
+    def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None, temporal_domain=None, parameter_dictionary_id='', description=''):
 
-        validate_is_not_none(parameter_dict, 'A parameter dictionary must be supplied to register a new dataset.')
+        validate_true(parameter_dict or parameter_dictionary_id, 'A parameter dictionary must be supplied to register a new dataset.')
         validate_is_not_none(spatial_domain, 'A spatial domain must be supplied to register a new dataset.')
         validate_is_not_none(temporal_domain, 'A temporal domain must be supplied to register a new dataset.')
+        
+        if parameter_dictionary_id:
+            pcs = self.read_parameter_contexts(parameter_dictionary_id, id_only=False)
+            parameter_dict = self._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs])
+            parameter_dict = parameter_dict.dump()
 
         dataset                      = DataSet()
         dataset.description          = description
@@ -53,6 +58,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset_id, _ = self.clients.resource_registry.create(dataset)
         if stream_id:
             self.add_stream(dataset_id,stream_id)
+
 
         coverage = self._create_coverage(description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
         self._persist_coverage(dataset_id, coverage)
@@ -104,10 +110,18 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def create_parameter_context(self, name='', parameter_context=None, description=''):
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContextResource, name=name, id_only=False)
+        if len(res):
+            if res[0].name == name and self._compare_pc(res[0].parameter_context, parameter_context):
+                return res[0]._id
+            else:
+                raise Conflict('Parameter Context %s already exists with a different definition' % name)
+        
         validate_true(name, 'Name field may not be empty')
         validate_is_instance(parameter_context, dict, 'parameter_context field is not dictable.')
         pc_res = ParameterContextResource(name=name, parameter_context=parameter_context, description=description)
         pc_id, ver = self.clients.resource_registry.create(pc_res)
+        
         return pc_id
 
     def read_parameter_context(self, parameter_context_id=''):
@@ -122,7 +136,24 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
+    def read_parameter_context_by_name(self, name='', id_only=False):
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContextResource, name=name, id_only=id_only)
+        if not len(res):
+            raise NotFound('Unable to locate context with name: %s', name)
+        return res[0]
+
+#--------
+
     def create_parameter_dictionary(self, name='', parameter_context_ids=None, description=''):
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionaryResource, name=name, id_only=True)
+        if len(res):
+            context_ids,_ = self.clients.resource_registry.find_objects(subject=res[0], predicate=PRED.hasParameterContext, id_only=True)
+            context_ids.sort()
+            parameter_context_ids.sort()
+            if context_ids == parameter_context_ids:
+                return res[0]
+            else:
+                raise Conflict('A parameter dictionary with name %s already exists and has a different definition' % name)
         validate_true(name, 'Name field may not be empty.')
         parameter_context_ids = parameter_context_ids or []
         pd_res = ParameterDictionaryResource(name=name, description=description)
@@ -144,41 +175,17 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def add_context(self, parameter_dictionary_id='', parameter_context_ids=None):
-        for pc_id in parameter_context_ids:
-            self._link_pcr_to_pdr(pc_id, parameter_dictionary_id)
-        return True
-
-    def remove_context(self, parameter_dictionary_id='', parameter_context_ids=None):
-        for pc_id in parameter_context_ids:
-            self._unlink_pcr_to_pdr(pc_id, parameter_dictionary_id)
-        return True
-
-#--------
-
     def read_parameter_contexts(self, parameter_dictionary_id='', id_only=False):
         pcs, assocs = self.clients.resource_registry.find_objects(subject=parameter_dictionary_id, predicate=PRED.hasParameterContext, id_only=id_only)
         return pcs
 
+    def read_parameter_dictionary_by_name(self, name='', id_only=False):
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionaryResource, name=name, id_only=id_only)
+        if not len(res):
+            raise NotFound('Unable to locate context with name: %s', name)
+        return res[0]
+
 #--------
-
-    @classmethod
-    def get_parameter_dictionary(cls, parameter_dictionary_id=''):
-        '''
-        Preferred client-side class method for constructing a parameter dictionary
-        from a service call.
-        '''
-        dms_cli = DatasetManagementServiceClient()
-        pcs = dms_cli.read_parameter_contexts(parameter_dictionary_id=parameter_dictionary_id, id_only=False)
-
-        pdict = ParameterDictionary()
-        for pc_res in pcs:
-            pc = ParameterContext.load(pc_res.parameter_context)
-            pdict.add_context(pc)
-
-        pdict._identifier = parameter_dictionary_id
-
-        return pdict
 
     @classmethod
     def get_parameter_context(cls, parameter_context_id=''):
@@ -191,6 +198,34 @@ class DatasetManagementService(BaseDatasetManagementService):
         pc = ParameterContext.load(pc_res.parameter_context)
         pc._identifier = pc_res._id
         return pc
+
+    @classmethod
+    def get_parameter_context_by_name(cls, name=''):
+        dms_cli = DatasetManagementServiceClient()
+        pc_res = dms_cli.read_parameter_context_by_name(name=name, id_only=False)
+        pc = ParameterContext.load(pc_res.parameter_context)
+        pc._identifier = pc_res._id
+        return pc
+    
+    @classmethod
+    def get_parameter_dictionary(cls, parameter_dictionary_id=''):
+        '''
+        Preferred client-side class method for constructing a parameter dictionary
+        from a service call.
+        '''
+        dms_cli = DatasetManagementServiceClient()
+        pcs = dms_cli.read_parameter_contexts(parameter_dictionary_id=parameter_dictionary_id, id_only=False)
+
+        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs])
+        pdict._identifier = parameter_dictionary_id
+
+        return pdict
+
+    @classmethod
+    def get_parameter_dictionary_by_name(cls, name=''):
+        dms_cli = DatasetManagementServiceClient()
+        pd_res = dms_cli.read_parameter_dictionary_by_name(name=name, id_only=True)
+        return cls.get_parameter_dictionary(pd_res)
 
 #--------
 
@@ -227,4 +262,19 @@ class DatasetManagementService(BaseDatasetManagementService):
         filename = FileSystem.get_hierarchical_url(FS.CACHE, dataset_id, '.cov')
         coverage = SimplexCoverage.load(filename)
         return coverage
+    
+    @classmethod
+    def _compare_pc(cls, pc1, pc2):
+        if pc1:
+            pc1 = ParameterContext.load(pc1) or {}
+        if pc2:
+            pc2 = ParameterContext.load(pc2) or {}
+        return bool(pc1 == pc2)
+            
+    @classmethod
+    def _merge_contexts(cls, contexts):
+        pdict = ParameterDictionary()
+        for context in contexts:
+            pdict.add_context(context)
+        return pdict
 

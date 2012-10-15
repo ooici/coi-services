@@ -6,21 +6,17 @@
 '''
 
 
-from pyon.ion.transform import TransformFunction
-from pyon.service.service import BaseService
 from pyon.core.exception import BadRequest
-from pyon.public import IonObject, RT, log
+from pyon.public import log
 
+
+from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
 import numpy as np
 
-from pyon.util.containers import get_safe
-from pyon.ion.transforma import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess
 
 class VizTransformGoogleDT(TransformDataProcess):
 
@@ -40,114 +36,76 @@ class VizTransformGoogleDT(TransformDataProcess):
         [3] The time stamp in the incoming stream can't be converted to the datetime object here because
             the Raw stream definition only expects regular primitives (strings, floats, ints etc)
 
-    """
+    Usage: https://gist.github.com/3834918
 
-    outgoing_stream_def = SBE37_RAW_stream_definition()
-    incoming_stream_def = SBE37_CDM_stream_definition()
+    """
+    output_bindings = ['google_dt']
+
 
     def __init__(self):
         super(VizTransformGoogleDT, self).__init__()
 
-        ### Parameter dictionaries
-        self.define_parameter_dictionary()
+    def on_start(self):
+        self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
+
+        self.stream_info  = self.CFG.get_safe('process.publish_streams', {})
+        self.stream_names = self.stream_info.keys()
+        self.stream_ids   = self.stream_info.values()
+        if not self.stream_names:
+            raise BadRequest('Google DT Transform has no output streams.')
+
+
+        super(VizTransformGoogleDT,self).on_start()
 
 
 
-    def recv_packet(self, packet, stream_route, stream_id):
+    def recv_packet(self, packet, in_stream_route, in_stream_id):
         log.info('Received packet')
-        for stream_id in self.CFG.get_safe('process.output_streams',[]):
-            self.publisher.publish(self.execute(packet), stream_id=stream_id)
-            log.info('Publishing on: %s', stream_id)
+        outgoing = VizTransformGoogleDTAlgorithm.execute(packet, params=self.get_stream_definition())
+        for stream_name in self.stream_names:
+            publisher = getattr(self, stream_name)
+            publisher.publish(outgoing)
 
 
-    def define_parameter_dictionary(self):
-        """
-        viz_product_type_ctxt = ParameterContext('viz_product_type', param_type=QuantityType(value_encoding=np.str))
-        viz_product_type_ctxt.uom = 'unknown'
-        viz_product_type_ctxt.fill_value = 0x0
+    def get_stream_definition(self):
+        stream_id = self.stream_ids[0]
+        stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        return stream_def._id
 
-        data_description_ctxt = ParameterContext('data_description', param_type=QuantityType(value_encoding=np.int8))
-        data_description_ctxt.uom = 'unknown'
-        data_description_ctxt.fill_value = 0x0
 
-        data_content_ctxt = ParameterContext('data_content', param_type=QuantityType(value_encoding=np.int8))
-        data_content_ctxt.uom = 'unknown'
-        data_content_ctxt.fill_value = 0x0
-
-        # Define the parameter dictionary objects
-        self.gdt_paramdict = ParameterDictionary()
-        self.gdt_paramdict.add_context(viz_product_type_ctxt)
-        self.gdt_paramdict.add_context(data_description_ctxt)
-        self.gdt_paramdict.add_context(data_content_ctxt)
-        """
-
-        gdt_components_ctxt = ParameterContext('google_dt_components', param_type=QuantityType(value_encoding=np.int8))
-        gdt_components_ctxt.uom = 'unknown'
-        gdt_components_ctxt.fill_value = 0x0
-
-        # Define the parameter dictionary objects
-        self.gdt_paramdict = ParameterDictionary()
-        self.gdt_paramdict.add_context(gdt_components_ctxt)
-
-    def execute(self, granule):
-
-        log.debug('(Google DT transform): Received Viz Data Packet' )
+class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
+    @staticmethod
+    @SimpleGranuleTransformFunction.validate_inputs
+    def execute(input=None, context=None, config=None, params=None, state=None):
+        stream_definition_id = params
 
         #init stuff
-        varTuple = []
-        dataDescription = []
-        dataTableContent = []
+        var_tuple = []
+        data_description = []
+        data_table_content = []
 
-        rdt = RecordDictionaryTool.load_from_granule(granule)
+        rdt = RecordDictionaryTool.load_from_granule(input)
+        data_description = []
 
-        vardict = {}
-        vardict['time'] = get_safe(rdt, 'time')
-        vardict['conductivity'] = get_safe(rdt, 'conductivity')
-        vardict['pressure'] = get_safe(rdt, 'pressure')
-        vardict['temperature'] = get_safe(rdt, 'temp')
+        for field in rdt.fields:
 
-        vardict['longitude'] = get_safe(rdt, 'lon')
-        vardict['latitude'] = get_safe(rdt, 'lat')
-        vardict['height'] = get_safe(rdt, 'height')
-        arrLen = len(vardict['time'])  # Figure out how many values are present in the granule
+            if field == 'time':
+                data_description.append((field,'float',field))
 
-        #iinit the dataTable
-        # create data description from the variables in the message
-        dataDescription = [('time', 'float', 'time')]
+            data_description.append((field, 'number', field))
 
-        # split the data string to extract variable names
-        for varname in  vardict.keys():   #psd.list_field_names():
-            if varname == 'time':
-                continue
+        for i in xrange(len(rdt)):
+            var_tuple = [ float(rdt[field][i]) if rdt[field] is not None else 0.0 for field in rdt.fields]
+            data_table_content.append(var_tuple)
 
-            dataDescription.append((varname, 'number', varname))
 
-        # Add the records to the datatable
-        for i in xrange(arrLen):
-            varTuple = []
-
-            for varname,_,_ in dataDescription:
-
-                if vardict[varname] == None or len(vardict[varname]) == 0:
-                    val = 0.0
-                else:
-                    val = float(vardict[varname][i])
-
-                varTuple.append(val)
-
-            # Append the tuples to the data table
-            if len(varTuple) > 0:
-                dataTableContent.append(varTuple)
-
-        # Create output dictionary from the param dict
-        out_rdt = RecordDictionaryTool(param_dictionary=self.gdt_paramdict)
+        out_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
 
         # Prepare granule content
         out_dict = {"viz_product_type" : "google_dt",
-                    "data_description" : dataDescription,
-                    "data_content" : dataTableContent}
+                    "data_description" : data_description,
+                    "data_content" : data_table_content}
 
-        #@TODO: This should never have worked and now breaks the old/new interface.
         out_rdt["google_dt_components"] = np.array([out_dict])
 
         log.debug('Google DT transform: Sending a granule')

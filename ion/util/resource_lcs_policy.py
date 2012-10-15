@@ -58,7 +58,6 @@ class ResourceLCSPolicy(object):
         @param association_predicate one of the association types
         @param some_object the object "owned" by the association type
         """
-        #log.debug("_find_having, from %s" % self._toplevel_call())
         assert(type("") == type(some_object_id))
         ret, _ = self.RR.find_subjects(subject_type,
                                        association_predicate,
@@ -75,7 +74,6 @@ class ResourceLCSPolicy(object):
         @param association_predicate the association type
         @param some_object_type the type of associated object
         """
-        #log.debug("_find_stemming, from %s" % self._toplevel_call())
         assert(type("") == type(primary_object_id))
         ret, _ = self.RR.find_objects(primary_object_id,
                                       association_predicate,
@@ -148,6 +146,11 @@ class AgentPolicy(ResourceLCSPolicy):
         ret = (0 == self._find_having(RT.InstrumentAgentInstance, PRED.hasAgentDefinition, agent_id))
         return self._make_result(ret, "InstrumentAgentInstance(s) are still using this InstrumentAgent")
 
+
+    def precondition_delete(self, agent_id):
+        ret = (0 == self._find_having(RT.InstrumentAgentInstance, PRED.hasAgentDefinition, agent_id))
+        return self._make_result(ret, "InstrumentAgentInstance(s) are still using this InstrumentAgent")
+
 class ModelPolicy(ResourceLCSPolicy):
     def lce_precondition_plan(self, model_id):
         # always OK
@@ -167,6 +170,33 @@ class ModelPolicy(ResourceLCSPolicy):
 
     def lce_precondition_retire(self, model_id):
         # todo: more than checking agents, devices, and sites?
+
+        model_type = self._get_resource_type_by_id(model_id)
+
+        if RT.SensorModel == model_type:
+            return 0 == len(self._find_having(RT.SensorDevice, PRED.hasModel, model_id))
+
+        if RT.InstrumentModel == model_type:
+            if 0 < len(self._find_having(RT.InstrumentDevice, PRED.hasModel, model_id)):
+                return self._make_fail("InstrumentDevice(s) are using this model")
+            if 0 < len(self._find_having(RT.InstrumentAgent, PRED.hasModel, model_id)):
+                return self._make_fail("InstrumentAgent(s) are using this model")
+            if 0 < len(self._find_having(RT.InstrumentSite, PRED.hasModel, model_id)):
+                return self._make_fail("InstrumentSite(s) are using this model")
+            return self._make_pass()
+
+        if RT.PlatformModel == model_type:
+            if 0 < len(self._find_having(RT.PlatformDevice, PRED.hasModel, model_id)):
+                return self._make_fail("PlatformDevice(s) are using this model")
+            if 0 < len(self._find_having(RT.PlatformAgent, PRED.hasModel, model_id)):
+                return self._make_fail("PlatformAgent(s) are using this model")
+            if 0 < len(self._find_having(RT.PlatformSite, PRED.hasModel, model_id)):
+                return self._make_fail("PlatformSite(s) are using this model")
+            return self._make_pass()
+
+        return self._make_fail("Wrong model resource type (got '%s')" % model_type)
+
+    def precondition_delete(self, model_id):
 
         model_type = self._get_resource_type_by_id(model_id)
 
@@ -372,6 +402,10 @@ class DevicePolicy(ResourceLCSPolicy):
 
         return self._make_fail("Wrong device resource type (got '%s')" % device_type)
 
+    def precondition_delete(self, device_id):
+        return self.lce_precondition_retire(device_id)
+
+
 class SitePolicy(ResourceLCSPolicy):
     def lce_precondition_plan(self, site_id):
         # always OK
@@ -402,8 +436,26 @@ class SitePolicy(ResourceLCSPolicy):
         return self._make_pass()
 
     def lce_precondition_retire(self, site_id):
-        # todo:
-        return self._make_pass()
+        # todo: Sites and all subclasses can not be retired if they have children or if they are
+        # not associated to a deployment
+        site_type = self._get_resource_type_by_id(site_id)
+
+        if RT.InstrumentSite == site_type:
+            if 0 < len(self._find_stemming(site_id, PRED.hasDeployment, RT.Deployment)):
+                return self._make_fail("Site is still assigned to a deployment")
+
+        if RT.PlatformSite == site_type:
+            if 0 < len(self._find_stemming(site_id, PRED.hasSite, RT.PlatformDevice)):
+                return self._make_fail("Device is still assigned a child platform site")
+            if 0 < len(self._find_stemming(site_id, PRED.hasDevice, RT.InstrumentDevice)):
+                return self._make_fail("Device is still hasSite a child instrument site")
+            if 0 < len(self._find_stemming(site_id, PRED.hasDeployment, RT.Deployment)):
+                return self._make_fail("Site is still assigned to a deployment")
+
+        return self._make_fail("Wrong device resource type (got '%s')" % site_type)
+
+    def precondition_delete(self, site_id):
+        return self.lce_precondition_retire(site_id)
 
 
 class DataProductPolicy(ResourceLCSPolicy):

@@ -15,7 +15,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from ion.services.dm.utility.granule_utils import CoverageCraft
 from interface.objects import Granule
 from couchdb import ResourceNotFound
-from pyon.ion.transforma import TransformStreamListener
+from ion.core.process.transform import TransformStreamListener
 import re
 import collections
 import numpy
@@ -146,8 +146,19 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         # Actual persistence
         #-------------------------------------------------------------------------------- 
-        covcraft = CoverageCraft(coverage)
-        covcraft.sync_with_granule(granule)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        start_index = coverage.num_timesteps
+        elements = len(rdt)
+        if not elements:
+            return
+        coverage.insert_timesteps(elements)
+
+        for k,v in rdt.iteritems():
+            log.info('key: %s', k)
+            log.info('value: %s', v)
+            slice_ = slice(start_index, None)
+            coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
+
         DatasetManagementService._persist_coverage(dataset_id,coverage)
 
 

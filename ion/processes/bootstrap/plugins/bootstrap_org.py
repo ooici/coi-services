@@ -32,17 +32,17 @@ class BootstrapOrg(BootstrapPlugin):
         # Create root Org: ION
         root_orgname = config.system.root_org
         org = Org(name=root_orgname, description="ION Root Org")
-        self.org_id = org_ms_client.create_org(org, headers={'ion-actor-id': system_actor_id})
+        self.org_id = org_ms_client.create_org(org)
 
         # Instantiate initial set of User Roles for this Org
         ion_manager = UserRole(name=ION_MANAGER,label='ION Manager', description='ION Manager')
         org_ms_client.add_user_role(self.org_id, ion_manager)
-        org_ms_client.grant_role(self.org_id, system_actor_id, ION_MANAGER, headers={'ion-actor-id': system_actor_id} )
+        org_ms_client.grant_role(self.org_id, system_actor_id, ION_MANAGER )
 
         # Make the ION system agent a manager for the ION Org
-        org_ms_client.grant_role(self.org_id, system_actor_id, ORG_MANAGER_ROLE, headers={'ion-actor-id': system_actor_id} )
+        org_ms_client.grant_role(self.org_id, system_actor_id, ORG_MANAGER_ROLE )
 
         # Create root ExchangeSpace
         xs = ExchangeSpace(name=ION_ROOT_XS, description="ION service XS")
-        self.xs_id = ex_ms_client.create_exchange_space(xs, self.org_id, headers={'ion-actor-id': system_actor_id})
+        self.xs_id = ex_ms_client.create_exchange_space(xs, self.org_id)
 

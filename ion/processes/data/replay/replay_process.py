@@ -10,18 +10,24 @@ from pyon.core.exception import BadRequest, NotFound
 from pyon.core.object import IonObjectDeserializer
 from pyon.core.bootstrap import get_obj_registry
 from pyon.datastore.datastore import DataStore
+from pyon.util.arg_check import validate_is_instance
 from pyon.util.log import log
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule import RecordDictionaryTool
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceProcessClient, DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from interface.services.dm.ireplay_process import BaseReplayProcess
 
 from gevent.event import Event
+from numbers import Number
+import datetime
+import dateutil.parser
 import gevent
+import netCDF4
+import numpy as np
+import time
 
 
 class ReplayProcess(BaseReplayProcess):
@@ -43,6 +49,18 @@ class ReplayProcess(BaseReplayProcess):
     '''
     process_type  = 'standalone'
     publish_limit = 10
+    dataset_id    = None
+    delivery_format = {}
+    start_time      = None
+    end_time        = None
+    stride_time     = None
+    parameters      = None
+    stream_id       = ''
+    stream_def_id   = ''
+
+
+
+
 
     def __init__(self, *args, **kwargs):
         super(ReplayProcess,self).__init__(*args,**kwargs)
@@ -57,7 +75,8 @@ class ReplayProcess(BaseReplayProcess):
         '''
         log.info('IVE BEEN STARTED!')
         super(ReplayProcess,self).on_start()
-        dsm_cli = DatasetManagementServiceClient()
+        dsm_cli = DatasetManagementServiceProcessClient(process=self)
+        pubsub  = PubsubManagementServiceProcessClient(process=self)
 
         self.dataset_id      = self.CFG.get_safe('process.dataset_id', None)
         self.delivery_format = self.CFG.get_safe('process.delivery_format',{})
@@ -66,6 +85,10 @@ class ReplayProcess(BaseReplayProcess):
         self.stride_time     = self.CFG.get_safe('process.query.stride_time', None)
         self.parameters      = self.CFG.get_safe('process.query.parameters',None)
         self.publish_limit   = self.CFG.get_safe('process.query.publish_limit', 10)
+        self.stream_id       = self.CFG.get_safe('process.publish_streams.output', '')
+        self.stream_def      = pubsub.read_stream_definition(stream_id=self.stream_id)
+        self.stream_def_id   = self.stream_def._id
+
         self.publishing.clear()
         self.play.set()
         self.end.clear()
@@ -76,7 +99,50 @@ class ReplayProcess(BaseReplayProcess):
         self.dataset = dsm_cli.read_dataset(self.dataset_id)
         self.pubsub = PubsubManagementServiceProcessClient(process=self)
 
+    @classmethod
+    def _coverage_to_granule(cls, coverage, start_time=None, end_time=None, stride_time=None, parameters=None, stream_def_id=None, tdoa=None):
+        slice_ = slice(None) # Defaults to all values
 
+        if tdoa is not None and isinstance(tdoa,slice):
+            slice_ = tdoa
+        elif stride_time is not None:
+            validate_is_instance(start_time, Number, 'start_time must be a number for striding.')
+            validate_is_instance(end_time, Number, 'end_time must be a number for striding.')
+            validate_is_instance(stride_time, Number, 'stride_time must be a number for striding.')
+            ugly_range = np.arange(start_time, end_time, stride_time)
+            idx_values = [cls.get_relative_time(coverage,i) for i in ugly_range]
+            slice_ = [idx_values]
+
+        elif not (start_time is None and end_time is None):
+            time_var = coverage._temporal_param_name
+            uom = coverage.get_parameter_context(time_var).uom
+            if start_time is not None:
+                start_units = cls.ts_to_units(uom,start_time)
+                log.info('Units: %s', start_units)
+                start_idx = cls.get_relative_time(coverage,start_units)
+                log.info('Start Index: %s', start_idx)
+                start_time = start_idx
+            if end_time is not None:
+                end_units   = cls.ts_to_units(uom,end_time)
+                log.info('End units: %s', end_units)
+                end_idx   = cls.get_relative_time(coverage,end_units)
+                log.info('End index: %s',  end_idx)
+                end_time = end_idx
+            slice_ = slice(start_time,end_time,stride_time)
+            log.info('Slice: %s', slice_)
+
+        if stream_def_id:
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        else:
+            rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
+        if parameters is not None:
+            fields = list(set(parameters).intersection(rdt.fields))
+        else:
+            fields = rdt.fields
+
+        for field in fields:
+            rdt[field] = coverage.get_parameter_values(field, tdoa=slice_)
+        return rdt
 
     def execute_retrieve(self):
         '''
@@ -84,11 +150,10 @@ class ReplayProcess(BaseReplayProcess):
         as a value in lieu of publishing it on a stream
         '''
         coverage = DatasetManagementService._get_coverage(self.dataset_id)
-        crafter = CoverageCraft(coverage)
-        #@todo: add bounds checking to ensure the dataset being retrieved is not too large
-        crafter.sync_rdt_with_coverage(start_time=self.start_time, end_time=self.end_time, stride_time=self.stride_time, parameters=self.parameters)
-        granule = crafter.to_granule()
-        return granule
+        rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters)
+        return rdt.to_granule()
+
+
 
     def execute_replay(self):
         '''
@@ -151,38 +216,86 @@ class ReplayProcess(BaseReplayProcess):
         ts = float(doc.get('ts_create',0))
 
         coverage = DatasetManagementService._get_coverage(dataset_id)
-        
-        black_box = CoverageCraft(coverage)
-        black_box.sync_rdt_with_coverage(start_time=ts,end_time=None)
-        granule = black_box.to_granule()
+        rdt = cls._coverage_to_granule(coverage,start_time=ts, end_time=None)
+        return rdt.to_granule()
 
-        return granule
 
     @classmethod
     def get_last_values(cls, dataset_id):
         coverage = DatasetManagementService._get_coverage(dataset_id)
+        rdt = cls._coverage_to_granule(coverage,tdoa=slice(-1,None))
         
-        black_box = CoverageCraft(coverage)
-        black_box.sync_rdt_with_coverage(tdoa=slice(-1,None))
-        granule = black_box.to_granule()
-        return granule
+        return rdt.to_granule()
 
     def _replay(self):
         coverage = DatasetManagementService._get_coverage(self.dataset_id)
-        crafter = CoverageCraft(coverage)
-        crafter.sync_rdt_with_coverage(start_time=self.start_time, end_time=self.end_time, stride_time=self.stride_time, parameters=self.parameters)
+        rdt = self._coverage_to_granule(coverage, self.start_time, self.end_time, self.stride_time, self.parameters, self.stream_def_id)
 
-        elements = len(crafter.rdt)
-        stream_id = self.output.stream_id
-        stream_def = self.pubsub.read_stream_definition(stream_id=stream_id)
+
+        elements = len(rdt)
+        
         for i in xrange(elements / self.publish_limit):
-            outgoing = RecordDictionaryTool(stream_definition_id=stream_def._id)
+            outgoing = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
             fields = self.parameters or outgoing.fields
             for field in fields:
-                outgoing[field] = crafter.rdt[field][(i*self.publish_limit) : ((i+1)*self.publish_limit)]
+                outgoing[field] = rdt[field][(i*self.publish_limit) : ((i+1)*self.publish_limit)]
             yield outgoing
         return 
 
 
+    @classmethod
+    def get_relative_time(cls, coverage, time):
+        '''
+        Determines the relative time in the coverage model based on a given time
+        The time must match the coverage's time units
+        '''
+        time_name = coverage._temporal_param_name
+        pc = coverage.get_parameter_context(time_name)
+        units = pc.uom
+        if 'iso' in units:
+            return None # Not sure how to implement this....  How do you compare iso strings effectively?
+        values = coverage.get_parameter_values(time_name)
+        return cls.find_nearest(values,time)
 
+    @classmethod
+    def ts_to_units(cls,units, val):
+        '''
+        Converts a unix timestamp into various formats
+        Example:
+        ts = time.time()
+        CoverageCraft.ts_to_units('days since 2000-01-01', ts)
+        '''
+        if 'iso' in units:
+            return time.strftime('%Y-%d-%mT%H:%M:%S', time.gmtime(val))
+        elif 'since' in units:
+            t = netCDF4.netcdftime.utime(units)
+            return t.date2num(datetime.datetime.utcfromtimestamp(val))
+        else:
+            return val
+
+
+    @classmethod
+    def units_to_ts(cls, units, val):
+        '''
+        Converts known time formats into a unix timestamp
+        Example:
+        ts = CoverageCraft.units_to_ts('days since 2000-01-01', 1200)
+        '''
+        if 'since' in units:
+            t = netCDF4.netcdftime.utime(units)
+            dtg = t.num2date(val)
+            return time.mktime(dtg.timetuple())
+        elif 'iso' in units:
+            t = dateutil.parser.parse(val)
+            return time.mktime(t.timetuple())
+        else:
+            return val
+
+    @classmethod
+    def find_nearest(cls, arr, val):
+        '''
+        The sexiest algorithm for finding the best matching value for a numpy array
+        '''
+        idx = np.abs(arr-val).argmin()
+        return idx
 

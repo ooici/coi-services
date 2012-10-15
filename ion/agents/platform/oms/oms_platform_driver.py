@@ -20,6 +20,7 @@ from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.oms.oms_resource_monitor import OmsResourceMonitor
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from ion.agents.platform.oms.oms_client import InvalidResponse
+from ion.agents.platform.oms.oms_alarm_listener import OmsAlarmListener
 from ion.agents.platform.util.network import NNode
 from ion.agents.platform.util.network import Attr
 from ion.agents.platform.util.network import Port
@@ -56,6 +57,10 @@ class OmsPlatformDriver(PlatformDriver):
 
         # _monitors: dict { attr_id: OmsResourceMonitor }
         self._monitors = {}
+
+        # we can instantiate this here as the the actual http server is
+        # started via corresponding method.
+        self._alarm_listener = OmsAlarmListener(self._notify_driver_event)
 
     def ping(self):
         """
@@ -147,7 +152,8 @@ class OmsPlatformDriver(PlatformDriver):
             children according to the given list.
             """
             nnode = NNode(platform_id)
-            self._set_attributes_and_ports_from_agent_device_map(nnode)
+            if self._agent_device_map:
+                self._set_attributes_and_ports_from_agent_device_map(nnode)
 
             log.debug('Created NNode for %r', platform_id)
 
@@ -164,11 +170,8 @@ class OmsPlatformDriver(PlatformDriver):
     def _set_attributes_and_ports_from_agent_device_map(self, nnode):
         """
         Sets the attributes and ports for the given NNode from
-        self._agent_device_map if not None.
+        self._agent_device_map.
         """
-        if self._agent_device_map is None:
-            return
-
         platform_id = nnode.platform_id
         if platform_id not in self._agent_device_map:
             log.warn("%r: no entry in agent_device_map for platform_id",
@@ -235,6 +238,103 @@ class OmsPlatformDriver(PlatformDriver):
         attr_values = retval[self._platform_id]
         return attr_values
 
+    def _validate_set_attribute_values(self, attrs):
+        """
+        Does some pre-validation of the passed values according to the
+        definition of the attributes.
+
+        NOTE: We don't yet check everything here, just some basics.
+        TODO determine appropriate validations at this level.
+        Note that the basic checks here follow what the OMS system
+        will do if we just send the request directly to it. So,
+        need to determine what exactly should be done on the CI side.
+        """
+        # TODO determine appropriate validations at this level.
+
+        # get definitions rto verify the values against
+        attr_defs = self._get_platform_attributes()
+        log.debug("validating passed attributes: %s against defs %s", attrs, attr_defs)
+
+        # to collect errors, if any:
+        vals = {}
+        errors = False
+        for attr_name, attr_value in attrs:
+
+            # assume ok:
+            vals[attr_name] = (attr_value, '')
+            # fake timestamp--value not actually set here, of course. But we
+            # need to include OK entries in case there're other bad entries.
+
+            attr_def = attr_defs.get(attr_name, None)
+
+            log.debug("validating %s against %s", attr_name, str(attr_def))
+
+            if not attr_def:
+                vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+                errors = True
+                log.debug("Attribute %s not in associated platform %s",
+                    attr_name, self._platform_id)
+                continue
+
+            type = attr_def.get('type', None)
+            units = attr_def.get('units', None)
+            min_val = attr_def.get('min_val', None)
+            max_val = attr_def.get('max_val', None)
+            read_write = attr_def.get('read_write', None)
+            group = attr_def.get('group', None)
+
+            if "write" != read_write:
+                vals[attr_name] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
+                errors = True
+                log.debug(
+                    "Trying to set read-only attribute %s in platform %s",
+                    attr_name, self._platform_id)
+                continue
+
+            #
+            # TODO the following value-related checks are minimal
+            #
+            if "int" == type:
+                if min_val and int(attr_value) < int(min_val):
+                    vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+                    errors = True
+                    log.debug(
+                        "Value %s for attribute %s is less than specified minimum "
+                        "value %s in associated platform %s",
+                        attr_value, attr_name, min_val,
+                        self._platform_id)
+                    continue
+
+                if max_val and int(attr_value) > int(max_val):
+                    vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+                    errors = True
+                    log.debug(
+                        "Value %s for attribute %s is greater than specified maximum "
+                        "value %s in associated platform %s",
+                        attr_value, attr_name, max_val,
+                        self._platform_id)
+                    continue
+
+        return vals if errors else None
+
+    def set_attribute_values(self, attrs):
+        """
+        """
+        attr_values = self._validate_set_attribute_values(attrs)
+        if attr_values:  # some error
+            return attr_values
+
+        # ok, now make the request to RSN OMS:
+        retval = self._oms.setPlatformAttributeValues(self._platform_id, attrs)
+        log.debug("setPlatformAttributeValues = %s", retval)
+
+        if not self._platform_id in retval:
+            raise PlatformException("Unexpected: response does not include "
+                                    "requested platform '%s'" % self._platform_id)
+
+        attr_values = retval[self._platform_id]
+        return attr_values
+
     def _verify_platform_id_in_response(self, response):
         """
         Verifies the presence of my platform_id in the response.
@@ -260,11 +360,20 @@ class OmsPlatformDriver(PlatformDriver):
         else:
             return response[self._platform_id]
 
-    def start_resource_monitoring(self):
-        """
-        Starts greenlets to periodically retrieve values of the attributes
-        associated with my platform, and do corresponding event notifications.
-        """
+    def _get_platform_attributes(self):
+
+        if self._agent_device_map:
+            return self._get_platform_attributes_using_agent_device_map()
+        else:
+            return self._get_platform_attributes_using_oms()
+
+    def _get_platform_attributes_using_agent_device_map(self):
+        attr_info = dict((attr.attr_id, attr.defn) for attr in self._nnode.attrs.itervalues())
+        log.debug("%r: _get_platform_attributes_using_agent_device_map attr_info=%s",
+              self._platform_id, attr_info)
+        return attr_info
+
+    def _get_platform_attributes_using_oms(self):
         log.debug("%r: getting platform attributes", self._platform_id)
 
         attrs = self._oms.getPlatformAttributes(self._platform_id)
@@ -273,12 +382,24 @@ class OmsPlatformDriver(PlatformDriver):
 
         attr_info = self._verify_platform_id_in_response(attrs)
 
+        return attr_info
+
+    def start_resource_monitoring(self):
+        """
+        Starts greenlets to periodically retrieve values of the attributes
+        associated with my platform, and do corresponding event notifications.
+        """
+        log.debug("%r: start_resource_monitoring", self._platform_id)
+
+        attr_info = self._get_platform_attributes()
+
         if not attr_info:
             # no attributes to monitor.
             log.debug("%r: NOT starting resource monitoring", self._platform_id)
             return
 
-        log.debug("%r: starting resource monitoring", self._platform_id)
+        log.debug("%r: starting resource monitoring: attr_info=%s",
+                  self._platform_id, str(attr_info))
 
         #
         # TODO attribute grouping so one single greenlet is launched for a
@@ -286,22 +407,26 @@ class OmsPlatformDriver(PlatformDriver):
         # simplicity at the moment, start a greenlet per attribute.
         #
 
-        for attr_name, attr_defn in attr_info.iteritems():
+        for attr_id, attr_defn in attr_info.iteritems():
+            log.debug("%r: dispatching resource monitoring for attr_id=%r attr_defn=%s",
+                      self._platform_id, attr_id, attr_defn)
             if 'monitorCycleSeconds' in attr_defn:
-                self._start_monitor_greenlet(attr_defn)
+                self._start_monitor_greenlet(attr_id, attr_defn)
             else:
                 log.warn(
                     "%r: unexpected: attribute info does not contain %r "
                     "for attribute %r. attr_defn = %s",
                         self._platform_id,
-                        'monitorCycleSeconds', attr_name, str(attr_defn))
+                        'monitorCycleSeconds', attr_id, str(attr_defn))
 
-    def _start_monitor_greenlet(self, attr_defn):
-        assert 'attr_id' in attr_defn
+    def _start_monitor_greenlet(self, attr_id, attr_defn):
         assert 'monitorCycleSeconds' in attr_defn
-        resmon = OmsResourceMonitor(self._oms, self._platform_id, attr_defn,
+        log.debug("%r: _start_monitor_greenlet attr_id=%r attr_defn=%s",
+                  self._platform_id, attr_id, attr_defn)
+        resmon = OmsResourceMonitor(self._oms, self._platform_id,
+                                    attr_id, attr_defn,
                                     self._notify_driver_event)
-        self._monitors[attr_defn['attr_id']] = resmon
+        self._monitors[attr_id] = resmon
         resmon.start()
 
     def stop_resource_monitoring(self):
@@ -314,3 +439,35 @@ class OmsPlatformDriver(PlatformDriver):
         for resmon in self._monitors.itervalues():
             resmon.stop()
         self._monitors.clear()
+
+    def _register_alarm_listener(self, url):
+        """
+        Registers given url for all alarm types.
+        """
+        result = self._oms.registerAlarmListener(url, [])
+        log.info("registerAlarmListener url=%r returned: %s", url, str(result))
+
+    def _unregister_alarm_listener(self, url):
+        """
+        Unregisters given url for all alarm types.
+        """
+        result = self._oms.unregisterAlarmListener(url, [])
+        log.info("unregisterAlarmListener url=%r returned: %s", url, str(result))
+
+    def start_alarm_dispatch(self, params):
+        # start http server:
+        self._alarm_listener.start_http_server()
+
+        # then, register my listener:
+        self._register_alarm_listener(self._alarm_listener.url)
+
+        return "OK"
+
+    def stop_alarm_dispatch(self):
+        # unregister my listener:
+        self._unregister_alarm_listener(self._alarm_listener.url)
+
+        # then, stop http server:
+        self._alarm_listener.stop_http_server()
+
+        return "OK"

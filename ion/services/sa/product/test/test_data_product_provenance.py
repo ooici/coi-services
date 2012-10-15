@@ -20,6 +20,7 @@ from nose.plugins.attrib import attr
 import unittest
 
 from ion.util.parameter_yaml_IO import get_param_dict
+from ion.services.dm.utility.granule_utils import CoverageCraft
 
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
@@ -31,7 +32,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-@unittest.skip('not working')
+#@unittest.skip('not working')
 class TestDataProductProvenance(IonIntegrationTestCase):
 
     def setUp(self):
@@ -69,9 +70,8 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
                                   model="SBE37IMModel",
-                                  custom_attributes= {'streams':{'parsed': 'ctd_parsed_param_dict' }})
+                                  stream_configuration= {'parsed': 'ctd_parsed_param_dict' } )
 
-                                  #custom_attributes= {'streams':{'raw': 'ctd_raw_param_dict' , 'parsed': 'ctd_parsed_param_dict' }})
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
@@ -106,26 +106,18 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         # Create CTD Parsed  data product
         #-------------------------------
-        # create a stream definition for the data from the ctd simulator
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_CDM')
-
-        log.debug( 'test_get_provenance:Creating new CDM data product with a stream definition')
-
-        # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
-
+        sdom, tdom = CoverageCraft.create_domains()
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('sample_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
 
-        parsed_param_dict = get_param_dict('ctd_parsed_param_dict')
+        parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
+        parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary=parsed_parameter_dictionary.dump())
+
+        log.debug( 'test_get_provenance:Creating new CDM data product with a stream definition')
+
+        parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
+        parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='the parsed data',
@@ -133,7 +125,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_parsed_data_product = self.dpmsclient.create_data_product(data_product=dp_obj, stream_definition_id=ctd_stream_def_id, parameter_dictionary=parsed_param_dict)
+        ctd_parsed_data_product = self.dpmsclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
         log.debug( 'new dp_id = %s', ctd_parsed_data_product)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
@@ -148,7 +140,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        log_data_product_id = self.dpmsclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        log_data_product_id = self.dpmsclient.create_data_product(dp_obj, parsed_stream_def_id, parsed_parameter_dictionary.dump())
         self.omsclient.create_site_data_product(instrument_site_id, log_data_product_id)
 
 
@@ -279,13 +271,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id, binding='conductivity' )
 
         outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id, binding='pressure' )
 
         outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
         self.output_products={}
@@ -335,13 +327,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(name='L1_conductivity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_conductivity_id, ctd_L1_conductivity_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_conductivity_id, ctd_L1_conductivity_dprocdef_id, binding='conductivity' )
 
         outgoing_stream_l1_pressure_id = self.pubsubclient.create_stream_definition(name='L1_Pressure')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_pressure_id, ctd_L1_pressure_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_pressure_id, ctd_L1_pressure_dprocdef_id, binding='pressure' )
 
         outgoing_stream_l1_temperature_id = self.pubsubclient.create_stream_definition(name='L1_Temperature')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_temperature_id, ctd_L1_temperature_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_temperature_id, ctd_L1_temperature_dprocdef_id, binding='temperature' )
 
         log.debug("TestDataProductProvenance: create output data product L1 conductivity")
 
@@ -386,10 +378,10 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
 
         outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(name='L2_salinity')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_salinity_id, ctd_L2_salinity_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_salinity_id, ctd_L2_salinity_dprocdef_id, binding='salinity' )
 
         outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(name='L2_Density')
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id, ctd_L2_density_dprocdef_id )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id, ctd_L2_density_dprocdef_id, binding='density' )
 
         log.debug("TestDataProductProvenance: create output data product L2 Salinity")
 
@@ -423,9 +415,9 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         contactInfo.street_address = "111 First St"
         contactInfo.city = "San Diego"
         contactInfo.email = "bill@yahoo.com"
-        contactInfo.phone = "858-555-6666"
+        contactInfo.phones = ["858-555-6666"]
         contactInfo.country = "USA"
-        contactInfo.state = "CA"
+        contactInfo.postal_code = "92123"
 
         ctd_l2_density_output_dp_obj = IonObject(   RT.DataProduct,
                                                     name='L2_Density',

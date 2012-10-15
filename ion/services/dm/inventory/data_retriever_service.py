@@ -7,7 +7,7 @@
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 from interface.objects import Replay 
 from pyon.core.exception import BadRequest 
-from pyon.ion.transforma import TransformAlgorithm
+from ion.core.function.transform_function import TransformFunction
 from pyon.util.arg_check import validate_is_instance, validate_true
 from ion.processes.data.replay.replay_process import ReplayProcess
 from pyon.public import PRED, RT
@@ -80,7 +80,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         
         config = replay.config
         pid = replay.process_id
-        
+
         self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, process_id=pid, configuration=config)
 
 
@@ -98,10 +98,14 @@ class DataRetrieverService(BaseDataRetrieverService):
 
     def retrieve(self, dataset_id='', query=None, delivery_format=None, module='', cls='', kwargs=None):
         '''
-        Query can have the following parameters:
-          start_time:  Beginning time value
-          end_time:    Ending time value
-          stride_time: The stride time
+        Retrieves a dataset.
+        @param dataset_id      Dataset identifier
+        @param query           Query parameters (start_time, end_time, stride_time, parameters)
+        @param delivery_format The stream definition identifier for the outgoing granule (stream_defintinition_id)
+        @param module          Module to chain a transform into
+        @param cls             Class of the transform
+        @param kwargs          Keyword Arguments to pass into the transform.
+
         '''
         if query is None:
             query = {}
@@ -114,13 +118,14 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         replay_instance = ReplayProcess()
 
-        replay_instance.dataset     = self.clients.dataset_management.read_dataset(dataset_id)
-        replay_instance.dataset_id  = dataset_id
-        replay_instance.start_time  = query.get('start_time', None)
-        replay_instance.end_time    = query.get('end_time', None)
-        replay_instance.stride_time = query.get('stride_time', None)
-        replay_instance.parameters  = query.get('parameters',None)
-        replay_instance.container   = self.container
+        replay_instance.dataset       = self.clients.dataset_management.read_dataset(dataset_id)
+        replay_instance.dataset_id    = dataset_id
+        replay_instance.start_time    = query.get('start_time', None)
+        replay_instance.end_time      = query.get('end_time', None)
+        replay_instance.stride_time   = query.get('stride_time', None)
+        replay_instance.parameters    = query.get('parameters',None)
+        replay_instance.stream_def_id = delivery_format
+        replay_instance.container     = self.container
 
         retrieve_data = replay_instance.execute_retrieve()
 
@@ -170,6 +175,6 @@ class DataRetrieverService(BaseDataRetrieverService):
     @classmethod
     def _transform_data(binding, data, module, cls, kwargs={}):
         transform = for_name(module,cls)
-        validate_is_instance(transform,TransformAlgorithm,'%s.%s is not a TransformAlgorithm' % (module,cls))
+        validate_is_instance(transform,TransformFunction,'%s.%s is not a TransformFunction' % (module,cls))
         return transform.execute(data,**kwargs)
 

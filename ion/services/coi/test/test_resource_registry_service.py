@@ -517,3 +517,6 @@ class TestResourceRegistry(IonIntegrationTestCase):
 
         self.assertEqual(test_obj_id,extended_resource._id)
         self.assertEqual(len(extended_resource.owners),2)
+
+        extended_resource_list = self.resource_registry_service.get_resource_extension(str([user_info_id1,user_info_id2]), 'ExtendedInformationResource')
+        self.assertEqual(len(extended_resource_list), 2)

@@ -66,6 +66,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #stuff we associate to
         data_producer_id, _      = self.RR.create(any_old(RT.DataProducer))
+        org_id, _ =                self.RR.create(any_old(RT.Org))
 
         #instrument_agent_instance_id #is only a target
         
@@ -78,6 +79,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 #        self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
         self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
         self.RR.create_association(instrument_device_id, PRED.hasDevice, sensor_device_id)
+        self.RR.create_association(org_id, PRED.hasResource, instrument_device_id)
 
         instrument_model_id #is only a target
 
@@ -125,6 +127,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_device_id, extended_instrument._id)
         self.assertEqual(len(extended_instrument.owners), 2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
+
 
 
         #check data products

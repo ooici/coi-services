@@ -96,7 +96,7 @@ class ResourceImplMetatest(object):
         
         def fun():
             #ret = Mock()
-            self.log.debug("Creating sample %s" % iontype)
+            self.log.debug("Creating sample %s", iontype)
             ret = IonObject(iontype)
             ret.name = "sample %s" % iontype
             ret.description = "description of sample %s" % iontype
@@ -457,7 +457,7 @@ class ResourceImplMetatest(object):
             svc.clients.resource_registry.delete.return_value = None
 
             try:
-                myimpl.delete_one("111", True)
+                myimpl.force_delete_one("111")
             except TypeError as te:
                 # for logic tests that run into mock trouble
                 if "'Mock' object is not iterable" != te.message:
@@ -533,7 +533,7 @@ class ResourceImplMetatest(object):
 
                 #call the impl
                 response = myfind("111")
-                self.assertEqual(response, fo.call_count * ['333'])
+                self.assertIn('333', response)
 
                 if all_in_one: svc.clients.resource_registry.find_objects.reset_mock()
 

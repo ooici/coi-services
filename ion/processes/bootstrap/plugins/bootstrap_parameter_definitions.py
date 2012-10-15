@@ -26,11 +26,13 @@ class BootstrapParameterDefinitions(BootstrapPlugin):
 
 
     def load_contexts(self):
-
-        contexts = {i.name : i for i in build_contexts()} # Thanks to DAF for this pattern
-        for name, context in contexts.iteritems():
-            context_id = self.dataset_management.create_parameter_context(name=name, parameter_context=context.dump())
-            contexts[name] = context_id
+        try:
+            contexts = {i.name : i for i in build_contexts()} # Thanks to DAF for this pattern
+            for name, context in contexts.iteritems():
+                context_id = self.dataset_management.create_parameter_context(name=name, parameter_context=context.dump())
+                contexts[name] = context_id
+        except Exception as e:
+            print 'Exception %s: %s' %(type(e), e.message)
 
         print 'Loaded %s Parameter Contexts' % len(contexts)
         return contexts

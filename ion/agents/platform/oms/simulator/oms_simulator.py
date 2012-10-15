@@ -45,9 +45,32 @@ class OmsSimulator(OmsClient):
         self._reg_alarm_listeners = {}
 
         self._alarm_notifier = AlarmNotifier()
-        self._alarm_generator = AlarmGenerator(self._alarm_notifier)
-        self._alarm_generator.start()
-        log.debug("alarm generator started")
+        # AlarmGenerator only kept while there are listeners registered
+        self._alarm_generator = None
+
+    def _start_alarm_generator_if_listeners(self):
+        if not self._alarm_generator and len(self._reg_alarm_listeners):
+            self._alarm_generator = AlarmGenerator(self._alarm_notifier)
+            self._alarm_generator.start()
+            log.debug("alarm generator started (%s listeners registered)",
+                      len(self._reg_alarm_listeners))
+
+    def _stop_alarm_generator_if_no_listeners(self):
+        if self._alarm_generator and not len(self._reg_alarm_listeners):
+            log.debug("alarm generator stopping (no listeners registered)")
+            self._alarm_generator.stop()
+            self._alarm_generator = None
+
+    def _deactivate_simulator(self):
+        """
+        Special method only intended to be called for when the simulator is run
+        in "embedded" form. See test_oms_simulator for the particular case.
+        """
+        log.info("_deactivate_simulator called. alarm_generator=%s; %s listeners registered",
+                 self._alarm_generator, len(self._reg_alarm_listeners))
+        if self._alarm_generator:
+            self._alarm_generator.stop()
+            self._alarm_generator = None
 
     def _get_platform_types(self, pyobj):
         """
@@ -188,6 +211,32 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: vals}
 
+    def setPlatformAttributeValues(self, platform_id, input_attrs):
+        if platform_id not in self._idp:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        assert isinstance(input_attrs, list)
+
+        timestamp = time.time()
+        attrs = self._idp[platform_id].attrs
+        vals = {}
+        for (attrName, attrValue) in input_attrs:
+            if attrName in attrs:
+                attr = attrs[attrName]
+                if attr.writable:
+                    #
+                    # TODO check given attrValue
+                    #
+                    vals[attrName] = (attrValue, timestamp)
+                else:
+                    vals[attrName] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
+            else:
+                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+
+        retval = {platform_id: vals}
+        log.debug("setPlatformAttributeValues returning: %s", str(retval))
+        return retval
+
     def getPlatformPorts(self, platform_id):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -290,7 +339,7 @@ class OmsSimulator(OmsClient):
         return True
 
     def registerAlarmListener(self, url, alarm_types):
-        log.info("registerAlarmListener: url=%r, alarm_types=%s",
+        log.debug("registerAlarmListener called: url=%r, alarm_types=%s",
                  url, str(alarm_types))
 
         if not self._validate_alarm_listener_url(url):
@@ -306,6 +355,9 @@ class OmsSimulator(OmsClient):
             existing_types, reg_times = zip(*existing_pairs)
         else:
             existing_types = reg_times = []
+
+        if len(alarm_types) == 0:
+            alarm_types = list(AlarmInfo.ALARM_TYPES.keys())
 
         result_list = []
         for alarm_type in alarm_types:
@@ -325,10 +377,14 @@ class OmsSimulator(OmsClient):
                 existing_pairs.append((alarm_type, reg_time))
                 result_list.append((alarm_type, reg_time))
 
+                log.info("%r registered for alarm_type=%r", url, alarm_type)
+
+        self._start_alarm_generator_if_listeners()
+
         return {url: result_list}
 
     def unregisterAlarmListener(self, url, alarm_types):
-        log.info("unregisterAlarmListener: url=%r, alarm_types=%s",
+        log.debug("unregisterAlarmListener called: url=%r, alarm_types=%s",
                  url, str(alarm_types))
 
         if not url in self._reg_alarm_listeners:
@@ -339,6 +395,9 @@ class OmsSimulator(OmsClient):
         assert len(existing_pairs), "we don't keep any url with empty list"
 
         existing_types, reg_times = zip(*existing_pairs)
+
+        if len(alarm_types) == 0:
+            alarm_types = list(AlarmInfo.ALARM_TYPES.keys())
 
         result_list = []
         for alarm_type in alarm_types:
@@ -351,16 +410,31 @@ class OmsSimulator(OmsClient):
                 # registered, so remove it
                 #
                 unreg_time = self._alarm_notifier.remove_listener(url, alarm_type)
-                del existing_pairs[existing_types.index(alarm_type)]
+                idx = existing_types.index(alarm_type)
+                del existing_pairs[idx]
                 result_list.append((alarm_type, unreg_time))
+
+                # update for next iteration (index for next proper removal):
+                if len(existing_pairs):
+                    existing_types, reg_times = zip(*existing_pairs)
+                else:
+                    existing_types = reg_times = []
+
+                log.info("%r unregistered for alarm_type=%r", url, alarm_type)
+
             else:
                 # not registered, report 0
                 unreg_time = 0
                 result_list.append((alarm_type, unreg_time))
 
-        if not len(existing_pairs):
+        if len(existing_pairs):
+            # reflect the updates:
+            self._reg_alarm_listeners[url] = existing_pairs
+        else:
             # we don't keep any url with empty list
             del self._reg_alarm_listeners[url]
+
+        self._stop_alarm_generator_if_no_listeners()
 
         return {url: result_list}
 

@@ -76,6 +76,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def delete_data_process_definition(self, data_process_definition_id=''):
         self.clients.resource_registry.delete(data_process_definition_id)
 
+    def force_delete_data_process_definition(self, data_process_definition_id=''):
+        pass
+
     def find_data_process_definitions(self, filters=None):
         """
         @param      filters: dict of parameters to filter down
@@ -114,7 +117,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
-    def assign_stream_definition_to_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
+    def assign_stream_definition_to_data_process_definition(self, stream_definition_id='', data_process_definition_id='', binding=''):
         """Connect the output  stream with a data process definition
         """
         # Verify that both ids are valid, RR will throw if not found
@@ -126,6 +129,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                                                           " definition id: %s" % data_process_definition_id)
 
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasStreamDefinition,  stream_definition_id)
+        data_process_definition_obj.output_bindings[binding] = stream_definition_id
+        self.clients.resource_registry.update(data_process_definition_obj)
 
     def unassign_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
         """
@@ -175,6 +180,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_definition = self.read_data_process_definition(data_process_definition_id)
 
         #---------------------------------------------------------------------------------------
+        # Read the output bindings from the definition
+        #---------------------------------------------------------------------------------------
+
+        output_bindings = data_process_definition.output_bindings
+
+        #---------------------------------------------------------------------------------------
         # Find the process definition associated with this data process definition.
         # From the process definition, we can get the module and class to run....
         #---------------------------------------------------------------------------------------
@@ -221,7 +232,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if out_data_products is None:
             raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
 
-        for name, output_data_product_id in out_data_products.iteritems():
+        for binding, output_data_product_id in out_data_products.iteritems():
 
             # check that the product is not already associated with a producer
             producer_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
@@ -246,7 +257,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             if len(stream_ids) != 1:
                 raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
 
-            output_stream_dict[name] = stream_ids[0]
+            output_stream_dict[binding] = stream_ids[0]
 
         #------------------------------------------------------------------------------------------------------------------------------------------
         #Check for attached objects and put them into the configuration
@@ -274,32 +285,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 for instmodel_id in instmodel_ids:
                     log.debug("Instmodel_id assoc to the instDevice: %s", str(instmodel_id))
 
-#<<<<<<< cb903e1b28324f365b12933c7b9fa557069ace38
-#        # Create subscription from in_data_product, which should already be associated with a stream via the Data Producer
-#        in_stream_ids = []
-#        # get the streams associated with this IN data products
-#        for  in_data_product_id in in_data_product_ids:
-#            log.debug("DataProcessManagementService:create_data_process - get the stream associated with this IN data product")
-#            stream_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, PRED.hasStream, RT.Stream, True)
-#            if not stream_ids:
-#                raise NotFound("No Stream created for this IN Data Product " + str(in_data_product_id))
-#            if len(stream_ids) != 1:
-#                raise BadRequest("IN Data Product should only have ONE stream at this time" + str(in_data_product_id))
-#            log.critical("DataProcessManagementService:create_data_process - get the stream associated with this IN data product:  %s  in_stream_id: %s ", str(in_data_product_id),  str(stream_ids[0]))
-#            in_stream_ids.append(stream_ids[0])
-#        log.critical('in_stream_ids: %s', in_stream_ids)
-#        # create a subscription to the input stream
-#        if in_stream_ids:
-#            log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream")
-#            input_subscription_id = self.clients.pubsub_management.create_subscription(name=data_process_name, stream_ids=in_stream_ids)
-#            log.debug("DataProcessManagementService:create_data_process - Finally - create a subscription to the input stream   input_subscription_id"  +  str(input_subscription_id))
-#
-#            log.info("Adding the subscription id to the resource for clean up later.")
-#            # add the subscription id to the resource for clean up later
-#            self.data_process.input_subscription_id = input_subscription_id
-#        else:
-#            log.info('No input streams')
-#-----------------------------------------------
                     # check for attachments in instrument model
                     configuration = self._find_lookup_tables(instmodel_id, configuration)
 
@@ -320,16 +305,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #------------------------------------------------------------------------------------------------------------------------------------------
         self.data_process.input_subscription_id = input_subscription_id
 
-#>>>>>>> f2aad5acaa0821b3f851610a0a83d963fc74f446
-
-        # Launch the process
-#        pid = self._start_process(  name = data_process_id,
-#                                    in_subscription_id = input_subscription_id,
-#                                    out_streams = output_stream_dict,
-#                                    process_definition_id = process_definition_id,
-#                                    configuration = configuration)
-#
-#<<<<<<< HEAD
         log.info("Launching the process")
         debug_str = "\n\tQueue Name: %s\n\tOutput Streams: %s\n\tProcess Definition ID: %s\n\tConfiguration: %s" % (data_process_name, output_stream_dict, process_definition_id, configuration)
         log.debug(debug_str)
@@ -346,7 +321,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.data_process.process_id = pid
         log.debug("Updating data_process with pid: %s", pid)
         self.clients.resource_registry.update(self.data_process)
-#=======
         return data_process_id
 
     def _get_input_stream_ids(self, in_data_product_ids = None):
@@ -357,7 +331,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # get the streams associated with this IN data products
         #------------------------------------------------------------------------------------------------------------------------------------------
         for  in_data_product_id in in_data_product_ids:
-#>>>>>>> f2aad5acaa0821b3f851610a0a83d963fc74f446
 
             # Get the stream associated with this input data product
             stream_ids, _ = self.clients.resource_registry.find_objects(in_data_product_id, PRED.hasStream, RT.Stream, True)
@@ -369,7 +342,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             input_stream_ids.append(stream_ids[0])
 
         return input_stream_ids
-#<<<<<<< HEAD
+
     def _launch_process(self, queue_name='', out_streams=None, process_definition_id='', configuration=None):
         """
         Launches the process
@@ -383,27 +356,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             'queue_name':queue_name,
             'publish_streams' : out_streams
         }
-#=======
-
-
-#    def _start_process(self,name,
-#                         in_subscription_id,
-#                         out_streams,
-#                         process_definition_id,
-#                         configuration):
-#
-#        subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
-#        queue_name = subscription.exchange_name
-#
-#        configuration = configuration or DotDict()
-#
-#        configuration['process'] = dict({
-#            'name':name,
-#            'queue_name': queue_name,
-#            'output_streams' : out_streams.values()
-#        })
-#        configuration['process']['publish_streams'] = out_streams
-#>>>>>>> f2aad5acaa0821b3f851610a0a83d963fc74f446
 
         # ------------------------------------------------------------------------------------
         # Process Spawning
@@ -431,9 +383,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             if 'DataProcessInput' in words:
                 configuration[attachment_obj.name] = attachment_obj.content
-                log.debug("Lookup table, %s, found in attachment %s", (attachment_obj.content, attachment_obj.name))
+                log.debug("Lookup table, %s, found in attachment %s" % (attachment_obj.content, attachment_obj.name))
             else:
-                log.debug("NO lookup table in attachment %s", attachment_obj.name)
+                log.debug("NO lookup table in attachment %s" % attachment_obj.name)
 
         return configuration
 
@@ -483,7 +435,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self._stop_process(data_process_obj)
 
-
         #--------------------------------------------------------------------------------
         # Finalize the Data Products by Removing streams associated with the dataset and product
         #--------------------------------------------------------------------------------
@@ -495,9 +446,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
             self.clients.data_acquisition_management.unassign_data_product(data_process_id, out_product)
-
-
-
 
 
         # Delete the input products link
@@ -512,8 +460,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         except BadRequest:
             pass
 
-
-
         subscription_id = data_process_obj.input_subscription_id
         self.clients.pubsub_management.delete_subscription(subscription_id)
         data_process_obj.input_subscription_id = None
@@ -524,6 +470,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Delete the data process
         self.clients.resource_registry.delete(data_process_id)
         return
+
+    def force_delete_data_process(self, data_process_id=""):
+        pass
 
     def _stop_process(self, data_process):
         pid = data_process.process_id
@@ -543,6 +492,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def activate_data_process(self, data_process_id=""):
 
         data_process_obj = self.read_data_process(data_process_id)
+        log.debug("activate_data_process:data_process_obj  %s ", str(data_process_obj))
 
 
 #        #update the producer context with the activation time and the configuration
@@ -552,7 +502,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # todo: process_id, process_definition, schedule, configuration
 
         producer_obj = self._get_process_producer(data_process_id)
+        producertype = type(producer_obj).__name__
+        #todo: producer_obj.producer_context.type_ is returning the base type, not the derived type.
         if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
+            log.debug("activate_data_process:activation_time  %s ", str(IonTime().to_string()))
             producer_obj.producer_context.activation_time = IonTime().to_string()
             producer_obj.producer_context.execution_configuration = data_process_obj.configuration
             self.clients.resource_registry.update(producer_obj)
@@ -568,7 +521,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #update the producer context with the deactivation time
         # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
         producer_obj = self._get_process_producer(data_process_id)
+        producertype = type(producer_obj).__name__
         if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
+            log.debug("deactivate_data_process:deactivation_time  %s ", str(IonTime().to_string()))
             producer_obj.producer_context.deactivation_time = IonTime().to_string()
             self.clients.resource_registry.update(producer_obj)
 

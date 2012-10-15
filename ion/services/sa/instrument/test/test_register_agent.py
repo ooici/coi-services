@@ -1,6 +1,10 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import Container, log, IonObject
+import tempfile
+from ion.util.module_uploader import RegisterModulePreparer
+from pyon.ion.resource import LCE
+from pyon.public import Container, IonObject
+from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -19,7 +23,6 @@ import unittest
 from ooi.logging import log
 
 import string
-import base64
 import subprocess
 import os
 import pwd
@@ -85,8 +88,101 @@ FAAAAAgA+064QBIl0M8FAQAAcwEAABEAGAAAAAAAAQAAAKSBAAAAAEVHRy1JTkZPL1BLRy1JTkZP
 VVQFAAPqPb5PdXgLAAEE6AMAAAToAwAAUEsFBgAAAAABAAEAVwAAAFABAAAAAA==
 """
 
+
+
+@attr('UNIT', group='sa')
+class TestIMSRegisterAgent(PyonTestCase):
+
+    def setUp(self):
+        self.mock_ionobj = self._create_IonObject_mock('ion.services.sa.instrument.instrument_management_service.IonObject')
+
+        #self.mock_ionobj = IonObject
+        self.mock_clients = self._create_service_mock('instrument_management')
+
+        self.RR = self.mock_clients.resource_registry
+        self.IMS = InstrumentManagementService()
+        self.IMS.clients = self.mock_clients
+
+
+        # must call this manually
+        self.IMS.on_init()
+
+        self.IMS.module_uploader = RegisterModulePreparer(dest_user="my_user",
+                                                          dest_host="my_host",
+                                                          dest_path="/my/remote/wwwroot/my/path",
+                                                          dest_wwwroot="/my/remote/wwwroot")
+
+        self.addCleanup(delattr, self, "IMS")
+        self.addCleanup(delattr, self, "mock_ionobj")
+        #self.resource_impl_cleanup()
+
+        #def resource_impl_cleanup(self):
+        #pass
+
+
+    def _mock_uploader_subprocess(self, emulate_success):
+        self.mock_dict = {}
+
+        popen_mock = Mock()
+        popen_mock.communicate.return_value = ("scp_out dump", "scp_err dump")
+
+        if emulate_success:
+            popen_mock.returncode = 0
+        else:
+            popen_mock.returncode = 1
+
+        subprocess_mock = Mock()
+        subprocess_mock.Popen.return_value = popen_mock
+        subprocess_mock.PIPE = "MYPIPE"
+
+        tempfile_mock = Mock()
+        tempfile_mock.mkstemp.return_value = ("my_handle", "my_tempfile_name")
+
+
+        self.mock_dict["tempfile"]   = tempfile_mock
+        self.mock_dict["subprocess"] = subprocess_mock
+        self.mock_dict["os"]         = Mock()
+
+        self.IMS.module_uploader.modules = self.mock_dict
+
+
+    def test_register_instrument_agent_unit(self):
+        # setup
+
+        inst_agent_id = "iaid1"
+
+        self._mock_uploader_subprocess(False)
+        self.assertRaises(BadRequest, self.IMS.register_instrument_agent, inst_agent_id, BASE64_EGG, BASE64_ZIPFILE)
+        self.RR.read.assert_called_once_with(inst_agent_id, '')
+
+        self._mock_uploader_subprocess(True)
+        self.IMS.register_instrument_agent(inst_agent_id, BASE64_EGG, BASE64_ZIPFILE)
+        self.RR.execute_lifecycle_transition.assert_called_once_with(inst_agent_id, LCE.INTEGRATE)
+
+        scp_dest = "my_user@my_host:/my/remote/wwwroot/my/path/seabird_sbe37smb_ooicore-0.1-py2.7.egg"
+        self.mock_dict["subprocess"].Popen.assert_called_once_with(["scp", "-v", "-o", "PasswordAuthentication=no",
+                                                                    "-o", 'StrictHostKeyChecking=no',
+                                                                    'my_tempfile_name',
+                                                                    scp_dest],
+                                                                   stdout=self.mock_dict["subprocess"].PIPE,
+                                                                   stderr=self.mock_dict["subprocess"].PIPE)
+
+        self.assertEqual(4, self.RR.create_attachment.call_count)
+
+        url_content = "[InternetShortcut]\nURL=http://my_host/my/path/seabird_sbe37smb_ooicore-0.1-py2.7.egg"
+        found = False
+        for acall in self.mock_ionobj.call_args_list:
+            if ("Attachment",) == acall[0]:
+                self.assertEqual(url_content, acall[1]["content"])
+                found = True
+        self.assertTrue(found, "URL attachment not found")
+
+
+
+
+
 @attr('INT', group='sa')
-class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
+class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
         # Start container
@@ -107,7 +203,7 @@ class TestInstrumentManagementServiceAgents(IonIntegrationTestCase):
 #    def test_just_the_setup(self):
 #        return
 
-    def test_register_instrument_agent(self):
+    def test_register_instrument_agent_int(self):
 
         #test ssh-ability
         cfg_host = CFG.service.instrument_management.driver_release_host #'amoeaba.ucsd.edu'

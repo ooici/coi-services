@@ -2,9 +2,7 @@
 #from pyon.ion.endpoint import ProcessRPCClient
 from ion.agents.port.port_agent_process import PortAgentProcessType
 from pyon.public import IonObject
-from pyon.util.log import log
 from pyon.public import Container, IonObject
-from ooi.logging import log
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -37,15 +35,20 @@ from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.util.parameter_yaml_IO import get_param_dict
 
 # some stuff for logging info to the console
-# import sys
-# log = DotDict()
-# printout = sys.stderr.write
-# printout = lambda x: None
-#
-# log.debug = lambda x: printout("DEBUG: %s\n" % x)
-# log.info = lambda x: printout("INFO: %s\n" % x)
-# log.warn = lambda x: printout("WARNING: %s\n" % x)
+import sys
+log = DotDict()
+printout = sys.stdout.write
+#printout = lambda x: None
 
+def mk_logger(level):
+    def logger(fmt, *args):
+        printout("%s: %s" % (level, (fmt % args)))
+
+    return logger
+
+log.debug = mk_logger("DEBUG")
+log.info  = mk_logger("INFO")
+log.warn  = mk_logger("WARNING")
 
 
 @attr('INT', group='sa')
@@ -502,7 +505,7 @@ class TestAssembly(IonIntegrationTestCase):
         # create a stream definition for the data from the ctd simulator
         #------------------------------------------------------------------------------------------------
         ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data')
-        log.debug("Created stream def id %s" % ctd_stream_def_id)
+        log.debug("Created stream def id %s", ctd_stream_def_id)
 
         parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
@@ -511,7 +514,7 @@ class TestAssembly(IonIntegrationTestCase):
 
         dp_obj = self.create_data_product_obj()
 
-        log.debug("Created an IonObject for a data product: %s" % dp_obj)
+        log.debug("Created an IonObject for a data product: %s", dp_obj)
 
         #------------------------------------------------------------------------------------------------
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
@@ -602,7 +605,29 @@ class TestAssembly(IonIntegrationTestCase):
 
         c.IMS.delete_instrument_device(instrument_device_id)
         log.debug("L4-CI-SA-RQ-334 RETIRE")
+        log.debug("L4-CI-SA-RQ-335: Instrument activation shall support transition to the retired state of instruments")
 
+
+        #----------------------------------------------
+        #
+        # force_deletes
+        #
+        #----------------------------------------------
+
+        self.generic_fd_script(observatory_id, "observatory", c.OMS)
+        self.generic_fd_script(subsite_id, "subsite", c.OMS)
+        self.generic_fd_script(platform_site_id, "platform_site", c.OMS)
+        self.generic_fd_script(instrument_site_id, "instrument_site", c.OMS)
+        self.generic_fd_script(platform_model_id, "platform_model", c.IMS)
+        self.generic_fd_script(instrument_model_id, "instrument_model", c.IMS)
+        self.generic_fd_script(sensor_model_id, "sensor_model", c.IMS)
+        self.generic_fd_script(platform_agent_id, "platform_agent", c.IMS)
+        #self.generic_fd_script(instrument_agent_id, "instrument_agent", c.IMS)
+        self.generic_fd_script(platform_device_id, "platform_device", c.IMS)
+        self.generic_fd_script(instrument_device_id, "instrument_device", c.IMS)
+        self.generic_fd_script(sensor_device_id, "sensor_device", c.IMS)
+        self.generic_fd_script(platform_agent_instance_id, "platform_agent_instance", c.IMS)
+        #self.generic_fd_script(instrument_agent_instance_id, "instrument_agent_instance", c.IMS)
 
 
     def create_data_product_obj(self):
@@ -853,7 +878,7 @@ class TestAssembly(IonIntegrationTestCase):
 
 
 
-    def generic_d_script(self, resource_id, resource_label, owner_service):
+    def generic_fd_script(self, resource_id, resource_label, owner_service):
         """
         delete a resource and check that it was properly deleted
 
@@ -862,7 +887,7 @@ class TestAssembly(IonIntegrationTestCase):
         @param owner_service service client instance
         """
 
-        del_op = getattr(owner_service, "delete_%s" % resource_label)
+        del_op = getattr(owner_service, "force_delete_%s" % resource_label)
         
         del_op(resource_id)
 
@@ -922,16 +947,16 @@ class TestAssembly(IonIntegrationTestCase):
 
 
 
-        log.info("Finding %s objects" % resource_label)
+        log.info("Finding %s objects", resource_label)
         num_objs = len(find_widgets())
-        log.info("I found %d %s objects" % (num_objs, resource_label))
+        log.info("I found %d %s objects", num_objs, resource_label)
 
-        log.info("Creating a %s" % resource_label)
+        log.info("Creating a %s", resource_label)
         generic_obj = actual_obj or any_old(resource_iontype)
         generic_id = some_service.create_widget(generic_obj)
         self.assertIsNotNone(generic_id, "%s failed its creation" % resource_iontype)
 
-        log.info("Reading %s #%s" % (resource_label, generic_id))
+        log.info("Reading %s #%s", resource_label, generic_id)
         generic_ret = some_service.read_widget(generic_id)
 
         log.info("Verifying equality of stored and retrieved object")
@@ -944,12 +969,12 @@ class TestAssembly(IonIntegrationTestCase):
             log.info("Verifying that resource went DEPLOYED_AVAILABLE on creation")
             self.assertEqual(generic_ret.lcstate, LCS.DEPLOYED_AVAILABLE)
 
-        log.info("Updating %s #%s" % (resource_label, generic_id))
+        log.info("Updating %s #%s", resource_label, generic_id)
         generic_newname = "%s updated" % generic_ret.name
         generic_ret.name = generic_newname
         some_service.update_widget(generic_ret)
 
-        log.info("Reading platform model #%s to verify update" % generic_id)
+        log.info("Reading platform model #%s to verify update", generic_id)
         generic_ret = some_service.read_widget(generic_id)
 
         self.assertEqual(generic_newname, generic_ret.name)

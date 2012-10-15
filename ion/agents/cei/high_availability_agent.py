@@ -1,11 +1,14 @@
+import gevent
+
 from pyon.agent.simple_agent import SimpleResourceAgent
 from pyon.event.event import EventPublisher
-from pyon.public import log
+from pyon.public import log, get_sys_name
 
 from interface.objects import AgentCommand, ProcessDefinition, ProcessSchedule, ProcessStateEnum
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.agents.cei.util import looping_call
-from ion.services.cei.process_dispatcher_service import _core_process_definition_from_ion
+from ion.services.cei.process_dispatcher_service import _core_process_definition_from_ion, \
+    ProcessDispatcherService
 
 try:
     from epu.highavailability.core import HighAvailabilityCore
@@ -33,6 +36,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
     def __init__(self):
         log.debug("HighAvailabilityAgent init")
         SimpleResourceAgent.__init__(self)
+        self.dashi_handler = None
 
     def on_init(self):
         if not HighAvailabilityCore:
@@ -56,7 +60,11 @@ class HighAvailabilityAgent(SimpleResourceAgent):
                 DEFAULT_INTERVAL)
 
         cfg = self.CFG.get_safe("highavailability")
-        pds = self.CFG.get_safe("highavailability.process_dispatchers", [])
+
+        # use default PD name as the sole PD if none are provided in config
+        pds = self.CFG.get_safe("highavailability.process_dispatchers",
+            [ProcessDispatcherService.name])
+
         process_definition_id = self.CFG.get_safe("highavailability.process_definition_id")
         process_configuration = self.CFG.get_safe("highavailability.process_configuration")
         aggregator_config = self.CFG.get_safe("highavailability.aggregator")
@@ -69,8 +77,40 @@ class HighAvailabilityAgent(SimpleResourceAgent):
 
         self.policy_thread = looping_call(self.policy_interval, self.core.apply_policy)
 
+        dashi_messaging = self.CFG.get_safe("highavailability.dashi_messaging", False)
+        if dashi_messaging:
+
+            dashi_name = self.CFG.get_safe("highavailability.dashi_name")
+            if not dashi_name:
+                raise Exception("dashi_name unknown")
+            dashi_uri = self.CFG.get_safe("highavailability.dashi_uri")
+            if not dashi_uri:
+                rabbit_host = self.CFG.get_safe("server.amqp.host")
+                rabbit_user = self.CFG.get_safe("server.amqp.username")
+                rabbit_pass = self.CFG.get_safe("server.amqp.password")
+
+                if not (rabbit_host and rabbit_user and rabbit_pass):
+                    raise Exception("cannot form dashi URI")
+
+                dashi_uri = "amqp://%s:%s@%s/" % (rabbit_user, rabbit_pass,
+                                                  rabbit_host)
+            dashi_exchange = self.CFG.get_safe("highavailability.dashi_exchange")
+            if not dashi_exchange:
+                dashi_exchange = get_sys_name()
+
+            self.dashi_handler = HADashiHandler(self, dashi_name, dashi_uri, dashi_exchange)
+
+        else:
+            self.dashi_handler = None
+
+    def on_start(self):
+        if self.dashi_handler:
+            self.dashi_handler.start()
+
     def on_quit(self):
         self.policy_thread.kill(block=True, timeout=3)
+        if self.dashi_handler:
+            self.dashi_handler.stop()
 
     def rcmd_reconfigure_policy(self, new_policy):
         """Service operation: Change the parameters of the policy used for service
@@ -89,6 +129,42 @@ class HighAvailabilityAgent(SimpleResourceAgent):
 
     def rcmd_dump(self):
         return self.core.dump()
+
+
+class HADashiHandler(object):
+    """Passthrough dashi handlers for agent commands
+
+    Used for messaging from the launch plan.
+    """
+    def __init__(self, agent, dashi_name, dashi_uri, dashi_exchange):
+        self.agent = agent
+
+        self.dashi = self._get_dashi(dashi_name, dashi_uri, dashi_exchange)
+        self.dashi.handle(self.status)
+        self.dashi.handle(self.reconfigure_policy)
+
+        self.consumer_thread = None
+
+    def start(self):
+        self.consumer_thread = gevent.spawn(self.dashi.consume)
+
+    def stop(self):
+        self.dashi.cancel()
+        if self.consumer_thread:
+            self.consumer_thread.join()
+            self.consumer_thread = None
+
+    def status(self):
+        return self.agent.rcmd_status()
+
+    def reconfigure_policy(self, new_policy):
+        return self.agent.rcmd_reconfigure_policy(new_policy)
+
+    def _get_dashi(self, *args, **kwargs):
+
+        # broken out to ease testing when dashi is not present
+        import dashi
+        return dashi.DashiConnection(*args, **kwargs)
 
 
 class HighAvailabilityAgentClient(object):
@@ -121,9 +197,9 @@ class ProcessDispatcherSimpleAPIClient(object):
     unknown_state = "400-PENDING"
 
     state_map = {
-        ProcessStateEnum.SPAWN: '500-RUNNING',
-        ProcessStateEnum.TERMINATE: '700-TERMINATED',
-        ProcessStateEnum.ERROR: '850-FAILED'
+        ProcessStateEnum.RUNNING: '500-RUNNING',
+        ProcessStateEnum.TERMINATED: '700-TERMINATED',
+        ProcessStateEnum.FAILED: '850-FAILED'
     }
 
     def __init__(self, name, real_client=None, **kwargs):
@@ -156,7 +232,7 @@ class ProcessDispatcherSimpleAPIClient(object):
         definition = self.real_client.read_process_definition(definition_id)
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
             origin=definition.name, origin_type="DispatchedHAProcess",
-            state=ProcessStateEnum.SPAWN)
+            state=ProcessStateEnum.RUNNING)
 
         pid = self.real_client.create_process(definition_id)
 

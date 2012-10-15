@@ -10,6 +10,7 @@ from ion.services.sa.resource_impl.resource_simple_impl import ResourceSimpleImp
 from pyon.public import PRED, RT, OT
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.log import log
+from pyon.util.ion_time import IonTime
 from lxml import etree
 
 
@@ -75,7 +76,7 @@ class DataProductImpl(ResourceSimpleImpl):
     def _find_producers(self, data_product_id='', provenance_results=''):
         source_ids = []
         # get the link to the DataProducer resource
-        log.debug("DataProductManagementService:_find_producers start %s" % str(data_product_id))
+        log.debug("DataProductManagementService:_find_producers start %s", data_product_id)
         producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
         for producer_id in producer_ids:
             # get the link to that resources parent DataProducer
@@ -88,7 +89,7 @@ class DataProductImpl(ResourceSimpleImpl):
 
                 for nxt_producer_id in nxt_producer_ids:
                     nxt_producer_obj = self.clients.resource_registry.read(nxt_producer_id)
-                    log.debug("DataProductManagementService:_find_producers nxt_producer %s" % nxt_producer_obj.name)
+                    log.debug("DataProductManagementService:_find_producers nxt_producer %s", nxt_producer_obj.name)
                     #todo: check the type of resource; instrument, data process or extDataset'
                     #todo: check if this is a SiteDataProduct name=SiteDataProduct and desc=site_id
                     inputs_to_nxt_producer = self._find_producer_in_products(nxt_producer_id)
@@ -102,7 +103,7 @@ class DataProductImpl(ResourceSimpleImpl):
 
                     provenance_results[data_product_id] = { 'producer': producer_list, 'inputs': inputs }
 
-        log.debug("DataProductManagementService:_find_producers: %s" % str(source_ids))
+        log.debug("DataProductManagementService:_find_producers: %s", str(source_ids))
         return
 
     def _extract_producer_context(self, producer_id=''):
@@ -137,7 +138,7 @@ class DataProductImpl(ResourceSimpleImpl):
                                                                             id_only=True)
         for product_id in product_ids:
             product_obj = self.clients.resource_registry.read(product_id)
-            log.debug("DataProductManagementService:_find_producer_in_products: %s" % product_obj.name)
+            log.debug("DataProductManagementService:_find_producer_in_products: %s", product_obj.name)
 
         return product_ids
 
@@ -162,25 +163,28 @@ class DataProductImpl(ResourceSimpleImpl):
         #get the set of inputs to the producer which created this data product
         for key, value in provenance_results[data_product_id]['inputs'].items():
             in_data_products.extend(value)
-        log.debug("DataProductManagementService:_write_product_provenance_report in_data_products: %s" % str(in_data_products))
+        log.debug("DataProductManagementService:_write_product_provenance_report in_data_products: %s",
+                  str(in_data_products))
 
         while in_data_products:
             for in_data_product in in_data_products:
                 # write the provenance for each of those products
                 self._write_product_info(in_data_product, provenance_results)
-                log.debug("DataProductManagementService:_write_product_provenance_report next_input_set: %s" % str(provenance_results[in_data_product]['inputs']))
+                log.debug("DataProductManagementService:_write_product_provenance_report next_input_set: %s",
+                          str(provenance_results[in_data_product]['inputs']))
                 # provenance_results[in_data_product]['inputs'] contains a dict that is produce_id:[input_product_list]
                 for key, value in provenance_results[in_data_product]['inputs'].items():
                     next_input_set.extend(value)
             #switch to the input for these producers
             in_data_products =  next_input_set
             next_input_set = []
-            log.debug("DataProductManagementService:_write_product_provenance_report in_data_products (end loop): %s" % str(in_data_products))
+            log.debug("DataProductManagementService:_write_product_provenance_report in_data_products (end loop): %s",
+                      str(in_data_products))
 
 
         result = etree.tostring(self.page, pretty_print=True, encoding=None)
 
-        log.debug("DataProductManagementService:_write_product_provenance_report result: %s" % str(result))
+        log.debug("DataProductManagementService:_write_product_provenance_report result: %s", str(result))
 
         return results
 
@@ -213,14 +217,12 @@ class DataProductImpl(ResourceSimpleImpl):
                 address.text = contact.street_address
                 city = etree.SubElement(contacttag, "city")
                 city.text = contact.city
-                postalcode = etree.SubElement(contacttag, "postalcode")
-                postalcode.text = contact.postalcode
-                state = etree.SubElement(contacttag, "state")
-                state.text = contact.state
+                postalcode = etree.SubElement(contacttag, "postal_code")
+                postalcode.text = contact.postal_code
                 country = etree.SubElement(contacttag, "country")
                 country.text = contact.country
-                phone = etree.SubElement(contacttag, "phone")
-                phone.text = contact.phone
+                phone = etree.SubElement(contacttag, "phones")
+                phone.text = str(contact.phones)
                 email = etree.SubElement(contacttag, "email")
                 email.text = contact.email
 
@@ -270,15 +272,16 @@ class DataProductImpl(ResourceSimpleImpl):
             if not data_producer_objs:
                 raise BadRequest('No Data Producer resource associated with the Producer %s' % str(producer_id))
             data_producer_obj = data_producer_objs[0]
+            log.debug("DataProductManagementService:data_producer_obj  %s ", str(data_producer_obj))
 
 
             producertype = type(producer_obj).__name__
-            log.debug("DataProductManagementService:producertype  %s ", str(producertype))
             if data_producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
-            #if RT.InstrumentDevice == producertype :
-                # retrieve specifics from InstrumentProducerContext
                 activation_time_tag = etree.SubElement(data_producer_tag, "activation_time")
-                activation_time_tag.text = data_producer_obj.producer_context.activation_time
+                activation_time_tag.text = self._format_ion_time(data_producer_obj.producer_context.activation_time)
+                if data_producer_obj.producer_context.deactivation_time:
+                    deactivation_time_tag = etree.SubElement(data_producer_tag, "deactivation_time")
+                    deactivation_time_tag.text = self._format_ion_time(data_producer_obj.producer_context.deactivation_time)
                 execution_configuration_tag = etree.SubElement(data_producer_tag, "execution_configuration")
                 execution_configuration_tag.text = str(data_producer_obj.producer_context.execution_configuration)
 
@@ -297,7 +300,10 @@ class DataProductImpl(ResourceSimpleImpl):
             if data_producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
                 # retrieve specifics from DataProcessProducerContext
                 activation_time_tag = etree.SubElement(data_producer_tag, "activation_time")
-                activation_time_tag.text = data_producer_obj.producer_context.activation_time
+                activation_time_tag.text = self._format_ion_time(data_producer_obj.producer_context.activation_time)
+                if data_producer_obj.producer_context.deactivation_time:
+                    deactivation_time_tag = etree.SubElement(data_producer_tag, "deactivation_time")
+                    deactivation_time_tag.text = self._format_ion_time(data_producer_obj.producer_context.deactivation_time)
                 execution_configuration_tag = etree.SubElement(data_producer_tag, "execution_configuration")
                 execution_configuration_tag.text = str(data_producer_obj.producer_context.execution_configuration)
 
@@ -321,3 +327,7 @@ class DataProductImpl(ResourceSimpleImpl):
                 deployment_sites, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasDeployment, object_type=RT.Deployment)
 
 
+    def _format_ion_time(self, ion_time=''):
+        #ion_time_obj = IonTime.from_string(ion_time)
+        #todo: fix this and return str( ion_time_obj)
+        return str(ion_time)
