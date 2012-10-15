@@ -598,36 +598,73 @@ class UserNotificationService(BaseUserNotificationService):
 
         return events
 
-    def publish_event(self, event=None, interval_timer_params= None):
+    #todo Uses Elastic Search. Later extend this to a larger search criteria
+    def find_events_extended(self, origin='', type='', min_time= 0, max_time=0, limit=-1, descending=False):
+        """Uses Elastic Search. Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
+        if no events exist for the given parameters.
+
+        @param origin         str
+        @param type           str
+        @param min_time   int seconds
+        @param max_time   int seconds
+        @param limit          int         (integer limiting the number of results (0 means unlimited))
+        @param descending     boolean     (if True, reverse order (of production time) is applied, e.g. most recent first)
+        @retval event_list    []
+        @throws NotFound    object with specified parameters does not exist
+        @throws NotFound    object with specified parameters does not exist
+        """
+
+        if min_time and max_time:
+            search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (min_time, max_time)
+        else:
+            search_time = 'search "ts_created" is "*" from "events_index"'
+
+        if origin:
+            search_origin = 'search "origin" is "%s" from "events_index"' % origin
+        else:
+            search_origin = 'search "origin" is "*" from "events_index"'
+
+        if type:
+            search_type = 'search "type_" is "%s" from "events_index"' % type
+        else:
+            search_type = 'search "type_" is "*" from "events_index"'
+
+        search_string = search_time + ' and ' + search_origin + ' and ' + search_type
+
+        # get the list of ids corresponding to the events
+        ret_vals = self.discovery.parse(search_string)
+        log.debug("(find_events_extended) Discovery search returned the following event ids: %s" % ret_vals)
+
+        events = []
+        for event_id in ret_vals:
+            datastore = self.datastore_manager.get_datastore('events')
+            event_obj = datastore.read(event_id)
+            events.append(event_obj)
+
+        log.debug("(find_events_extended) UNS found the following relevant events: %s" % events)
+
+        if limit > -1:
+            list = []
+            for i in xrange(limit):
+                list.append(events[i])
+            return list
+
+        #todo implement time ordering: ascending or descending
+
+        return events
+
+
+    def publish_event(self, event=None):
         '''
         Publish a general event at a certain time using the UNS
 
         @param event Event
-        @param interval_timer_params dict Ex: {'interval':3, 'number_of_intervals':4}
         '''
 
-        #--------------------------------------------------------------------------------
-        # Set up a subscriber to get the nod from the scheduler to publish the event
-        #--------------------------------------------------------------------------------
-        def publish(message, headers):
-            self.event_publisher._publish_event( event_msg = event,
-                origin=event.origin,
-                event_type = event.type_)
-            log.info("UNS published an event in response to a nod from the Scheduler Service.")
-
-        event_subscriber = EventSubscriber( event_type = "ResourceEvent", callback=publish)
-        event_subscriber.start()
-        self._subscribers.append(event_subscriber)      # for cleanup later
-
-        sid = self.clients.scheduler.create_interval_timer(start_time= time.time(),
-                                                           interval=interval_timer_params['interval'],
-                                                           number_of_intervals=interval_timer_params['number_of_intervals'],
-                                                           event_origin=event.origin,
-                                                           event_subtype='')
-        self._schedule_ids.append(sid)
-
-
-
+        self.event_publisher._publish_event( event_msg = event,
+            origin=event.origin,
+            event_type = event.type_)
+        log.info("The publish_event() method of UNS was used to publish an event.")
 
     def get_recent_events(self, resource_id=''):
         pass
