@@ -1,0 +1,162 @@
+#!/usr/bin/env python
+
+'''
+@brief Test to check CTD
+@author Michael Meisinger
+'''
+
+from pyon.ion.stream import  StandaloneStreamPublisher
+from pyon.public import log
+from pyon.util.containers import DotDict
+from pyon.util.file_sys import FileSystem
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.unit_test import IonUnitTestCase
+from pyon.util.containers import get_safe
+from pyon.ion.stream import StandaloneStreamSubscriber
+from nose.plugins.attrib import attr
+
+from mock import Mock, sentinel, patch, mocksignature
+from interface.objects import ProcessDefinition
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.objects import StreamRoute, Granule
+from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.util.parameter_yaml_IO import get_param_dict
+import gevent
+import numpy, random
+
+class EventTriggeredTransformIntTest(IonIntegrationTestCase):
+    def setUp(self):
+        super(EventTriggeredTransformIntTest, self).setUp()
+
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        self.queue_cleanup = []
+        self.exchange_cleanup = []
+
+        self.pubsub = PubsubManagementServiceClient()
+        self.process_dispatcher = ProcessDispatcherServiceClient()
+
+        self.exchange_name = 'ctd_L0_all_queue'
+        self.exchange_point = 'test_exchange'
+
+    def tearDown(self):
+        for queue in self.queue_cleanup:
+            xn = self.container.ex_manager.create_xn_queue(queue)
+            xn.delete()
+        for exchange in self.exchange_cleanup:
+            xp = self.container.ex_manager.create_xp(exchange)
+            xp.delete()
+
+
+    def test_ctd_L1_conductivity(self):
+        '''
+        Test that packets are processed by the ctd_L1_conductivity transform
+        '''
+
+        #---------------------------------------------------------------------------------------------
+        # Launch a ctd transform
+        #---------------------------------------------------------------------------------------------
+        # Create the process definition
+        process_definition = ProcessDefinition(
+            name='EventTriggeredTransform',
+            description='For testing EventTriggeredTransform')
+        process_definition.executable['module']= 'ion.processes.data.transforms.event_triggered_transform'
+        process_definition.executable['class'] = 'EventTriggeredTransform'
+        event_transform_proc_def_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
+
+        # Build the config
+        config = DotDict()
+        config.process.queue_name = self.exchange_name
+        config.process.exchange_point = self.exchange_point
+
+        pdict = get_param_dict('simple_data_particle_parsed_param_dict')
+
+        stream_def_id =  self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary=pdict.dump())
+        cond_stream_id, _ = self.pubsub.create_stream('test_conductivity',
+            exchange_point='science_data',
+            stream_definition_id=stream_def_id)
+
+        config.process.publish_streams.conductivity = cond_stream_id
+
+        # Schedule the process
+        self.process_dispatcher.schedule_process(process_definition_id=event_transform_proc_def_id, configuration=config)
+
+        #---------------------------------------------------------------------------------------------
+        # Create subscribers that will receive the conductivity, temperature and pressure granules from
+        # the ctd transform
+        #---------------------------------------------------------------------------------------------
+        ar_cond = gevent.event.AsyncResult()
+        def subscriber1(m, r, s):
+            ar_cond.set(m)
+        sub_event_transform = StandaloneStreamSubscriber('sub_event_transform', subscriber1)
+        self.addCleanup(sub_event_transform.stop)
+
+        sub_event_transform_id = self.pubsub.create_subscription('subscription_cond',
+            stream_ids=[cond_stream_id],
+            exchange_name='sub_event_transform')
+
+        self.pubsub.activate_subscription(sub_event_transform_id)
+
+        self.queue_cleanup.append(sub_event_transform.xn.queue)
+
+        sub_event_transform.start()
+
+        #------------------------------------------------------------------------------------------------------
+        # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
+        #------------------------------------------------------------------------------------------------------
+
+        # Do all the routing stuff for the publishing
+        routing_key = 'stream_id.stream'
+        stream_route = StreamRoute(self.exchange_point, routing_key)
+
+        xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
+        xp = self.container.ex_manager.create_xp(self.exchange_point)
+        xn.bind('stream_id.stream', xp)
+
+        pub = StandaloneStreamPublisher('stream_id', stream_route)
+
+        # Build a packet that can be published
+        self.px_ctd = SimpleCtdPublisher()
+        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
+
+        # Publish the packet
+        pub.publish(publish_granule)
+
+        #------------------------------------------------------------------------------------------------------
+        # Make assertions about whether the ctd transform executed its algorithm and published the correct
+        # granules
+        #------------------------------------------------------------------------------------------------------
+
+        # Get the granule that is published by the ctd transform post processing
+        result_cond = ar_cond.get(timeout=10)
+        self.assertTrue(isinstance(result_cond, Granule))
+
+        rdt = RecordDictionaryTool.load_from_granule(result_cond)
+        self.assertTrue(rdt.__contains__('conductivity'))
+
+        self.check_cond_algorithm_execution(publish_granule, result_cond)
+
+    def check_cond_algorithm_execution(self, publish_granule, granule_from_transform):
+
+        input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
+        output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
+
+        output_data = output_rdt_transform['conductivity']
+        input_data = input_rdt_to_transform['conductivity']
+
+        self.assertTrue(((input_data / 100000.0) - 0.5).all() == output_data.all())
+
+
+    def _get_new_ctd_packet(self, parameter_dictionary, length):
+
+        rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
+
+        for key in parameter_dictionary.keys():
+            rdt[key] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
+
+        g = rdt.to_granule()
+
+        return g
