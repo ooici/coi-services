@@ -2,6 +2,7 @@ from gevent import queue
 
 from pyon.event.event import EventSubscriber
 from pyon.public import log
+from pyon.core.bootstrap import CFG
 
 from interface.objects import ProcessStateEnum
 
@@ -45,3 +46,16 @@ class ProcessStateWaiter(object):
 
             elif strict:
                 raise AssertionError("Got unexpected event %s. Expected state %s for process %s" % (event, state_str, pid))
+
+def get_dashi_uri_from_cfg(config=None):
+    if config is None:
+        config = CFG
+    rabbit_host = config.get_safe("server.amqp.host")
+    rabbit_user = config.get_safe("server.amqp.username")
+    rabbit_pass = config.get_safe("server.amqp.password")
+
+    if not (rabbit_host and rabbit_user and rabbit_pass):
+        raise Exception("cannot form dashi URI")
+
+    return "amqp://%s:%s@%s/" % (rabbit_user, rabbit_pass,
+                                      rabbit_host)
