@@ -63,8 +63,7 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.add_stream(dataset_id,stream_id)
 
 
-        coverage = self._create_coverage(description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
-        self._persist_coverage(dataset_id, coverage)
+        self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
 
         return dataset_id
 
@@ -246,25 +245,22 @@ class DatasetManagementService(BaseDatasetManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
-    def _create_coverage(self, description, parameter_dict, spatial_domain,temporal_domain):
+    def _create_coverage(self, dataset_id, description, parameter_dict, spatial_domain,temporal_domain):
 
         pdict = ParameterDictionary.load(parameter_dict)
+        print pdict.keys()
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
-
-        scov = SimplexCoverage(description, parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+        print 'So... these are the pdict fields: %s' % scov.parameter_dictionary.keys()
+        scov.insert_timesteps(1)
         return scov
 
     @classmethod
-    def _persist_coverage(cls, dataset_id, coverage):
-        validate_is_instance(coverage,SimplexCoverage,'Coverage is not an instance of SimplexCoverage: %s' % type(coverage))
-        filename = FileSystem.get_hierarchical_url(FS.CACHE, dataset_id, '.cov')
-        SimplexCoverage.save(coverage, filename, use_ascii=False)
-
-    @classmethod
     def _get_coverage(cls,dataset_id):
-        filename = FileSystem.get_hierarchical_url(FS.CACHE, dataset_id, '.cov')
-        coverage = SimplexCoverage.load(filename)
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        coverage = SimplexCoverage(file_root, dataset_id)
         return coverage
     
     @classmethod
