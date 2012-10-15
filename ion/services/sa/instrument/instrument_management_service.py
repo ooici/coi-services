@@ -218,13 +218,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance,
                                                                                 instrument_agent_instance_id)
 
-        self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCE.RETIRE)
-        #self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
+        self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
 
-        return
 
     def force_delete_instrument_agent_instance(self, instrument_agent_instance_id=''):
-        pass
+
+        self.instrument_agent_instance.force_delete_one(instrument_agent_instance_id)
 
 
     def validate_instrument_agent_instance(self, instrument_agent_instance_obj):
@@ -580,11 +579,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             self.instrument_agent.unlink_process_definition(instrument_agent_id, pd_obj._id)
             self.clients.process_dispatcher.delete_process_definition(pd_obj._id)
 
-        self.instrument_agent.advance_lcs(instrument_agent_id, LCE.RETIRE)
-        #return self.instrument_agent.delete_one(instrument_agent_id)
+        self.instrument_agent.delete_one(instrument_agent_id)
 
     def force_delete_instrument_agent(self, instrument_agent_id=''):
-        pass
+        self.instrument_agent.force_delete_one(instrument_agent_id)
 
 
     def register_instrument_agent(self, instrument_agent_id='', agent_egg='', qa_documents=''):
@@ -696,11 +694,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.instrument_model.advance_lcs(instrument_model_id, LCE.RETIRE)
-        #return self.instrument_model.delete_one(instrument_model_id)
+        self.instrument_model.delete_one(instrument_model_id)
 
     def force_delete_instrument_model(self, instrument_model_id=''):
-        pass
+        self.instrument_model.force_delete_one(instrument_model_id)
 
 
 
@@ -752,12 +749,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.instrument_device.advance_lcs(instrument_device_id, LCE.RETIRE)
-        #return self.instrument_device.delete_one(instrument_device_id)
+        self.instrument_device.delete_one(instrument_device_id)
 
 
     def force_delete_instrument_device(self, instrument_device_id=''):
-        pass
+        self.instrument_device.force_delete_one(instrument_device_id)
 
     ##
     ##
@@ -876,11 +872,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_agent.advance_lcs(platform_agent_instance_id, LCE.RETIRE)
-        #return self.platform_agent_instance.delete_one(platform_agent_instance_id)
+        self.platform_agent_instance.delete_one(platform_agent_instance_id)
 
     def force_delete_platform_agent_instance(self, platform_agent_instance_id=''):
-        pass
+        self.platform_agent_instance.force_delete_one(platform_agent_instance_id)
 
     def start_platform_agent_instance(self, platform_agent_instance_id=''):
         """
@@ -1060,11 +1055,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_agent.advance_lcs(platform_agent_id, LCE.RETIRE)
-        #return self.platform_agent.delete_one(platform_agent_id)
+        self.platform_agent.delete_one(platform_agent_id)
 
     def force_delete_platform_agent(self, platform_agent_id=''):
-        pass
+        self.platform_agent.force_delete_one(platform_agent_id)
 
 
     ##########################################################################
@@ -1110,11 +1104,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_model.advance_lcs(platform_model_id, LCE.RETIRE)
-        #return self.platform_model.delete_one(platform_model_id)
+        self.platform_model.delete_one(platform_model_id)
 
     def force_delete_platform_model(self, platform_model_id=''):
-        pass
+        self.platform_model.force_delete_one(platform_model_id)
 
 
     ##########################################################################
@@ -1162,11 +1155,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_device.advance_lcs(platform_device_id, LCE.RETIRE)
-        #return self.platform_device.delete_one(platform_device_id)
+        self.platform_device.delete_one(platform_device_id)
 
     def force_delete_platform_device(self, platform_device_id=''):
-        pass
+        self.platform_device.force_delete_one(platform_device_id)
+
 
 
 
@@ -1214,11 +1207,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.sensor_model.advance_lcs(sensor_model_id, LCE.RETIRE)
-        #return self.sensor_model.delete_one(sensor_model_id)
+        self.sensor_model.delete_one(sensor_model_id)
 
     def force_delete_sensor_model(self, sensor_model_id=''):
-        pass
+        self.sensor_model.force_delete_one(sensor_model_id)
+
 
     ##########################################################################
     #
@@ -1264,11 +1257,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.sensor_device.advance_lcs(sensor_device_id, LCE.RETIRE)
-        #return self.sensor_device.delete_one(sensor_device_id)
+        self.sensor_device.delete_one(sensor_device_id)
 
     def force_delete_sensor_device(self, sensor_device_id=''):
-        pass
+        self.sensor_device.force_delete_one(sensor_device_id)
+
 
 
     ##########################################################################

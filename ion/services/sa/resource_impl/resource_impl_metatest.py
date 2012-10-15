@@ -457,7 +457,7 @@ class ResourceImplMetatest(object):
             svc.clients.resource_registry.delete.return_value = None
 
             try:
-                myimpl.delete_one("111", True)
+                myimpl.force_delete_one("111")
             except TypeError as te:
                 # for logic tests that run into mock trouble
                 if "'Mock' object is not iterable" != te.message:
