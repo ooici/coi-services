@@ -3,7 +3,6 @@ import functools
 import BaseHTTPServer
 import socket
 from BaseHTTPServer import HTTPServer
-from gevent import queue
 from random import randint
 
 from nose.plugins.attrib import attr
@@ -12,7 +11,6 @@ from mock import Mock
 from uuid import uuid4
 
 from pyon.agent.simple_agent import SimpleResourceAgentClient
-from pyon.event.event import EventSubscriber
 from pyon.public import log
 from pyon.service.service import BaseService
 from pyon.util.containers import DotDict
@@ -23,7 +21,7 @@ from pyon.core import bootstrap
 
 from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, \
     ProcessDispatcherSimpleAPIClient
-from ion.services.cei.test import ProcessStateWaiter
+from ion.services.cei.test import ProcessStateWaiter, get_dashi_uri_from_cfg
 
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -81,7 +79,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.resource_id = "haagent_1234"
         self._haa_name = "high_availability_agent"
         self._haa_dashi_name = "dashi_haa_" + uuid4().hex
-        self._haa_dashi_uri = "amqp://guest:guest@localhost/"
+        self._haa_dashi_uri = get_dashi_uri_from_cfg()
         self._haa_dashi_exchange = "%s.hatests" % bootstrap.get_sys_name()
         self._haa_config = {
             'highavailability': {
