@@ -1130,59 +1130,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_publish_event_on_time(self):
-        '''
-        Test the publish_event method of UNS
-        '''
-        interval_timer_params = {'interval':3,
-                                'number_of_intervals':4}
-
-        #--------------------------------------------------------------------------------
-        # Create an event object
-        #--------------------------------------------------------------------------------
-        event = DeviceEvent(  origin= "origin_1",
-            origin_type='origin_type_1',
-            sub_type= 'sub_type_1',
-            ts_created = 2)
-
-        # create async result to wait on in test
-        ar = gevent.event.AsyncResult()
-
-        #--------------------------------------------------------------------------------
-        # Set up a subscriber to listen for that event
-        #--------------------------------------------------------------------------------
-        def received_event(result, event, headers):
-            log.debug("received the event in the test: %s" % event)
-
-            #--------------------------------------------------------------------------------
-            # check that the event was published
-            #--------------------------------------------------------------------------------
-            self.assertEquals(event.origin, "origin_1")
-            self.assertEquals(event.type_, 'DeviceEvent')
-            self.assertEquals(event.origin_type, 'origin_type_1')
-            self.assertEquals(event.ts_created, 2)
-            self.assertEquals(event.sub_type, 'sub_type_1')
-
-            result.set(True)
-
-        event_subscriber = EventSubscriber( event_type = 'DeviceEvent',
-                                            origin="origin_1",
-                                            callback=lambda m, h: received_event(ar, m, h))
-        event_subscriber.start()
-        self.addCleanup(event_subscriber.stop)
-
-        #--------------------------------------------------------------------------------
-        # Use the UNS publish_event
-        #--------------------------------------------------------------------------------
-
-        self.unsc.publish_event(event=event, interval_timer_params = interval_timer_params )
-
-        ar.wait(timeout=10)
-
-
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_batch_notifications(self):
         '''
         Test how the UNS listens to timer events and through the call back runs the process_batch()
