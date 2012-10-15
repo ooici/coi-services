@@ -55,7 +55,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdHV0WmNqRnZ6Q1lEd3p5Vkk5cjVSR3c&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidG9KelcyeFVOMll0Y1BLckFFME5kdXc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -516,7 +516,10 @@ class IONLoader(ImmediateProcess):
         log.debug('creating contact: ' + id)
         if id in self.contact_defs:
             raise iex.BadRequest('contact with ID already exists: ' + id)
+        roles = self._get_typed_value(row['c/roles'], targettype='simplelist')
+        del row['c/roles']
         contact = self._create_object_from_row("ContactInformation", row, "c/")
+        contact.roles = roles
         self.contact_defs[id] = contact
 
     def _load_Constraint(self, row):
