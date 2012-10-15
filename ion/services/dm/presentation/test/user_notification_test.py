@@ -1454,9 +1454,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         for i in xrange(10):
             event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
             event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
-            x = i
-            log.debug("i ::: %s" % i)
-        log.debug("x:::: %s" % x)
+            x += 1
+
+        gevent.sleep(4)
 
         #--------------------------------------------------------------------------------------
         # Test with specified limit

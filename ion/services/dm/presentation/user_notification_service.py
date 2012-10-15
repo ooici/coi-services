@@ -572,6 +572,7 @@ class UserNotificationService(BaseUserNotificationService):
                 limit = limit,
                 include_docs = True
             )
+
         else:
             opts = dict(
                 start_key = [origin, type or 0, min_datetime or 0],
@@ -580,20 +581,13 @@ class UserNotificationService(BaseUserNotificationService):
                 include_docs = True
             )
 
-        log.debug("opts:::: %s" % opts)
-
         results = datastore.query_view('event/by_origintype',opts=opts)
-
-        log.debug("results:::::~~~ %s" % results)
 
         events = []
         for res in results:
             event_obj = res['doc']
-            log.debug("event objects found: %s" % event_obj)
-            log.debug("origin for the event object: %s" % event_obj.origin)
             events.append(event_obj)
 
-        log.debug("len(events) ::~~ %s" % len(events))
         log.debug("(find_events) UNS found the following relevant events: %s" % events)
 
         if -1 < limit < len(events):
@@ -677,7 +671,6 @@ class UserNotificationService(BaseUserNotificationService):
         Get recent events
         '''
         now = self.makeEpochTime(datetime.utcnow())
-        log.debug("now~~~: %s" % now)
         events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=False)
         return events
 
