@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
 '''
-@brief The EventTriggeredTransformLauncher listens for a particular kind of event. When it receives the event,
-it launches another transform, EventTriggeredTransform, which extends the TransformFunction class. This latter
-transform processes data according to a transform algorithm.
+@brief The EventTriggeredTransform transform listens for a particular kind of event. When it receives the event,
+it goes into a woken up state. When it is awake it processes data according to its transform algorithm.
 
 @author Swarbhanu Chatterjee
 '''
@@ -19,89 +18,48 @@ from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition
 
-class EventTriggeredTransformLauncher(TransformEventListener):
-    '''
-    To use:
-
-
-    '''
-    def on_start(self):
-        log.warn('EventAlertTransform.on_start()')
-        super(EventTriggeredTransformLauncher, self).on_start()
-
-        self.process_dispatcher = ProcessDispatcherServiceClient()
-
-    def on_quit(self):
-        '''
-        Stop the subscribers and the scheduler timer
-        '''
-        self.event_subscriber.stop()
-
-    def process_event(self, msg, headers):
-        '''
-        Use CEI to launch the EventTriggeredTransform
-        '''
-        process_definition = ProcessDefinition( name='event_triggered_transform')
-
-        process_definition.executable = {
-            'module': 'ion.processes.data.transforms.event_triggered_transform',
-            'class':'EventTriggeredTransform'
-        }
-        process_definition_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
-
-        # ------------------------------------------------------------------------------------
-        # Process Spawning
-        # ------------------------------------------------------------------------------------
-
-        pid2 = self.process_dispatcher.create_process(process_definition_id)
-
-        configuration = {}
-        configuration['process'] = dict({
-            'name': 'notification_worker_%s' % n,
-            'type':'simple'
-        })
-
-        pid  = self.process_dispatcher.schedule_process(
-            process_definition_id,
-            configuration = configuration,
-            process_id=pid2
-        )
-
-################################################################################################################
-################################################################################################################
-
-# The Stream Alert Transform is meant to analyze the contents of data in a stream
-
-class EventTriggeredTransform(TransformDataProcess):
+class EventTriggeredTransform(TransformEventListener, TransformDataProcess):
 
     def on_start(self):
+        super(EventTriggeredTransform, self).on_start()
+
         self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
+        self.awake = False
 
         if self.CFG.process.has_key('publish_stream'):
             self.publish_stream = self.CFG.process.publish_streams.publish_stream
-
-        self.subscriber = SimpleStreamSubscriber.new_subscriber(self.container, self.queue_name, self.recv_packet)
-        self.subscriber.start()
 
     def on_quit(self):
         '''
         Stop the subscriber
         '''
-        self.subscriber.stop()
+        super(EventTriggeredTransform, self).on_quit()
+
+    def process_event(self, msg, headers):
+        '''
+        Use CEI to launch the EventTriggeredTransform
+        '''
+
+        # ------------------------------------------------------------------------------------
+        # Process Spawning
+        # ------------------------------------------------------------------------------------
+        self.awake = True
 
     def recv_packet(self, packet, stream_route, stream_id):
         '''
-        When the packet is received, it is processed according to the algorithm and the result is published
+        Only when the transform has been worken up does it process the received packets
+        according to its algorithm and the result is published
         '''
 
-        if packet == {}:
-            return
+        if self.awake: # if the transform is awake
+            if packet == {}:
+                return
 
-        granule = TransformAlgorithm.execute([packet])
-        self.publish(msg=granule, stream_id=self.publish_stream)
+            granule = TransformAlgorithm.execute([packet])
+            self.publish(msg=granule, stream_id=self.publish_stream)
+        else:
+            return # the transform does not do anything with received packets when it is not yet awake
 
     def publish(self, msg, stream_id):
         self.publisher.publish(msg)
