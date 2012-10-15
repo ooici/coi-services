@@ -961,7 +961,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         log.debug("start_platform_agent_instance: agent_config %s ", str(platform_agent_instance_obj.agent_config))
 
-        process_id= self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
+        process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
                                                                schedule=None,
                                                                configuration=agent_config)
         log.debug("start_platform_agent_instance: schedule_process %s", process_id)
@@ -1728,20 +1728,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ret.value = 0 #todo: use ia_client
         return ret
 
-    def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
-        ret = IonObject(OT.ComputedListValue)
-
-        try:
-            ret.status = ComputedValueAvailability.PROVIDED
-            #todo: try to get the last however long of data to parse through
-            ret.value = []
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "Could not retrieve device stream -- may not be configured et"
-        except Exception as e:
-            raise e
-
-        return ret
+    # apparently fulfilled by some base object now
+#    def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
+#        ret = IonObject(OT.ComputedListValue)
+#        if True: raise BadRequest("not here not now")
+#        try:
+#            ret.status = ComputedValueAvailability.PROVIDED
+#            #todo: try to get the last however long of data to parse through
+#            ret.value = []
+#        except NotFound:
+#            ret.status = ComputedValueAvailability.NOTAVAILABLE
+#            ret.reason = "Could not retrieve device stream -- may not be configured et"
+#        except Exception as e:
+#            raise e
+#
+#        return ret
 
     def get_last_calibration_datetime(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
