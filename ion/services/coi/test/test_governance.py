@@ -1125,6 +1125,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
             retval = ia_client.get_resource(params, headers=user_header)
         self.assertIn('(get_resource) has been denied',cm.exception.message)
 
+        #This agent operation should not be allowed for a user that is not an Instrument Operator
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia_client.get_agent_state(headers=user_header)
+            self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+        self.assertIn('(get_agent_state) has been denied',cm.exception.message)
+
         #Grant the role of Instrument Operator to the user
         self.org_client.grant_role(org2_id,user_id, INSTRUMENT_OPERATOR_ROLE, headers=self.sa_user_header)
 
@@ -1141,16 +1147,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
             retval = ia_client.get_resource(params, headers=user_header)
 
 
-        #This agent operation should not be allowed for a user that is an Instrument Operator
-        with self.assertRaises(Unauthorized) as cm:
-            retval = ia_client.get_agent_state(headers=user_header)
-            self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
-        self.assertIn('(get_agent_state) has been denied',cm.exception.message)
-
-
-        #This agent operation should  be allowed for a the ION System Actor
-        retval = ia_client.get_agent_state(headers=self.sa_user_header)
+        #This agent operation should now be allowed for a user that is an Instrument Operator
+        retval = ia_client.get_agent_state(headers=user_header)
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+
 
         #The execute commnand should fail if the user has not acquired the resource
         with self.assertRaises(Unauthorized) as cm:
@@ -1185,7 +1185,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #So share the resource
         self.org_client.share_resource(org_id=org2_id, resource_id=inst_obj_id, headers=self.sa_user_header  )
 
-        #Remake the proposal
+        #Renegotiate the proposal
         sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=org2_id, resource=inst_obj_id)
         sap_response = self.org_client.negotiate(sap, headers=user_header )
 
@@ -1207,6 +1207,21 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #This operation should now be allowed since the resource has been acquired
         with self.assertRaises(Conflict) as cm:
            ia_client.set_resource(new_params, headers=user_header)
+
+        #Request for the instrument to be put into Direct Access mode - should be denied since it is not exclusive
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.request_direct_access(inst_obj_id, headers=user_header)
+        self.assertIn('Direct Access Mode has been denied',cm.exception.message)
+
+        #Now request to acquire resource exclusively
+
+        #Request Direct Access again
+
+        #Stop DA
+
+
+        #Give up Exclusivity
+             
 
         #The agent related functions should not be allowed for a user that is not an Org Manager
         with self.assertRaises(Unauthorized) as cm:
@@ -1281,7 +1296,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         retval = ia_client.get_agent_state(headers=user_header)
         self.assertEqual(retval, ResourceAgentState.INACTIVE)
 
-        #Now try to go into Direct Access Mode
+        #Now try to go into Direct Access Mode directly through the agent as an Org Manager
         cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
             #kwargs={'session_type': DirectAccessTypes.telnet,
             kwargs={'session_type':DirectAccessTypes.vsp,

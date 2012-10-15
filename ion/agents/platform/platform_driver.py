@@ -19,8 +19,7 @@ class DriverEvent(object):
     """
     Base class for driver events.
     """
-    def __init__(self, value, ts):
-        self._value = value
+    def __init__(self, ts):
         self._ts = ts
 
 
@@ -28,15 +27,31 @@ class AttributeValueDriverEvent(DriverEvent):
     """
     Event to notify the retrieved value for a platform attribute.
     """
-    def __init__(self, platform_id, attr_id, value, ts):
-        DriverEvent.__init__(self, value, ts)
+    def __init__(self, ts, platform_id, attr_id, value):
+        DriverEvent.__init__(self, ts)
         self._platform_id = platform_id
         self._attr_id = attr_id
+        self._value = value
 
     def __str__(self):
         return "%s(platform_id=%r, attr_id=%r, value=%r, ts=%r)" % (
             self.__class__.__name__, self._platform_id, self._attr_id,
             self._value, self._ts)
+
+
+class AlarmDriverEvent(DriverEvent):
+    """
+    Event to notify an alarm.
+    """
+    def __init__(self, ts, alarm_type, alarm_instance):
+        DriverEvent.__init__(self, ts)
+        self._alarm_type = alarm_type
+        self._alarm_instance = alarm_instance
+
+    def __str__(self):
+        return "%s(alarm_type=%r, alarm_instance=%s, ts=%r)" % (
+            self.__class__.__name__, self._alarm_type, self._alarm_instance,
+            self._ts)
 
 
 class PlatformDriver(object):
@@ -192,3 +207,18 @@ class PlatformDriver(object):
         else:
             log.warn("self._send_event not set to notify driver_event=%s",
                      str(driver_event))
+
+    def start_alarm_dispatch(self, params):
+        """
+        To be implemented by subclass.
+        Starts the dispatch of alarms received from the platform network to do
+        corresponding event notifications.
+        """
+        raise NotImplemented()
+
+    def stop_alarm_dispatch(self):
+        """
+        To be implemented by subclass.
+        Stops the dispatch of alarms received from the platform network.
+        """
+        raise NotImplemented()

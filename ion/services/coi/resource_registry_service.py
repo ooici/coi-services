@@ -3,7 +3,7 @@
 
 __author__ = 'Thomas R. Lennan, Michael Meisinger, Stephen Henrie'
 __license__ = 'Apache 2.0'
-
+import types
 from pyon.core.exception import BadRequest, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.public import log
@@ -85,10 +85,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     @mask_couch_error
     def find_attachments(self, resource_id='', keyword='', limit=0, descending=False, include_content=False, id_only=True):
-        #return self.resource_registry.find_attachments(resource_id=resource_id, keyword='', limit=limit,
-        #                                               descending=descending, include_content=include_content,
-        #                                               id_only=id_only)
-        return self.resource_registry.find_attachments(resource_id=resource_id, limit=limit,
+        return self.resource_registry.find_attachments(
+            resource_id=resource_id, keyword='', limit=limit,
             descending=descending, include_content=include_content,
             id_only=id_only)
 
@@ -139,14 +137,13 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.find_resources(restype=restype, lcstate=lcstate, name=name, id_only=id_only)
 
     @mask_couch_error
-    def find_resources_ext(self, restype='', lcstate='', name='', keyword='', nested_type='', limit=0, skip=0, descending=False, id_only=False):
-        # @TODO Remove if and else clause after pyon update
-        if hasattr(self.resource_registry, 'find_resources_ext'):
-            return self.resource_registry.find_resources_ext(restype=restype, lcstate=lcstate, name=name,
-                keyword=keyword, nested_type=nested_type, limit=limit, skip=skip, descending=descending,
-                id_only=id_only)
-        else:
-            return self.resource_registry.find_resources(restype=restype, lcstate=lcstate, name=name, id_only=id_only)
+    def find_resources_ext(self, restype='', lcstate='', name='', keyword='', nested_type='', attr_name='', attr_value='',
+                           alt_id='', alt_id_ns='', limit=0, skip=0, descending=False, id_only=False):
+        return self.resource_registry.find_resources_ext(restype=restype, lcstate=lcstate, name=name,
+            keyword=keyword, nested_type=nested_type, attr_name=attr_name, attr_value=attr_value,
+            alt_id=alt_id, alt_id_ns=alt_id_ns,
+            limit=limit, skip=skip, descending=descending,
+            id_only=id_only)
 
     @mask_couch_error
     def read_mult(self, object_ids=[]):
@@ -171,6 +168,13 @@ class ResourceRegistryService(BaseResourceRegistryService):
             raise BadRequest("The extended_resource parameter not set")
 
         extended_resource_handler = ExtendedResourceContainer(self, self)
+
+        #Handle differently if the resource_id parameter is a list of ids
+        if resource_id.find('[') > -1:
+            res_input = eval(resource_id)
+            extended_resource_list = extended_resource_handler.create_extended_resource_container_list(resource_extension,
+                res_input, None, ext_associations, ext_exclude)
+            return extended_resource_list
 
         extended_resource = extended_resource_handler.create_extended_resource_container(resource_extension,
             resource_id, None, ext_associations, ext_exclude)

@@ -66,6 +66,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #stuff we associate to
         data_producer_id, _      = self.RR.create(any_old(RT.DataProducer))
+        org_id, _ =                self.RR.create(any_old(RT.Org))
 
         #instrument_agent_instance_id #is only a target
         
@@ -78,6 +79,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 #        self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
         self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
         self.RR.create_association(instrument_device_id, PRED.hasDevice, sensor_device_id)
+        self.RR.create_association(org_id, PRED.hasResource, instrument_device_id)
 
         instrument_model_id #is only a target
 
@@ -127,6 +129,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
 
 
+
         #check data products
         self.assertEqual(1, len(extended_instrument.data_products))
 
@@ -159,9 +162,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.location_status_roll_up.status)
 
-        self.assertEqual(ComputedValueAvailability.PROVIDED,
-                         extended_instrument.computed.recent_events.status)
-        self.assertEqual([], extended_instrument.computed.recent_events.value)
+#        self.assertEqual(ComputedValueAvailability.PROVIDED,
+#                         extended_instrument.computed.recent_events.status)
+#        self.assertEqual([], extended_instrument.computed.recent_events.value)
 
 
 

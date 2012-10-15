@@ -330,6 +330,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         return self.clients.resource_registry.delete(data_producer_obj)
 
 
+    def force_delete_data_producer(self, data_producer_id=''):
+        pass
+
     # -----------------
     # The following operations manage EOI resources
     # -----------------
@@ -359,6 +362,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         self.clients.resource_registry.delete(external_data_provider_id)
         return
 
+    def force_delete_external_data_provider(self, external_data_provider_id=''):
+        pass
+
     ##########################################################################
     #
     # Data Source
@@ -386,6 +392,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         self.clients.resource_registry.delete(data_source_id)
         return
 
+    def force_delete_data_source(self, data_source_id=''):
+        pass
+
     def create_data_source_model(self, data_source_model=None):
         # Persist DataSourceModel object and return object _id as OOI id
         data_source_model_id, version = self.clients.resource_registry.create(data_source_model)
@@ -405,6 +414,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         self.clients.resource_registry.delete(data_source_model_id)
         return
 
+    def force_delete_data_source_model(self, data_source_model_id=''):
+        pass
 
     def create_data_source_agent(self, data_source_agent=None, data_source_model_id='' ):
         # Persist ExternalDataSourcAgent object and return object _id as OOI id
@@ -437,6 +448,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with DataSource Models
 
         self.clients.resource_registry.delete(data_source_agent_id)
+
+    def force_delete_data_source_agent(self, data_source_agent_id=''):
+        pass
+
 
     def create_data_source_agent_instance(self, data_source_agent_instance=None, data_source_agent_id='', data_source_id=''):
         # Persist DataSourceAgentInstance object and return object _id as OOI id
@@ -480,6 +495,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with ExternalDataSourceAgent
 
         self.clients.resource_registry.delete(data_source_agent_instance_id)
+
+    def force_delete_data_source_agent_instance(self, data_source_agent_instance_id=''):
+        pass
 
     def start_data_source_agent_instance(self, data_source_agent_instance_id=''):
         """Launch an data source agent instance process and return its process id. Agent instance resource
@@ -530,6 +548,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("ExternalDataSet %s does not exist" % external_dataset_id)
         self.clients.resource_registry.delete(external_dataset_id)
 
+    def force_delete_external_dataset(self, external_dataset_id=''):
+        pass
 
     def create_external_dataset_model(self, external_dataset_model=None):
         # Persist ExternalDatasetModel object and return object _id as OOI id
@@ -554,6 +574,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("ExternalDatasetModel %s does not exist" % external_dataset_model_id)
         self.clients.resource_registry.delete(external_dataset_model_id)
 
+    def force_delete_external_dataset_model(self, external_dataset_model_id=''):
+        pass
 
     def create_external_dataset_agent(self, external_dataset_agent=None, external_dataset_model_id=''):
         # Persist ExternalDatasetAgent object and return object _id as OOI id
@@ -601,6 +623,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         self.clients.resource_registry.delete(external_dataset_agent_id)
 
+    def force_delete_external_dataset_agent(self, external_dataset_agent_id=''):
+        pass
 
     def create_external_dataset_agent_instance(self, external_dataset_agent_instance=None, external_dataset_agent_id='', external_dataset_id=''):
         # Persist ExternalDatasetAgentInstance object and return object _id as OOI id
@@ -643,6 +667,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with ExternalDatasetAgent
 
         self.clients.resource_registry.delete(external_dataset_agent_instance_id)
+
+    def force_delete_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
+        pass
 
     def start_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
         """Launch an dataset agent instance process and return its process id. Agent instance resource
@@ -715,7 +742,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             if not stream_ids:
                 raise NotFound("No Stream  attached to this Data Product " + str(product_id))
             if len(stream_ids) > 1:
-                raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
+                raise BadRequest("Data Product should only have ONE Stream" + str(product_id))
 
             # retrieve the stream
             stream_obj = self.clients.resource_registry.read(stream_ids[0])

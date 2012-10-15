@@ -147,7 +147,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         if data_product_obj.lcstate != LCS.RETIRED:
             self.data_product.delete_one(data_product_id)
 
-    def hard_delete_data_product(self, data_product_id=''):
+    def force_delete_data_product(self, data_product_id=''):
         pass
 
     def remove_streams(self, data_product_id=''):
@@ -371,6 +371,9 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         pass
 
+    def force_delete_data_product_collection(self, data_product_collection_id=''):
+        pass
+
     def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
 
 
@@ -492,7 +495,7 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_data_datetime(self, data_product_id=''):
         # Returns a temporal bounds object of the span of data product life span (may exist without getting a granule)
         ret = IonObject(OT.ComputedStringValue)
-
+        ret.value = ""
         ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME. also, should datetime be stored as a string?"
 
@@ -502,7 +505,7 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_data_ingestion_datetime(self, data_product_id=''):
         # Returns a temporal bounds object of the earliest/most recent values ingested into in the data product
         ret = IonObject(OT.ComputedStringValue)
-
+        ret.value = ""
         ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME. also, should datetime be stored as a string?"
 
@@ -512,9 +515,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_product_download_size_estimated(self, data_product_id=''):
         # Returns the size of the full data product if downloaded/presented in a given presentation form
         ret = IonObject(OT.ComputedIntValue)
+        ret.value = 0
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = 1024
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -527,9 +531,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_stored_data_size(self, data_product_id=''):
         # Returns the storage size occupied by the data content of the resource, in bytes.
         ret = IonObject(OT.ComputedIntValue)
+        ret.value = 0
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = 1024
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -543,7 +548,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # the datetime when the contents of the data were last modified in any way.
         # This is distinct from modifications to the data product attributes
         ret = IonObject(OT.ComputedStringValue)
-
+        ret.value = ""
         ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME. also, should datetime be stored as a string?"
 
@@ -553,9 +558,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_parameters(self, data_product_id=''):
         # The set of Parameter objects describing each variable in this data product
         ret = IonObject(OT.ComputedListValue)
+        ret.value = []
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = []
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -567,10 +573,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_data_url(self, data_product_id=''):
         # The unique pointer to this set of data
         ret = IonObject(OT.ComputedStringValue)
-
-        ret.status = ComputedValueAvailability.PROVIDED
+        ret.value  = ""
+        ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME."
-        ret.value  = "http://somewhere.ooici.net/get_data_product?data_product_id=%s" % data_product_id
+
 
         return ret
 
@@ -579,7 +585,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         #todo - call get_data_product_provenance when it is completed
         ret = IonObject(OT.ComputedStringValue)
-
+        ret.value = ""
         ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME. also, should provenance be stored as a string?"
 
@@ -589,9 +595,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         # The number of current subscriptions to the data
         # Returns the storage size occupied by the data content of the resource, in bytes.
         ret = IonObject(OT.ComputedIntValue)
+        ret.value = 0
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = 34 #todo
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -603,9 +610,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_descriptors(self, data_product_id=''):
         # Returns a list of keyword/authority pairs with optional urls
         ret = IonObject(OT.ComputedListValue)
+        ret.value = []
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = []
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -618,9 +626,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_active_user_subscriptions(self, data_product_id=''):
         # The UserSubscription objects for this data product
         ret = IonObject(OT.ComputedListValue)
+        ret.value = []
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = []
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -632,9 +641,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_past_user_subscriptions(self, data_product_id=''):
         # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
         ret = IonObject(OT.ComputedListValue)
+        ret.value = []
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = []
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"

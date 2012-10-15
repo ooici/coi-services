@@ -7,6 +7,7 @@ from nose.plugins.attrib import attr
 from pyon.public import RT
 from pyon.util.int_test import IonIntegrationTestCase
 import math
+from ion.processes.bootstrap.ion_loader import TESTED_DOC
 
 from interface.services.coi.idatastore_service import DatastoreServiceClient, DatastoreServiceProcessClient
 import unittest
@@ -20,10 +21,7 @@ class TestLoader(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
     def test_lca_load(self):
-        config = dict(op="load",
-            path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls",
-            scenario="R2_DEMO",
-            attachments="res/preload/r2_ioc/attachments")
+        config = dict(op="load", scenario="R2_DEMO", attachments="res/preload/r2_ioc/attachments")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
         # make sure contact entries were created correctly
@@ -59,15 +57,18 @@ class TestLoader(IonIntegrationTestCase):
                 self.assertTrue(math.fabs(con.geospatial_longitude_limit_east+117.23)<.01)
                 con = site.constraint_list[1]
                 self.assertEquals('TemporalBounds', con.type_)
+                # check that coordinate system was loaded
+                self.assertFalse(site.coordinate_reference_system is None)
+
         self.assertTrue(found, msg='Did not find InstrumentSite "Logical instrument 1 Demo" -- should have been preloaded')
 
-        # make sure we have attachments
 
         # check that InstrumentDevice contacts are loaded
         res,_ = self.container.resource_registry.find_resources(RT.InstrumentDevice, name='CTD Simulator 1 Demo', id_only=False)
         self.assertTrue(len(res) == 1)
         self.assertTrue(len(res[0].contacts)==1)
         self.assertEquals('Orcutt', res[0].contacts[0].individual_name_family)
+
         # check has attachments
         attachments,_ = self.container.resource_registry.find_attachments(res[0]._id)
         self.assertTrue(len(attachments)>0)

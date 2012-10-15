@@ -30,6 +30,8 @@ from ion.agents.platform.test.helper import PLATFORM_ID
 from ion.agents.platform.test.helper import SUBPLATFORM_IDS
 from ion.agents.platform.test.helper import ATTR_NAMES
 from ion.agents.platform.test.helper import WRITABLE_ATTR_NAMES
+from ion.agents.platform.test.helper import VALID_ATTR_VALUE
+from ion.agents.platform.test.helper import INVALID_ATTR_VALUE
 from ion.agents.platform.test.helper import HelperTestMixin
 
 from pyon.ion.stream import StandaloneStreamSubscriber
@@ -260,22 +262,28 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
     def _set_resource(self):
         attrNames = ATTR_NAMES
 
-        def valueFor(attrName):
-            # simple string value, ok because there is no strict value check yet
-            # TODO more realistic value depending on attribute's type
-            return "test_value_for_%s" % attrName
-
-        attrs = [(attrName, valueFor(attrName)) for attrName in attrNames]
+        # TODO more realistic value depending on attribute's type
+        attrs = [(attrName, VALID_ATTR_VALUE) for attrName in attrNames]
         kwargs = dict(attrs=attrs)
         cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         attr_values = retval.result
         self.assertIsInstance(attr_values, dict)
-        for attr_name in attrNames:
+        for attrName in attrNames:
             if attrName in WRITABLE_ATTR_NAMES:
                 self._verify_valid_attribute_id(attrName, attr_values)
             else:
                 self._verify_not_writable_attribute_id(attrName, attr_values)
+
+        # now test setting invalid values to writable attributes:
+        attrs = [(attrName, INVALID_ATTR_VALUE) for attrName in WRITABLE_ATTR_NAMES]
+        kwargs = dict(attrs=attrs)
+        cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        attr_values = retval.result
+        self.assertIsInstance(attr_values, dict)
+        for attrName in WRITABLE_ATTR_NAMES:
+            self._verify_invalid_attribute_id(attrName, attr_values)
 
     def _initialize(self):
         kwargs = dict(plat_config=PLATFORM_CONFIG)
@@ -306,6 +314,19 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(x in retval.result for x in SUBPLATFORM_IDS)
         return retval.result
 
+    def _start_alarm_dispatch(self):
+        kwargs = dict(params="TODO set params")
+        cmd = AgentCommand(command=PlatformAgentEvent.START_ALARM_DISPATCH, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        self.assertTrue(retval.result is not None)
+        return retval.result
+
+    def _stop_alarm_dispatch(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
+        retval = self._execute_agent(cmd)
+        self.assertTrue(retval.result is not None)
+        return retval.result
+
     def test_capabilities(self):
 
         log.info("test_capabilities starting.  Default timeout=%s", TIMEOUT)
@@ -322,6 +343,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.SET_RESOURCE,
 
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
+
+            PlatformAgentEvent.START_ALARM_DISPATCH,
+            PlatformAgentEvent.STOP_ALARM_DISPATCH,
         ]
 
 
@@ -474,6 +498,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
+
+            PlatformAgentEvent.START_ALARM_DISPATCH,
+            PlatformAgentEvent.STOP_ALARM_DISPATCH,
         ]
 
         res_cmds_command = [
@@ -517,8 +544,12 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._get_resource()
         self._set_resource()
 
+        self._start_alarm_dispatch()
+
         log.info("sleeping...")
         sleep(15)
+
+        self._stop_alarm_dispatch()
 
         self._get_subplatform_ids()
 

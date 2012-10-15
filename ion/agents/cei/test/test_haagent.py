@@ -3,7 +3,6 @@ import functools
 import BaseHTTPServer
 import socket
 from BaseHTTPServer import HTTPServer
-from gevent import queue
 from random import randint
 
 from nose.plugins.attrib import attr
@@ -12,7 +11,6 @@ from mock import Mock
 from uuid import uuid4
 
 from pyon.agent.simple_agent import SimpleResourceAgentClient
-from pyon.event.event import EventSubscriber
 from pyon.public import log
 from pyon.service.service import BaseService
 from pyon.util.containers import DotDict
@@ -21,9 +19,11 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.core import bootstrap
 
-from interface.services.icontainer_agent import ContainerAgentClient
 from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, \
     ProcessDispatcherSimpleAPIClient
+from ion.services.cei.test import ProcessStateWaiter, get_dashi_uri_from_cfg
+
+from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessStateEnum, ProcessDefinition
 
@@ -79,7 +79,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.resource_id = "haagent_1234"
         self._haa_name = "high_availability_agent"
         self._haa_dashi_name = "dashi_haa_" + uuid4().hex
-        self._haa_dashi_uri = "amqp://guest:guest@localhost/"
+        self._haa_dashi_uri = get_dashi_uri_from_cfg()
         self._haa_dashi_exchange = "%s.hatests" % bootstrap.get_sys_name()
         self._haa_config = {
             'highavailability': {
@@ -100,9 +100,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self._base_procs = self.pd_cli.list_processes()
 
-        self.event_queue = queue.Queue()
-        self.event_sub = None
-        self.subscribe_events(None)
+        self.waiter = ProcessStateWaiter()
+        self.waiter.start()
 
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
@@ -118,24 +117,9 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
 
     def tearDown(self):
-        self.event_sub.stop()
+        self.waiter.stop()
         self.container.terminate_process(self._haa_pid)
         self._stop_container()
-
-    def _event_callback(self, event, *args, **kwargs):
-        self.event_queue.put(event)
-
-    def subscribe_events(self, origin):
-        self.event_sub = EventSubscriber(event_type="ProcessLifecycleEvent",
-            callback=self._event_callback, origin_type="DispatchedProcess")
-        self.event_sub.start()
-
-    def await_state_event(self, pid, state):
-        event = self.event_queue.get(timeout=60)
-        log.debug("Got event: %s", event)
-        self.assertTrue(event.origin.startswith(pid))
-        self.assertEqual(event.state, state)
-        return event
 
     def get_running_procs(self):
         """returns a normalized set of running procs (removes the ones that 
@@ -161,7 +145,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         result = self.haa_client.dump().result
         self.assertEqual(result['policy'], new_policy)
 
-        self.await_state_event("test", ProcessStateEnum.RUNNING)
+        self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
@@ -180,21 +164,21 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         new_policy = {'preserve_n': 2}
         self.haa_client.reconfigure_policy(new_policy)
 
-        self.await_state_event("test", ProcessStateEnum.RUNNING)
+        self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
 
         self.assertEqual(len(self.get_running_procs()), 2)
 
         new_policy = {'preserve_n': 1}
         self.haa_client.reconfigure_policy(new_policy)
 
-        self.await_state_event("test", ProcessStateEnum.TERMINATED)
+        self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
         new_policy = {'preserve_n': 0}
         self.haa_client.reconfigure_policy(new_policy)
 
-        self.await_state_event("test", ProcessStateEnum.TERMINATED)
+        self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
         self.assertEqual(len(self.get_running_procs()), 0)
 
     def test_dashi(self):
@@ -357,9 +341,9 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
         self._base_procs = self.pd_cli.list_processes()
 
-        self.event_queue = queue.Queue()
-        self.event_sub = None
-        self.subscribe_events(None)
+        self.waiter = ProcessStateWaiter()
+        self.waiter.start()
+
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         self._haa_pid = self.container_client.spawn_process(name=self._haa_name,
@@ -374,25 +358,10 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
 
     def tearDown(self):
-        self.event_sub.stop()
+        self.waiter.stop()
         self.container.terminate_process(self._haa_pid)
         self._stop_webserver()
         self._stop_container()
-
-    def _event_callback(self, event, *args, **kwargs):
-        self.event_queue.put(event)
-
-    def subscribe_events(self, origin):
-        self.event_sub = EventSubscriber(event_type="ProcessLifecycleEvent",
-            callback=self._event_callback, origin_type="DispatchedProcess")
-        self.event_sub.start()
-
-    def await_state_event(self, pid, state):
-        event = self.event_queue.get(timeout=60)
-        log.debug("Got event: %s", event)
-        self.assertTrue(event.origin.startswith(pid))
-        self.assertEqual(event.state, state)
-        return event
 
     def get_running_procs(self):
         """returns a normalized set of running procs (removes the ones that 
@@ -420,7 +389,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         # Ensure HA hasn't already failed
         assert status in ('PENDING', 'READY', 'STEADY')
 
-        self.await_state_event("test", ProcessStateEnum.RUNNING)
+        self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
@@ -440,7 +409,8 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         for upid in upids:
             response += "%s,ml=5\n"
         self._set_response(response)
-        self.await_state_event("test", ProcessStateEnum.RUNNING)
+
+        self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
 
         self.assertEqual(len(self.get_running_procs()), 2)
 
@@ -470,7 +440,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
             response += "%s,ml=0.5\n"
         self._set_response(response)
 
-        self.await_state_event("test", ProcessStateEnum.TERMINATED)
+        self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
 
         self.assertEqual(len(self.get_running_procs()), 1)
 

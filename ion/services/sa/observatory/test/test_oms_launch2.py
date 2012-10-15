@@ -33,6 +33,7 @@ from pyon.event.event import EventSubscriber
 from interface.objects import ProcessStateEnum
 
 from gevent import queue
+from gevent import sleep
 
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
@@ -316,11 +317,21 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'Base Platform RUN = %s', str(retval) )
 
-        # TODO: here we could sleep for a little bit to let the resource
-        # monitoring work for a while. But not done yet because the
-        # definition of streams is not yet included. See
-        # test_platform_agent_with_oms.py for a test that includes this.
+        # START_ALARM_DISPATCH
+        kwargs = dict(params="TODO set params")
+        cmd = AgentCommand(command=PlatformAgentEvent.START_ALARM_DISPATCH, kwargs=kwargs)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        self.assertTrue(retval.result is not None)
 
+
+        log.info("sleeping to eventually see some event notifications/data pubs...")
+        sleep(15)
+
+
+        # STOP_ALARM_DISPATCH
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        self.assertTrue(retval.result is not None)
 
 
         #-------------------------------

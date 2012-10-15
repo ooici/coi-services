@@ -20,12 +20,6 @@ from pyon.core.object import ion_serializer
 from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
-import pickle
-import gevent
-
-import string
-import csv
-from StringIO import StringIO
 
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
@@ -45,8 +39,8 @@ from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
-from ion.services.sa.common.module_uploader import RegisterModulePreparer
-from ion.services.sa.common.qa_doc_parser import QADocParser
+from ion.util.module_uploader import RegisterModulePreparer
+from ion.util.qa_doc_parser import QADocParser
 
 # TODO: these are for methods which may belong in DAMS/DPMS/MFMS
 from ion.services.sa.product.data_product_impl import DataProductImpl
@@ -224,10 +218,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent_instance._unlink_all_subjects_by_association_type(PRED.hasAgentInstance,
                                                                                 instrument_agent_instance_id)
 
-        self.instrument_agent_instance.advance_lcs(instrument_agent_instance_id, LCE.RETIRE)
-        #self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
+        self.instrument_agent_instance.delete_one(instrument_agent_instance_id)
 
-        return
+
+    def force_delete_instrument_agent_instance(self, instrument_agent_instance_id=''):
+
+        self.instrument_agent_instance.force_delete_one(instrument_agent_instance_id)
 
 
     def validate_instrument_agent_instance(self, instrument_agent_instance_obj):
@@ -583,8 +579,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             self.instrument_agent.unlink_process_definition(instrument_agent_id, pd_obj._id)
             self.clients.process_dispatcher.delete_process_definition(pd_obj._id)
 
-        self.instrument_agent.advance_lcs(instrument_agent_id, LCE.RETIRE)
-        #return self.instrument_agent.delete_one(instrument_agent_id)
+        self.instrument_agent.delete_one(instrument_agent_id)
+
+    def force_delete_instrument_agent(self, instrument_agent_id=''):
+        self.instrument_agent.force_delete_one(instrument_agent_id)
 
 
     def register_instrument_agent(self, instrument_agent_id='', agent_egg='', qa_documents=''):
@@ -696,10 +694,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.instrument_model.advance_lcs(instrument_model_id, LCE.RETIRE)
-        #return self.instrument_model.delete_one(instrument_model_id)
+        self.instrument_model.delete_one(instrument_model_id)
 
-
+    def force_delete_instrument_model(self, instrument_model_id=''):
+        self.instrument_model.force_delete_one(instrument_model_id)
 
 
 
@@ -751,16 +749,36 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.instrument_device.advance_lcs(instrument_device_id, LCE.RETIRE)
-        #return self.instrument_device.delete_one(instrument_device_id)
+        self.instrument_device.delete_one(instrument_device_id)
 
 
+    def force_delete_instrument_device(self, instrument_device_id=''):
+        self.instrument_device.force_delete_one(instrument_device_id)
 
     ##
     ##
     ##  DIRECT ACCESS
     ##
     ##
+
+    def check_exclusive_commitment(self, msg,  headers):
+        '''
+        This function is used for governance validation for the request_direct_access and stop_direct_access operation.
+        '''
+
+        user_id = headers['ion-actor-id']
+        resource_id = msg['instrument_device_id']
+
+        commitment =  self.container.governance_controller.get_resource_commitment(user_id, resource_id)
+
+        if commitment is None:
+            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (user_id, resource_id)
+
+        #Look for any active commitments that are exclusive - and only allow for exclusive commitment
+        if not commitment.commitment.exclusive:
+            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (user_id, resource_id)
+
+        return True, ''
 
     def request_direct_access(self, instrument_device_id=''):
         """
@@ -854,10 +872,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_agent.advance_lcs(platform_agent_instance_id, LCE.RETIRE)
-        #return self.platform_agent_instance.delete_one(platform_agent_instance_id)
+        self.platform_agent_instance.delete_one(platform_agent_instance_id)
 
-
+    def force_delete_platform_agent_instance(self, platform_agent_instance_id=''):
+        self.platform_agent_instance.force_delete_one(platform_agent_instance_id)
 
     def start_platform_agent_instance(self, platform_agent_instance_id=''):
         """
@@ -943,7 +961,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         log.debug("start_platform_agent_instance: agent_config %s ", str(platform_agent_instance_obj.agent_config))
 
-        process_id= self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
+        process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
                                                                schedule=None,
                                                                configuration=agent_config)
         log.debug("start_platform_agent_instance: schedule_process %s", process_id)
@@ -1037,10 +1055,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_agent.advance_lcs(platform_agent_id, LCE.RETIRE)
-        #return self.platform_agent.delete_one(platform_agent_id)
+        self.platform_agent.delete_one(platform_agent_id)
 
-
+    def force_delete_platform_agent(self, platform_agent_id=''):
+        self.platform_agent.force_delete_one(platform_agent_id)
 
 
     ##########################################################################
@@ -1086,9 +1104,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_model.advance_lcs(platform_model_id, LCE.RETIRE)
-        #return self.platform_model.delete_one(platform_model_id)
+        self.platform_model.delete_one(platform_model_id)
 
+    def force_delete_platform_model(self, platform_model_id=''):
+        self.platform_model.force_delete_one(platform_model_id)
 
 
     ##########################################################################
@@ -1136,9 +1155,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_device.advance_lcs(platform_device_id, LCE.RETIRE)
-        #return self.platform_device.delete_one(platform_device_id)
+        self.platform_device.delete_one(platform_device_id)
 
+    def force_delete_platform_device(self, platform_device_id=''):
+        self.platform_device.force_delete_one(platform_device_id)
 
 
 
@@ -1187,9 +1207,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.sensor_model.advance_lcs(sensor_model_id, LCE.RETIRE)
-        #return self.sensor_model.delete_one(sensor_model_id)
+        self.sensor_model.delete_one(sensor_model_id)
 
+    def force_delete_sensor_model(self, sensor_model_id=''):
+        self.sensor_model.force_delete_one(sensor_model_id)
 
 
     ##########################################################################
@@ -1236,8 +1257,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.sensor_device.advance_lcs(sensor_device_id, LCE.RETIRE)
-        #return self.sensor_device.delete_one(sensor_device_id)
+        self.sensor_device.delete_one(sensor_device_id)
+
+    def force_delete_sensor_device(self, sensor_device_id=''):
+        self.sensor_device.force_delete_one(sensor_device_id)
 
 
 
@@ -1705,20 +1728,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ret.value = 0 #todo: use ia_client
         return ret
 
-    def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
-        ret = IonObject(OT.ComputedListValue)
-
-        try:
-            ret.status = ComputedValueAvailability.PROVIDED
-            #todo: try to get the last however long of data to parse through
-            ret.value = []
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "Could not retrieve device stream -- may not be configured et"
-        except Exception as e:
-            raise e
-
-        return ret
+    # apparently fulfilled by some base object now
+#    def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
+#        ret = IonObject(OT.ComputedListValue)
+#        if True: raise BadRequest("not here not now")
+#        try:
+#            ret.status = ComputedValueAvailability.PROVIDED
+#            #todo: try to get the last however long of data to parse through
+#            ret.value = []
+#        except NotFound:
+#            ret.status = ComputedValueAvailability.NOTAVAILABLE
+#            ret.reason = "Could not retrieve device stream -- may not be configured et"
+#        except Exception as e:
+#            raise e
+#
+#        return ret
 
     def get_last_calibration_datetime(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)

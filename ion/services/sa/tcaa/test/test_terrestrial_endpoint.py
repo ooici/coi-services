@@ -35,6 +35,7 @@ from mock import patch
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
+from pyon.core.bootstrap import get_sys_name
 
 from pyon.public import IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
@@ -91,6 +92,9 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         
         # Set internal variables.
         self._other_host = 'localhost'
+        self._xs_name = 'remote1'
+        self._svc_name = 'terrestrial_endpoint'
+        self._listen_name = self._svc_name + self._xs_name
         self._platform_resource_id = 'abc123'
         self._resource_id = 'fake_id'
         self._no_requests = 10
@@ -107,6 +111,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._done_queue_mod_evts = AsyncResult()
         self._done_telem_evts = AsyncResult()
         self._done_cmd_tx_evts = AsyncResult()
+        
         # Start container.
         log.debug('Staring capability container.')
         self._start_container()
@@ -120,12 +125,25 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
 
+        # The following spawn config creates the process with the remote
+        # name tagged to the service name.
+        """
+        listen_name = terrestrial_endpointremote1
+        2012-10-10 11:34:46,654 DEBUG    ion.services.sa.tcaa.terrestrial_endpoint recv name: NP (ion_test_8257ab,terrestrial_endpointremote1,B: terrestrial_endpointremote1)
+        2012-10-10 11:34:46,654 DEBUG    ion.services.sa.tcaa.terrestrial_endpoint startup listener recv name: NP (ion_test_8257ab,terrestrial_endpointremote1,B: terrestrial_endpointremote1)
+        2012-10-10 11:34:46,654 DEBUG    ion.services.sa.tcaa.terrestrial_endpoint startup listener recv name: NP (ion_test_8257ab,Edwards-MacBook-Pro_local_2624.33,B: Edwards-MacBook-Pro_local_2624.33)
+        """
+        
         # Create agent config.
         endpoint_config = {
             'other_host' : self._other_host,
             'other_port' : self._other_port,
             'this_port' : 0,
-            'platform_resource_id' : self._platform_resource_id
+            'xs_name' : self._xs_name,
+            'platform_resource_id' : self._platform_resource_id,
+            'process' : {
+                'listen_name' : self._listen_name
+            }
         }
         
         # Spawn the terrestrial enpoint process.
@@ -138,9 +156,12 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         log.debug('Endpoint pid=%s.', str(te_pid))
 
         # Create an endpoint client.
+        # The to_name may be either the process pid or
+        # the listen_name, which for this remote bridge
+        # is svc_name + remote_name as above.
         self.te_client = TerrestrialEndpointClient(
             process=FakeProcess(),
-            to_name=te_pid)
+            to_name=self._listen_name)
         log.debug('Got te client %s.', str(self.te_client))
         
         # Remember the terrestrial port.
@@ -153,7 +174,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._event_subscriber = EventSubscriber(
             event_type='PlatformEvent',
             callback=self.consume_event,
-            origin=self._platform_resource_id)
+            origin=self._xs_name)
         self._event_subscriber.start()
         self._event_subscriber._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
         self.addCleanup(self._event_subscriber.stop)
@@ -205,7 +226,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         log.debug('Publishing telemetry event.')
         self._event_publisher.publish_event(
                             event_type='PlatformTelemetryEvent',
-                            origin=self._platform_resource_id,
+                            origin = self._platform_resource_id,
                             status = TelemetryStatusType.AVAILABLE)
     
     def on_link_down(self):
@@ -280,6 +301,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
     
     def test_process_queued(self):
         """
+        test_process_queued
         Test forwarding of queued commands upon link up.
         """
         
@@ -312,6 +334,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_process_online(self):
         """
+        test_process_online
         Test forwarding commands when the link is up.
         """
 
@@ -343,6 +366,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_remote_late(self):
         """
+        test_remote_late
         Test simulates behavior when the remote side is initially unavailable.
         """
         
@@ -384,6 +408,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_get_clear_queue(self):
         """
+        test_get_clear_queue
         Test endpoint queue get and clear manipulators.
         """
         
@@ -493,6 +518,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         
     def test_pop_pending_queue(self):
         """
+        test_pop_pending_queue
         Test endpoint queue pop manipulators.
         """
         
@@ -554,6 +580,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_repeated_clear_pop(self):
         """
+        test_repeated_clear_pop
         Test endpoint queue pop manipulators.
         """
 
@@ -643,5 +670,4 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
                 
         pending = self.te_client.get_pending()
         self.assertEqual(len(pending), 0)        
-
 

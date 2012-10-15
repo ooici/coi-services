@@ -316,6 +316,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
     def test_process_queued(self):
         """
+        test_process_queued
         Test that queued commands are forwarded to and handled by
         remote endpoint when link comes up.
         """        
@@ -344,6 +345,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
     
     def test_process_online(self):
         """
+        test_process_online
         Test commands are forwarded and handled while link is up.
         """        
         
@@ -376,6 +378,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
     def test_terrestrial_late(self):
         """
+        test_terrestrial_late
         Test queued commands are forwarded and handled by remote endpoint
         when terrestrial side is late to come up.
         """        
@@ -420,9 +423,9 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
 
-    #@unittest.skip('Not ready.')
     def test_service_commands(self):
         """
+        test_service_commands
         Test that real service commands are handled by the remote endpoint.
         """
         
@@ -600,6 +603,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         
     def test_resource_commands(self):
         """
+        test_resource_commands
         Test that real resource commands are handled by the remote endpoint.
         """
         
@@ -685,6 +689,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
     def test_bad_service_name_resource_id(self):
         """
+        test_bad_service_name_resource_id
         Test for proper exception behavior when a bad service name or
         resource id is used in a command forwarded to the remote endpoint.
         """
@@ -761,6 +766,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
     def test_bad_commands(self):
         """
+        test_bad_commands
         Test for correct exception behavior if a bad command name is forwarded
         to a remote service or resource.
         """
@@ -848,6 +854,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
 
     def test_resource_command_sequence(self):
         """
+        test_resource_command_sequence
         Test for successful completion of a properly ordered sequence of
         resource commands queued for forwarding to the remote endpoint.
         """

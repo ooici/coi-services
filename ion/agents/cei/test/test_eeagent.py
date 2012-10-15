@@ -4,6 +4,7 @@ from nose.plugins.attrib import attr
 from nose.plugins.skip import SkipTest
 from gevent import queue
 import os
+import uuid
 import os.path
 import shutil
 import tempfile
@@ -14,19 +15,13 @@ from random import randint
 from BaseHTTPServer import HTTPServer
 import SimpleHTTPServer
 
-from pyon.net.endpoint import RPCClient
 from pyon.service.service import BaseService
-from pyon.util.containers import DotDict
-from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.core.exception import NotFound, BadRequest
 from pyon.public import log
-from pyon.event.event import EventSubscriber
 from pyon.agent.simple_agent import SimpleResourceAgentClient
 
 from interface.services.icontainer_agent import ContainerAgentClient
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessStateEnum
 
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 
@@ -59,6 +54,22 @@ class TestProcess(BaseService):
 
     def on_init(self):
         pass
+
+class TestProcessFail(BaseService):
+    """Test process to deploy via EEA
+    """
+    name = __name__ + "test"
+
+    def on_init(self):
+        raise Exception("KABOOM")
+
+class TestProcessSlowStart(BaseService):
+    """Test process to deploy via EEA
+    """
+    name = __name__ + "test"
+
+    def on_init(self):
+        gevent.sleep(2)
 
 
 @attr('INT', group='cei')
@@ -154,7 +165,6 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
 
 @attr('INT', group='cei')
 class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
-    from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 
     def setUp(self):
         self._start_container()
@@ -234,7 +244,6 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
 
 @attr('INT', group='cei')
 class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
-    from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
 
     _webserver = None
 
@@ -351,6 +360,20 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         }
         self._start_eeagent()
 
+    def wait_for_state(self, upid, desired_state, timeout=5):
+        attempts = 0
+        last_state = None
+        while timeout > attempts:
+            state = self.eea_client.dump_state().result
+            proc = get_proc_for_upid(state, upid)
+            last_state = proc.get('state')
+            if last_state == desired_state:
+                return
+            gevent.sleep(1)
+            attempts += 1
+
+        assert False, "Process %s took too long to get to %s, had %s" % (upid, desired_state, last_state)
+
     @needs_eeagent
     def test_basics(self):
         u_pid = "test0"
@@ -360,16 +383,44 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         module = 'ion.agents.cei.test.test_eeagent'
         cls = 'TestProcess'
         parameters = {'name': proc_name, 'module': module, 'cls': cls}
-        self.eea_client.launch_process(u_pid, round, run_type, parameters)
-        state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
 
-        self.assertIsNotNone(proc, "There is no state retrieved from eeagent")
-        self.assertEqual(proc.get('state'), [500, 'RUNNING'])
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        self.wait_for_state(u_pid, [500, 'RUNNING'])
+
+        self.eea_client.terminate_process(u_pid, round)
+        self.wait_for_state(u_pid, [700, 'TERMINATED'])
+
+    @needs_eeagent
+    def test_failing_process(self):
+        u_pid = "testfail"
+        round = 0
+        run_type = "pyon"
+        proc_name = 'test_x'
+        module = 'ion.agents.cei.test.test_eeagent'
+        cls = 'TestProcessFail'
+        parameters = {'name': proc_name, 'module': module, 'cls': cls}
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
+
+        self.wait_for_state(u_pid, [850, 'FAILED'])
 
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
         proc = get_proc_for_upid(state, u_pid)
+
+    @needs_eeagent
+    def test_slow_to_start(self):
+        upids = map(lambda i: str(uuid.uuid4().hex), range(0, 10))
+        round = 0
+        run_type = "pyon"
+        proc_name = 'test_x'
+        module = 'ion.agents.cei.test.test_eeagent'
+        cls = 'TestProcessSlowStart'
+        parameters = {'name': proc_name, 'module': module, 'cls': cls}
+        for upid in upids:
+            self.eea_client.launch_process(upid, round, run_type, parameters)
+
+        for upid in upids:
+            self.wait_for_state(upid, [500, 'RUNNING'])
 
     @needs_eeagent
     def test_kill_and_revive(self):
@@ -386,11 +437,8 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         cls = 'TestProcess'
         parameters = {'name': proc_name, 'module': module, 'cls': cls}
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
-        state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
 
-        self.assertIsNotNone(proc, "There is no state retrieved from eeagent")
-        self.assertEqual(proc.get('state'), [500, 'RUNNING'])
+        self.wait_for_state(u_pid, [500, 'RUNNING'])
 
         # Kill and restart eeagent. Also, kill proc started by eea to simulate
         # a killed container
@@ -404,11 +452,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         self.assertNotEqual(old_eea_pid, self._eea_pid)
 
-        state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
-
-        self.assertIsNotNone(proc, "There is no state retrieved from eeagent")
-        self.assertEqual(proc.get('state'), [850, 'FAILED'])
+        self.wait_for_state(u_pid, [850, 'FAILED'])
 
     @needs_eeagent
     def test_download_code(self):
@@ -434,11 +478,8 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
-        state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
 
-        self.assertIsNotNone(proc, "There is no state retrieved from eeagent")
-        self.assertEqual(proc.get('state'), [500, 'RUNNING'])
+        self.wait_for_state(u_pid, [500, 'RUNNING'])
 
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
@@ -486,11 +527,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
 
-        state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
-
-        self.assertIsNotNone(proc, "There is no state retrieved from eeagent")
-        self.assertEqual(proc.get('state'), [500, 'RUNNING'])
+        self.wait_for_state(u_pid, [500, 'RUNNING'])
 
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
@@ -501,11 +538,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
 
-        state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
-
-        self.assertIsNotNone(proc, "There is no state retrieved from eeagent")
-        self.assertEqual(proc.get('state'), [500, 'RUNNING'])
+        self.wait_for_state(u_pid, [500, 'RUNNING'])
 
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result

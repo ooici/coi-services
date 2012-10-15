@@ -6,7 +6,7 @@
 '''
 
 
-
+import os
 from pyon.ion.stream import  StandaloneStreamPublisher
 from pyon.public import log
 from pyon.util.containers import DotDict
@@ -108,6 +108,8 @@ class TestCtdTransforms(IonUnitTestCase):
         L2_dens = self.tx_L2_D.execute(packet)
         log.debug("L2 dens: %s" % L2_dens)
 
+@attr('LOCOINT')
+@unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 @attr('INT', group='dm')
 class CtdTransformsIntTest(IonIntegrationTestCase):
     def setUp(self):
