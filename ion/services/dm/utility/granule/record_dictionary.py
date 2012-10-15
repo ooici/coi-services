@@ -87,16 +87,17 @@ class RecordDictionaryTool(object):
             instance._pdict = ParameterDictionary.load(g.param_dictionary)
         
        
-        if g.domain['shape']:
-            instance._shp = (g.domain['shape'][0],)
+        if g.domain:
+            instance._shp = g.domain
         
         for k,v in g.record_dictionary.iteritems():
             if v is not None:
-                g.record_dictionary[k]['domain_set'] = g.domain
                 ptype = instance._pdict.get_context(k).param_type
-                g.record_dictionary[k]['parameter_type'] = ptype.dump()
+                paramval = get_value_class(ptype, domain_set = instance.domain)
+                paramval[:] = v
+                paramval.storage._storage.flags.writeable = False
 
-                instance._rd[k] = AbstractParameterValue.load(g.record_dictionary[k])
+                instance._rd[k] = paramval
         
         return instance
 
@@ -107,15 +108,13 @@ class RecordDictionaryTool(object):
         
         for key,val in self._rd.iteritems():
             if val is not None:
-                granule.record_dictionary[key] = val.dump()
-                granule.record_dictionary[key]['domain_set'] = None
-                granule.record_dictionary[key]['parameter_type'] = None
+                granule.record_dictionary[key] = val._storage._storage
             else:
                 granule.record_dictionary[key] = None
         
         granule.param_dictionary = self._stream_def or self._pdict.dump()
         granule.locator = self._locator
-        granule.domain = self.domain.dump()
+        granule.domain = self.domain.shape
         granule.data_producer_id=data_producer_id
         return granule
 
