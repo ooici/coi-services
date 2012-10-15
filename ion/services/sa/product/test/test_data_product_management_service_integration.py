@@ -14,7 +14,7 @@ from pyon.util.containers import DotDict
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.parameter_yaml_IO import get_param_dict
-
+from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -55,6 +55,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
         self.process_dispatcher   = ProcessDispatcherServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
+        self.unsc = UserNotificationServiceClient()
 
         #------------------------------------------
         # Create the environment
@@ -221,6 +222,14 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # now 'delete' the data product
         log.debug("deleting data product: %s" % dp_id)
         self.dpsc_cli.delete_data_product(dp_id)
+
+
+        # Get the events corresponding to the data product
+        events = self.unsc.get_recent_events(resource_id=dp_id)
+
+        for event in events:
+            log.debug("event time: %s" % event.ts_created)
+
 
         # now try to get the deleted dp object
 
