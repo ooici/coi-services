@@ -15,12 +15,11 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
-from interface.services.cei.ischeduler_service import SchedulerServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from interface.objects import UserInfo, DeliveryConfig
 from interface.objects import DeviceEvent
-from ion.services.cei.scheduler_service import SchedulerService
-from interface.services.cei.ischeduler_service import SchedulerServiceClient
+from pyon.util.context import LocalContextMixin
+from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from nose.plugins.attrib import attr
 import unittest
 from pyon.util.log import log
@@ -39,6 +38,12 @@ from datetime import datetime, timedelta
 from sets import Set
 
 use_es = CFG.get_safe('system.elasticsearch',False)
+
+
+class FakeProcess(LocalContextMixin):
+    name = 'scheduler_for_user_notification_test'
+    id = 'scheduler_client'
+    process_type = 'simple'
 
 @attr('UNIT',group='dm')
 class UserNotificationTest(PyonTestCase):
@@ -245,7 +250,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient()
         self.imc = IdentityManagementServiceClient()
         self.discovery = DiscoveryServiceClient()
-        self.scheduler = SchedulerServiceClient()
+
+        process = FakeProcess()
+        self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=process)
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
@@ -1112,7 +1119,30 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
         gevent.sleep(4)
-        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', min_datetime=4, max_datetime=7)
+        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', type = 'ResourceLifecycleEvent', min_datetime= 4, max_datetime=7)
+
+        self.assertEquals(len(events), 4)
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_find_events_extended(self):
+        '''
+        Test the find events functionality of UNS
+        '''
+
+        # publish some events for the event repository
+        event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
+        event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
+
+        for i in xrange(10):
+            event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
+            event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
+
+        # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
+        gevent.sleep(4)
+        events = self.unsc.find_events_extended(origin='Some_Resource_Agent_ID1', min_time=4, max_time=7)
 
         self.assertEquals(len(events), 4)
 
@@ -1126,6 +1156,56 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         pids = self.unsc.create_worker(number_of_workers=2)
 
         self.assertEquals(len(pids), 2)
+
+    @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_publish_event(self):
+        '''
+        Test the publish_event method of UNS
+        '''
+        #--------------------------------------------------------------------------------
+        # Create an event object
+        #--------------------------------------------------------------------------------
+        event = DeviceEvent(  origin= "origin_1",
+            origin_type='origin_type_1',
+            sub_type= 'sub_type_1',
+            ts_created = 2)
+
+        # create async result to wait on in test
+        ar = gevent.event.AsyncResult()
+
+        #--------------------------------------------------------------------------------
+        # Set up a subscriber to listen for that event
+        #--------------------------------------------------------------------------------
+        def received_event(result, event, headers):
+            log.debug("received the event in the test: %s" % event)
+
+            #--------------------------------------------------------------------------------
+            # check that the event was published
+            #--------------------------------------------------------------------------------
+            self.assertEquals(event.origin, "origin_1")
+            self.assertEquals(event.type_, 'DeviceEvent')
+            self.assertEquals(event.origin_type, 'origin_type_1')
+            self.assertEquals(event.ts_created, 2)
+            self.assertEquals(event.sub_type, 'sub_type_1')
+
+            result.set(True)
+
+        event_subscriber = EventSubscriber( event_type = 'DeviceEvent',
+                                            origin="origin_1",
+                                            callback=lambda m, h: received_event(ar, m, h))
+        event_subscriber.start()
+        self.addCleanup(event_subscriber.stop)
+
+        #--------------------------------------------------------------------------------
+        # Use the UNS publish_event
+        #--------------------------------------------------------------------------------
+
+        self.unsc.publish_event(event=event)
+
+        ar.wait(timeout=10)
+
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -1219,22 +1299,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Set up the scheduler to publish daily events that should kick off process_batch()
         #--------------------------------------------------------------------------------
-        ss = SchedulerService()
-        sid = ss.create_time_of_day_timer(   times_of_day=times_of_day,
+        sid = self.ssclient.create_time_of_day_timer(   times_of_day=times_of_day,
                                              expires=time.time()+25200+60,
                                              event_origin= newkey,
                                              event_subtype="")
-        def cleanup_timer(schedule_service, schedule_id):
+        def cleanup_timer(scheduler, schedule_id):
             """
             Do a friendly cancel of the scheduled event.
             If it fails, it's ok.
             """
             try:
-                schedule_service.cancel_timer(schedule_id)
+                scheduler.cancel_timer(schedule_id)
             except:
                 log.warn("Couldn't cancel")
 
-        self.addCleanup(cleanup_timer, ss, sid)
+        self.addCleanup(cleanup_timer, self.ssclient, sid)
 
         #--------------------------------------------------------------------------------
         # Assert that emails were sent
