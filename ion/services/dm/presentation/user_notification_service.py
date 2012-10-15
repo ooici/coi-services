@@ -111,6 +111,8 @@ class EventProcessor(object):
     def stop_notification_subscriber(self, notification_request):
         """
         Stops the subscriber of a notification
+
+        @param notification_request NotificationRequest
         """
 
         for val in self.user_info.itervalues():
@@ -140,6 +142,8 @@ class EmailEventProcessor(EventProcessor):
     def add_notification_for_user(self, notification_request, user_id):
         '''
         Add a notification to the user's list of subscribed notifications
+        @param notification_request NotificationRequest
+        @param user_id str
         '''
 
         #---------------------------------------------------------------------------------------------------
@@ -185,6 +189,11 @@ class EmailEventProcessor(EventProcessor):
     def put_notification_in_user_object(self, user, notification_request):
         '''
         Add the notification into the user info object.
+
+        @param user UserInfo
+        @param notification_request NotificationRequest
+
+        @retval user UserInfo
         '''
 
         user_variables_has_notifications = False
@@ -205,6 +214,8 @@ class EmailEventProcessor(EventProcessor):
     def update_user_info_dictionary(self, user, notification_subscription):
         '''
         Update the user info and reverse user info dictionaries.
+        @param user UserInfo object
+        @param notification_subscription NotificationSubscription object
         '''
 
         if self.user_info.has_key(user.name):
@@ -245,6 +256,10 @@ class EmailEventProcessor(EventProcessor):
 
 
     def stop_notification_subscriber(self, notification_request):
+        '''
+        Stops the listener of the notification subscriber object
+        @param notification_request NotificationRequest
+        '''
 
         super(EmailEventProcessor, self).stop_notification_subscriber(notification_request)
 
@@ -327,6 +342,8 @@ class UserNotificationService(BaseUserNotificationService):
         This method allows an operator to set the process_batch_key, a string.
         Once this method is used by the operator, the UNS will start listening for timer events
         published by the scheduler with origin = process_batch_key.
+
+        @param process_batch_key str
         '''
 
         def process(event_msg, headers):
@@ -519,6 +536,8 @@ class UserNotificationService(BaseUserNotificationService):
     def delete_notification_from_user_info(self, notification_id):
         '''
         Helper method to delete the notification from the user_info dictionary
+
+        @param notification_id str
         '''
 
         user_ids, assocs = self.clients.resource_registry.find_subjects(object=notification_id, predicate=PRED.hasNotification, id_only=True)
@@ -572,6 +591,7 @@ class UserNotificationService(BaseUserNotificationService):
                 limit = limit,
                 include_docs = True
             )
+
         else:
             opts = dict(
                 start_key = [origin, type or 0, min_datetime or 0],
@@ -589,7 +609,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         log.debug("(find_events) UNS found the following relevant events: %s" % events)
 
-        if limit > -1:
+        if -1 < limit < len(events):
             list = []
             for i in xrange(limit):
                 list.append(events[i])
@@ -665,19 +685,38 @@ class UserNotificationService(BaseUserNotificationService):
             event_type = event.type_)
         log.info("The publish_event() method of UNS was used to publish an event.")
 
-    def get_recent_events(self, resource_id=''):
-        pass
+    def get_recent_events(self, resource_id='', limit = 100):
+        '''
+        Get recent events
+
+        @param resource_id str
+        @param limit int
+
+        @retval events list of Event objects
+        '''
+        now = self.makeEpochTime(datetime.utcnow())
+        events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=False)
+        return events
 
     def get_user_notifications(self, user_id=''):
-        pass
+        '''
+        Get the notification request objects that are subscribed to by the user
 
+        @param user_id str
+
+        @retval notifications list of NotificationRequest objects
+        '''
+
+        user = self.clients.resource_registry.read(user_id)
+        notifications = self.event_processor.user_info[user.name]['notifications']
+        return notifications
 
     def create_worker(self, number_of_workers=1):
         '''
         Creates notification workers
 
         @param number_of_workers int
-        @ret_val pids list
+        @retval pids list
 
         '''
 
@@ -721,8 +760,8 @@ class UserNotificationService(BaseUserNotificationService):
         """
         provides the seconds since epoch give a python datetime object.
 
-        @param date_time: Python datetime object
-        @return: seconds_since_epoch:: int
+        @param date_time Python datetime object
+        @retval seconds_since_epoch int
         """
         date_time = date_time.isoformat().split('.')[0].replace('T',' ')
         #'2009-07-04 18:30:47'
@@ -738,6 +777,9 @@ class UserNotificationService(BaseUserNotificationService):
         by the User Notification Service is used to query the event repository for all events for a particular
         user that have occurred in a provided time interval, and then an email is sent to the user containing
         the digest of all the events.
+
+        @param start_time int
+        @param end_time int
         '''
 
         if end_time <= start_time:
@@ -787,6 +829,9 @@ class UserNotificationService(BaseUserNotificationService):
     def format_and_send_email(self, events_for_message, user_name):
         '''
         Format the message for a particular user containing information about the events he is to be notified about
+
+        @param events_for_message list
+        @param user_name str
         '''
 
         message = str(events_for_message)
@@ -829,6 +874,11 @@ class UserNotificationService(BaseUserNotificationService):
     def send_batch_email(self, msg_body, msg_subject, msg_recipient, smtp_client):
         '''
         Send the email
+
+        @param msg_body str
+        @param msg_subject str
+        @param msg_recipient str
+        @param smtp_client object
         '''
 
         msg = MIMEText(msg_body)
@@ -845,6 +895,10 @@ class UserNotificationService(BaseUserNotificationService):
     def update_user_info_object(self, user_id, new_notification, old_notification):
         '''
         Update the UserInfo object. If the passed in parameter, od_notification, is None, it does not need to remove the old notification
+
+        @param user_id str
+        @param new_notification NotificationRequest
+        @param old_notification NotificationRequest
         '''
 
         #------------------------------------------------------------------------------------
