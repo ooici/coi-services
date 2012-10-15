@@ -654,36 +654,17 @@ class UserNotificationService(BaseUserNotificationService):
         return events
 
 
-    def publish_event(self, event=None, interval_timer_params= None):
+    def publish_event(self, event=None):
         '''
         Publish a general event at a certain time using the UNS
 
         @param event Event
-        @param interval_timer_params dict Ex: {'interval':3, 'number_of_intervals':4}
         '''
 
-        #--------------------------------------------------------------------------------
-        # Set up a subscriber to get the nod from the scheduler to publish the event
-        #--------------------------------------------------------------------------------
-        def publish(message, headers):
-            self.event_publisher._publish_event( event_msg = event,
-                origin=event.origin,
-                event_type = event.type_)
-            log.info("UNS published an event in response to a nod from the Scheduler Service.")
-
-        event_subscriber = EventSubscriber( event_type = "ResourceEvent", callback=publish)
-        event_subscriber.start()
-        self._subscribers.append(event_subscriber)      # for cleanup later
-
-        sid = self.clients.scheduler.create_interval_timer(start_time= time.time(),
-                                                           interval=interval_timer_params['interval'],
-                                                           number_of_intervals=interval_timer_params['number_of_intervals'],
-                                                           event_origin=event.origin,
-                                                           event_subtype='')
-        self._schedule_ids.append(sid)
-
-
-
+        self.event_publisher._publish_event( event_msg = event,
+            origin=event.origin,
+            event_type = event.type_)
+        log.info("The publish_event() method of UNS was used to publish an event.")
 
     def get_recent_events(self, resource_id=''):
         pass
