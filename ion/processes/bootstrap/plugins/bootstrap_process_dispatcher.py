@@ -27,7 +27,7 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         # user notifications
         notification_module    = config.get_safe('bootstrap.processes.user_notification.module','ion.processes.data.transforms.notification_worker')
         notification_class     = config.get_safe('bootstrap.processes.user_notification.class' ,'NotificationWorker')
-        notification_workers = config.get_safe('bootstrap.processes.user_notification.workers', 2)
+        notification_workers = config.get_safe('bootstrap.processes.user_notification.workers', 1)
 
         replay_module       = config.get_safe('bootstrap.processes.replay.module', 'ion.processes.data.replay.replay_process')
         replay_class        = config.get_safe('bootstrap.processes.replay.class' , 'ReplayProcess')

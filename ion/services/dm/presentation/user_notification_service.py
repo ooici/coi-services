@@ -17,7 +17,6 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 import string
 import time
@@ -34,7 +33,6 @@ from interface.objects import ProcessDefinition
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
 from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
-from ion.services.cei.scheduler_service import SchedulerService
 
 
 """
@@ -331,15 +329,10 @@ class UserNotificationService(BaseUserNotificationService):
         published by the scheduler with origin = process_batch_key.
         '''
 
-        log.warning("process_batch_key= %s" % process_batch_key)
-
         def process(event_msg, headers):
             assert event_msg.origin == process_batch_key
 
             self.end_time = UserNotificationService.makeEpochTime(self.__now())
-
-            log.warning("start_time : %s" % self.start_time)
-            log.warning("end_time: %s" % self.end_time)
 
             # run the process_batch() method
             self.process_batch(start_time=self.start_time, end_time=self.end_time)
@@ -403,16 +396,10 @@ class UserNotificationService(BaseUserNotificationService):
         user = self.event_processor.add_notification_for_user(notification_request=notification, user_id=user_id)
 
         #-------------------------------------------------------------------------------------------------------------------
-        # Allow the indexes to be updated for ElasticSearch
-        # We publish event only after this so that the reload of the user info works by the
-        # notification workers work properly
+        # Link the user and the notification with a hasNotification association
         #-------------------------------------------------------------------------------------------------------------------
 
-        # todo: This is to allow time for the indexes to be created before publishing ReloadUserInfoEvent for notification workers.
-        # todo: When things are more refined, it will be nice to have an event generated when the
-        # indexes are updated so that a subscriber here when it received that event will publish
-        # the reload user info event.
-        time.sleep(4)
+        self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -534,56 +521,70 @@ class UserNotificationService(BaseUserNotificationService):
         Helper method to delete the notification from the user_info dictionary
         '''
 
-        for user_name, value in self.event_processor.user_info.iteritems():
+        user_ids, assocs = self.clients.resource_registry.find_subjects(object=notification_id, predicate=PRED.hasNotification, id_only=True)
+
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+        for user_id in user_ids:
+
+            user = self.clients.resource_registry.read(user_id)
+            value = self.event_processor.user_info[user.name]
+
             for notif in value['notifications']:
                 if notification_id == notif._id:
                     # remove the notification
                     value['notifications'].remove(notif)
                     # remove the notification_subscription
-                    self.event_processor.user_info[user_name]['notification_subscriptions'].pop(notification_id)
+                    self.event_processor.user_info[user.name]['notification_subscriptions'].pop(notification_id)
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
-    def find_events(self, origin='', type='', min_datetime='', max_datetime='', limit=-1, descending=False):
-        """Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
+    def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit= -1, descending=False):
+        """
+        This method leverages couchdb view and simple filters. It does not use elastic search.
+
+        Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
         if no events exist for the given parameters.
 
         @param origin         str
-        @param type           str
-        @param min_datetime   str
-        @param max_datetime   str
+        @param event_type     str
+        @param min_datetime   int  seconds
+        @param max_datetime   int  seconds
         @param limit          int         (integer limiting the number of results (0 means unlimited))
         @param descending     boolean     (if True, reverse order (of production time) is applied, e.g. most recent first)
         @retval event_list    []
         @throws NotFound    object with specified parameters does not exist
         @throws NotFound    object with specified parameters does not exist
         """
+        datastore = self.datastore_manager.get_datastore('events')
 
-        if min_datetime and max_datetime:
-            search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (min_datetime, max_datetime)
+
+        # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
+        # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
+        # provide a limit, one has to just omit it from the opts dictionary and pass that into the query_view() method.
+        # Passing a null or negative for the limit to query view through opts results in a ServerError so we cannot do that.
+        if limit > -1:
+            opts = dict(
+                start_key = [origin, type or 0, min_datetime or 0],
+                end_key   = [origin, type or {}, max_datetime or {}],
+                descending = descending,
+                limit = limit,
+                include_docs = True
+            )
         else:
-            search_time = 'search "ts_created" is "*" from "events_index"'
+            opts = dict(
+                start_key = [origin, type or 0, min_datetime or 0],
+                end_key   = [origin, type or {}, max_datetime or {}],
+                descending = descending,
+                include_docs = True
+            )
 
-        if origin:
-            search_origin = 'search "origin" is "%s" from "events_index"' % origin
-        else:
-            search_origin = 'search "origin" is "*" from "events_index"'
-
-        if type:
-            search_type = 'search "type_" is "%s" from "events_index"' % type
-        else:
-            search_type = 'search "type_" is "*" from "events_index"'
-
-        search_string = search_time + ' and ' + search_origin + ' and ' + search_type
-
-        # get the list of ids corresponding to the events
-        ret_vals = self.discovery.parse(search_string)
-        log.debug("(find_events) Discovery search returned the following event ids: %s" % ret_vals)
+        results = datastore.query_view('event/by_origintype',opts=opts)
 
         events = []
-        for event_id in ret_vals:
-            datastore = self.datastore_manager.get_datastore('events')
-            event_obj = datastore.read(event_id)
+        for res in results:
+            event_obj = res['doc']
             events.append(event_obj)
 
         log.debug("(find_events) UNS found the following relevant events: %s" % events)
@@ -594,9 +595,8 @@ class UserNotificationService(BaseUserNotificationService):
                 list.append(events[i])
             return list
 
-        #todo implement time ordering: ascending or descending
-
         return events
+
 
     #todo Uses Elastic Search. Later extend this to a larger search criteria
     def find_events_extended(self, origin='', type='', min_time= 0, max_time=0, limit=-1, descending=False):
@@ -652,7 +652,6 @@ class UserNotificationService(BaseUserNotificationService):
         #todo implement time ordering: ascending or descending
 
         return events
-
 
     def publish_event(self, event=None):
         '''
@@ -741,20 +740,12 @@ class UserNotificationService(BaseUserNotificationService):
         the digest of all the events.
         '''
 
-        log.warning("Processing notifications that arrived between %s seconds and %s seconds" % (start_time, end_time))
-
-        log.warning("(In process batch) time now: %s" % UserNotificationService.makeEpochTime(self.__now()))
-
         if end_time <= start_time:
             return
-
-        log.warning("self.event_processor.user_info: %s" % self.event_processor.user_info)
 
         for user_name, value in self.event_processor.user_info.iteritems():
 
             notifications = value['notifications']
-
-            log.warning("notifications of interest: %s" % notifications)
 
             events_for_message = []
 
@@ -779,12 +770,8 @@ class UserNotificationService(BaseUserNotificationService):
 
                 search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
 
-                log.warning("search_string: %s" % search_string)
-
                 # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
-
-                log.warning ("ret_vals: %s" % ret_vals)
 
                 for event_id in ret_vals:
                     datastore = self.datastore_manager.get_datastore('events')
@@ -792,7 +779,6 @@ class UserNotificationService(BaseUserNotificationService):
                     events_for_message.append(event_obj)
 
             log.debug("Found following events of interest to user, %s: %s" % (user_name, events_for_message))
-            log.warning("Found following events of interest to user, %s: %s" % (user_name, events_for_message))
 
             # send a notification email to each user using a _send_email() method
             if events_for_message:
@@ -804,7 +790,7 @@ class UserNotificationService(BaseUserNotificationService):
         '''
 
         message = str(events_for_message)
-        log.info("The user, %s, will get the following events in his batch notification email: %s" % (user_name, message))
+        log.debug("The user, %s, will get the following events in his batch notification email: %s" % (user_name, message))
 
         msg_body = ''
         count = 1
