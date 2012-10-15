@@ -19,6 +19,8 @@ from ion.core.process.transform import TransformStreamListener
 import re
 import collections
 import numpy
+import numpy as np
+import gevent
 
 
 
@@ -148,21 +150,27 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         # Actual persistence
         #-------------------------------------------------------------------------------- 
+        print coverage
+        print coverage.num_timesteps
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        start_index = coverage.num_timesteps
         elements = len(rdt)
         if not elements:
             return
-        coverage.insert_timesteps(elements)
+        if coverage.num_timesteps == 1:
+            coverage.insert_timesteps(elements-1)
+        else:
+            coverage.insert_timesteps(elements)
+        print coverage.num_timesteps
+        start_index = coverage.num_timesteps - elements
 
         for k,v in rdt.iteritems():
-            log.info('key: %s', k)
-            log.info('value: %s', v)
+            print '%s : %s' %(k,v)
             slice_ = slice(start_index, None)
-            coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
-
-        DatasetManagementService._persist_coverage(dataset_id,coverage)
-
+            print slice_
+            coverage.set_parameter_values(param_name=k, tdoa=slice_, value=np.arange(elements))
+            coverage.flush()
+            gevent.sleep(1)
+            print 'Set values for %s: %s' % (k,coverage.get_parameter_values(k))
 
 
     def persist(self, dataset_granule): #pragma no cover
