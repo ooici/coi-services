@@ -580,16 +580,23 @@ class UserNotificationService(BaseUserNotificationService):
                 include_docs = True
             )
 
+        log.debug("opts:::: %s" % opts)
+
         results = datastore.query_view('event/by_origintype',opts=opts)
+
+        log.debug("results:::::~~~ %s" % results)
 
         events = []
         for res in results:
             event_obj = res['doc']
+            log.debug("event objects found: %s" % event_obj)
+            log.debug("origin for the event object: %s" % event_obj.origin)
             events.append(event_obj)
 
+        log.debug("len(events) ::~~ %s" % len(events))
         log.debug("(find_events) UNS found the following relevant events: %s" % events)
 
-        if limit > -1:
+        if -1 < limit < len(events):
             list = []
             for i in xrange(limit):
                 list.append(events[i])
@@ -669,7 +676,9 @@ class UserNotificationService(BaseUserNotificationService):
         '''
         Get recent events
         '''
-        events = self.find_events(origin=resource_id,limit=limit, descending=True)
+        now = self.makeEpochTime(datetime.utcnow())
+        log.debug("now~~~: %s" % now)
+        events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=False)
         return events
 
     def get_user_notifications(self, user_id=''):

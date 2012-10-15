@@ -1450,9 +1450,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
         event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
 
+        x = 0
         for i in xrange(10):
             event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
             event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
+            x = i
+            log.debug("i ::: %s" % i)
+        log.debug("x:::: %s" % x)
 
         #--------------------------------------------------------------------------------------
         # Test with specified limit
@@ -1460,7 +1464,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         events = self.unsc.get_recent_events(resource_id='Some_Resource_Agent_ID1', limit = 5)
         self.assertEquals(len(events), 5)
-        self.assertEquals(events.origin, 'Some_Resource_Agent_ID1')
+        for event in events:
+            self.assertEquals(event.origin, 'Some_Resource_Agent_ID1')
 
         #--------------------------------------------------------------------------------------
         # Test without specified limit
@@ -1468,4 +1473,5 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         events = self.unsc.get_recent_events(resource_id='Some_Resource_Agent_ID2')
         self.assertEquals(len(events), 10)
-        self.assertEquals(events.origin, 'Some_Resource_Agent_ID2')
+        for event in events:
+            self.assertEquals(event.origin, 'Some_Resource_Agent_ID2')
