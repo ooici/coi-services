@@ -665,11 +665,11 @@ class UserNotificationService(BaseUserNotificationService):
             event_type = event.type_)
         log.info("The publish_event() method of UNS was used to publish an event.")
 
-    def get_recent_events(self, resource_id=''):
+    def get_recent_events(self, resource_id='', limit = 100):
         '''
         Get recent events
         '''
-        events = self.find_events(origin=resource_id,limit=100, descending=True)
+        events = self.find_events(origin=resource_id,limit=limit, descending=True)
         return events
 
     def get_user_notifications(self, user_id=''):
