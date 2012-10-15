@@ -2,14 +2,15 @@
 
 __author__ = 'Stephen P. Henrie, Michael Meisinger'
 
-from pyon.public import CFG, IonObject, RT, PRED, OT
+from pyon.public import CFG, IonObject, RT, PRED, OT, LCS
 from pyon.core.exception import  Inconsistent, NotFound, BadRequest
 from pyon.ion.directory import Directory
 from pyon.core.registry import issubtype
+from pyon.util.log import log
 from pyon.event.event import EventPublisher
-from pyon.util.containers import is_basic_identifier
+from pyon.util.containers import is_basic_identifier, get_ion_ts
 from pyon.core.governance.negotiation import Negotiation
-from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, AcquisitionTypeEnum
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from ion.services.coi.policy_management_service import ORG_MEMBER_ROLE, ORG_MANAGER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
@@ -32,6 +33,12 @@ negotiation_rules = {
         'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)',
                            'has_role(sap.provider,sap.consumer,"' + INSTRUMENT_OPERATOR_ROLE + '")',
                            'is_resource_shared(sap.provider,sap.resource)'],
+        'accept_action': 'acquire_resource(sap)'
+    },
+
+    OT.AcquireResourceExclusiveProposal: {
+        'pre_conditions': ['is_resource_acquired(sap.consumer, sap.resource)',
+                           'not is_resource_acquired_exclusively(sap.consumer, sap.resource)'],
         'accept_action': 'acquire_resource(sap)'
     }
 }
@@ -385,9 +392,7 @@ class OrgManagementService(BaseOrgManagementService):
         if sap.type_ == OT.EnrollmentProposal or sap.type_ == OT.RequestRoleProposal:
             #Automatically accept for the consumer if the Org Manager as provider accepts the proposal
             if sap.proposal_status == ProposalStatusEnum.ACCEPTED and sap.originator == ProposalOriginatorEnum.PROVIDER:
-                consumer_accept_sap = Negotiation.create_counter_proposal(negotiation)
-                consumer_accept_sap.proposal_status = ProposalStatusEnum.ACCEPTED
-                consumer_accept_sap.originator = ProposalOriginatorEnum.CONSUMER
+                consumer_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED)
 
                 #Update the Negotiation object with the latest SAP
                 neg_id = self.negotiation_handler.update_negotiation(consumer_accept_sap)
@@ -396,15 +401,47 @@ class OrgManagementService(BaseOrgManagementService):
                 negotiation = self.clients.resource_registry.read(neg_id)
 
             elif sap.proposal_status == ProposalStatusEnum.ACCEPTED and sap.originator == ProposalOriginatorEnum.CONSUMER:
-                provider_accept_sap = Negotiation.create_counter_proposal(negotiation)
-                provider_accept_sap.proposal_status = ProposalStatusEnum.ACCEPTED
-                provider_accept_sap.originator = ProposalOriginatorEnum.PROVIDER
+                provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
 
                 #Update the Negotiation object with the latest SAP
                 neg_id = self.negotiation_handler.update_negotiation(provider_accept_sap)
 
                 #Get the most recent version of the Negotiation resource
                 negotiation = self.clients.resource_registry.read(neg_id)
+
+        elif sap.type_ == OT.AcquireResourceExclusiveProposal:
+            if not self.is_resource_acquired_exclusively(None, sap.resource):
+
+                #Automatically reject the proposal if the exipration request is greater than 12 hours from now
+                cur_time = int(get_ion_ts())
+                expiration = cur_time +  ( 12 * 60 * 60 * 1000 ) # 12 hours from now
+                if sap.expiration == 0 or sap.expiration > expiration:
+                    #Automatically accept the proposal for exclusive access if it is not already acquired exclusively
+                    provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.REJECTED, ProposalOriginatorEnum.PROVIDER)
+
+                    #Update the Negotiation object with the latest SAP
+                    neg_id = self.negotiation_handler.update_negotiation(provider_accept_sap)
+
+                    #Get the most recent version of the Negotiation resource
+                    negotiation = self.clients.resource_registry.read(neg_id)
+                else:
+
+                    #Automatically accept the proposal for exclusive access if it is not already acquired exclusively
+                    provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
+
+                    #Update the Negotiation object with the latest SAP
+                    neg_id = self.negotiation_handler.update_negotiation(provider_accept_sap)
+
+                    #Get the most recent version of the Negotiation resource
+                    negotiation = self.clients.resource_registry.read(neg_id)
+
+                    consumer_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED)
+
+                    #Update the Negotiation object with the latest SAP
+                    neg_id = self.negotiation_handler.update_negotiation(consumer_accept_sap)
+
+                    #Get the most recent version of the Negotiation resource
+                    negotiation = self.clients.resource_registry.read(neg_id)
 
         #Return the latest proposal
         return negotiation.proposals[-1]
@@ -804,7 +841,7 @@ class OrgManagementService(BaseOrgManagementService):
         """
         param_objects = self._validate_parameters(org_id=sap.provider, user_id=sap.consumer, resource_id=sap.resource)
 
-        if sap.acquisition_type == AcquisitionTypeEnum.EXCLUSIVE:
+        if sap.type_ == OT.AcquireResourceExclusiveProposal:
             exclusive = True
         else:
             exclusive = False
@@ -824,20 +861,23 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.create_association(sap.resource, PRED.hasCommitment, commitment_id)
         self.clients.resource_registry.create_association(sap.negotiation_id, PRED.hasContract, commitment_id)
 
+        #TODO - publish some kind of event for creating a commitment
+
         return commitment_id
 
-    def release_resource(self, commitment_id=''):
-        """Release the specified resource from an existing commitment. Throws a NotFound exception if none of the ids are found.
+    def release_commitment(self, commitment_id=''):
+        """Release the commitment that was created for resources. Throws a NotFound exception if none of the ids are found.
 
         @param commitment_id    str
         @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
-
         if not commitment_id:
             raise BadRequest("The commitment_id parameter is missing")
 
         self.clients.resource_registry.retire(commitment_id)
+
+        #TODO - publish some kind of event for releasing a commitment
 
         return True
 
@@ -916,26 +956,72 @@ class OrgManagementService(BaseOrgManagementService):
         try:
             user = self.clients.resource_registry.read(user_id)
             return True
-        except:
-            return False
+        except Exception, e:
+            log.error('is_registered: %s for user_id:%s' %  (e.message, user_id))
+
+        return False
 
     def is_enroll_negotiation_open(self,org_id,user_id):
 
-        neg_list = self.find_user_negotiations(user_id,org_id,proposal_type=OT.EnrollmentProposal, negotiation_status=NegotiationStatusEnum.OPEN )
+        try:
+            neg_list = self.find_user_negotiations(user_id,org_id,proposal_type=OT.EnrollmentProposal, negotiation_status=NegotiationStatusEnum.OPEN )
 
-        if neg_list:
-            return True
+            if neg_list:
+                return True
+
+        except Exception, e:
+            log.error('is_enroll_negotiation_open: %s for org_id:%s and user_id:%s' %  (e.message, org_id, user_id))
 
         return False
 
     def is_resource_shared(self, org_id, resource_id):
 
-        #TODO - check with Michael if there is a better way to do this
-        res_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasResource)
+        try:
+            res_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasResource)
 
-        if res_list:
-            for res in res_list:
-                if res._id == resource_id:
-                    return True
+            if res_list:
+                for res in res_list:
+                    if res._id == resource_id:
+                        return True
+
+        except Exception, e:
+            log.error('is_resource_shared: %s for org_id:%s and resource_id:%s' %  (e.message, org_id, resource_id))
+
+        return False
+
+    def is_resource_acquired(self, user_id, resource_id):
+
+        try:
+            commitments,_ = self.clients.resource_registry.find_objects(resource_id,PRED.hasCommitment, RT.Commitment)
+            if commitments:
+                for com in commitments:
+                    if com.lcstate == LCS.RETIRED: #TODO remove when RR find_objects does not include retired objects
+                        continue
+
+                    if com.consumer == user_id:
+                        return True
+
+        except Exception, e:
+            log.error('is_resource_acquired: %s for user_id:%s and resource_id:%s' %  (e.message, user_id, resource_id))
+
+        return False
+
+    def is_resource_acquired_exclusively(self, resource_id):
+        self.is_resource_acquired_exclusively(None,resource_id)
+
+    def is_resource_acquired_exclusively(self, user_id, resource_id):
+
+        try:
+            commitments,_ = self.clients.resource_registry.find_objects(resource_id,PRED.hasCommitment, RT.Commitment)
+            if commitments:
+                for com in commitments:
+                    if com.lcstate == LCS.RETIRED: #TODO remove when RR find_objects does not include retired objects
+                        continue
+
+                    if ( user_id is None and com.commitment.exclusive ) or \
+                       (user_id == com.consumer and com.commitment.exclusive):
+                            return True
+        except Exception, e:
+            log.error('is_resource_acquired_exclusively: %s for user_id:%s and resource_id:%s' %  (e.message, user_id, resource_id))
 
         return False
