@@ -24,11 +24,12 @@ class EventTriggeredTransform(TransformEventListener, TransformDataProcess):
     def on_start(self):
         super(EventTriggeredTransform, self).on_start()
 
-        self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
+#        self.queue_name = self.CFG.get_safe('process.conductivity',self.id)
         self.awake = False
 
-        if self.CFG.process.has_key('publish_stream'):
-            self.publish_stream = self.CFG.process.publish_streams.publish_stream
+        if not self.CFG.process.publish_streams.has_key('conductivity'):
+            raise BadRequest("For event triggered transform, please send the stream_id "
+                             "using the special keyword, conductivity")
 
     def on_quit(self):
         '''
@@ -57,13 +58,9 @@ class EventTriggeredTransform(TransformEventListener, TransformDataProcess):
                 return
 
             granule = TransformAlgorithm.execute([packet])
-            self.publish(msg=granule, stream_id=self.publish_stream)
+            self.conductivity(msg=granule)
         else:
             return # the transform does not do anything with received packets when it is not yet awake
-
-    def publish(self, msg, stream_id):
-        self.publisher.publish(msg)
-
 
 class TransformAlgorithm(SimpleGranuleTransformFunction):
 
@@ -75,82 +72,17 @@ class TransformAlgorithm(SimpleGranuleTransformFunction):
         @retval result Granule
         '''
         rdt = RecordDictionaryTool.load_from_granule(input)
+        out_rdt = RecordDictionaryTool(stream_definition_id=params)
 
-        conductivity = get_safe(rdt, 'conductivity')
-
-        longitude = get_safe(rdt, 'lon')
-        latitude = get_safe(rdt, 'lat')
-        time = get_safe(rdt, 'time')
-        depth = get_safe(rdt, 'depth')
-
-        # create parameter settings
-        cond_pdict = TransformAlgorithm._create_parameter()
-
+        conductivity = rdt['conductivity']
         cond_value = (conductivity / 100000.0) - 0.5
+
+        for key, value in rdt.iteritems():
+            if key in out_rdt:
+                out_rdt[key] = value[:]
+
+        # Update the conductivity values
+        out_rdt['conductivity'] = cond_value
+
         # build the granule for conductivity
-        result = TransformAlgorithm._build_granule_settings(cond_pdict, 'conductivity', cond_value, time, latitude, longitude, depth)
-
-        return result
-
-    @staticmethod
-    def _create_parameter():
-
-        pdict = ParameterDictionary()
-
-        pdict = TransformAlgorithm._add_location_time_ctxt(pdict)
-
-        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.float32))
-        cond_ctxt.uom = 'unknown'
-        cond_ctxt.fill_value = 0e0
-        pdict.add_context(cond_ctxt)
-
-        return pdict
-
-    @staticmethod
-    def _add_location_time_ctxt(pdict):
-
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 1970-01-01'
-        t_ctxt.fill_value = 0x0
-        pdict.add_context(t_ctxt)
-
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
-        lat_ctxt.reference_frame = AxisTypeEnum.LAT
-        lat_ctxt.uom = 'degree_north'
-        lat_ctxt.fill_value = 0e0
-        pdict.add_context(lat_ctxt)
-
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
-        lon_ctxt.reference_frame = AxisTypeEnum.LON
-        lon_ctxt.uom = 'degree_east'
-        lon_ctxt.fill_value = 0e0
-        pdict.add_context(lon_ctxt)
-
-        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
-        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        depth_ctxt.uom = 'meters'
-        depth_ctxt.fill_value = 0e0
-        pdict.add_context(depth_ctxt)
-
-        return pdict
-
-    @staticmethod
-    def _build_granule_settings(param_dictionary=None, field_name='', value=None, time=None, latitude=None, longitude=None, depth=None):
-
-        root_rdt = RecordDictionaryTool(param_dictionary=param_dictionary)
-
-        root_rdt[field_name] = value
-
-        if not time is None:
-            root_rdt['time'] = time
-        if not latitude is None:
-            root_rdt['lat'] = latitude
-        if not longitude is None:
-            root_rdt['lon'] = longitude
-        if not depth is None:
-            root_rdt['depth'] = depth
-
-        log.debug("CTDL1ConductivityTransform:_build_granule_settings: logging published Record Dictionary:\n %s", str(root_rdt.pretty_print()))
-
-        return root_rdt.to_granule()
+        return out_rdt.to_granule()
