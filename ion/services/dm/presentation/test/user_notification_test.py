@@ -1117,8 +1117,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
             event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
 
+        #allow time for couchdb to store
+        gevent.sleep(4)
         events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', type = 'ResourceLifecycleEvent', min_datetime= 4, max_datetime=7)
-
         self.assertEquals(len(events), 4)
 
 
