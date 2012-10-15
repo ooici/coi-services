@@ -34,6 +34,7 @@ class TestLoader(IonIntegrationTestCase):
                 found = True
                 self.assertFalse(org.contact is None)
                 self.assertEquals('Delaney', org.contact.individual_name_family)
+                self.assertEquals('primary', org.contact.roles[0])
         self.assertTrue(found, msg='Did not find Org "RSN" -- should have been preloaded')
 
         res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='CTDBP-1012-REC1 Raw Endurance OR Offshore Benthic Pkg Demo', id_only=False)
