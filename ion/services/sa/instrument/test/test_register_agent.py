@@ -251,4 +251,8 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
 
         log.info("L4-CI-SA-RQ-148")
 
+        # cleanup
+        #self.IMS.force_delete_instrument_agent(inst_agent_id)
+        self.IMS.force_delete_instrument_model(inst_model_id)
+
         return
