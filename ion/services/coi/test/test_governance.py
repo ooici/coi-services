@@ -1030,7 +1030,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
         exclusive_contract, _ = self.rr_client.find_objects(sap_response.negotiation_id,PRED.hasContract, RT.Commitment)
         self.assertEqual(len(contracts),1)
 
-
         #Now try to acquire the resource exclusively again - should fail
         with self.assertRaises(BadRequest) as cm:
             sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id)
@@ -1276,9 +1275,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn('Direct Access Mode has been denied',cm.exception.message)
 
         #Request to access the resource exclusively for two hours
-        #Now try to acquire the resource exclusively for 20 minutes
         cur_time = int(get_ion_ts())
-        two_hour_expiration = cur_time +  ( 2 * 60 * 60 * 1000 ) # 12 hours from now
+        two_hour_expiration = cur_time +  ( 2 * 60 * 60 * 1000 ) # 2 hours from now
 
         sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=user_id, provider=org2_id, resource=inst_obj_id,
                     expiration=two_hour_expiration)
