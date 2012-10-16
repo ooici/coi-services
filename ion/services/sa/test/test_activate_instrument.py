@@ -32,7 +32,6 @@ from ion.agents.port.port_agent_process import PortAgentProcessType
 from pyon.public import CFG
 from pyon.public import RT, LCS, PRED
 from pyon.public import Container, log, IonObject
-from pyon.datastore.datastore import DataStore
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
@@ -119,11 +118,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         return pid
 
-    def get_datastore(self, dataset_id):
-        dataset = self.dataset_management.read_dataset(dataset_id)
-        datastore_name = dataset.datastore_name
-        datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
-        return datastore
 
     #@unittest.skip("TBD")
     def test_activateInstrumentSample(self):
@@ -231,6 +225,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
+
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
         log.debug( 'Data product streams1 = %s', stream_ids)
@@ -239,9 +235,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
         log.debug( 'Data set for data_product_id1 = %s', dataset_ids[0])
         self.parsed_dataset = dataset_ids[0]
-        self.get_datastore(self.parsed_dataset)
-
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         pid = self.create_logger('ctd_parsed', stream_ids[0] )
         self.loggerpids.append(pid)
@@ -258,7 +251,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
-
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
@@ -268,10 +261,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasDataset, RT.Dataset, True)
         log.debug( 'Data set for data_product_id2 = %s', dataset_ids[0])
         self.raw_dataset = dataset_ids[0]
-        self.get_datastore(self.raw_dataset)
-
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
-
 
 #        #-------------------------------
 #        # L0 Conductivity - Temperature - Pressure: Data Process Definition
