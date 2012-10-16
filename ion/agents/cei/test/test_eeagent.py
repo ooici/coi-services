@@ -360,7 +360,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         }
         self._start_eeagent()
 
-    def wait_for_state(self, upid, desired_state, timeout=5):
+    def wait_for_state(self, upid, desired_state, timeout=30):
         attempts = 0
         last_state = None
         while timeout > attempts:
