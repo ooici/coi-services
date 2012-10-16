@@ -120,6 +120,7 @@ class EventTriggeredTransform_B(TransformEventListener, TransformStreamPublisher
         # Process Spawning
         # ------------------------------------------------------------------------------------
         self.awake = True
+        log.debug("awake!!!")
 
     def publish(self, msg, to_name):
         '''
