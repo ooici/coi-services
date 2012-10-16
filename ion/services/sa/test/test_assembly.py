@@ -754,6 +754,12 @@ class TestAssembly(IonIntegrationTestCase):
 
         c.OMS.activate_deployment(deployment_id, True)
 
+        # cleanup
+        c.IMS.force_delete_instrument_model(instrument_model_id)
+        c.IMS.force_delete_instrument_device(instrument_device_id)
+        c.OMS.force_delete_instrument_site(instrument_site_id)
+        c.OMS.force_delete_deployment(deployment_id)
+
 
 
     # test all 4 deployment contexts.  can fill in these context when their fields get defined
