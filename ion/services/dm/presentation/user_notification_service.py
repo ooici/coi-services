@@ -8,7 +8,7 @@
 '''
 
 from pyon.core.exception import BadRequest, IonException
-from pyon.public import RT, PRED, get_sys_name, Container, CFG
+from pyon.public import RT, PRED, get_sys_name, Container, CFG, OT, IonObject
 from pyon.util.async import spawn
 from pyon.util.log import log
 from pyon.util.containers import DotDict
@@ -17,6 +17,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.objects import ComputedValueAvailability, ComputedListValue
 
 import string
 import time
@@ -694,9 +695,18 @@ class UserNotificationService(BaseUserNotificationService):
 
         @retval events list of Event objects
         '''
+
         now = self.makeEpochTime(datetime.utcnow())
         events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=False)
-        return events
+
+        ret = IonObject(OT.ComputedListValue)
+        if events:
+            ret.value = events
+            ret.status = ComputedValueAvailability.PROVIDED
+        else:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+
+        return ret
 
     def get_user_notifications(self, user_id=''):
         '''
@@ -709,7 +719,15 @@ class UserNotificationService(BaseUserNotificationService):
 
         user = self.clients.resource_registry.read(user_id)
         notifications = self.event_processor.user_info[user.name]['notifications']
-        return notifications
+
+        ret = IonObject(OT.ComputedListValue)
+        if notifications:
+            ret.value = notifications
+            ret.status = ComputedValueAvailability.PROVIDED
+        else:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+
+        return ret
 
     def create_worker(self, number_of_workers=1):
         '''
