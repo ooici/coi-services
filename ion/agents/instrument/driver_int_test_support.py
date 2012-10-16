@@ -80,7 +80,11 @@ class DriverIntegrationTestSupport(object):
         pid = self._pagent.get_pid()
         port = self._pagent.get_data_port()
 
-        mi_logger.info('Started port agent pid %d listening at port %d', pid, port)
+        if(pid and port):
+            mi_logger.info('Started port agent pid %d listening at port %d', pid, port)
+        else:
+            raise PortAgentLaunchException();
+            
         return port
 
     def stop_pagent(self):

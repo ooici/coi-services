@@ -408,7 +408,9 @@ class UnixPortAgentProcess(PortAgentProcess):
 
             
         if(self._test_mode):
-            command_line.append("-s")
+            this_pid = os.getpid();
+            command_line.append("--ppid")
+            command_line.append(str(this_pid))
 
         command_line.append("-p")
         command_line.append("%s" % (self._command_port));
