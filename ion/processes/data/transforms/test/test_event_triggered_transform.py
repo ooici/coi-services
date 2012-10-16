@@ -13,6 +13,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import IonUnitTestCase
 from pyon.util.containers import get_safe
 from pyon.ion.stream import StandaloneStreamSubscriber
+from pyon.event.event import EventPublisher
 from nose.plugins.attrib import attr
 
 from mock import Mock, sentinel, patch, mocksignature
@@ -51,9 +52,9 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
             xp.delete()
 
 
-    def test_ctd_L1_conductivity(self):
+    def test_event_triggered_transform(self):
         '''
-        Test that packets are processed by the ctd_L1_conductivity transform
+        Test that packets are processed by the event triggered transform
         '''
 
         #---------------------------------------------------------------------------------------------
@@ -66,6 +67,17 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
         process_definition.executable['module']= 'ion.processes.data.transforms.event_triggered_transform'
         process_definition.executable['class'] = 'EventTriggeredTransform'
         event_transform_proc_def_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
+
+        #---------------------------------------------------------------------------------------------
+        # Publish an event to wake up the event triggered transform
+        #---------------------------------------------------------------------------------------------
+
+        event_publisher = EventPublisher("ResourceLifecycleEvent")
+        event_publisher.publish_event(origin = 'fake_origin')
+
+        log.debug("event_publisher: %s" % event_publisher)
+
+        gevent.sleep(4)
 
         # Build the config
         config = DotDict()
@@ -80,6 +92,7 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
             stream_definition_id=stream_def_id)
 
         config.process.publish_streams.conductivity = cond_stream_id
+        config.process.event_type = 'ResourceLifecycleEvent'
 
         # Schedule the process
         self.process_dispatcher.schedule_process(process_definition_id=event_transform_proc_def_id, configuration=config)
@@ -124,6 +137,8 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
 
         # Publish the packet
         pub.publish(publish_granule)
+
+        gevent.sleep(2)
 
         #------------------------------------------------------------------------------------------------------
         # Make assertions about whether the ctd transform executed its algorithm and published the correct
