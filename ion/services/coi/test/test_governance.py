@@ -1270,22 +1270,36 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(Conflict) as cm:
            ia_client.set_resource(new_params, headers=user_header)
 
-        #Request for the instrument to be put into Direct Access mode - should be denied since it is not exclusive
+        #Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=user_header)
         self.assertIn('Direct Access Mode has been denied',cm.exception.message)
 
-        #Request to access the resource exclusively
-        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=user_id, provider=org2_id, resource=inst_obj_id)
-        #sap_response = self.org_client.negotiate(sap, headers=user_header )
+        #Request to access the resource exclusively for two hours
+        #Now try to acquire the resource exclusively for 20 minutes
+        cur_time = int(get_ion_ts())
+        two_hour_expiration = cur_time +  ( 2 * 60 * 60 * 1000 ) # 12 hours from now
+
+        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=user_id, provider=org2_id, resource=inst_obj_id,
+                    expiration=two_hour_expiration)
+        sap_response = self.org_client.negotiate(sap, headers=user_header )
 
         #Request Direct Access again
+        with self.assertRaises(Exception) as cm:
+            self.ims_client.request_direct_access(inst_obj_id, headers=user_header)
 
         #Stop DA
+        with self.assertRaises(Exception) as cm:
+            self.ims_client.stop_direct_access(inst_obj_id, headers=user_header)
 
+        #Release the exclusive commitment to the resource
+        exclusive_contract, _ = self.rr_client.find_objects(sap_response.negotiation_id,PRED.hasContract, RT.Commitment)
+        self.org_client.release_commitment(exclusive_contract[0]._id, headers=user_header)
 
-        #Give up Exclusivity
-
+        #Try to Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.request_direct_access(inst_obj_id, headers=user_header)
+        self.assertIn('Direct Access Mode has been denied',cm.exception.message)
 
         #The agent related functions should not be allowed for a user that is not an Org Manager
         with self.assertRaises(Unauthorized) as cm:
