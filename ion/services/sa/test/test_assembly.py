@@ -623,12 +623,12 @@ class TestAssembly(IonIntegrationTestCase):
         self.generic_fd_script(instrument_model_id, "instrument_model", c.IMS)
         self.generic_fd_script(sensor_model_id, "sensor_model", c.IMS)
         self.generic_fd_script(platform_agent_id, "platform_agent", c.IMS)
-        #self.generic_fd_script(instrument_agent_id, "instrument_agent", c.IMS)
+        self.generic_fd_script(instrument_agent_id, "instrument_agent", c.IMS)
         self.generic_fd_script(platform_device_id, "platform_device", c.IMS)
         self.generic_fd_script(instrument_device_id, "instrument_device", c.IMS)
         self.generic_fd_script(sensor_device_id, "sensor_device", c.IMS)
         self.generic_fd_script(platform_agent_instance_id, "platform_agent_instance", c.IMS)
-        #self.generic_fd_script(instrument_agent_instance_id, "instrument_agent_instance", c.IMS)
+        self.generic_fd_script(instrument_agent_instance_id, "instrument_agent_instance", c.IMS)
 
 
     def create_data_product_obj(self):
