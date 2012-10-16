@@ -17,7 +17,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ComputedValueAvailability, ComputedListValue
+from interface.objects import ComputedValueAvailability
 
 import string
 import time

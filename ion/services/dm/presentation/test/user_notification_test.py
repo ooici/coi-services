@@ -16,7 +16,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
-from interface.objects import UserInfo, DeliveryConfig, ComputedListValue
+from interface.objects import UserInfo, DeliveryConfig, ComputedListValue, ComputedValueAvailability
 from interface.objects import DeviceEvent
 from pyon.util.context import LocalContextMixin
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
@@ -1420,6 +1420,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertIsInstance(ret, ComputedListValue)
         notifications = ret.value
+        self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
 
         names = []
         origins = []
@@ -1468,6 +1469,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         ret = self.unsc.get_recent_events(resource_id='Some_Resource_Agent_ID1', limit = 5)
         self.assertIsInstance(ret, ComputedListValue)
+        self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
         events = ret.value
         self.assertEquals(len(events), 5)
 
@@ -1480,6 +1482,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         ret = self.unsc.get_recent_events(resource_id='Some_Resource_Agent_ID2')
         self.assertIsInstance(ret, ComputedListValue)
+        self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
         events = ret.value
         self.assertEquals(len(events), 10)
         for event in events:
