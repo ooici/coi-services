@@ -15,7 +15,7 @@ from pyon.util.containers import get_safe
 from pyon.ion.stream import StandaloneStreamSubscriber
 from pyon.event.event import EventPublisher
 from nose.plugins.attrib import attr
-
+import unittest
 from mock import Mock, sentinel, patch, mocksignature
 from interface.objects import ProcessDefinition
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -24,7 +24,7 @@ from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.util.parameter_yaml_IO import get_param_dict
-import gevent
+import gevent, os
 import numpy, random
 
 class EventTriggeredTransformIntTest(IonIntegrationTestCase):
@@ -51,7 +51,8 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
             xp = self.container.ex_manager.create_xp(exchange)
             xp.delete()
 
-
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_event_triggered_transform_A(self):
         '''
         Test that packets are processed by the event triggered transform
