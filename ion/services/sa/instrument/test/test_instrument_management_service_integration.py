@@ -162,9 +162,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.location_status_roll_up.status)
 
-        self.assertEqual(ComputedValueAvailability.PROVIDED,
-                         extended_instrument.computed.recent_events.status)
-        self.assertEqual([], extended_instrument.computed.recent_events.value)
+#        self.assertEqual(ComputedValueAvailability.PROVIDED,
+#                         extended_instrument.computed.recent_events.status)
+#        self.assertEqual([], extended_instrument.computed.recent_events.value)
 
 
 

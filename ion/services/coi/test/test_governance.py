@@ -5,7 +5,7 @@ __license__ = 'Apache 2.0'
 
 import unittest, os, gevent
 from mock import Mock, patch
-from pyon.util.unit_test import PyonTestCase
+from pyon.util.containers import get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 from pyon.util.context import LocalContextMixin
@@ -894,8 +894,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Make a proposal to acquire a resource with an enrolled user that has the right role but the resource is not shared the Org
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id,
-            conditions = {'commitment_length': 'unlimited'} )
+            sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id)
             sap_response = self.org_client.negotiate(sap, headers=user_header )
         self.assertIn('A precondition for this request has not been satisfied: is_resource_shared',cm.exception.message)
 
@@ -908,9 +907,16 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(res_list[0]._id, ia_list[0]._id)
 
 
+        #First try to acquire the resource exclusively but it should fail since the user cannot do this without first
+        #having had acquired the resource
+        with self.assertRaises(BadRequest) as cm:
+            sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id)
+            sap_response = self.org_client.negotiate(sap, headers=user_header )
+        self.assertIn('A precondition for this request has not been satisfied: is_resource_acquired',cm.exception.message)
+
+
         #Make a proposal to acquire a resource with an enrolled user that has the right role and is now shared
-        sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id,
-            conditions = {'commitment_length': 'unlimited'} )
+        sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id)
         sap_response = self.org_client.negotiate(sap, headers=user_header )
 
         negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.sa_user_header)
@@ -932,16 +938,24 @@ class TestGovernanceInt(IonIntegrationTestCase):
         negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.AcquireResourceProposal,
             negotiation_status=NegotiationStatusEnum.OPEN, headers=self.sa_user_header)
 
+        #Counter proposals for demonstration only
+        #Calculate one week from now in milliseconds
+        cur_time = int(get_ion_ts())
+        week_expiration = cur_time +  ( 7 * 24 * 60 * 60 * 1000 )
+
         sap_response = Negotiation.create_counter_proposal(negotiations[0], originator=ProposalOriginatorEnum.PROVIDER)
-        sap_response.conditions = {'commitment_length': 'one week'}
+        sap_response.expiration = week_expiration
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
         #User Creates a counter proposal
         negotiations = self.org_client.find_user_negotiations(user_id, org2_id, proposal_type=OT.AcquireResourceProposal,
             negotiation_status=NegotiationStatusEnum.OPEN, headers=user_header)
 
+        cur_time = int(get_ion_ts())
+        month_expiration = cur_time +  ( 30 * 24 * 60 * 60 * 1000 )
+
         sap_response = Negotiation.create_counter_proposal(negotiations[0])
-        sap_response.conditions = {'commitment_length': 'one month'}
+        sap_response.expiration = month_expiration
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.sa_user_header )
 
 
@@ -978,9 +992,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
         commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.Commitment)
         self.assertEqual(len(commitments),1)
 
-        commitments, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.Commitment)
-        self.assertEqual(len(commitments),1)
-        self.assertNotEqual(commitments[0].lcstate, LCS.RETIRED)
+        resource_commitment, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.Commitment)
+        self.assertEqual(len(resource_commitment),1)
+        self.assertNotEqual(resource_commitment[0].lcstate, LCS.RETIRED)
+
 
         subjects, _ = self.rr_client.find_subjects(None,PRED.hasCommitment, commitments[0]._id)
         self.assertEqual(len(subjects),3)
@@ -988,25 +1003,72 @@ class TestGovernanceInt(IonIntegrationTestCase):
         contracts, _ = self.rr_client.find_subjects(RT.Negotiation,PRED.hasContract, commitments[0]._id)
         self.assertEqual(len(contracts),1)
 
-        #Release the resource
-        self.org_client.release_resource(commitments[0]._id, headers=self.sa_user_header)
+        cur_time = int(get_ion_ts())
+        invalid_expiration = cur_time +  ( 13 * 60 * 60 * 1000 ) # 12 hours from now
+
+        #Now try to acquire the resource exclusively for longer than 12 hours
+        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id,
+                    expiration=invalid_expiration)
+        sap_response = self.org_client.negotiate(sap, headers=user_header )
+
+        #make sure the negotiation was rejected for being too long.
+        negotiation = self.rr_client.read(sap_response.negotiation_id)
+        self.assertEqual(negotiation.negotiation_status, NegotiationStatusEnum.REJECTED)
+
+        #Now try to acquire the resource exclusively for 20 minutes
+        cur_time = int(get_ion_ts())
+        valid_expiration = cur_time +  ( 20 * 60 * 1000 ) # 12 hours from now
+
+        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id,
+                    expiration=valid_expiration)
+        sap_response = self.org_client.negotiate(sap, headers=user_header )
+
+        #Check commitment to be active
+        commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.Commitment)
+        self.assertEqual(len(commitments),2)
+
+        exclusive_contract, _ = self.rr_client.find_objects(sap_response.negotiation_id,PRED.hasContract, RT.Commitment)
+        self.assertEqual(len(contracts),1)
+
+
+        #Now try to acquire the resource exclusively again - should fail
+        with self.assertRaises(BadRequest) as cm:
+            sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=user_id, provider=org2_id, resource=ia_list[0]._id)
+            sap_response = self.org_client.negotiate(sap, headers=user_header )
+        self.assertIn('A precondition for this request has not been satisfied: not is_resource_acquired_exclusively',cm.exception.message)
+
+        #Release the exclusive commitment to the resource
+        self.org_client.release_commitment(exclusive_contract[0]._id, headers=user_header)
 
         #Check commitment to be inactive
         commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.Commitment)
-        self.assertEqual(len(commitments),1)
-        self.assertEqual(commitments[0].lcstate, LCS.RETIRED)
+        self.assertEqual(len(commitments),2)
+        for com in commitments:
+            if com.commitment.exclusive:
+                self.assertEqual(com.lcstate, LCS.RETIRED)
+            else:
+                self.assertNotEqual(com.lcstate, LCS.RETIRED)
+
+        #Release the resource
+        self.org_client.release_commitment(resource_commitment[0]._id, headers=user_header)
+
+        #Check commitment to be inactive
+        commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.Commitment)
+        self.assertEqual(len(commitments),2)
+        for com in commitments:
+            self.assertEqual(com.lcstate, LCS.RETIRED)
 
         commitments, _ = self.rr_client.find_objects(user_id,PRED.hasCommitment, RT.Commitment)
-        self.assertEqual(len(commitments),1)
-        self.assertEqual(commitments[0].lcstate, LCS.RETIRED)
+        self.assertEqual(len(commitments),2)
+        for com in commitments:
+            self.assertEqual(com.lcstate, LCS.RETIRED)
 
 
         #Now check some negative cases...
 
         #Attempt to acquire the same resource from the ION Org which is not sharing it - should fail
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=self.ion_org._id, resource=ia_list[0]._id,
-                conditions = {'commitment_length': 'unlimited'} )
+            sap = IonObject(OT.AcquireResourceProposal,consumer=user_id, provider=self.ion_org._id, resource=ia_list[0]._id)
             sap_response = self.org_client.negotiate(sap, headers=user_header )
         self.assertIn('A precondition for this request has not been satisfied: is_resource_shared',cm.exception.message)
 
@@ -1208,20 +1270,36 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(Conflict) as cm:
            ia_client.set_resource(new_params, headers=user_header)
 
-        #Request for the instrument to be put into Direct Access mode - should be denied since it is not exclusive
+        #Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=user_header)
         self.assertIn('Direct Access Mode has been denied',cm.exception.message)
 
-        #Now request to acquire resource exclusively
+        #Request to access the resource exclusively for two hours
+        #Now try to acquire the resource exclusively for 20 minutes
+        cur_time = int(get_ion_ts())
+        two_hour_expiration = cur_time +  ( 2 * 60 * 60 * 1000 ) # 12 hours from now
+
+        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=user_id, provider=org2_id, resource=inst_obj_id,
+                    expiration=two_hour_expiration)
+        sap_response = self.org_client.negotiate(sap, headers=user_header )
 
         #Request Direct Access again
+        with self.assertRaises(Exception) as cm:
+            self.ims_client.request_direct_access(inst_obj_id, headers=user_header)
 
         #Stop DA
+        with self.assertRaises(Exception) as cm:
+            self.ims_client.stop_direct_access(inst_obj_id, headers=user_header)
 
+        #Release the exclusive commitment to the resource
+        exclusive_contract, _ = self.rr_client.find_objects(sap_response.negotiation_id,PRED.hasContract, RT.Commitment)
+        self.org_client.release_commitment(exclusive_contract[0]._id, headers=user_header)
 
-        #Give up Exclusivity
-             
+        #Try to Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.request_direct_access(inst_obj_id, headers=user_header)
+        self.assertIn('Direct Access Mode has been denied',cm.exception.message)
 
         #The agent related functions should not be allowed for a user that is not an Org Manager
         with self.assertRaises(Unauthorized) as cm:
