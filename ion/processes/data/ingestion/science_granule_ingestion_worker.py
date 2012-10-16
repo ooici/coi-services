@@ -154,10 +154,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         elements = len(rdt)
         if not elements:
             return
-        if coverage.num_timesteps == 1:
-            coverage.insert_timesteps(elements-1)
-        else:
-            coverage.insert_timesteps(elements)
+        coverage.insert_timesteps(elements)
         print coverage.num_timesteps
         start_index = coverage.num_timesteps - elements
 
@@ -165,7 +162,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             print '%s : %s' %(k,v)
             slice_ = slice(start_index, None)
             print slice_
-            coverage.set_parameter_values(param_name=k, tdoa=slice_, value=np.arange(elements))
+            coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
             coverage.flush()
             gevent.sleep(1)
             print 'Set values for %s: %s' % (k,coverage.get_parameter_values(k))

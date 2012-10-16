@@ -254,7 +254,6 @@ class DatasetManagementService(BaseDatasetManagementService):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
         scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
         print 'So... these are the pdict fields: %s' % scov.parameter_dictionary.keys()
-        scov.insert_timesteps(1)
         return scov
 
     @classmethod
