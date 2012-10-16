@@ -59,9 +59,6 @@ class ReplayProcess(BaseReplayProcess):
     stream_def_id   = ''
 
 
-
-
-
     def __init__(self, *args, **kwargs):
         super(ReplayProcess,self).__init__(*args,**kwargs)
         self.deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
@@ -73,7 +70,7 @@ class ReplayProcess(BaseReplayProcess):
         '''
         Starts the process
         '''
-        log.info('IVE BEEN STARTED!')
+        log.info('Replay Process Started')
         super(ReplayProcess,self).on_start()
         dsm_cli = DatasetManagementServiceProcessClient(process=self)
         pubsub  = PubsubManagementServiceProcessClient(process=self)
@@ -141,6 +138,7 @@ class ReplayProcess(BaseReplayProcess):
             fields = rdt.fields
 
         for field in fields:
+            print 'Slice is %s' % slice_
             rdt[field] = coverage.get_parameter_values(field, tdoa=slice_)
         return rdt
 
@@ -149,8 +147,14 @@ class ReplayProcess(BaseReplayProcess):
         execute_retrieve Executes a retrieval and returns the result 
         as a value in lieu of publishing it on a stream
         '''
-        coverage = DatasetManagementService._get_coverage(self.dataset_id)
-        rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters)
+        try: 
+            coverage = DatasetManagementService._get_coverage(self.dataset_id)
+            rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters)
+            coverage.close(timeout=5)
+        except Exception as e:
+            import traceback
+            traceback.print_exc(e)
+            raise BadRequest('Problems reading from the coverage')
         return rdt.to_granule()
 
 
@@ -217,6 +221,7 @@ class ReplayProcess(BaseReplayProcess):
 
         coverage = DatasetManagementService._get_coverage(dataset_id)
         rdt = cls._coverage_to_granule(coverage,start_time=ts, end_time=None)
+        coverage.close(timeout=5)
         return rdt.to_granule()
 
 
@@ -224,6 +229,7 @@ class ReplayProcess(BaseReplayProcess):
     def get_last_values(cls, dataset_id):
         coverage = DatasetManagementService._get_coverage(dataset_id)
         rdt = cls._coverage_to_granule(coverage,tdoa=slice(-1,None))
+        coverage.close(timeout=5)
         
         return rdt.to_granule()
 
@@ -240,6 +246,7 @@ class ReplayProcess(BaseReplayProcess):
             for field in fields:
                 outgoing[field] = rdt[field][(i*self.publish_limit) : ((i+1)*self.publish_limit)]
             yield outgoing
+        coverage.close(timeout=5)
         return 
 
 

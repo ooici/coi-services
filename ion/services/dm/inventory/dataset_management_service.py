@@ -248,13 +248,10 @@ class DatasetManagementService(BaseDatasetManagementService):
     def _create_coverage(self, dataset_id, description, parameter_dict, spatial_domain,temporal_domain):
 
         pdict = ParameterDictionary.load(parameter_dict)
-        print pdict.keys()
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
         scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
-        print 'So... these are the pdict fields: %s' % scov.parameter_dictionary.keys()
-        scov.insert_timesteps(1)
         return scov
 
     @classmethod
