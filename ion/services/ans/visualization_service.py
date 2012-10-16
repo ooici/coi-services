@@ -27,13 +27,12 @@ from gevent.greenlet import Greenlet
 
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
-from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
-from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphs
+from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
+from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphsAlgorithm
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
 from interface.objects import Granule
 from pyon.util.containers import get_safe
-from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
 
 # Google viz library for google charts
 import ion.services.ans.gviz_api as gviz_api
@@ -168,7 +167,7 @@ class VisualizationService(BaseVisualizationService):
                         for idx in range(1,len(temp_gdt_description)):
                             # for some weird reason need to force convert to tuples
                             temp_arr = temp_gdt_description[idx]
-                            if temp_arr != None:
+                            if temp_arr != None and temp_arr[0] != 'time':
                                 gdt_description.append((temp_arr[0], temp_arr[1], temp_arr[2]))
 
                     # append all content to one big array
@@ -181,7 +180,12 @@ class VisualizationService(BaseVisualizationService):
                         varTuple = []
                         varTuple.append(datetime.fromtimestamp(tempTuple[0]))
                         for idx in range(1,len(tempTuple)):
-                            varTuple.append(tempTuple[idx])
+                            # some silly numpy format won't go away so need to cast numbers to floats
+                            if(gdt_description[idx][1] == 'number'):
+                                varTuple.append((float)(tempTuple[idx]))
+                            else:
+                                varTuple.append(tempTuple[idx])
+
                         gdt_content.append(varTuple)
 
 
@@ -190,7 +194,6 @@ class VisualizationService(BaseVisualizationService):
 
         # Now that all the messages have been parsed, any last processing should be done here
         if viz_product_type == "google_dt":
-
             # Using the description and content, build the google data table
             gdt = gviz_api.DataTable(gdt_description)
             gdt.LoadData(gdt_content)
@@ -209,31 +212,30 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
 
+        ret_val = []
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
 
-        try:
+        #try:
 
-            #Taking advantage of idempotency
-            xq = self.container.ex_manager.create_xn_queue(query_token)
+        #Taking advantage of idempotency
+        xq = self.container.ex_manager.create_xn_queue(query_token)
 
-            subscriber = Subscriber(from_name=xq)
-            subscriber.initialize()
+        subscriber = Subscriber(from_name=xq)
+        subscriber.initialize()
 
-            ret_val = []
-            msgs = subscriber.get_all_msgs(timeout=2)
-            for x in range(len(msgs)):
-                msgs[x].ack()
+        msgs = subscriber.get_all_msgs(timeout=2)
+        for x in range(len(msgs)):
+            msgs[x].ack()
 
-            # Different messages should get processed differently. Ret val will be decided by the viz product type
-            ret_val = self._process_visualization_message(msgs)
+        # Different messages should get processed differently. Ret val will be decided by the viz product type
+        ret_val = self._process_visualization_message(msgs)
 
+        #except Exception, e:
+        #    raise e
 
-        except Exception, e:
-            raise e
-
-        finally:
-            subscriber.close()
+        #finally:
+        #    subscriber.close()
 
         #TODO - replace as need be to return valid GDT data
         #return {'viz_data': ret_val}
@@ -355,30 +357,40 @@ class VisualizationService(BaseVisualizationService):
             return None
 
         # send the granule through the transform to get the google datatable
-        gdt_transform = VizTransformGoogleDT()
-        gdt_data_granule = gdt_transform.execute(retrieved_granule)
+        gdt_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
+        gdt_stream_def = self.clients.pubsub_management.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
 
+        gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(retrieved_granule, params=gdt_stream_def)
         gdt_rdt = RecordDictionaryTool.load_from_granule(gdt_data_granule)
-        gdt_components = gdt_rdt["google_dt_components"][0]
-        temp_gdt_description = gdt_components["data_description"]
-        temp_gdt_content = gdt_components["data_content"]
+        gdt_components = get_safe(gdt_rdt, 'google_dt_components')
+        gdt_component = gdt_components[0]
+        temp_gdt_description = gdt_component["data_description"]
+        temp_gdt_content = gdt_component["data_content"]
 
         # adjust the 'float' time to datetime in the content
         gdt_description = [('time', 'datetime', 'time')]
         gdt_content = []
         for idx in range(1,len(temp_gdt_description)):
-            gdt_description.append(temp_gdt_description[idx])
+            temp_arr = temp_gdt_description[idx]
+            if temp_arr != None and temp_arr[0] != 'time':
+                gdt_description.append((temp_arr[0], temp_arr[1], temp_arr[2]))
 
         for tempTuple in temp_gdt_content:
             # sometimes there are inexplicable empty tuples in the content. Drop them
             if tempTuple == [] or len(tempTuple) == 0:
                 continue
 
-            varTuple = list()
+            varTuple = []
             varTuple.append(datetime.fromtimestamp(tempTuple[0]))
             for idx in range(1,len(tempTuple)):
-                varTuple.append(tempTuple[idx])
+                # some silly numpy format won't go away so need to cast numbers to floats
+                if(gdt_description[idx][1] == 'number'):
+                    varTuple.append((float)(tempTuple[idx]))
+                else:
+                    varTuple.append(tempTuple[idx])
+
             gdt_content.append(varTuple)
+
 
         # now generate the Google datatable out of the description and content
         gdt = gviz_api.DataTable(gdt_description)
@@ -405,34 +417,28 @@ class VisualizationService(BaseVisualizationService):
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
-
         if ds_ids is None or not ds_ids:
             return None
 
         # Ideally just need the latest granule to figure out the list of images
         #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
         retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0])
+
         if retrieved_granule is None:
             return None
 
-        mpl_transform = VizTransformMatplotlibGraphs()
-        mpl_data_granule = mpl_transform.execute(retrieved_granule)
-
-        #mpl_data_granule = self.clients.data_retriever.retrieve(ds_ids[0], module="ion.processes.data.transforms.viz.matplotlib_graphs", cls="VizTransformMatplotlibGraphs")
-        #if not mpl_data_granule:
-        #    return None
+        # send the granule through the transform to get the matplotlib graphs
+        mpl_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
+        mpl_stream_def = self.clients.pubsub_management.create_stream_definition('mpl', parameter_dictionary_id=mpl_pdict_id)
+        mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=visualization_parameters, params=mpl_stream_def)
 
         mpl_rdt = RecordDictionaryTool.load_from_granule(mpl_data_granule)
-        mpl_graphs = get_safe(mpl_rdt, "mpl_graph")
-        mpl_graph = mpl_graphs[0]
 
-        # restructure the mpl graphs in to a simpler dict that will be passed through
         ret_dict = dict()
-        ret_dict['content_type'] = mpl_graph['content_type']
-        ret_dict['image_name'] = mpl_graph['image_name']
+        ret_dict['content_type'] = (get_safe(mpl_rdt, "content_type"))[0]
+        ret_dict['image_name'] = (get_safe(mpl_rdt, "image_name"))[0]
         # reason for encoding as base64 string is otherwise message pack complains about the bit stream
-        ret_dict['image_obj'] = base64.encodestring(mpl_graph['image_obj'])
-        #ret_dict['image_obj'] = mpl_graph['image_obj']
+        ret_dict['image_obj'] = base64.encodestring((get_safe(mpl_rdt, "image_obj"))[0])
 
         if callback == '':
             return ret_dict

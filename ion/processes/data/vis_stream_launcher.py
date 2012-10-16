@@ -117,8 +117,9 @@ class VisStreamLauncher(ImmediateProcess):
             data_product_id = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
             self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id)
-            #self.dpclient.activate_data_product_persistence(data_product_id=data_product_id)
+            self.dpclient.activate_data_product_persistence(data_product_id=data_product_id)
 
+        print ">>>>>>>>>>>>> DATAPRODUCT FOR PRODUCING DATA : ", data_product_id
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)
