@@ -228,7 +228,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         dp_obj.name = 'SS raw data'
         data_product_SS_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
         self.damsclient.assign_data_product(input_resource_id=platformSS_device_id, data_product_id=data_product_SS_id)
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_SS_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_SS_id, PRED.hasStream, None, True)
 
@@ -286,7 +285,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         dp_obj.name = '1A raw data'
         data_product_1A_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
         self.damsclient.assign_data_product(input_resource_id=platform1A_device_id, data_product_id=data_product_1A_id)
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_1A_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_1A_id, PRED.hasStream, None, True)
 
@@ -342,7 +340,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         dp_obj.name = '1B raw data'
         data_product_1B_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
         self.damsclient.assign_data_product(input_resource_id=platform1B_device_id, data_product_id=data_product_1B_id)
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_1B_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_1B_id, PRED.hasStream, None, True)
 
@@ -399,7 +396,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         dp_obj.name = '1C raw data'
         data_product_1C_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
         self.damsclient.assign_data_product(input_resource_id=platform1C_device_id, data_product_id=data_product_1C_id)
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_1C_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_1C_id, PRED.hasStream, None, True)
 
