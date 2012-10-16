@@ -40,7 +40,7 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
         self.pubsub = PubsubManagementServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
 
-        self.exchange_name = 'ctd_L0_all_queue'
+        self.exchange_name = 'test_queue'
         self.exchange_point = 'test_exchange'
 
     def tearDown(self):
@@ -52,7 +52,7 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
             xp.delete()
 
 
-    def test_event_triggered_transform(self):
+    def test_event_triggered_transform_A(self):
         '''
         Test that packets are processed by the event triggered transform
         '''
@@ -62,22 +62,11 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
         #---------------------------------------------------------------------------------------------
         # Create the process definition
         process_definition = ProcessDefinition(
-            name='EventTriggeredTransform',
-            description='For testing EventTriggeredTransform')
+            name='EventTriggeredTransform_A',
+            description='For testing EventTriggeredTransform_A')
         process_definition.executable['module']= 'ion.processes.data.transforms.event_triggered_transform'
-        process_definition.executable['class'] = 'EventTriggeredTransform'
+        process_definition.executable['class'] = 'EventTriggeredTransform_A'
         event_transform_proc_def_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
-
-        #---------------------------------------------------------------------------------------------
-        # Publish an event to wake up the event triggered transform
-        #---------------------------------------------------------------------------------------------
-
-        event_publisher = EventPublisher("ResourceLifecycleEvent")
-        event_publisher.publish_event(origin = 'fake_origin')
-
-        log.debug("event_publisher: %s" % event_publisher)
-
-        gevent.sleep(4)
 
         # Build the config
         config = DotDict()
@@ -96,6 +85,13 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
 
         # Schedule the process
         self.process_dispatcher.schedule_process(process_definition_id=event_transform_proc_def_id, configuration=config)
+
+        #---------------------------------------------------------------------------------------------
+        # Publish an event to wake up the event triggered transform
+        #---------------------------------------------------------------------------------------------
+
+        event_publisher = EventPublisher("ResourceLifecycleEvent")
+        event_publisher.publish_event(origin = 'fake_origin')
 
         #---------------------------------------------------------------------------------------------
         # Create subscribers that will receive the conductivity, temperature and pressure granules from
@@ -138,8 +134,6 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
         # Publish the packet
         pub.publish(publish_granule)
 
-        gevent.sleep(2)
-
         #------------------------------------------------------------------------------------------------------
         # Make assertions about whether the ctd transform executed its algorithm and published the correct
         # granules
@@ -175,3 +169,75 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
         g = rdt.to_granule()
 
         return g
+
+    def test_event_triggered_transform_A(self):
+        '''
+        Test that packets are processed by the event triggered transform
+        '''
+
+        #---------------------------------------------------------------------------------------------
+        # Launch a ctd transform
+        #---------------------------------------------------------------------------------------------
+        # Create the process definition
+        process_definition = ProcessDefinition(
+            name='EventTriggeredTransform_A',
+            description='For testing EventTriggeredTransform_A')
+        process_definition.executable['module']= 'ion.processes.data.transforms.event_triggered_transform'
+        process_definition.executable['class'] = 'EventTriggeredTransform_A'
+        event_transform_proc_def_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
+
+        # Build the config
+        config = DotDict()
+        config.process.queue_name = self.exchange_name
+        config.process.exchange_point = self.exchange_point
+
+        pdict = get_param_dict('simple_data_particle_parsed_param_dict')
+
+        stream_def_id =  self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary=pdict.dump())
+        cond_stream_id, _ = self.pubsub.create_stream('test_conductivity',
+            exchange_point='science_data',
+            stream_definition_id=stream_def_id)
+
+        config.process.publish_streams.conductivity = cond_stream_id
+        config.process.event_type = 'ResourceLifecycleEvent'
+
+        # Schedule the process
+        self.process_dispatcher.schedule_process(process_definition_id=event_transform_proc_def_id, configuration=config)
+
+        #---------------------------------------------------------------------------------------------
+        # Publish an event to wake up the event triggered transform
+        #---------------------------------------------------------------------------------------------
+
+        event_publisher = EventPublisher("ResourceLifecycleEvent")
+        event_publisher.publish_event(origin = 'fake_origin')
+
+        #---------------------------------------------------------------------------------------------
+        # Create subscribers that will receive the conductivity, temperature and pressure granules from
+        # the ctd transform
+        #---------------------------------------------------------------------------------------------
+        ar_cond = gevent.event.AsyncResult()
+        def subscriber1(m, r, s):
+            ar_cond.set(m)
+        sub_event_transform = StandaloneStreamSubscriber('sub_event_transform', subscriber1)
+        self.addCleanup(sub_event_transform.stop)
+
+        sub_event_transform_id = self.pubsub.create_subscription('subscription_cond',
+            stream_ids=[cond_stream_id],
+            exchange_name='sub_event_transform')
+
+        self.pubsub.activate_subscription(sub_event_transform_id)
+
+        self.queue_cleanup.append(sub_event_transform.xn.queue)
+
+        sub_event_transform.start()
+
+        #------------------------------------------------------------------------------------------------------
+        # Make assertions about whether the ctd transform executed its algorithm and published the correct
+        # granules
+        #------------------------------------------------------------------------------------------------------
+
+        # Get the granule that is published by the ctd transform post processing
+        result_cond = ar_cond.get(timeout=10)
+        self.assertTrue(isinstance(result_cond, Granule))
+
+

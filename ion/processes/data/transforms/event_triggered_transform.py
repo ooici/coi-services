@@ -6,7 +6,7 @@ it goes into a woken up state. When it is awake it processes data according to i
 
 @author Swarbhanu Chatterjee
 '''
-from pyon.ion.transforma import TransformEventListener, TransformDataProcess
+from pyon.ion.transforma import TransformEventListener, TransformDataProcess, TransformStreamPublisher
 from pyon.util.log import log
 from pyon.util.containers import get_safe
 from pyon.core.exception import BadRequest
@@ -14,14 +14,11 @@ from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 
-class EventTriggeredTransform(TransformEventListener, TransformDataProcess):
+class EventTriggeredTransform_A(TransformEventListener, TransformDataProcess):
 
     def on_start(self):
-        TransformEventListener.on_start()
-        TransformDataProcess.on_start()
-#        super(EventTriggeredTransform, self).on_start()
+        super(EventTriggeredTransform_A, self).on_start()
 
-#        self.queue_name = self.CFG.get_safe('process.conductivity',self.id)
         self.awake = False
 
         if not self.CFG.process.publish_streams.has_key('conductivity'):
@@ -38,7 +35,7 @@ class EventTriggeredTransform(TransformEventListener, TransformDataProcess):
         '''
         Stop the subscriber
         '''
-        super(EventTriggeredTransform, self).on_quit()
+        super(EventTriggeredTransform_A, self).on_quit()
 
     def process_event(self, msg, headers):
         '''
@@ -48,8 +45,6 @@ class EventTriggeredTransform(TransformEventListener, TransformDataProcess):
         # ------------------------------------------------------------------------------------
         # Process Spawning
         # ------------------------------------------------------------------------------------
-
-        log.debug("got an event::: %s" % msg)
         self.awake = True
 
     def recv_packet(self, packet, stream_route, stream_id):
@@ -60,15 +55,11 @@ class EventTriggeredTransform(TransformEventListener, TransformDataProcess):
 
         if self.awake: # if the transform is awake
             if packet == {}:
-                log.debug("empty packet")
                 return
 
-            log.debug("awake and got packet: %s" % packet)
             granule = TransformAlgorithm.execute(packet, params=self.stream_definition._id)
-            log.debug("publishing granule: %s" % granule)
             self.conductivity.publish(msg=granule)
         else:
-            log.debug("sleeping still")
             return # the transform does not do anything with received packets when it is not yet awake
 
 class TransformAlgorithm(SimpleGranuleTransformFunction):
@@ -81,7 +72,6 @@ class TransformAlgorithm(SimpleGranuleTransformFunction):
         @retval result Granule
         '''
 
-        log.debug("came here in execute")
         rdt = RecordDictionaryTool.load_from_granule(input)
         out_rdt = RecordDictionaryTool(stream_definition_id=params)
 
@@ -95,7 +85,46 @@ class TransformAlgorithm(SimpleGranuleTransformFunction):
         # Update the conductivity values
         out_rdt['conductivity'] = cond_value
 
-        log.debug("out_rdt::: %s" % out_rdt)
-
         # build the granule for conductivity
         return out_rdt.to_granule()
+
+class EventTriggeredTransform_B(TransformEventListener, TransformStreamPublisher):
+
+    def on_start(self):
+        super(EventTriggeredTransform_B, self).on_start()
+
+        self.awake = False
+
+        if not self.CFG.process.publish_streams.has_key('output'):
+            raise BadRequest("For event triggered transform, please send the stream_id "
+                             "using the special keyword, output")
+
+        self.output = self.CFG.process.publish_streams.output
+
+        # Read the parameter dict from the stream def of the stream
+        pubsub = PubsubManagementServiceProcessClient(process=self)
+        self.stream_definition = pubsub.read_stream_definition(stream_id=self.output)
+
+    def on_quit(self):
+        '''
+        Stop the subscriber
+        '''
+        super(EventTriggeredTransform_B, self).on_quit()
+
+    def process_event(self, msg, headers):
+        '''
+        Use CEI to launch the EventTriggeredTransform
+        '''
+
+        # ------------------------------------------------------------------------------------
+        # Process Spawning
+        # ------------------------------------------------------------------------------------
+        self.awake = True
+
+    def publish(self, msg, to_name):
+        '''
+        Publish on a stream
+        '''
+
+        if self.awake:
+            self.output.publish(msg=msg)
