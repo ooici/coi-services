@@ -39,12 +39,9 @@ class EventTriggeredTransform_A(TransformEventListener, TransformDataProcess):
 
     def process_event(self, msg, headers):
         '''
-        Use CEI to launch the EventTriggeredTransform
+        Wake up the transform
         '''
 
-        # ------------------------------------------------------------------------------------
-        # Process Spawning
-        # ------------------------------------------------------------------------------------
         self.awake = True
 
     def recv_packet(self, packet, stream_route, stream_id):
@@ -113,12 +110,9 @@ class EventTriggeredTransform_B(TransformEventListener, TransformStreamPublisher
 
     def process_event(self, msg, headers):
         '''
-        Use CEI to launch the EventTriggeredTransform
+        Wake up the transform
         '''
 
-        # ------------------------------------------------------------------------------------
-        # Process Spawning
-        # ------------------------------------------------------------------------------------
         self.awake = True
         log.debug("awake!!!")
 
