@@ -24,6 +24,10 @@ class InstrumentException(Exception):
         self.error_code = error_code
         self.msg = msg
     
+class PortAgentLaunchException(InstrumentException):
+    """Failed to launch the port agent"""
+    pass
+
 class InstrumentConnectionException(InstrumentException):
     """Exception related to connection with a physical instrument"""
     pass
