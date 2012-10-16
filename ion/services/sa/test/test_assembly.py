@@ -5,6 +5,7 @@ from pyon.public import IonObject
 from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.containers import create_unique_identifier
 
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
@@ -520,7 +521,7 @@ class TestAssembly(IonIntegrationTestCase):
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
         #------------------------------------------------------------------------------------------------
 
-        dp_obj.name = 'Inst Data Product'
+        dp_obj.name = 'Data Product'
         inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
         dp_obj.name = 'Log Data Product'
@@ -733,10 +734,10 @@ class TestAssembly(IonIntegrationTestCase):
         log.info("Create an IonObject for a data products")
         dp_obj = self.create_data_product_obj()
 
-        dp_obj.name = 'Inst Data Product'
+        dp_obj.name = create_unique_identifier('Inst Data Product')
         inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
-        dp_obj.name = 'Log Data Product'
+        dp_obj.name = create_unique_identifier('Log Data Product')
         log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
 
         #assign data products appropriately
@@ -753,19 +754,27 @@ class TestAssembly(IonIntegrationTestCase):
 
         c.OMS.activate_deployment(deployment_id, True)
 
+        # cleanup
+        c.IMS.force_delete_instrument_model(instrument_model_id)
+        c.IMS.force_delete_instrument_device(instrument_device_id)
+        c.OMS.force_delete_instrument_site(instrument_site_id)
+        c.OMS.force_delete_deployment(deployment_id)
+
 
 
     # test all 4 deployment contexts.  can fill in these context when their fields get defined
     def test_deployment_buoy(self):
-        context = IonObject(OT.BuoyDeploymentContext)
+        context = IonObject(OT.RemotePlatformDeploymentContext)
         self.template_tst_deployment_context(context)
 
     def test_deployment_mooring(self):
-        context = IonObject(OT.MooringDeploymentContext)
+        context = IonObject(OT.CabledNodeDeploymentContext)
+        self.template_tst_deployment_context(context)
+        context = IonObject(OT.CabledInstrumentDeploymentContext)
         self.template_tst_deployment_context(context)
 
     def test_deployment_glider(self):
-        context = IonObject(OT.GliderDeploymentContext)
+        context = IonObject(OT.MobileAssetDeploymentContext)
         self.template_tst_deployment_context(context)
 
     def test_deployment_cruise(self):

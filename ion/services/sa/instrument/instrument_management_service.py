@@ -8,6 +8,7 @@
 
 
 #from pyon.public import Container
+import tempfile
 from pyon.agent.agent import ResourceAgentClient
 from pyon.public import LCE
 from pyon.public import RT, PRED, OT, CFG
@@ -20,6 +21,7 @@ from pyon.core.object import ion_serializer
 from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
+import json
 
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
@@ -234,7 +236,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
 
-        log.debug("start_instrument_agent_instance: initial agent_config %s ", str(instrument_agent_instance_obj))
+        log.debug("validate_instrument_agent_instance: initial agent_config %s ", str(instrument_agent_instance_obj))
 
         #if there is a agent pid then assume that a drive is already started
         if instrument_agent_instance_obj.agent_process_id:
@@ -278,7 +280,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentModel '%s', got %d" %
                              (str(instrument_model_id), len(agent_objs)))
         instrument_agent_id = agent_objs[0]._id
-        log.debug("start_instrument_agent_instance: Got instrument agent '%s'", instrument_agent_id)
+        log.debug("validate_instrument_agent_instance: Got instrument agent '%s'", instrument_agent_id)
 
         out_streams = []
         out_streams_and_param_dicts = {}
@@ -294,7 +296,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         for product_id in data_product_ids:
             stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
 
-            log.debug("start_instrument_agent_instance:output stream ids: %s"  +  str(stream_ids))
+            log.debug("validate_instrument_agent_instance:output stream ids: %s"  +  str(stream_ids))
             #One stream per product ...for now.
             if not stream_ids:
                 raise NotFound("No Stream  attached to this Data Product " + str(product_id))
@@ -325,14 +327,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
             for model_stream_name, stream_info_dict  in streams_dict.items():
-                log.debug("start_instrument_agent_instance: model_stream_name: %s   stream_info_dict   %s ", str(model_stream_name), str(stream_info_dict) )
+                log.debug("validate_instrument_agent_instance: model_stream_name: %s   stream_info_dict   %s ", str(model_stream_name), str(stream_info_dict) )
 
                 if self.clients.pubsub_management.compare_stream_definition(stream_info_dict['stream_def_id'], stream_def_ids[0]):
                     log.debug("validate_instrument_agent_instance: pubsub_management.compare_stream_definition = true")
                     model_param_dict = get_param_dict(stream_info_dict['param_dict_name'])
 
                     stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
-                    log.debug("start_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
+                    log.debug("validate_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
                     stream_config_too[model_stream_name] = {'routing_key' : stream_route.routing_key,
                                                             'stream_id' : product_stream_id,
                                                             'stream_definition_ref' : stream_def_ids[0],
@@ -340,7 +342,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                             'parameter_dictionary':model_param_dict.dump()}
 
 
-                    log.debug("start_instrument_agent_instance: stream_config in progress:   %s ",
+                    log.debug("validate_instrument_agent_instance: stream_config in progress:   %s ",
                         str(stream_config_too) )
 
         ret = {}
@@ -350,6 +352,43 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return ret
 
+
+    def generate_instrument_agent_config_helper(self, params, instrument_agent_instance_obj):
+
+        assert "instrument_agent_id" in params
+        assert "instrument_device_id" in params
+        assert "stream_config" in params
+
+        instrument_agent_id           = params["instrument_agent_id"]
+        instrument_device_id          = params["instrument_device_id"]
+        stream_config_too             = params["stream_config"]
+
+
+        # Create driver config.
+        driver_config = {
+            'dvr_mod' : instrument_agent_instance_obj.driver_module,
+            'dvr_cls' : instrument_agent_instance_obj.driver_class,
+            'workdir' : tempfile.tempdir,
+            'process_type' : ('ZMQPyClassDriverLauncher',),
+            'comms_config' : instrument_agent_instance_obj.driver_config['comms_config'],
+            'pagent_pid' : instrument_agent_instance_obj.driver_config['pagent_pid']
+        }
+
+        # Create agent config.
+        agent_config = {
+            'driver_config' : driver_config,
+            'stream_config' : stream_config_too,
+            'agent'         : {'resource_id': instrument_device_id}
+        }
+
+        return driver_config, agent_config
+
+#    def generate_instrument_agent_config(self, instrument_device_id):
+#
+#
+#        params = self.validate_instrument_agent_instance(instrument_agent_instance_obj)
+#
+#        return self.generate_instrument_agent_config_helper(params)
 
     def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
@@ -388,25 +427,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         log.debug("start_instrument_agent_instance: stream_config:   %s ", str(stream_config_too) )
 
-        self._start_pagent(instrument_agent_instance_id)
+        self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
-        # Create driver config.
-        instrument_agent_instance_obj.driver_config = {
-            'dvr_mod' : instrument_agent_instance_obj.driver_module,
-            'dvr_cls' : instrument_agent_instance_obj.driver_class,
-            'workdir' : '/tmp/',
-            'process_type' : ('ZMQPyClassDriverLauncher',),
-            'comms_config' : instrument_agent_instance_obj.driver_config['comms_config'],
-            'pagent_pid' : instrument_agent_instance_obj.driver_config['pagent_pid']
-        }
+        driver_config, agent_config = self.generate_instrument_agent_config_helper(params, instrument_agent_instance_obj)
 
-        # Create agent config.
-        agent_config = {
-            'driver_config' : instrument_agent_instance_obj.driver_config,
-            'stream_config' : stream_config_too,
-            'agent'         : {'resource_id': instrument_device_id}
-        }
+        instrument_agent_instance_obj.driver_config = driver_config
 
         log.debug("start_instrument_agent_instance: agent_config %s ", str(agent_config))
 

@@ -167,6 +167,21 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 #        self.assertEqual([], extended_instrument.computed.recent_events.value)
 
 
+        # cleanup
+        #self.IMS.force_delete_instrument_agent(instrument_agent_id)
+        self.IMS.force_delete_instrument_model(instrument_model_id)
+        self.IMS.force_delete_instrument_device(instrument_device_id)
+        self.IMS.force_delete_platform_agent_instance(platform_agent_instance_id)
+        self.IMS.force_delete_platform_agent(platform_agent_id)
+        self.IMS.force_delete_platform_device(platform_device_id)
+        self.IMS.force_delete_platform_model(platform_model_id)
+        self.IMS.force_delete_sensor_device(sensor_device_id)
+        self.IMS.force_delete_sensor_model(sensor_model_id)
+
+        #stuff we associate to
+        self.RR.delete(data_producer_id)
+        self.RR.delete(org_id)
+
 
 
     def test_custom_attributes(self):
@@ -186,3 +201,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             }))
 
         self.IMS.assign_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)
+
+        # cleanup
+        self.IMS.force_delete_instrument_device(instrument_device_id)
+        self.IMS.force_delete_instrument_model(instrument_model_id)
