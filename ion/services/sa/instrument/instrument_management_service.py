@@ -37,7 +37,7 @@ from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
 from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
 from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
 from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
-
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
@@ -53,10 +53,7 @@ from ion.agents.port.port_agent_process import PortAgentProcess, PortAgentProces
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 from interface.objects import ComputedValueAvailability
-from ion.util.parameter_yaml_IO import get_param_dict
 
-
- 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
     """
@@ -268,9 +265,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 str(model_objs[0]) )
 
         for stream_name, param_dict_name in streams_dict.items():
-            param_dict = get_param_dict(param_dict_name)
-            #create a stream def for each param dict to match against the existing data products
-            stream_def_id = self.clients.pubsub_management.create_stream_definition(parameter_dictionary=param_dict.dump())
+            param_dict_id = self.clients.dataset_management.read_parameter_dictionary_by_name(param_dict_name,id_only=True)            #create a stream def for each param dict to match against the existing data products
+            stream_def_id = self.clients.pubsub_management.create_stream_definition(parameter_dictionary_id=param_dict_id)
             streams_dict[stream_name] = {'param_dict_name':param_dict_name, 'stream_def_id':stream_def_id}
         log.debug("validate_instrument_agent_instance: model streams_dict: %s", str(streams_dict))
 
@@ -331,8 +327,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
                 if self.clients.pubsub_management.compare_stream_definition(stream_info_dict['stream_def_id'], stream_def_ids[0]):
                     log.debug("validate_instrument_agent_instance: pubsub_management.compare_stream_definition = true")
-                    model_param_dict = get_param_dict(stream_info_dict['param_dict_name'])
-
+                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict['param_dict_name'])
                     stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
                     log.debug("validate_instrument_agent_instance: stream_route:   %s ", str(stream_route) )
                     stream_config_too[model_stream_name] = {'routing_key' : stream_route.routing_key,
