@@ -42,16 +42,15 @@ from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 
 class SinusoidalCtdPublisher(SimpleCtdPublisher):
-    def __init__(self, *args, **kwargs):
-        super(SinusoidalCtdPublisher, self).__init__(*args,**kwargs)
+    def on_start(self, *args, **kwargs):
+        super(SinusoidalCtdPublisher, self).on_start(*args,**kwargs)
         #@todo Init stuff
 
 
-    def _trigger_func(self, stream_id):
+    def publish_loop(self):
 
         sine_ampl = 2.0 # Amplitude in both directions
         samples = 60
-        sine_curr_deg = 0 # varies from 0 - 360
 
         startTime = time.time()
         count = samples #something other than zero

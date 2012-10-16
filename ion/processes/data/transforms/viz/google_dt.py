@@ -69,14 +69,15 @@ class VizTransformGoogleDT(TransformDataProcess):
 
     def get_stream_definition(self):
         stream_id = self.stream_ids[0]
-        stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
-        return stream_def._id
+        self.stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        return self.stream_def._id
 
 
 class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
     @staticmethod
     @SimpleGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
+
         stream_definition_id = params
 
         #init stuff
@@ -87,17 +88,33 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         rdt = RecordDictionaryTool.load_from_granule(input)
         data_description = []
 
+        data_description.append(('time','number','time'))
         for field in rdt.fields:
-
             if field == 'time':
-                data_description.append((field,'float',field))
+                continue
 
             data_description.append((field, 'number', field))
 
-        for i in xrange(len(rdt)):
-            var_tuple = [ float(rdt[field][i]) if rdt[field] is not None else 0.0 for field in rdt.fields]
-            data_table_content.append(var_tuple)
+        #for i in xrange(len(rdt)):
+        #    var_tuple = [ float(rdt[field][i]) if rdt[field] is not None else 0.0 for field in rdt.fields]
+        #    data_table_content.append(var_tuple)
 
+        for i in xrange(len(rdt)):
+            varTuple = []
+
+            # Put time first
+            varTuple.append(rdt['time'][i])
+            for field in rdt.fields:
+                # ignore time since its been already added
+                if field == None or field == 'time':
+                    continue
+
+                if field in rdt:
+                    varTuple.append(rdt[field][i])
+
+            # Append the tuples to the data table
+            if len(varTuple) > 0:
+                data_table_content.append(varTuple)
 
         out_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
 

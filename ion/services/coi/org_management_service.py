@@ -412,15 +412,17 @@ class OrgManagementService(BaseOrgManagementService):
         elif sap.type_ == OT.AcquireResourceExclusiveProposal:
             if not self.is_resource_acquired_exclusively(None, sap.resource):
 
-                #Automatically reject the proposal if the exipration request is greater than 12 hours from now
+                #Automatically reject the proposal if the exipration request is greater than 12 hours from now or 0
                 cur_time = int(get_ion_ts())
                 expiration = cur_time +  ( 12 * 60 * 60 * 1000 ) # 12 hours from now
                 if sap.expiration == 0 or sap.expiration > expiration:
                     #Automatically accept the proposal for exclusive access if it is not already acquired exclusively
                     provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.REJECTED, ProposalOriginatorEnum.PROVIDER)
 
+                    rejection_reason = "A proposal to acquire a resource exclusively must be included and be less than 12 hours."
+
                     #Update the Negotiation object with the latest SAP
-                    neg_id = self.negotiation_handler.update_negotiation(provider_accept_sap)
+                    neg_id = self.negotiation_handler.update_negotiation(provider_accept_sap, rejection_reason)
 
                     #Get the most recent version of the Negotiation resource
                     negotiation = self.clients.resource_registry.read(neg_id)
@@ -849,7 +851,7 @@ class OrgManagementService(BaseOrgManagementService):
         res_commitment = IonObject(OT.ResourceCommitment, resource_id=sap.resource, exclusive=exclusive)
 
         commitment = IonObject(RT.Commitment, name='', provider=sap.provider, consumer=sap.consumer, commitment=res_commitment,
-             description='Resource Commitment')
+             description='Resource Commitment', expiration=sap.expiration)
 
         commitment_id, commitment_rev = self.clients.resource_registry.create(commitment)
         commitment._id = commitment_id
@@ -990,15 +992,20 @@ class OrgManagementService(BaseOrgManagementService):
         return False
 
     def is_resource_acquired(self, user_id, resource_id):
+        return self.is_resource_acquired(None, resource_id)
+
+    def is_resource_acquired(self, user_id, resource_id):
 
         try:
+            cur_time = int(get_ion_ts())
             commitments,_ = self.clients.resource_registry.find_objects(resource_id,PRED.hasCommitment, RT.Commitment)
             if commitments:
                 for com in commitments:
                     if com.lcstate == LCS.RETIRED: #TODO remove when RR find_objects does not include retired objects
                         continue
 
-                    if com.consumer == user_id:
+                    #If the expiration is not 0 make sure it has not expired
+                    if ( user_id is None or com.consumer == user_id) and (( com.expiration == 0 ) or (com.expiration > 0 and cur_time < com.expiration)):
                         return True
 
         except Exception, e:
@@ -1007,20 +1014,23 @@ class OrgManagementService(BaseOrgManagementService):
         return False
 
     def is_resource_acquired_exclusively(self, resource_id):
-        self.is_resource_acquired_exclusively(None,resource_id)
+        return self.is_resource_acquired_exclusively(None,resource_id)
 
     def is_resource_acquired_exclusively(self, user_id, resource_id):
 
         try:
+            cur_time = int(get_ion_ts())
             commitments,_ = self.clients.resource_registry.find_objects(resource_id,PRED.hasCommitment, RT.Commitment)
             if commitments:
                 for com in commitments:
                     if com.lcstate == LCS.RETIRED: #TODO remove when RR find_objects does not include retired objects
                         continue
 
-                    if ( user_id is None and com.commitment.exclusive ) or \
-                       (user_id == com.consumer and com.commitment.exclusive):
+                    #If the expiration is not 0 make sure it has not expired
+                    if ( user_id is None or user_id == com.consumer )  and com.commitment.exclusive and \
+                        com.expiration > 0 and cur_time < com.expiration:
                             return True
+
         except Exception, e:
             log.error('is_resource_acquired_exclusively: %s for user_id:%s and resource_id:%s' %  (e.message, user_id, resource_id))
 

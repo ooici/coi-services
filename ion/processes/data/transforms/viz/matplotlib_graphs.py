@@ -66,27 +66,37 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
         log.debug('Matplotlib transform: Received Viz Data Packet')
         stream_definition_id = params
 
-        #init stuff
+        #Note config parameters
+        active_variables = None
+        if config:
+            active_variables = config["variables"].split(',')
+            active_variables = [x.strip() for x in active_variables]
 
         # parse the incoming data
         rdt = RecordDictionaryTool.load_from_granule(input)
 
         vardict = {}
         vardict['time'] = get_safe(rdt, 'time')
-        vardict['conductivity'] = get_safe(rdt, 'conductivity')
-        vardict['pressure'] = get_safe(rdt, 'pressure')
-        vardict['temperature'] = get_safe(rdt, 'temp')
 
-        vardict['longitude'] = get_safe(rdt, 'lon')
-        vardict['latitude'] = get_safe(rdt, 'lat')
-        vardict['height'] = get_safe(rdt, 'height')
+        for field in rdt.fields:
+            if field == 'time':
+                continue
+
+            # if no active variables were specified, plot all of them. Default setting
+            if active_variables == None:
+                vardict[field] = get_safe(rdt, field)
+                continue
+
+            #only pick fields which are in the active variables list
+            if active_variables and field in active_variables:
+                vardict[field] = get_safe(rdt, field)
+
         arrLen = len(vardict['time'])
 
         # init the graph_data structure for storing values
         graph_data = {}
         for varname in vardict.keys():    #psd.list_field_names():
             graph_data[varname] = []
-
 
         # If code reached here, the graph data storage has been initialized. Just add values
         # to the list
@@ -155,13 +165,13 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
         out_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
 
         # Prepare granule content
-        out_dict = {}
-        out_dict["viz_product_type"] = "matplotlib_graphs"
-        out_dict["image_obj"] = imgInMem.getvalue()
-        out_dict["image_name"] = fileName
-        out_dict["content_type"] = "image/png"
+        #out_dict = {}
+        out_rdt["viz_product_type"] = ["matplotlib_graphs"]
+        out_rdt["image_obj"] = [imgInMem.getvalue()]
+        out_rdt["image_name"] = [fileName]
+        out_rdt["content_type"] = ["image/png"]
 
-        out_rdt["mpl_graph"] = np.array([out_dict])
+        #out_rdt["graph_image_param_dict"] = np.array([out_dict])
         return out_rdt.to_granule()
 
 
@@ -170,7 +180,7 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
     @classmethod
     def line_style(cls, index):
 
-        color = ['b','g','r','c','m','y','k','w']
+        color = ['b','g','r','c','m','y','k']
         stroke = ['-','--','-.',':','.',',','o','+','x','*']
 
         style = color[index % len(color)] + stroke [(index / len(color)) % len(stroke)]
