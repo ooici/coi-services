@@ -13,7 +13,7 @@ from pyon.util.arg_check import validate_is_instance
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 
 
-def build_granule(data_producer_id=None, taxonomy=None, record_dictionary=None, param_dictionary=None):
+def build_granule(record_dictionary=None, **kwargs):
     """
     This method is a simple wrapper that knows how to produce a granule IonObject from a RecordDictionaryTool and a TaxonomyTool
 
@@ -26,7 +26,7 @@ def build_granule(data_producer_id=None, taxonomy=None, record_dictionary=None, 
     if record_dictionary is None:
         raise StandardError('Must provide a record dictionary')
     validate_is_instance(record_dictionary,RecordDictionaryTool)
-    return record_dictionary.to_granule()
+    return record_dictionary.to_granule(**kwargs)
 
 def combine_granules(granule_a, granule_b):
     """

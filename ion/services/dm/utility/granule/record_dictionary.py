@@ -88,7 +88,7 @@ class RecordDictionaryTool(object):
         
        
         if g.domain:
-            instance._shp = g.domain
+            instance._shp = (g.domain[0],)
         
         for k,v in g.record_dictionary.iteritems():
             if v is not None:
@@ -102,7 +102,7 @@ class RecordDictionaryTool(object):
         return instance
 
 
-    def to_granule(self, data_producer_id=''):
+    def to_granule(self, data_producer_id='',provider_metadata_update={}):
         granule = Granule()
         granule.record_dictionary = {}
         
@@ -116,6 +116,7 @@ class RecordDictionaryTool(object):
         granule.locator = self._locator
         granule.domain = self.domain.shape
         granule.data_producer_id=data_producer_id
+        granule.provider_metadata_update=provider_metadata_update
         return granule
 
 
