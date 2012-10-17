@@ -65,6 +65,10 @@ class RemoteClient(object):
         # Must define a resource id or service name.
         if not resource_id and not svc_name:
             raise ConfigNotFound('No resource or service specified.')
+
+        # Can't specify both a resource and a service.
+        if resource_id and svc_name:
+            raise ConfigNotFound('Can\'t specify both a resource and a service.')
         
         self._resource_id = resource_id
         self._xs_name = xs_name

@@ -208,30 +208,35 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
                                 queue_size=len(self._client._queue))        
         return command
     
-    def get_queue(self, resource_id=''):
+    def get_queue(self, resource_id='', svc_name=''):
         """
         Retrieve the command queue by resource id.
         """
-        if resource_id == '':
+        if resource_id == '' and svc_name == '':
             result = list(self._client._queue)
-        else:
+        elif resource_id:
             result = [x for x in self._client._queue if x.resource_id == resource_id]
+        elif svc_name:
+            result = [x for x in self._client._queue if x.svc_name == svc_name]
 
         return result
 
-    def clear_queue(self, resource_id=''):
+    def clear_queue(self, resource_id='', svc_name=''):
         """
         Clear the command queue by resource id.
         Only availabile in offline mode.
         """
         popped = []
         if self._link_status == TelemetryStatusType.UNAVAILABLE:
-            if resource_id == '':
+            if resource_id == '' and svc_name == '':
                 new_queue = []
                 popped = self._client._queue
-            else:
+            elif resource_id:
                 new_queue = [x for x in self._client._queue if x.resource_id != resource_id]
                 popped = [x for x in self._client._queue if x.resource_id == resource_id]
+            else:
+                new_queue = [x for x in self._client._queue if x.svc_name != svc_name]
+                popped = [x for x in self._client._queue if x.svc_name == svc_name]
             
             for x in popped:
                 if x.command_id in self._tx_dict:
@@ -245,7 +250,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
                                 queue_size=len(self._client._queue))        
             
         return popped
-
+    
     def pop_queue(self, command_id=''):
         """
         Pop command queue by command id.
@@ -267,36 +272,54 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
                     
         return poped
     
-    def get_pending(self, resource_id=''):
+    def get_pending(self, resource_id='', svc_name=''):
         """
         Retrieve pending commands by resource id.
         """
-        if resource_id == '':
+        pending = []
+        if resource_id == '' and svc_name == '':
             pending = self._tx_dict.values()
         
-        else:
-            pending = []
+        elif resource_id:
             for (key,val) in self._tx_dict.iteritems():
                 if val.resource_id == resource_id:
+                    pending.append(val)        
+        else:
+            for (key,val) in self._tx_dict.iteritems():
+                if val.svc_name == svc_name:
                     pending.append(val)
+            
         return pending
 
-    def clear_pending(self, resource_id=''):
-        """
-        Clear pending commands by resource id.
-        """
-        if resource_id == '':
+    """
+    We remove this command from the endpoint.
+    Once transmitted, commands can't be cleared.
+    (Complexity arount iterating over the dict while it is being
+    modified makes this tricky. )
+    def clear_pending(self, resource_id='', svc_name=''):
+        #
+        #Clear pending commands by resource id.
+        #
+        pending = []
+        if resource_id == '' and svc_name == '':
             pending = self._tx_dict.values()
             self._tx_dict = {}
             
-        else:
-            pending = []
+        elif resource_id:
             for (key,val) in self._tx_dict.iteritems():
                 if val.resource_id == resource_id:
                     pending.append(val)
                     self._tx_dict.pop(key)
+        
+        else:
+            for (key,val) in self._tx_dict.iteritems():
+                if val.svc_name == svc_name:
+                    pending.append(val)
+                    self._tx_dict.pop(key)
+            
         return pending
-
+    """
+    
     def get_port(self):
         """
         Retrieve the terrestrial server port.

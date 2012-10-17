@@ -54,6 +54,7 @@ from ion.services.sa.tcaa.r3pc import R3PCClient
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_get_clear_queue
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_pop_pending_queue
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_repeated_clear_pop
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_get_pending
 
 class FakeProcess(LocalContextMixin):
     """
@@ -97,6 +98,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._listen_name = self._svc_name + self._xs_name
         self._platform_resource_id = 'abc123'
         self._resource_id = 'fake_id'
+        self._rmt_svc_name = 'fake_svc'
         self._no_requests = 10
         self._requests_sent = {}
         self._results_recv = {}
@@ -299,6 +301,19 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
                              kwargs={'kwargs1':'someval'})
         return cmd
     
+    def make_fake_svc_command(self, no):
+        """
+        Build a fake command for use in tests.
+        """
+            
+        cmdstr = 'fake_cmd_%i' % no
+        cmd = IonObject('RemoteCommand',
+                             svc_name=self._rmt_svc_name,
+                             command=cmdstr,
+                             args=['arg1', 23],
+                             kwargs={'kwargs1':'someval'})
+        return cmd
+
     def test_process_queued(self):
         """
         test_process_queued
@@ -413,7 +428,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         """
         
         # Set up for events expected.
-        self._no_queue_mod_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests * 2
 
         # Queue commands.        
         for i in range(self._no_requests):
@@ -421,21 +436,35 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
             cmd = self.te_client.enqueue_command(cmd)
             self._requests_sent[cmd.command_id] = cmd
         
+        # Queue commands.        
+        for i in range(self._no_requests):
+            cmd = self.make_fake_svc_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+
         # Confirm queue mod events.
         self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
         
         # Confirm get queue with no id.
         queue = self.te_client.get_queue()
-        self.assertEqual(len(queue), self._no_requests)
+        self.assertEqual(len(queue), self._no_requests * 2)
 
         # Confirm get queue with id.
-        queue = self.te_client.get_queue(self._resource_id)
+        queue = self.te_client.get_queue(resource_id=self._resource_id)
+        self.assertEqual(len(queue), self._no_requests)
+
+        # Confirm get queue with svc name.
+        queue = self.te_client.get_queue(svc_name=self._rmt_svc_name)
         self.assertEqual(len(queue), self._no_requests)
 
         # Confirm get queue with bogus id.
-        queue = self.te_client.get_queue('bogus_id')        
+        queue = self.te_client.get_queue(resource_id='bogus_id')        
         self.assertEqual(len(queue), 0)
 
+        # Confirm get queue with bogus id.
+        queue = self.te_client.get_queue(svc_name='bogus_svc')        
+        self.assertEqual(len(queue), 0)
+        
         # Reset queue mod expected events.        
         self._queue_mod_evts = []
         self._no_queue_mod_evts = 1
@@ -447,12 +476,12 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         # Confirm queue mod event and mods.
         self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
         queue = self.te_client.get_queue()
-        self.assertEqual(len(poped), self._no_requests)
+        self.assertEqual(len(poped), self._no_requests * 2)
         self.assertEqual(len(queue), 0)
-
+        
         # Queue new commands and confirm event.       
         self._queue_mod_evts = []
-        self._no_queue_mod_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests * 2
         self._done_queue_mod_evts = AsyncResult()
         
         self._requests_sent = {}
@@ -461,6 +490,11 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
             cmd = self.te_client.enqueue_command(cmd)
             self._requests_sent[cmd.command_id] = cmd
         
+        for i in range(self._no_requests):
+            cmd = self.make_fake_svc_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+
         self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
 
         # Reset queue mod expected events.
@@ -469,14 +503,28 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._done_queue_mod_evts = AsyncResult()
 
         # Clear queue with id.
-        poped = self.te_client.clear_queue(self._resource_id)
+        poped = self.te_client.clear_queue(resource_id=self._resource_id)
+    
+        # Confirm mods and mod events.
+        self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(poped), self._no_requests)
+        self.assertEqual(len(queue), self._no_requests)
+
+        # Reset queue mod expected events.
+        self._queue_mod_evts = []
+        self._no_queue_mod_evts = 1
+        self._done_queue_mod_evts = AsyncResult()
+
+        # Clear queue with id.
+        poped = self.te_client.clear_queue(svc_name=self._rmt_svc_name)
     
         # Confirm mods and mod events.
         self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
         queue = self.te_client.get_queue()
         self.assertEqual(len(poped), self._no_requests)
         self.assertEqual(len(queue), 0)
-
+    
         # Queue new commands and confirm events.        
         self._queue_mod_evts = []
         self._no_queue_mod_evts = self._no_requests
@@ -491,16 +539,22 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
         
         # Clear queue with bogus id.
-        poped = self.te_client.clear_queue('bogus id')
+        poped = self.te_client.clear_queue(resource_id='bogus id')
         queue = self.te_client.get_queue()
         self.assertEqual(len(poped), 0)
         self.assertEqual(len(queue), self._no_requests)
-        
+
+        # Clear queue with bogus svc name.
+        poped = self.te_client.clear_queue(svc_name='bogus id')
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(poped), 0)
+        self.assertEqual(len(queue), self._no_requests)
+
         # Clear queue and confirm empty.
         self.te_client.clear_queue()
         queue = self.te_client.get_queue()
         self.assertEqual(len(queue), 0)
-        
+                
         # Turn on link and wait a few seconds.
         # Confirm no data or tx events arrive.
         self.on_link_up()
@@ -671,3 +725,39 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         pending = self.te_client.get_pending()
         self.assertEqual(len(pending), 0)        
 
+    def test_get_pending(self):
+        """
+        test_process_queued
+        Test forwarding of queued commands upon link up.
+        """
+        
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._no_telem_evts = 2
+        
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+        
+        self.on_link_up()
+
+        self._no_requests = 3
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)        
+
+        pending = self.te_client.get_pending(resource_id=self._resource_id)
+        for x in pending:
+            self.assertIn(x.command_id, self._requests_sent.keys())
+            
+        self._no_requests = 10
+        self._done_evt = AsyncResult()
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)        
+
+        pending = self.te_client.get_pending()
+        self.assertEqual(len(pending), 0)
+                
+        self.on_link_down()
+
+        self._done_telem_evts.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())

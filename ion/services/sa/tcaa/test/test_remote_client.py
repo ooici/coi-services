@@ -624,6 +624,11 @@ class TestRemoteClient(IonIntegrationTestCase):
             remote_client = RemoteClient(iface=IResourceAgent, xs_name=self._xs_name,
                     process=FakeProcess())
 
+        # Construct with both resource and service specified.
+        with self.assertRaises(ConfigNotFound):
+            remote_client = RemoteClient(iface=IResourceAgent, xs_name=self._xs_name,
+                    resource_id=IA_RESOURCE_ID, svc_name='resource_registry', process=FakeProcess())
+
         # Create a valid resource client.
         remote_client = RemoteClient(iface=IResourceAgent, xs_name=self._xs_name,
             resource_id=IA_RESOURCE_ID, process=FakeProcess())
