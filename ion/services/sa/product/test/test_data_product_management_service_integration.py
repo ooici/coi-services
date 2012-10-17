@@ -233,7 +233,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
 
         # Get the events corresponding to the data product
-        events = self.unsc.get_recent_events(resource_id=dp_id)
+        ret = self.unsc.get_recent_events(resource_id=dp_id)
+        events = ret.value
 
         for event in events:
             log.debug("event time: %s" % event.ts_created)
