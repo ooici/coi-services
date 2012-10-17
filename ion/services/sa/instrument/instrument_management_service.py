@@ -41,7 +41,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
-from ion.util.module_uploader import RegisterModulePreparer
+from ion.util.module_uploader import RegisterModulePreparerEgg
 from ion.util.qa_doc_parser import QADocParser
 
 # TODO: these are for methods which may belong in DAMS/DPMS/MFMS
@@ -132,10 +132,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise BadRequest("Missing configuration items for host and directory -- destination of driver release")
 
 
-            self.module_uploader = RegisterModulePreparer(dest_user=cfg_user,
-                                                          dest_host=cfg_host,
-                                                          dest_path=cfg_remotepath,
-                                                          dest_wwwroot=cfg_wwwroot)
+            self.module_uploader = RegisterModulePreparerEgg(dest_user=cfg_user,
+                                                             dest_host=cfg_host,
+                                                             dest_path=cfg_remotepath,
+                                                             dest_wwwroot=cfg_wwwroot)
 
     def override_clients(self, new_clients):
         """
@@ -643,9 +643,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #make an attachment for the url
         attachments.append(IonObject(RT.Attachment,
-                                     name=uploader_obj.get_destination_egg_url_filename(),
+                                     name=uploader_obj.get_egg_urlfile_name(),
                                      description="url to egg",
-                                     content="[InternetShortcut]\nURL=%s" % uploader_obj.get_destination_egg_url(),
+                                     content="[InternetShortcut]\nURL=%s" % uploader_obj.get_destination_url(),
                                      content_type="text/url",
                                      keywords=[KeywordFlag.EGG_URL],
                                      attachment_type=AttachmentType.ASCII))
@@ -766,9 +766,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##
 
     def check_exclusive_commitment(self, msg,  headers):
-        '''
+        """
         This function is used for governance validation for the request_direct_access and stop_direct_access operation.
-        '''
+        """
 
         user_id = headers['ion-actor-id']
         resource_id = msg['instrument_device_id']

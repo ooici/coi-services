@@ -1,7 +1,7 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 import tempfile
-from ion.util.module_uploader import RegisterModulePreparer
+from ion.util.module_uploader import RegisterModulePreparerEgg
 from pyon.ion.resource import LCE
 from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
@@ -107,10 +107,10 @@ class TestIMSRegisterAgent(PyonTestCase):
         # must call this manually
         self.IMS.on_init()
 
-        self.IMS.module_uploader = RegisterModulePreparer(dest_user="my_user",
-                                                          dest_host="my_host",
-                                                          dest_path="/my/remote/wwwroot/my/path",
-                                                          dest_wwwroot="/my/remote/wwwroot")
+        self.IMS.module_uploader = RegisterModulePreparerEgg(dest_user="my_user",
+                                                             dest_host="my_host",
+                                                             dest_path="/my/remote/wwwroot/my/path",
+                                                             dest_wwwroot="/my/remote/wwwroot")
 
         self.addCleanup(delattr, self, "IMS")
         self.addCleanup(delattr, self, "mock_ionobj")
