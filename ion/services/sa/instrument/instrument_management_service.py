@@ -74,6 +74,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # set up all of the policy interceptions
         if self.container and self.container.governance_controller:
             reg_precondition = self.container.governance_controller.register_process_operation_precondition
+
+            #LCS
             reg_precondition(self, 'execute_instrument_agent_lifecycle',
                              self.instrument_agent.policy_fn_lcs_precondition("instrument_agent_id"))
             reg_precondition(self, 'execute_instrument_agent_instance_lifecycle',
@@ -95,6 +97,27 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             reg_precondition(self, 'execute_sensor_device_lifecycle',
                              self.sensor_device.policy_fn_lcs_precondition("sensor_device_id"))
 
+            #Delete
+            reg_precondition(self, 'force_delete_instrument_agent',
+                             self.instrument_agent.policy_fn_delete_precondition("instrument_agent_id"))
+            reg_precondition(self, 'force_delete_instrument_agent_instance',
+                             self.instrument_agent_instance.policy_fn_delete_precondition("instrument_agent_instance_id"))
+            reg_precondition(self, 'force_delete_instrument_model',
+                             self.instrument_model.policy_fn_delete_precondition("instrument_model_id"))
+            reg_precondition(self, 'force_delete_instrument_device',
+                             self.instrument_device.policy_fn_delete_precondition("instrument_device_id"))
+            reg_precondition(self, 'force_delete_platform_agent',
+                             self.platform_agent.policy_fn_delete_precondition("platform_agent_id"))
+            reg_precondition(self, 'force_delete_platform_agent_instance',
+                             self.platform_agent_instance.policy_fn_delete_precondition("platform_agent_instance_id"))
+            reg_precondition(self, 'force_delete_platform_model',
+                             self.platform_model.policy_fn_delete_precondition("platform_model_id"))
+            reg_precondition(self, 'force_delete_platform_device',
+                             self.platform_device.policy_fn_delete_precondition("platform_device_id"))
+            reg_precondition(self, 'force_delete_sensor_model',
+                             self.sensor_model.policy_fn_delete_precondition("sensor_model_id"))
+            reg_precondition(self, 'force_delete_sensor_device',
+                             self.sensor_device.policy_fn_delete_precondition("sensor_device_id"))
 
     def init_module_uploader(self):
         if self.CFG:

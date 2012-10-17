@@ -17,6 +17,8 @@ import inspect
 class ResourceImpl(object):
 
     def __init__(self, clients):
+        self.policy = None # must get filled in by extender of class
+
         self.clients = clients
 
         self.iontype  = self._primary_object_name()
@@ -34,6 +36,7 @@ class ResourceImpl(object):
 
 
 
+
     ##################################################
     #
     #    STUFF THAT SHOULD BE OVERRIDDEN
@@ -45,14 +48,14 @@ class ResourceImpl(object):
         the IonObject type that this impl controls
         """
         #like "InstrumentAgent" or (better) RT.InstrumentAgent
-        raise NotImplementedError("Extender of the class must set this!")
+        return "ErrorNotImplemented"
 
     def _primary_object_label(self):
         """
         the argument label that this impl controls
         """
         #like "instrument_agent"
-        raise NotImplementedError("Extender of the class must set this!")
+        return "error_not_implemented"
 
     def on_impl_init(self):
         """
@@ -124,9 +127,13 @@ class ResourceImpl(object):
 
     ##################################################
     #
-    #   LIFECYCLE TRANSITION ... THIS IS IMPORTANT
+    #   PRECONDITIONS, LIFECYCLE TRANSITION ... THIS IS IMPORTANT
     #
     ##################################################
+
+    def _policy(self):
+        assert self.policy
+        return self.policy
 
     def advance_lcs(self, resource_id, transition_event):
         """
@@ -156,6 +163,31 @@ class ResourceImpl(object):
                      self.iontype, transition_event, str(ret))
 
         return ret
+
+    def policy_fn_delete_precondition(self, id_field):
+
+        def freeze():
+            def policy_fn(msg, headers):
+                #The validation interceptor should have already verified that these are in the msg dict
+                resource_id = msg[id_field]
+                log.debug("policy_fn for force_delete got %s=(%s)'%s'",
+                          id_field,
+                          type(resource_id).__name__,
+                          resource_id)
+
+                ret = self._policy().precondition_delete(resource_id)
+                #check_lcs_precondition_satisfied(resource_id, lifecycle_event)
+                isok, msg = ret
+                log.debug("policy_fn for '%s %s' successfully returning %s - %s",
+                          "force_delete",
+                          id_field,
+                          isok,
+                          msg)
+                return ret
+
+            return policy_fn
+
+        return freeze()
 
     def policy_fn_lcs_precondition(self, id_field):
 
@@ -412,6 +444,39 @@ class ResourceImpl(object):
 
         return
 
+
+    def pluck(self, primary_object_id=''):
+        """
+        delete all associations to/from a resource
+        """
+
+        # find all associations where this is the subject
+        _, obj_assns = self.RR.find_objects(subject=primary_object_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.RR.find_subjects(object=primary_object_id, id_only=True)
+
+        log.debug("pluck will remove %s subject associations and %s object associations",
+                 len(sbj_assns), len(obj_assns))
+
+        for assn in obj_assns:
+            log.debug("pluck deleting object association %s", assn)
+            self.RR.delete_association(assn)
+
+        for assn in sbj_assns:
+            log.debug("pluck deleting subject association %s", assn)
+            self.RR.delete_association(assn)
+
+        # find all associations where this is the subject
+        _, obj_assns = self.RR.find_objects(subject=primary_object_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.RR.find_subjects(object=primary_object_id, id_only=True)
+
+        log.debug("post-deletions, pluck found %s subject associations and %s object associations",
+                 len(sbj_assns), len(obj_assns))
+
+
     def force_delete_one(self, primary_object_id=''):
         """
         delete a single object of the predefined type
@@ -425,15 +490,7 @@ class ResourceImpl(object):
 
         self.on_pre_force_delete(primary_object_id, primary_object_obj)
 
-        # delete all associations where this is the subject
-        _, assns = self.RR.find_objects(subject=primary_object_id, id_only=True)
-        for assn in assns:
-            self.RR.delete_association(assn)
-
-        # delete all associations where this is the object
-        _, assns = self.RR.find_subjects(object=primary_object_id, id_only=True)
-        for assn in assns:
-            self.RR.delete_association(assn)
+        self.pluck(primary_object_id)
 
         self.RR.delete(primary_object_id)
 

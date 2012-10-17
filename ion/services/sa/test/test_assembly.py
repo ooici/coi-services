@@ -1,6 +1,7 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.public import IonObject
 from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
@@ -24,6 +25,7 @@ from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
+from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
 from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
@@ -120,6 +122,7 @@ class TestAssembly(IonIntegrationTestCase):
         platform_agent_impl     = PlatformAgentImpl(c2)
         instrument_device_impl  = InstrumentDeviceImpl(c2)
         sensor_device_impl      = SensorDeviceImpl(c2)
+        resource_impl           = ResourceImpl(c2)
 
         instrument_agent_instance_impl = InstrumentAgentInstanceImpl(c2)
 
@@ -608,12 +611,20 @@ class TestAssembly(IonIntegrationTestCase):
         log.debug("L4-CI-SA-RQ-334 RETIRE")
         log.debug("L4-CI-SA-RQ-335: Instrument activation shall support transition to the retired state of instruments")
 
-
+        
         #----------------------------------------------
         #
         # force_deletes
         #
         #----------------------------------------------
+
+        # need to "pluck" some resources out of associations
+        resource_impl.pluck(instrument_model_id)
+        resource_impl.pluck(platform_model_id)
+        resource_impl.pluck(instrument_agent_id)
+        resource_impl.pluck(platform_agent_id)
+        resource_impl.pluck(deployment_id)
+        resource_impl.pluck(deployment_id2)
 
         self.generic_fd_script(observatory_id, "observatory", c.OMS)
         self.generic_fd_script(subsite_id, "subsite", c.OMS)
@@ -629,7 +640,8 @@ class TestAssembly(IonIntegrationTestCase):
         self.generic_fd_script(sensor_device_id, "sensor_device", c.IMS)
         self.generic_fd_script(platform_agent_instance_id, "platform_agent_instance", c.IMS)
         self.generic_fd_script(instrument_agent_instance_id, "instrument_agent_instance", c.IMS)
-
+        self.generic_fd_script(deployment_id, "deployment", c.OMS)
+        self.generic_fd_script(deployment_id2, "deployment", c.OMS)
 
     def create_data_product_obj(self):
 

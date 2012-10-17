@@ -408,10 +408,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             self.clients.resource_registry.delete_association(association)
 
         # Delete the deployment
-        self.clients.resource_registry.delete(deployment_id)
+        self.clients.resource_registry.retire(deployment_id)
 
     def force_delete_deployment(self, deployment_id=''):
-        pass
+        self.clients.resource_registry.delete(deployment_id)
 
 
     ############################
