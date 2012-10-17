@@ -500,9 +500,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             producer_obj.producer_context.deactivation_time =  IonTime().to_string()
             self.clients.resource_registry.update(producer_obj)
 
-        return
-
-
     def find_instrument_agent_instances(self, filters=None):
         """
 
@@ -566,11 +563,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         #retrieve the associated process definition
         process_def_objs = self.instrument_agent.find_stemming_process_definition(instrument_agent_id)
-
-#        if not process_def_objs:
-#            raise NotFound("No Process Definition  attached to this Instrument Agent " + str(instrument_agent_id))
-#        if len(process_def_objs) > 1:
-#            raise BadRequest("Instrument Agent should only have ONE Process Definition" + str(instrument_agent_id))
 
         for pd_obj in process_def_objs:
             self.instrument_agent.unlink_process_definition(instrument_agent_id, pd_obj._id)
@@ -641,11 +633,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #updates the state of this InstAgent to integrated
         self.instrument_agent.advance_lcs(instrument_agent_id, LCE.INTEGRATE)
-
-
-        return
-
-
 
     ##########################################################################
     #

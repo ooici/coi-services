@@ -529,7 +529,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------------------------------------------------------------
 
-
         outgoing_stream_l0_conductivity_id, \
         outgoing_stream_l0_pressure_id, \
         outgoing_stream_l0_temperature_id = self._create_stream_definitions()
@@ -595,11 +594,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
         inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
 
-#        # Start a resource agent client to talk with the instrument agent.
-#        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
-#        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
-#
-
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = ResourceAgentClient(instDevice_id,
             to_name=inst_agent_instance_obj.agent_process_id,
@@ -638,6 +632,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 #        self._ia_client.set_param(params)
 
 
+        #todo There is no ResourceAgentEvent attribute for go_streaming... so what should be the command for it?
 #        log.debug("test_activateInstrumentStream: calling go_streaming ")
 #        cmd = AgentCommand(command='go_streaming')
 #        reply = self._ia_client.execute_agent(cmd)
@@ -645,12 +640,9 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 #        retval = self._ia_client.execute_agent(cmd)
 #        state = retval.result
 #        log.debug("test_activateInstrumentStream: return from go_streaming state: %s", str(state))
-#
-#
-#        time.sleep(7)
-#
-#        #todo: fix the code below... looks like command='go_observatory', does not work
-#
+
+
+        #todo There is no ResourceAgentEvent attribute for go_observatory... so what should be the command for it?
 #        log.debug("test_activateInstrumentStream: calling go_observatory")
 #        cmd = AgentCommand(command='go_observatory')
 #        reply = self._ia_client.execute_agent(cmd)
@@ -658,19 +650,18 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 #        retval = self._ia_client.execute_agent(cmd)
 #        state = retval.result
 #        log.debug("test_activateInstrumentStream: return from go_observatory state  %s", str(state))
-#
-#
-#
-#        log.debug("test_activateInstrumentStream: calling reset ")
-#        cmd = AgentCommand(command='reset')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrumentStream: return from reset state:%s", str(reply.result))
-#        time.sleep(2)
 
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        reply = self._ia_client.execute_agent(cmd)
+        self.assertTrue(reply.status == 0)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------
         # Deactivate InstrumentAgentInstance
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+
+        #-------------------------------------------------------------------------------------------------
+        # Cleanup processes
+        #-------------------------------------------------------------------------------------------------
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
