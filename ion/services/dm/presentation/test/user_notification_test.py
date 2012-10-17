@@ -8,7 +8,7 @@
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
-from pyon.public import IonObject, RT, PRED, Container, CFG
+from pyon.public import IonObject, RT, OT, PRED, Container, CFG
 from pyon.core.exception import NotFound, BadRequest
 from pyon.core.bootstrap import get_sys_name
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
@@ -16,7 +16,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
-from interface.objects import UserInfo, DeliveryConfig
+from interface.objects import UserInfo, DeliveryConfig, ComputedListValue, ComputedValueAvailability
 from interface.objects import DeviceEvent
 from pyon.util.context import LocalContextMixin
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
@@ -1416,7 +1416,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Get the notifications for the user
         #--------------------------------------------------------------------------------------
 
-        notifications = self.unsc.get_user_notifications(user_id=user_id)
+        ret= self.unsc.get_user_notifications(user_id=user_id)
+
+        self.assertIsInstance(ret, ComputedListValue)
+        notifications = ret.value
+        self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
 
         names = []
         origins = []
@@ -1463,8 +1467,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Test with specified limit
         #--------------------------------------------------------------------------------------
 
-        events = self.unsc.get_recent_events(resource_id='Some_Resource_Agent_ID1', limit = 5)
+        ret = self.unsc.get_recent_events(resource_id='Some_Resource_Agent_ID1', limit = 5)
+        self.assertIsInstance(ret, ComputedListValue)
+        self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
+        events = ret.value
         self.assertEquals(len(events), 5)
+
         for event in events:
             self.assertEquals(event.origin, 'Some_Resource_Agent_ID1')
 
@@ -1472,7 +1480,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Test without specified limit
         #--------------------------------------------------------------------------------------
 
-        events = self.unsc.get_recent_events(resource_id='Some_Resource_Agent_ID2')
+        ret = self.unsc.get_recent_events(resource_id='Some_Resource_Agent_ID2')
+        self.assertIsInstance(ret, ComputedListValue)
+        self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
+        events = ret.value
         self.assertEquals(len(events), 10)
         for event in events:
             self.assertEquals(event.origin, 'Some_Resource_Agent_ID2')
