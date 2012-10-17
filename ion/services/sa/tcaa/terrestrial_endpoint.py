@@ -113,7 +113,6 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
                                     origin=origin)
             log.debug('Published remote result: %s.', str(result))
         except KeyError:
-            log.warning('#############################################')
             log.warning('Error publishing remote result: %s.', str(_result))
             log.warning('Command: %s.', str(cmd))
             log.warning('Result: %s.', str(_result))
@@ -194,10 +193,10 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         Enqueue command for remote processing.
         """
         if link and self._link_status != TelemetryStatusType.AVAILABLE:
-            return
+            raise Conflict('Cannot forward while link is down.')
         
         if not isinstance(command, RemoteCommand):
-            return
+            raise BadRequest('Invalid command parameter.')
         
         command.time_queued = time.time()
         command.command_id = str(uuid.uuid4())

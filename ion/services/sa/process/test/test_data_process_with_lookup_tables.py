@@ -39,7 +39,7 @@ class FakeProcess(LocalContextMixin):
 
     
 
-@attr('HARDWARE', group='foo')
+@attr('INT', group='sa')
 class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
     def setUp(self):
@@ -151,8 +151,6 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product)
-
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
         log.info('TestDataProcessWithLookupTable: Data product streams1 = %s', stream_ids)
@@ -174,8 +172,6 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         log.info( 'new ctd_raw_data_product_id = %s', ctd_raw_data_product)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
-
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
@@ -231,7 +227,6 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
                                                                                     parameter_dictionary)
 
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
 
         log.debug("TestDataProcessWithLookupTable: create output data product L0 pressure")
@@ -246,7 +241,6 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
                                                                                 outgoing_stream_l0_pressure_id,
                                                                                 parameter_dictionary)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("TestDataProcessWithLookupTable: create output data product L0 temperature")
 
@@ -262,7 +256,6 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
                                                                                     parameter_dictionary)
 
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
         #-------------------------------
@@ -284,73 +277,4 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         log.info( 'TestDataProcessWithLookupTable: InstrumentDevice attachment id = %s', processAttachment)
 
 
-
-
-#        #-------------------------------
-#        # Launch InstrumentAgentInstance, connect to the resource agent client
-#        #-------------------------------
-#        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
-#
-#        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
-#        print 'test_createTransformsThenActivateInstrument: Instrument agent instance obj: = ', inst_agent_instance_obj
-#
-#        # Start a resource agent client to talk with the instrument agent.
-#        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
-#        print 'activate_instrument: got ia client %s', self._ia_client
-#        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
-#
-#
-#        #-------------------------------
-#        # Sampling
-#        #-------------------------------
-#        cmd = AgentCommand(command='initialize')
-#        retval = self._ia_client.execute_agent(cmd)
-#        print retval
-#        log.debug("test_activateInstrument: initialize %s", str(retval))
-#
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: Sending go_active command (L4-CI-SA-RQ-334)")
-#        cmd = AgentCommand(command='go_active')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return value from go_active %s", str(reply))
-#        time.sleep(2)
-#        cmd = AgentCommand(command='get_current_state')
-#        retval = self._ia_client.execute_agent(cmd)
-#        state = retval.result
-#        log.debug("test_activateInstrument: current state after sending go_active command %s    (L4-CI-SA-RQ-334)", str(state))
-#
-#        cmd = AgentCommand(command='run')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: run %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample ")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample 2")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample 3")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling reset ")
-#        cmd = AgentCommand(command='reset')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return from reset %s", str(reply))
-#        time.sleep(2)
-#
-#        #-------------------------------
-#        # Deactivate InstrumentAgentInstance
-#        #-------------------------------
-#        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 

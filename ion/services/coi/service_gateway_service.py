@@ -418,7 +418,7 @@ def build_message_headers( ion_actor_id, expiry):
         org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
 
-        role_header = self.container.governance_controller.get_role_message_headers(org_roles)
+        role_header = service_gateway_instance.container.governance_controller.get_role_message_headers(org_roles)
 
         #Cache the roles by user id
         service_gateway_instance.user_data_cache.put(ion_actor_id, role_header)

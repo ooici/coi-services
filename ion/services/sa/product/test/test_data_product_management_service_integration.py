@@ -10,6 +10,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.log import log
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
+from pyon.datastore.datastore import DataStore
 
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -85,6 +86,13 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_space
 
         self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
+
+    def get_datastore(self, dataset_id):
+        dataset = self.dataset_management.read_dataset(dataset_id)
+        datastore_name = dataset.datastore_name
+        datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
+        return datastore
+
 
     @unittest.skip('OBE')
     def test_get_last_update(self):
@@ -293,6 +301,11 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         log.debug('new dp_id = %s' % dp_id)
         log.debug("test_createDataProduct: Data product info from registry %s (L4-CI-SA-RQ-308)", str(dp_obj))
+
+        dataset_ids, _ = self.rrclient.find_objects(subject=dp_id, predicate=PRED.hasDataset, id_only=True)
+        if not dataset_ids:
+            raise NotFound("Data Product %s dataset  does not exist" % str(dp_id))
+        self.get_datastore(dataset_ids[0])
 
         #------------------------------------------------------------------------------------------------
         # test activate and suspend data product persistence

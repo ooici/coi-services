@@ -32,6 +32,7 @@ from ion.agents.port.port_agent_process import PortAgentProcessType
 from pyon.public import CFG
 from pyon.public import RT, LCS, PRED
 from pyon.public import Container, log, IonObject
+from pyon.datastore.datastore import DataStore
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
@@ -117,6 +118,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                                           configuration=configuration)
 
         return pid
+
+    def get_datastore(self, dataset_id):
+        dataset = self.datasetclient.read_dataset(dataset_id)
+        datastore_name = dataset.datastore_name
+        datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
+        return datastore
 
 
     #@unittest.skip("TBD")
@@ -225,7 +232,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
+
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
@@ -235,6 +242,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
         log.debug( 'Data set for data_product_id1 = %s', dataset_ids[0])
         self.parsed_dataset = dataset_ids[0]
+        #create the datastore at the beginning of each int test that persists data
+        self.get_datastore(self.parsed_dataset)
+
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         pid = self.create_logger('ctd_parsed', stream_ids[0] )
         self.loggerpids.append(pid)

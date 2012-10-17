@@ -225,7 +225,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=oldInstDevice_id, data_product_id=instrument_site_output_dp_id)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=instrument_site_output_dp_id)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=instrument_site_output_dp_id)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(instrument_site_output_dp_id, PRED.hasStream, None, True)
