@@ -237,7 +237,7 @@ class DiscoveryUnitTest(PyonTestCase):
 
         retval = self.discovery.query_range('index_id','field',0,100,id_only=False)
 
-        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery().range(field='field', from_value=0, to_value=100))
+        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery.range(field='field', from_value=0, to_value=100))
         retval.sort()
         self.assertTrue(retval==hits, '%s' % retval)
         
@@ -261,7 +261,7 @@ class DiscoveryUnitTest(PyonTestCase):
 
         retval = self.discovery.query_time('index_id','field',date1,date2,id_only=False)
 
-        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery().range(field='field', from_value=ts1, to_value=ts2))
+        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery.range(field='field', from_value=ts1, to_value=ts2))
         retval.sort()
         self.assertTrue(retval==hits, '%s' % retval)
         

@@ -439,7 +439,7 @@ class DiscoveryService(BaseDiscoveryService):
         validate_true(value, 'Unspecified value')
 
 
-        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
+        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port, verbose=True)
 
         source = self.clients.resource_registry.read(source_id)
 
@@ -466,7 +466,12 @@ class DiscoveryService(BaseDiscoveryService):
         if field == '*':
             field = '_all'
 
-        query = ep.ElasticQuery().wildcard(field=field, value=value)
+        if '*' in value:
+            query = ep.ElasticQuery.wildcard(field=field, value=value)
+        else:
+            query = ep.ElasticQuery.field(field=field, query=value)
+
+        query = ep.ElasticQuery.wildcard(field=field, value=value)
         response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
 
         IndexManagementService._check_response(response)
@@ -508,7 +513,7 @@ class DiscoveryService(BaseDiscoveryService):
         if field == '*':
             field = '_all'
 
-        query = ep.ElasticQuery().range(
+        query = ep.ElasticQuery.range(
             field      = field,
             from_value = from_value,
             to_value   = to_value
@@ -558,7 +563,7 @@ class DiscoveryService(BaseDiscoveryService):
         if to_value is not None:
             to_value = time.mktime(dateutil.parser.parse(to_value).timetuple()) * 1000
 
-        query = ep.ElasticQuery().range(
+        query = ep.ElasticQuery.range(
             field      = field,
             from_value = from_value,
             to_value   = to_value
@@ -633,12 +638,11 @@ class DiscoveryService(BaseDiscoveryService):
 
         es.sorted(sorts)
 
-        filter = ep.ElasticFilter()
-        filter.geo_distance(field,origin, '%s%s' %(distance,units))
+        filter = ep.ElasticFilter.geo_distance(field,origin, '%s%s' %(distance,units))
 
         es.filtered(filter)
 
-        query = ep.ElasticQuery().match_all()
+        query = ep.ElasticQuery.match_all()
 
         response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
         IndexManagementService._check_response(response)
@@ -682,12 +686,11 @@ class DiscoveryService(BaseDiscoveryService):
             field = '_all'
 
 
-        filter = ep.ElasticFilter()
-        filter.geo_bounding_box(field, top_left, bottom_right)
+        filter = ep.ElasticFilter.geo_bounding_box(field, top_left, bottom_right)
 
         es.filtered(filter)
 
-        query = ep.ElasticQuery().match_all()
+        query = ep.ElasticQuery.match_all()
 
         response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
         IndexManagementService._check_response(response)
@@ -707,9 +710,9 @@ class DiscoveryService(BaseDiscoveryService):
         if not self.use_es:
             raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
         if QueryLanguage.query_is_term_search(query):
-            return ep.ElasticQuery().wildcard(field=query['field'],value=query['value'])
+            return ep.ElasticQuery.wildcard(field=query['field'],value=query['value'])
         if QueryLanguage.query_is_range_search(query):
-            return ep.ElasticQuery().range(
+            return ep.ElasticQuery.range(
                 field      = query['field'],
                 from_value = query['range']['from'],
                 to_value   = query['range']['to']
