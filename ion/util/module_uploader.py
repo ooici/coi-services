@@ -103,7 +103,7 @@ class RegisterModulePreparerEgg(RegisterModulePreparerBase):
 
 
 
-class RegisterModuleUploaderBase(object):
+class RegisterModuleUploader(object):
     def __init__(self,
                  dest_user='',       # username for scp
                  dest_host='',       # host for scp
@@ -179,7 +179,7 @@ class RegisterModuleUploaderBase(object):
 
 
 
-class RegisterModuleUploaderEgg(RegisterModuleUploaderBase):
+class RegisterModuleUploaderEgg(RegisterModuleUploader):
 
     def set_egg_urlfile_name(self, name):
         self.egg_urlfile_name = name
