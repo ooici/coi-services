@@ -22,6 +22,9 @@ from gevent.event import AsyncResult
 from nose.plugins.attrib import attr
 from mock import patch
 
+# Zope interfaces.
+from zope.interface import providedBy
+
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
@@ -42,6 +45,7 @@ from ion.services.sa.tcaa.remote_client import RemoteClient
 from interface.objects import TelemetryStatusType
 from interface.services.iresource_agent import IResourceAgent
 from interface.services.coi.iresource_registry_service import IResourceRegistryService
+from interface.services.sa.iterrestrial_endpoint import ITerrestrialEndpoint
 from interface.objects import UserInfo
 
 # Agent imports.
@@ -76,6 +80,7 @@ from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestS
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_client.py:TestRemoteClient.test_service_client_blocking
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_client.py:TestRemoteClient.test_queue_manipulators
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_client.py:TestRemoteClient.test_errors
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_client.py:TestRemoteClient.test_interfaces
 
 
 
@@ -718,3 +723,15 @@ class TestRemoteClient(IonIntegrationTestCase):
         with self.assertRaises(BadRequest):
             remote_client.get_client_port()
 
+    def test_interfaces(self):
+        """
+        test_interfaces
+        Test that the client declare the correct interfaces.
+        """
+        remote_client = RemoteClient(iface=IResourceAgent, xs_name=self._xs_name,
+            resource_id='fake_id', process=FakeProcess())
+
+        interfaces = providedBy(remote_client)
+        self.assertIn(IResourceAgent, interfaces)
+        self.assertIn(ITerrestrialEndpoint, interfaces)
+        

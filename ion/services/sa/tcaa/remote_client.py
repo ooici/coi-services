@@ -22,6 +22,7 @@ from pyon.core.exception import ConfigNotFound
 from pyon.core.exception import Conflict
 from pyon.core.exception import BadRequest
 
+from interface.services.sa.iterrestrial_endpoint import ITerrestrialEndpoint
 from ion.services.sa.tcaa.terrestrial_endpoint import TerrestrialEndpointClient
 from pyon.public import IonObject
 from gevent.event import AsyncResult
@@ -42,6 +43,7 @@ params = ['param1','params2']
 class RemoteClient(object):
     """
     """
+    implements(ITerrestrialEndpoint)
     
     def __init__(self, iface=None, xs_name=None, resource_id=None,
                  svc_name=None, process=None):
@@ -87,6 +89,9 @@ class RemoteClient(object):
         # the function name, args and kwargs.
         for m in methods:
             setattr(self, m, self.generate_service_method(m))
+        
+        # Declare the dynamic interface.
+        directlyProvides(self, iface)
 
         # Initialize the async results objects for blocking behavior.
         self._async_results = []
