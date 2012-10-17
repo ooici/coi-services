@@ -196,7 +196,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
         self.parameter_dictionary = self.parameter_dictionary.dump()
 
-    def _create_data_products(self, ctd_stream_def_id, instDevice_id,  ):
+    def _create_input_data_products(self, ctd_stream_def_id, instDevice_id,  ):
 
         dp_obj = IonObject(RT.DataProduct,
             name='the parsed data',
@@ -205,7 +205,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             spatial_domain = self.sdom)
 
         ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, self.parameter_dictionary)
-        log.debug( 'new dp_id = %s', ctd_parsed_data_product)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
@@ -216,7 +215,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #---------------------------------------------------------------------------
 
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
-        log.debug( 'Data product streams1 = %s', stream_ids)
 
         pid = self.create_logger('ctd_parsed', stream_ids[0] )
         self.loggerpids.append(pid)
@@ -224,7 +222,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #---------------------------------------------------------------------------
         # Create CTD Raw as the second data product
         #---------------------------------------------------------------------------
-        log.debug( 'Creating new RAW data product with a stream definition')
         raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW')
 
         dp_obj = IonObject(RT.DataProduct,
@@ -234,7 +231,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             spatial_domain = self.sdom)
 
         ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id, self.parameter_dictionary)
-        log.debug( 'new dp_id = %s', str(ctd_raw_data_product))
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
 
@@ -245,7 +241,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #---------------------------------------------------------------------------
 
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
-        log.debug( 'Data product streams2 = %s', str(stream_ids))
 
         #---------------------------------------------------------------------------
         # Retrieve the id of the OUTPUT stream from the out Data Product
@@ -254,7 +249,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
         print 'Data product streams2 = ', stream_ids
 
-        return stream_ids, ctd_raw_data_product, ctd_parsed_data_product
+        return ctd_parsed_data_product
 
     def _create_data_process_definitions(self):
 
@@ -262,7 +257,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Data Process Definition
         #-------------------------------------------------------------------------------------
 
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition ctd_L0_all")
         dpd_obj = IonObject(RT.DataProcessDefinition,
             name='ctd_L0_all',
             description='transform ctd package into three separate L0 streams',
@@ -274,7 +268,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # L1 Conductivity: Data Process Definition
         #-------------------------------------------------------------------------------------
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition CTDL1ConductivityTransform")
         dpd_obj = IonObject(RT.DataProcessDefinition,
             name='ctd_L1_conductivity',
             description='create the L1 conductivity data product',
@@ -286,7 +279,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # L1 Pressure: Data Process Definition
         #-------------------------------------------------------------------------------------
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition CTDL1PressureTransform")
         dpd_obj = IonObject(RT.DataProcessDefinition,
             name='ctd_L1_pressure',
             description='create the L1 pressure data product',
@@ -298,7 +290,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # L1 Temperature: Data Process Definition
         #-------------------------------------------------------------------------------------
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition CTDL1TemperatureTransform")
         dpd_obj = IonObject(RT.DataProcessDefinition,
             name='ctd_L1_temperature',
             description='create the L1 temperature data product',
@@ -310,7 +301,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # L2 Salinity: Data Process Definition
         #-------------------------------------------------------------------------------------
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition SalinityTransform")
         dpd_obj = IonObject(RT.DataProcessDefinition,
             name='ctd_L2_salinity',
             description='create the L1 temperature data product',
@@ -322,7 +312,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # L2 Density: Data Process Definition
         #-------------------------------------------------------------------------------------
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition DensityTransform")
         dpd_obj = IonObject(RT.DataProcessDefinition,
             name='ctd_L2_density',
             description='create the L1 temperature data product',
@@ -353,7 +342,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
         output_products = {}
 
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 conductivity")
 
         ctd_l0_conductivity_output_dp_obj = IonObject(  RT.DataProduct,
             name='L0_Conductivity',
@@ -367,9 +355,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         output_products['conductivity'] = self.ctd_l0_conductivity_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=self.ctd_l0_conductivity_output_dp_id)
 
-
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 pressure")
-
         ctd_l0_pressure_output_dp_obj = IonObject(  RT.DataProduct,
             name='L0_Pressure',
             description='transform output pressure',
@@ -381,8 +366,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             self.parameter_dictionary)
         output_products['pressure'] = self.ctd_l0_pressure_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=self.ctd_l0_pressure_output_dp_id)
-
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L0 temperature")
 
         ctd_l0_temperature_output_dp_obj = IonObject(   RT.DataProduct,
             name='L0_Temperature',
@@ -400,9 +383,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def _create_l1_out_data_products(self):
 
-
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L1 conductivity")
-
         ctd_l1_conductivity_output_dp_obj = IonObject(  RT.DataProduct,
             name='L1_Conductivity',
             description='transform output L1 conductivity',
@@ -417,8 +397,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         stream_ids, _ = self.rrclient.find_objects(self.ctd_l1_conductivity_output_dp_id, PRED.hasStream, None, True)
         pid = self.create_logger('ctd_l1_conductivity', stream_ids[0] )
         self.loggerpids.append(pid)
-
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L1 pressure")
 
         ctd_l1_pressure_output_dp_obj = IonObject(  RT.DataProduct,
             name='L1_Pressure',
@@ -435,8 +413,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         stream_ids, _ = self.rrclient.find_objects(self.ctd_l1_pressure_output_dp_id, PRED.hasStream, None, True)
         pid = self.create_logger('ctd_l1_pressure', stream_ids[0] )
         self.loggerpids.append(pid)
-
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L1 temperature")
 
         ctd_l1_temperature_output_dp_obj = IonObject(   RT.DataProduct,
             name='L1_Temperature',
@@ -465,8 +441,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(name='L2_Density')
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id, self.ctd_L2_density_dprocdef_id, binding='density' )
 
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L2 Salinity")
-
         ctd_l2_salinity_output_dp_obj = IonObject(RT.DataProduct,
             name='L2_Salinity',
             description='transform output L2 salinity',
@@ -482,8 +456,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         stream_ids, _ = self.rrclient.find_objects(self.ctd_l2_salinity_output_dp_id, PRED.hasStream, None, True)
         pid = self.create_logger('ctd_l2_salinity', stream_ids[0] )
         self.loggerpids.append(pid)
-
-        log.debug("test_createTransformsThenActivateInstrument: create output data product L2 Density")
 
         ctd_l2_density_output_dp_obj = IonObject(   RT.DataProduct,
             name='L2_Density',
@@ -546,7 +518,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # Create two data products
         #-------------------------------------------------------------------------------------
 
-        stream_ids, ctd_raw_data_product, ctd_parsed_data_product = self._create_data_products(ctd_stream_def_id,instDevice_id)
+        ctd_parsed_data_product = self._create_input_data_products(ctd_stream_def_id,instDevice_id)
 
         #-------------------------------------------------------------------------------------
         # Create data process definitions
@@ -578,47 +550,47 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
         self._create_l2_out_data_products()
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
         self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
 
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         # L1 Conductivity: Create the data process
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L1_conductivity_dprocdef_id, [self.ctd_l0_conductivity_output_dp_id], {'conductivity':self.ctd_l1_conductivity_output_dp_id})
         self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
 
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         # L1 Pressure: Create the data process
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         l1_pressure_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L1_pressure_dprocdef_id, [self.ctd_l0_pressure_output_dp_id], {'pressure':self.ctd_l1_pressure_output_dp_id})
         self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         # L1 Temperature: Create the data process
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L1_temperature_dprocdef_id, [self.ctd_l0_temperature_output_dp_id], {'temperature':self.ctd_l1_temperature_output_dp_id})
         self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         # L2 Salinity: Create the data process
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L2_salinity_dprocdef_id, [ctd_parsed_data_product], {'salinity':self.ctd_l2_salinity_output_dp_id})
         self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         # L2 Density: Create the data process
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         l2_density_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L2_density_dprocdef_id, [ctd_parsed_data_product], {'density':self.ctd_l2_density_output_dp_id})
         self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         # Launch InstrumentAgentInstance, connect to the resource agent client
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
         inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
@@ -633,30 +605,28 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             to_name=inst_agent_instance_obj.agent_process_id,
             process=FakeProcess())
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
         # Streaming
-        #-------------------------------
+        #-------------------------------------------------------------------------------------
 
 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-        retval = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrumentSample: initialize %s", str(retval))
+        reply = self._ia_client.execute_agent(cmd)
+        self.assertTrue(reply.status == 0)
 
-
-        log.debug("(L4-CI-SA-RQ-334): Sending go_active command ")
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
         reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrument: return value from go_active %s", str(reply))
+        self.assertTrue(reply.status == 0)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         log.debug("(L4-CI-SA-RQ-334): current state after sending go_active command %s", str(state))
+        self.assertTrue(state, 'DRIVER_STATE_COMMAND')
 
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
         reply = self._ia_client.execute_agent(cmd)
-        log.debug("test_activateInstrumentSample: run %s", str(reply))
-
+        self.assertTrue(reply.status == 0)
 
         #todo ResourceAgentClient no longer has method set_param
 #        # Make sure the sampling rate and transmission are sane.
