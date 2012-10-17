@@ -22,6 +22,7 @@ from pyon.core.exception import ConfigNotFound
 from pyon.core.exception import Conflict
 from pyon.core.exception import BadRequest
 
+from interface.services.sa.iterrestrial_endpoint import ITerrestrialEndpoint
 from ion.services.sa.tcaa.terrestrial_endpoint import TerrestrialEndpointClient
 from pyon.public import IonObject
 from gevent.event import AsyncResult
@@ -42,10 +43,16 @@ params = ['param1','params2']
 class RemoteClient(object):
     """
     """
+    implements(ITerrestrialEndpoint)
     
     def __init__(self, iface=None, xs_name=None, resource_id=None,
                  svc_name=None, process=None):
         """
+        Construct remote proxy client.
+        Verify required parameters.
+        Construct remote endpoint client.
+        Set internal variables.
+        Construct and add service method attributes.
         """
 
         # Throw an exception if required interface arg not provided.        
@@ -82,6 +89,9 @@ class RemoteClient(object):
         # the function name, args and kwargs.
         for m in methods:
             setattr(self, m, self.generate_service_method(m))
+        
+        # Declare the dynamic interface.
+        directlyProvides(self, iface)
 
         # Initialize the async results objects for blocking behavior.
         self._async_results = []
@@ -101,6 +111,8 @@ class RemoteClient(object):
 
     def forward(self, *args, **kwargs):
         """
+        Forward a service method to the terrestrial endpoint
+        through the service interface.
         """
         func_name = kwargs.pop('func_name')
         try:
@@ -186,47 +198,59 @@ class RemoteClient(object):
         
     def enqueue_command(self, command=None, link=False):
         """
+        Enqueue command with terrestrial endoint.
         """
-        pass
+        return self._te_client(command, link)
 
-    def get_queue(self, resource_id=''):
+    def get_queue(self):
         """
+        Get terrestrial endpoint queue for this resource/service.
         """
-        pass
+        if self._resource_id:
+            return self._te_client.get_queue(resource_id=self._resource_id)
+        elif self._svc_name:
+            return self._te_client.get_queue(svc_name=self._svc_name)
 
-    def clear_queue(self, resource_id=''):
+    def clear_queue(self):
         """
+        Clear terrestrial endpoint queue for this resource/service.
         """
-        pass
+        if self._resource_id:
+            return self._te_client.clear_queue(resource_id=self._resource_id)
+        elif self._svc_name:
+            return self._te_client.clear_queue(svc_name=self._svc_name)
 
     def pop_queue(self, command_id=''):
         """
+        Pop a command from the terrestrial endpoint queue.        
         """
-        pass
+        return self._te_client.pop_queue(command_id=command_id)
 
     def get_pending(self):
         """
+        Get pending commands for this resource/service.
         """
-        pass
-
-    def clear_pending(self):
-        """
-        """
-        pass
+        if self._resource_id:
+            return self._te_client.get_pending(resource_id=self._resource_id)
+        elif self._svc_name:
+            return self._te_client.get_pending(svc_name=self._svc_name)
 
     def get_port(self):
         """
+        Not supported for remote proxy clients.
         """
-        pass
+        raise BadRequest('get_port not available via remote client.')
 
     def set_client_port(self, port=0):
         """
+        Not supported for remote proxy clients.
         """
-        pass
+        raise BadRequest('set_client_port not available via remote client.')
 
     def get_client_port(self):
         """
+        Not supported for remote proxy clients.
         """
-        pass
+        raise BadRequest('get_client_port not available via remote client.')
     
     

@@ -67,8 +67,8 @@ class TestLoader(IonIntegrationTestCase):
         # check that InstrumentDevice contacts are loaded
         res,_ = self.container.resource_registry.find_resources(RT.InstrumentDevice, name='CTD Simulator 1 Demo', id_only=False)
         self.assertTrue(len(res) == 1)
-        self.assertTrue(len(res[0].contacts)==1)
-        self.assertEquals('Orcutt', res[0].contacts[0].individual_name_family)
+        self.assertTrue(len(res[0].contacts)==2)
+        self.assertEquals('Ampe', res[0].contacts[0].individual_name_family)
 
         # check has attachments
         attachments,_ = self.container.resource_registry.find_attachments(res[0]._id)
