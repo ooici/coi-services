@@ -423,6 +423,21 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
             self.wait_for_state(upid, [500, 'RUNNING'])
 
     @needs_eeagent
+    def test_start_cancel(self):
+        upid = str(uuid.uuid4().hex)
+        round = 0
+        run_type = "pyon"
+        proc_name = 'test_x'
+        module = 'ion.agents.cei.test.test_eeagent'
+        cls = 'TestProcessSlowStart'
+        parameters = {'name': proc_name, 'module': module, 'cls': cls}
+        self.eea_client.launch_process(upid, round, run_type, parameters)
+        self.wait_for_state(upid, [400, 'PENDING'])
+        self.eea_client.terminate_process(upid, round)
+        self.wait_for_state(upid, [700, 'TERMINATED'])
+
+
+    @needs_eeagent
     def test_kill_and_revive(self):
         """test_kill_and_revive
         Ensure that when an eeagent dies, it pulls the processes it owned from
