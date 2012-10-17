@@ -95,6 +95,10 @@ class TestRemoteClient(IonIntegrationTestCase):
     """
     def setUp(self):
         """
+        Setup the test parameters.
+        Start the container and retrieve client.
+        Start the endpoints and resource agent.
+        Start publisher and subscribers.
         """
         ###################################################################
         # Internal parameters and container.
@@ -274,6 +278,7 @@ class TestRemoteClient(IonIntegrationTestCase):
         
     def _start_terrestrial(self):
         """
+        Start up the terrestrial endpoint.
         """
         # Create terrestrial config.
         terrestrial_endpoint_config = {
@@ -306,6 +311,7 @@ class TestRemoteClient(IonIntegrationTestCase):
         
     def _start_remote(self):
         """
+        Start up the remote endpoint.
         """        
         # Create agent config.
         remote_endpoint_config = {
