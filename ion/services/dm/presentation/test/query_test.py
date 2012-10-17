@@ -171,3 +171,9 @@ class QueryLanguageUnitTest(PyonTestCase):
         for case in cases:
             retval = self.parser.parse(case[0])
             self.assertTrue(retval == case[1], 'Expected %s, received %s' % (case[1], retval))
+
+    def test_fuzzy_search(self):
+        test_string = "search 'description' like 'products' from 'index'"
+        retval = self.parser.parse(test_string)
+        self.assertEquals(retval, {'and':[], 'or':[], 'query':{'field':'description', 'fuzzy':'products', 'index':'index'}})
+

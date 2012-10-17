@@ -272,7 +272,30 @@ class DiscoveryService(BaseDiscoveryService):
             kwargs = dict(
                 source_id= source_id,
                 field    = query['field'],
-                value    = query['value'].lower(),
+                value    = query['value'],
+                limit    = limit,
+                id_only  = id_only
+            )
+            
+            if query.get('limit'):
+                kwargs['limit'] = query['limit']
+            if query.get('order'):
+                kwargs['order'] = query['order']
+            if query.get('offset'):
+                kwargs['offset'] = query['offset']
+
+            return self.query_term(**kwargs)
+
+        #---------------------------------------------
+        # Fuzzy searching (phrases and such)
+        #---------------------------------------------
+        elif QueryLanguage.query_is_fuzzy_search(query):
+            source_id = self._match_query_sources(query['index']) or query['index']
+            kwargs = dict(
+                source_id= source_id,
+                fuzzy    = True,
+                field    = query['field'],
+                value    = query['fuzzy'],
                 limit    = limit,
                 id_only  = id_only
             )
@@ -426,7 +449,7 @@ class DiscoveryService(BaseDiscoveryService):
             return result_queue
         return None
 
-    def query_term(self, source_id='', field='', value='', order=None, limit=0, offset=0, id_only=False):
+    def query_term(self, source_id='', field='', value='', fuzzy=False, order=None, limit=0, offset=0, id_only=False):
         '''
         Elasticsearch Query against an index
         > discovery.query_index('indexID', 'name', '*', order={'name':'asc'}, limit=20, id_only=False)
@@ -439,7 +462,7 @@ class DiscoveryService(BaseDiscoveryService):
         validate_true(value, 'Unspecified value')
 
 
-        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port, verbose=True)
+        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
 
         source = self.clients.resource_registry.read(source_id)
 
@@ -466,12 +489,13 @@ class DiscoveryService(BaseDiscoveryService):
         if field == '*':
             field = '_all'
 
-        if '*' in value:
+        if fuzzy:
+            query = ep.ElasticQuery.fuzzy_like_this(value, fields=[field])
+        elif '*' in value:
             query = ep.ElasticQuery.wildcard(field=field, value=value)
         else:
             query = ep.ElasticQuery.field(field=field, query=value)
 
-        query = ep.ElasticQuery.wildcard(field=field, value=value)
         response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
 
         IndexManagementService._check_response(response)
