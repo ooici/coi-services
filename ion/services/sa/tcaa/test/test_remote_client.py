@@ -74,6 +74,7 @@ from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestS
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_client.py:TestRemoteClient.test_resource_client_online
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_client.py:TestRemoteClient.test_resource_client_blocking
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_client.py:TestRemoteClient.test_service_client_blocking
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_client.py:TestRemoteClient.test_queue_manipulators
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_client.py:TestRemoteClient.test_errors
 
 
@@ -598,6 +599,72 @@ class TestRemoteClient(IonIntegrationTestCase):
         # Block on terrestrial public telemetry events.
         self._done_telem_evt.get(timeout=CFG.endpoint.receive.timeout)
 
+    def test_queue_manipulators(self):
+        """
+        test_queue_manipulators
+        Test ability to instpect and manipulate the command queue corresponding
+        to this resource or service.
+        """
+
+        remote_client = RemoteClient(iface=IResourceAgent, xs_name=self._xs_name,
+            resource_id='fake_id', process=FakeProcess())
+        
+        # Queue up a series of fake commands to be handled by the remote side.
+        for i in range(self._no_requests):
+            cmd = remote_client.ping_agent(link=False)
+            self._requests_sent[cmd.command_id] = cmd
+
+        # Block on queue mod events.
+        self._done_queue_mod_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        queue = remote_client.get_queue()
+        self.assertEqual(len(queue), self._no_requests)
+
+        popped = remote_client.clear_queue()
+        self.assertEqual(len(popped), self._no_requests)
+
+        self._requests_sent = {}
+
+        # Queue up a series of fake commands to be handled by the remote side.
+        for i in range(self._no_requests):
+            cmd = remote_client.ping_agent(link=False)
+            self._requests_sent[cmd.command_id] = cmd
+
+        # Pop the last three commands.
+        cmd_ids = self._requests_sent.keys()[:3]
+        poped = []
+        for x in cmd_ids:
+            poped.append(remote_client.pop_queue(x))
+            self._requests_sent.pop(x)
+
+        queue = remote_client.get_queue()
+        self.assertEqual(len(queue), self._no_requests - 3)
+        self.assertEqual(len(poped), 3)
+
+        self._no_requests = self._no_requests - 3
+        self._no_cmd_tx_evts = self._no_requests
+
+        # Publish link up events.
+        self.terrestrial_link_up()
+        self.remote_link_up()            
+        
+        # Block on command transmissions and results.
+        self._done_cmd_tx_evt.get(timeout=CFG.endpoint.receive.timeout)
+        pending = remote_client.get_pending()
+        for x in pending:
+            self.assertIn(x.command_id, self._requests_sent.keys())
+        self._done_cmd_evt.get(timeout=CFG.endpoint.receive.timeout)
+        
+        # Publish link down events.
+        self.terrestrial_link_down()
+        self.remote_link_down()
+        
+        # Block on terrestrial public telemetry events.
+        self._done_telem_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
+
     def test_errors(self):
         """
         test_errors
@@ -637,4 +704,11 @@ class TestRemoteClient(IonIntegrationTestCase):
         with self.assertRaises(Conflict):
             result = remote_client.ping_agent()
 
+        # Test port manipulators refused by remote proxy client.
+        with self.assertRaises(BadRequest):
+            remote_client.get_port()
+        with self.assertRaises(BadRequest):
+            remote_client.set_client_port()
+        with self.assertRaises(BadRequest):
+            remote_client.get_client_port()
 

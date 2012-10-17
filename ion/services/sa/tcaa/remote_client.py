@@ -187,46 +187,50 @@ class RemoteClient(object):
     def enqueue_command(self, command=None, link=False):
         """
         """
-        pass
+        return self._te_client(command, link)
 
-    def get_queue(self, resource_id=''):
+    def get_queue(self):
         """
         """
-        pass
+        if self._resource_id:
+            return self._te_client.get_queue(resource_id=self._resource_id)
+        elif self._svc_name:
+            return self._te_client.get_queue(svc_name=self._svc_name)
 
-    def clear_queue(self, resource_id=''):
+    def clear_queue(self):
         """
         """
-        pass
+        if self._resource_id:
+            return self._te_client.clear_queue(resource_id=self._resource_id)
+        elif self._svc_name:
+            return self._te_client.clear_queue(svc_name=self._svc_name)
 
     def pop_queue(self, command_id=''):
         """
         """
-        pass
+        return self._te_client.pop_queue(command_id=command_id)
 
     def get_pending(self):
         """
         """
-        pass
-
-    def clear_pending(self):
-        """
-        """
-        pass
+        if self._resource_id:
+            return self._te_client.get_pending(resource_id=self._resource_id)
+        elif self._svc_name:
+            return self._te_client.get_pending(svc_name=self._svc_name)
 
     def get_port(self):
         """
         """
-        pass
+        raise BadRequest('get_port not available via remote client.')
 
     def set_client_port(self, port=0):
         """
         """
-        pass
+        raise BadRequest('set_client_port not available via remote client.')
 
     def get_client_port(self):
         """
         """
-        pass
+        raise BadRequest('get_client_port not available via remote client.')
     
     
