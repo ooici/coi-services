@@ -46,6 +46,11 @@ class RemoteClient(object):
     def __init__(self, iface=None, xs_name=None, resource_id=None,
                  svc_name=None, process=None):
         """
+        Construct remote proxy client.
+        Verify required parameters.
+        Construct remote endpoint client.
+        Set internal variables.
+        Construct and add service method attributes.
         """
 
         # Throw an exception if required interface arg not provided.        
@@ -101,6 +106,8 @@ class RemoteClient(object):
 
     def forward(self, *args, **kwargs):
         """
+        Forward a service method to the terrestrial endpoint
+        through the service interface.
         """
         func_name = kwargs.pop('func_name')
         try:
@@ -186,11 +193,13 @@ class RemoteClient(object):
         
     def enqueue_command(self, command=None, link=False):
         """
+        Enqueue command with terrestrial endoint.
         """
         return self._te_client(command, link)
 
     def get_queue(self):
         """
+        Get terrestrial endpoint queue for this resource/service.
         """
         if self._resource_id:
             return self._te_client.get_queue(resource_id=self._resource_id)
@@ -199,6 +208,7 @@ class RemoteClient(object):
 
     def clear_queue(self):
         """
+        Clear terrestrial endpoint queue for this resource/service.
         """
         if self._resource_id:
             return self._te_client.clear_queue(resource_id=self._resource_id)
@@ -207,11 +217,13 @@ class RemoteClient(object):
 
     def pop_queue(self, command_id=''):
         """
+        Pop a command from the terrestrial endpoint queue.        
         """
         return self._te_client.pop_queue(command_id=command_id)
 
     def get_pending(self):
         """
+        Get pending commands for this resource/service.
         """
         if self._resource_id:
             return self._te_client.get_pending(resource_id=self._resource_id)
@@ -220,16 +232,19 @@ class RemoteClient(object):
 
     def get_port(self):
         """
+        Not supported for remote proxy clients.
         """
         raise BadRequest('get_port not available via remote client.')
 
     def set_client_port(self, port=0):
         """
+        Not supported for remote proxy clients.
         """
         raise BadRequest('set_client_port not available via remote client.')
 
     def get_client_port(self):
         """
+        Not supported for remote proxy clients.
         """
         raise BadRequest('get_client_port not available via remote client.')
     
