@@ -255,19 +255,29 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if 1 != len(model_objs):
             raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
                              (str(instrument_device_id), len(model_objs)))
-        instrument_model_id = model_objs[0]
-        log.debug("activate_instrument:instrument_model %s", str(instrument_model_id))
+
+        model_obj = model_objs[0]
+        instrument_model_id = model_obj._id
+        log.debug("activate_instrument:instrument_model %s", model_obj)
+        log.debug("instrument model id::: %s" % instrument_model_id)
 
         #retrive the stream info for this model
-        streams_dict = model_objs[0].stream_configuration
+        streams_dict = model_obj.stream_configuration
+
+        log.debug("Got the streams dict: %s" % streams_dict)
+
         if not streams_dict:
             raise BadRequest("Device model does not contain stream configuration used in launching the agent. Model: '%s",
-                str(model_objs[0]) )
+                str(model_obj) )
 
         for stream_name, param_dict_name in streams_dict.items():
+            log.debug("came here...")
             param_dict_id = self.clients.dataset_management.read_parameter_dictionary_by_name(param_dict_name,id_only=True)            #create a stream def for each param dict to match against the existing data products
+            log.debug("got the param dict id: %s" % param_dict_id)
             stream_def_id = self.clients.pubsub_management.create_stream_definition(parameter_dictionary_id=param_dict_id)
+            log.debug("stream def id: %s" % stream_def_id)
             streams_dict[stream_name] = {'param_dict_name':param_dict_name, 'stream_def_id':stream_def_id}
+
         log.debug("validate_instrument_agent_instance: model streams_dict: %s", str(streams_dict))
 
         #retrieve the associated instrument agent
@@ -391,6 +401,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         Launch the instument agent instance and return the id
         """
         instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
+
+        log.debug("Got the instrument agent instance obj: %s" % instrument_agent_instance_obj)
 
         params = self.validate_instrument_agent_instance(instrument_agent_instance_obj)
 
