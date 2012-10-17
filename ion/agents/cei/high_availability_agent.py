@@ -3,8 +3,10 @@ import gevent
 from pyon.agent.simple_agent import SimpleResourceAgent
 from pyon.event.event import EventPublisher
 from pyon.public import log, get_sys_name
+from pyon.core.exception import BadRequest
 
-from interface.objects import AgentCommand, ProcessDefinition, ProcessSchedule, ProcessStateEnum
+from interface.objects import AgentCommand, ProcessDefinition, ProcessSchedule,\
+        ProcessStateEnum, ProcessQueueingMode, ProcessTarget, ProcessRestartMode
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.agents.cei.util import looping_call
 from ion.services.cei.process_dispatcher_service import _core_process_definition_from_ion, \
@@ -237,6 +239,29 @@ class ProcessDispatcherSimpleAPIClient(object):
         pid = self.real_client.create_process(definition_id)
 
         process_schedule = ProcessSchedule()
+        if queueing_mode is not None:
+            try:
+                process_schedule.queueing_mode = ProcessQueueingMode._value_map[queueing_mode]
+            except KeyError:
+                msg = "%s is not a known ProcessQueueingMode" % (queueing_mode)
+                raise BadRequest(msg)
+
+        if restart_mode is not None:
+            try:
+                process_schedule.restart_mode = ProcessRestartMode._value_map[restart_mode]
+            except KeyError:
+                msg = "%s is not a known ProcessRestartMode" % (restart_mode)
+                raise BadRequest(msg)
+
+        target = ProcessTarget()
+        if execution_engine_id is not None:
+            target.execution_engine_id = execution_engine_id
+        if node_exclusive is not None:
+            target.node_exclusive = node_exclusive
+        if constraints is not None:
+            target.constraints = constraints
+
+        process_schedule.target = target
 
         sched_pid = self.real_client.schedule_process(definition_id,
                 process_schedule, configuration=configuration, process_id=upid)
