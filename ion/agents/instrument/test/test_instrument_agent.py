@@ -385,7 +385,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             
             # Create subscriptions for each stream.
 
-            exchange_name = '%s_queue' % stream_name
+            from pyon.util.containers import create_unique_identifier
+            # exchange_name = '%s_queue' % stream_name
+            exchange_name = create_unique_identifier("%s_queue" %
+                    stream_name)
             self._purge_queue(exchange_name)
             sub = StandaloneStreamSubscriber(exchange_name, recv_data)
             sub.start()
@@ -448,7 +451,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         'pkt_version': 1, 'values':
         [{'value_id': 'temp', 'value': 21.4894},
         {'value_id': 'conductivity', 'value': 13.22157},
-        {'value_id': 'depth', 'value': 146.186}],
+        {'value_id': 'pressure', 'value': 146.186}],
         'driver_timestamp': 3556901018.170206}
         """
         
@@ -458,7 +461,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertTrue(isinstance(values_list, list))
         self.assertTrue(len(values_list)==3)
         
-        ids = ['temp', 'conductivity', 'depth']
+        ids = ['temp', 'conductivity', 'pressure']
         ids_found = []
 
         for x in values_list:
@@ -862,6 +865,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Start data subscribers.
         self._start_data_subscribers(6)
+        self.addCleanup(self._stop_data_subscribers)
         
         # Set up a subscriber to collect command events.
         self._start_event_subscriber('ResourceAgentCommandEvent', 7)
