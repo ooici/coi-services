@@ -15,7 +15,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from ion.processes.data.replay.replay_client import ReplayClient
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
@@ -170,8 +170,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def create_dataset(self, parameter_dict_id=''):
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
         if not parameter_dict_id:
@@ -397,6 +396,49 @@ class TestDMEnd2End(IonIntegrationTestCase):
         subscriber.stop()
 
         self.data_retriever.cancel_replay_agent(self.replay_id)
+
+
+    def test_retrieve_and_transform(self):
+
+        # Stream definition for the CTD data
+        pdict_id             = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        stream_def_id        = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary_id=pdict_id)
+        ctd_stream_id, route = self.pubsub_management.create_stream('ctd stream', 'xp1', stream_definition_id=stream_def_id)
+
+
+        # Stream definition for the salinity data
+        salinity_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_salinity_param_dict', id_only=True)
+        sal_stream_def_id = self.pubsub_management.create_stream_definition('sal data', parameter_dictionary_id=salinity_pdict_id)
+
+        ingest_config_id = self.get_ingestion_config()
+        dataset_id = self.create_dataset(pdict_id)
+        self.ingestion_management.persist_data_stream(stream_id=ctd_stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(10)
+        rdt['temp'] = np.random.randn(10) * 10 + 30
+        rdt['conductivity'] = np.random.randn(10) * 2 + 10
+
+        publisher = StandaloneStreamPublisher(ctd_stream_id, route)
+        publisher.publish(rdt.to_granule())
+
+        rdt['time'] = np.arange(10,20)
+
+        publisher.publish(rdt.to_granule())
+
+
+        self.wait_until_we_have_enough_granules(dataset_id, 2)
+
+        granule = self.data_retriever.retrieve(dataset_id, 
+                                             None,
+                                             None, 
+                                             'ion.processes.data.transforms.ctd.ctd_L2_salinity',
+                                             'CTDL2SalinityTransformAlgorithm', 
+                                             kwargs=dict(params=sal_stream_def_id))
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        for i in rdt['salinity']:
+            self.assertNotEquals(i,0)
+
 
 
     def test_last_granule(self):
