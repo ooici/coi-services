@@ -11,19 +11,15 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.objects import  ContactInformation
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest 
 from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
-import unittest
+from ion.services.dm.utility.granule_utils import time_series_domain
 
-from ion.util.parameter_yaml_IO import get_param_dict
-from ion.services.dm.utility.granule_utils import CoverageCraft
-
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 
 class FakeProcess(LocalContextMixin):
@@ -53,6 +49,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         self.omsclient = ObservatoryManagementServiceClient(node=self.container.node)
         self.process_dispatcher   = ProcessDispatcherServiceClient()
 
+        self.dataset_management = DatasetManagementServiceClient()
 
     #@unittest.skip('not ready')
     def test_get_provenance(self):
@@ -106,18 +103,16 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         # Create CTD Parsed  data product
         #-------------------------------
-        sdom, tdom = CoverageCraft.create_domains()
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
 
 
-        parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
-        parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary=parsed_parameter_dictionary.dump())
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
 
         log.debug( 'test_get_provenance:Creating new CDM data product with a stream definition')
 
-        parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='the parsed data',
@@ -125,7 +120,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_parsed_data_product = self.dpmsclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        ctd_parsed_data_product = self.dpmsclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         log.debug( 'new dp_id = %s', ctd_parsed_data_product)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
@@ -140,7 +135,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        log_data_product_id = self.dpmsclient.create_data_product(dp_obj, parsed_stream_def_id, parsed_parameter_dictionary.dump())
+        log_data_product_id = self.dpmsclient.create_data_product(dp_obj, parsed_stream_def_id)
         self.omsclient.create_site_data_product(instrument_site_id, log_data_product_id)
 
 
@@ -270,13 +265,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
+        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id, binding='conductivity' )
 
-        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
+        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id, binding='pressure' )
 
-        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
+        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
@@ -290,8 +285,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                         spatial_domain = sdom)
 
         ctd_l0_conductivity_output_dp_id = self.dpmsclient.create_data_product(ctd_l0_conductivity_output_dp_obj,
-                                                                                outgoing_stream_l0_conductivity_id,
-                                                                                parameter_dictionary)
+                                                                                outgoing_stream_l0_conductivity_id)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
 
 
@@ -304,8 +298,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                     spatial_domain = sdom)
 
         ctd_l0_pressure_output_dp_id = self.dpmsclient.create_data_product(ctd_l0_pressure_output_dp_obj,
-                                                                            outgoing_stream_l0_pressure_id,
-                                                                            parameter_dictionary)
+                                                                            outgoing_stream_l0_pressure_id)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
 
         log.debug("TestDataProductProvenance: create output data product L0 temperature")
@@ -317,8 +310,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                         spatial_domain = sdom)
 
         ctd_l0_temperature_output_dp_id = self.dpmsclient.create_data_product(ctd_l0_temperature_output_dp_obj,
-                                                                                outgoing_stream_l0_temperature_id,
-                                                                                parameter_dictionary)
+                                                                                outgoing_stream_l0_temperature_id)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
 
 
@@ -326,13 +318,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # L1 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(name='L1_conductivity')
+        outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(name='L1_conductivity', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_conductivity_id, ctd_L1_conductivity_dprocdef_id, binding='conductivity' )
 
-        outgoing_stream_l1_pressure_id = self.pubsubclient.create_stream_definition(name='L1_Pressure')
+        outgoing_stream_l1_pressure_id = self.pubsubclient.create_stream_definition(name='L1_Pressure', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_pressure_id, ctd_L1_pressure_dprocdef_id, binding='pressure' )
 
-        outgoing_stream_l1_temperature_id = self.pubsubclient.create_stream_definition(name='L1_Temperature')
+        outgoing_stream_l1_temperature_id = self.pubsubclient.create_stream_definition(name='L1_Temperature', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l1_temperature_id, ctd_L1_temperature_dprocdef_id, binding='temperature' )
 
         log.debug("TestDataProductProvenance: create output data product L1 conductivity")
@@ -344,8 +336,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         ctd_l1_conductivity_output_dp_id = self.dpmsclient.create_data_product(ctd_l1_conductivity_output_dp_obj,
-                                                                                outgoing_stream_l1_conductivity_id,
-                                                                                parameter_dictionary)
+                                                                                outgoing_stream_l1_conductivity_id)
 
 
         log.debug("TestDataProductProvenance: create output data product L1 pressure")
@@ -357,8 +348,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                     spatial_domain = sdom)
 
         ctd_l1_pressure_output_dp_id = self.dpmsclient.create_data_product(ctd_l1_pressure_output_dp_obj,
-                                                                            outgoing_stream_l1_pressure_id,
-                                                                            parameter_dictionary)
+                                                                            outgoing_stream_l1_pressure_id)
 
 
         log.debug("TestDataProductProvenance: create output data product L1 temperature")
@@ -370,17 +360,16 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                         spatial_domain = sdom)
 
         ctd_l1_temperature_output_dp_id = self.dpmsclient.create_data_product(ctd_l1_temperature_output_dp_obj,
-                                                                                outgoing_stream_l1_temperature_id,
-                                                                                parameter_dictionary)
+                                                                                outgoing_stream_l1_temperature_id)
 
         #-------------------------------
         # L2 Salinity - Density: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(name='L2_salinity')
+        outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(name='L2_salinity', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_salinity_id, ctd_L2_salinity_dprocdef_id, binding='salinity' )
 
-        outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(name='L2_Density')
+        outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(name='L2_Density', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id, ctd_L2_density_dprocdef_id, binding='density' )
 
         log.debug("TestDataProductProvenance: create output data product L2 Salinity")
@@ -393,8 +382,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
 
         ctd_l2_salinity_output_dp_id = self.dpmsclient.create_data_product(ctd_l2_salinity_output_dp_obj,
-                                                                            outgoing_stream_l2_salinity_id,
-                                                                            parameter_dictionary)
+                                                                            outgoing_stream_l2_salinity_id)
 
 
         log.debug("TestDataProductProvenance: create output data product L2 Density")
@@ -429,8 +417,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                                                     spatial_domain = sdom)
 
         ctd_l2_density_output_dp_id = self.dpmsclient.create_data_product(ctd_l2_density_output_dp_obj,
-                                                                            outgoing_stream_l2_density_id,
-                                                                            parameter_dictionary)
+                                                                            outgoing_stream_l2_density_id)
 
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process

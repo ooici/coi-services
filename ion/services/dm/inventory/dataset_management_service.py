@@ -18,6 +18,8 @@ from interface.objects import ParameterContextResource, ParameterDictionaryResou
 from interface.objects import DataSet
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
+from coverage_model.basic_types import AxisTypeEnum
+
 
 class DatasetManagementService(BaseDatasetManagementService):
     DEFAULT_DATASTORE = 'datasets'
@@ -40,8 +42,9 @@ class DatasetManagementService(BaseDatasetManagementService):
         validate_is_not_none(temporal_domain, 'A temporal domain must be supplied to register a new dataset.')
         
         if parameter_dictionary_id:
+            pd = self.read_parameter_dictionary(parameter_dictionary_id)
             pcs = self.read_parameter_contexts(parameter_dictionary_id, id_only=False)
-            parameter_dict = self._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs])
+            parameter_dict = self._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
             parameter_dict = parameter_dict.dump()
 
         dataset                      = DataSet()
@@ -144,7 +147,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_parameter_dictionary(self, name='', parameter_context_ids=None, description=''):
+    def create_parameter_dictionary(self, name='', parameter_context_ids=None, temporal_context='', description=''):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionaryResource, name=name, id_only=True)
         if len(res):
             context_ids,_ = self.clients.resource_registry.find_objects(subject=res[0], predicate=PRED.hasParameterContext, id_only=True)
@@ -156,7 +159,7 @@ class DatasetManagementService(BaseDatasetManagementService):
                 raise Conflict('A parameter dictionary with name %s already exists and has a different definition' % name)
         validate_true(name, 'Name field may not be empty.')
         parameter_context_ids = parameter_context_ids or []
-        pd_res = ParameterDictionaryResource(name=name, description=description)
+        pd_res = ParameterDictionaryResource(name=name, temporal_context=temporal_context, description=description)
         pd_res_id, ver = self.clients.resource_registry.create(pd_res)
         for pc_id in parameter_context_ids:
             self._link_pcr_to_pdr(pc_id, pd_res_id)
@@ -214,9 +217,10 @@ class DatasetManagementService(BaseDatasetManagementService):
         from a service call.
         '''
         dms_cli = DatasetManagementServiceClient()
+        pd  = dms_cli.read_parameter_dictionary(parameter_dictionary_id)
         pcs = dms_cli.read_parameter_contexts(parameter_dictionary_id=parameter_dictionary_id, id_only=False)
 
-        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs])
+        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
         pdict._identifier = parameter_dictionary_id
 
         return pdict
@@ -272,9 +276,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         return bool(pc1 == pc2)
             
     @classmethod
-    def _merge_contexts(cls, contexts):
+    def _merge_contexts(cls, contexts, temporal):
         pdict = ParameterDictionary()
         for context in contexts:
-            pdict.add_context(context)
+            if context.name == temporal:
+                context.reference_frame = AxisTypeEnum.TIME
+                pdict.add_context(context)
+            else:
+                pdict.add_context(context)
         return pdict
 

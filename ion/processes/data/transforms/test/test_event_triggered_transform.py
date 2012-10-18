@@ -23,7 +23,6 @@ from interface.objects import StreamRoute, Granule
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.util.parameter_yaml_IO import get_param_dict
 import gevent, os
 import numpy, random
 
@@ -74,9 +73,9 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        pdict = get_param_dict('simple_data_particle_parsed_param_dict')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
 
-        stream_def_id =  self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary=pdict.dump())
+        stream_def_id =  self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary_id=pdict_id)
         cond_stream_id, _ = self.pubsub.create_stream('test_conductivity',
             exchange_point='science_data',
             stream_definition_id=stream_def_id)
@@ -130,7 +129,7 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
+        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -160,12 +159,12 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
         self.assertTrue(((input_data / 100000.0) - 0.5).all() == output_data.all())
 
 
-    def _get_new_ctd_packet(self, parameter_dictionary, length):
+    def _get_new_ctd_packet(self, stream_definition_id, length):
 
-        rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
 
-        for key in parameter_dictionary.keys():
-            rdt[key] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
+        for field in rdt:
+            rdt[field] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
 
         g = rdt.to_granule()
 
@@ -189,9 +188,9 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
 
 
 
-        pdict = get_param_dict('simple_data_particle_parsed_param_dict')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
 
-        stream_def_id =  self.pubsub.create_stream_definition('stream_def', parameter_dictionary=pdict.dump())
+        stream_def_id =  self.pubsub.create_stream_definition('stream_def', parameter_dictionary_id=pdict_id)
         stream_id, _ = self.pubsub.create_stream('test_stream',
             exchange_point='science_data',
             stream_definition_id=stream_def_id)

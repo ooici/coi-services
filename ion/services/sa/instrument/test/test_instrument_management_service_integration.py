@@ -1,30 +1,24 @@
-from interface.services.icontainer_agent import ContainerAgentClient
-
+#!/usr/bin/env python
 #from pyon.ion.endpoint import ProcessRPCClient
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
-from pyon.public import Container, log, IonObject
+from pyon.public import log, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
-from ion.util.parameter_yaml_IO import get_param_dict
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
-from interface.services.sa.iinstrument_management_service import IInstrumentManagementService, InstrumentManagementServiceClient
+from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import ComputedValueAvailability
 
-from pyon.util.context import LocalContextMixin
-from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, PRED, OT, LCS
-from mock import Mock, patch
-from pyon.util.unit_test import PyonTestCase
+from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
-import unittest
 #from ooi.logging import log
+
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 from ion.services.sa.test.helpers import any_old
 
@@ -48,6 +42,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.PSC =  PubsubManagementServiceClient(node=self.container.node)
         self.DP = DataProductManagementServiceClient(node=self.container.node)
         self.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
         
         print 'started services'
 
@@ -123,9 +118,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             processing_level_code='Parsed_Canonical',
             temporal_domain = tdom,
             spatial_domain = sdom)
-        parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
-        parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary=parsed_parameter_dictionary.dump())
-        data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
+        data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.DAMS.assign_data_product(input_resource_id=instrument_device_id, data_product_id=data_product_id1)

@@ -71,6 +71,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
+        #@TODO: DO NOT DO THIS, WHEN THIS TEST IS REWRITTEN GET RID OF THIS, IT WILL FAIL, thanks -Luke
         parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
 
         parameter_dictionary = parameter_dictionary.dump()

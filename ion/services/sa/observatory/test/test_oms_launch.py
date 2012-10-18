@@ -1,7 +1,6 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import Container, log, IonObject
-from pyon.util.containers import DotDict
+from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -11,33 +10,28 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 from pyon.ion.stream import StandaloneStreamSubscriber
 
 from pyon.util.context import LocalContextMixin
-from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
+from pyon.core.exception import BadRequest
 from pyon.public import RT, PRED
 #from mock import Mock, patch
-from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
-from pyon.event.event import EventSubscriber
 from pyon.public import OT
 
-import unittest
-from ooi.logging import log
 
 import yaml
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand, ProcessStateEnum
 
-from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 
-from ion.services.dm.utility.granule_utils import CoverageCraft
-from ion.util.parameter_yaml_IO import get_param_dict
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from coverage_model.parameter import ParameterDictionary
 
 from gevent.event import AsyncResult
 from gevent import sleep
@@ -80,6 +74,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.dpclient = DataProductManagementServiceClient(node=self.container.node)
         self.pubsubcli = PubsubManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
 
         self._no_samples = None
         self._async_data_result = AsyncResult()
@@ -131,7 +126,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
     def _build_stream_config(self, stream_id=''):
 
-        raw_parameter_dictionary = get_param_dict('simple_data_particle_raw_param_dict')
+        raw_parameter_dictionary = DatasetManagementService.get_parameter_dictionary_by_name('simple_data_particle_raw_param_dict')
 
         #get the streamroute object from pubsub by passing the stream_id
         stream_def_ids, _ = self.rrclient.find_objects(stream_id,
@@ -162,12 +157,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
 
         # Create data product object to be used for each of the platform log streams
-        sdom, tdom = CoverageCraft.create_domains()
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        raw_parameter_dictionary = get_param_dict('simple_data_particle_raw_param_dict')
-        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='raw', parameter_dictionary=raw_parameter_dictionary.dump())
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_raw_param_dict', id_only=True)
+        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='raw', parameter_dictionary_id=pdict_id)
         dp_obj = IonObject(RT.DataProduct,
             name='raw data',
             description='raw stream test',
@@ -226,7 +221,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         #create the log data product
         dp_obj.name = 'SS raw data'
-        data_product_SS_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
+        data_product_SS_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=platformSS_device_id, data_product_id=data_product_SS_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_SS_id, PRED.hasStream, None, True)
@@ -283,7 +278,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         #create the log data product
         dp_obj.name = '1A raw data'
-        data_product_1A_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
+        data_product_1A_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=platform1A_device_id, data_product_id=data_product_1A_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_1A_id, PRED.hasStream, None, True)
@@ -338,7 +333,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         #create the log data product
         dp_obj.name = '1B raw data'
-        data_product_1B_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
+        data_product_1B_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=platform1B_device_id, data_product_id=data_product_1B_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_1B_id, PRED.hasStream, None, True)
@@ -394,7 +389,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         #create the log data product
         dp_obj.name = '1C raw data'
-        data_product_1C_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
+        data_product_1C_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=platform1C_device_id, data_product_id=data_product_1C_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_1C_id, PRED.hasStream, None, True)

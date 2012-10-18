@@ -424,16 +424,21 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
     def delete_data_process(self, data_process_id=""):
+        print 'Deleting ', data_process_id
 
         # Delete the specified DataProcessDefinition object
         data_process_obj = self.read_data_process(data_process_id)
+        print 'Got the data_process obj'
 
         # delete the association with DataProcessDefinition
         dpd_assn_ids = self.clients.resource_registry.find_associations(subject=data_process_id,  predicate=PRED.hasProcessDefinition, id_only=True)
         for dpd_assn_id in dpd_assn_ids:
+            print 'Deleting association ', dpd_assn_id
             self.clients.resource_registry.delete_association(dpd_assn_id)
 
+        print 'Stopping...'
         self._stop_process(data_process_obj)
+        print 'Done'
 
         #--------------------------------------------------------------------------------
         # Finalize the Data Products by Removing streams associated with the dataset and product
@@ -451,6 +456,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Delete the input products link
         inprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasInputProduct)
         for inprod_association in inprod_associations:
+            print 'inprod ', inprod_association
             self.clients.resource_registry.delete_association(inprod_association)
 
 
@@ -461,6 +467,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             pass
 
         subscription_id = data_process_obj.input_subscription_id
+        print 'subscription ', subscription_id
         self.clients.pubsub_management.delete_subscription(subscription_id)
         data_process_obj.input_subscription_id = None
 
@@ -468,6 +475,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.data_acquisition_management.unregister_process(data_process_id)
 
         # Delete the data process
+        print 'data process id ', data_process_id
         self.clients.resource_registry.delete(data_process_id)
         return
 
@@ -476,6 +484,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def _stop_process(self, data_process):
         pid = data_process.process_id
+        print 'PID ', pid
         self.clients.process_dispatcher.cancel_process(pid)
 
 
