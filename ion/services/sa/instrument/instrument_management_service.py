@@ -1827,3 +1827,78 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return "0 days, 0 hours, 0 minutes"
 
 
+    def get_data_product_set(self, resource_id=''):
+        # return the set of data product with the processing_level_code as the key to identify
+        ret = IonObject(OT.ComputedDictValue)
+        log.debug("get_data_product_set: resource_id is %s ", str(resource_id))
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is empty")
+
+        #retrieve the output products
+        data_product_ids, _ = self.clients.resource_registry.find_objects(resource_id,
+                                                                          PRED.hasOutputProduct,
+                                                                          RT.DataProduct,
+                                                                          True)
+        log.debug("get_data_product_set: data_product_ids is %s ", str(data_product_ids))
+        if not data_product_ids:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+        else:
+            for data_product_id in data_product_ids:
+                data_product_obj = self.clients.resource_registry.read(data_product_id)
+                log.debug("get_data_product_set: data_product_obj.processing_level_code is %s ", str(data_product_obj.processing_level_code))
+                ret.value[data_product_obj.processing_level_code] = data_product_id
+            ret.status = ComputedValueAvailability.PROVIDED
+        return ret
+
+
+    def get_data_product_parameters_set(self, resource_id=''):
+        # return the set of data product with the processing_level_code as the key to identify
+        ret = IonObject(OT.ComputedDictValue)
+        log.debug("get_data_product_parameters_set: resource_id is %s ", str(resource_id))
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is empty")
+
+        #retrieve the output products
+        data_product_ids, _ = self.clients.resource_registry.find_objects(resource_id,
+                                                                          PRED.hasOutputProduct,
+                                                                          RT.DataProduct,
+                                                                          True)
+        log.debug("get_data_product_parameters_set: data_product_ids is %s ", str(data_product_ids))
+        if not data_product_ids:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+        else:
+            for data_product_id in data_product_ids:
+                data_product_obj = self.clients.resource_registry.read(data_product_id)
+
+                #retrieve the stream for this data product
+                data_product_stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id,
+                                                                                  PRED.hasStream,
+                                                                                  RT.Stream,
+                                                                                  True)
+                if not data_product_stream_ids:
+                    raise BadRequest("The data product has no stream associated")
+                #retrieve the stream definitions for this stream
+                stream_def_ids, _ = self.clients.resource_registry.find_objects(data_product_stream_ids[0],
+                                                                                  PRED.hasStreamDefinition,
+                                                                                  RT.StreamDefinition,
+                                                                                  True)
+                if not stream_def_ids:
+                    raise BadRequest("The data product stream has no stream definition associated")
+
+                context_dict = {}
+                pdict = self.clients.pubsub_management.read_stream_definition(stream_def_ids[0]).parameter_dictionary
+                log.debug("get_data_product_parameters_set: pdict %s ", str(pdict) )
+                pdict_full = ParameterDictionary.load(pdict)
+                log.debug("get_data_product_parameters_set: pdict_full %s ", str(pdict_full) )
+
+                for key in pdict.iterkeys():
+                    log.debug("get_data_product_parameters_set: key %s ", str(key))
+                    if key in pdict_full:
+                        #context_dict[key] = pdict_full.get_context(key)
+                        context_dict[key] = "TBD"
+                        log.debug("get_data_product_parameters_set: get_parameter_context %s ", str(context_dict[key]))
+
+                log.debug("get_data_product_parameters_set: context_dict %s ", str(context_dict))
+                ret.value[data_product_obj.processing_level_code] = context_dict
+            ret.status = ComputedValueAvailability.PROVIDED
+        return ret
