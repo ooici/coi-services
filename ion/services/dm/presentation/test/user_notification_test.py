@@ -1110,16 +1110,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         '''
 
         # publish some events for the event repository
-        event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
+        event_publisher_1 = EventPublisher("PlatformEvent")
         event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
 
         for i in xrange(10):
-            event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
-            event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
+            event_publisher_1.publish_event(origin='my_special_find_events_origin', ts_created = i)
+            event_publisher_2.publish_event(origin='another_origin', ts_created = i)
 
         #allow time for couchdb to store
         gevent.sleep(4)
-        events = self.unsc.find_events(origin='Some_Resource_Agent_ID1', type = 'ResourceLifecycleEvent', min_datetime= 4, max_datetime=7)
+        events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= 4, max_datetime=7)
         self.assertEquals(len(events), 4)
 
 
@@ -1132,7 +1132,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         '''
 
         # publish some events for the event repository
-        event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
+        event_publisher_1 = EventPublisher("PlatformEvent")
         event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
 
         for i in xrange(10):
@@ -1452,13 +1452,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         # publish some events for the event repository
-        event_publisher_1 = EventPublisher("ResourceLifecycleEvent")
-        event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
+        event_publisher_1 = EventPublisher("PlatformEvent")
+        event_publisher_2 = EventPublisher("PlatformEvent")
 
         x = 0
         for i in xrange(10):
-            event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
-            event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
+            event_publisher_1.publish_event(origin='my_unique_test_recent_events_origin', ts_created = i)
+            event_publisher_2.publish_event(origin='Another_recent_events_origin', ts_created = i)
             x += 1
 
         gevent.sleep(4)
@@ -1467,23 +1467,23 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Test with specified limit
         #--------------------------------------------------------------------------------------
 
-        ret = self.unsc.get_recent_events(resource_id='Some_Resource_Agent_ID1', limit = 5)
+        ret = self.unsc.get_recent_events(resource_id='my_unique_test_recent_events_origin', limit = 5)
         self.assertIsInstance(ret, ComputedListValue)
         self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
         events = ret.value
         self.assertEquals(len(events), 5)
 
         for event in events:
-            self.assertEquals(event.origin, 'Some_Resource_Agent_ID1')
+            self.assertEquals(event.origin, 'my_unique_test_recent_events_origin')
 
         #--------------------------------------------------------------------------------------
         # Test without specified limit
         #--------------------------------------------------------------------------------------
 
-        ret = self.unsc.get_recent_events(resource_id='Some_Resource_Agent_ID2')
+        ret = self.unsc.get_recent_events(resource_id='Another_recent_events_origin')
         self.assertIsInstance(ret, ComputedListValue)
         self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
         events = ret.value
         self.assertEquals(len(events), 10)
         for event in events:
-            self.assertEquals(event.origin, 'Some_Resource_Agent_ID2')
+            self.assertEquals(event.origin, 'Another_recent_events_origin')
