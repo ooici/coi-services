@@ -67,10 +67,6 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
         stream_definition_id = params
 
         #Note config parameters
-        active_variables = None
-        if config:
-            active_variables = config["variables"].split(',')
-            active_variables = [x.strip() for x in active_variables]
 
         # parse the incoming data
         rdt = RecordDictionaryTool.load_from_granule(input)
@@ -82,17 +78,9 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             if field == 'time':
                 continue
 
-            # if no active variables were specified, plot all of them. Default setting
-            if active_variables == None:
-                vardict[field] = get_safe(rdt, field)
-                continue
-
-            #only pick fields which are in the active variables list
-            if active_variables and field in active_variables:
-                vardict[field] = get_safe(rdt, field)
+            vardict[field] = get_safe(rdt, field)
 
         arrLen = len(vardict['time'])
-
         # init the graph_data structure for storing values
         graph_data = {}
         for varname in vardict.keys():    #psd.list_field_names():

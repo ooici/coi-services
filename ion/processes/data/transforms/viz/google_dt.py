@@ -116,6 +116,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             if len(varTuple) > 0:
                 data_table_content.append(varTuple)
 
+
         out_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
 
         # Prepare granule content

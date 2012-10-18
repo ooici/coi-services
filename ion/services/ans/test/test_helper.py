@@ -111,8 +111,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         return self.start_input_stream_process(ctd_stream_id, 'ion.processes.data.sinusoidal_stream_publisher', 'SinusoidalCtdPublisher')
 
     def start_input_stream_process(self, ctd_stream_id, module = 'ion.processes.data.ctd_stream_publisher', class_name= 'SimpleCtdPublisher'):
-
-
         ###
         ### Start the process for producing the CTD data
         ###
@@ -137,7 +135,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         return ctd_sim_pid
 
     def start_output_stream_and_listen(self, ctd_stream_id, data_product_stream_ids, message_count_per_stream=10):
-
         assertions = self.assertTrue
         exchange_name = 'workflow_test'
 
