@@ -10,9 +10,9 @@ from ooi.logging import log
 
 
 
-class RegisterModulePreparer(object):
+class RegisterModulePreparerBase(object):
     """
-    class to register an egg file by putting it in a web-accessible location
+    class to register a file by putting it in a web-accessible location
 
     """
 
@@ -36,7 +36,97 @@ class RegisterModulePreparer(object):
         self.modules["tempfile"]   = tempfile
         self.modules["os"]         = os
 
-    def prepare(self, egg_b64):
+        self.subprocess = subprocess
+        self.tempfile   = tempfile
+        self.os         = os
+
+
+    def get_uploader_class(self):
+        """
+        this will drive the factory method
+        """
+        return RegisterModuleUploader
+
+
+    def get_dest_url(self, dest_filename):
+        """
+        calculate the destination URL from the filename
+        """
+        www_rel = path_subtract(self.dest_path, self.dest_wwwroot)
+        return "http://%s%s/%s" % (self.dest_host, www_rel, dest_filename)
+
+
+    def prepare(self, dest_contents_b64, dest_filename=None):
+        """
+        validate a file and process it to prepare for uploading
+
+        return RegisterModuleUploader object (or None), message
+        """
+        return self.uploader_object_factory(dest_contents_b64, dest_filename), ""
+
+
+    def uploader_object_factory(self, dest_contents_b64, dest_filename):
+
+        cls = self.get_uploader_class()
+        ret = cls(dest_user     = self.dest_user,
+                  dest_host     = self.dest_host,
+                  dest_path     = self.dest_path,
+                  dest_file     = dest_filename,
+                  dest_contents = dest_contents_b64,
+                  dest_url      = self.get_dest_url(dest_filename),
+                  modules       = self.modules)
+        return ret
+
+
+
+class RegisterModulePreparerPy(RegisterModulePreparerBase):
+    """
+    class to register a python file by putting it in a web-accessible location
+    """
+
+    def prepare(self, py_b64, dest_filename=None):
+        """
+        perform syntax check and return uploader object
+        """
+        log.debug("creating tempfile with contents")
+        f_handle, tempfilename = self.tempfile.mkstemp()
+        log.debug("writing contents to disk at '%s'", tempfilename)
+        self.os.write(f_handle, base64.decodestring(py_b64))
+
+        log.info("syntax checking file")
+        py_proc = self.subprocess.Popen(["python", "-m", "py_compile", tempfilename],
+                                        stdout=self.subprocess.PIPE,
+                                        stderr=self.subprocess.PIPE)
+
+        py_out, py_err = py_proc.communicate()
+
+        # clean up
+        log.debug("removing tempfile at '%s'", tempfilename)
+
+        if 0 != py_proc.returncode:
+            return False, ("Syntax check failed.  (STDOUT: %s) (STDERR: %s)"
+                           % (py_out, py_err))
+
+        ret = self.uploader_object_factory(py_b64, dest_filename or tempfilename)
+        return ret, ""
+
+
+
+
+
+class RegisterModulePreparerEgg(RegisterModulePreparerBase):
+    """
+    class to register an egg file by putting it in a web-accessible location
+    """
+
+    def get_uploader_class(self):
+        """
+        this will drive the factory method
+        """
+        return RegisterModuleUploaderEgg
+
+
+    def prepare(self, egg_b64, dest_filename=None):
         """
         validate the egg and process it to prepare for uploading
 
@@ -66,25 +156,20 @@ class RegisterModulePreparer(object):
                 return None, "Egg's PKG-INFO did not include a field called '%s'" % f
 
         #determine egg name
-        egg_filename = "%s-%s-py2.7.egg" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
-        log.info("Egg filename is '%s'", egg_filename)
+        dest_filename = "%s-%s-py2.7.egg" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
+        log.info("Egg filename is '%s'", dest_filename)
 
-        www_rel = path_subtract(self.dest_path, self.dest_wwwroot)
 
-        egg_url = "http://%s%s/%s" % (self.dest_host, www_rel, egg_filename)
+        egg_url = self.get_dest_url(dest_filename)
         log.info("Egg url will be '%s'", egg_url)
 
         egg_url_filename = "%s v%s.url" % (pkg_info_data["Name"].replace("-", "_"), pkg_info_data["Version"])
 
 
-        ret = RegisterModuleUploader(dest_user = self.dest_user,
-                                     dest_host = self.dest_host,
-                                     dest_path = self.dest_path,
-                                     egg_contents_b64 = egg_b64,
-                                     egg_filename = egg_filename,
-                                     egg_url = egg_url,
-                                     egg_url_filename = egg_url_filename,
-                                     modules=self.modules)
+        ret = self.uploader_object_factory(egg_b64, dest_filename)
+
+        ret.set_egg_urlfile_name(egg_url_filename)
+
 
         return ret, ""
 
@@ -93,15 +178,13 @@ class RegisterModulePreparer(object):
 
 
 class RegisterModuleUploader(object):
-
     def __init__(self,
-                 dest_user='',
-                 dest_host='',
-                 dest_path='',
-                 egg_contents_b64='',
-                 egg_filename='',
-                 egg_url='',
-                 egg_url_filename='',
+                 dest_user='',       # username for scp
+                 dest_host='',       # host for scp
+                 dest_path='',       # destination path for scp, no trailing slash
+                 dest_file='',       # destination filename for scp
+                 dest_contents='',   # contents of destination file
+                 dest_url='',        # the url to the file after it's been uploaded
                  modules=None):
 
         self.did_upload = False
@@ -109,26 +192,19 @@ class RegisterModuleUploader(object):
         self.tempfile   = modules["tempfile"]
         self.os         = modules["os"]
 
-        self.dest_user = dest_user
-        self.dest_host = dest_host
-        self.dest_path = dest_path
-
-        self.egg_contents_b64 = egg_contents_b64
-        self.egg_filename     = egg_filename
-        self.egg_url          = egg_url
-        self.egg_url_filename = egg_url_filename
+        self.dest_user     = dest_user
+        self.dest_host     = dest_host
+        self.dest_path     = dest_path
+        self.dest_file     = dest_file
+        self.dest_contents = dest_contents
+        self.dest_url      = dest_url
 
 
-    def get_destination_egg_url(self):
+    def get_destination_url(self):
         """
-        subtract the www_root from the destination path to make the proper download URL
+        return the (calculated) download URL
         """
-
-        return self.egg_url
-
-
-    def get_destination_egg_url_filename(self):
-        return self.egg_url_filename
+        return self.dest_url
 
 
     def upload(self):
@@ -141,19 +217,19 @@ class RegisterModuleUploader(object):
         if self.did_upload:
             return False, "Tried to upload a file twice"
 
-        log.debug("creating tempfile for egg output")
+        log.debug("creating tempfile with contents")
         f_handle, tempfilename = self.tempfile.mkstemp()
-        log.debug("writing egg data to disk at '%s'", tempfilename)
-        self.os.write(f_handle, base64.decodestring(self.egg_contents_b64))
+        log.debug("writing contents to disk at '%s'", tempfilename)
+        self.os.write(f_handle, base64.decodestring(self.dest_contents))
 
         remotefilename = "%s@%s:%s/%s" % (self.dest_user,
                                           self.dest_host,
                                           self.dest_path,
-                                          self.egg_filename)
+                                          self.dest_file)
 
         log.info("executing scp: '%s' to '%s'", tempfilename, remotefilename)
         scp_proc = self.subprocess.Popen(["scp", "-v", "-o", "PasswordAuthentication=no",
-                                          "-o", "StrictHostKeyChecking=no",
+                                           "-o", "StrictHostKeyChecking=no",
                                           tempfilename, remotefilename],
                                           stdout=self.subprocess.PIPE,
                                           stderr=self.subprocess.PIPE)
@@ -167,7 +243,21 @@ class RegisterModuleUploader(object):
         # check scp status
         if 0 != scp_proc.returncode:
             return False, ("Secure copy to %s:%s failed.  (STDOUT: %s) (STDERR: %s)"
-                    % (self.dest_host, self.dest_path, scp_out, scp_err))
+                           % (self.dest_host, self.dest_path, scp_out, scp_err))
 
         self.did_upload = True
         return True, ""
+
+
+
+
+
+
+class RegisterModuleUploaderEgg(RegisterModuleUploader):
+
+    def set_egg_urlfile_name(self, name):
+        self.egg_urlfile_name = name
+
+    def get_egg_urlfile_name(self):
+        return self.egg_urlfile_name
+

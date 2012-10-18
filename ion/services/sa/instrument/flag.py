@@ -24,3 +24,4 @@ class KeywordFlag(BaseEnum):
     # INSTRUMENT_DEVICE_CERTIFICATION = fp + "instrument_device_certification"
     # PLATFORM_AGENT_CERTIFICATION    = fp + "instrument_agent_certification"
     # PLATFORM_DEVICE_CERTIFICATION   = fp + "instrument_device_certification"
+    CONFIG_SNAPSHOT                 = fp + "config_snapshot"
