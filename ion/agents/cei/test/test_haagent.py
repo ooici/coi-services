@@ -18,6 +18,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.core import bootstrap
+from pyon.core.exception import Timeout
 
 from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, \
     ProcessDispatcherSimpleAPIClient
@@ -70,7 +71,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.pd_cli = ProcessDispatcherServiceClient(to_name="process_dispatcher")
 
         self.process_definition_id = uuid4().hex
-        self.process_definition =  ProcessDefinition(name='test', executable={
+        self.process_definition_name = 'test'
+        self.process_definition =  ProcessDefinition(name=self.process_definition_name, executable={
                 'module': 'ion.agents.cei.test.test_haagent',
                 'class': 'TestProcess'
         })
@@ -118,7 +120,10 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
     def tearDown(self):
         self.waiter.stop()
-        self.container.terminate_process(self._haa_pid)
+        try:
+            self.container.terminate_process(self._haa_pid)
+        except Exception:
+            log.exception("Couldn't terminate HA Agent (May have been terminated by a test)")
         self._stop_container()
 
     def get_running_procs(self):
@@ -181,6 +186,55 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
         self.assertEqual(len(self.get_running_procs()), 0)
 
+    def test_associations(self):
+
+        # Ensure that once the HA Agent starts, there is a Service object in
+        # the registry
+        services_registered, _ = self.container.resource_registry.find_resources(
+                restype="Service", name=self.process_definition_name)
+        self.assertEqual(len(services_registered), 1)
+        service = services_registered[0]
+
+        # Ensure that once a process is started, there is an association between
+        # it and the service
+        new_policy = {'preserve_n': 1}
+        self.haa_client.reconfigure_policy(new_policy)
+        self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
+        self.assertEqual(len(self.get_running_procs()), 1)
+
+        proc = self.get_running_procs()[0]
+
+        processes_associated, _ = self.container.resource_registry.find_resources(
+                restype="Process", name=proc.process_id)
+        self.assertEqual(len(processes_associated), 1)
+
+        has_processes = self.container.resource_registry.find_associations(
+            service, "hasProcess")
+        self.assertEqual(len(has_processes), 1)
+
+        # Ensure that once we terminate that process, there are no associations
+        new_policy = {'preserve_n': 0}
+        self.haa_client.reconfigure_policy(new_policy)
+
+        self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
+        self.assertEqual(len(self.get_running_procs()), 0)
+
+        processes_associated, _ = self.container.resource_registry.find_resources(
+                restype="Process", name=proc.process_id)
+        self.assertEqual(len(processes_associated), 0)
+
+        has_processes = self.container.resource_registry.find_associations(
+            service, "hasProcess")
+        self.assertEqual(len(has_processes), 0)
+
+        # Ensure that once we terminate that HA Agent, the Service object is
+        # cleaned up
+        self.container.terminate_process(self._haa_pid)
+
+        services_registered, _ = self.container.resource_registry.find_resources(
+                restype="Service", name=self.process_definition_name)
+        self.assertEqual(len(services_registered), 0)
+
     def test_dashi(self):
 
         import dashi
@@ -224,7 +278,6 @@ class ProcessDispatcherSimpleAPIClientTest(PyonTestCase):
 
         self.assertEqual(args[0], definition_id)
         self.assertEqual(kwargs['configuration'], configuration)
-        self.assertEqual(kwargs['process_id'], upid)
 
 
 @attr('INT', group='cei')
@@ -297,7 +350,10 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
                 'module': 'ion.agents.cei.test.test_haagent',
                 'class': 'TestProcess'
         })
-        self.pd_cli.create_process_definition(self.process_definition, self.process_definition_id)
+
+        self.pd_cli.create_process_definition(self.process_definition,
+                self.process_definition_id)
+       
 
         http_port = 8919
         http_port = self._start_webserver(port=http_port)
