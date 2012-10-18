@@ -15,6 +15,7 @@ from pyon.public import CFG
 
 import uuid
 import time
+import copy
 
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
@@ -23,6 +24,7 @@ from pyon.core.exception import ConfigNotFound
 
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.objects import TelemetryStatusType, RemoteCommand
+from pyon.public import IonObject
 
 from interface.services.sa.iterrestrial_endpoint import BaseTerrestrialEndpoint
 from interface.services.sa.iterrestrial_endpoint import TerrestrialEndpointProcessClient
@@ -56,7 +58,8 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         if not self.CFG.xs_name:
             raise ConfigNotFound('Terrestrial endpoint missing required xs_name parameter.')
         self._xs_name = self.CFG.xs_name    
-    
+        self._initialize_queue_resource()
+        
     def on_start(self):
         """
         Process about to be started.
@@ -66,7 +69,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         """
         super(BaseTerrestrialEndpoint, self).on_start()
         self.mixin_on_start()
-                        
+        
     def on_stop(self):
         """
         Process about to be stopped.
@@ -124,6 +127,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         """
         log.debug('Terrestrial client got ack for request: %s', str(request))
         #self._tx_dict[request.command_id] = request
+        self._update_queue_resource()
         self._publisher.publish_event(
                                 event_type='RemoteCommandTransmittedEvent',
                                 origin=self._xs_name,
@@ -182,8 +186,60 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         self._publisher.publish_event(
                                 event_type='PublicPlatformTelemetryEvent',
                                 origin=self._xs_name,
-                                status=TelemetryStatusType.UNAVAILABLE)        
+                                status=TelemetryStatusType.UNAVAILABLE)
+
+    ######################################################################    
+    # Queue persistence helpers.
+    ######################################################################    
         
+    def _initialize_queue_resource(self):
+        """
+        Retrieve the resource and restore the remote queue.
+        If it does not exist, create a new one.
+        """
+        listen_name = self.CFG.process.listen_name
+        obj = self.clients.resource_registry.find_resources(name=listen_name)
+        try:
+            obj = obj[0][0]
+
+        except IndexError:
+            obj = None
+        
+        if not obj:
+            createtime = time.time()
+            obj = IonObject('RemoteCommandQueue',
+                        name=listen_name,
+                        updated=createtime,
+                        created=createtime)
+
+            # Persist object and read it back.
+            obj_id, obj_rev = self.clients.resource_registry.create(obj)
+            obj = self.clients.resource_registry.read(obj_id)
+
+        log.debug('Initialized queue resource len=%i updated=%f.',
+                  len(obj.queue), obj.updated)
+        
+        for command in obj.queue:
+            self._tx_dict[command.command_id] = command
+            self._client.enqueue(command)            
+
+    def _update_queue_resource(self):
+        """
+        Retrieve and update the resource that persists the remote command
+        queue.
+        """
+        listen_name = self.CFG.process.listen_name        
+        obj = self.clients.resource_registry.find_resources(name=listen_name)
+        obj = obj[0][0]
+        obj_id = obj._id
+        
+        obj.queue = copy.deepcopy(self._client._queue)
+        obj.updated = time.time()
+        self.clients.resource_registry.update(obj)
+
+        log.debug('Updated queue resource len=%i updated=%f.',
+                  len(obj.queue), obj.updated)
+
     ######################################################################    
     # Commands.
     ######################################################################    
@@ -202,6 +258,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         command.command_id = str(uuid.uuid4())
         self._tx_dict[command.command_id] = command
         self._client.enqueue(command)
+        self._update_queue_resource()
         self._publisher.publish_event(
                                 event_type='RemoteQueueModifiedEvent',
                                 origin=self._xs_name,
@@ -244,6 +301,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
                     
             self._client._queue = new_queue
             if len(popped)>0:
+                self._update_queue_resource()                
                 self._publisher.publish_event(
                                 event_type='RemoteQueueModifiedEvent',
                                 origin=self._xs_name,
@@ -270,6 +328,9 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
                                 queue_size=len(self._client._queue))
                     break
                     
+        if poped:
+            self._update_queue_resource()                
+            
         return poped
     
     def get_pending(self, resource_id='', svc_name=''):
