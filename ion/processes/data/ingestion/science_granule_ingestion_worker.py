@@ -44,6 +44,14 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
 
     def on_quit(self): #pragma no cover
+        print 'QUIT WAS CALLED'
+        print self._coverages
+        for stream, coverage in self._coverages.iteritems():
+            print 'Closing coverage'
+            coverage.close(timeout=5)
+
+
+
         self.subscriber.stop()
 
     def _new_dataset(self, stream_id):
@@ -85,7 +93,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             if result is None:
                 return None
             if len(self._coverages) >= self.CACHE_LIMIT:
-                self._coverages.popitem(0)
+                k, coverage = self._coverages.popitem(0)
+                coverage.close(timeout=5)
         self._coverages[stream_id] = result
         return result
 
@@ -148,24 +157,17 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         # Actual persistence
         #-------------------------------------------------------------------------------- 
-        print coverage
-        print coverage.num_timesteps
         rdt = RecordDictionaryTool.load_from_granule(granule)
         elements = len(rdt)
         if not elements:
             return
         coverage.insert_timesteps(elements)
-        print coverage.num_timesteps
         start_index = coverage.num_timesteps - elements
 
         for k,v in rdt.iteritems():
-            print '%s : %s' %(k,v)
             slice_ = slice(start_index, None)
-            print slice_
             coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
             coverage.flush()
-            gevent.sleep(1)
-            print 'Set values for %s: %s' % (k,coverage.get_parameter_values(k))
 
 
     def persist(self, dataset_granule): #pragma no cover

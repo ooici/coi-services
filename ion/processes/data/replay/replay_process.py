@@ -151,6 +151,7 @@ class ReplayProcess(BaseReplayProcess):
         '''
         coverage = DatasetManagementService._get_coverage(self.dataset_id)
         rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters)
+        coverage.close(timeout=5)
         return rdt.to_granule()
 
 
@@ -217,6 +218,7 @@ class ReplayProcess(BaseReplayProcess):
 
         coverage = DatasetManagementService._get_coverage(dataset_id)
         rdt = cls._coverage_to_granule(coverage,start_time=ts, end_time=None)
+        coverage.close(timeout=5)
         return rdt.to_granule()
 
 
@@ -224,6 +226,7 @@ class ReplayProcess(BaseReplayProcess):
     def get_last_values(cls, dataset_id):
         coverage = DatasetManagementService._get_coverage(dataset_id)
         rdt = cls._coverage_to_granule(coverage,tdoa=slice(-1,None))
+        coverage.close(timeout=5)
         
         return rdt.to_granule()
 
@@ -240,6 +243,7 @@ class ReplayProcess(BaseReplayProcess):
             for field in fields:
                 outgoing[field] = rdt[field][(i*self.publish_limit) : ((i+1)*self.publish_limit)]
             yield outgoing
+        coverage.close(timeout=5)
         return 
 
 
