@@ -18,6 +18,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.core import bootstrap
+from pyon.core.exception import Timeout
 
 from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, \
     ProcessDispatcherSimpleAPIClient
@@ -70,7 +71,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.pd_cli = ProcessDispatcherServiceClient(to_name="process_dispatcher")
 
         self.process_definition_id = uuid4().hex
-        self.process_definition =  ProcessDefinition(name='test', executable={
+        self.process_definition_name = 'test'
+        self.process_definition =  ProcessDefinition(name=self.process_definition_name, executable={
                 'module': 'ion.agents.cei.test.test_haagent',
                 'class': 'TestProcess'
         })
@@ -180,6 +182,33 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
         self.assertEqual(len(self.get_running_procs()), 0)
+
+    def test_associations(self):
+
+        services_registered, _ = self.container.resource_registry.find_resources(
+                restype="Service", name=self.process_definition_name)
+        self.assertEqual(len(services_registered), 1)
+
+        new_policy = {'preserve_n': 1}
+        self.haa_client.reconfigure_policy(new_policy)
+        self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
+        self.assertEqual(len(self.get_running_procs()), 1)
+
+        proc = self.get_running_procs()[0]
+
+        processes_associated, _ = self.container.resource_registry.find_resources(
+                restype="Process", name=proc.process_id)
+        self.assertEqual(len(processes_associated), 1)
+
+        new_policy = {'preserve_n': 0}
+        self.haa_client.reconfigure_policy(new_policy)
+
+        self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
+        self.assertEqual(len(self.get_running_procs()), 0)
+
+        processes_associated, _ = self.container.resource_registry.find_resources(
+                restype="Process", name=proc.process_id)
+        self.assertEqual(len(processes_associated), 0)
 
     def test_dashi(self):
 
@@ -297,7 +326,10 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
                 'module': 'ion.agents.cei.test.test_haagent',
                 'class': 'TestProcess'
         })
-        self.pd_cli.create_process_definition(self.process_definition, self.process_definition_id)
+
+        self.pd_cli.create_process_definition(self.process_definition,
+                self.process_definition_id)
+       
 
         http_port = 8919
         http_port = self._start_webserver(port=http_port)
