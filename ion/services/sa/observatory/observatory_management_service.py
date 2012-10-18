@@ -558,7 +558,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def create_site_data_product(self, site_id="", data_product_id=""):
         # verify that both exist
         site_obj = self.RR.read(site_id)
-        data_product_obj = self.RR.read(data_product_id)
+        self.RR.read(data_product_id)
+
         sitetype = type(site_obj).__name__
 
         if not (RT.InstrumentSite == sitetype or RT.PlatformSite == sitetype):
@@ -613,7 +614,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # Process Spawning
         # ------------------------------------------------------------------------------------
         # Spawn the process
-        pid = process_dispatcher.schedule_process(
+        process_dispatcher.schedule_process(
             process_definition_id=process_definition_id,
             configuration=configuration
         )
@@ -845,7 +846,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         Make the devices on this deployment the primary devices for the sites
         """
         #Verify that the deployment exists
-        deployment_obj = self.clients.resource_registry.read(deployment_id)
+        self.clients.resource_registry.read(deployment_id)
 
 #        if LCS.DEPLOYED == deployment_obj.lcstate:
 #            raise BadRequest("This deploment is already active")
@@ -930,7 +931,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         #Verify that the deployment exists
-        deployment_obj = self.clients.resource_registry.read(deployment_id)
+        self.clients.resource_registry.read(deployment_id)
 
 #        if LCS.DEPLOYED != deployment_obj.lcstate:
 #            raise BadRequest("This deploment is not active")
@@ -1000,6 +1001,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("Expected a device type, got '%s'" % device_type)
 
         # commented out as per Maurice, 8/7/12
+        model_type # stop pyflakes warning since we don't use this any more
 #        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
 #        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
 #        if device_model not in site_models:
@@ -1291,26 +1293,26 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #Bogus functions for computed attributes
     def get_number_data_sets(self, observatory_id):
-        return "1"
+        return "0"
 
     def get_number_instruments_deployed(self, observatory_id):
-        return "1"
+        return "0"
 
 
     def get_number_instruments_operational(self, observatory_id):
-        return "1"
+        return "0"
 
 
     def get_number_instruments_inoperational(self, observatory_id):
-        return "1"  
+        return "0"
 
 
     def get_number_instruments(self, observatory_id):
-        return "1"
+        return "0"
 
 
     def get_number_platforms(self, observatory_id):
-        return "1"
+        return "0"
 
     def get_number_platforms_deployed(self, observatory_id):
-        return "1"
+        return "0"
