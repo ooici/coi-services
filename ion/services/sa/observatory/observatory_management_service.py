@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-'''
+"""
 @package ion.services.sa.observatory Implementation of IObservatoryManagementService interface
 @file ion/services/sa/observatory/observatory_management_service.py
 @author
 @brief Observatory Management Service to keep track of observatories sites, logical platform sites, instrument sites,
 and the relationships between them
-'''
+"""
 
 
 
@@ -80,24 +80,24 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         #shortcut names for the import sub-services
-        if hasattr(self.clients, "resource_registry"):
-            self.RR    = self.clients.resource_registry
+        if hasattr(new_clients, "resource_registry"):
+            self.RR    = new_clients.resource_registry
             
-        if hasattr(self.clients, "instrument_management"):
-            self.IMS   = self.clients.instrument_management
+        if hasattr(new_clients, "instrument_management"):
+            self.IMS   = new_clients.instrument_management
 
-        if hasattr(self.clients, "data_process_management"):
-            self.PRMS  = self.clients.data_process_management
+        if hasattr(new_clients, "data_process_management"):
+            self.PRMS  = new_clients.data_process_management
 
         #farm everything out to the impls
 
-        self.observatory      = ObservatoryImpl(self.clients)
-        self.subsite          = SubsiteImpl(self.clients)
-        self.platform_site    = PlatformSiteImpl(self.clients)
-        self.instrument_site  = InstrumentSiteImpl(self.clients)
+        self.observatory      = ObservatoryImpl(new_clients)
+        self.subsite          = SubsiteImpl(new_clients)
+        self.platform_site    = PlatformSiteImpl(new_clients)
+        self.instrument_site  = InstrumentSiteImpl(new_clients)
 
-        self.instrument_device   = InstrumentDeviceImpl(self.clients)
-        self.platform_device     = PlatformDeviceImpl(self.clients)
+        self.instrument_device   = InstrumentDeviceImpl(new_clients)
+        self.platform_device     = PlatformDeviceImpl(new_clients)
 
 
 
@@ -558,7 +558,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def create_site_data_product(self, site_id="", data_product_id=""):
         # verify that both exist
         site_obj = self.RR.read(site_id)
-        data_product_obj = self.RR.read(data_product_id)
+        self.RR.read(data_product_id)
+
         sitetype = type(site_obj).__name__
 
         if not (RT.InstrumentSite == sitetype or RT.PlatformSite == sitetype):
@@ -613,7 +614,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # Process Spawning
         # ------------------------------------------------------------------------------------
         # Spawn the process
-        pid = process_dispatcher.schedule_process(
+        process_dispatcher.schedule_process(
             process_definition_id=process_definition_id,
             configuration=configuration
         )
@@ -845,7 +846,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         Make the devices on this deployment the primary devices for the sites
         """
         #Verify that the deployment exists
-        deployment_obj = self.clients.resource_registry.read(deployment_id)
+        self.clients.resource_registry.read(deployment_id)
 
 #        if LCS.DEPLOYED == deployment_obj.lcstate:
 #            raise BadRequest("This deploment is already active")
@@ -930,7 +931,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         #Verify that the deployment exists
-        deployment_obj = self.clients.resource_registry.read(deployment_id)
+        self.clients.resource_registry.read(deployment_id)
 
 #        if LCS.DEPLOYED != deployment_obj.lcstate:
 #            raise BadRequest("This deploment is not active")
@@ -993,13 +994,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if RT.InstrumentDevice == device_type:
             model_type = RT.InstrumentModel
         elif RT.PlatformDevice == device_type:
-            model_type = RT.PlatformModel
+            #model_type = RT.PlatformModel
             #todo: actually transfer the subsription.  for now we abort because there are no platform data products
             return
         else:
             raise BadRequest("Expected a device type, got '%s'" % device_type)
 
         # commented out as per Maurice, 8/7/12
+        model_type # stop pyflakes warning since we don't use this any more
 #        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
 #        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
 #        if device_model not in site_models:
@@ -1291,26 +1293,26 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #Bogus functions for computed attributes
     def get_number_data_sets(self, observatory_id):
-        return "1"
+        return "0"
 
     def get_number_instruments_deployed(self, observatory_id):
-        return "1"
+        return "0"
 
 
     def get_number_instruments_operational(self, observatory_id):
-        return "1"
+        return "0"
 
 
     def get_number_instruments_inoperational(self, observatory_id):
-        return "1"  
+        return "0"
 
 
     def get_number_instruments(self, observatory_id):
-        return "1"
+        return "0"
 
 
     def get_number_platforms(self, observatory_id):
-        return "1"
+        return "0"
 
     def get_number_platforms_deployed(self, observatory_id):
-        return "1"
+        return "0"

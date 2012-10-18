@@ -22,6 +22,8 @@ from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
 import json
+import datetime
+import time
 
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
@@ -145,40 +147,81 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #shortcut names for the import sub-services
         # we hide these behind checks even though we expect them so that
         # the resource_impl_metatests will work
-        if hasattr(self.clients, "resource_registry"):
-            self.RR    = self.clients.resource_registry
+        if hasattr(new_clients, "resource_registry"):
+            self.RR    = new_clients.resource_registry
 
-        if hasattr(self.clients, "data_acquisition_management"):
-            self.DAMS  = self.clients.data_acquisition_management
+        if hasattr(new_clients, "data_acquisition_management"):
+            self.DAMS  = new_clients.data_acquisition_management
 
-        if hasattr(self.clients, "data_product_management"):
-            self.DPMS  = self.clients.data_product_management
+        if hasattr(new_clients, "data_product_management"):
+            self.DPMS  = new_clients.data_product_management
 
-        if hasattr(self.clients, "pubsub_management"):
-            self.PSMS = self.clients.pubsub_management
+        if hasattr(new_clients, "pubsub_management"):
+            self.PSMS = new_clients.pubsub_management
 
-        if hasattr(self.clients, "data_retriever"):
-            self.DRS = self.clients.data_retriever
+        if hasattr(new_clients, "data_retriever"):
+            self.DRS = new_clients.data_retriever
 
         #farm everything out to the impls
 
-        self.instrument_agent           = InstrumentAgentImpl(self.clients)
-        self.instrument_agent_instance  = InstrumentAgentInstanceImpl(self.clients)
-        self.instrument_model           = InstrumentModelImpl(self.clients)
-        self.instrument_device          = InstrumentDeviceImpl(self.clients)
+        self.instrument_agent           = InstrumentAgentImpl(new_clients)
+        self.instrument_agent_instance  = InstrumentAgentInstanceImpl(new_clients)
+        self.instrument_model           = InstrumentModelImpl(new_clients)
+        self.instrument_device          = InstrumentDeviceImpl(new_clients)
 
-        self.platform_agent           = PlatformAgentImpl(self.clients)
-        self.platform_agent_instance  = PlatformAgentInstanceImpl(self.clients)
-        self.platform_model           = PlatformModelImpl(self.clients)
-        self.platform_device          = PlatformDeviceImpl(self.clients)
+        self.platform_agent           = PlatformAgentImpl(new_clients)
+        self.platform_agent_instance  = PlatformAgentInstanceImpl(new_clients)
+        self.platform_model           = PlatformModelImpl(new_clients)
+        self.platform_device          = PlatformDeviceImpl(new_clients)
 
-        self.sensor_model    = SensorModelImpl(self.clients)
-        self.sensor_device   = SensorDeviceImpl(self.clients)
+        self.sensor_model    = SensorModelImpl(new_clients)
+        self.sensor_device   = SensorDeviceImpl(new_clients)
 
         #TODO: may not belong in this service
-        self.data_product        = DataProductImpl(self.clients)
-        self.data_producer       = DataProducerImpl(self.clients)
+        self.data_product        = DataProductImpl(new_clients)
+        self.data_producer       = DataProducerImpl(new_clients)
 
+
+
+
+    def snapshot_agent_config(self, instrument_device_id='', snapshot_name=''):
+        """
+        take a snapshot of the current instrument agent instance config for this instrument, and save it
+        """
+        # get instrument_agent_instance_id
+        inst_agent_inst_objs = self.instrument_device.find_stemming_agent_instance(instrument_device_id)
+
+        if 0 == len(inst_agent_inst_objs):
+            raise NotFound("No instrument agent instance was found for instrument %s" % instrument_device_id)
+
+        inst_agent_instance_obj = inst_agent_inst_objs[0]
+
+
+        epoch = time.mktime(datetime.datetime.now().timetuple())
+        snapshot_name = snapshot_name or "Running Config Snapshot %s.js" % epoch
+
+
+        driver_config, agent_config = self.generate_instrument_agent_config_helper(params,
+                                                                                   inst_agent_instance_obj)
+
+        snapshot = {}
+        snapshot["driver_config"] = driver_config
+        snapshot["agent_config"]  = agent_config
+
+        #todo
+        #snapshot["running_config"] = get_it_from_agent()
+
+
+        #make an attachment for the snapshot
+        attachment = IonObject(RT.Attachment,
+                               name=snapshot_name,
+                               description="Config snapshot at time %s" % epoch,
+                               content=json.dumps(snapshot),
+                               content_type="application/json", # RFC 4627
+                               keywords=[KeywordFlag.CONFIG_SNAPSHOT],
+                               attachment_type=AttachmentType.ASCII)
+
+        self.clients.resource_registry.create_attachment(instrument_device_id, attachment)
 
 
 
@@ -434,13 +477,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
-        driver_config, agent_config = self.generate_instrument_agent_config_helper(params, instrument_agent_instance_obj)
+        driver_config, agent_config = self.generate_instrument_agent_config_helper(params,
+                                                                                   instrument_agent_instance_obj)
 
         instrument_agent_instance_obj.driver_config = driver_config
 
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
-                                                               schedule=None,
-                                                               configuration=agent_config)
+                                                                      schedule=None,
+                                                                      configuration=agent_config)
         #update the producer context for provenance
         #todo: should get the time from process dispatcher
         producer_obj = self._get_instrument_producer(instrument_device_id)
