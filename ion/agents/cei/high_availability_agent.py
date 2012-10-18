@@ -39,6 +39,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         log.debug("HighAvailabilityAgent init")
         SimpleResourceAgent.__init__(self)
         self.dashi_handler = None
+        self.service_id = None
 
     def on_init(self):
         if not HighAvailabilityCore:
@@ -150,7 +151,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
 
         if svcdefs:
             self.container.resource_registry.create_association(
-                    self.service_id, "hasServiceDefinition", svcdefs[0]._id)
+                    service_id, "hasServiceDefinition", svcdefs[0]._id)
         else:
             log.error("Cannot find ServiceDefinition resource for %s",
                     definition.name)
@@ -180,7 +181,9 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         return self.core.status()
 
     def rcmd_dump(self):
-        return self.core.dump()
+        dump = self.core.dump()
+        dump['service_id'] = self.service_id
+        return dump
 
 
 class HADashiHandler(object):

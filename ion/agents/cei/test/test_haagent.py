@@ -18,7 +18,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.core import bootstrap
-from pyon.core.exception import Timeout
+from pyon.core.exception import Timeout, BadRequest, NotFound
 
 from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, \
     ProcessDispatcherSimpleAPIClient
@@ -100,6 +100,9 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
             'agent': {'resource_id': self.resource_id},
         }
 
+        self._base_services, _ = self.container.resource_registry.find_resources(
+                restype="Service", name=self.process_definition_name)
+
         self._base_procs = self.pd_cli.list_processes()
 
         self.waiter = ProcessStateWaiter()
@@ -122,12 +125,12 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.waiter.stop()
         try:
             self.container.terminate_process(self._haa_pid)
-        except Exception:
-            log.exception("Couldn't terminate HA Agent (May have been terminated by a test)")
+        except BadRequest:
+            log.warning("Couldn't terminate HA Agent in teardown (May have been terminated by a test)")
         self._stop_container()
 
     def get_running_procs(self):
-        """returns a normalized set of running procs (removes the ones that 
+        """returns a normalized set of running procs (removes the ones that
         were there at setup time)
         """
 
@@ -138,6 +141,27 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         print "filtering base procs %s from %s" % (base_pids, current_pids)
         normal = [cproc for cproc in current if cproc.process_id not in base_pids and cproc.process_state == ProcessStateEnum.RUNNING]
         return normal
+
+    def get_new_services(self):
+
+        base = self._base_services
+        base_names = [i.name for i in base]
+        services_registered, _ = self.container.resource_registry.find_resources(
+                restype="Service", name=self.process_definition_name)
+        current_names = [i.name for i in services_registered]
+        normal = [cserv for cserv in services_registered if cserv.name not in base_names]
+        return normal
+
+    def await_ha_state(self, want_state, timeout=10):
+
+        for i in range(0, timeout):
+            status = self.haa_client.status().result
+            if status == want_state:
+                return
+            gevent.sleep(1)
+
+        raise Exception("Took more than %s to get to ha state %s" % (timeout, want_state))
+
 
     def test_features(self):
         status = self.haa_client.status().result
@@ -190,10 +214,11 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         # Ensure that once the HA Agent starts, there is a Service object in
         # the registry
-        services_registered, _ = self.container.resource_registry.find_resources(
-                restype="Service", name=self.process_definition_name)
-        self.assertEqual(len(services_registered), 1)
-        service = services_registered[0]
+        result = self.haa_client.dump().result
+        service_id = result.get('service_id')
+        self.assertIsNotNone(service_id)
+        service = self.container.resource_registry.read(service_id)
+        self.assertIsNotNone(service)
 
         # Ensure that once a process is started, there is an association between
         # it and the service
@@ -201,6 +226,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.haa_client.reconfigure_policy(new_policy)
         self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
         self.assertEqual(len(self.get_running_procs()), 1)
+
+        self.await_ha_state('STEADY')
 
         proc = self.get_running_procs()[0]
 
@@ -211,6 +238,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         has_processes = self.container.resource_registry.find_associations(
             service, "hasProcess")
         self.assertEqual(len(has_processes), 1)
+
+        self.await_ha_state('STEADY')
 
         # Ensure that once we terminate that process, there are no associations
         new_policy = {'preserve_n': 0}
@@ -231,9 +260,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         # cleaned up
         self.container.terminate_process(self._haa_pid)
 
-        services_registered, _ = self.container.resource_registry.find_resources(
-                restype="Service", name=self.process_definition_name)
-        self.assertEqual(len(services_registered), 0)
+        with self.assertRaises(NotFound):
+            service = self.container.resource_registry.read(service_id)
 
     def test_dashi(self):
 
@@ -353,7 +381,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
         self.pd_cli.create_process_definition(self.process_definition,
                 self.process_definition_id)
-       
+
 
         http_port = 8919
         http_port = self._start_webserver(port=http_port)
@@ -420,7 +448,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         self._stop_container()
 
     def get_running_procs(self):
-        """returns a normalized set of running procs (removes the ones that 
+        """returns a normalized set of running procs (removes the ones that
         were there at setup time)
         """
 
