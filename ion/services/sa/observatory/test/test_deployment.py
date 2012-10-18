@@ -1,5 +1,6 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.public import Container, log, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
@@ -53,6 +54,11 @@ class TestDeployment(IonIntegrationTestCase):
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.psmsclient = PubsubManagementServiceClient(node=self.container.node)
 
+        self.c = DotDict()
+        self.c.resource_registry = self.rrclient
+        self.resource_impl = ResourceImpl(self.c)
+
+
     #@unittest.skip("targeting")
     def test_create_deployment(self):
 
@@ -91,7 +97,8 @@ class TestDeployment(IonIntegrationTestCase):
         self.assertEqual(len(device_ids), 1)
 
         #delete the deployment
-        self.omsclient.delete_deployment(deployment_id)
+        self.resource_impl.pluck(deployment_id)
+        self.omsclient.force_delete_deployment(deployment_id)
         # now try to get the deleted dp object
         try:
             deployment_obj = self.omsclient.read_deployment(deployment_id)

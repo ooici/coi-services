@@ -703,6 +703,7 @@ class TestAssembly(IonIntegrationTestCase):
         c2 = DotDict()
         c2.resource_registry = self.client.RR
         instrument_site_impl = InstrumentSiteImpl(c2)
+        resource_impl = ResourceImpl(c2)
 
         log.info("Create a instrument model")
         instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel,
@@ -767,6 +768,9 @@ class TestAssembly(IonIntegrationTestCase):
         c.OMS.activate_deployment(deployment_id, True)
 
         # cleanup
+        resource_impl.pluck(instrument_model_id)
+        resource_impl.pluck(deployment_id)
+        resource_impl.pluck(instrument_device_id)
         c.IMS.force_delete_instrument_model(instrument_model_id)
         c.IMS.force_delete_instrument_device(instrument_device_id)
         c.OMS.force_delete_instrument_site(instrument_site_id)

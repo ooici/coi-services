@@ -1,7 +1,9 @@
 from interface.services.icontainer_agent import ContainerAgentClient
 
 #from pyon.ion.endpoint import ProcessRPCClient
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.public import Container, log, IonObject
+from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -168,7 +170,14 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
 
         # cleanup
-        #self.IMS.force_delete_instrument_agent(instrument_agent_id)
+        c = DotDict()
+        c.resource_registry = self.RR
+        resource_impl = ResourceImpl(c)
+        resource_impl.pluck(instrument_agent_id)
+        resource_impl.pluck(instrument_model_id)
+        resource_impl.pluck(instrument_device_id)
+        resource_impl.pluck(platform_agent_id)
+        self.IMS.force_delete_instrument_agent(instrument_agent_id)
         self.IMS.force_delete_instrument_model(instrument_model_id)
         self.IMS.force_delete_instrument_device(instrument_device_id)
         self.IMS.force_delete_platform_agent_instance(platform_agent_instance_id)
