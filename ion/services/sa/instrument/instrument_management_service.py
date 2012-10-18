@@ -145,39 +145,39 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #shortcut names for the import sub-services
         # we hide these behind checks even though we expect them so that
         # the resource_impl_metatests will work
-        if hasattr(self.clients, "resource_registry"):
-            self.RR    = self.clients.resource_registry
+        if hasattr(new_clients, "resource_registry"):
+            self.RR    = new_clients.resource_registry
 
-        if hasattr(self.clients, "data_acquisition_management"):
-            self.DAMS  = self.clients.data_acquisition_management
+        if hasattr(new_clients, "data_acquisition_management"):
+            self.DAMS  = new_clients.data_acquisition_management
 
-        if hasattr(self.clients, "data_product_management"):
-            self.DPMS  = self.clients.data_product_management
+        if hasattr(new_clients, "data_product_management"):
+            self.DPMS  = new_clients.data_product_management
 
-        if hasattr(self.clients, "pubsub_management"):
-            self.PSMS = self.clients.pubsub_management
+        if hasattr(new_clients, "pubsub_management"):
+            self.PSMS = new_clients.pubsub_management
 
-        if hasattr(self.clients, "data_retriever"):
-            self.DRS = self.clients.data_retriever
+        if hasattr(new_clients, "data_retriever"):
+            self.DRS = new_clients.data_retriever
 
         #farm everything out to the impls
 
-        self.instrument_agent           = InstrumentAgentImpl(self.clients)
-        self.instrument_agent_instance  = InstrumentAgentInstanceImpl(self.clients)
-        self.instrument_model           = InstrumentModelImpl(self.clients)
-        self.instrument_device          = InstrumentDeviceImpl(self.clients)
+        self.instrument_agent           = InstrumentAgentImpl(new_clients)
+        self.instrument_agent_instance  = InstrumentAgentInstanceImpl(new_clients)
+        self.instrument_model           = InstrumentModelImpl(new_clients)
+        self.instrument_device          = InstrumentDeviceImpl(new_clients)
 
-        self.platform_agent           = PlatformAgentImpl(self.clients)
-        self.platform_agent_instance  = PlatformAgentInstanceImpl(self.clients)
-        self.platform_model           = PlatformModelImpl(self.clients)
-        self.platform_device          = PlatformDeviceImpl(self.clients)
+        self.platform_agent           = PlatformAgentImpl(new_clients)
+        self.platform_agent_instance  = PlatformAgentInstanceImpl(new_clients)
+        self.platform_model           = PlatformModelImpl(new_clients)
+        self.platform_device          = PlatformDeviceImpl(new_clients)
 
-        self.sensor_model    = SensorModelImpl(self.clients)
-        self.sensor_device   = SensorDeviceImpl(self.clients)
+        self.sensor_model    = SensorModelImpl(new_clients)
+        self.sensor_device   = SensorDeviceImpl(new_clients)
 
         #TODO: may not belong in this service
-        self.data_product        = DataProductImpl(self.clients)
-        self.data_producer       = DataProducerImpl(self.clients)
+        self.data_product        = DataProductImpl(new_clients)
+        self.data_producer       = DataProducerImpl(new_clients)
 
 
 

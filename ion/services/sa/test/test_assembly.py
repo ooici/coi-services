@@ -124,7 +124,6 @@ class TestAssembly(IonIntegrationTestCase):
         sensor_device_impl      = SensorDeviceImpl(c2)
         resource_impl           = ResourceImpl(c2)
 
-        instrument_agent_instance_impl = InstrumentAgentInstanceImpl(c2)
 
         #generate a function that finds direct associations, using the more complex one in the service
         def gen_find_oms_association(output_type):

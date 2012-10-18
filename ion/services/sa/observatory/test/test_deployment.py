@@ -102,7 +102,7 @@ class TestDeployment(IonIntegrationTestCase):
         # now try to get the deleted dp object
         try:
             deployment_obj = self.omsclient.read_deployment(deployment_id)
-        except NotFound as ex:
+        except NotFound:
             pass
         else:
             self.fail("deleted deployment was found during read")
