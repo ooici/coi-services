@@ -23,7 +23,6 @@ class CoverageCraftUnitTest(PyonTestCase):
         rdt['conductivity'] = np.array([10] * 20)
         rdt['lat'] = np.array([0] * 20)
         rdt['lon'] = np.array([0] * 20)
-        rdt['depth'] = np.array([0] * 20)
         rdt['data'] = np.array([0x01] * 20)
 
         return rdt.to_granule()
