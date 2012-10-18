@@ -278,7 +278,6 @@ class ProcessDispatcherSimpleAPIClientTest(PyonTestCase):
 
         self.assertEqual(args[0], definition_id)
         self.assertEqual(kwargs['configuration'], configuration)
-        self.assertEqual(kwargs['process_id'], upid)
 
 
 @attr('INT', group='cei')

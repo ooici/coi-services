@@ -276,7 +276,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         process_id = create_valid_identifier(process_id, ws_sub='_')
 
         process = Process(process_id=process_id)
-        rr_proc_id, _ = self.container.resource_registry.create(process, object_id=process_id)
+        self.container.resource_registry.create(process, object_id=process_id)
 
         return process_id
 

@@ -272,7 +272,7 @@ class ProcessDispatcherSimpleAPIClient(object):
         try:
             self.container.resource_registry.create_association(self.service_id,
                 "hasProcess", process.process_id)
-        except Exception:
+        except AttributeError, Exception:
             log.exception("Couldn't associate service %s to process %s" % (self.service_id, process.process_id))
 
 
