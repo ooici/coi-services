@@ -177,10 +177,10 @@ class TestSchedulerService(IonIntegrationTestCase):
 
         start_time = self.now_utc()
         self.interval_timer_end_time = start_time + 5
+        self.interval_timer_sent_time = datetime.datetime.utcnow()
         id = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval,
             end_time=self.interval_timer_end_time,
             event_origin=event_origin, event_subtype="")
-        self.interval_timer_sent_time = datetime.datetime.utcnow()
         self.assertEqual(type(id), str)
 
         # Wait until all events are published
