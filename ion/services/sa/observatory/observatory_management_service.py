@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-'''
+"""
 @package ion.services.sa.observatory Implementation of IObservatoryManagementService interface
 @file ion/services/sa/observatory/observatory_management_service.py
 @author
 @brief Observatory Management Service to keep track of observatories sites, logical platform sites, instrument sites,
 and the relationships between them
-'''
+"""
 
 
 
@@ -80,24 +80,24 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         #shortcut names for the import sub-services
-        if hasattr(self.clients, "resource_registry"):
-            self.RR    = self.clients.resource_registry
+        if hasattr(new_clients, "resource_registry"):
+            self.RR    = new_clients.resource_registry
             
-        if hasattr(self.clients, "instrument_management"):
-            self.IMS   = self.clients.instrument_management
+        if hasattr(new_clients, "instrument_management"):
+            self.IMS   = new_clients.instrument_management
 
-        if hasattr(self.clients, "data_process_management"):
-            self.PRMS  = self.clients.data_process_management
+        if hasattr(new_clients, "data_process_management"):
+            self.PRMS  = new_clients.data_process_management
 
         #farm everything out to the impls
 
-        self.observatory      = ObservatoryImpl(self.clients)
-        self.subsite          = SubsiteImpl(self.clients)
-        self.platform_site    = PlatformSiteImpl(self.clients)
-        self.instrument_site  = InstrumentSiteImpl(self.clients)
+        self.observatory      = ObservatoryImpl(new_clients)
+        self.subsite          = SubsiteImpl(new_clients)
+        self.platform_site    = PlatformSiteImpl(new_clients)
+        self.instrument_site  = InstrumentSiteImpl(new_clients)
 
-        self.instrument_device   = InstrumentDeviceImpl(self.clients)
-        self.platform_device     = PlatformDeviceImpl(self.clients)
+        self.instrument_device   = InstrumentDeviceImpl(new_clients)
+        self.platform_device     = PlatformDeviceImpl(new_clients)
 
 
 
@@ -994,7 +994,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if RT.InstrumentDevice == device_type:
             model_type = RT.InstrumentModel
         elif RT.PlatformDevice == device_type:
-            model_type = RT.PlatformModel
+            #model_type = RT.PlatformModel
             #todo: actually transfer the subsription.  for now we abort because there are no platform data products
             return
         else:
