@@ -120,7 +120,10 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
     def tearDown(self):
         self.waiter.stop()
-        self.container.terminate_process(self._haa_pid)
+        try:
+            self.container.terminate_process(self._haa_pid)
+        except Exception:
+            log.exception("Couldn't terminate HA Agent (May have been terminated by a test)")
         self._stop_container()
 
     def get_running_procs(self):
@@ -185,10 +188,15 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
     def test_associations(self):
 
+        # Ensure that once the HA Agent starts, there is a Service object in
+        # the registry
         services_registered, _ = self.container.resource_registry.find_resources(
                 restype="Service", name=self.process_definition_name)
         self.assertEqual(len(services_registered), 1)
+        service = services_registered[0]
 
+        # Ensure that once a process is started, there is an association between
+        # it and the service
         new_policy = {'preserve_n': 1}
         self.haa_client.reconfigure_policy(new_policy)
         self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
@@ -200,6 +208,11 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                 restype="Process", name=proc.process_id)
         self.assertEqual(len(processes_associated), 1)
 
+        has_processes = self.container.resource_registry.find_associations(
+            service, "hasProcess")
+        self.assertEqual(len(has_processes), 1)
+
+        # Ensure that once we terminate that process, there are no associations
         new_policy = {'preserve_n': 0}
         self.haa_client.reconfigure_policy(new_policy)
 
@@ -209,6 +222,18 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         processes_associated, _ = self.container.resource_registry.find_resources(
                 restype="Process", name=proc.process_id)
         self.assertEqual(len(processes_associated), 0)
+
+        has_processes = self.container.resource_registry.find_associations(
+            service, "hasProcess")
+        self.assertEqual(len(has_processes), 0)
+
+        # Ensure that once we terminate that HA Agent, the Service object is
+        # cleaned up
+        self.container.terminate_process(self._haa_pid)
+
+        services_registered, _ = self.container.resource_registry.find_resources(
+                restype="Service", name=self.process_definition_name)
+        self.assertEqual(len(services_registered), 0)
 
     def test_dashi(self):
 
