@@ -275,8 +275,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         process_id = str(process_definition.name or "process") + uuid.uuid4().hex
         process_id = create_valid_identifier(process_id, ws_sub='_')
 
-        process = Process(process_id=process_id)
-        self.container.resource_registry.create(process, object_id=process_id)
+        # TODO: Create a resource object or directory entry here?
 
         return process_id
 
@@ -330,9 +329,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         if not process_id:
             raise NotFound('No process was provided')
 
-        cancel_result = self.backend.cancel(process_id)
-        self.container.resource_registry.delete(process_id, del_associations=True)
-        return cancel_result
+        return self.backend.cancel(process_id)
 
     def read_process(self, process_id=''):
         """Returns a Process as an object.
