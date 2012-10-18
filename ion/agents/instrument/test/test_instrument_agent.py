@@ -448,7 +448,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         'pkt_version': 1, 'values':
         [{'value_id': 'temp', 'value': 21.4894},
         {'value_id': 'conductivity', 'value': 13.22157},
-        {'value_id': 'depth', 'value': 146.186}],
+        {'value_id': 'pressure', 'value': 146.186}],
         'driver_timestamp': 3556901018.170206}
         """
         
@@ -458,7 +458,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertTrue(isinstance(values_list, list))
         self.assertTrue(len(values_list)==3)
         
-        ids = ['temp', 'conductivity', 'depth']
+        ids = ['temp', 'conductivity', 'pressure']
         ids_found = []
 
         for x in values_list:
