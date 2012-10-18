@@ -4,7 +4,7 @@ __author__ = 'Seman, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 from pyon.public import IonObject, RT, log
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, NotFound
 from pyon.event.event import EventPublisher
 from pyon.core.bootstrap import CFG
 from interface.services.cei.ischeduler_service import BaseSchedulerService
@@ -196,8 +196,8 @@ class SchedulerService(BaseSchedulerService):
         On system restart, get timer data from Resource Registry and restore the Scheduler state
         '''
         # Remove all active timers
-        # When this method is called, there should not be any active timers but if it is called from test, this helps
-        # to remove current active timer and restore them from Resource Regstiry
+        # When this method is called, there should not be any active timers but if it is called from a test, this helps
+        # to remove current active timer and restore them from the Resource Regstiry
         if self.schedule_entries:
             for timer_id in self.schedule_entries:
                 spawns = self.__get_spawns(timer_id)
@@ -233,6 +233,7 @@ class SchedulerService(BaseSchedulerService):
         id = self.__schedule(scheduler_entry)
         if not id:
             raise BadRequest
+        log.debug("SchedulerService: create_timer: timer crated id: " + str(id))
         return id
 
     def cancel_timer(self, timer_id=''):
@@ -246,17 +247,20 @@ class SchedulerService(BaseSchedulerService):
         try:
             spawns = self.__get_spawns(timer_id)
             for spawn in spawns:
-                spawn.kill()
+                try:
+                    spawn.kill()
+                except:
+                    raise NotFound ("Gevent spawn can't be killed.")
             log.debug("SchedulerService: cancel_timer: id: " + str(timer_id))
             self.__delete(id=timer_id, index=None, force=True)
         except:
             log.error("SchedulerService: cancel_timer: timer id doesn't exist: " + str(timer_id))
-            raise BadRequest
+            raise BadRequest ("SchedulerService: cancel_timer: timer id doesn't exist: %s " % timer_id)
 
     def create_interval_timer(self, start_time="", interval=0, end_time="", event_origin="", event_subtype=""):
         if (end_time != -1 and (self.__now_posix(self.__now()) >= end_time)) or not event_origin:
             log.error("SchedulerService.create_interval_timer: event_origin is not set")
-            raise BadRequest
+            raise BadRequest("SchedulerService.create_interval_timer: event_origin is not set")
         if start_time == "now":
             start_time = self.__now_posix(self.__now())
         interval_timer = IonObject("IntervalTimer", {"start_time": start_time, "interval": interval, "end_time": end_time,
@@ -268,7 +272,7 @@ class SchedulerService(BaseSchedulerService):
         # Validate the timer
         if not event_origin:
             log.error("SchedulerService.create_time_of_day_timer: event_origin is set to invalid value")
-            raise BadRequest
+            raise BadRequest("SchedulerService.create_time_of_day_timer: event_origin is set to invalid value")
         for time_of_day in times_of_day:
             time_of_day['hour'] = int(time_of_day['hour'])
             time_of_day['minute'] = int(time_of_day['minute'])
