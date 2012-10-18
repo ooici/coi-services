@@ -385,7 +385,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             
             # Create subscriptions for each stream.
 
-            exchange_name = '%s_queue' % stream_name
+            from pyon.util.containers import create_unique_identifier
+            # exchange_name = '%s_queue' % stream_name
+            exchange_name = create_unique_identifier("%s_queue" %
+                    stream_name)
             self._purge_queue(exchange_name)
             sub = StandaloneStreamSubscriber(exchange_name, recv_data)
             sub.start()
@@ -862,6 +865,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Start data subscribers.
         self._start_data_subscribers(6)
+        self.addCleanup(self._stop_data_subscribers)
         
         # Set up a subscriber to collect command events.
         self._start_event_subscriber('ResourceAgentCommandEvent', 7)
