@@ -1932,17 +1932,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 context_dict = {}
                 pdict = self.clients.pubsub_management.read_stream_definition(stream_def_ids[0]).parameter_dictionary
                 log.debug("get_data_product_parameters_set: pdict %s ", str(pdict) )
+
                 pdict_full = ParameterDictionary.load(pdict)
-                log.debug("get_data_product_parameters_set: pdict_full %s ", str(pdict_full) )
 
-                for key in pdict.iterkeys():
+                for key in pdict_full.keys():
                     log.debug("get_data_product_parameters_set: key %s ", str(key))
-                    if key in pdict_full:
-                        #context_dict[key] = pdict_full.get_context(key)
-                        context_dict[key] = "TBD"
-                        log.debug("get_data_product_parameters_set: get_parameter_context %s ", str(context_dict[key]))
+                    context = DatasetManagementService.get_parameter_context_by_name(key)
+                    log.debug("get_data_product_parameters_set: context %s ", str(context))
+                    context_dict[key] = context.dump()
 
-                log.debug("get_data_product_parameters_set: context_dict %s ", str(context_dict))
                 ret.value[data_product_obj.processing_level_code] = context_dict
             ret.status = ComputedValueAvailability.PROVIDED
         return ret
