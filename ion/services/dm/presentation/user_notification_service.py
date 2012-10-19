@@ -29,7 +29,7 @@ import elasticpy as ep
 from datetime import datetime
 
 from ion.services.dm.presentation.sms_providers import sms_providers
-from interface.objects import ProcessDefinition
+from interface.objects import ProcessDefinition, UserInfo
 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
@@ -718,16 +718,29 @@ class UserNotificationService(BaseUserNotificationService):
         '''
 
         user = self.clients.resource_registry.read(user_id)
-        notifications = self.event_processor.user_info[user.name]['notifications']
 
-        ret = IonObject(OT.ComputedListValue)
-        if notifications:
-            ret.value = notifications
-            ret.status = ComputedValueAvailability.PROVIDED
+        if not user:
+            return None
+
+        if not isinstance(user, UserInfo):
+            log.warning("UserNotificationService.get_user_notifications() got resource id not of the type UserInfo!")
+
+        if not user.name:
+            raise BadRequest("Please assign a name to the resource. Example: resource.name = \'Irene\' for UNS to "
+                             "be able to fetch the related notifications")
+
+        if self.event_processor.user_info.has_key(user.name):
+            notifications = self.event_processor.user_info[user.name]['notifications']
+            ret = IonObject(OT.ComputedListValue)
+
+            if notifications:
+                ret.value = notifications
+                ret.status = ComputedValueAvailability.PROVIDED
+            else:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+            return ret
         else:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-
-        return ret
+            return None
 
     def create_worker(self, number_of_workers=1):
         '''
