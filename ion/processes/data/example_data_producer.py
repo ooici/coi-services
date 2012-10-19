@@ -6,7 +6,6 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool, Paramete
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from interface.objects import Granule
 from pyon.core.exception import NotFound
-from ion.util.parameter_yaml_IO import get_param_dict
 import numpy
 import random
 import gevent
@@ -16,17 +15,13 @@ class BetterDataProducer(SimpleCtdPublisher):
         self.pdict = None
         stream_id = self.CFG.get_safe('process.stream_id')
         pubsub_cli = PubsubManagementServiceProcessClient(process=self)
-        try: 
-            stream_def = pubsub_cli.read_stream_definition(stream_id=stream_id)
-            self.pdict = ParameterDictionary.load(stream_def.parameter_dictionary)
-        except NotFound:
-            self.pdict = get_param_dict('ctd_parsed_param_dict')
+        self.stream_def = pubsub_cli.read_stream_definition(stream_id=stream_id)
         super(BetterDataProducer,self).on_start()
 
     def publish_loop(self):
         t_i = 0
         while not self.finished.is_set():
-            rdt = RecordDictionaryTool(param_dictionary=self.pdict)
+            rdt = RecordDictionaryTool(stream_definition_id=self.stream_def._id)
             rdt['time']         = numpy.arange(10) + t_i*10
             rdt['temp']         = numpy.random.random(10) * 10
             rdt['lat']          = numpy.array([0] * 10)

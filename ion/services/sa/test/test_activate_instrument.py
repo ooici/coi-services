@@ -1,10 +1,8 @@
-from interface.services.icontainer_agent import ContainerAgentClient
-#from pyon.ion.endpoint import ProcessRPCClient
+#!/usr/bin/env python
 
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
@@ -13,52 +11,32 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-
-from prototype.sci_data.stream_defs import \
-    ctd_stream_definition, \
-    L0_pressure_stream_definition, L0_temperature_stream_definition, \
-    L0_conductivity_stream_definition
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.objects import AgentCommand
 from interface.objects import ProcessDefinition
 from interface.objects import ProcessStateEnum
 
-from gevent.event import AsyncResult
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType
 
-from pyon.public import CFG
-from pyon.public import RT, LCS, PRED
-from pyon.public import Container, log, IonObject
+from pyon.public import RT, PRED
+from pyon.public import log, IonObject
 from pyon.datastore.datastore import DataStore
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.util.unit_test import PyonTestCase
-from pyon.util.int_test import IonIntegrationTestCase
 
 from pyon.agent.agent import ResourceAgentClient
-from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 
-from ion.util.parameter_yaml_IO import get_param_dict
-from pyon.core.exception import BadRequest, NotFound, Conflict
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
-from ion.util.parameter_yaml_IO import get_param_dict
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.objects import Granule
 
 from nose.plugins.attrib import attr
 
-import unittest
-import time
 import gevent
 
 class FakeProcess(LocalContextMixin):
@@ -90,6 +68,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
         self.dataretrieverclient = DataRetrieverServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
         
         #setup listerner vars
         self._data_greenlets = []
@@ -190,11 +169,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         tdom = tdom.dump()
 
 
-        parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
-        parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='parsed', parameter_dictionary=parsed_parameter_dictionary.dump())
+        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
 
-        raw_parameter_dictionary = get_param_dict('simple_data_particle_raw_param_dict')
-        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='raw', parameter_dictionary=raw_parameter_dictionary.dump())
+        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_raw_param_dict', id_only=True)
+        raw_stream_def_id = self.pubsubcli.create_stream_definition(name='raw', parameter_dictionary_id=raw_pdict_id)
 
 
         #-------------------------------
@@ -207,7 +186,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
@@ -237,7 +216,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
+        data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
         log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
@@ -425,7 +404,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: return from reset %s", str(reply))
-        time.sleep(5)
+        gevent.sleep(5)
 
 
         #--------------------------------------------------------------------------------

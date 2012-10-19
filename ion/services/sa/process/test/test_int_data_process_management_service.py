@@ -7,7 +7,6 @@
 '''
 
 from nose.plugins.attrib import attr
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -15,30 +14,18 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from pyon.public import Container, log, IonObject
-from pyon.util.containers import DotDict
-from pyon.public import CFG, RT, LCS, PRED 
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from ion.services.dm.utility.granule_utils import time_series_domain
+from pyon.public import log, IonObject
+from pyon.public import CFG, RT, PRED 
+from pyon.core.exception import BadRequest
 from pyon.util.context import LocalContextMixin
-import time
 from pyon.util.int_test import IonIntegrationTestCase
-from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-import gevent
-from interface.objects import HdfStorage, CouchStorage
-from prototype.sci_data.stream_parser import PointSupplementStreamParser
-from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
 from mock import patch
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
-from ion.util.parameter_yaml_IO import get_param_dict
 from ion.agents.port.port_agent_process import PortAgentProcessType
+import gevent
 
 class FakeProcess(LocalContextMixin):
     """
@@ -66,6 +53,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
+        self.dataset_management = self.datasetclient
 
 
 
@@ -101,7 +89,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         log.debug("TestIntDataProcessMgmtServiceMultiOut  data_producer_id %s", data_producer_id)
 
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=pdict_id)
 
         self.dataprocessclient.assign_input_stream_definition_to_data_process_definition(ctd_stream_def_id, dprocdef_id )
 
@@ -113,20 +102,11 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
 
-        # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-
-        parameter_dictionary = parameter_dictionary.dump()
 
         input_dp_obj = IonObject(   RT.DataProduct,
                                     name='InputDataProduct',
@@ -134,7 +114,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
                                     temporal_domain = tdom,
                                     spatial_domain = sdom)
 
-        input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj, stream_definition_id=ctd_stream_def_id, parameter_dictionary=parameter_dictionary,exchange_point='test')
+        input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj, stream_definition_id=ctd_stream_def_id, exchange_point='test')
 
         self.damsclient.assign_data_product(instrument_id, input_dp_id)
 
@@ -149,13 +129,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Output Data Product
         #-------------------------------
 
-        outgoing_stream_conductivity_id = self.pubsubclient.create_stream_definition(name='conductivity')
+        outgoing_stream_conductivity_id = self.pubsubclient.create_stream_definition(name='conductivity', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_conductivity_id, dprocdef_id,binding='conductivity' )
 
-        outgoing_stream_pressure_id = self.pubsubclient.create_stream_definition(name='pressure')
+        outgoing_stream_pressure_id = self.pubsubclient.create_stream_definition(name='pressure', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_pressure_id, dprocdef_id, binding='pressure' )
 
-        outgoing_stream_temperature_id = self.pubsubclient.create_stream_definition(name='temperature')
+        outgoing_stream_temperature_id = self.pubsubclient.create_stream_definition(name='temperature', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_temperature_id, dprocdef_id, binding='temperature' )
 
 
@@ -168,7 +148,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        output_dp_id_1 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id, parameter_dictionary)
+        output_dp_id_1 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id)
         self.output_products['conductivity'] = output_dp_id_1
 
 
@@ -180,7 +160,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        output_dp_id_2 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id, parameter_dictionary)
+        output_dp_id_2 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id)
         self.output_products['pressure'] = output_dp_id_2
 
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product temperature")
@@ -191,7 +171,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        output_dp_id_3 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_temperature_id, parameter_dictionary)
+        output_dp_id_3 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_temperature_id)
         self.output_products['temperature'] = output_dp_id_3
 
 
@@ -277,7 +257,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create CTD Parsed as the first data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE32_CDM')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE32_CDM', parameter_dictionary_id=pdict_id)
 
         print 'test_createDataProcessUsingSim: new Stream Definition id = ', instDevice_id
 
@@ -285,19 +266,12 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
 
-        parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='ctd_parsed',
@@ -305,7 +279,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
 
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product
 
@@ -319,16 +293,10 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create CTD Raw as the second data product
         #-------------------------------
         print 'test_createDataProcessUsingSim: Creating new RAW data product with a stream definition'
-        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW')
+        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW', parameter_dictionary_id=pdict_id)
 
-
-        dp_obj = IonObject(RT.DataProduct,
-                            name='ctd_raw',
-                            description='raw stream test',
-                            temporal_domain = tdom,
-                            spatial_domain = sdom)
-
-        ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id, parameter_dictionary)
+        dp_obj.name = 'ctd_raw'
+        ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id)
         print 'new ctd_raw_data_product_id = ', ctd_raw_data_product
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
@@ -357,13 +325,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
+        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id, binding='conductivity' )
 
-        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
+        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id, binding='pressure' )
 
-        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
+        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
@@ -378,8 +346,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
         ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj,
-                                                                                outgoing_stream_l0_conductivity_id,
-                                                                                parameter_dictionary)
+                                                                                outgoing_stream_l0_conductivity_id)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
 
 
@@ -392,8 +359,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj,
-                                                                                    outgoing_stream_l0_pressure_id,
-                                                                                    parameter_dictionary)
+                                                                                    outgoing_stream_l0_pressure_id)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
 
         log.debug("test_createDataProcessUsingSim: create output data product L0 temperature")
@@ -406,8 +372,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj,
-                                                                                    outgoing_stream_l0_temperature_id,
-                                                                                    parameter_dictionary)
+                                                                                    outgoing_stream_l0_temperature_id)
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
 
 
@@ -424,6 +389,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         log.debug("test_createDataProcessUsingSim: create data_process start")
         try:
             ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
+            print 'CTD_L0 data process id: ', ctd_l0_all_data_process_id
+
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -450,4 +417,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         log.debug("test_createDataProcessUsingSim: deactivate_data_process ")
         self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)
 
+        print 'Deleting data process ', ctd_l0_all_data_process_id
         self.dataprocessclient.delete_data_process(ctd_l0_all_data_process_id)
+

@@ -21,6 +21,7 @@ from nose.plugins.attrib import attr
 from coverage_model.coverage import CRS, GridDomain, GridShape
 from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
 from ion.util.parameter_yaml_IO import get_param_dict
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
@@ -96,6 +97,7 @@ class FakeProcess(LocalContextMixin):
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
+    pdict_id = None
 
     def setUp(self):
         # Start container
@@ -120,6 +122,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
+        self.dataset_management = self.datasetclient
 
     def create_logger(self, name, stream_id=''):
 
@@ -185,16 +188,12 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         return instAgentInstance_id
 
     def _create_param_dicts(self):
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         self.sdom = sdom.dump()
         self.tdom = tdom.dump()
 
-        self.parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
-        self.parameter_dictionary = self.parameter_dictionary.dump()
+        self.pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
 
     def _create_input_data_products(self, ctd_stream_def_id, instDevice_id,  ):
 
@@ -204,7 +203,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             temporal_domain = self.tdom,
             spatial_domain = self.sdom)
 
-        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, self.parameter_dictionary)
+        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
@@ -222,7 +221,9 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #---------------------------------------------------------------------------
         # Create CTD Raw as the second data product
         #---------------------------------------------------------------------------
-        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW')
+        if not self.pdict_id:
+            self._create_param_dicts()
+        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW', parameter_dictionary_id=self.pdict_id)
 
         dp_obj = IonObject(RT.DataProduct,
             name='the raw data',
@@ -230,7 +231,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             temporal_domain = self.tdom,
             spatial_domain = self.sdom)
 
-        ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id, self.parameter_dictionary)
+        ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
 
@@ -325,14 +326,16 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
                 self.ctd_L2_salinity_dprocdef_id, self.ctd_L2_density_dprocdef_id
 
     def _create_stream_definitions(self):
+        if not self.pdict_id:
+            self._create_param_dicts()
 
-        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
+        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity', parameter_dictionary_id=self.pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, self.ctd_L0_all_dprocdef_id, binding='conductivity' )
 
-        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
+        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure', parameter_dictionary_id=self.pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, self.ctd_L0_all_dprocdef_id, binding= 'pressure' )
 
-        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
+        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature', parameter_dictionary_id=self.pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, self.ctd_L0_all_dprocdef_id, binding='temperature' )
 
         return outgoing_stream_l0_conductivity_id, outgoing_stream_l0_pressure_id, outgoing_stream_l0_temperature_id
@@ -350,8 +353,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             spatial_domain = self.sdom)
 
         self.ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj,
-            outgoing_stream_l0_conductivity_id,
-            self.parameter_dictionary)
+            outgoing_stream_l0_conductivity_id)
         output_products['conductivity'] = self.ctd_l0_conductivity_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=self.ctd_l0_conductivity_output_dp_id)
 
@@ -362,8 +364,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             spatial_domain = self.sdom)
 
         self.ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj,
-            outgoing_stream_l0_pressure_id,
-            self.parameter_dictionary)
+            outgoing_stream_l0_pressure_id)
         output_products['pressure'] = self.ctd_l0_pressure_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=self.ctd_l0_pressure_output_dp_id)
 
@@ -374,8 +375,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             spatial_domain = self.sdom)
 
         self.ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj,
-            outgoing_stream_l0_temperature_id,
-            self.parameter_dictionary)
+            outgoing_stream_l0_temperature_id)
         output_products['temperature'] = self.ctd_l0_temperature_output_dp_id
         self.dataproductclient.activate_data_product_persistence(data_product_id=self.ctd_l0_temperature_output_dp_id)
 
@@ -390,8 +390,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             spatial_domain = self.sdom)
 
         self.ctd_l1_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_conductivity_output_dp_obj,
-            self.outgoing_stream_l1_conductivity_id,
-            self.parameter_dictionary)
+            self.outgoing_stream_l1_conductivity_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=self.ctd_l1_conductivity_output_dp_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
         stream_ids, _ = self.rrclient.find_objects(self.ctd_l1_conductivity_output_dp_id, PRED.hasStream, None, True)
@@ -405,9 +404,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             spatial_domain = self.sdom)
 
         self.ctd_l1_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_pressure_output_dp_obj,
-            self.outgoing_stream_l1_pressure_id,
-            self.parameter_dictionary
-        )
+            self.outgoing_stream_l1_pressure_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=self.ctd_l1_pressure_output_dp_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
         stream_ids, _ = self.rrclient.find_objects(self.ctd_l1_pressure_output_dp_id, PRED.hasStream, None, True)
@@ -421,8 +418,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             spatial_domain = self.sdom)
 
         self.ctd_l1_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l1_temperature_output_dp_obj,
-            self.outgoing_stream_l1_temperature_id,
-            self.parameter_dictionary)
+            self.outgoing_stream_l1_temperature_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=self.ctd_l1_temperature_output_dp_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
         stream_ids, _ = self.rrclient.find_objects(self.ctd_l1_temperature_output_dp_id, PRED.hasStream, None, True)
@@ -435,10 +431,11 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # L2 Salinity - Density: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(name='L2_salinity')
+        if not self.pdict_id: self._create_param_dicts()
+        outgoing_stream_l2_salinity_id = self.pubsubclient.create_stream_definition(name='L2_salinity', parameter_dictionary_id=self.pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_salinity_id, self.ctd_L2_salinity_dprocdef_id, binding='salinity' )
 
-        outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(name='L2_Density')
+        outgoing_stream_l2_density_id = self.pubsubclient.create_stream_definition(name='L2_Density', parameter_dictionary_id=self.pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l2_density_id, self.ctd_L2_density_dprocdef_id, binding='density' )
 
         ctd_l2_salinity_output_dp_obj = IonObject(RT.DataProduct,
@@ -448,8 +445,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             spatial_domain = self.sdom)
 
         self.ctd_l2_salinity_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_salinity_output_dp_obj,
-            outgoing_stream_l2_salinity_id,
-            self.parameter_dictionary)
+            outgoing_stream_l2_salinity_id)
 
         self.dataproductclient.activate_data_product_persistence(data_product_id=self.ctd_l2_salinity_output_dp_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
@@ -464,8 +460,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             spatial_domain = self.sdom)
 
         self.ctd_l2_density_output_dp_id = self.dataproductclient.create_data_product(ctd_l2_density_output_dp_obj,
-            outgoing_stream_l2_density_id,
-            self.parameter_dictionary)
+            outgoing_stream_l2_density_id)
+            
 
         self.dataproductclient.activate_data_product_persistence(data_product_id=self.ctd_l2_density_output_dp_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
@@ -506,13 +502,11 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # create a stream definition for the data from the ctd simulator
         #-------------------------------------------------------------------------------------
 
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_CDM')
-
-        #-------------------------------------------------------------------------------------
-        # Construct temporal and spatial Domain objects
-        #-------------------------------------------------------------------------------------
-
         self._create_param_dicts()
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_CDM', 
+                                                parameter_dictionary_id=self.pdict_id)
+
+
 
         #-------------------------------------------------------------------------------------
         # Create two data products
@@ -536,13 +530,13 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.output_products={}
         self.output_products = self._create_l0_output_data_products(outgoing_stream_l0_conductivity_id,outgoing_stream_l0_pressure_id,outgoing_stream_l0_temperature_id)
 
-        self.outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(name='L1_conductivity')
+        self.outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(name='L1_conductivity', parameter_dictionary_id=self.pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.outgoing_stream_l1_conductivity_id, self.ctd_L1_conductivity_dprocdef_id, binding='conductivity' )
 
-        self.outgoing_stream_l1_pressure_id = self.pubsubclient.create_stream_definition(name='L1_Pressure')
+        self.outgoing_stream_l1_pressure_id = self.pubsubclient.create_stream_definition(name='L1_Pressure', parameter_dictionary_id=self.pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.outgoing_stream_l1_pressure_id, self.ctd_L1_pressure_dprocdef_id, binding='pressure' )
         
-        self.outgoing_stream_l1_temperature_id = self.pubsubclient.create_stream_definition(name='L1_Temperature')
+        self.outgoing_stream_l1_temperature_id = self.pubsubclient.create_stream_definition(name='L1_Temperature', parameter_dictionary_id=self.pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.outgoing_stream_l1_temperature_id, self.ctd_L1_temperature_dprocdef_id, binding= 'temperature' )
 
         self._create_l1_out_data_products()

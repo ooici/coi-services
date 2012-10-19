@@ -114,7 +114,7 @@ class ReplayProcess(BaseReplayProcess):
             slice_ = [idx_values]
 
         elif not (start_time is None and end_time is None):
-            time_var = coverage._temporal_param_name
+            time_var = coverage.temporal_parameter_name
             uom = coverage.get_parameter_context(time_var).uom
             if start_time is not None:
                 start_units = cls.ts_to_units(uom,start_time)
@@ -249,7 +249,7 @@ class ReplayProcess(BaseReplayProcess):
         Determines the relative time in the coverage model based on a given time
         The time must match the coverage's time units
         '''
-        time_name = coverage._temporal_param_name
+        time_name = coverage.temporal_parameter_name
         pc = coverage.get_parameter_context(time_name)
         units = pc.uom
         if 'iso' in units:

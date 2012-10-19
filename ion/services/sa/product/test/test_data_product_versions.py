@@ -7,26 +7,18 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_definition, SBE37_CDM_stream_definition
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
-from coverage_model.parameter import ParameterDictionary
+from ion.services.dm.utility.granule_utils import time_series_domain
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 from pyon.util.context import LocalContextMixin
-from pyon.util.containers import DotDict
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.core.exception import BadRequest
 from pyon.public import RT, PRED
-from mock import Mock
-from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 from interface.objects import ProcessDefinition
 import unittest
 import time
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
-from ion.util.parameter_yaml_IO import get_param_dict
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -55,29 +47,24 @@ class TestDataProductVersions(IonIntegrationTestCase):
         self.processdispatchclient   = ProcessDispatcherServiceClient(node=self.container.node)
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
 
 
     #@unittest.skip('not working')
     def test_createDataProductVersionSimple(self):
 
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition( name='test')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition( name='test', parameter_dictionary_id=pdict_id)
 
         # test creating a new data product which will also create the initial/default version
         log.debug('Creating new data product with a stream definition')
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP',
@@ -85,7 +72,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        dp_id = self.client.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        dp_id = self.client.create_data_product(dp_obj, ctd_stream_def_id)
         log.debug( 'new dp_id = %s', str(dp_id))
 
         dpc_id = self.client.create_data_product_collection( data_product_id=dp_id, collection_name='firstCollection', collection_description='collection desc')
@@ -105,7 +92,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        dp2_id = self.client.create_data_product(dp2_obj, ctd_stream_def_id, parameter_dictionary)
+        dp2_id = self.client.create_data_product(dp2_obj, ctd_stream_def_id)
         log.debug( 'second dp_id = %s', str(dp2_id))
 
 
@@ -149,7 +136,8 @@ class TestDataProductVersions(IonIntegrationTestCase):
         # Create CTD Parsed as the first data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM', parameter_dictionary_id=pdict_id)
 
         print 'test_createTransformsThenActivateInstrument: new Stream Definition id = ', ctd_stream_def_id
 
@@ -157,18 +145,11 @@ class TestDataProductVersions(IonIntegrationTestCase):
 
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='ctd_parsed',
@@ -176,7 +157,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id1, data_product_id=ctd_parsed_data_product)

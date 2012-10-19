@@ -110,6 +110,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
+        #@TODO: DO NOT DO THIS, WHEN THIS TEST IS REWRITTEN GET RID OF THIS, IT WILL FAIL, thanks -Luke
         parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
         parameter_dictionary = parameter_dictionary.dump()
 
@@ -258,7 +259,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # create a stream definition for the data from the ctd simulator
         #------------------------------------------------------------------------------------------------
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='Simulated CTD data')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=pdict_id)
         log.debug("Created stream def id %s" % ctd_stream_def_id)
 
         #------------------------------------------------------------------------------------------------
@@ -267,18 +269,11 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         log.debug('test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)')
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
 
 
         dp_obj = IonObject(RT.DataProduct,
@@ -292,11 +287,9 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
         #------------------------------------------------------------------------------------------------
-        log.debug("parameter dictionary: %s" % parameter_dictionary)
 
-        dp_id = self.dpsc_cli.create_data_product( data_product= dp_obj,
-            stream_definition_id=ctd_stream_def_id,
-            parameter_dictionary= parameter_dictionary)
+        dp_id = self.dpsc_cli.create_data_product(data_product= dp_obj,
+            stream_definition_id=ctd_stream_def_id)
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
 

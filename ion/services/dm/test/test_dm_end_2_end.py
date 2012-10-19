@@ -251,7 +251,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rec_context = ParameterContext('records', param_type=RecordType())
         context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
 
-        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids)
+        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids, temporal_context='time')
         
 
         stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
@@ -329,7 +329,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rec_context = ParameterContext('records', param_type=RecordType())
         context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
 
-        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids)
+        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids, temporal_context='time')
         
         stream_definition = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary_id=pdict_id)
 
@@ -443,7 +443,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rec_context = ParameterContext('records', param_type=RecordType())
         context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
 
-        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids)
+        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids, temporal_context='time')
         
 
         stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
