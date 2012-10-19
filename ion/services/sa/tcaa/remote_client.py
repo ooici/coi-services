@@ -13,35 +13,31 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 from pyon.public import CFG
 
-
-#
+# Standard imports.
 import inspect
 import copy
+import uuid
 
+# Zope interfaces.
+from zope.interface import Interface, implements, directlyProvides
+from zope.interface.interface import InterfaceClass
+
+# Pyon exceptions.
 from pyon.core.exception import ConfigNotFound
 from pyon.core.exception import Conflict
 from pyon.core.exception import BadRequest
 
+# Ion imports.
 from interface.services.sa.iterrestrial_endpoint import ITerrestrialEndpoint
 from ion.services.sa.tcaa.terrestrial_endpoint import TerrestrialEndpointClient
 from pyon.public import IonObject
 from gevent.event import AsyncResult
 from pyon.event.event import EventSubscriber
 
-# Zope interfaces.
-from zope.interface import Interface, implements, directlyProvides
-from zope.interface.interface import InterfaceClass
-
-"""
-from interface.services.iresource_agent import IResourceAgent
-from ion.services.sa.tcaa.remote_client import RemoteClient
-rc = RemoteClient(IResourceAgent,None)
-params = ['param1','params2']
-
-"""
-
 class RemoteClient(object):
     """
+    A proxy client for any service or resource that forwards commands
+    to the terrestrial endpoint for transmission.
     """
     implements(ITerrestrialEndpoint)
     
@@ -94,7 +90,6 @@ class RemoteClient(object):
         directlyProvides(self, iface)
 
         # Initialize the async results objects for blocking behavior.
-        self._async_results = []
         self._async_result_evt = None
 
     def generate_service_method(self, name):
@@ -119,20 +114,26 @@ class RemoteClient(object):
             link = kwargs.pop('link')
         except KeyError:
             link = True
+        cid = ''
         try:
             remote_timeout = kwargs.pop('remote_timeout')
             if not isinstance(remote_timeout, int):
                 remote_timeout = 0
-            if remote_timeout < 0:
+            elif remote_timeout < 0:
                 remote_timeout = 0
+            elif remote_timeout == 0:
+                pass
+            else:
+                cid = str(uuid.uuid4())
                 
         except KeyError:
             remote_timeout = 0
-            
+                
         cmd = IonObject('RemoteCommand',
                              resource_id=self._resource_id,
                              svc_name=self._svc_name,
                              command=func_name,
+                             command_id=cid,
                              args= args,
                              kwargs= kwargs)
         
@@ -147,7 +148,6 @@ class RemoteClient(object):
                 origin = self._svc_name + self._xs_name
 
             self._async_result_evt = AsyncResult()
-            self._async_results = []
             
             sub = EventSubscriber(
                 event_type='RemoteCommandResult',
@@ -155,33 +155,16 @@ class RemoteClient(object):
                 callback=self._result_callback)
 
             sub.start()
+            self._pending_cmd = cmd
             cmd = self._te_client.enqueue_command(cmd, link)
-            self._set_pending(cmd)
             result = self._async_result_evt.get(timeout=remote_timeout)
+            self._pending_cmd = None
             sub.stop()
             if not result:
                 result = cmd
                 
             self._pending_cmd = None
             return result
-
-    def _set_pending(self, cmd):
-        """
-        Set the command we are blocking on.
-        If necessary inspect results that arrived before the pending command
-        was available.
-        """
-        self._pending_cmd = cmd
-        result = None
-        for x in self._async_results:
-            if x.command_id == self._pending_cmd.command_id:
-                result = x
-                self._pending_cmd = None
-                break
-        
-        self._async_results = []
-        if self._async_result_evt and result:
-            self._async_result_evt.set(result)
         
     def _result_callback(self, evt, *args, **kwargs):
         """
@@ -194,8 +177,6 @@ class RemoteClient(object):
                     self._pending_cmd = None
                     if self._async_result_evt:
                         self._async_result_evt.set(cmd)
-            else:
-                self._async_results.append(evt)
         
     def enqueue_command(self, command=None, link=False):
         """

@@ -271,7 +271,8 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
             raise BadRequest('Invalid command parameter.')
         
         command.time_queued = time.time()
-        command.command_id = str(uuid.uuid4())
+        if not command.command_id:
+            command.command_id = str(uuid.uuid4())
         self._tx_dict[command.command_id] = command
         self._client.enqueue(command)
         self._update_queue_resource()
