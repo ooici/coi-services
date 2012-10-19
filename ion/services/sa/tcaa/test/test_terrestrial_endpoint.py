@@ -55,6 +55,7 @@ from ion.services.sa.tcaa.r3pc import R3PCClient
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_pop_pending_queue
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_repeated_clear_pop
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_get_pending
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_persistent_queue
 
 class FakeProcess(LocalContextMixin):
     """
@@ -124,7 +125,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
         # Create a container client.
         log.debug('Creating container client.')
-        container_client = ContainerAgentClient(node=self.container.node,
+        self._container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
 
         # The following spawn config creates the process with the remote
@@ -150,12 +151,12 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         
         # Spawn the terrestrial enpoint process.
         log.debug('Spawning terrestrial endpoint process.')
-        te_pid = container_client.spawn_process(
+        self._te_pid = self._container_client.spawn_process(
             name='remote_endpoint_1',
             module='ion.services.sa.tcaa.terrestrial_endpoint',
             cls='TerrestrialEndpoint',
             config=endpoint_config)
-        log.debug('Endpoint pid=%s.', str(te_pid))
+        log.debug('Endpoint pid=%s.', str(self._te_pid))
 
         # Create an endpoint client.
         # The to_name may be either the process pid or
@@ -761,3 +762,84 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._done_telem_evts.get(timeout=CFG.endpoint.receive.timeout)
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
+
+    @unittest.skip('Wait for verification of resource registry use.')
+    def test_persistent_queue(self):
+        """
+        test_persistent_queue
+        Test ability of endpoint to restore a persistent queue, survive
+        reboot, etc.
+        """
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._no_telem_evts = 2
+        
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+                
+        # Confirm queue mod events.
+        self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
+        
+        # Confirm get queue with no id.
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(queue), self._no_requests)
+        
+        # Stop and restart the endpoint process.
+        # Verify the queue is restored.
+        self._container_client.terminate_process(self._te_pid)
+
+        # Create agent config.
+        endpoint_config = {
+            'other_host' : self._other_host,
+            'other_port' : self._other_port,
+            'this_port' : 0,
+            'xs_name' : self._xs_name,
+            'platform_resource_id' : self._platform_resource_id,
+            'process' : {
+                'listen_name' : self._listen_name
+            }
+        }
+        
+        # Spawn the terrestrial enpoint process.
+        log.debug('Spawning terrestrial endpoint process.')
+        self._te_pid = self._container_client.spawn_process(
+            name='remote_endpoint_1',
+            module='ion.services.sa.tcaa.terrestrial_endpoint',
+            cls='TerrestrialEndpoint',
+            config=endpoint_config)
+        log.debug('Endpoint pid=%s.', str(self._te_pid))
+
+        # Create an endpoint client.
+        # The to_name may be either the process pid or
+        # the listen_name, which for this remote bridge
+        # is svc_name + remote_name as above.
+        self.te_client = TerrestrialEndpointClient(
+            process=FakeProcess(),
+            to_name=self._listen_name)
+        log.debug('Got te client %s.', str(self.te_client))
+        
+        # Remember the terrestrial port.
+        self._this_port = self.te_client.get_port()        
+        
+        # Confirm we restored the queue with the previous commands.
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(queue), self._no_requests)
+        
+        self.on_link_up()
+        
+        self._done_cmd_tx_evts.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        pending = self.te_client.get_pending()
+        self.assertEqual(len(pending), 0)
+                
+        self.on_link_down()
+
+        self._done_telem_evts.get(timeout=CFG.endpoint.receive.timeout)
+
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
+        
+        

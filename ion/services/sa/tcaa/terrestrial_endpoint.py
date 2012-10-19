@@ -58,7 +58,6 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         if not self.CFG.xs_name:
             raise ConfigNotFound('Terrestrial endpoint missing required xs_name parameter.')
         self._xs_name = self.CFG.xs_name    
-        self._initialize_queue_resource()
         
     def on_start(self):
         """
@@ -69,6 +68,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         """
         super(BaseTerrestrialEndpoint, self).on_start()
         self.mixin_on_start()
+        self._initialize_queue_resource()
         
     def on_stop(self):
         """
@@ -198,14 +198,10 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         If it does not exist, create a new one.
         """
         listen_name = self.CFG.process.listen_name
-        obj = self.clients.resource_registry.find_resources(name=listen_name)
-        try:
-            obj = obj[0][0]
-
-        except IndexError:
-            obj = None
-        
-        if not obj:
+        objs, ids = self.clients.resource_registry.find_resources(name=listen_name)
+        """
+        # If no persisted queue exists, create one.
+        if len(objs) == 0:
             createtime = time.time()
             obj = IonObject('RemoteCommandQueue',
                         name=listen_name,
@@ -215,31 +211,51 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
             # Persist object and read it back.
             obj_id, obj_rev = self.clients.resource_registry.create(obj)
             obj = self.clients.resource_registry.read(obj_id)
-
-        log.debug('Initialized queue resource len=%i updated=%f.',
-                  len(obj.queue), obj.updated)
         
-        for command in obj.queue:
-            self._tx_dict[command.command_id] = command
-            self._client.enqueue(command)            
+            log.debug('Created persistent queue for name=%s', listen_name)
+        
+        # If one exists, restore it here.
+        elif len(objs) == 1:
+            obj = objs[0]
+            obj_id = ids[0]
+            for command in obj.queue:
+                self._tx_dict[command.command_id] = command
+                self._client.enqueue(command)            
 
+            log.debug('Restored remote queue for name=%s: len=%i updated=%f.',
+                  listen_name, len(obj.queue), obj.updated)
+        
+        # Error: multiple queues with same name.
+        else:
+            log.warning('%i > 1 remote command queues found for name=%s',
+                        len(objs), listen_name)
+        """
+        
     def _update_queue_resource(self):
         """
         Retrieve and update the resource that persists the remote command
         queue.
         """
-        listen_name = self.CFG.process.listen_name        
-        obj = self.clients.resource_registry.find_resources(name=listen_name)
-        obj = obj[0][0]
-        obj_id = obj._id
         
-        obj.queue = copy.deepcopy(self._client._queue)
-        obj.updated = time.time()
-        self.clients.resource_registry.update(obj)
-
-        log.debug('Updated queue resource len=%i updated=%f.',
-                  len(obj.queue), obj.updated)
-
+        listen_name = self.CFG.process.listen_name        
+        objs, ids = self.clients.resource_registry.find_resources(name=listen_name)
+        """
+        if len(objs) == 1:
+            obj = objs[0]
+            obj_id = ids[0]
+            obj.queue = copy.deepcopy(self._client._queue)
+            obj.updated = time.time()
+            self.clients.resource_registry.update(obj)
+            log.debug('Updated queue for name=%s: len=%i updated=%f.',
+                  listen_name, len(obj.queue), obj.updated)
+            #log.debug(str(obj))
+            #log.debug(str(obj_id))
+        
+        else:
+            log.warning('%i != 1 persistent queues found for name=%s.',
+                        len(objs), listen_name)
+        """
+        
     ######################################################################    
     # Commands.
     ######################################################################    

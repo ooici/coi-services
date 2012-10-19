@@ -176,6 +176,7 @@ class RemoteClient(object):
         for x in self._async_results:
             if x.command_id == self._pending_cmd.command_id:
                 result = x
+                self._pending_cmd = None
                 break
         
         self._async_results = []
@@ -190,11 +191,11 @@ class RemoteClient(object):
             cmd = evt.command
             if self._pending_cmd:
                 if cmd.command_id == self._pending_cmd.command_id:
+                    self._pending_cmd = None
                     if self._async_result_evt:
                         self._async_result_evt.set(cmd)
             else:
-                self._async_results.append(cmd)
-
+                self._async_results.append(evt)
         
     def enqueue_command(self, command=None, link=False):
         """
