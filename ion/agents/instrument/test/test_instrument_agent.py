@@ -998,6 +998,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             SBE37ProtocolEvent.TEST,
             SBE37ProtocolEvent.ACQUIRE_SAMPLE,
             SBE37ProtocolEvent.START_AUTOSAMPLE,
+            SBE37ProtocolEvent.GET,
+            SBE37ProtocolEvent.SET,
             SBE37ProtocolEvent.STOP_AUTOSAMPLE
         ]
                 
@@ -1021,7 +1023,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 agt_pars = [x['name'] for x in retval if x['cap_type']==CapabilityType.AGT_PAR]
                 res_cmds = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_CMD]
                 res_pars = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_PAR]
-            
+
             return agt_cmds, agt_pars, res_cmds, res_pars
              
         
@@ -1159,6 +1161,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         res_cmds_command = [
             SBE37ProtocolEvent.TEST,
             SBE37ProtocolEvent.ACQUIRE_SAMPLE,
+            SBE37ProtocolEvent.SET,
+            SBE37ProtocolEvent.GET,
             SBE37ProtocolEvent.START_AUTOSAMPLE
         ]
 
@@ -1172,7 +1176,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
          # Validate all capabilities as read from state COMMAND
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
-                
+
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_all)
@@ -1201,6 +1205,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ]
 
         res_cmds_streaming = [
+            SBE37ProtocolEvent.GET,
             SBE37ProtocolEvent.STOP_AUTOSAMPLE
         ]
 
@@ -1214,7 +1219,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
          # Validate all capabilities as read from state COMMAND
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
-        
+
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_all)
@@ -1237,7 +1242,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
          # Validate capabilities of state COMMAND
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
-        
+
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_command)
@@ -1248,7 +1253,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
          # Validate all capabilities as read from state COMMAND
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
-        
+
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_all)
@@ -1269,7 +1274,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         # Validate capabilities for state UNINITIALIZED.
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
-        
+
         self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, [])
