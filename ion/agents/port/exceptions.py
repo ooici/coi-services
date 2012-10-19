@@ -7,7 +7,6 @@
 @brief Common exceptions used in port agent. Specific ones can be subclassed
 in the driver code.
 """
-from pyon.core.exception import IonException
 
 __author__ = 'Bill French'
 __license__ = 'Apache 2.0'
@@ -15,12 +14,11 @@ __license__ = 'Apache 2.0'
 from ion.agents.instrument.common import InstErrorCode
 import traceback
 
-class PortAgentException(IonException):
+class PortAgentException(Exception):
     """Base class for an exception related to the port agent
     """
-    def __init__ (self, msg, error_code=None):
+    def __init__ (self, msg):
         super(PortAgentException,self).__init__(msg)
-        self.status_code = error_code
 
 class PortAgentLaunchException(PortAgentException):
     """
