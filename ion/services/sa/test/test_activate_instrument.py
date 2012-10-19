@@ -31,16 +31,13 @@ from pyon.util.context import LocalContextMixin
 from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentEvent
 
-from pyon.core.exception import BadRequest
 
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-
 from interface.objects import Granule
 
 from nose.plugins.attrib import attr
 
 import gevent
-
 
 class FakeProcess(LocalContextMixin):
     """
@@ -117,10 +114,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                   description="SBE37IMModel",
                                   model="SBE37IMModel",
                                   stream_configuration= {'raw': 'simple_data_particle_raw_param_dict' , 'parsed': 'simple_data_particle_parsed_param_dict' })
-        try:
-            instModel_id = self.imsclient.create_instrument_model(instModel_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new InstrumentModel: %s" %ex)
+        instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         log.debug( 'new InstrumentModel id = %s ', instModel_id)
 
         # Create InstrumentAgent
@@ -129,10 +123,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                   description="SBE37IMAgent",
                                   driver_module="ion.agents.instrument.instrument_agent",
                                   driver_class="InstrumentAgent" )
-        try:
-            instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new InstrumentAgent: %s" %ex)
+        instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         log.debug( 'new InstrumentAgent id = %s', instAgent_id)
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
@@ -144,11 +135,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                    name='SBE37IMDevice',
                                    description="SBE37IMDevice",
                                    serial_number="12345" )
-        try:
-            instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
-            self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
-        except BadRequest as ex:
-            self.fail("failed to create new InstrumentDevice: %s" %ex)
+        instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
+        self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
 
         log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ",
                   instDevice_id)
@@ -175,15 +163,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
                                                                                instAgent_id,
                                                                                instDevice_id)
-
-
-        # Construct temporal and spatial Coordinate Reference System objects
-#        tcrs = CRS([AxisTypeEnum.TIME])
-#        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-#
-#        # Construct temporal and spatial Domain objects
-#        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-#        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
 
         tdom, sdom = time_series_domain()
         sdom = sdom.dump()
@@ -263,10 +242,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 #                            module='ion.processes.data.transforms.ctd.ctd_L0_all',
 #                            class_name='ctd_L0_all',
 #                            process_source='some_source_reference')
-#        try:
-#            ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-#        except BadRequest as ex:
-#            self.fail("failed to create new ctd_L0_all data process definition: %s" %ex)
+#        ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 #
 #
 #
@@ -356,14 +332,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 #        # L0 Conductivity - Temperature - Pressure: Create the data process
 #        #-------------------------------
 #        log.debug("test_activateInstrumentSample: create L0 all data_process start")
-#        try:
-#            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(
+#        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(
 #                ctd_L0_all_dprocdef_id,
 #                [data_product_id1],
 #                self.output_products)
-#            self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
-#        except BadRequest as ex:
-#            self.fail("failed to create new data process: %s" %ex)
+#        self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
 #
 #        log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process return")
 

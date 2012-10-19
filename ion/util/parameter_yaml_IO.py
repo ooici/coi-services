@@ -73,12 +73,6 @@ def build_contexts():
     lon_ctxt.fill_value = 0e0
     contexts.append(lon_ctxt)
 
-    depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
-    depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-    depth_ctxt.uom = 'meters'
-    depth_ctxt.fill_value = 0e0
-    contexts.append(depth_ctxt)
-
     raw_ctxt = ParameterContext('raw', param_type=ArrayType())
     raw_ctxt.description = 'raw binary string values'
     raw_ctxt.uom = 'utf-8 byte string'

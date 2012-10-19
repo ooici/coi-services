@@ -908,9 +908,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'RESOURCE_AGENT_EVENT_INITIALIZE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_agent', 'result': None, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373063952', 'sub_type': '', 'origin_type': ''}
         {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'RESOURCE_AGENT_EVENT_GO_ACTIVE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_agent', 'result': None, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373069507', 'sub_type': '', 'origin_type': ''}
         {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'RESOURCE_AGENT_EVENT_RUN', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_agent', 'result': None, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373069547', 'sub_type': '', 'origin_type': ''}
-        {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'DRIVER_EVENT_ACQUIRE_SAMPLE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_resource', 'result': {'raw': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'raw', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'binary': True, 'value_id': 'raw', 'value': 'MzkuNzk5OSwyMS45NTM0MSwgNDMuOTIzLCAgIDE0LjMzMjcsIDE1MDYuMjAzLCAwMSBGZWIgMjAwMSwgMDE6MDE6MDA='}], 'driver_timestamp': 3558361870.788932}, 'parsed': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'parsed', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'value_id': 'temp', 'value': 39.7999}, {'value_id': 'conductivity', 'value': 21.95341}, {'value_id': 'depth', 'value': 43.923}], 'driver_timestamp': 3558361870.788932}}, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373071084', 'sub_type': '', 'origin_type': ''}
-        {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'DRIVER_EVENT_ACQUIRE_SAMPLE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_resource', 'result': {'raw': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'raw', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'binary': True, 'value_id': 'raw', 'value': 'NjIuNTQxNCw1MC4xNzI3MCwgMzA0LjcwNywgICA2LjE4MDksIDE1MDYuMTU1LCAwMSBGZWIgMjAwMSwgMDE6MDE6MDA='}], 'driver_timestamp': 3558361872.398573}, 'parsed': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'parsed', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'value_id': 'temp', 'value': 62.5414}, {'value_id': 'conductivity', 'value': 50.1727}, {'value_id': 'depth', 'value': 304.707}], 'driver_timestamp': 3558361872.398573}}, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373072613', 'sub_type': '', 'origin_type': ''}
-        {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'DRIVER_EVENT_ACQUIRE_SAMPLE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_resource', 'result': {'raw': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'raw', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'binary': True, 'value_id': 'raw', 'value': 'NDYuODk0Niw5MS4wNjkyNCwgMzQyLjkyMCwgICA3LjQyNzgsIDE1MDYuOTE2LCAwMSBGZWIgMjAwMSwgMDE6MDE6MDA='}], 'driver_timestamp': 3558361873.907537}, 'parsed': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'parsed', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'value_id': 'temp', 'value': 46.8946}, {'value_id': 'conductivity', 'value': 91.06924}, {'value_id': 'depth', 'value': 342.92}], 'driver_timestamp': 3558361873.907537}}, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373074141', 'sub_type': '', 'origin_type': ''}
+        {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'DRIVER_EVENT_ACQUIRE_SAMPLE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_resource', 'result': {'raw': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'raw', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'binary': True, 'value_id': 'raw', 'value': 'MzkuNzk5OSwyMS45NTM0MSwgNDMuOTIzLCAgIDE0LjMzMjcsIDE1MDYuMjAzLCAwMSBGZWIgMjAwMSwgMDE6MDE6MDA='}], 'driver_timestamp': 3558361870.788932}, 'parsed': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'parsed', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'value_id': 'temp', 'value': 39.7999}, {'value_id': 'conductivity', 'value': 21.95341}, {'value_id': 'pressure', 'value': 43.923}], 'driver_timestamp': 3558361870.788932}}, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373071084', 'sub_type': '', 'origin_type': ''}
+        {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'DRIVER_EVENT_ACQUIRE_SAMPLE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_resource', 'result': {'raw': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'raw', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'binary': True, 'value_id': 'raw', 'value': 'NjIuNTQxNCw1MC4xNzI3MCwgMzA0LjcwNywgICA2LjE4MDksIDE1MDYuMTU1LCAwMSBGZWIgMjAwMSwgMDE6MDE6MDA='}], 'driver_timestamp': 3558361872.398573}, 'parsed': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'parsed', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'value_id': 'temp', 'value': 62.5414}, {'value_id': 'conductivity', 'value': 50.1727}, {'value_id': 'pressure', 'value': 304.707}], 'driver_timestamp': 3558361872.398573}}, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373072613', 'sub_type': '', 'origin_type': ''}
+        {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'DRIVER_EVENT_ACQUIRE_SAMPLE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_resource', 'result': {'raw': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'raw', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'binary': True, 'value_id': 'raw', 'value': 'NDYuODk0Niw5MS4wNjkyNCwgMzQyLjkyMCwgICA3LjQyNzgsIDE1MDYuOTE2LCAwMSBGZWIgMjAwMSwgMDE6MDE6MDA='}], 'driver_timestamp': 3558361873.907537}, 'parsed': {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp', 'stream_name': 'parsed', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1, 'values': [{'value_id': 'temp', 'value': 46.8946}, {'value_id': 'conductivity', 'value': 91.06924}, {'value_id': 'pressure', 'value': 342.92}], 'driver_timestamp': 3558361873.907537}}, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373074141', 'sub_type': '', 'origin_type': ''}
         {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'RESOURCE_AGENT_EVENT_RESET', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_agent', 'result': None, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373076321', 'sub_type': '', 'origin_type': ''}        
         """
         
@@ -998,6 +998,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             SBE37ProtocolEvent.TEST,
             SBE37ProtocolEvent.ACQUIRE_SAMPLE,
             SBE37ProtocolEvent.START_AUTOSAMPLE,
+            SBE37ProtocolEvent.GET,
+            SBE37ProtocolEvent.SET,
             SBE37ProtocolEvent.STOP_AUTOSAMPLE
         ]
                 
@@ -1021,7 +1023,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 agt_pars = [x['name'] for x in retval if x['cap_type']==CapabilityType.AGT_PAR]
                 res_cmds = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_CMD]
                 res_pars = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_PAR]
-            
+
             return agt_cmds, agt_pars, res_cmds, res_pars
              
         
@@ -1159,6 +1161,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         res_cmds_command = [
             SBE37ProtocolEvent.TEST,
             SBE37ProtocolEvent.ACQUIRE_SAMPLE,
+            SBE37ProtocolEvent.SET,
+            SBE37ProtocolEvent.GET,
             SBE37ProtocolEvent.START_AUTOSAMPLE
         ]
 
@@ -1172,7 +1176,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
          # Validate all capabilities as read from state COMMAND
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
-                
+
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_all)
@@ -1201,6 +1205,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ]
 
         res_cmds_streaming = [
+            SBE37ProtocolEvent.GET,
             SBE37ProtocolEvent.STOP_AUTOSAMPLE
         ]
 
@@ -1214,7 +1219,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
          # Validate all capabilities as read from state COMMAND
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
-        
+
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_all)
@@ -1237,7 +1242,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
          # Validate capabilities of state COMMAND
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
-        
+
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_command)
@@ -1248,7 +1253,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
          # Validate all capabilities as read from state COMMAND
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
-        
+
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_all)
@@ -1269,7 +1274,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         # Validate capabilities for state UNINITIALIZED.
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
-        
+
         self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, [])

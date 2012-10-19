@@ -25,7 +25,7 @@ from interface.objects import ProcessStateEnum
 from interface.objects import ProcessDefinition
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-
+from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.agents.port.port_agent_process import PortAgentProcessType
 
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
@@ -271,6 +271,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
 
         tdom, sdom = time_series_domain()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
 
         #-------------------------------
         # Create CTD Parsed as the Year 1 data product and attach to instrument

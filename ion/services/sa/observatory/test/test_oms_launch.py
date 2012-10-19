@@ -32,7 +32,6 @@ from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-
 from gevent.event import AsyncResult
 from gevent import sleep
 

@@ -168,12 +168,6 @@ class CoverageCraft(object):
         lon_ctxt.fill_value = 0e0
         pdict.add_context(lon_ctxt)
 
-        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
-        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        depth_ctxt.uom = 'meters'
-        depth_ctxt.fill_value = 0e0
-        pdict.add_context(depth_ctxt)
-
         temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
         temp_ctxt.uom = 'degree_Celsius'
         temp_ctxt.fill_value = 0e0
