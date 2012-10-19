@@ -162,7 +162,7 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
 
     def test_pdict_crud(self):
         context_ids = self.create_contexts()
-        pdict_res_id = self.dataset_management.create_parameter_dictionary(name='pdict1', parameter_context_ids=context_ids)
+        pdict_res_id = self.dataset_management.create_parameter_dictionary(name='pdict1', parameter_context_ids=context_ids, temporal_context='time')
 
         pdict_contexts = self.dataset_management.read_parameter_contexts(parameter_dictionary_id=pdict_res_id, id_only=True)
 
@@ -200,7 +200,6 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         context_ids.append(self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump()))
 
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
         t_ctxt.uom = 'seconds since 1970-01-01'
         t_ctxt.fill_value = 0x0
         context_ids.append(self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump()))

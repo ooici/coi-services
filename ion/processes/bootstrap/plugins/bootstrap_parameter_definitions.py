@@ -43,9 +43,13 @@ class BootstrapParameterDefinitions(BootstrapPlugin):
             with open(path) as f:
                 body = yaml.load(f)
             for name,context_names in body.iteritems():
+                temporal_contexts = [cname for cname in context_names if '*' in cname]
+                temporal_context = temporal_contexts[0].strip('*') if temporal_contexts else ''
+                context_names = [context_name if '*' not in context_name else context_name.strip('*') for context_name in context_names]
                 context_ids = [contexts[i] for i in context_names if i in contexts]
                 self.dataset_management.create_parameter_dictionary(name=name, 
-                                            parameter_context_ids=context_ids)
+                                            parameter_context_ids=context_ids,
+                                            temporal_context = temporal_context)
         except Exception as e:
             log.error('Problem loading dictionaries, stopping: %s', e.message)
             

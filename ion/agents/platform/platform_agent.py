@@ -31,7 +31,6 @@ from ion.agents.platform.platform_driver import AlarmDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 import numpy
 from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
 
@@ -539,8 +538,7 @@ class PlatformAgent(ResourceAgent):
 
         rdt['value'] =  numpy.array([driver_event._value])
 
-        g = build_granule(data_producer_id=self.resource_id,
-            param_dictionary=param_dict, record_dictionary=rdt)
+        g = rdt.to_granule(data_producer_id=self.resource_id)
 
         stream_id = self._data_streams[stream_name]
         publisher.publish(g, stream_id=stream_id)

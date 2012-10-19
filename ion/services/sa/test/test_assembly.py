@@ -3,7 +3,6 @@
 from ion.agents.port.port_agent_process import PortAgentProcessType
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.public import IonObject
-from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.containers import create_unique_identifier
@@ -15,7 +14,7 @@ from interface.services.sa.iobservatory_management_service import ObservatoryMan
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-from pyon.core.exception import BadRequest, NotFound, Inconsistent, Unauthorized #, Conflict
+from pyon.core.exception import NotFound, Inconsistent, Unauthorized #, Conflict
 from pyon.public import RT, LCS, LCE, PRED
 from pyon.ion.resource import get_maturity_visibility, OT
 from nose.plugins.attrib import attr
@@ -24,18 +23,14 @@ from ion.services.sa.test.helpers import any_old, add_keyworded_attachment
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 from ion.services.sa.instrument.flag import KeywordFlag
+from ion.services.dm.utility.granule_utils import time_series_domain
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
-from ion.util.parameter_yaml_IO import get_param_dict
 
 # some stuff for logging info to the console
 import sys
@@ -74,6 +69,7 @@ class TestAssembly(IonIntegrationTestCase):
         self.client.PSMS = PubsubManagementServiceClient(node=self.container.node)
 
         self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
 
 #    @unittest.skip('this test just for debugging setup')
 #    def test_just_the_setup(self):
@@ -507,11 +503,10 @@ class TestAssembly(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # create a stream definition for the data from the ctd simulator
         #------------------------------------------------------------------------------------------------
-        ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=pdict_id)
         log.debug("Created stream def id %s", ctd_stream_def_id)
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
 
         #create data products for instrument data
 
@@ -524,10 +519,10 @@ class TestAssembly(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
 
         dp_obj.name = 'Data Product'
-        inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
         dp_obj.name = 'Log Data Product'
-        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
         #assign data products appropriately
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
@@ -572,7 +567,7 @@ class TestAssembly(IonIntegrationTestCase):
                                     platform_device_id,
                                     instrument_device_id2)
         dp_obj.name = 'Instrument Data Product 2'
-        inst_data_product_id2 = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        inst_data_product_id2 = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id2,
                                    data_product_id=inst_data_product_id2)
 
@@ -645,12 +640,7 @@ class TestAssembly(IonIntegrationTestCase):
     def create_data_product_obj(self):
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
@@ -739,18 +729,17 @@ class TestAssembly(IonIntegrationTestCase):
 
 
         log.info("Create a stream definition for the data from the ctd simulator")
-        ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data')
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=pdict_id)
 
         log.info("Create an IonObject for a data products")
         dp_obj = self.create_data_product_obj()
 
         dp_obj.name = create_unique_identifier('Inst Data Product')
-        inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
         dp_obj.name = create_unique_identifier('Log Data Product')
-        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
         #assign data products appropriately
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id,

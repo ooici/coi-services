@@ -57,7 +57,6 @@ def build_contexts():
     contexts.append(temp_ctxt)
 
     t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-    t_ctxt.reference_frame = AxisTypeEnum.TIME
     t_ctxt.uom = 'seconds since 1970-01-01'
     t_ctxt.fill_value = 0x0
     contexts.append(t_ctxt)
@@ -82,7 +81,6 @@ def build_contexts():
 
     port_ts_ctxt = ParameterContext(name='port_timestamp', param_type=QuantityType(value_encoding=np.float64))
     port_ts_ctxt._derived_from_name = 'time'
-    port_ts_ctxt.reference_frame = AxisTypeEnum.TIME
     port_ts_ctxt.uom = 'seconds'
     port_ts_ctxt.fill_value = -1
     contexts.append(port_ts_ctxt)
@@ -128,7 +126,6 @@ def build_contexts():
 
     viz_ts_ctxt = ParameterContext(name='viz_timestamp', param_type=QuantityType(value_encoding=np.float64))
     viz_ts_ctxt._derived_from_name = 'time'
-    viz_ts_ctxt.reference_frame = AxisTypeEnum.TIME
     viz_ts_ctxt.uom = 'seconds'
     viz_ts_ctxt.fill_value = -1
     contexts.append(viz_ts_ctxt)
@@ -176,6 +173,7 @@ _PARAMETER_DICTIONARIES = None
 _PARAMETER_CONTEXTS = None
 
 def get_param_dict(param_dict_name = None):
+    raise NotImplementedError('This method has been replaced by DatasetManagementService, please use read_parameter_dictionary_by_name instead')
     # read the file just once, not every time needed
     global _PARAMETER_DICTIONARIES
     global _PARAMETER_CONTEXTS

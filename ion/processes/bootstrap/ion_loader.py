@@ -41,7 +41,6 @@ from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any, get_ion_ts
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.util.parameter_yaml_IO import get_param_dict
 try:
     import xlrd
 except:
