@@ -281,7 +281,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         for context in contexts:
             if context.name == temporal:
                 context.reference_frame = AxisTypeEnum.TIME
-                pdict.add_context(context)
+                pdict.add_context(context, is_temporal=True)
             else:
                 pdict.add_context(context)
         return pdict
