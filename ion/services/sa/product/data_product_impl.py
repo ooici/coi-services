@@ -225,17 +225,18 @@ class DataProductImpl(ResourceSimpleImpl):
                         log.debug("DataProductImpl:dict new simple elem key %s ",  str(key) )
                         dict_sub_elem = etree.SubElement(sub_elem, key)
                         dict_sub_elem.text = str(val)
-            #special processing for timestamp elements:
-#            elif attr_type['type'] == 'str' and  ( string.find(att_name, 'time') or string.find(att_name, 'ts_') ):
-#                log.debug("DataProductImpl:_format_ion_time  %s ", str(attr_value))
-#                log.debug("DataProductImpl:_format_ion_time  %s ", str(self._format_ion_time(attr_value)))
-#                sub_elem = etree.SubElement(etree_node, att_name)
-#                sub_elem.text = self._format_ion_time(attr_value)
 
+
+            #special processing for timestamp elements:
+            elif  attr_type['type'] == 'str' and  '_time' in att_name  :
+                log.debug("DataProductImpl:_format_ion_time  att_name %s   attr_value %s ", str(att_name), str(attr_value))
+                if len(attr_value) == 16 :
+                    attr_value = self._format_ion_time(attr_value)
+                sub_elem = etree.SubElement(etree_node, att_name)
+                sub_elem.text = str(attr_value)
             else:
                 sub_elem = etree.SubElement(etree_node, att_name)
                 sub_elem.text = str(attr_value)
-
 
 
 
