@@ -1,18 +1,25 @@
-#!/usr/bin/env python
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.icontainer_agent import ContainerAgentClient
+
 #from pyon.ion.endpoint import ProcessRPCClient
+from ion.agents.port.port_agent_process import PortAgentProcessType
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
-from pyon.public import log, IonObject
+from pyon.datastore.datastore import DataStore
+from pyon.public import Container, log, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
+from ion.util.parameter_yaml_IO import get_param_dict
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
+from interface.services.sa.iinstrument_management_service import IInstrumentManagementService, InstrumentManagementServiceClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.objects import ComputedValueAvailability
+from interface.objects import ComputedValueAvailability, ProcessDefinition
 
 from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
@@ -36,14 +43,15 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #print 'started container'
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        self.RR = ResourceRegistryServiceClient(node=self.container.node)
-        self.IMS = InstrumentManagementServiceClient(node=self.container.node)
-        self.IDS = IdentityManagementServiceClient(node=self.container.node)
-        self.PSC =  PubsubManagementServiceClient(node=self.container.node)
-        self.DP = DataProductManagementServiceClient(node=self.container.node)
+        self.RR   = ResourceRegistryServiceClient(node=self.container.node)
+        self.IMS  = InstrumentManagementServiceClient(node=self.container.node)
+        self.IDS  = IdentityManagementServiceClient(node=self.container.node)
+        self.PSC  = PubsubManagementServiceClient(node=self.container.node)
+        self.DP   = DataProductManagementServiceClient(node=self.container.node)
         self.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
-        self.dataset_management = DatasetManagementServiceClient()
-        
+        self.DSC  = DatasetManagementServiceClient(node=self.container.node)
+        self.PDC  = ProcessDispatcherServiceClient(node=self.container.node)
+
         print 'started services'
 
 #    @unittest.skip('this test just for debugging setup')
@@ -238,3 +246,136 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         # cleanup
         self.IMS.force_delete_instrument_device(instrument_device_id)
         self.IMS.force_delete_instrument_model(instrument_model_id)
+
+
+
+
+
+
+    def _get_datastore(self, dataset_id):
+        dataset = self.DSC.read_dataset(dataset_id)
+        datastore_name = dataset.datastore_name
+        datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
+        return datastore
+
+
+
+        #@unittest.skip("TBD")
+    def test_snapshot_restore(self):
+
+        # Create InstrumentModel
+        instModel_obj = IonObject(RT.InstrumentModel,
+                                  name='SBE37IMModel',
+                                  description="SBE37IMModel",
+                                  model="SBE37IMModel",
+                                  stream_configuration= {'raw': 'simple_data_particle_raw_param_dict' , 'parsed': 'simple_data_particle_parsed_param_dict' })
+        instModel_id = self.IMS.create_instrument_model(instModel_obj)
+        log.debug( 'new InstrumentModel id = %s ', instModel_id)
+
+        # Create InstrumentAgent
+        instAgent_obj = IonObject(RT.InstrumentAgent,
+                                  name='agent007',
+                                  description="SBE37IMAgent",
+                                  driver_module="ion.agents.instrument.instrument_agent",
+                                  driver_class="InstrumentAgent" )
+        instAgent_id = self.IMS.create_instrument_agent(instAgent_obj)
+        log.debug( 'new InstrumentAgent id = %s', instAgent_id)
+
+        self.IMS.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
+
+        # Create InstrumentDevice
+        log.debug('test_activateInstrumentSample: Create instrument resource to represent the SBE37 '
+        + '(SA Req: L4-CI-SA-RQ-241) ')
+        instDevice_obj = IonObject(RT.InstrumentDevice,
+                                   name='SBE37IMDevice',
+                                   description="SBE37IMDevice",
+                                   serial_number="12345" )
+        instDevice_id = self.IMS.create_instrument_device(instrument_device=instDevice_obj)
+        self.IMS.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
+
+        log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ",
+                  instDevice_id)
+
+        port_agent_config = {
+            'device_addr': 'sbe37-simulator.oceanobservatories.org',
+            'device_port': 4001,
+            'process_type': PortAgentProcessType.UNIX,
+            'binary_path': "port_agent",
+            'command_port': 4002,
+            'data_port': 4003,
+            'log_level': 5,
+            }
+
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
+                                          description="SBE37IMAgentInstance",
+                                          driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
+                                          driver_class='SBE37Driver',
+                                          comms_device_address='sbe37-simulator.oceanobservatories.org',
+                                          comms_device_port=4001,
+                                          port_agent_config = port_agent_config)
+
+
+        instAgentInstance_id = self.IMS.create_instrument_agent_instance(instAgentInstance_obj,
+                                                                               instAgent_id,
+                                                                               instDevice_id)
+
+        tdom, sdom = time_series_domain()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+
+
+        parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
+        parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary=parsed_parameter_dictionary.dump())
+
+        raw_parameter_dictionary = get_param_dict('simple_data_particle_raw_param_dict')
+        raw_stream_def_id = self.PSC.create_stream_definition(name='raw', parameter_dictionary=raw_parameter_dictionary.dump())
+
+
+        #-------------------------------
+        # Create Raw and Parsed Data Products for the device
+        #-------------------------------
+
+        dp_obj = IonObject(RT.DataProduct,
+                           name='the parsed data',
+                           description='ctd stream test',
+                           temporal_domain = tdom,
+                           spatial_domain = sdom)
+
+        data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        log.debug( 'new dp_id = %s', data_product_id1)
+
+        self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
+
+
+
+        # Retrieve the id of the OUTPUT stream from the out Data Product
+        stream_ids, _ = self.RR.find_objects(data_product_id1, PRED.hasStream, None, True)
+        log.debug( 'Data product streams1 = %s', stream_ids)
+
+        # Retrieve the id of the OUTPUT stream from the out Data Product
+        dataset_ids, _ = self.RR.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
+        log.debug( 'Data set for data_product_id1 = %s', dataset_ids[0])
+        self.parsed_dataset = dataset_ids[0]
+        #create the datastore at the beginning of each int test that persists data
+        self._get_datastore(self.parsed_dataset)
+
+        self.DP.activate_data_product_persistence(data_product_id=data_product_id1)
+
+
+        dp_obj = IonObject(RT.DataProduct,
+                           name='the raw data',
+                           description='raw stream test',
+                           temporal_domain = tdom,
+                           spatial_domain = sdom)
+
+        data_product_id2 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
+        log.debug( 'new dp_id = %s', str(data_product_id2))
+
+        self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
+
+        self.DP.activate_data_product_persistence(data_product_id=data_product_id2)
+
+        #todo
+#        snap_id = self.IMS.instrument_agent_config_snapshot(instDevice_id, "xyzzy snapshot")
+#        self.IMS.instrument_agent_config_restore(instDevice_id, snap_id)
+#        

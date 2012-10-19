@@ -17,7 +17,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 from pyon.ion.resource import ExtendedResourceContainer
 from ooi.logging import log
 from pyon.util.ion_time import IonTime
-from pyon.core.object import ion_serializer
+#from pyon.core.object import ion_serializer
 from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
@@ -28,7 +28,9 @@ import time
 from interface.objects import ProcessDefinition
 from interface.objects import AttachmentType
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+
+from coverage_model.parameter import ParameterDictionary
 
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
 from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
@@ -39,9 +41,10 @@ from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
 from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
 from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
 from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
-from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
+
+from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
 
 from ion.util.module_uploader import RegisterModulePreparerEgg
 from ion.util.qa_doc_parser import QADocParser
@@ -177,6 +180,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.sensor_model    = SensorModelImpl(new_clients)
         self.sensor_device   = SensorDeviceImpl(new_clients)
 
+        self.instrument_site = InstrumentSiteImpl(new_clients)
+
         #TODO: may not belong in this service
         self.data_product        = DataProductImpl(new_clients)
         self.data_producer       = DataProducerImpl(new_clients)
@@ -184,32 +189,66 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def snapshot_agent_config(self, instrument_device_id='', snapshot_name=''):
+    def instrument_agent_config_restore(self, instrument_device_id='', snapshot_attachment_id=''):
         """
-        take a snapshot of the current instrument agent instance config for this instrument, and save it
+        restore a snapshot of an instrument agent instance config
         """
+        # get instrument_agent_instance_id
+        inst_agent_inst_objs = self.instrument_device.find_stemming_agent_instance(instrument_device_id)
+        n = len(inst_agent_inst_objs)
+        if 1 != n:
+            raise NotFound("%s instrument agent instances found for instrument %s, not 1" % (n, instrument_device_id))
+        instrument_agent_instance_obj = self.instrument_agent_instance.read_one(inst_agent_inst_objs[0]._id)
+
+        attachment = self.clients.resource_registry.read_attachment(snapshot_attachment_id)
+
+        if not KeywordFlag.CONFIG_SNAPSHOT in attachment.keywords:
+            raise BadRequest("Attachment '%s' does not seem to be a config snapshot" % snapshot_attachment_id)
+
+        if not 'application/json' == attachment.content_type:
+            raise BadRequest("Attachment '%s' is not labeled as json")
+
+        snapshot = json.loads(attachment.content)
+        driver_config = snapshot["driver_config"]
+
+        instrument_agent_instance_obj.driver_module                 = driver_config['dvr_mod']
+        instrument_agent_instance_obj.driver_class                  = driver_config['dvr_cls']
+        instrument_agent_instance_obj.driver_config["comms_config"] = driver_config["comms_config"]
+        instrument_agent_instance_obj.driver_config["pagent_pid"]   = driver_config["pagent_pid"]
+
+        #todo
+        #agent.set_config(snapshot["running_config"])
+
+        #todo
+        # re-launch agent?
+
+
+
+    def instrument_agent_config_snapshot(self, instrument_device_id='', snapshot_name=''):
+        """
+        take a snapshot of the current instrument agent instance config for this instrument,
+          and save it as an attachment
+        """
+
         # get instrument_agent_instance_id
         inst_agent_inst_objs = self.instrument_device.find_stemming_agent_instance(instrument_device_id)
 
         if 0 == len(inst_agent_inst_objs):
             raise NotFound("No instrument agent instance was found for instrument %s" % instrument_device_id)
 
-        inst_agent_instance_obj = inst_agent_inst_objs[0]
-
+        self._validate_instrument_agent_instance(inst_agent_inst_objs[0])
 
         epoch = time.mktime(datetime.datetime.now().timetuple())
         snapshot_name = snapshot_name or "Running Config Snapshot %s.js" % epoch
 
-
-        driver_config, agent_config = self.generate_instrument_agent_config_helper(params,
-                                                                                   inst_agent_instance_obj)
+        driver_config, agent_config = self._generate_instrument_agent_config(instrument_device_id)
 
         snapshot = {}
         snapshot["driver_config"] = driver_config
         snapshot["agent_config"]  = agent_config
 
         #todo
-        #snapshot["running_config"] = get_it_from_agent()
+        snapshot["running_config"] = {} #agent.get_config()
 
 
         #make an attachment for the snapshot
@@ -221,7 +260,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                keywords=[KeywordFlag.CONFIG_SNAPSHOT],
                                attachment_type=AttachmentType.ASCII)
 
-        self.clients.resource_registry.create_attachment(instrument_device_id, attachment)
+        # return the attachment id
+        return self.clients.resource_registry.create_attachment(instrument_device_id, attachment)
 
 
 
@@ -291,29 +331,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.instrument_agent_instance.force_delete_one(instrument_agent_instance_id)
 
 
-    def validate_instrument_agent_instance(self, instrument_agent_instance_obj):
-        """
-        Verify that an agent instance is valid for launch.
-
-        returns a dict of params necessary to start this instance
-
-        """
-
-        #if there is a agent pid then assume that a drive is already started
-        if instrument_agent_instance_obj.agent_process_id:
-            raise BadRequest("Instrument Agent Instance already running for this device pid: %s" %
-                             str(instrument_agent_instance_obj.agent_process_id))
-
-        #retrieve the associated instrument device
-        inst_device_objs = self.instrument_device.find_having_agent_instance(instrument_agent_instance_obj._id)
-        if 1 != len(inst_device_objs):
-            raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
-                             (str(instrument_agent_instance_obj._id), len(inst_device_objs)))
-        instrument_device_id = inst_device_objs[0]._id
-        log.debug("L4-CI-SA-RQ-363: device is %s connected to instrument agent instance %s",
-                  str(instrument_device_id),
-                  str(instrument_agent_instance_obj._id))
-
+    def _validate_instrument_device_preagentlaunch(self, instrument_device_id):
         #retrieve the instrument model
         model_objs = self.instrument_device.find_stemming_model(instrument_device_id)
         if 1 != len(model_objs):
@@ -328,22 +346,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         if not streams_dict:
             raise BadRequest("Device model does not contain stream configuration used in launching the agent. Model: '%s",
-                str(model_obj) )
-
-        for stream_name, param_dict_name in streams_dict.items():
-            param_dict_id = self.clients.dataset_management.read_parameter_dictionary_by_name(param_dict_name,id_only=True)            #create a stream def for each param dict to match against the existing data products
-            stream_def_id = self.clients.pubsub_management.create_stream_definition(parameter_dictionary_id=param_dict_id)
-            streams_dict[stream_name] = {'param_dict_name':param_dict_name, 'stream_def_id':stream_def_id}
+                             str(model_obj) )
 
         #retrieve the associated instrument agent
         agent_objs = self.instrument_agent.find_having_model(instrument_model_id)
         if 1 != len(agent_objs):
             raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentModel '%s', got %d" %
                              (str(instrument_model_id), len(agent_objs)))
-        instrument_agent_id = agent_objs[0]._id
 
-        out_streams = []
-        out_streams_and_param_dicts = {}
         #retrieve the output products
         data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id,
                                                                           PRED.hasOutputProduct,
@@ -370,9 +380,59 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             if len(dataset_ids) > 1:
                 raise Inconsistent("Data Product should only have ONE Dataset" + str(product_id))
 
+
+
+    def _validate_instrument_agent_instance(self, instrument_agent_instance_obj):
+        """
+        Verify that an agent instance is valid for launch.
+
+        returns a dict of params necessary to start this instance
+
+        """
+
+        #if there is a agent pid then assume that a drive is already started
+        if instrument_agent_instance_obj.agent_process_id:
+            raise BadRequest("Instrument Agent Instance already running for this device pid: %s" %
+                             str(instrument_agent_instance_obj.agent_process_id))
+
+        #retrieve the associated instrument device
+        inst_device_objs = self.instrument_device.find_having_agent_instance(instrument_agent_instance_obj._id)
+        if 1 != len(inst_device_objs):
+            raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
+                             (str(instrument_agent_instance_obj._id), len(inst_device_objs)))
+        instrument_device_id = inst_device_objs[0]._id
+        log.debug("L4-CI-SA-RQ-363: device is %s connected to instrument agent instance %s",
+                  str(instrument_device_id),
+                  str(instrument_agent_instance_obj._id))
+
+        self._validate_instrument_device_preagentlaunch(instrument_device_id)
+
+
+
+    def _generate_stream_config(self, instrument_device_id=''):
+
+        _stream_config = self.instrument_device.find_stemming_model(instrument_device_id)[0].stream_configuration
+
+        streams_dict = {}
+        for stream_name, param_dict_name in _stream_config.items():
+            #create a stream def for each param dict to match against the existing data products
+            param_dict_id = self.clients.dataset_management.read_parameter_dictionary_by_name(param_dict_name,
+                                                                                              id_only=True)
+            stream_def_id = self.clients.pubsub_management.create_stream_definition(parameter_dictionary_id=param_dict_id)
+            streams_dict[stream_name] = {'param_dict_name':param_dict_name, 'stream_def_id':stream_def_id}
+
+        #retrieve the output products
+        data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id,
+                                                                          PRED.hasOutputProduct,
+                                                                          RT.DataProduct,
+                                                                          True)
+
+        out_streams = []
+        for product_id in data_product_ids:
+            stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
             out_streams.append(stream_ids[0])
 
-        #loop thru the defined streams for this device model and construct the stream config object
+
         stream_config_too = {}
 
         # create a stream config got each stream (dataproduct) assoc with this agent/device
@@ -380,41 +440,36 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             #get the streamroute object from pubsub by passing the stream_id
             stream_def_ids, _ = self.clients.resource_registry.find_objects(product_stream_id,
-                                                                      PRED.hasStreamDefinition,
-                                                                      RT.StreamDefinition,
-                                                                      True)
+                                                                            PRED.hasStreamDefinition,
+                                                                            RT.StreamDefinition,
+                                                                            True)
 
             #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
             for model_stream_name, stream_info_dict  in streams_dict.items():
 
-                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict['stream_def_id'], stream_def_ids[0]):
+                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict['stream_def_id'],
+                                                                            stream_def_ids[0]):
                     model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict['param_dict_name'])
                     stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
-                    stream_config_too[model_stream_name] = {'routing_key' : stream_route.routing_key,
-                                                            'stream_id' : product_stream_id,
+
+                    stream_config_too[model_stream_name] = {'routing_key'           : stream_route.routing_key,
+                                                            'stream_id'             : product_stream_id,
                                                             'stream_definition_ref' : stream_def_ids[0],
-                                                            'exchange_point' : stream_route.exchange_point,
-                                                            'parameter_dictionary':model_param_dict.dump()}
+                                                            'exchange_point'        : stream_route.exchange_point,
+                                                            'parameter_dictionary'  : model_param_dict.dump()}
+
+        return stream_config_too
 
 
-        ret = {}
-        ret["instrument_agent_id"] = instrument_agent_id
-        ret["instrument_device_id"] = instrument_device_id
-        ret["stream_config"] = stream_config_too
+    def _generate_instrument_agent_config(self, instrument_device_id):
 
-        return ret
+        instance_objs = self.instrument_device.find_stemming_agent_instance(instrument_device_id)
+        if 1 != len(instance_objs):
+            raise BadRequest("InstrumentDevice had %s agent instances, not 1" % len(instance_objs))
 
+        instrument_agent_instance_obj = instance_objs[0]
 
-    def generate_instrument_agent_config_helper(self, params, instrument_agent_instance_obj):
-
-        assert "instrument_agent_id" in params
-        assert "instrument_device_id" in params
-        assert "stream_config" in params
-
-        instrument_agent_id           = params["instrument_agent_id"]
-        instrument_device_id          = params["instrument_device_id"]
-        stream_config_too             = params["stream_config"]
-
+        stream_config = self._generate_stream_config(instrument_device_id)
 
         # Create driver config.
         driver_config = {
@@ -429,18 +484,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Create agent config.
         agent_config = {
             'driver_config' : driver_config,
-            'stream_config' : stream_config_too,
+            'stream_config' : stream_config,
             'agent'         : {'resource_id': instrument_device_id}
         }
 
         return driver_config, agent_config
-
-#    def generate_instrument_agent_config(self, instrument_device_id):
-#
-#
-#        params = self.validate_instrument_agent_instance(instrument_agent_instance_obj)
-#
-#        return self.generate_instrument_agent_config_helper(params)
 
     def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
@@ -449,12 +497,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
 
-        params = self.validate_instrument_agent_instance(instrument_agent_instance_obj)
-
-        instrument_agent_id =   params["instrument_agent_id"]
-        instrument_device_id =  params["instrument_device_id"]
-        stream_config_too =     params["stream_config"]
-
+        # validate the associations, then pick things up
+        self._validate_instrument_agent_instance(instrument_agent_instance_obj)
+        instrument_device_id = self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)[0]._id
+        instrument_model_id  = self.instrument_device.find_stemming_model(instrument_device_id)[0]._id
+        instrument_agent_id  = self.instrument_agent.find_having_model(instrument_model_id)[0]._id
 
         #retrieve the associated process definition
         #todo: this association is not in the diagram... is it ok?
@@ -477,8 +524,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
-        driver_config, agent_config = self.generate_instrument_agent_config_helper(params,
-                                                                                   instrument_agent_instance_obj)
+        driver_config, agent_config = self._generate_instrument_agent_config(instrument_device_id)
 
         instrument_agent_instance_obj.driver_config = driver_config
 
@@ -492,11 +538,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             producer_obj.producer_context.activation_time =  IonTime().to_string()
             producer_obj.producer_context.execution_configuration = agent_config
             # get the site where this device is currently deploy instrument_device_id
-            site_ids, _ = self.clients.resource_registry.find_subjects( predicate=PRED.hasDevice,
-                                                                        object=instrument_device_id,
-                                                                        id_only=True)
-            if len(site_ids) == 1:
-                producer_obj.producer_context.deployed_site_id = site_ids[0]
+            site_objs = self.instrument_site.find_having_device(instrument_device_id)
+
+            if len(site_objs) == 1:
+                producer_obj.producer_context.deployed_site_id = site_objs[0]._id
 
 
             self.clients.resource_registry.update(producer_obj)
@@ -1569,65 +1614,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
        """
        return self.sensor_device.advance_lcs(sensor_device_id, lifecycle_event)
 
-
-    ############################
-    #
-    #  STREAM RETRIEVAL
-    #
-    ############################
-
-    def retrieve_latest_device_event(self, device_id):
-        #todo: is there a constant for "events"?
-        datastore = self.container.datastore_manager.get_datastore("events")
-
-        view_name = 'event/by_type'
-
-        key_name = device_id #todo: not sure what this needs to be for event/event_type
-
-        opts = dict(
-            start_key = [key_name, 0],
-            end_key   = [key_name, {}],
-            descending = True,
-            limit = 1,
-            include_docs = True
-        )
-
-        granules = []
-
-        log.info('Getting data from datastore')
-        for result in datastore.query_view(view_name, opts=opts):
-            doc = result.get('doc')
-            if doc is not None:
-                ion_obj = self.granule_from_doc(doc)
-                granules.append(ion_obj)
-        log.info('Received %d granules.', len(granules))
-
-        #todo: handle this better
-        return granules[0]
-
-
-    def retrieve_latest_data_granule(self, device_id):
-        #todo: how to get dataset?
-        #todo: wait for DM refactor before proceeding
-
-        dataset_id = "fixme, how to get this"
-
-#        # TESTING
-#        stream_id  = self.PSMS.create_stream()
-#        config_id  = self.get_ingestion_config()
-#        dataset_id = self.create_dataset()
-#        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
-#        #--------------------------------------------------------------------------------
-#        # Create the datastore first,
-#        #--------------------------------------------------------------------------------
-#        self.get_datastore(dataset_id)
-#
-#        self.publish_hifi(stream_id, 0)
-#        self.publish_hifi(stream_id, 1)
-#
-#        self.wait_until_we_have_enough_granules(dataset_id, 2) # I just need two
-
-        return self.DRS.retrieve_last_granule(dataset_id)
 
 
 
