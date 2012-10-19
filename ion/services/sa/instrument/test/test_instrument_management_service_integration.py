@@ -6,15 +6,14 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from ion.agents.port.port_agent_process import PortAgentProcessType
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.datastore.datastore import DataStore
-from pyon.public import Container, log, IonObject
+from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.util.parameter_yaml_IO import get_param_dict
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
-from interface.services.sa.iinstrument_management_service import IInstrumentManagementService, InstrumentManagementServiceClient
+from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
@@ -23,9 +22,8 @@ from interface.objects import ComputedValueAvailability, ProcessDefinition
 
 from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
-#from ooi.logging import log
+from ooi.logging import log
 
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 from ion.services.sa.test.helpers import any_old
 
@@ -126,7 +124,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             processing_level_code='Parsed_Canonical',
             temporal_domain = tdom,
             spatial_domain = sdom)
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        pdict_id = self.DSC.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
         data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         log.debug( 'new dp_id = %s', data_product_id1)
@@ -324,11 +322,11 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         tdom = tdom.dump()
 
 
-        parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
-        parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary=parsed_parameter_dictionary.dump())
+        spdict_id = self.DSC.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict')
+        parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary=spdict_id)
 
-        raw_parameter_dictionary = get_param_dict('simple_data_particle_raw_param_dict')
-        raw_stream_def_id = self.PSC.create_stream_definition(name='raw', parameter_dictionary=raw_parameter_dictionary.dump())
+        rpdict_id = self.DSC.read_parameter_dictionary_by_name('simple_data_particle_raw_param_dict')
+        raw_stream_def_id = self.PSC.create_stream_definition(name='raw', parameter_dictionary=rpdict_id)
 
 
         #-------------------------------
@@ -341,7 +339,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                            temporal_domain = tdom,
                            spatial_domain = sdom)
 
-        data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        data_product_id1 = self.DP.create_data_product(data_product=dp_obj,
+                                                       stream_definition_id=parsed_stream_def_id,
+                                                       parameter_dictionary=spdict_id)
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
@@ -368,7 +368,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                            temporal_domain = tdom,
                            spatial_domain = sdom)
 
-        data_product_id2 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, parameter_dictionary=raw_parameter_dictionary.dump())
+        data_product_id2 = self.DP.create_data_product(data_product=dp_obj,
+                                                       stream_definition_id=raw_stream_def_id,
+                                                       parameter_dictionary=rpdict_id)
         log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
