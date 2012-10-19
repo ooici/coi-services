@@ -311,8 +311,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.discovery = DiscoveryServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
-        self.datastore_manager = DatastoreManager()
-
         self.event_publisher = EventPublisher()
 
         self.start_time = UserNotificationService.makeEpochTime(self.__now())
@@ -577,7 +575,7 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         @throws NotFound    object with specified parameters does not exist
         """
-        datastore = self.datastore_manager.get_datastore('events')
+        datastore = self.container.datastore_manager.get_datastore('events')
 
 
         # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
@@ -658,7 +656,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         events = []
         for event_id in ret_vals:
-            datastore = self.datastore_manager.get_datastore('events')
+            datastore = self.container.datastore_manager.get_datastore('events')
             event_obj = datastore.read(event_id)
             events.append(event_obj)
 
@@ -847,7 +845,7 @@ class UserNotificationService(BaseUserNotificationService):
                 ret_vals = self.discovery.parse(search_string)
 
                 for event_id in ret_vals:
-                    datastore = self.datastore_manager.get_datastore('events')
+                    datastore = self.container.datastore_manager.get_datastore('events')
                     event_obj = datastore.read(event_id)
                     events_for_message.append(event_obj)
 
