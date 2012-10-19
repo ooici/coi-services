@@ -31,7 +31,6 @@ class BetterDataProducer(SimpleCtdPublisher):
             rdt['temp']         = numpy.random.random(10) * 10
             rdt['lat']          = numpy.array([0] * 10)
             rdt['lon']          = numpy.array([0] * 10)
-            rdt['depth']        = numpy.array([0] * 10)
             rdt['conductivity'] = numpy.random.random(10) * 10
             rdt['binary']         = numpy.array(['hi'] * 10, dtype='object')
             
@@ -152,11 +151,5 @@ class ExampleDataProducer(SimpleCtdPublisher):
         lon_ctxt.uom = 'degree_east'
         lon_ctxt.fill_value = 0e0
         pdict.add_context(lon_ctxt)
-
-        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=numpy.float32))
-        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        depth_ctxt.uom = 'meters'
-        depth_ctxt.fill_value = 0e0
-        pdict.add_context(depth_ctxt)
 
         return pdict

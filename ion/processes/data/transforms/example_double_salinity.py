@@ -53,7 +53,6 @@ class ctd_L2_salinity_algorithm(SimpleGranuleTransformFunction):
         longitude = get_safe(rdt, 'lon')
         latitude = get_safe(rdt, 'lat')
         time = get_safe(rdt, 'time')
-        depth = get_safe(rdt, 'depth')
 
         root_rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
 
@@ -61,7 +60,6 @@ class ctd_L2_salinity_algorithm(SimpleGranuleTransformFunction):
         root_rdt['time'] = time
         root_rdt['lat'] = latitude
         root_rdt['lon'] = longitude
-        root_rdt['depth'] = depth
 
         g = root_rdt.to_granule()
         return g
