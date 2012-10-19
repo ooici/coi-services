@@ -25,6 +25,8 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 import gevent, os
 import numpy, random
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+
 
 class EventTriggeredTransformIntTest(IonIntegrationTestCase):
     def setUp(self):
@@ -41,6 +43,8 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
 
         self.exchange_name = 'test_queue'
         self.exchange_point = 'test_exchange'
+
+        self.dataset_management = DatasetManagementServiceClient()
 
     def tearDown(self):
         for queue in self.queue_cleanup:
