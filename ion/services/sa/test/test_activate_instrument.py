@@ -52,7 +52,7 @@ from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.util.parameter_yaml_IO import get_param_dict
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-
+from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.objects import Granule
 
 from nose.plugins.attrib import attr
@@ -60,8 +60,6 @@ from nose.plugins.attrib import attr
 import unittest
 import time
 import gevent
-
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
 class FakeProcess(LocalContextMixin):
     """
@@ -196,16 +194,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                                                                instAgent_id,
                                                                                instDevice_id)
 
-
-        # Construct temporal and spatial Coordinate Reference System objects
-#        tcrs = CRS([AxisTypeEnum.TIME])
-#        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-#
-#        # Construct temporal and spatial Domain objects
-#        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-#        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
-
-        sdom, tdom = CoverageCraft.create_domains()
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
 
