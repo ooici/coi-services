@@ -23,7 +23,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from ion.services.sa.test.helpers import any_old
 
 
-@attr('INT', group='sax')
+@attr('INT', group='sa')
 class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -146,10 +146,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(len(extended_instrument.owners), 2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
 
-        log.debug( 'get_instrument_device_extension data_product_set = %s', str(extended_instrument.computed.data_product_set))
-        log.debug( 'get_instrument_device_extension data_product_set.value = %s', str(extended_instrument.computed.data_product_set.value) )
-        #check data products
-        #self.assertEqual(1, len(extended_instrument.data_products))
 
         #check model
         inst_model_obj = self.RR.read(instrument_model_id)
@@ -165,6 +161,18 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
+
+        #check data_product_set
+        self.assertEqual(ComputedValueAvailability.PROVIDED,
+                         extended_instrument.computed.data_product_set.status)
+        self.assertTrue( 'Parsed_Canonical' in extended_instrument.computed.data_product_set.value)
+
+        #check data_product_parameters_set
+        self.assertEqual(ComputedValueAvailability.PROVIDED,
+                         extended_instrument.computed.data_product_parameters_set.status)
+        self.assertTrue( 'Parsed_Canonical' in extended_instrument.computed.data_product_parameters_set.value)
+        # the ctd parameters should include 'temp'
+        self.assertTrue( 'temp' in extended_instrument.computed.data_product_parameters_set.value['Parsed_Canonical'])
 
         #none of these will work because there is no agent
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
