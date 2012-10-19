@@ -5,11 +5,16 @@ from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.public import Container, log, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
+from ion.util.parameter_yaml_IO import get_param_dict
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
 from interface.services.sa.iinstrument_management_service import IInstrumentManagementService, InstrumentManagementServiceClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import ComputedValueAvailability
 
 from pyon.util.context import LocalContextMixin
@@ -24,7 +29,7 @@ import unittest
 from ion.services.sa.test.helpers import any_old
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sax')
 class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -40,6 +45,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
         self.IMS = InstrumentManagementServiceClient(node=self.container.node)
         self.IDS = IdentityManagementServiceClient(node=self.container.node)
+        self.PSC =  PubsubManagementServiceClient(node=self.container.node)
+        self.DP = DataProductManagementServiceClient(node=self.container.node)
+        self.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
         
         print 'started services'
 
@@ -83,6 +91,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(instrument_device_id, PRED.hasDevice, sensor_device_id)
         self.RR.create_association(org_id, PRED.hasResource, instrument_device_id)
 
+
         instrument_model_id #is only a target
 
         platform_agent_instance_id #is only a target
@@ -104,6 +113,22 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         sensor_model_id #is only a target
 
+        #create a parsed product for this instrument output
+        tdom, sdom = time_series_domain()
+        tdom = tdom.dump()
+        sdom = sdom.dump()
+        dp_obj = IonObject(RT.DataProduct,
+            name='the parsed data',
+            description='ctd stream test',
+            processing_level_code='Parsed_Canonical',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+        parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
+        parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary=parsed_parameter_dictionary.dump())
+        data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        log.debug( 'new dp_id = %s', data_product_id1)
+
+        self.DAMS.assign_data_product(input_resource_id=instrument_device_id, data_product_id=data_product_id1)
 
 
         def addInstOwner(inst_id, subject):
@@ -120,20 +145,16 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         addInstOwner(instrument_device_id, "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254")
         addInstOwner(instrument_device_id, "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Bob Cumbers A256")
 
-        #testing data products
-        dp_id, _ = self.RR.create(any_old(RT.DataProduct))
-        self.RR.create_association(instrument_device_id, PRED.hasOutputProduct, dp_id)
-
         extended_instrument = self.IMS.get_instrument_device_extension(instrument_device_id)
 
         self.assertEqual(instrument_device_id, extended_instrument._id)
         self.assertEqual(len(extended_instrument.owners), 2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
 
-
-
+        log.debug( 'get_instrument_device_extension data_product_set = %s', str(extended_instrument.computed.data_product_set))
+        log.debug( 'get_instrument_device_extension data_product_set.value = %s', str(extended_instrument.computed.data_product_set.value) )
         #check data products
-        self.assertEqual(1, len(extended_instrument.data_products))
+        #self.assertEqual(1, len(extended_instrument.data_products))
 
         #check model
         inst_model_obj = self.RR.read(instrument_model_id)

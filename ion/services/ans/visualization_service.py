@@ -73,40 +73,25 @@ class VisualizationService(BaseVisualizationService):
         data_product_stream_id = None
         workflow_def_id = None
 
-        # If not in_product_type was specified, assume the data product passed represents a pure data stream
-        # and needs to be converted to some form of visualization .. Google DataTable by default unless specified
-        # in the future by additional parameters. Create appropriate workflow to do the conversion
-        if in_product_type == '':
+        # Check to see if the workflow defnition already exist
+        workflow_def_ids,_ = self.clients.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
 
-            # Check to see if the workflow defnition already exist
-            workflow_def_ids,_ = self.clients.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+        if len(workflow_def_ids) > 0:
+            workflow_def_id = workflow_def_ids[0]
+        else:
+            workflow_def_id = self._create_google_dt_workflow_def()
 
-            if len(workflow_def_ids) > 0:
-                workflow_def_id = workflow_def_ids[0]
-            else:
-                workflow_def_id = self._create_google_dt_workflow_def()
+        #Create and start the workflow
+        workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_def_id, data_product_id, timeout=20)
 
-            #Create and start the workflow
-            workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_def_id, data_product_id, timeout=20)
+        # detect the output data product of the workflow
+        workflow_dp_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
+        if len(workflow_dp_ids) != 1:
+            raise ValueError("Workflow Data Product ids representing output DP must contain exactly one entry")
 
-            # detect the output data product of the workflow
-            workflow_dp_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
-            if len(workflow_dp_ids) != 1:
-                raise ValueError("Workflow Data Product ids representing output DP must contain exactly one entry")
-
-            # find associated stream id with the output
-            workflow_output_stream_ids, _ = self.clients.resource_registry.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasStream, None, True)
-            data_product_stream_id = workflow_output_stream_ids
-
-
-        # TODO check if is a real time GDT stream automatically
-        if in_product_type == 'google_dt':
-            # Retrieve the id of the OUTPUT stream from the out Data Product
-            stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, None, True)
-            if not stream_ids:
-                raise Inconsistent("Could not find Stream Id for Data Product %s" % data_product_id)
-
-            data_product_stream_id = stream_ids
+        # find associated stream id with the output
+        workflow_output_stream_ids, _ = self.clients.resource_registry.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasStream, None, True)
+        data_product_stream_id = workflow_output_stream_ids
 
 
         # Create a queue to collect the stream granules - idempotency saves the day!
@@ -119,6 +104,8 @@ class VisualizationService(BaseVisualizationService):
             exchange_name = query_token,
             name = query_token
         )
+
+        print ">>>>>>>>>>>>>>>> SUBSCRIPTION ID : ", subscription_id, " DP_STREAM_ID : ", data_product_stream_id
 
         # after the queue has been created it is safe to activate the subscription
         self.clients.pubsub_management.activate_subscription(subscription_id)
@@ -205,7 +192,7 @@ class VisualizationService(BaseVisualizationService):
 
     def get_realtime_visualization_data(self, query_token=''):
         """This operation returns a block of visualization data for displaying data product in real time. This operation requires a
-        user specific token which was provided from a previsou request to the init_realtime_visualization operation.
+        user specific token which was provided from a previous request to the init_realtime_visualization operation.
 
         @param query_token    str
         @retval datatable    str
@@ -220,6 +207,8 @@ class VisualizationService(BaseVisualizationService):
 
         #Taking advantage of idempotency
         xq = self.container.ex_manager.create_xn_queue(query_token)
+
+        print ">>>>>>>>>>>>>>>>>>  XQ = ", xq
 
         subscriber = Subscriber(from_name=xq)
         subscriber.initialize()
@@ -356,6 +345,8 @@ class VisualizationService(BaseVisualizationService):
         if retrieved_granule is None:
             return None
 
+        print ">>>>>>>>>>>>>>>>>>>> RETRIEVED GRANULE = ", retrieved_granule
+
         # send the granule through the transform to get the google datatable
         gdt_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
         gdt_stream_def = self.clients.pubsub_management.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
@@ -412,8 +403,13 @@ class VisualizationService(BaseVisualizationService):
 
         query = None
         if visualization_parameters:
-            if visualization_parameters.has_key('query'):
-                query=visualization_parameters['query']
+            query = visualization_parameters
+            # Error check and damage control. Definitely need time
+            if 'parameters' in query and not 'time' in query['parameters']:
+                query['parameters'].append('time')
+
+            print " >>>>>>>>>>>>>>> QUERY = ",  query
+
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
@@ -422,7 +418,9 @@ class VisualizationService(BaseVisualizationService):
 
         # Ideally just need the latest granule to figure out the list of images
         #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0])
+        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
+
+        print ">>>>>>>>> RETRIEVED GRANULE = ", retrieved_granule
 
         if retrieved_granule is None:
             return None
