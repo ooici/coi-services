@@ -33,7 +33,7 @@ from interface.objects import ProcessStateEnum
 from interface.objects import ProcessDefinition
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-
+from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.agents.port.port_agent_process import PortAgentProcessType
 
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
@@ -48,7 +48,6 @@ import unittest
 from pyon.util.context import LocalContextMixin
 from mock import patch
 
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
 class FakeProcess(LocalContextMixin):
     """
@@ -284,7 +283,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             oldInstDevice_id)
 
 
-        sdom, tdom = CoverageCraft.create_domains()
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
 

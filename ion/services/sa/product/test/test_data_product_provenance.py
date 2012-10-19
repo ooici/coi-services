@@ -20,7 +20,7 @@ from nose.plugins.attrib import attr
 import unittest
 
 from ion.util.parameter_yaml_IO import get_param_dict
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
@@ -106,7 +106,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         # Create CTD Parsed  data product
         #-------------------------------
-        sdom, tdom = CoverageCraft.create_domains()
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
 

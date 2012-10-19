@@ -750,7 +750,7 @@ class InstrumentAgent(ResourceAgent):
         pkt_version : 1
         values : [{u'value_id': u'temp', u'value': 19.0612},
             {u'value_id': u'conductivity', u'value': 3.33791},
-            {u'value_id': u'depth', u'value': 449.005}]
+            {u'value_id': u'pressure', u'value': 449.005}]
         """
         
         # If the sample event is encoded, load it back to a dict.

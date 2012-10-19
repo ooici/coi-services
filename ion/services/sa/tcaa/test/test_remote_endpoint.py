@@ -1054,7 +1054,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         'stream_name': 'parsed', 'pkt_format_id': 'JSON_Data', 'pkt_version': 1,
         'values': [{'value_id': 'temp', 'value': 79.4373},
         {'value_id': 'conductivity', 'value': 17.20564},
-        {'value_id': 'depth', 'value': 761.885}],
+        {'value_id': 'pressure', 'value': 761.885}],
         'driver_timestamp': 3558286748.8039923}}
         """
         

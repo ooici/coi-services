@@ -34,9 +34,8 @@ from interface.objects import AgentCommand, ProcessStateEnum
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 
-from ion.services.dm.utility.granule_utils import CoverageCraft
 from ion.util.parameter_yaml_IO import get_param_dict
-
+from ion.services.dm.utility.granule_utils import time_series_domain
 from coverage_model.parameter import ParameterDictionary
 
 from gevent.event import AsyncResult
@@ -162,7 +161,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
 
         # Create data product object to be used for each of the platform log streams
-        sdom, tdom = CoverageCraft.create_domains()
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
 

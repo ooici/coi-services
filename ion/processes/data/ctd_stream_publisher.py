@@ -98,7 +98,6 @@ class SimpleCtdPublisher(TransformStreamPublisher):
         rdt['time'] = tvar
         rdt['lat'] = lat
         rdt['lon'] = lon
-        rdt['depth'] = h
         rdt['temp'] = t
         rdt['conductivity'] = c
         rdt['pressure'] = p

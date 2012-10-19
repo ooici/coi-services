@@ -161,10 +161,4 @@ class ExampleDataProducer(TransformStreamPublisher):
         lon_ctxt.fill_value = 0e0
         pdict.add_context(lon_ctxt)
 
-        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=numpy.float32))
-        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        depth_ctxt.uom = 'meters'
-        depth_ctxt.fill_value = 0e0
-        pdict.add_context(depth_ctxt)
-
         return pdict
