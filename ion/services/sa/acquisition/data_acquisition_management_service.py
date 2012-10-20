@@ -83,7 +83,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("Data Process Definition for Data Process %s does not exist" % data_process_id)
 
         #create a DataProcessProducerContext to hold the state of the this producer
-        producer_context_obj = IonObject(OT.DataProcessProducerContext,  execution_configuration=data_process_obj.configuration, parameters=data_process_def_objs[0].parameters)
+        producer_context_obj = IonObject(OT.DataProcessProducerContext,  configuration=data_process_obj.configuration, parameters=data_process_def_objs[0].parameters)
 
         #create data producer resource and associate to this data_process_id
         data_producer_obj = IonObject(RT.DataProducer,name=data_process_obj.name, description="primary producer resource for this process",

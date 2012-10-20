@@ -507,7 +507,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
             log.debug("activate_data_process:activation_time  %s ", str(IonTime().to_string()))
             producer_obj.producer_context.activation_time = IonTime().to_string()
-            producer_obj.producer_context.execution_configuration = data_process_obj.configuration
+            producer_obj.producer_context.configuration = data_process_obj.configuration
             self.clients.resource_registry.update(producer_obj)
 
         subscription_id = data_process_obj.input_subscription_id

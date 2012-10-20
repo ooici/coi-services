@@ -192,7 +192,7 @@ class DataProductImpl(ResourceSimpleImpl):
 
 
 
-    def _write_object_info(self, data_obj=None, etree_node=None, provenance_results=''):
+    def _write_object_info(self, data_obj=None, etree_node=None):
 
         fields, schema = data_obj.__dict__, data_obj._schema
 
@@ -207,20 +207,20 @@ class DataProductImpl(ResourceSimpleImpl):
             if isinstance(fields[att_name], IonObjectBase):
                 sub_elem = etree.SubElement(etree_node, att_name)
                 log.debug("DataProductImpl:_write_product_info IonObjectBase  fields[att_name] %s", str(fields[att_name]))
-                self._write_object_info(data_obj=attr_value, etree_node=sub_elem, provenance_results=provenance_results)
+                self._write_object_info(data_obj=attr_value, etree_node=sub_elem)
             elif attr_type['type'] == 'list' and attr_value:
                 sub_elem = etree.SubElement(etree_node, att_name)
                 for list_element in attr_value:
                     log.debug("DataProductImpl:_list_element %s",  str(list_element))
                     if isinstance(list_element, IonObjectBase):
-                        self._write_object_info(data_obj=list_element, etree_node=sub_elem, provenance_results=provenance_results)
+                        self._write_object_info(data_obj=list_element, etree_node=sub_elem)
 
             elif attr_type['type'] == 'dict' and attr_value:
                 sub_elem = etree.SubElement(etree_node, att_name)
                 for key, val in attr_value.iteritems():
                     log.debug("DataProductImpl:dict key %s    val%s",  str(key), str(val) )
                     if isinstance(val, IonObjectBase):
-                        self._write_object_info(data_obj=val, etree_node=sub_elem, provenance_results=provenance_results)
+                        self._write_object_info(data_obj=val, etree_node=sub_elem)
                     else:
                         log.debug("DataProductImpl:dict new simple elem key %s ",  str(key) )
                         dict_sub_elem = etree.SubElement(sub_elem, key)
@@ -249,11 +249,7 @@ class DataProductImpl(ResourceSimpleImpl):
         product_obj = self.clients.resource_registry.read(data_product_id)
         data_product_tag = etree.SubElement(processing_step, 'data_product')
 
-        self._write_object_info(data_obj=product_obj, etree_node=data_product_tag, provenance_results=provenance_results)
-#
-#        # GeoSpatial bounds
-#        #todo: pull form coverage model
-#
+        self._write_object_info(data_obj=product_obj, etree_node=data_product_tag)
 
 
         #--------------------------------------------------------------------------------
@@ -267,7 +263,7 @@ class DataProductImpl(ResourceSimpleImpl):
             log.debug("DataProductImpl:reading producer  %s ", str(producer_id))
             producer_obj = self.clients.resource_registry.read(producer_id)
             data_producer_tag = etree.SubElement(data_producer_list_tag, 'data_producer')
-            self._write_object_info(data_obj=producer_obj, etree_node=data_producer_tag, provenance_results=provenance_results)
+            self._write_object_info(data_obj=producer_obj, etree_node=data_producer_tag)
 
 
             #retrieve the assoc data producer resource
@@ -275,9 +271,9 @@ class DataProductImpl(ResourceSimpleImpl):
             if not data_producer_objs:
                 raise BadRequest('No Data Producer resource associated with the Producer %s' % str(producer_id))
             data_producer_obj = data_producer_objs[0]
-            sub_elem = etree.SubElement(data_producer_list_tag, 'data_producer_config')
+            sub_elem = etree.SubElement(data_producer_tag, 'data_producer_config')
             log.debug("DataProductImpl:data_producer_obj  %s ", str(data_producer_obj))
-            self._write_object_info(data_obj=data_producer_obj, etree_node=sub_elem, provenance_results=provenance_results)
+            self._write_object_info(data_obj=data_producer_obj, etree_node=sub_elem)
 
             # add the input product names for these producers
             in_product_list = provenance_results[data_product_id]['inputs'][producer_id]
@@ -287,7 +283,7 @@ class DataProductImpl(ResourceSimpleImpl):
                     input_product_tag = etree.SubElement(input_products_tag, "input_product")
                     #product_name_tag = etree.SubElement(input_product_tag, "name")
                     product_obj = self.clients.resource_registry.read(in_product)
-                    self._write_object_info(data_obj=product_obj, etree_node=input_product_tag, provenance_results=provenance_results)
+                    self._write_object_info(data_obj=product_obj, etree_node=input_product_tag)
                     #product_name_tag.text = product_obj.name
 
 
@@ -300,14 +296,21 @@ class DataProductImpl(ResourceSimpleImpl):
                     deployment_tag = etree.SubElement(data_producer_deploys_tag, 'deployment')
                     deployment_obj = self.clients.resource_registry.read(deployment_id)
                     #find the site
-                    self._write_object_info(data_obj=deployment_obj, etree_node=deployment_tag, provenance_results=provenance_results)
+                    self._write_object_info(data_obj=deployment_obj, etree_node=deployment_tag)
                     deployment_site_ids, _ = self.clients.resource_registry.find_subjects( subject_type=RT.InstrumentSite, predicate=PRED.hasDeployment, object=deployment_id, id_only=True)
                     for deployment_site_id in deployment_site_ids:
                         deploy_site_tag = etree.SubElement(deployment_tag, 'deployment_site')
                         site_obj = self.clients.resource_registry.read(deployment_site_id)
-                        self._write_object_info(data_obj=site_obj, etree_node=deploy_site_tag, provenance_results=provenance_results)
+                        self._write_object_info(data_obj=site_obj, etree_node=deploy_site_tag)
 
-
+            # check for lookup table attachments
+            att_ids = self.clients.resource_registry.find_attachments(producer_id, keyword="DataProcessInput", id_only=True)
+            if att_ids:
+                data_producer_lookups_tag = etree.SubElement(data_producer_tag, 'data_producer_attachments')
+                for att_id in att_ids:
+                    lookup_tag = etree.SubElement(data_producer_lookups_tag, 'attachment')
+                    attach_obj = self.clients.resource_registry.read(att_id)
+                    self._write_object_info(data_obj=attach_obj, etree_node=lookup_tag)
 
 
 

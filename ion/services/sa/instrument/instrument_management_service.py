@@ -536,7 +536,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         producer_obj = self._get_instrument_producer(instrument_device_id)
         if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
             producer_obj.producer_context.activation_time =  IonTime().to_string()
-            producer_obj.producer_context.execution_configuration = agent_config
+            producer_obj.producer_context.configuration = agent_config
             # get the site where this device is currently deploy instrument_device_id
             site_objs = self.instrument_site.find_having_device(instrument_device_id)
 

@@ -13,13 +13,14 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.objects import  ContactInformation
+from interface.objects import AttachmentType
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest 
 from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
 from ion.services.dm.utility.granule_utils import time_series_domain
-
+import base64
 
 
 class FakeProcess(LocalContextMixin):
@@ -27,7 +28,7 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sax')
 #@unittest.skip('not working')
 class TestDataProductProvenance(IonIntegrationTestCase):
 
@@ -430,6 +431,12 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
+
+        contents = "this is the lookup table  contents, replace with a file..."
+        att = IonObject(RT.Attachment, name='deviceLookupTable', content=base64.encodestring(contents), keywords=['DataProcessInput'], attachment_type=AttachmentType.ASCII)
+        deviceAttachment = self.rrclient.create_attachment(ctd_l0_all_data_process_id, att)
+        log.info( 'test_createTransformsThenActivateInstrument: InstrumentDevice attachment id = %s', deviceAttachment)
+
         log.debug("TestDataProductProvenance: create L0 all data_process return")
 
 
@@ -439,10 +446,11 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L1 Conductivity data_process start")
         try:
             l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_conductivity_dprocdef_id, [ctd_l0_conductivity_output_dp_id], {'conductivity':ctd_l1_conductivity_output_dp_id})
+            self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
-        log.debug("TestDataProductProvenance: create L1 Conductivity data_process return")
+
 
 
         #-------------------------------
@@ -451,11 +459,9 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L1_Pressure data_process start")
         try:
             l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, [ctd_l0_pressure_output_dp_id], {'pressure':ctd_l1_pressure_output_dp_id})
+            self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
-
-        log.debug("TestDataProductProvenance: create L1_Pressure data_process return")
-
 
 
         #-------------------------------
@@ -464,12 +470,9 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L1_Pressure data_process start")
         try:
             l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, [ctd_l0_temperature_output_dp_id], {'temperature':ctd_l1_temperature_output_dp_id})
+            self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
-
-        log.debug("TestDataProductProvenance: create L1_Pressure data_process return")
-
-
 
         #-------------------------------
         # L2 Salinity: Create the data process
@@ -477,10 +480,10 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L2_salinity data_process start")
         try:
             l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id], {'salinity':ctd_l2_salinity_output_dp_id})
+            self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
-        log.debug("TestDataProductProvenance: create L2_salinity data_process return")
 
         #-------------------------------
         # L2 Density: Create the data process
@@ -488,10 +491,10 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         log.debug("TestDataProductProvenance: create L2_Density data_process start")
         try:
             l2_density_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_density_dprocdef_id, [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id], {'density':ctd_l2_density_output_dp_id})
+            self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
-        log.debug("TestDataProductProvenance: create L2_Density data_process return")
 
 
         #-------------------------------
@@ -508,6 +511,17 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 #        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
 
 
+        #-------------------------------
+        # Deactivate InstrumentAgentInstance
+        #-------------------------------
+        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+
+        self.dataprocessclient.deactivate_data_process(l2_density_all_data_process_id)
+        self.dataprocessclient.deactivate_data_process(l2_salinity_all_data_process_id)
+        self.dataprocessclient.deactivate_data_process(l1_temperature_all_data_process_id)
+        self.dataprocessclient.deactivate_data_process(l1_pressure_data_process_id)
+        self.dataprocessclient.deactivate_data_process(l1_conductivity_data_process_id)
+        self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)
 
         #-------------------------------
         # Retrieve the provenance info for the ctd density data product
@@ -527,11 +541,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
 
         #-------------------------------
-        # Deactivate InstrumentAgentInstance
+        # Request the xml report
         #-------------------------------
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
-
-
-
         results = self.dpmsclient.get_data_product_provenance_report(ctd_l2_density_output_dp_id)
 
