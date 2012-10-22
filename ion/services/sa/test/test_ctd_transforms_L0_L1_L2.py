@@ -585,6 +585,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # Launch InstrumentAgentInstance, connect to the resource agent client
         #-------------------------------------------------------------------------------------
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+        self.addCleanup(self.imsclient.stop_instrument_agent_instance,
+                        instrument_agent_instance_id=instAgentInstance_id)
 
         inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
 
@@ -649,10 +651,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         self.assertTrue(reply.status == 0)
 
-        #-------------------------------------------------------------------------------------------------
-        # Deactivate InstrumentAgentInstance
-        #-------------------------------------------------------------------------------------------------
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
         #-------------------------------------------------------------------------------------------------
         # Cleanup processes

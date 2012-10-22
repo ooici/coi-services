@@ -189,7 +189,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def instrument_agent_config_restore(self, instrument_device_id='', snapshot_attachment_id=''):
+    def agent_state_restore(self, instrument_device_id='', attachment_id=''):
         """
         restore a snapshot of an instrument agent instance config
         """
@@ -200,10 +200,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("%s instrument agent instances found for instrument %s, not 1" % (n, instrument_device_id))
         instrument_agent_instance_obj = self.instrument_agent_instance.read_one(inst_agent_inst_objs[0]._id)
 
-        attachment = self.clients.resource_registry.read_attachment(snapshot_attachment_id)
+        attachment = self.clients.resource_registry.read_attachment(attachment_id)
 
         if not KeywordFlag.CONFIG_SNAPSHOT in attachment.keywords:
-            raise BadRequest("Attachment '%s' does not seem to be a config snapshot" % snapshot_attachment_id)
+            raise BadRequest("Attachment '%s' does not seem to be a config snapshot" % attachment_id)
 
         if not 'application/json' == attachment.content_type:
             raise BadRequest("Attachment '%s' is not labeled as json")
@@ -224,7 +224,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def instrument_agent_config_snapshot(self, instrument_device_id='', snapshot_name=''):
+    def agent_state_checkpoint(self, instrument_device_id='', name=''):
         """
         take a snapshot of the current instrument agent instance config for this instrument,
           and save it as an attachment
@@ -236,10 +236,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if 0 == len(inst_agent_inst_objs):
             raise NotFound("No instrument agent instance was found for instrument %s" % instrument_device_id)
 
+        inst_agent_instance_obj = inst_agent_inst_objs[0]
+
         self._validate_instrument_agent_instance(inst_agent_inst_objs[0])
 
         epoch = time.mktime(datetime.datetime.now().timetuple())
-        snapshot_name = snapshot_name or "Running Config Snapshot %s.js" % epoch
+        snapshot_name = name or "Running Config Snapshot %s.js" % epoch
 
         driver_config, agent_config = self._generate_instrument_agent_config(instrument_device_id)
 
@@ -248,6 +250,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         snapshot["agent_config"]  = agent_config
 
         #todo
+        # Start a resource agent client to talk with the instrument agent.
+#        self._ia_client = ResourceAgentClient(instrument_device_id,
+#                                              to_name=inst_agent_instance_obj.agent_process_id,
+#                                              process=FakeProcess())
         snapshot["running_config"] = {} #agent.get_config()
 
 
@@ -588,16 +594,32 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
 
-        instrument_device_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.InstrumentDevice, predicate=PRED.hasAgentInstance,
-                                                                          object=instrument_agent_instance_id, id_only=True)
+        instrument_device_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.InstrumentDevice,
+                                                                                predicate=PRED.hasAgentInstance,
+                                                                                object=instrument_agent_instance_id,
+                                                                                id_only=True)
         if not instrument_device_ids:
-            raise NotFound("No Instrument Device resource associated with this Instrument Agent Instance: %s", str(instrument_agent_instance_id) )
+            raise NotFound("No Instrument Device resource associated with this Instrument Agent Instance: %s",
+                           str(instrument_agent_instance_id) )
 
         # Cancels the execution of the given process id.
-        self.clients.process_dispatcher.cancel_process(instrument_agent_instance_obj.agent_process_id)
+        if None is instrument_agent_instance_obj.agent_process_id:
+            raise BadRequest("Instrument Agent Instance '%s' does not have an agent_process_id.  Stopped already?"
+                                % instrument_agent_instance_id)
+        try:
+            self.clients.process_dispatcher.cancel_process(process_id=instrument_agent_instance_obj.agent_process_id)
+        except NotFound:
+            pass
+        except Exception as e:
+            raise e
 
-        process = PortAgentProcess.get_process(self._port_config, test_mode=True)
-        process.stop()
+        try:
+            process = PortAgentProcess.get_process(self._port_config, test_mode=True)
+            process.stop()
+        except NotFound:
+            pass
+        except Exception as e:
+            raise e
 
         #reset the process ids.
         instrument_agent_instance_obj.agent_process_id = None
