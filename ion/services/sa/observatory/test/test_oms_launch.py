@@ -125,7 +125,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
     def _build_stream_config(self, stream_id=''):
 
-        raw_parameter_dictionary = DatasetManagementService.get_parameter_dictionary_by_name('simple_data_particle_raw_param_dict')
+        raw_parameter_dictionary = DatasetManagementService.get_parameter_dictionary_by_name('ctd_raw_param_dict')
 
         #get the streamroute object from pubsub by passing the stream_id
         stream_def_ids, _ = self.rrclient.find_objects(stream_id,
@@ -160,7 +160,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_raw_param_dict', id_only=True)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
         raw_stream_def_id = self.pubsubcli.create_stream_definition(name='raw', parameter_dictionary_id=pdict_id)
         dp_obj = IonObject(RT.DataProduct,
             name='raw data',

@@ -149,8 +149,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             name='SBE37IMModel',
             description="SBE37IMModel",
             model="SBE37IMModel",
-            stream_configuration= {'raw': 'simple_data_particle_raw_param_dict' ,
-                                   'parsed': 'simple_data_particle_parsed_param_dict' }
+            stream_configuration= {'raw': 'ctd_raw_param_dict' ,
+                                   'parsed': 'ctd_parsed_param_dict' }
         )
         instModel_id = self.imsclient.create_instrument_model(instModel_obj)
 
@@ -193,7 +193,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.sdom = sdom.dump()
         self.tdom = tdom.dump()
 
-        self.pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        self.pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
     def _create_input_data_products(self, ctd_stream_def_id, instDevice_id,  ):
 

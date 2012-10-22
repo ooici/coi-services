@@ -109,7 +109,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         tdom = tdom.dump()
 
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
 
         log.debug( 'test_get_provenance:Creating new CDM data product with a stream definition')

@@ -124,7 +124,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             processing_level_code='Parsed_Canonical',
             temporal_domain = tdom,
             spatial_domain = sdom)
-        pdict_id = self.DSC.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        pdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
         data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         log.debug( 'new dp_id = %s', data_product_id1)
@@ -266,7 +266,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
                                   model="SBE37IMModel",
-                                  stream_configuration= {'raw': 'simple_data_particle_raw_param_dict' , 'parsed': 'simple_data_particle_parsed_param_dict' })
+                                  stream_configuration= {'raw': 'ctd_raw_param_dict' , 'parsed': 'ctd_parsed_param_dict' })
         instModel_id = self.IMS.create_instrument_model(instModel_obj)
         log.debug( 'new InstrumentModel id = %s ', instModel_id)
 
@@ -322,10 +322,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         tdom = tdom.dump()
 
 
-        spdict_id = self.DSC.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict')
+        spdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
         parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary=spdict_id)
 
-        rpdict_id = self.DSC.read_parameter_dictionary_by_name('simple_data_particle_raw_param_dict')
+        rpdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_raw_param_dict')
         raw_stream_def_id = self.PSC.create_stream_definition(name='raw', parameter_dictionary=rpdict_id)
 
 

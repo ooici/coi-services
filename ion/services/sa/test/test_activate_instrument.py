@@ -113,7 +113,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
                                   model="SBE37IMModel",
-                                  stream_configuration= {'raw': 'simple_data_particle_raw_param_dict' , 'parsed': 'simple_data_particle_parsed_param_dict' })
+                                  stream_configuration= {'raw': 'ctd_raw_param_dict' , 'parsed': 'ctd_parsed_param_dict' })
         instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         log.debug( 'new InstrumentModel id = %s ', instModel_id)
 
@@ -169,10 +169,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         tdom = tdom.dump()
 
 
-        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
 
-        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_raw_param_dict', id_only=True)
+        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
         raw_stream_def_id = self.pubsubcli.create_stream_definition(name='raw', parameter_dictionary_id=raw_pdict_id)
 
 
@@ -342,6 +342,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
+        gevent.sleep(2)
+
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
@@ -388,13 +390,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
 
 
-#        gevent.sleep(4)
-#
 #        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
 #        retval = self._ia_client.execute_resource(cmd)
 #        log.debug("test_activateInstrumentSample: return from START_AUTOSAMPLE: %s", str(retval))
-#
-#        gevent.sleep(10)
 #
 #        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
 #        retval = self._ia_client.execute_resource(cmd)
@@ -404,8 +402,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: return from reset %s", str(reply))
-        gevent.sleep(5)
-
 
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
