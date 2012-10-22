@@ -341,6 +341,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 #        log.debug("test_createTransformsThenActivateInstrument: create L0 all data_process return")
 
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+        self.addCleanup(self.imsclient.stop_instrument_agent_instance,
+                        instrument_agent_instance_id=instAgentInstance_id)
 
         gevent.sleep(2)
 

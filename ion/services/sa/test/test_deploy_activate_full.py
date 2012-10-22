@@ -482,7 +482,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Launch InstrumentAgentInstance Sim1, connect to the resource agent client
         #-------------------------------
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
-
+        self.addCleanup(self.imsclient.stop_instrument_agent_instance,
+                        instrument_agent_instance_id=oldInstAgentInstance_id)
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(oldInstAgentInstance_id)
@@ -505,6 +506,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Launch InstrumentAgentInstance Sim2, connect to the resource agent client
         #-------------------------------
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=newInstAgentInstance_id)
+        self.addCleanup(self.imsclient.stop_instrument_agent_instance,
+                        instrument_agent_instance_id=newInstAgentInstance_id)
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(newInstAgentInstance_id)

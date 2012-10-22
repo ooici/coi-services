@@ -980,7 +980,7 @@ class IONLoader(ImmediateProcess):
 
         activate_str = row['activate'].lower()# if 'activate' in row else None
         activate = activate_str=='true' or activate_str=='yes' or activate_str=='activate'
-        if activate:
+        if row['activate']:
             oms.activate_deployment(deployment_id)
 
     def extract_ooi_assets(self):
