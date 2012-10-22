@@ -549,10 +549,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # add the process id and update the resource
         instrument_agent_instance_obj.agent_config = agent_config
         instrument_agent_instance_obj.agent_process_id = process_id
+
         self.update_instrument_agent_instance(instrument_agent_instance_obj)
-
-        return
-
 
     def _start_pagent(self, instrument_agent_instance_id=None):
         """
