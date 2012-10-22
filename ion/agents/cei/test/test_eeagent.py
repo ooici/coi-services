@@ -69,7 +69,9 @@ class TestProcessSlowStart(BaseService):
     name = __name__ + "test"
 
     def on_init(self):
+        log.info("Waiting for TestProcessSlowStart to start")
         gevent.sleep(2)
+        log.info("TestProcessSlowStart started")
 
 
 @attr('INT', group='cei')
