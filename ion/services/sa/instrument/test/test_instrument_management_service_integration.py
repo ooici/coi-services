@@ -4,6 +4,7 @@ from interface.services.icontainer_agent import ContainerAgentClient
 
 #from pyon.ion.endpoint import ProcessRPCClient
 from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.datastore.datastore import DataStore
 from pyon.public import Container, IonObject
@@ -18,7 +19,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.objects import ComputedValueAvailability, ProcessDefinition
+from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum
 
 from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
@@ -377,7 +378,22 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.DP.activate_data_product_persistence(data_product_id=data_product_id2)
 
+        # spin up agent
+        self.IMS.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+
+        #wait for start
+        instance_obj = self.IMS.read_instrument_agent_instance(instAgentInstance_id)
+        gate = ProcessStateGate(self.PDC.read_process,
+                                instance_obj.agent_process_id,
+                                ProcessStateEnum.RUNNING)
+        self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
+                                        instance_obj.agent_process_id)
+
+
         #todo
-#        snap_id = self.IMS.instrument_agent_config_snapshot(instDevice_id, "xyzzy snapshot")
-#        self.IMS.instrument_agent_config_restore(instDevice_id, snap_id)
+#        snap_id = self.IMS.agent_state_checkpoint(instDevice_id, "xyzzy snapshot")
+#        snap_obj = self.RR.read_attachment(snap_id)
+#        print "Saved config:"
+#        print snap_obj.content
+#        self.IMS.agent_state_restore(instDevice_id, snap_id)
 #        

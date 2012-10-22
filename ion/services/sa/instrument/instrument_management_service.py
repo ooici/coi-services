@@ -236,6 +236,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if 0 == len(inst_agent_inst_objs):
             raise NotFound("No instrument agent instance was found for instrument %s" % instrument_device_id)
 
+        inst_agent_instance_obj = inst_agent_inst_objs[0]
+
         self._validate_instrument_agent_instance(inst_agent_inst_objs[0])
 
         epoch = time.mktime(datetime.datetime.now().timetuple())
@@ -248,6 +250,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         snapshot["agent_config"]  = agent_config
 
         #todo
+        # Start a resource agent client to talk with the instrument agent.
+#        self._ia_client = ResourceAgentClient(instrument_device_id,
+#                                              to_name=inst_agent_instance_obj.agent_process_id,
+#                                              process=FakeProcess())
         snapshot["running_config"] = {} #agent.get_config()
 
 
