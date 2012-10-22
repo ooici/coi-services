@@ -41,6 +41,7 @@ from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any, get_ion_ts
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.util.parameter_yaml_IO import get_param_dict
 try:
     import xlrd
 except:
@@ -515,14 +516,34 @@ class IONLoader(ImmediateProcess):
         log.debug('creating contact: ' + id)
         if id in self.contact_defs:
             raise iex.BadRequest('contact with ID already exists: ' + id)
+
         roles = self._get_typed_value(row['c/roles'], targettype='simplelist')
         del row['c/roles']
-        phones = self._get_typed_value(row['c/phones'], targettype='simplelist')
+#        phones = self._get_typed_value(row['c/phones'], targettype='simplelist')
+        phones = self._parse_phones(row['c/phones'])
         del row['c/phones']
+
         contact = self._create_object_from_row("ContactInformation", row, "c/")
         contact.roles = roles
         contact.phones = phones
+
         self.contact_defs[id] = contact
+
+    def _parse_phones(self, text):
+        if ':' in text:
+            pairs = text.split(',')
+            out = []
+            for pair in pairs:
+                # pair is a string like: " office: 212-555-1212"
+                fields = pair.split(':')
+                number = fields[1].strip()
+                type = fields[0].strip()
+                out.append(IonObject("Phone", phone_number=number, phone_type=type))
+            return out
+        elif text:
+            return [ IonObject("Phone", phone_number=text.strip(), phone_type='office') ]
+        else:
+            return []
 
     def _load_Constraint(self, row):
         """ create constraint IonObject but do not insert into DB,
@@ -755,6 +776,7 @@ class IONLoader(ImmediateProcess):
         self._resource_advance_lcs(row, res_id, "SensorDevice")
 
     def _load_InstrumentDevice(self, row):
+        row['id/reference_urls'] = repr(self._get_typed_value(row['id/reference_urls'], targettype="simplelist"))
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
             "instrument_management", "create_instrument_device", contacts=contacts)
