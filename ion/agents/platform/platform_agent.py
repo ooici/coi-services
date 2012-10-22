@@ -460,7 +460,7 @@ class PlatformAgent(ResourceAgent):
         stream_def = self._stream_defs[stream_name]
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
-        # because currently using param-dict for 'simple_data_particle_raw_param_dict',
+        # because currently using param-dict for 'ctd_raw_param_dict',
         # the following are invalid:
 #        rdt['value'] =  numpy.array([driver_event._value])
 
