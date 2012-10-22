@@ -18,6 +18,9 @@ from pyon.util.containers import DotDict
 from ion.services.sa.instrument.data_process_impl import DataProcessImpl
 from pyon.util.arg_check import validate_is_not_none, validate_true
 
+from ion.util.module_uploader import RegisterModulePreparerPy
+import os
+import pwd
 
 class DataProcessManagementService(BaseDataProcessManagementService):
 
@@ -25,6 +28,27 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         IonObject("Resource")  # suppress pyflakes error
 
         self.override_clients(self.clients)
+
+        # todo: uncomment
+        #self.init_module_uploader()
+
+    def init_module_uploader(self):
+        if self.CFG:
+            #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
+            cfg_host        = self.CFG.get_safe("service.data_process_management.process_release_host", None)
+            cfg_remotepath  = self.CFG.get_safe("service.data_process_management.process_release_directory", None)
+            cfg_user        = self.CFG.get_safe("service.data_process_management.process_release_user",
+                                                pwd.getpwuid(os.getuid())[0])
+            cfg_wwwroot     = self.CFG.get_safe("service.instrument_management.process_release_wwwroot", "/")
+
+            if cfg_host is None or cfg_remotepath is None:
+                raise BadRequest("Missing configuration items for host and directory -- destination of process release")
+
+            self.module_uploader = RegisterModulePreparerPy(dest_user=cfg_user,
+                                                            dest_host=cfg_host,
+                                                            dest_path=cfg_remotepath,
+                                                            dest_wwwroot=cfg_wwwroot)
+
 
     def override_clients(self, new_clients):
         """
@@ -38,6 +62,36 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #farm everything out to the impls
 
         self.data_process = DataProcessImpl(self.clients)
+
+
+    #todo: need to know what object will be worked with here
+    def register_TBD(self, TBD_id='', process_code=''):
+        """
+        register a process module by putting it in a web-accessible location
+
+        @TBD_id the agent receiving the driver
+        @process_code a base64-encoded python file
+        """
+
+        # retrieve the resource
+        TBD_obj = self.clients.resource_registry.read(TBD_id)
+
+        dest_filename = "process_code_%s.py" % TBD_obj._id
+
+        #process the input file (base64-encoded .py)
+        uploader_obj, err = self.module_uploader.prepare(process_code, dest_filename)
+        if None is uploader_obj:
+            raise BadRequest("Process code failed validation: %s" % err)
+
+        # actually upload
+        up_success, err = uploader_obj.upload()
+        if not up_success:
+            raise BadRequest("Upload failed: %s" % err)
+
+        #todo: save URL somewhere
+        TBD_obj.TBD_field = uploader_obj.get_destination_url()
+        self.clients.resoruce_registry.update(TBD_obj)
+
 
     def create_data_process_definition(self, data_process_definition=None):
 
