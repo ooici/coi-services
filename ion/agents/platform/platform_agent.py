@@ -137,6 +137,10 @@ class PlatformAgent(ResourceAgent):
 
         log.info("PlatformAgent constructor complete.")
 
+    def on_start(self):
+        super(PlatformAgent, self).on_start()
+        log.info('platform agent is running')
+
     def _reset(self):
         """
         Resets this platform agent (terminates sub-platforms processes,
