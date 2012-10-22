@@ -189,7 +189,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def instrument_agent_config_restore(self, instrument_device_id='', snapshot_attachment_id=''):
+    def agent_state_restore(self, instrument_device_id='', attachment_id=''):
         """
         restore a snapshot of an instrument agent instance config
         """
@@ -200,10 +200,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("%s instrument agent instances found for instrument %s, not 1" % (n, instrument_device_id))
         instrument_agent_instance_obj = self.instrument_agent_instance.read_one(inst_agent_inst_objs[0]._id)
 
-        attachment = self.clients.resource_registry.read_attachment(snapshot_attachment_id)
+        attachment = self.clients.resource_registry.read_attachment(attachment_id)
 
         if not KeywordFlag.CONFIG_SNAPSHOT in attachment.keywords:
-            raise BadRequest("Attachment '%s' does not seem to be a config snapshot" % snapshot_attachment_id)
+            raise BadRequest("Attachment '%s' does not seem to be a config snapshot" % attachment_id)
 
         if not 'application/json' == attachment.content_type:
             raise BadRequest("Attachment '%s' is not labeled as json")
@@ -224,7 +224,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def instrument_agent_config_snapshot(self, instrument_device_id='', snapshot_name=''):
+    def agent_state_checkpoint(self, instrument_device_id='', name=''):
         """
         take a snapshot of the current instrument agent instance config for this instrument,
           and save it as an attachment
@@ -239,7 +239,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self._validate_instrument_agent_instance(inst_agent_inst_objs[0])
 
         epoch = time.mktime(datetime.datetime.now().timetuple())
-        snapshot_name = snapshot_name or "Running Config Snapshot %s.js" % epoch
+        snapshot_name = name or "Running Config Snapshot %s.js" % epoch
 
         driver_config, agent_config = self._generate_instrument_agent_config(instrument_device_id)
 
