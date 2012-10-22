@@ -420,7 +420,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
             self.eea_client.launch_process(upid, round, run_type, parameters)
 
         for upid in upids:
-            self.wait_for_state(upid, [500, 'RUNNING'])
+            self.wait_for_state(upid, [500, 'RUNNING'], timeout=60)
 
     @needs_eeagent
     def test_start_cancel(self):
