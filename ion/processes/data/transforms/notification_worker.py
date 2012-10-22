@@ -25,6 +25,7 @@ class NotificationWorker(TransformEventListener):
     def on_init(self):
         self.user_info = {}
         self.resource_registry = ResourceRegistryServiceClient()
+        super(NotificationWorker, self).on_init()
 
     def test_hook(self, user_info, reverse_user_info ):
         '''
@@ -112,9 +113,13 @@ class NotificationWorker(TransformEventListener):
         # close subscribers safely
         self.reload_user_info_subscriber.stop()
 
+        super(NotificationWorker, self).on_stop()
+
     def on_quit(self):
         # close subscribers safely
         self.reload_user_info_subscriber.stop()
+
+        super(NotificationWorker, self).on_quit()
 
     def load_user_info(self):
         '''
