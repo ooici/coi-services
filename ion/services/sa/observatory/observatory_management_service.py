@@ -688,7 +688,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         streamdefs = {}
         for pdc in pdcs:
-            log.debug("Checking data prodcer %s", pdc)
+            log.debug("Checking data producer %s", pdc)
             prods, _ = self.RR.find_subjects(RT.DataProduct, PRED.hasDataProducer, pdc, True)
             for p in prods:
                 log.debug("Checking product %s", p)
@@ -712,15 +712,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # validate and return supported models
         models, _ = self.RR.find_objects(site_id, PRED.hasModel, model_type, True)
         if 1 > len(models):
-            raise BadRequest("Expected at least 1 model for %s '%s', got %s", site_type, site_id, len(models))
+            raise BadRequest("Expected at least 1 model for %s '%s', got %s" % (site_type, site_id, len(models)))
 
-        log.debug("checking site data products")
+        log.trace("checking site data products")
 
         #todo: remove this when platform data products start working
         if site_type != RT.PlatformSite:
             prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
             if 1 != len(prods):
-                raise BadRequest("Expected 1 output data product on %s '%s', got %s", site_type, site_id, len(prods))
+                raise BadRequest("Expected 1 output data product on %s '%s', got %s" % (site_type, site_id, len(prods)))
+        log.trace("check_site_for_deployment returning %s models", len(models))
         return models
 
 
@@ -729,11 +730,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         assert(type("") == type(device_id))
         assert(type(RT.Resource) == type(device_type) == type(model_type))
 
-        log.debug("checking %s for deployment, will return %s", device_type, model_type)
+        log.trace("checking %s for deployment, will return %s", device_type, model_type)
         # validate and return model
         models, _ = self.RR.find_objects(device_id, PRED.hasModel, model_type, True)
         if 1 != len(models):
-            raise BadRequest("Expected 1 model for %s '%s', got %d", device_type, device_id, len(models))
+            raise BadRequest("Expected 1 model for %s '%s', got %d" % (device_type, device_id, len(models)))
+        log.trace("check_device_for_deployment returning 1 model")
         return models[0]
 
     def check_site_device_pair_for_deployment(self, site_id, device_id, site_type=None, device_type=None):
@@ -750,7 +752,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         ret = None
 
-        log.debug("checking existing hasDevice links from site")
+        log.trace("checking existing hasDevice links from site")
         devices, _ = self.RR.find_objects(site_id, PRED.hasDevice, device_type, True)
         if 1 < len(devices):
             raise Inconsistent("Found more than 1 hasDevice relationship from %s '%s'" % (site_type, site_id))
@@ -797,7 +799,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         def collect_specific_resources(site_type, device_type, model_type):
             # check this deployment -- specific device types -- for validity
             # return a list of pairs (site, device) to be associated
-
+            log.trace("Collecting resources: site=%s device=%s model=%s", site_type, device_type, model_type)
             new_site_ids, _ = self.RR.find_subjects(site_type,
                                                     PRED.hasDeployment,
                                                     deployment_id,
@@ -816,7 +818,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if 1 < len(device_models):
             raise BadRequest("Multiple platforms in the same deployment are not allowed")
         elif 0 < len(device_models):
-            # add devices and sites that are children of platform device / site
+            log.trace("adding devices and sites that are children of platform device / site")
             child_device_objs = self.platform_device.find_stemming_platform_device(device_models.keys()[0])
             child_site_objs = self.find_related_frames_of_reference(site_models.keys()[0],
                 [RT.PlatformSite, RT.InstrumentSite])
@@ -851,7 +853,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 #        if LCS.DEPLOYED == deployment_obj.lcstate:
 #            raise BadRequest("This deploment is already active")
 
+        log.trace("activate_deployment about to collect components")
         device_models, site_models = self.collect_deployment_components(deployment_id)
+        log.trace("Collected %s device models, %s site models", len(device_models), len(site_models))
 
         # create a CSP so we can solve it
         problem = constraint.Problem()
