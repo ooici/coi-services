@@ -42,7 +42,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
 
     def on_quit(self): #pragma no cover
-        self.subscriber.stop()
+        super(ScienceGranuleIngestionWorker, self).on_quit()
 
     def _new_dataset(self, stream_id):
         '''
