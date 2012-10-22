@@ -342,6 +342,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
+        gevent.sleep(2)
+
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
@@ -388,13 +390,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrumentSample: return from sample %s", str(retval))
 
 
-#        gevent.sleep(4)
-#
 #        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
 #        retval = self._ia_client.execute_resource(cmd)
 #        log.debug("test_activateInstrumentSample: return from START_AUTOSAMPLE: %s", str(retval))
-#
-#        gevent.sleep(10)
 #
 #        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
 #        retval = self._ia_client.execute_resource(cmd)
@@ -404,8 +402,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: return from reset %s", str(reply))
-        gevent.sleep(5)
-
 
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
