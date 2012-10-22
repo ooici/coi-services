@@ -256,6 +256,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
 
+    def event_poll(self, poller, timeout):
+        success = False
+        with gevent.timeout.Timeout(timeout):
+            while not success:
+                success = poller()
+                gevent.sleep(0.1) # Let the sockets close by yielding this greenlet
+        return success
+
+
+
+
     @staticmethod
     def es_cleanup():
         es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
@@ -1102,12 +1113,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_find_events(self):
-        '''
-        Test the find events functionality of UNS
-        '''
+        # Test the find events functionality of UNS
 
         # publish some events for the event repository
         event_publisher_1 = EventPublisher("PlatformEvent")
@@ -1117,10 +1125,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_publisher_1.publish_event(origin='my_special_find_events_origin', ts_created = i)
             event_publisher_2.publish_event(origin='another_origin', ts_created = i)
 
-        #allow time for couchdb to store
-        gevent.sleep(4)
-        events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= 4, max_datetime=7)
-        self.assertEquals(len(events), 4)
+        def poller():
+            events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= 4, max_datetime=7)
+            return len(events) >= 4
+            
+        success = self.event_poll(poller, 10)
+
+        self.assertTrue(success)
 
 
     @attr('LOCOINT')
@@ -1140,10 +1151,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
 
         # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
-        gevent.sleep(4)
-        events = self.unsc.find_events_extended(origin='Some_Resource_Agent_ID1', min_time=4, max_time=7)
+        def poller():
+            events = self.unsc.find_events_extended(origin='Some_Resource_Agent_ID1', min_time=4, max_time=7)
+            return len(events) >= 4
 
-        self.assertEquals(len(events), 4)
+        success = self.event_poll(poller, 10)
+        self.assertTrue(success)
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
