@@ -651,10 +651,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         self.assertTrue(reply.status == 0)
 
-        #-------------------------------------------------------------------------------------------------
-        # Deactivate InstrumentAgentInstance
-        #-------------------------------------------------------------------------------------------------
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
         #-------------------------------------------------------------------------------------------------
         # Cleanup processes

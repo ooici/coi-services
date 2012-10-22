@@ -594,16 +594,32 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
 
-        instrument_device_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.InstrumentDevice, predicate=PRED.hasAgentInstance,
-                                                                          object=instrument_agent_instance_id, id_only=True)
+        instrument_device_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.InstrumentDevice,
+                                                                                predicate=PRED.hasAgentInstance,
+                                                                                object=instrument_agent_instance_id,
+                                                                                id_only=True)
         if not instrument_device_ids:
-            raise NotFound("No Instrument Device resource associated with this Instrument Agent Instance: %s", str(instrument_agent_instance_id) )
+            raise NotFound("No Instrument Device resource associated with this Instrument Agent Instance: %s",
+                           str(instrument_agent_instance_id) )
 
         # Cancels the execution of the given process id.
-        self.clients.process_dispatcher.cancel_process(instrument_agent_instance_obj.agent_process_id)
+        if None is instrument_agent_instance_obj.agent_process_id:
+            raise BadRequest("Instrument Agent Instance '%s' does not have an agent_process_id.  Stopped already?"
+                                % instrument_agent_instance_id)
+        try:
+            self.clients.process_dispatcher.cancel_process(process_id=instrument_agent_instance_obj.agent_process_id)
+        except NotFound:
+            pass
+        except Exception as e:
+            raise e
 
-        process = PortAgentProcess.get_process(self._port_config, test_mode=True)
-        process.stop()
+        try:
+            process = PortAgentProcess.get_process(self._port_config, test_mode=True)
+            process.stop()
+        except NotFound:
+            pass
+        except Exception as e:
+            raise e
 
         #reset the process ids.
         instrument_agent_instance_obj.agent_process_id = None

@@ -617,6 +617,4 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
 
 
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=newInstAgentInstance_id)
 

@@ -426,9 +426,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertTrue(len(raw_vals) == 3)
 
         #-------------------------------
-        # Deactivate InstrumentAgentInstance
+        # Deactivate loggers
         #-------------------------------
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
