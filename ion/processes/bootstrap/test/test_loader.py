@@ -7,7 +7,7 @@ from nose.plugins.attrib import attr
 from pyon.public import RT
 from pyon.util.int_test import IonIntegrationTestCase
 import math
-from ion.processes.bootstrap.ion_loader import TESTED_DOC, MASTER_DOC
+from ion.processes.bootstrap.ion_loader import TESTED_DOC
 
 from interface.services.coi.idatastore_service import DatastoreServiceClient, DatastoreServiceProcessClient
 import unittest
@@ -21,7 +21,7 @@ class TestLoader(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
     def test_lca_load(self):
-        config = dict(op="load", scenario="R2_DEMO", path=MASTER_DOC)
+        config = dict(op="load", scenario="R2_DEMO", attachments="res/preload/r2_ioc/attachments")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
         # make sure contact entries were created correctly
