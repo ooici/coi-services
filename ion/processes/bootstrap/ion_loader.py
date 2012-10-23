@@ -55,7 +55,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydDRsV0NaSlhrdFhiSkFRc0EwaWU1c0E&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDVyb1VkaklXQ01UVFhVU0dFdlBkc0E&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -85,7 +85,7 @@ class IONLoader(ImmediateProcess):
         if self.path=='master':
             self.path = MASTER_DOC
         self.attachment_path = self.CFG.get("attachments", self.path + '/attachments')
-        self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets1")
+        self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets")
         default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
         self.ui_path = self.CFG.get("ui_path", default_ui_path)
         scenarios = self.CFG.get("scenario", None)
@@ -898,9 +898,13 @@ class IONLoader(ImmediateProcess):
 
         dp_id = self.resource_ids[row["data_product_id"]]
         res_id = self.resource_ids[row["input_resource_id"]]
+        type = row['resource_type']
 
-        svc_client = self._get_service_client("data_acquisition_management")
-        svc_client.assign_data_product(res_id, dp_id)
+        if type=='InstrumentDevice':
+            svc_client = self._get_service_client("data_acquisition_management")
+            svc_client.assign_data_product(res_id, dp_id)
+        elif type=='InstrumentSite':
+            self._get_service_client('observatory_management').create_site_data_product(res_id, dp_id)
 
     def _load_Attachment(self, row):
         log.info("Loading Attachment")
@@ -978,9 +982,7 @@ class IONLoader(ImmediateProcess):
         oms.deploy_instrument_site(site_id, deployment_id)
         ims.deploy_instrument_device(device_id, deployment_id)
 
-        activate_str = row['activate'].lower()# if 'activate' in row else None
-        activate = activate_str=='true' or activate_str=='yes' or activate_str=='activate'
-        if row['activate']:
+        if row['activate']=='1':
             oms.activate_deployment(deployment_id)
 
     def extract_ooi_assets(self):
