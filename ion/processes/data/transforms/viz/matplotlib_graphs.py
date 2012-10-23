@@ -10,7 +10,7 @@ import numpy as np
 
 import StringIO
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
-from pyon.ion.transforma import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess
 
 # Matplotlib related imports
 # Need try/catch because of weird import error
