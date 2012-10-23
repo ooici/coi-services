@@ -6,7 +6,7 @@ it goes into a woken up state. When it is awake it processes data according to i
 
 @author Swarbhanu Chatterjee
 '''
-from pyon.ion.transforma import TransformEventListener, TransformDataProcess, TransformStreamPublisher
+from ion.core.process.transform import TransformEventListener, TransformDataProcess, TransformStreamPublisher
 from pyon.util.log import log
 from pyon.util.containers import get_safe
 from pyon.core.exception import BadRequest
