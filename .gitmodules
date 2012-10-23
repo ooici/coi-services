@@ -11,3 +11,6 @@
 [submodule "extern/pyon"]
 	path = extern/pyon
 	url = https://github.com/ooici/pyon.git
+[submodule "extern/parameter-definitions"]
+	path = extern/parameter-definitions
+	url = https://github.com/ooici/parameter-definitions.git
