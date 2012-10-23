@@ -128,10 +128,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_proc_def_obj
 
     def delete_data_process_definition(self, data_process_definition_id=''):
-        self.clients.resource_registry.delete(data_process_definition_id)
+        self.clients.resource_registry.retire(data_process_definition_id)
 
     def force_delete_data_process_definition(self, data_process_definition_id=''):
-        pass
+        self._remove_associations(data_process_definition_id)
+        self.clients.resource_registry.delete(data_process_definition_id)
 
     def find_data_process_definitions(self, filters=None):
         """
@@ -522,11 +523,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.data_acquisition_management.unregister_process(data_process_id)
 
         # Delete the data process
-        self.clients.resource_registry.delete(data_process_id)
+        self.clients.resource_registry.retire(data_process_id)
         return
 
     def force_delete_data_process(self, data_process_id=""):
-        pass
+        self._remove_associations(data_process_id)
+        self.clients.resource_registry.delete(data_process_id)
 
     def _stop_process(self, data_process):
         pid = data_process.process_id
@@ -598,3 +600,35 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if not producer_objs:
             raise NotFound("No Producers created for this Data Process " + str(data_process_id))
         return producer_objs[0]
+
+
+    def _remove_associations(self, resource_id=''):
+        """
+        delete all associations to/from a resource
+        """
+
+        # find all associations where this is the subject
+        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+
+        log.debug("pluck will remove %s subject associations and %s object associations",
+                 len(sbj_assns), len(obj_assns))
+
+        for assn in obj_assns:
+            log.debug("pluck deleting object association %s", assn)
+            self.clients.resource_registry.delete_association(assn)
+
+        for assn in sbj_assns:
+            log.debug("pluck deleting subject association %s", assn)
+            self.clients.resource_registry.delete_association(assn)
+
+        # find all associations where this is the subject
+        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+
+        log.debug("post-deletions, pluck found %s subject associations and %s object associations",
+                 len(sbj_assns), len(obj_assns))

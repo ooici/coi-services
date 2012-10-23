@@ -104,7 +104,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         # now 'delete' the data source
         print "deleting data source"
         try:
-            delete_result = self.client.delete_data_source(ds_id)
+            delete_result = self.client.force_delete_data_source(ds_id)
         except NotFound as ex:
             self.fail("existing data source was not found during delete")
         #self.assertTrue(delete_result == True)
@@ -365,6 +365,16 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
                 self.client.delete_external_data_provider(dataprovider_id)
                 self.client.delete_data_source(datasource_id)
                 self.client.delete_external_dataset(extdataset_id)
+                self.client.delete_data_source_model(datamodel_id)
+                self.client.delete_external_dataset_agent(datasetagent_id)
+                self.client.delete_data_source_agent(datasource_agent_instance_id)
+
+                self.client.force_delete_external_data_provider(dataprovider_id)
+                self.client.force_delete_data_source(datasource_id)
+                self.client.force_delete_external_dataset(extdataset_id)
+                self.client.force_delete_data_source_model(datamodel_id)
+                self.client.force_delete_external_dataset_agent(datasetagent_id)
+                self.client.force_delete_data_source_agent(datasource_agent_instance_id)
             except NotFound as ex:
                 self.fail("existing data product was not found during delete")
 
