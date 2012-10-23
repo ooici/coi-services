@@ -704,7 +704,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return streamdefs
 
-    def check_site_for_deployment(self, site_id, site_type, model_type):
+
+    def check_site_for_deployment(self, site_id, site_type, model_type, check_data_products=True):
         assert(type("") == type(site_id))
         assert(type(RT.Resource) == type(site_type) == type(model_type))
 
@@ -714,14 +715,17 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if 1 > len(models):
             raise BadRequest("Expected at least 1 model for %s '%s', got %s" % (site_type, site_id, len(models)))
 
-        log.trace("checking site data products")
-
-        #todo: remove this when platform data products start working
-        if site_type != RT.PlatformSite:
-            prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
-            if 1 != len(prods):
-                raise BadRequest("Expected 1 output data product on %s '%s', got %s" % (site_type, site_id, len(prods)))
+        if check_data_products:
+            log.trace("checking site data products")
+            #todo: remove this when platform data products start working
+            if site_type != RT.PlatformSite:
+                prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
+                if 1 != len(prods):
+                    raise BadRequest("Expected 1 output data product on %s '%s', got %s" % (site_type,
+                                                                                            site_id,
+                                                                                            len(prods)))
         log.trace("check_site_for_deployment returning %s models", len(models))
+
         return models
 
 
@@ -783,7 +787,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         def add_sites(site_ids, site_type, model_type):
             for s in site_ids:
-                models = self.check_site_for_deployment(s, site_type, model_type)
+                models = self.check_site_for_deployment(s, site_type, model_type, False)
                 if s in site_models:
                     log.warn("Site '%s' was already collected in deployment '%s'", s, deployment_id)
                 site_models[s] = models
@@ -1004,10 +1008,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         else:
             raise BadRequest("Expected a device type, got '%s'" % device_type)
 
+        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
+        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
         # commented out as per Maurice, 8/7/12
-        model_type # stop pyflakes warning since we don't use this any more
-#        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
-#        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
+        device_model, site_models #suppress pyflakes warnings
 #        if device_model not in site_models:
 #            raise BadRequest("The site and device model types are incompatible")
 
