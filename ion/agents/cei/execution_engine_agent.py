@@ -43,6 +43,7 @@ class ExecutionEngineAgent(SimpleResourceAgent):
         if not EEAgentCore:
             msg = "EEAgentCore isn't available. Use autolaunch.cfg buildout"
             log.error(msg)
+            self.heartbeat_thread = None
             return
         log.debug("ExecutionEngineAgent Pyon on_init")
         launch_type_name = self.CFG.eeagent.launch_type.name
