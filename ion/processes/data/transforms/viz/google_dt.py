@@ -18,6 +18,7 @@ import numpy as np
 
 from ion.core.process.transform import TransformDataProcess
 
+
 class VizTransformGoogleDT(TransformDataProcess):
 
     """
@@ -39,7 +40,8 @@ class VizTransformGoogleDT(TransformDataProcess):
     Usage: https://gist.github.com/3834918
 
     """
-    output_bindings = ['google_dt']
+
+    output_bindings = ['google_dt_components']
 
 
     def __init__(self):
@@ -74,6 +76,7 @@ class VizTransformGoogleDT(TransformDataProcess):
 
 
 class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
+
     @staticmethod
     @SimpleGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
@@ -84,6 +87,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         var_tuple = []
         data_description = []
         data_table_content = []
+        gdt_allowed_numerical_types = ['int32', 'int64', 'uint32', 'uint64', 'float32', 'float64']
 
         rdt = RecordDictionaryTool.load_from_granule(input)
         data_description = []
@@ -91,6 +95,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         data_description.append(('time','number','time'))
         for field in rdt.fields:
             if field == 'time':
+                continue
+
+            # only consider fields which are supposed to be numbers.
+            if (rdt[field] != None) and (rdt[field].dtype not in gdt_allowed_numerical_types):
                 continue
 
             data_description.append((field, 'number', field))
@@ -104,12 +112,15 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
             # Put time first
             varTuple.append(rdt['time'][i])
-            for field in rdt.fields:
+            for dd in data_description:
+                field = dd[0]
                 # ignore time since its been already added
                 if field == None or field == 'time':
                     continue
 
-                if field in rdt:
+                if rdt[field] == None or rdt[field][i] == None:
+                    varTuple.append(0.0)
+                else:
                     varTuple.append(rdt[field][i])
 
             # Append the tuples to the data table
@@ -129,4 +140,5 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         log.debug('Google DT transform: Sending a granule')
 
         out_granule = out_rdt.to_granule()
+
         return out_granule

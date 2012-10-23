@@ -55,12 +55,9 @@ class VisualizationService(BaseVisualizationService):
         """
 
         query = None
-        in_product_type = ''
         if visualization_parameters:
             if visualization_parameters.has_key('query'):
                 query=visualization_parameters['query']
-            if visualization_parameters.has_key('in_product_type'):
-                in_product_type = visualization_parameters['in_product_type']
 
         # Perform a look up to check and see if the DP is indeed a realtime GDT stream
         if not data_product_id:
@@ -104,8 +101,6 @@ class VisualizationService(BaseVisualizationService):
             exchange_name = query_token,
             name = query_token
         )
-
-        print ">>>>>>>>>>>>>>>> SUBSCRIPTION ID : ", subscription_id, " DP_STREAM_ID : ", data_product_stream_id
 
         # after the queue has been created it is safe to activate the subscription
         self.clients.pubsub_management.activate_subscription(subscription_id)
@@ -208,7 +203,6 @@ class VisualizationService(BaseVisualizationService):
         #Taking advantage of idempotency
         xq = self.container.ex_manager.create_xn_queue(query_token)
 
-        print ">>>>>>>>>>>>>>>>>>  XQ = ", xq
 
         subscriber = Subscriber(from_name=xq)
         subscriber.initialize()
@@ -345,8 +339,6 @@ class VisualizationService(BaseVisualizationService):
         if retrieved_granule is None:
             return None
 
-        print ">>>>>>>>>>>>>>>>>>>> RETRIEVED GRANULE = ", retrieved_granule
-
         # send the granule through the transform to get the google datatable
         gdt_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
         gdt_stream_def = self.clients.pubsub_management.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
@@ -376,7 +368,10 @@ class VisualizationService(BaseVisualizationService):
             for idx in range(1,len(tempTuple)):
                 # some silly numpy format won't go away so need to cast numbers to floats
                 if(gdt_description[idx][1] == 'number'):
-                    varTuple.append((float)(tempTuple[idx]))
+                    if tempTuple[idx] == None:
+                        varTuple.append(0.0)
+                    else:
+                        varTuple.append(float(tempTuple[idx]))
                 else:
                     varTuple.append(tempTuple[idx])
 
@@ -408,9 +403,6 @@ class VisualizationService(BaseVisualizationService):
             if 'parameters' in query and not 'time' in query['parameters']:
                 query['parameters'].append('time')
 
-            print " >>>>>>>>>>>>>>> QUERY = ",  query
-
-
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
         if ds_ids is None or not ds_ids:
@@ -419,8 +411,6 @@ class VisualizationService(BaseVisualizationService):
         # Ideally just need the latest granule to figure out the list of images
         #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
         retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
-
-        print ">>>>>>>>> RETRIEVED GRANULE = ", retrieved_granule
 
         if retrieved_granule is None:
             return None

@@ -153,7 +153,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
         #Iterate through the workflow steps to setup the data processes and connect them together.
         for wf_step in workflow_definition.workflow_steps:
-            log.debug("wf_step.data_process_definition_id: " + wf_step.data_process_definition_id)
+            log.debug("wf_step.data_process_definition_id: %s" , wf_step.data_process_definition_id)
 
             data_process_definition = self.clients.resource_registry.read(wf_step.data_process_definition_id)
             for binding, stream_definition_id in data_process_definition.output_bindings.iteritems():
@@ -162,7 +162,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 # Create an output data product for each binding/stream definition
                 #--------------------------------------------------------------------------------
 
-                data_product_name = wf_step.output_data_product_name or create_unique_identifier(workflow_definition.name + '_' + data_process_definition.name)
+                data_product_name = wf_step.output_data_product_name or create_unique_identifier('%s_%s' % (workflow_definition.name, data_process_definition.name))
                 data_product_name = '%s_%s' % (data_product_name,binding)
 
                 tdom, sdom = time_series_domain()

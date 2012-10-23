@@ -760,24 +760,27 @@ class InstrumentAgent(ResourceAgent):
         try:
             stream_name = val['stream_name']
             publisher = self._data_publishers[stream_name]
-            param_dict = self._param_dicts[stream_name]
+            #param_dict = self._param_dicts[stream_name]
             stream_def = self._stream_defs[stream_name]
-            #@TODO Luke: I'm not sure how but the param dicts here need to come out and just use stream defs
-            rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+            log.info("Stream definition has the followinf fields: %s" % rdt.fields)
 
             for (k, v) in val.iteritems():
                 if k == 'values':
                     for x in v:
                         value_id = x['value_id']
-                        if value_id in param_dict:
+                        if value_id in rdt:
                             value = x['value']
                             if x.get('binary', None):
                                 value = base64.b64decode(value)
-                            rdt[value_id] = numpy.array([value])
+                            rdt[value_id] = numpy.array([value]) # There might be an issue here, if value is a list...
                     
-                elif k in param_dict:
-                    rdt[k] = numpy.array([v])
+                elif k in rdt:
+                    if k == 'driver_timestamp':
+                        rdt['time'] = numpy.array([v])
+                    rdt[k] = numpy.array([v]) # There might be an issue here if value is a list
 
+            log.info('Outgoing granule: %s' % ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
             g = rdt.to_granule(data_producer_id=self.resource_id)
             publisher.publish(g)        
             

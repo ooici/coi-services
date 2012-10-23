@@ -101,7 +101,6 @@ class RecordDictionaryTool(object):
         
         return instance
 
-
     def to_granule(self, data_producer_id='',provider_metadata_update={}):
         granule = Granule()
         granule.record_dictionary = {}
@@ -132,6 +131,10 @@ class RecordDictionaryTool(object):
     def domain(self):
         dom = SimpleDomainSet(self._shp)
         return dom
+
+    @property
+    def temporal_parameter(self):
+        return self._pdict.temporal_parameter_name
 
     def __setitem__(self, name, vals):
         """

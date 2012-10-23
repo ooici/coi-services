@@ -352,7 +352,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
         # Stream definition for the salinity data
-        salinity_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_salinity_param_dict', id_only=True)
+        salinity_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         sal_stream_def_id = self.pubsub_management.create_stream_definition('sal data', parameter_dictionary_id=salinity_pdict_id)
 
         ingest_config_id = self.get_ingestion_config()

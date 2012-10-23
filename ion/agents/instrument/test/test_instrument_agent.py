@@ -268,6 +268,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
         self._ia_client = start_instrument_agent_process(self.container, self._stream_config)
+        self.addCleanup(self._verify_agent_reset)
 
     ###############################################################################
     # Port agent helpers.
@@ -287,6 +288,16 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'port' : port
         }
                         
+    def _verify_agent_reset(self):
+        """
+        Check agent state and reset if necessary.
+        This called if a test fails and reset hasn't occurred.
+        """
+        state = self._ia_client.get_agent_state()
+        if state != ResourceAgentState.UNINITIALIZED:
+            cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+            retval = self._ia_client.execute_agent(cmd)
+            
     ###############################################################################
     # Event helpers.
     ###############################################################################
@@ -998,8 +1009,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             SBE37ProtocolEvent.TEST,
             SBE37ProtocolEvent.ACQUIRE_SAMPLE,
             SBE37ProtocolEvent.START_AUTOSAMPLE,
-            SBE37ProtocolEvent.GET,
-            SBE37ProtocolEvent.SET,
             SBE37ProtocolEvent.STOP_AUTOSAMPLE
         ]
                 
@@ -1161,8 +1170,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         res_cmds_command = [
             SBE37ProtocolEvent.TEST,
             SBE37ProtocolEvent.ACQUIRE_SAMPLE,
-            SBE37ProtocolEvent.SET,
-            SBE37ProtocolEvent.GET,
             SBE37ProtocolEvent.START_AUTOSAMPLE
         ]
 
@@ -1170,7 +1177,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_command)
         self.assertItemsEqual(res_pars, res_pars_all)
-        
+
         # Get exposed capabilities in all states as read from state COMMAND.
         retval = self._ia_client.get_capabilities(False)        
         
@@ -1205,7 +1212,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ]
 
         res_cmds_streaming = [
-            SBE37ProtocolEvent.GET,
             SBE37ProtocolEvent.STOP_AUTOSAMPLE
         ]
 

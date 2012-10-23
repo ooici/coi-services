@@ -126,7 +126,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Create InstrumentModel
         #-------------------------------
         instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model="SBE37IMModel",
-                                stream_configuration= {'raw': 'simple_data_particle_raw_param_dict' , 'parsed': 'simple_data_particle_parsed_param_dict' })
+                                stream_configuration= {'raw': 'ctd_raw_param_dict' , 'parsed': 'ctd_parsed_param_dict' })
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
@@ -174,10 +174,10 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
 
-        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_raw_param_dict', id_only=True)
+        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
         raw_stream_def_id = self.pubsubclient.create_stream_definition(name='raw', parameter_dictionary_id=raw_pdict_id)
 
         #-------------------------------
@@ -482,7 +482,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Launch InstrumentAgentInstance Sim1, connect to the resource agent client
         #-------------------------------
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
-
+        self.addCleanup(self.imsclient.stop_instrument_agent_instance,
+                        instrument_agent_instance_id=oldInstAgentInstance_id)
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(oldInstAgentInstance_id)
@@ -505,6 +506,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Launch InstrumentAgentInstance Sim2, connect to the resource agent client
         #-------------------------------
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=newInstAgentInstance_id)
+        self.addCleanup(self.imsclient.stop_instrument_agent_instance,
+                        instrument_agent_instance_id=newInstAgentInstance_id)
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(newInstAgentInstance_id)
@@ -614,6 +617,4 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
 
 
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=newInstAgentInstance_id)
 

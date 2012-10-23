@@ -139,6 +139,7 @@ class EmailEventProcessor(EventProcessor):
         '''
         super(EmailEventProcessor, self).__init__()
         self.smtp_client = smtp_client
+        self.notification_subscriptions = []
 
     def add_notification_for_user(self, notification_request, user_id):
         '''
@@ -244,6 +245,7 @@ class EmailEventProcessor(EventProcessor):
         #---------------------------------------------------------------------------------------------------
 
         notification_subscription = NotificationSubscription(notification_request, callback)
+        self.notification_subscriptions.append(notification_subscription)
 
         #---------------------------------------------------------------------------------------------------
         # start the event subscriber listening
@@ -255,6 +257,9 @@ class EmailEventProcessor(EventProcessor):
 
         return notification_subscription
 
+    def cleanup(self):
+        for notif_sub in self.notification_subscriptions:
+            notif_sub.deactivate()
 
     def stop_notification_subscriber(self, notification_request):
         '''
@@ -329,6 +334,11 @@ class UserNotificationService(BaseUserNotificationService):
                 self.clients.scheduler.cancel_timer(sid)
             except IonException as ex:
                 log.info("Ignoring exception while cancelling schedule id (%s): %s: %s", sid, ex.__class__.__name__, ex)
+
+        # Clean up the notification subscriptions' subscribers created in EmailEventProcessor object
+        self.event_processor.cleanup()
+
+        super(UserNotificationService, self).on_quit()
 
     def __now(self):
         '''

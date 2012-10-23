@@ -41,6 +41,7 @@ from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any, get_ion_ts
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.util.parameter_yaml_IO import get_param_dict
 try:
     import xlrd
 except:
@@ -54,7 +55,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidExTMXdoZkN0NVlNWHhqSGxQc1VvQUE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDVyb1VkaklXQ01UVFhVU0dFdlBkc0E&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -84,7 +85,7 @@ class IONLoader(ImmediateProcess):
         if self.path=='master':
             self.path = MASTER_DOC
         self.attachment_path = self.CFG.get("attachments", self.path + '/attachments')
-        self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets1")
+        self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets")
         default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
         self.ui_path = self.CFG.get("ui_path", default_ui_path)
         scenarios = self.CFG.get("scenario", None)
@@ -515,14 +516,34 @@ class IONLoader(ImmediateProcess):
         log.debug('creating contact: ' + id)
         if id in self.contact_defs:
             raise iex.BadRequest('contact with ID already exists: ' + id)
+
         roles = self._get_typed_value(row['c/roles'], targettype='simplelist')
         del row['c/roles']
-        phones = self._get_typed_value(row['c/phones'], targettype='simplelist')
+#        phones = self._get_typed_value(row['c/phones'], targettype='simplelist')
+        phones = self._parse_phones(row['c/phones'])
         del row['c/phones']
+
         contact = self._create_object_from_row("ContactInformation", row, "c/")
         contact.roles = roles
         contact.phones = phones
+
         self.contact_defs[id] = contact
+
+    def _parse_phones(self, text):
+        if ':' in text:
+            pairs = text.split(',')
+            out = []
+            for pair in pairs:
+                # pair is a string like: " office: 212-555-1212"
+                fields = pair.split(':')
+                number = fields[1].strip()
+                type = fields[0].strip()
+                out.append(IonObject("Phone", phone_number=number, phone_type=type))
+            return out
+        elif text:
+            return [ IonObject("Phone", phone_number=text.strip(), phone_type='office') ]
+        else:
+            return []
 
     def _load_Constraint(self, row):
         """ create constraint IonObject but do not insert into DB,
@@ -755,6 +776,7 @@ class IONLoader(ImmediateProcess):
         self._resource_advance_lcs(row, res_id, "SensorDevice")
 
     def _load_InstrumentDevice(self, row):
+        row['id/reference_urls'] = repr(self._get_typed_value(row['id/reference_urls'], targettype="simplelist"))
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
             "instrument_management", "create_instrument_device", contacts=contacts)
@@ -876,9 +898,13 @@ class IONLoader(ImmediateProcess):
 
         dp_id = self.resource_ids[row["data_product_id"]]
         res_id = self.resource_ids[row["input_resource_id"]]
+        type = row['resource_type']
 
-        svc_client = self._get_service_client("data_acquisition_management")
-        svc_client.assign_data_product(res_id, dp_id)
+        if type=='InstrumentDevice':
+            svc_client = self._get_service_client("data_acquisition_management")
+            svc_client.assign_data_product(res_id, dp_id)
+        elif type=='InstrumentSite':
+            self._get_service_client('observatory_management').create_site_data_product(res_id, dp_id)
 
     def _load_Attachment(self, row):
         log.info("Loading Attachment")
@@ -956,9 +982,7 @@ class IONLoader(ImmediateProcess):
         oms.deploy_instrument_site(site_id, deployment_id)
         ims.deploy_instrument_device(device_id, deployment_id)
 
-        activate_str = row['activate'].lower()# if 'activate' in row else None
-        activate = activate_str=='true' or activate_str=='yes' or activate_str=='activate'
-        if activate:
+        if row['activate']=='1':
             oms.activate_deployment(deployment_id)
 
     def extract_ooi_assets(self):

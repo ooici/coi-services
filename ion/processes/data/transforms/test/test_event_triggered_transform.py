@@ -77,7 +77,7 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
         stream_def_id =  self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary_id=pdict_id)
         cond_stream_id, _ = self.pubsub.create_stream('test_conductivity',
@@ -192,7 +192,7 @@ class EventTriggeredTransformIntTest(IonIntegrationTestCase):
 
 
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('simple_data_particle_parsed_param_dict', id_only=True)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
         stream_def_id =  self.pubsub.create_stream_definition('stream_def', parameter_dictionary_id=pdict_id)
         stream_id, _ = self.pubsub.create_stream('test_stream',

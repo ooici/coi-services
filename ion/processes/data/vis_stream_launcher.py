@@ -135,5 +135,6 @@ class VisStreamLauncher(ImmediateProcess):
 
 
     def on_quit(self):
+        super(VisStreamLauncher, self).on_quit()
         log.debug("VizStreamProducer quit")
 

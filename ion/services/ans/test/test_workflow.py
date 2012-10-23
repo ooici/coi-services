@@ -167,7 +167,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=30)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=300)
 
         workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_output_ids) == 1 )
@@ -199,7 +199,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         log.debug("results::: %s" % results)
 
         #Stop the workflow processes
-        self.workflowclient.terminate_data_process_workflow(workflow_id, False, timeout=25)  # Should test true at some point
+        self.workflowclient.terminate_data_process_workflow(workflow_id, False, timeout=250)  # Should test true at some point
 
         #Make sure the Workflow object was removed
         objs, _ = self.rrclient.find_resources(restype=RT.Workflow)

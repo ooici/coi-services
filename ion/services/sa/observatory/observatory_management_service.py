@@ -28,6 +28,8 @@ from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.objects import OrgTypeEnum
 from interface.objects import ProcessDefinition
 
@@ -98,10 +100,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         self.instrument_device   = InstrumentDeviceImpl(new_clients)
         self.platform_device     = PlatformDeviceImpl(new_clients)
+        self.dataproductclient = DataProductManagementServiceClient()
+        self.dataprocessclient = DataProcessManagementServiceClient()
 
 
 
-    
     ##########################################################################
     #
     # CRUD OPS
@@ -568,74 +571,76 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # validation
         prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct)
         if 0 < len(prods):
-            raise BadRequest("%s '%s' already has an ouptut data product" % (sitetype, site_id))
+            raise BadRequest("%s '%s' already has an output data product" % (sitetype, site_id))
 
         sites, _ = self.RR.find_subjects(sitetype, PRED.hasOutputProduct, data_product_id)
         if 0 < len(sites):
             raise BadRequest("DataProduct '%s' is already an output product of a %s" % (data_product_id, sitetype))
 
         #todo: re-use existing defintion?  how?
-#        log.info("Creating data process definition")
-#        dpd_obj = IonObject(RT.DataProcessDefinition,
-#                            name='SiteDataProduct', #as per Maurice.  todo: constant?
-#                            description=site_id,    #as per Maurice.
-#                            module='ion.processes.data.transforms.logical_transform',
-#                            class_name='logical_transform',
-#                            process_source="For %s '%s'" % (sitetype, site_id))
-
-        ##############
-        #todo: create the process directly through CEI
 
         #-------------------------------
         # Process Definition
         #-------------------------------
-        process_definition = ProcessDefinition()
-        process_definition.name = 'SiteDataProduct'
-        process_definition.description = site_id
-
-        process_definition.executable = {'module':'ion.processes.data.transforms.logical_transform', 'class':'logical_transform'}
-
-        process_dispatcher = ProcessDispatcherServiceClient()
-        process_definition_id = process_dispatcher.create_process_definition(process_definition=process_definition)
+#        process_definition = ProcessDefinition()
+#        process_definition.name = 'SiteDataProduct'
+#        process_definition.description = site_id
+#
+#        process_definition.executable = {'module':'ion.processes.data.transforms.logical_transform', 'class':'logical_transform'}
+#
+#        process_dispatcher = ProcessDispatcherServiceClient()
+#        process_definition_id = process_dispatcher.create_process_definition(process_definition=process_definition)
 
 #        subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
 #        queue_name = subscription.exchange_name
+#
+#
+#        configuration = DotDict()
+#
+#        configuration['process'] = dict({
+#            'output_streams' : [stream_ids[0]],
+#            'publish_streams': {data_product_id: }
+#        })
+#
+#        # ------------------------------------------------------------------------------------
+#        # Process Spawning
+#        # ------------------------------------------------------------------------------------
+#        # Spawn the process
+#        process_dispatcher.schedule_process(
+#            process_definition_id=process_definition_id,
+#            configuration=configuration
+#        )
+#
+#        ###########
+
+        #----------------------------------------------------------------------------------------------------
+        # Create a data process definition
+        #----------------------------------------------------------------------------------------------------
+
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+            name='SiteDataProduct', #as per Maurice.  todo: constant?
+            description=site_id,    #as per Maurice.
+            module='ion.processes.data.transforms.logical_transform',
+            class_name='logical_transform',
+            process_source="For %s '%s'" % (sitetype, site_id))
+
 
         stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
 
-        configuration = DotDict()
+        data_process_def_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
-        configuration['process'] = dict({
-            'output_streams' : [stream_ids[0]],
-            'publish_streams': {data_product_id: stream_ids[0]}
-        })
+        #----------------------------------------------------------------------------------------------------
+        # Create a data process
+        #----------------------------------------------------------------------------------------------------
+        data_process_id = self.dataprocessclient.create_data_process(data_process_def_id, None,{"logical":data_product_id})
 
-        # ------------------------------------------------------------------------------------
-        # Process Spawning
-        # ------------------------------------------------------------------------------------
-        # Spawn the process
-        process_dispatcher.schedule_process(
-            process_definition_id=process_definition_id,
-            configuration=configuration
-        )
+        self.dataprocessclient.activate_data_process(data_process_id)
 
-        ###########
-
-#        logical_transform_dprocdef_id = self.PRMS.create_data_process_definition(dpd_obj)
-#
-#
-#        log.info("Creating data process")
-#        dproc_id = self.PRMS.create_data_process(logical_transform_dprocdef_id,  {"output":data_product_id})
-#        log.info("Created data process")
-
-        log.info("associating site hasOutputProduct")
         #make it all happen
         if RT.InstrumentSite == sitetype:
             self.instrument_site.link_output_product(site_id, data_product_id)
         elif RT.PlatformSite == sitetype:
             self.platform_site.link_output_product(site_id, data_product_id)
-
-
 
 
     def streamdef_of_site(self, site_id):
@@ -688,7 +693,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         streamdefs = {}
         for pdc in pdcs:
-            log.debug("Checking data prodcer %s", pdc)
+            log.debug("Checking data producer %s", pdc)
             prods, _ = self.RR.find_subjects(RT.DataProduct, PRED.hasDataProducer, pdc, True)
             for p in prods:
                 log.debug("Checking product %s", p)
@@ -704,7 +709,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return streamdefs
 
-    def check_site_for_deployment(self, site_id, site_type, model_type):
+
+    def check_site_for_deployment(self, site_id, site_type, model_type, check_data_products=True):
         assert(type("") == type(site_id))
         assert(type(RT.Resource) == type(site_type) == type(model_type))
 
@@ -712,15 +718,19 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # validate and return supported models
         models, _ = self.RR.find_objects(site_id, PRED.hasModel, model_type, True)
         if 1 > len(models):
-            raise BadRequest("Expected at least 1 model for %s '%s', got %s", site_type, site_id, len(models))
+            raise BadRequest("Expected at least 1 model for %s '%s', got %s" % (site_type, site_id, len(models)))
 
-        log.debug("checking site data products")
+        if check_data_products:
+            log.trace("checking site data products")
+            #todo: remove this when platform data products start working
+            if site_type != RT.PlatformSite:
+                prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
+                if 1 != len(prods):
+                    raise BadRequest("Expected 1 output data product on %s '%s', got %s" % (site_type,
+                                                                                            site_id,
+                                                                                            len(prods)))
+        log.trace("check_site_for_deployment returning %s models", len(models))
 
-        #todo: remove this when platform data products start working
-        if site_type != RT.PlatformSite:
-            prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
-            if 1 != len(prods):
-                raise BadRequest("Expected 1 output data product on %s '%s', got %s", site_type, site_id, len(prods))
         return models
 
 
@@ -729,11 +739,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         assert(type("") == type(device_id))
         assert(type(RT.Resource) == type(device_type) == type(model_type))
 
-        log.debug("checking %s for deployment, will return %s", device_type, model_type)
+        log.trace("checking %s for deployment, will return %s", device_type, model_type)
         # validate and return model
         models, _ = self.RR.find_objects(device_id, PRED.hasModel, model_type, True)
         if 1 != len(models):
-            raise BadRequest("Expected 1 model for %s '%s', got %d", device_type, device_id, len(models))
+            raise BadRequest("Expected 1 model for %s '%s', got %d" % (device_type, device_id, len(models)))
+        log.trace("check_device_for_deployment returning 1 model")
         return models[0]
 
     def check_site_device_pair_for_deployment(self, site_id, device_id, site_type=None, device_type=None):
@@ -750,7 +761,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         ret = None
 
-        log.debug("checking existing hasDevice links from site")
+        log.trace("checking existing hasDevice links from site")
         devices, _ = self.RR.find_objects(site_id, PRED.hasDevice, device_type, True)
         if 1 < len(devices):
             raise Inconsistent("Found more than 1 hasDevice relationship from %s '%s'" % (site_type, site_id))
@@ -781,7 +792,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         def add_sites(site_ids, site_type, model_type):
             for s in site_ids:
-                models = self.check_site_for_deployment(s, site_type, model_type)
+                models = self.check_site_for_deployment(s, site_type, model_type, False)
                 if s in site_models:
                     log.warn("Site '%s' was already collected in deployment '%s'", s, deployment_id)
                 site_models[s] = models
@@ -797,7 +808,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         def collect_specific_resources(site_type, device_type, model_type):
             # check this deployment -- specific device types -- for validity
             # return a list of pairs (site, device) to be associated
-
+            log.trace("Collecting resources: site=%s device=%s model=%s", site_type, device_type, model_type)
             new_site_ids, _ = self.RR.find_subjects(site_type,
                                                     PRED.hasDeployment,
                                                     deployment_id,
@@ -816,7 +827,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if 1 < len(device_models):
             raise BadRequest("Multiple platforms in the same deployment are not allowed")
         elif 0 < len(device_models):
-            # add devices and sites that are children of platform device / site
+            log.trace("adding devices and sites that are children of platform device / site")
             child_device_objs = self.platform_device.find_stemming_platform_device(device_models.keys()[0])
             child_site_objs = self.find_related_frames_of_reference(site_models.keys()[0],
                 [RT.PlatformSite, RT.InstrumentSite])
@@ -851,7 +862,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 #        if LCS.DEPLOYED == deployment_obj.lcstate:
 #            raise BadRequest("This deploment is already active")
 
+        log.trace("activate_deployment about to collect components")
         device_models, site_models = self.collect_deployment_components(deployment_id)
+        log.trace("Collected %s device models, %s site models", len(device_models), len(site_models))
 
         # create a CSP so we can solve it
         problem = constraint.Problem()
@@ -1000,10 +1013,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         else:
             raise BadRequest("Expected a device type, got '%s'" % device_type)
 
+        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
+        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
         # commented out as per Maurice, 8/7/12
-        model_type # stop pyflakes warning since we don't use this any more
-#        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
-#        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
+        device_model, site_models #suppress pyflakes warnings
 #        if device_model not in site_models:
 #            raise BadRequest("The site and device model types are incompatible")
 

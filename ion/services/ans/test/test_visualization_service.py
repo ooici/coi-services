@@ -248,8 +248,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.pubsubclient.activate_subscription(subscription_id=salinity_subscription_id1)
         self.pubsubclient.activate_subscription(subscription_id=salinity_subscription_id2)
 
+        # Start input stream and wait for some time
         ctd_sim_pid = self.start_simple_input_stream_process(ctd_stream_id)
-        gevent.sleep(10.0)  # Send some messages - don't care how many
+        gevent.sleep(5.0)  # Send some messages - don't care how many
 
         msg_count,_ = xq1.get_stats()
         log.info('Messages in user queue 1: %s ' % msg_count)
@@ -262,7 +263,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         for x in range(min(len(msgs1), len(msgs2))):
             msgs1[x].ack()
             msgs2[x].ack()
-            # self.validate_messages(msgs1[x], msgs2[x])
+            self.validate_multiple_vis_queue_messages(msgs1[x], msgs2[x])
 
         #Turning off after everything - since it is more representative of an always on stream of data!
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
@@ -295,7 +296,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #TODO - Need to add workflow creation for google data table
         vis_params ={}
-        vis_params['in_product_type'] = 'google_dt'
         vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=workflow_product_id, visualization_parameters=vis_params)
 
         #Trying to continue to receive messages in the queue

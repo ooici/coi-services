@@ -18,6 +18,9 @@ from pyon.util.containers import DotDict
 from ion.services.sa.instrument.data_process_impl import DataProcessImpl
 from pyon.util.arg_check import validate_is_not_none, validate_true
 
+from ion.util.module_uploader import RegisterModulePreparerPy
+import os
+import pwd
 
 class DataProcessManagementService(BaseDataProcessManagementService):
 
@@ -25,6 +28,27 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         IonObject("Resource")  # suppress pyflakes error
 
         self.override_clients(self.clients)
+
+        # todo: uncomment
+        #self.init_module_uploader()
+
+    def init_module_uploader(self):
+        if self.CFG:
+            #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
+            cfg_host        = self.CFG.get_safe("service.data_process_management.process_release_host", None)
+            cfg_remotepath  = self.CFG.get_safe("service.data_process_management.process_release_directory", None)
+            cfg_user        = self.CFG.get_safe("service.data_process_management.process_release_user",
+                                                pwd.getpwuid(os.getuid())[0])
+            cfg_wwwroot     = self.CFG.get_safe("service.instrument_management.process_release_wwwroot", "/")
+
+            if cfg_host is None or cfg_remotepath is None:
+                raise BadRequest("Missing configuration items for host and directory -- destination of process release")
+
+            self.module_uploader = RegisterModulePreparerPy(dest_user=cfg_user,
+                                                            dest_host=cfg_host,
+                                                            dest_path=cfg_remotepath,
+                                                            dest_wwwroot=cfg_wwwroot)
+
 
     def override_clients(self, new_clients):
         """
@@ -38,6 +62,36 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #farm everything out to the impls
 
         self.data_process = DataProcessImpl(self.clients)
+
+
+    #todo: need to know what object will be worked with here
+    def register_TBD(self, TBD_id='', process_code=''):
+        """
+        register a process module by putting it in a web-accessible location
+
+        @TBD_id the agent receiving the driver
+        @process_code a base64-encoded python file
+        """
+
+        # retrieve the resource
+        TBD_obj = self.clients.resource_registry.read(TBD_id)
+
+        dest_filename = "process_code_%s.py" % TBD_obj._id
+
+        #process the input file (base64-encoded .py)
+        uploader_obj, err = self.module_uploader.prepare(process_code, dest_filename)
+        if None is uploader_obj:
+            raise BadRequest("Process code failed validation: %s" % err)
+
+        # actually upload
+        up_success, err = uploader_obj.upload()
+        if not up_success:
+            raise BadRequest("Upload failed: %s" % err)
+
+        #todo: save URL somewhere
+        TBD_obj.TBD_field = uploader_obj.get_destination_url()
+        self.clients.resoruce_registry.update(TBD_obj)
+
 
     def create_data_process_definition(self, data_process_definition=None):
 
@@ -209,7 +263,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         
         self.data_process._id = data_process_id
         self.data_process._rev = version
-        log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: %s" +  str(data_process_id))
 
         #---------------------------------------------------------------------------------------
         # Make the necessary associations, registering
@@ -246,7 +299,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             # Associate with DataProcess: register as an output product for this process
             log.debug("Link data process %s and output out data product: %s  (L4-CI-SA-RQ-260)", str(data_process_id), str(output_data_product_id))
-            self.clients.data_acquisition_management.assign_data_product(data_process_id, output_data_product_id)
+            self.clients.data_acquisition_management.assign_data_product(input_resource_id= data_process_id,data_product_id= output_data_product_id)
 
             # Retrieve the id of the OUTPUT stream from the out Data Product
             stream_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasStream, RT.Stream, True)
@@ -265,35 +318,33 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # check for attachments in data process definition
         configuration = self._find_lookup_tables(data_process_definition_id, configuration)
+        input_stream_ids = []
 
-        for  in_data_product_id in in_data_product_ids:
+        if in_data_product_ids:
+            for  in_data_product_id in in_data_product_ids:
 
-            self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
-            log.debug("Associate data process workflows with source data products %s "
-                      "hasInputProducts  %s   (L4-CI-SA-RQ-260)", str(data_process_id), str(in_data_product_ids))
+                self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
+                log.debug("Associate data process workflows with source data products %s "
+                          "hasInputProducts  %s   (L4-CI-SA-RQ-260)", str(data_process_id), str(in_data_product_ids))
 
-            #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
-            instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
+                #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
+                instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
 
-            for instdevice_id in instdevice_ids:
-                log.debug("Instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
+                for instdevice_id in instdevice_ids:
+                    log.debug("Instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
 
-                # check for attachments in instrument device
-                configuration = self._find_lookup_tables(instdevice_id, configuration)
-                instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
+                    # check for attachments in instrument device
+                    configuration = self._find_lookup_tables(instdevice_id, configuration)
+                    instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
 
-                for instmodel_id in instmodel_ids:
-                    log.debug("Instmodel_id assoc to the instDevice: %s", str(instmodel_id))
+                    for instmodel_id in instmodel_ids:
+                        # check for attachments in instrument model
+                        configuration = self._find_lookup_tables(instmodel_id, configuration)
 
-                    # check for attachments in instrument model
-                    configuration = self._find_lookup_tables(instmodel_id, configuration)
-
-
-        #------------------------------------------------------------------------------------------------------------------------------------------
-        # Get the input stream from the input_data_product, which should already be associated with a stream via the Data Producer
-        #------------------------------------------------------------------------------------------------------------------------------------------
-
-        input_stream_ids = self._get_input_stream_ids(in_data_product_ids)
+            #------------------------------------------------------------------------------------------------------------------------------------------
+            # Get the input stream from the input_data_product, which should already be associated with a stream via the Data Producer
+            #------------------------------------------------------------------------------------------------------------------------------------------
+            input_stream_ids = self._get_input_stream_ids(in_data_product_ids)
 
         #------------------------------------------------------------------------------------------------------------------------------------------
         # Create subscription to the input stream
@@ -315,11 +366,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                            process_definition_id=process_definition_id,
                            configuration=configuration)
 
-
-
-        log.debug("DataProcessManagementService:create_data_process - pid: %s", pid)
         self.data_process.process_id = pid
-        log.debug("Updating data_process with pid: %s", pid)
         self.clients.resource_registry.update(self.data_process)
         return data_process_id
 

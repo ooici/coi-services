@@ -10,7 +10,7 @@
 from pyon.public import log, RT
 from pyon.util.async import spawn
 from pyon.core.exception import BadRequest, NotFound
-from pyon.ion.transforma import TransformEventListener
+from ion.core.process.transform import TransformEventListener
 from pyon.event.event import EventSubscriber
 from ion.services.dm.utility.uns_utility_methods import send_email, calculate_reverse_user_info
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, check_user_notification_interest
@@ -25,6 +25,7 @@ class NotificationWorker(TransformEventListener):
     def on_init(self):
         self.user_info = {}
         self.resource_registry = ResourceRegistryServiceClient()
+        super(NotificationWorker, self).on_init()
 
     def test_hook(self, user_info, reverse_user_info ):
         '''
@@ -112,9 +113,13 @@ class NotificationWorker(TransformEventListener):
         # close subscribers safely
         self.reload_user_info_subscriber.stop()
 
+        super(NotificationWorker, self).on_stop()
+
     def on_quit(self):
         # close subscribers safely
         self.reload_user_info_subscriber.stop()
+
+        super(NotificationWorker, self).on_quit()
 
     def load_user_info(self):
         '''
