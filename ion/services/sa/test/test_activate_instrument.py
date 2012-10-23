@@ -344,7 +344,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.addCleanup(self.imsclient.stop_instrument_agent_instance,
                         instrument_agent_instance_id=instAgentInstance_id)
 
-        gevent.sleep(2)
+        gevent.sleep(4)
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)

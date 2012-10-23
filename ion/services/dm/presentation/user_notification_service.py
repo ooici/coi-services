@@ -329,6 +329,7 @@ class UserNotificationService(BaseUserNotificationService):
                 self.clients.scheduler.cancel_timer(sid)
             except IonException as ex:
                 log.info("Ignoring exception while cancelling schedule id (%s): %s: %s", sid, ex.__class__.__name__, ex)
+        super(UserNotificationService, self).on_quit()
 
     def __now(self):
         '''

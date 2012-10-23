@@ -20,6 +20,7 @@ class SimpleGranuleLogger(TransformStreamListener):
         self.log       = self.CFG.get_safe('process.log', False)
 
     def on_quit(self):
+        super(SimpleGranuleLogger, self).on_quit()
         self.subscriber.stop()
 
     def recv_packet(self, msg, stream_route, stream_id):

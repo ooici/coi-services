@@ -2,7 +2,6 @@
 
 '''
 @author: Tim Giguere <tgiguere@asascience.com>
-@file: pyon/ion/transforma.py
 @description: New Implementation for TransformFunction classes
 '''
 
