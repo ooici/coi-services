@@ -100,12 +100,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         self.instrument_device   = InstrumentDeviceImpl(new_clients)
         self.platform_device     = PlatformDeviceImpl(new_clients)
-        self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
-        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
+        self.dataproductclient = DataProductManagementServiceClient()
+        self.dataprocessclient = DataProcessManagementServiceClient()
 
 
 
-##########################################################################
+    ##########################################################################
     #
     # CRUD OPS
     #
