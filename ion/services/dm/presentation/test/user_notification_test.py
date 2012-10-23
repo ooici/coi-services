@@ -33,6 +33,7 @@ from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 import os, time, uuid
 from gevent import event, queue
 from gevent.timeout import Timeout
+from gevent.event import Event
 import elasticpy as ep
 from datetime import datetime, timedelta
 from sets import Set
@@ -250,6 +251,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient()
         self.imc = IdentityManagementServiceClient()
         self.discovery = DiscoveryServiceClient()
+
+        self.event = Event()
+        self.number_event_published = 0
 
         process = FakeProcess()
         self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=process)
@@ -1249,30 +1253,33 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_publisher = EventPublisher()
 
         # this part of code is in the beginning to allow enough time for the events_index creation
-        number_event_published = 0
         times_of_events_published = Set()
 
-        for i in xrange(3):
 
-            t = self.__now()
-            t = UserNotificationIntTest.makeEpochTime(t)
+        def publish_events():
+            for i in xrange(3):
+                t = self.__now()
+                t = UserNotificationIntTest.makeEpochTime(t)
 
-            event_publisher.publish_event( ts_created= t ,
-                origin="instrument_1",
-                origin_type="type_1",
-                event_type='ResourceLifecycleEvent')
+                event_publisher.publish_event( ts_created= t ,
+                    origin="instrument_1",
+                    origin_type="type_1",
+                    event_type='ResourceLifecycleEvent')
 
-            event_publisher.publish_event( ts_created= t ,
-                origin="instrument_2",
-                origin_type="type_2",
-                event_type='ResourceLifecycleEvent')
+                event_publisher.publish_event( ts_created= t ,
+                    origin="instrument_2",
+                    origin_type="type_2",
+                    event_type='ResourceLifecycleEvent')
 
-            times_of_events_published.add(t)
-            number_event_published += 2
-            time.sleep(1)
-            log.warning("Published events of origins = instrument_1, instrument_2 with ts_created: %s" % t)
+                times_of_events_published.add(t)
+                self.number_event_published += 2
+                self.event.set()
+    #            time.sleep(1)
+                log.debug("Published events of origins = instrument_1, instrument_2 with ts_created: %s" % t)
 
+        publish_events()
 
+        self.assertTrue(self.event.wait(10))
         #----------------------------------------------------------------------------------------
         # Create users and get the user_ids
         #----------------------------------------------------------------------------------------
@@ -1359,7 +1366,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Make assertions on the events mentioned in the formatted email
         #--------------------------------------------------------------------------------
 
-        self.assertEquals(len(events_for_message), number_event_published)
+        self.assertEquals(len(events_for_message), self.number_event_published)
         self.assertEquals(times, times_of_events_published)
         self.assertEquals(origins_of_events, Set(['instrument_1', 'instrument_2']))
 
@@ -1468,13 +1475,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_publisher_1 = EventPublisher("PlatformEvent")
         event_publisher_2 = EventPublisher("PlatformEvent")
 
-        x = 0
-        for i in xrange(10):
-            event_publisher_1.publish_event(origin='my_unique_test_recent_events_origin', ts_created = i)
-            event_publisher_2.publish_event(origin='Another_recent_events_origin', ts_created = i)
-            x += 1
+        def publish_events():
+            x = 0
+            for i in xrange(10):
+                event_publisher_1.publish_event(origin='my_unique_test_recent_events_origin', ts_created = i)
+                event_publisher_2.publish_event(origin='Another_recent_events_origin', ts_created = i)
+                x += 1
+            self.event.set()
 
-        gevent.sleep(4)
+        publish_events()
+
+        self.assertTrue(self.event.wait(10))
 
         #--------------------------------------------------------------------------------------
         # Test with specified limit
