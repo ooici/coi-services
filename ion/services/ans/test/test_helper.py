@@ -463,3 +463,25 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         assertions(imghdr.what(results['image_name'], h = base64.decodestring(results['image_obj'])) == image_format)
 
         return
+
+    def validate_multiple_vis_queue_messages(self, msg1, msg2):
+
+        assertions = self.assertTrue
+
+        # verify that the salinity in msg2 is a result of content from msg1
+        rdt1 = RecordDictionaryTool.load_from_granule(msg1)
+        rdt2 = RecordDictionaryTool.load_from_granule(msg2)
+
+        # msg1 should not have salinity
+        assertions(rdt1['salinity'] == None)
+
+        conductivity = rdt1['conductivity']
+        pressure = rdt1['pressure']
+        temperature = rdt1['temp']
+
+        msg1_sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
+        msg2_sal_value = rdt2['salinity']
+
+        assertions(msg1_sal_value == msg2_sal_value)
+
+        return
