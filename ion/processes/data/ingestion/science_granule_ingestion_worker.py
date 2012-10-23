@@ -3,7 +3,7 @@
 @author Luke Campbell <LCampbell@ASAScience.com>
 @file ion/processes/data/ingestion/science_granule_ingestion_worker.py
 @date 06/26/12 11:38
-@description DESCRIPTION
+@description Ingestion Process
 '''
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.datastore.datastore import DataStore
@@ -12,15 +12,11 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.util.containers import get_ion_ts, get_safe
 from pyon.public import log, RT, PRED
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from ion.services.dm.utility.granule_utils import CoverageCraft
 from interface.objects import Granule
 from couchdb import ResourceNotFound
 from ion.core.process.transform import TransformStreamListener
-import re
 import collections
 import numpy
-import numpy as np
-import gevent
 
 
 
@@ -44,10 +40,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
 
     def on_quit(self): #pragma no cover
-        print 'QUIT WAS CALLED'
-        print self._coverages
         for stream, coverage in self._coverages.iteritems():
-            print 'Closing coverage'
             coverage.close(timeout=5)
 
 

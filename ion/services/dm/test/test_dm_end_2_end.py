@@ -474,9 +474,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def test_repersist_data(self):
-        stream_id, route = self.pubsub_management.create_stream(name='repersist', exchange_point=self.exchange_point_name)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        stream_def_id = self.pubsub_management.create_stream_definition(name='ctd', parameter_dictionary_id=pdict_id)
+        stream_id, route = self.pubsub_management.create_stream(name='repersist', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
         config_id = self.get_ingestion_config()
-        dataset_id = self.create_dataset()
+        dataset_id = self.create_dataset(pdict_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         self.get_datastore(dataset_id)
         self.publish_hifi(stream_id,route,0)
@@ -487,8 +489,18 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.publish_hifi(stream_id,route,2)
         self.publish_hifi(stream_id,route,3)
         self.wait_until_we_have_enough_granules(dataset_id,4)
-        retrieved_granule = self.data_retriever.retrieve(dataset_id)
-        rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
-        comp = rdt['time'] == np.arange(0,40)
-        self.assertTrue(comp.all(), 'Uh-oh: %s' % rdt['time'])
+        success = False
+        with gevent.timeout.Timeout(5):
+            while not success:
+
+                replay_granule = self.data_retriever.retrieve(dataset_id)
+
+                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+
+                comp = rdt['time'] == np.arange(0,40)
+                if not isinstance(comp,bool):
+                    success = comp.all()
+                gevent.sleep(1)
+
+        self.assertTrue(success)
 

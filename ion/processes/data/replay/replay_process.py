@@ -59,9 +59,6 @@ class ReplayProcess(BaseReplayProcess):
     stream_def_id   = ''
 
 
-
-
-
     def __init__(self, *args, **kwargs):
         super(ReplayProcess,self).__init__(*args,**kwargs)
         self.deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
@@ -73,7 +70,7 @@ class ReplayProcess(BaseReplayProcess):
         '''
         Starts the process
         '''
-        log.info('IVE BEEN STARTED!')
+        log.info('Replay Process Started')
         super(ReplayProcess,self).on_start()
         dsm_cli = DatasetManagementServiceProcessClient(process=self)
         pubsub  = PubsubManagementServiceProcessClient(process=self)
