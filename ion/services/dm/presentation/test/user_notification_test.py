@@ -1479,24 +1479,23 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Test with specified limit
         #--------------------------------------------------------------------------------------
+        def poller():
+            ret = self.unsc.get_recent_events(resource_id='my_unique_test_recent_events_origin', limit = 5)
+            events = ret.value
+            return len(events) >= 5
 
-        ret = self.unsc.get_recent_events(resource_id='my_unique_test_recent_events_origin', limit = 5)
-        self.assertIsInstance(ret, ComputedListValue)
-        self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
-        events = ret.value
-        self.assertEquals(len(events), 5)
+        success = self.event_poll(poller, 10)
+        self.assertTrue(success)
 
-        for event in events:
-            self.assertEquals(event.origin, 'my_unique_test_recent_events_origin')
 
         #--------------------------------------------------------------------------------------
         # Test without specified limit
         #--------------------------------------------------------------------------------------
 
-        ret = self.unsc.get_recent_events(resource_id='Another_recent_events_origin')
-        self.assertIsInstance(ret, ComputedListValue)
-        self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
-        events = ret.value
-        self.assertEquals(len(events), 10)
-        for event in events:
-            self.assertEquals(event.origin, 'Another_recent_events_origin')
+        def poller():
+            ret = self.unsc.get_recent_events(resource_id='Another_recent_events_origin')
+            events = ret.value
+            return len(events) >= 10
+
+        success = self.event_poll(poller, 10)
+        self.assertTrue(success)
