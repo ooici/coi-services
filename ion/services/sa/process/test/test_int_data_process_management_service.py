@@ -57,7 +57,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
 
-#    @unittest.skip('not working')
     def test_createDataProcess(self):
 
         #-------------------------------
@@ -100,10 +99,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create input data product")
 
-
-
         tdom, sdom = time_series_domain()
-
         sdom = sdom.dump()
         tdom = tdom.dump()
 
@@ -193,7 +189,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
 
-#    @unittest.skip('not working..')
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
     def test_createDataProcessUsingSim(self):
         #-------------------------------

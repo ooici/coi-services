@@ -516,9 +516,10 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         proc_schedule.target['execution_engine_id'] = None
 
         configuration = {"some": "value"}
+        name = 'allthehats'
 
         pid2 = self.pd_service.schedule_process("fake-process-def-id",
-            proc_schedule, configuration, pid)
+            proc_schedule, configuration, pid, name=name)
 
         self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
         self.assertEqual(pid, pid2)
@@ -526,7 +527,7 @@ class ProcessDispatcherServiceBridgeTest(PyonTestCase):
         self.assertEqual(self.mock_dashi.call.call_count, 1)
         call_args, call_kwargs = self.mock_dashi.call.call_args
         self.assertEqual(set(call_kwargs),
-            set(['upid', 'definition_id', 'configuration', 'subscribers', 'constraints']))
+            set(['upid', 'definition_id', 'configuration', 'subscribers', 'constraints', 'name']))
         self.assertEqual(call_kwargs['constraints'],
             proc_schedule.target['constraints'])
         self.assertEqual(call_kwargs['subscribers'],
