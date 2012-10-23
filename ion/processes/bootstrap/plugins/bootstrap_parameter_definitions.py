@@ -8,7 +8,7 @@
 
 from ion.core.bootstrap_process import BootstrapPlugin
 from interface.services.dm.idataset_management_service import DatasetManagementServiceProcessClient
-from ion.util.parameter_yaml_IO import build_contexts
+from ion.util.parameter_loader import ParameterLoader
 from pyon.util.log import log
 
 import yaml
@@ -20,14 +20,16 @@ class BootstrapParameterDefinitions(BootstrapPlugin):
     def on_initial_bootstrap(self, process, config, **kwargs):
         self.dataset_management = DatasetManagementServiceProcessClient(process=process)
         self.dict_defs = config.get_safe('process.bootstrap.dict_defs','res/config/param_dict_defs.yml')
+        self.context_path = config.get_safe('process.bootstrap.definitions', 'parameter_definitions')
 
         contexts = self.load_contexts()
         self.load_dictionaries(self.dict_defs, contexts)
 
 
     def load_contexts(self):
+
         try:
-            contexts = {i.name : i for i in build_contexts()} # Thanks to DAF for this pattern
+            contexts = ParameterLoader.build_contexts(self.context_path)
             for name, context in contexts.iteritems():
                 context_id = self.dataset_management.create_parameter_context(name=name, parameter_context=context.dump())
                 contexts[name] = context_id
