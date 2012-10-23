@@ -28,6 +28,8 @@ from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.objects import OrgTypeEnum
 from interface.objects import ProcessDefinition
 
@@ -98,10 +100,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         self.instrument_device   = InstrumentDeviceImpl(new_clients)
         self.platform_device     = PlatformDeviceImpl(new_clients)
+        self.dataproductclient = DataProductManagementServiceClient()
+        self.dataprocessclient = DataProcessManagementServiceClient()
 
 
 
-    
     ##########################################################################
     #
     # CRUD OPS
@@ -568,74 +571,76 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # validation
         prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct)
         if 0 < len(prods):
-            raise BadRequest("%s '%s' already has an ouptut data product" % (sitetype, site_id))
+            raise BadRequest("%s '%s' already has an output data product" % (sitetype, site_id))
 
         sites, _ = self.RR.find_subjects(sitetype, PRED.hasOutputProduct, data_product_id)
         if 0 < len(sites):
             raise BadRequest("DataProduct '%s' is already an output product of a %s" % (data_product_id, sitetype))
 
         #todo: re-use existing defintion?  how?
-#        log.info("Creating data process definition")
-#        dpd_obj = IonObject(RT.DataProcessDefinition,
-#                            name='SiteDataProduct', #as per Maurice.  todo: constant?
-#                            description=site_id,    #as per Maurice.
-#                            module='ion.processes.data.transforms.logical_transform',
-#                            class_name='logical_transform',
-#                            process_source="For %s '%s'" % (sitetype, site_id))
-
-        ##############
-        #todo: create the process directly through CEI
 
         #-------------------------------
         # Process Definition
         #-------------------------------
-        process_definition = ProcessDefinition()
-        process_definition.name = 'SiteDataProduct'
-        process_definition.description = site_id
-
-        process_definition.executable = {'module':'ion.processes.data.transforms.logical_transform', 'class':'logical_transform'}
-
-        process_dispatcher = ProcessDispatcherServiceClient()
-        process_definition_id = process_dispatcher.create_process_definition(process_definition=process_definition)
+#        process_definition = ProcessDefinition()
+#        process_definition.name = 'SiteDataProduct'
+#        process_definition.description = site_id
+#
+#        process_definition.executable = {'module':'ion.processes.data.transforms.logical_transform', 'class':'logical_transform'}
+#
+#        process_dispatcher = ProcessDispatcherServiceClient()
+#        process_definition_id = process_dispatcher.create_process_definition(process_definition=process_definition)
 
 #        subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
 #        queue_name = subscription.exchange_name
+#
+#
+#        configuration = DotDict()
+#
+#        configuration['process'] = dict({
+#            'output_streams' : [stream_ids[0]],
+#            'publish_streams': {data_product_id: }
+#        })
+#
+#        # ------------------------------------------------------------------------------------
+#        # Process Spawning
+#        # ------------------------------------------------------------------------------------
+#        # Spawn the process
+#        process_dispatcher.schedule_process(
+#            process_definition_id=process_definition_id,
+#            configuration=configuration
+#        )
+#
+#        ###########
+
+        #----------------------------------------------------------------------------------------------------
+        # Create a data process definition
+        #----------------------------------------------------------------------------------------------------
+
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+            name='SiteDataProduct', #as per Maurice.  todo: constant?
+            description=site_id,    #as per Maurice.
+            module='ion.processes.data.transforms.logical_transform',
+            class_name='logical_transform',
+            process_source="For %s '%s'" % (sitetype, site_id))
+
 
         stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
 
-        configuration = DotDict()
+        data_process_def_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
-        configuration['process'] = dict({
-            'output_streams' : [stream_ids[0]],
-            'publish_streams': {data_product_id: stream_ids[0]}
-        })
+        #----------------------------------------------------------------------------------------------------
+        # Create a data process
+        #----------------------------------------------------------------------------------------------------
+        data_process_id = self.dataprocessclient.create_data_process(data_process_def_id, None,{"logical":data_product_id})
 
-        # ------------------------------------------------------------------------------------
-        # Process Spawning
-        # ------------------------------------------------------------------------------------
-        # Spawn the process
-        process_dispatcher.schedule_process(
-            process_definition_id=process_definition_id,
-            configuration=configuration
-        )
+        self.dataprocessclient.activate_data_process(data_process_id)
 
-        ###########
-
-#        logical_transform_dprocdef_id = self.PRMS.create_data_process_definition(dpd_obj)
-#
-#
-#        log.info("Creating data process")
-#        dproc_id = self.PRMS.create_data_process(logical_transform_dprocdef_id,  {"output":data_product_id})
-#        log.info("Created data process")
-
-        log.info("associating site hasOutputProduct")
         #make it all happen
         if RT.InstrumentSite == sitetype:
             self.instrument_site.link_output_product(site_id, data_product_id)
         elif RT.PlatformSite == sitetype:
             self.platform_site.link_output_product(site_id, data_product_id)
-
-
 
 
     def streamdef_of_site(self, site_id):
