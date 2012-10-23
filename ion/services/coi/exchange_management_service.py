@@ -28,13 +28,13 @@ class ExchangeManagementService(BaseExchangeManagementService):
         self.assert_condition(exchange_space and org_id, "Arguments not set")
 
         #First make sure that Org with the org_id exists, otherwise bail
-        org = self.clients.resource_registry.read(org_id)
+        org = self.container.resource_registry.read(org_id)
         if not org:
             raise NotFound("Org %s does not exist" % org_id)
 
-        exchange_space_id,rev = self.clients.resource_registry.create(exchange_space)
+        exchange_space_id,rev = self.container.resource_registry.create(exchange_space)
 
-        aid = self.clients.resource_registry.create_association(org_id, PRED.hasExchangeSpace, exchange_space_id)
+        aid = self.container.resource_registry.create_association(org_id, PRED.hasExchangeSpace, exchange_space_id)
 
         # Now do the work
 
@@ -55,7 +55,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @throws NotFound    object with specified id does not exist
         @throws Conflict    object not based on latest persisted object version
         """
-        self.clients.resource_registry.update(exchange_space)
+        self.container.resource_registry.update(exchange_space)
 
     def read_exchange_space(self, exchange_space_id=''):
         """Returns an Exchange Space resource for the provided exchange space id.
@@ -64,7 +64,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval exchange_space    ExchangeSpace
         @throws NotFound    object with specified id does not exist
         """
-        exchange_space = self.clients.resource_registry.read(exchange_space_id)
+        exchange_space = self.container.resource_registry.read(exchange_space_id)
         if not exchange_space:
             raise NotFound("Exchange Space %s does not exist" % exchange_space_id)
         return exchange_space
@@ -76,27 +76,27 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @param exchange_space_id    str
         @throws NotFound    object with specified id does not exist
         """
-        exchange_space = self.clients.resource_registry.read(exchange_space_id)
+        exchange_space = self.container.resource_registry.read(exchange_space_id)
         if not exchange_space:
             raise NotFound("Exchange Space %s does not exist" % exchange_space_id)
 
         # remove association between itself and org
-        _, assocs = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasExchangeSpace, exchange_space_id, id_only=True)
+        _, assocs = self.container.resource_registry.find_subjects(RT.Org, PRED.hasExchangeSpace, exchange_space_id, id_only=True)
         for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)
+            self.container.resource_registry.delete_association(assoc._id)
 
         # delete assocs to XNs
-        _, assocs = self.clients.resource_registry.find_objects(exchange_space_id, PRED.hasExchangeName, RT.ExchangeName, id_only=True)
+        _, assocs = self.container.resource_registry.find_objects(exchange_space_id, PRED.hasExchangeName, RT.ExchangeName, id_only=True)
         for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)
+            self.container.resource_registry.delete_association(assoc._id)
 
         # delete assocs to XPs
-        _, assocs = self.clients.resource_registry.find_objects(exchange_space_id, PRED.hasExchangePoint, RT.ExchangePoint, id_only=True)
+        _, assocs = self.container.resource_registry.find_objects(exchange_space_id, PRED.hasExchangePoint, RT.ExchangePoint, id_only=True)
         for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)
+            self.container.resource_registry.delete_association(assoc._id)
 
         # delete XS now
-        self.clients.resource_registry.delete(exchange_space_id)
+        self.container.resource_registry.delete(exchange_space_id)
 
         # call container API to delete @TODO this is clunky
         xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
@@ -124,7 +124,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         if not exchange_name.xn_type in typemap:
             raise BadRequest("Unknown exchange name type: %s" % exchange_name.xn_type)
 
-        xns, assocs = self.clients.resource_registry.find_objects(subject=exchange_space_id, predicate=PRED.hasExchangeName, id_only=False)
+        xns, assocs = self.container.resource_registry.find_objects(subject=exchange_space_id, predicate=PRED.hasExchangeName, id_only=False)
         exchange_name_id = None
         for xn in xns:
             if xn.name == exchange_name.name and xn.xn_type == exchange_name.xn_type:
@@ -135,9 +135,9 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
         exchange_space          = self.read_exchange_space(exchange_space_id)
         if not exchange_name_id:
-            exchange_name_id,rev    = self.clients.resource_registry.create(exchange_name)
+            exchange_name_id,rev    = self.container.resource_registry.create(exchange_name)
 
-            aid = self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangeName, exchange_name_id)
+            aid = self.container.resource_registry.create_association(exchange_space_id, PRED.hasExchangeName, exchange_name_id)
 
         # call container API
         xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
@@ -155,26 +155,26 @@ class ExchangeManagementService(BaseExchangeManagementService):
         """
         # @TODO: currently we are using the exchange_name's id as the canonical name
         # and exchange_space_id is unused?
-        exchange_name = self.clients.resource_registry.read(canonical_name)
+        exchange_name = self.container.resource_registry.read(canonical_name)
         if not exchange_name:
             raise NotFound("Exchange Name with id %s does not exist" % canonical_name)
 
         exchange_name_id = exchange_name._id        # yes, this should be same, but let's make it look cleaner
 
         # get associated XS first
-        exchange_space_list, assoc_list = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, exchange_name_id)
+        exchange_space_list, assoc_list = self.container.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, exchange_name_id)
         if not len(exchange_space_list) == 1:
             raise NotFound("Associated Exchange Space to Exchange Name %s does not exist" % exchange_name_id)
 
         exchange_space = exchange_space_list[0]
 
         # remove association between itself and XS
-        _, assocs = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, exchange_name_id, id_only=True)
+        _, assocs = self.container.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, exchange_name_id, id_only=True)
         for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)
+            self.container.resource_registry.delete_association(assoc._id)
 
         # remove XN
-        self.clients.resource_registry.delete(exchange_name_id)
+        self.container.resource_registry.delete(exchange_name_id)
 
         # call container API
         xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
@@ -198,7 +198,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @throws BadRequest    if object passed has _id or _rev attribute
         """
 
-        xs_xps, assocs = self.clients.resource_registry.find_objects(subject=exchange_space_id, predicate=PRED.hasExchangePoint, id_only=False)
+        xs_xps, assocs = self.container.resource_registry.find_objects(subject=exchange_space_id, predicate=PRED.hasExchangePoint, id_only=False)
         exchange_point_id = None
         for xs_xp in xs_xps:
             if xs_xp.name == exchange_point.name and xs_xp.topology_type == exchange_point.topology_type:
@@ -207,9 +207,9 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
         exchange_space          = self.read_exchange_space(exchange_space_id)
         if not exchange_point_id:
-            exchange_point_id, _ver = self.clients.resource_registry.create(exchange_point)
+            exchange_point_id, _ver = self.container.resource_registry.create(exchange_point)
 
-            self.clients.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
+            self.container.resource_registry.create_association(exchange_space_id, PRED.hasExchangePoint, exchange_point_id)
 
         # call container API
         xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
@@ -226,7 +226,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @throws NotFound    object with specified id does not exist
         @throws Conflict    object not based on latest persisted object version
         """
-        self.clients.resource_registry.update(exchange_point)
+        self.container.resource_registry.update(exchange_point)
 
 
     def read_exchange_point(self, exchange_point_id=''):
@@ -236,7 +236,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval exchange_point    ExchangePoint
         @throws NotFound    object with specified id does not exist
         """
-        exchange_point = self.clients.resource_registry.read(exchange_point_id)
+        exchange_point = self.container.resource_registry.read(exchange_point_id)
         if not exchange_point:
             raise NotFound("Exchange Point %s does not exist" % exchange_point_id)
         return exchange_point
@@ -247,12 +247,12 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @param exchange_point_id    str
         @throws NotFound    object with specified id does not exist
         """
-        exchange_point = self.clients.resource_registry.read(exchange_point_id)
+        exchange_point = self.container.resource_registry.read(exchange_point_id)
         if not exchange_point:
             raise NotFound("Exchange Point %s does not exist" % exchange_point_id)
 
         # get associated XS first
-        exchange_space_list, assoc_list = self.clients.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, exchange_point_id)
+        exchange_space_list, assoc_list = self.container.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangePoint, exchange_point_id)
         if not len(exchange_space_list) == 1:
             raise NotFound("Associated Exchange Space to Exchange Point %s does not exist" % exchange_point_id)
 
@@ -260,10 +260,10 @@ class ExchangeManagementService(BaseExchangeManagementService):
 
         # delete association to XS
         for assoc in assoc_list:
-            self.clients.resource_registry.delete_association(assoc._id)
+            self.container.resource_registry.delete_association(assoc._id)
 
         # delete from RR
-        self.clients.resource_registry.delete(exchange_point_id)
+        self.container.resource_registry.delete(exchange_point_id)
 
         # call container API
         xs = exchange.ExchangeSpace(self.container.ex_manager, self.container.ex_manager._priviledged_transport, exchange_space.name)
@@ -286,8 +286,8 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval exchange_broker_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
-        exchange_point_id, _ver = self.clients.resource_registry.create(exchange_point)
-        return exchange_point_id
+        exchange_broker_id, _ver = self.container.resource_registry.create(exchange_broker)
+        return exchange_broker_id
 
     def update_exchange_broker(self, exchange_broker=None):
         """Updates an existing exchange broker resource.
@@ -297,7 +297,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @throws NotFound    object with specified id does not exist
         @throws Conflict    object not based on latest persisted object version
         """
-        self.clients.resource_registry.update(exchange_broker)
+        self.container.resource_registry.update(exchange_broker)
 
     def read_exchange_broker(self, exchange_broker_id=''):
         """Returns an existing exchange broker resource.
@@ -306,7 +306,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval exchange_broker    ExchangeBroker
         @throws NotFound    object with specified id does not exist
         """
-        exchange_broker = self.clients.resource_registry.read(exchange_broker_id)
+        exchange_broker = self.container.resource_registry.read(exchange_broker_id)
         if not exchange_broker:
             raise NotFound("Exchange Broker %s does not exist" % exchange_broker_id)
         return exchange_broker
@@ -317,10 +317,10 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @param exchange_broker_id    str
         @throws NotFound    object with specified id does not exist
         """
-        exchange_broker = self.clients.resource_registry.read(exchange_broker_id)
+        exchange_broker = self.container.resource_registry.read(exchange_broker_id)
         if not exchange_broker:
             raise NotFound("Exchange Broker %s does not exist" % exchange_broker_id)
-        self.clients.resource_registry.delete(exchange_broker)
+        self.container.resource_registry.delete(exchange_broker)
 
     def find_exchange_broker(self, filters=None):
         """Returns a list of exchange broker resources for the provided resource filter.
