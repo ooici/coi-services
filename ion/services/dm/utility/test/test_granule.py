@@ -9,6 +9,7 @@
 from pyon.ion.stream import StandaloneStreamPublisher, StandaloneStreamSubscriber
 from pyon.util.int_test import IonIntegrationTestCase
 
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule import RecordDictionaryTool
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -54,6 +55,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         stream_def_id = self.pubsub_management.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
 
         stream_id, route = self.pubsub_management.create_stream('ctd_stream', 'xp1', stream_definition_id=stream_def_id)
         self.xps.append('xp1')
@@ -71,6 +73,9 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         rdt['time'] = np.arange(10)
         rdt['temp'] = np.random.randn(10) * 10 + 30
         rdt['pressure'] = [20] * 10
+
+        self.assertEquals(set(pdict.keys()), set(rdt.fields))
+        self.assertEquals(pdict.temporal_parameter_name, rdt.temporal_parameter)
 
         self.rdt = rdt
         self.data_producer_id = 'data_producer'
