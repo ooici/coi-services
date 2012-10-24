@@ -55,7 +55,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDVyb1VkaklXQ01UVFhVU0dFdlBkc0E&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidF9fUVl4QlQxQ2RNQ3ZnaTRWVTdaM2c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -865,7 +865,7 @@ class IONLoader(ImmediateProcess):
         res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id)
         self._register_id(row[self.COL_ID], res_id)
 
-        if not DEBUG:
+        if not DEBUG and row['persist_data']=='1':
             svc_client.activate_data_product_persistence(res_id)
         self._resource_advance_lcs(row, res_id, "DataProduct")
 
