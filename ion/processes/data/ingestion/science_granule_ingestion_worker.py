@@ -95,7 +95,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             log.error('Received empty message from stream: %s', stream_id)
             return
         # Message validation
-        validate_is_instance(msg,Granule,'Incoming message is not compatible with this ingestion worker')
+        if not isinstance(msg, Granule):
+            log.error('Ingestion received a message that is not a granule. %s' % msg)
+            return
         log.info('Received incoming granule from route: %s and stream_id: %s', stream_route, stream_id)
         granule = msg
         self.add_granule(stream_id, granule)

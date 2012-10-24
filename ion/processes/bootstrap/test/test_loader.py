@@ -3,13 +3,10 @@
 __author__ = 'Michael Meisinger'
 
 from nose.plugins.attrib import attr
-
-from pyon.public import RT
+from pyon.public import RT, PRED
 from pyon.util.int_test import IonIntegrationTestCase
 import math
-from ion.processes.bootstrap.ion_loader import TESTED_DOC
-
-from interface.services.coi.idatastore_service import DatastoreServiceClient, DatastoreServiceProcessClient
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 import unittest
 
 @attr('INT', group='loader')
@@ -19,6 +16,7 @@ class TestLoader(IonIntegrationTestCase):
         # Start container
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+        self.ingestion_management = IngestionManagementServiceClient()
 
     def test_lca_load(self):
         config = dict(op="load", scenario="R2_DEMO", attachments="res/preload/r2_ioc/attachments")
@@ -37,12 +35,27 @@ class TestLoader(IonIntegrationTestCase):
                 self.assertEquals('primary', org.contact.roles[0])
         self.assertTrue(found, msg='Did not find Org "RSN" -- should have been preloaded')
 
-        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='CTDBP-1012-REC1 Raw Endurance OR Offshore Benthic Pkg Demo', id_only=False)
+        # check data product
+        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='CTDBP-1012-REC1 Raw', id_only=False)
         self.assertEquals(1, len(res))
         dp = res[0]
         formats = dp.available_formats
         self.assertEquals(2, len(formats))
         self.assertEquals('csv', formats[0])
+        # should be persisted
+        streams, _ = self.container.resource_registry.find_objects(dp._id, PRED.hasStream, RT.Stream, True)
+        self.assertTrue(streams)
+        self.assertEquals(1, len(streams))
+        self.assertTrue(self.ingestion_management.is_persisted(streams[0]))
+
+        # but L1 data product should not be persisted
+        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='Conductivity L1', id_only=True)
+        self.assertEquals(1, len(res))
+        dpid = res[0]
+        streams, _ = self.container.resource_registry.find_objects(dpid, PRED.hasStream, RT.Stream, True)
+        self.assertEquals(1, len(streams))
+        self.assertTrue(streams)
+        self.assertFalse(self.ingestion_management.is_persisted(streams[0]))
 
         res,_ = self.container.resource_registry.find_resources(RT.InstrumentSite, id_only=False)
         self.assertTrue(len(res) > 1)
@@ -73,3 +86,4 @@ class TestLoader(IonIntegrationTestCase):
         # check has attachments
         attachments,_ = self.container.resource_registry.find_attachments(res[0]._id)
         self.assertTrue(len(attachments)>0)
+
