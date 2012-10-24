@@ -33,9 +33,9 @@ class FakeScheduler(object):
         # Calculate the time to wait
         #------------------------------------------------------------------------------------
         wait_time = datetime.timedelta( days = task_time.day - current_time.day,
-                                        hours = task_time.hour - current_time.hour,
-                                        minutes = task_time.minute - current_time.minute,
-                                        seconds = task_time.second - current_time.second)
+            hours = task_time.hour - current_time.hour,
+            minutes = task_time.minute - current_time.minute,
+            seconds = task_time.second - current_time.second)
 
         log.info("Fake scheduler calculated wait_time = %s" % wait_time)
 
@@ -181,8 +181,8 @@ def check_user_notification_interest(event, reverse_user_info):
     if not isinstance(event, Event):
         raise BadRequest("The input parameter should have been an Event.")
 
-    if reverse_user_info.has_key('event_origin') and \
-       reverse_user_info.has_key('event_origin_type') and \
+    if reverse_user_info.has_key('event_origin') and\
+       reverse_user_info.has_key('event_origin_type') and\
        reverse_user_info.has_key('event_type') and\
        reverse_user_info.has_key('event_subtype'):
         pass
@@ -249,8 +249,13 @@ def calculate_reverse_user_info(user_info=None):
 
             for notification in notifications:
 
+                # If the notification has expired, do not keep it in the reverse user info that the notification
+                # workers use
+                if notification.temporal_bounds.end_datetime:
+                    continue
+
                 if not isinstance(notification, NotificationRequest):
-                    break
+                    continue
 
                 if dict_1.has_key(notification.event_type) and notification.event_type:
                     dict_1[notification.event_type].append(user_name)
