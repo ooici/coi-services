@@ -29,8 +29,7 @@ import elasticpy as ep
 from datetime import datetime
 
 from ion.services.dm.presentation.sms_providers import sms_providers
-from interface.objects import ProcessDefinition, UserInfo
-
+from interface.objects import ProcessDefinition, UserInfo, TemporalBounds
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
 from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
@@ -406,6 +405,10 @@ class UserNotificationService(BaseUserNotificationService):
             notification_id = notification._id
         else:
             # since the notification has not been registered yet, register it and get the id
+            notification.temporal_bounds = TemporalBounds()
+            notification.temporal_bounds.start_datetime = self.makeEpochTime(self.__now())
+            notification.temporal_bounds.end_datetime = ''
+
             notification_id, _ = self.clients.resource_registry.create(notification)
 
         #-------------------------------------------------------------------------------------------------------------------
@@ -527,10 +530,11 @@ class UserNotificationService(BaseUserNotificationService):
         self.delete_notification_from_user_info(notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
-        # delete from the resource registry
+        # update the resource registry
         #-------------------------------------------------------------------------------------------------------------------
 
-        self.clients.resource_registry.delete(notification_id)
+        notification_request.temporal_bounds.end_datetime = self.makeEpochTime(self.__now())
+        self.clients.resource_registry.update(notification_request)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -833,6 +837,10 @@ class UserNotificationService(BaseUserNotificationService):
             search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (start_time, end_time)
 
             for notification in notifications:
+
+                # If the notification request has expired, then do not use it in the search
+                if notification.temporal_bounds.end_datetime:
+                    continue
 
                 if notification.origin:
                     search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin

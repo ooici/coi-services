@@ -26,7 +26,7 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher, EventSubscriber
 import gevent
 from mock import Mock, mocksignature
-from interface.objects import NotificationRequest
+from interface.objects import NotificationRequest, TemporalBounds
 from ion.services.dm.inventory.index_management_service import IndexManagementService
 from ion.services.dm.presentation.user_notification_service import EmailEventProcessor
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
@@ -203,9 +203,6 @@ class UserNotificationTest(PyonTestCase):
 
         notification_id = 'notification_id_1'
 
-        self.mock_rr_client.delete = mocksignature(self.mock_rr_client.update())
-        self.mock_rr_client.delete.return_value = (notification_id,'rev_1')
-
         self.user_notification.delete_notification_from_user_info = mocksignature(self.user_notification.delete_notification_from_user_info)
         self.user_notification.delete_notification_from_user_info.return_value = ''
 
@@ -221,7 +218,15 @@ class UserNotificationTest(PyonTestCase):
             origin = 'origin_1',
             origin_type = 'origin_type_1',
             event_type= 'event_type_1',
-            event_subtype = 'event_subtype_1' )
+            event_subtype = 'event_subtype_1',
+            temporal_bounds = TemporalBounds())
+        notification_request.temporal_bounds.start_datetime = ''
+
+        self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
+        self.mock_rr_client.read.return_value = notification_request
+
+        self.mock_rr_client.update = mocksignature(self.mock_rr_client.update)
+        self.mock_rr_client.update.return_value = ''
 
         #-------------------------------------------------------------------------------------------------------------------
         # execution
@@ -233,7 +238,6 @@ class UserNotificationTest(PyonTestCase):
         # assertions
         #-------------------------------------------------------------------------------------------------------------------
 
-        self.mock_rr_client.delete.assert_called_once_with(notification_id)
         self.user_notification.delete_notification_from_user_info.assert_called_once_with(notification_id)
 
 @attr('INT', group='dm')
@@ -596,13 +600,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
 
         #--------------------------------------------------------------------------------------
-        # Create notification workers
-        #--------------------------------------------------------------------------------------
-
-        pids = self.unsc.create_worker(number_of_workers=1)
-        self.assertIsNotNone(pids, 'No workers were created')
-
-        #--------------------------------------------------------------------------------------
         # Make notification request objects -- Remember to put names
         #--------------------------------------------------------------------------------------
 
@@ -871,8 +868,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         '''
         Since notification workers are being created in bootstrap, we dont need to generate any here
         '''
-#        pids = self.unsc.create_worker(number_of_workers=1)
-#        self.assertEquals(len(pids), 1)
+        #        pids = self.unsc.create_worker(number_of_workers=1)
+        #        self.assertEquals(len(pids), 1)
 
         #--------------------------------------------------------------------------------------
         # Get the list of notification worker processes existing in the container
@@ -1132,7 +1129,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         def poller():
             events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= 4, max_datetime=7)
             return len(events) >= 4
-            
+
         success = self.event_poll(poller, 10)
 
         self.assertTrue(success)
@@ -1209,8 +1206,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             result.set(True)
 
         event_subscriber = EventSubscriber( event_type = 'DeviceEvent',
-                                            origin="origin_1",
-                                            callback=lambda m, h: received_event(ar, m, h))
+            origin="origin_1",
+            callback=lambda m, h: received_event(ar, m, h))
         event_subscriber.start()
         self.addCleanup(event_subscriber.stop)
 
@@ -1274,7 +1271,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 times_of_events_published.add(t)
                 self.number_event_published += 2
                 self.event.set()
-    #            time.sleep(1)
+                #            time.sleep(1)
                 log.debug("Published events of origins = instrument_1, instrument_2 with ts_created: %s" % t)
 
         publish_events()
@@ -1319,9 +1316,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Set up the scheduler to publish daily events that should kick off process_batch()
         #--------------------------------------------------------------------------------
         sid = self.ssclient.create_time_of_day_timer(   times_of_day=times_of_day,
-                                             expires=time.time()+25200+60,
-                                             event_origin= newkey,
-                                             event_subtype="")
+            expires=time.time()+25200+60,
+            event_origin= newkey,
+            event_subtype="")
         def cleanup_timer(scheduler, schedule_id):
             """
             Do a friendly cancel of the scheduled event.
