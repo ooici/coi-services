@@ -570,8 +570,8 @@ class PlatformAgent(ResourceAgent):
             'description':  message,
             'sub_type':     group,      # ID of alarm categorization
             'ts_created':   ts,         # time of reception at the driver
-            'alarm_type':   alarm_type,
-            'x_timestamp':  timestamp,  # as given by OMS
+            'external_alarm_type':   alarm_type,
+            'external_timestamp':    timestamp,  # as given by OMS
         }
 
         log.info("%r: publishing platform alarm event: event_data=%s",
