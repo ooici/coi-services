@@ -1252,8 +1252,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Set up a time for the scheduler to trigger timer events
         #--------------------------------------------------------------------------------
         # Trigger the timer event 10 seconds later from now
-        now = datetime.utcnow() + timedelta(seconds=15)
-        times_of_day =[{'hour': str(now.hour),'minute' : str(now.minute), 'second':str(now.second) }]
+        time_now = datetime.utcnow() + timedelta(seconds=15)
+        times_of_day =[{'hour': str(time_now.hour),'minute' : str(time_now.minute), 'second':str(time_now.second) }]
 
         #--------------------------------------------------------------------------------
         # Publish the events that the user will later be notified about
