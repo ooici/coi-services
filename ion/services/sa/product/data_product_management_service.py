@@ -126,7 +126,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # suspend persistence
         #--------------------------------------------------------------------------------
-        self.suspend_data_product_persistence(data_product_id)
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        if self.clients.ingestion_management.is_persisted(stream_ids[0]):
+            self.suspend_data_product_persistence(data_product_id)
         #--------------------------------------------------------------------------------
         # remove stream associations
         #--------------------------------------------------------------------------------
@@ -360,7 +362,7 @@ class DataProductManagementService(BaseDataProductManagementService):
     def read_data_product_collection(self, data_product_collection_id=''):
         """Retrieve data product information
 
-        @param data_product_version_id    str
+        @param data_product_collection_id    str
         @retval data_product    DataProductVersion
         """
         result = self.clients.resource_registry.read(data_product_collection_id)
@@ -372,7 +374,7 @@ class DataProductManagementService(BaseDataProductManagementService):
     def delete_data_product_collection(self, data_product_collection_id=''):
         """Remove a version of an data product.
 
-        @param data_product_version_id    str
+        @param data_product_collection_id    str
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
