@@ -216,6 +216,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_instance_obj.driver_config["comms_config"] = driver_config["comms_config"]
         instrument_agent_instance_obj.driver_config["pagent_pid"]   = driver_config["pagent_pid"]
 
+        self.instrument_agent_instance.update_one(instrument_agent_instance_obj)
+        
         #todo
         #agent.set_config(snapshot["running_config"])
 
@@ -396,11 +398,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
 
-        #if there is a agent pid then assume that a drive is already started
-        if instrument_agent_instance_obj.agent_process_id:
-            raise BadRequest("Instrument Agent Instance already running for this device pid: %s" %
-                             str(instrument_agent_instance_obj.agent_process_id))
-
         #retrieve the associated instrument device
         inst_device_objs = self.instrument_device.find_having_agent_instance(instrument_agent_instance_obj._id)
         if 1 != len(inst_device_objs):
@@ -502,6 +499,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         Launch the instument agent instance and return the id
         """
         instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
+
+        #if there is a agent pid then assume that a drive is already started
+        if instrument_agent_instance_obj.agent_process_id:
+            raise BadRequest("Instrument Agent Instance already running for this device pid: %s" %
+                             str(instrument_agent_instance_obj.agent_process_id))
 
         # validate the associations, then pick things up
         self._validate_instrument_agent_instance(instrument_agent_instance_obj)

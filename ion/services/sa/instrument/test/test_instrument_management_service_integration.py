@@ -259,8 +259,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
 
 
-        #@unittest.skip("TBD")
-    def test_snapshot_restore(self):
+
+    def test_checkpoint_restore(self):
 
         # Create InstrumentModel
         instModel_obj = IonObject(RT.InstrumentModel,
@@ -390,10 +390,18 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                                         instance_obj.agent_process_id)
 
 
-        #todo
-#        snap_id = self.IMS.agent_state_checkpoint(instDevice_id, "xyzzy snapshot")
-#        snap_obj = self.RR.read_attachment(snap_id)
-#        print "Saved config:"
-#        print snap_obj.content
-#        self.IMS.agent_state_restore(instDevice_id, snap_id)
-#        
+        # take snapshot of config
+        snap_id = self.IMS.agent_state_checkpoint(instDevice_id, "xyzzy snapshot")
+        snap_obj = self.RR.read_attachment(snap_id)
+        print "Saved config:"
+        print snap_obj.content
+
+        #modify config
+        instance_obj.driver_module = "BAD_DATA"
+        self.RR.update(instance_obj)
+
+        #restore config
+        self.IMS.agent_state_restore(instDevice_id, snap_id)
+        instance_obj = self.RR.read(instAgentInstance_id)
+        self.assertNotEqual("BAD_DATA", instance_obj.driver_module)
+
