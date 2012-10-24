@@ -30,17 +30,14 @@ from ion.services.sa.instrument.flag import KeywordFlag
 from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
-
+import string
 
 # some stuff for logging info to the console
-import sys
 log = DotDict()
-printout = sys.stdout.write
-#printout = lambda x: None
 
 def mk_logger(level):
     def logger(fmt, *args):
-        printout("%s: %s" % (level, (fmt % args)))
+        print "%s %s" % (string.ljust("%s:" % level, 8), (fmt % args))
 
     return logger
 
@@ -108,6 +105,7 @@ class TestAssembly(IonIntegrationTestCase):
         """
 
         """
+
         c = self.client
 
         c2 = DotDict()
@@ -573,13 +571,17 @@ class TestAssembly(IonIntegrationTestCase):
 
         # create a new deployment for the new device
         deployment_id2 = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, False)
+        log.debug("Associating instrument site with new deployment")
         c.OMS.deploy_instrument_site(instrument_site_id, deployment_id2)
+        log.debug("Associating instrument device with new deployment")
         c.IMS.deploy_instrument_device(instrument_device_id2, deployment_id2)
 
         # activate the new deployment -- changing the primary device -- but don't switch subscription
+        log.debug("Activating new deployment")
         c.OMS.activate_deployment(deployment_id2, False)
         #todo: assert site hasDevice instrument_device_id2
 
+        log.debug("Transferring site subscriptions")
         c.OMS.transfer_site_subscription(instrument_site_id)
 
         #----------------------------------------------
@@ -962,12 +964,12 @@ class TestAssembly(IonIntegrationTestCase):
         num_objs = len(find_widgets())
         log.info("I found %d %s objects", num_objs, resource_label)
 
-        log.info("Creating a %s", resource_label)
         generic_obj = actual_obj or any_old(resource_iontype)
+        log.info("Creating a %s with name='%s'", resource_label, generic_obj.name)
         generic_id = some_service.create_widget(generic_obj)
         self.assertIsNotNone(generic_id, "%s failed its creation" % resource_iontype)
 
-        log.info("Reading %s #%s", resource_label, generic_id)
+        log.info("Reading %s '%s'", resource_label, generic_id)
         generic_ret = some_service.read_widget(generic_id)
 
         log.info("Verifying equality of stored and retrieved object")
@@ -980,21 +982,23 @@ class TestAssembly(IonIntegrationTestCase):
             log.info("Verifying that resource went DEPLOYED_AVAILABLE on creation")
             self.assertEqual(generic_ret.lcstate, LCS.DEPLOYED_AVAILABLE)
 
-        log.info("Updating %s #%s", resource_label, generic_id)
+        log.info("Updating %s '%s'", resource_label, generic_id)
         generic_newname = "%s updated" % generic_ret.name
         generic_ret.name = generic_newname
         some_service.update_widget(generic_ret)
 
-        log.info("Reading platform model #%s to verify update", generic_id)
+        log.info("Reading %s '%s' to verify update", resource_iontype, generic_id)
         generic_ret = some_service.read_widget(generic_id)
 
         self.assertEqual(generic_newname, generic_ret.name)
         self.assertEqual(generic_obj.description, generic_ret.description)
 
-        log.info("Finding platform models... checking that there's a new one")
+        log.info("Finding %s objects... checking that there's a new one", resource_iontype)
         num_objs2 = len(find_widgets())
 
+        log.info("There were %s and now there are %s", num_objs, num_objs2)
         self.assertTrue(num_objs2 > num_objs)
 
+        log.info("Returning %s with id '%s'", resource_iontype, generic_id)
         return generic_id
 
