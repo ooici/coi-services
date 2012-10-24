@@ -625,14 +625,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             process_source="For %s '%s'" % (sitetype, site_id))
 
 
-        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
-
         data_process_def_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
         #----------------------------------------------------------------------------------------------------
         # Create a data process
         #----------------------------------------------------------------------------------------------------
-        data_process_id = self.dataprocessclient.create_data_process(data_process_def_id, None,{"logical":data_product_id})
+        data_process_id = self.dataprocessclient.create_data_process(data_process_def_id,
+                                                                     None,
+                                                                     {"logical":data_product_id})
 
         self.dataprocessclient.activate_data_process(data_process_id)
 

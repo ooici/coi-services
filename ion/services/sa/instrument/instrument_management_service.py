@@ -217,7 +217,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_instance_obj.driver_config["pagent_pid"]   = driver_config["pagent_pid"]
 
         self.instrument_agent_instance.update_one(instrument_agent_instance_obj)
-        
+
         #todo
         #agent.set_config(snapshot["running_config"])
 
