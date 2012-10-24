@@ -211,8 +211,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         snapshot = json.loads(attachment.content)
         driver_config = snapshot["driver_config"]
 
-        instrument_agent_instance_obj.driver_module                 = driver_config['dvr_mod']
-        instrument_agent_instance_obj.driver_class                  = driver_config['dvr_cls']
         instrument_agent_instance_obj.driver_config["comms_config"] = driver_config["comms_config"]
         instrument_agent_instance_obj.driver_config["pagent_pid"]   = driver_config["pagent_pid"]
 
@@ -472,12 +470,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         instrument_agent_instance_obj = instance_objs[0]
 
+        #retrieve the instrument agent for this device
+        agent_instance_ids, _ = self.clients.resource_registry.find_objects(subject=instrument_device_id, predicate=PRED.hasAgentInstance, object_type=RT.InstrumentAgentInstance, id_only=True)
+        agent_objs, _ =  self.clients.resource_registry.find_objects(subject=agent_instance_ids[0], predicate=PRED.hasAgentDefinition, object_type=RT.InstrumentAgent, id_only=False)
+        if not agent_objs:
+            raise BadRequest("InstrumentDevice %s does not have an agent defined" % instrument_device_id)
+        instrument_agent_obj = agent_objs[0]
+
+
         stream_config = self._generate_stream_config(instrument_device_id)
 
         # Create driver config.
         driver_config = {
-            'dvr_mod' : instrument_agent_instance_obj.driver_module,
-            'dvr_cls' : instrument_agent_instance_obj.driver_class,
+            'dvr_mod' : instrument_agent_obj.driver_module,
+            'dvr_cls' : instrument_agent_obj.driver_class,
             'workdir' : tempfile.tempdir,
             'process_type' : ('ZMQPyClassDriverLauncher',),
             'comms_config' : instrument_agent_instance_obj.driver_config['comms_config'],

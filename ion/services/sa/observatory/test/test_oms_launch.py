@@ -229,8 +229,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(data_product_SS_id, PRED.hasDataset, RT.Dataset, True)
 
 
-        platformSS_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='SSPlatformAgentInstance', description="SSPlatformAgentInstance",
-            driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
+        platformSS_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='SSPlatformAgentInstance', description="SSPlatformAgentInstance"  )
         platformSS_agent_instance_id = self.imsclient.create_platform_agent_instance(platformSS_agent_instance_obj, platformSS_agent_id, platformSS_device_id)
 
 #        agent_device_map[platformSS_agent_instance_id] = platformSS_device__obj
@@ -282,8 +281,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_1A_id, PRED.hasStream, None, True)
 
-        platform1A_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='Platform1AAgentInstance', description="Platform1AAgentInstance",
-            driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
+        platform1A_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='Platform1AAgentInstance', description="Platform1AAgentInstance" )
         platform1A_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1A_agent_instance_obj, platform1A_agent_id, platform1A_device_id)
 
 #        agent_device_map[platform1A_agent_instance_id] = platform1A_device__obj
@@ -337,8 +335,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_1B_id, PRED.hasStream, None, True)
 
-        platform1B_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='Platform1BAgentInstance', description="Platform1BAgentInstance",
-            driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
+        platform1B_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='Platform1BAgentInstance', description="Platform1BAgentInstance"  )
         platform1B_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1B_agent_instance_obj, platform1B_agent_id, platform1B_device_id)
 
 #        agent_device_map[platform1B_agent_instance_id] = platform1B_device__obj
@@ -393,8 +390,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_1C_id, PRED.hasStream, None, True)
 
-        platform1C_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='Platform1CAgentInstance', description="Platform1CAgentInstance",
-            driver_module='ion.agents.platform.platform_agent', driver_class='PlatformAgent'   )
+        platform1C_agent_instance_obj = IonObject(RT.PlatformAgentInstance, name='Platform1CAgentInstance', description="Platform1CAgentInstance"  )
         platform1C_agent_instance_id = self.imsclient.create_platform_agent_instance(platform1C_agent_instance_obj, platform1C_agent_id, platform1C_device_id)
 
 #        agent_device_map[platform1C_agent_instance_id] = platform1C_device__obj

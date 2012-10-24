@@ -662,8 +662,6 @@ class TestAssembly(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
-                                          driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
-                                          driver_class='SBE37Driver',
                                           comms_device_address='sbe37-simulator.oceanobservatories.org',
                                           comms_device_port=4001,
                                           port_agent_config = port_agent_config)

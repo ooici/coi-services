@@ -36,7 +36,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sax')
+@attr('INT', group='sa')
 class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
     def setUp(self):
@@ -241,7 +241,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         }
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
-                                          driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver",
                                           comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
                                           port_agent_config = port_agent_config)
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)

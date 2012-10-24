@@ -258,8 +258,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1',
             description="SBE37IMAgentInstanceYear1",
-            driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
-            driver_class='SBE37Driver',
             comms_device_address='sbe37-simulator.oceanobservatories.org',
             comms_device_port=4001,
             port_agent_config = port_agent_config)
@@ -352,8 +350,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2',
             description="SBE37IMAgentInstanceYear2",
-            driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
-            driver_class='SBE37Driver',
             comms_device_address='sbe37-simulator.oceanobservatories.org',
             comms_device_port=4004,
             port_agent_config = port_agent_config)

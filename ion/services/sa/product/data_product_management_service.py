@@ -124,18 +124,21 @@ class DataProductManagementService(BaseDataProductManagementService):
             self.clients.data_acquisition_management.unassign_data_product(producer_id, data_product_id)
 
         #--------------------------------------------------------------------------------
+        # suspend persistence
+        #--------------------------------------------------------------------------------
+        self.suspend_data_product_persistence(data_product_id)
+        #--------------------------------------------------------------------------------
         # remove stream associations
         #--------------------------------------------------------------------------------
-        self.remove_streams(data_product_id)
-
+        #self.remove_streams(data_product_id)
 
         #--------------------------------------------------------------------------------
         # remove dataset associations
         #--------------------------------------------------------------------------------
         dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
 
-        for dataset_id in dataset_ids:
-            self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
+#        for dataset_id in dataset_ids:
+#            self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
 
         #--------------------------------------------------------------------------------
         # Delete the data product
@@ -279,9 +282,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # detach the dataset from this data product
         #--------------------------------------------------------------------------------
-        dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
-        for dataset_id in dataset_ids:
-            self.data_product.unlink_data_set(data_product_id, dataset_id)
+#        dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+#        for dataset_id in dataset_ids:
+#            self.data_product.unlink_data_set(data_product_id, dataset_id)
 
 
     def get_data_product_provenance(self, data_product_id=''):

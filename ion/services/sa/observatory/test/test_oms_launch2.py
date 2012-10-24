@@ -146,9 +146,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         agent_instance_obj = IonObject(RT.PlatformAgentInstance,
                                 name='%s_PlatformAgentInstance' % platform_id,
-                                description="%s_PlatformAgentInstance" % platform_id,
-                                driver_module='ion.agents.platform.platform_agent',
-                                driver_class='PlatformAgent')
+                                description="%s_PlatformAgentInstance" % platform_id)
 
         agent_instance_id = self.imsclient.create_platform_agent_instance(
                             agent_instance_obj, agent_id, device_id)
