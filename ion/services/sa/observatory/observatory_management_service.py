@@ -621,8 +621,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             name='SiteDataProduct', #as per Maurice.  todo: constant?
             description=site_id,    #as per Maurice.
             module='ion.processes.data.transforms.logical_transform',
-            class_name='logical_transform',
-            process_source="For %s '%s'" % (sitetype, site_id))
+            class_name='logical_transform')
 
 
         data_process_def_id = self.dataprocessclient.create_data_process_definition(dpd_obj)

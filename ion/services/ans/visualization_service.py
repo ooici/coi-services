@@ -281,8 +281,7 @@ class VisualizationService(BaseVisualizationService):
             name='google_dt_transform',
             description='Convert data streams to Google DataTables',
             module='ion.processes.data.transforms.viz.google_dt',
-            class_name='VizTransformGoogleDT',
-            process_source='VizTransformGoogleDT source code here...')
+            class_name='VizTransformGoogleDT')
         try:
             procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except Exception as ex:

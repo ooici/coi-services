@@ -177,8 +177,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
                             name='ctd_L0_all',
                             description='transform ctd package into three separate L0 streams',
                             module='ion.processes.data.transforms.ctd.ctd_L0_all',
-                            class_name='ctd_L0_all',
-                            process_source='some_source_reference')
+                            class_name='ctd_L0_all')
         try:
             ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except BadRequest as ex:

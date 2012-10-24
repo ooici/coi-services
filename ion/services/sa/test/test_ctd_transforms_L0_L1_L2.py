@@ -262,8 +262,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             name='ctd_L0_all',
             description='transform ctd package into three separate L0 streams',
             module='ion.processes.data.transforms.ctd.ctd_L0_all',
-            class_name='ctd_L0_all',
-            process_source='some_source_reference')
+            class_name='ctd_L0_all')
         self.ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
         #-------------------------------------------------------------------------------------
@@ -273,8 +272,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             name='ctd_L1_conductivity',
             description='create the L1 conductivity data product',
             module='ion.processes.data.transforms.ctd.ctd_L1_conductivity',
-            class_name='CTDL1ConductivityTransform',
-            process_source='CTDL1ConductivityTransform source code here...')
+            class_name='CTDL1ConductivityTransform')
         self.ctd_L1_conductivity_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
         #-------------------------------------------------------------------------------------
@@ -284,8 +282,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             name='ctd_L1_pressure',
             description='create the L1 pressure data product',
             module='ion.processes.data.transforms.ctd.ctd_L1_pressure',
-            class_name='CTDL1PressureTransform',
-            process_source='CTDL1PressureTransform source code here...')
+            class_name='CTDL1PressureTransform')
         self.ctd_L1_pressure_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
         #-------------------------------------------------------------------------------------
@@ -295,8 +292,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             name='ctd_L1_temperature',
             description='create the L1 temperature data product',
             module='ion.processes.data.transforms.ctd.ctd_L1_temperature',
-            class_name='CTDL1TemperatureTransform',
-            process_source='CTDL1TemperatureTransform source code here...')
+            class_name='CTDL1TemperatureTransform')
         self.ctd_L1_temperature_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
         #-------------------------------------------------------------------------------------
@@ -306,8 +302,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             name='ctd_L2_salinity',
             description='create the L1 temperature data product',
             module='ion.processes.data.transforms.ctd.ctd_L2_salinity',
-            class_name='SalinityTransform',
-            process_source='SalinityTransform source code here...')
+            class_name='SalinityTransform')
         self.ctd_L2_salinity_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
         #-------------------------------------------------------------------------------------
@@ -317,8 +312,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             name='ctd_L2_density',
             description='create the L1 temperature data product',
             module='ion.processes.data.transforms.ctd.ctd_L2_density',
-            class_name='DensityTransform',
-            process_source='DensityTransform source code here...')
+            class_name='DensityTransform')
         self.ctd_L2_density_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
         return self.ctd_L0_all_dprocdef_id, self.ctd_L1_conductivity_dprocdef_id,\
