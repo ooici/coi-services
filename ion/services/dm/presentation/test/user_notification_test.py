@@ -40,6 +40,11 @@ from sets import Set
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
+def now():
+    '''
+    This method defines what the UNS uses as its "current" time
+    '''
+    return datetime.utcnow()
 
 class FakeProcess(LocalContextMixin):
     name = 'scheduler_for_user_notification_test'
@@ -203,11 +208,7 @@ class UserNotificationTest(PyonTestCase):
 
         notification_id = 'notification_id_1'
 
-        self.user_notification.delete_notification_from_user_info = mocksignature(self.user_notification.delete_notification_from_user_info)
-        self.user_notification.delete_notification_from_user_info.return_value = ''
-
         self.user_notification.event_processor.stop_notification_subscriber = mocksignature(self.user_notification.event_processor.stop_notification_subscriber)
-
         self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
 
         #-------------------------------------------------------------------------------------------------------------------
@@ -238,7 +239,10 @@ class UserNotificationTest(PyonTestCase):
         # assertions
         #-------------------------------------------------------------------------------------------------------------------
 
-        self.user_notification.delete_notification_from_user_info.assert_called_once_with(notification_id)
+        self.mock_rr_client.read.assert_called_once_with(notification_id, '')
+
+        notification_request.temporal_bounds.end_datetime = self.user_notification.makeEpochTime(now())
+        self.mock_rr_client.update.assert_called_once_with(notification_request)
 
 @attr('INT', group='dm')
 class UserNotificationIntTest(IonIntegrationTestCase):
@@ -562,16 +566,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # Check for UNS ------->
 
-        # check that the notification is not there anymore in the resource registry
-        with self.assertRaises(NotFound):
-            notification = self.rrc.read(notification_id_2)
+#        # check that the notification is not there anymore in the resource registry
+#        with self.assertRaises(NotFound):
+#            notification = self.rrc.read(notification_id_2)
 
-        # check that the user_info dictionary for the user is not holding the notification anymore
-        self.assertFalse(notification_request_2 in proc1.event_processor.user_info['user_1']['notifications'])
-
-        log.debug("Verified that the event processor correctly updated its user info dictionaries after an delete_notification()")
-
-        log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
+#        # check that the user_info dictionary for the user is not holding the notification anymore
+#        self.assertFalse(notification_request_2 in proc1.event_processor.user_info['user_1']['notifications'])
+#
+#        log.debug("Verified that the event processor correctly updated its user info dictionaries after an delete_notification()")
+#
+#        log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -598,6 +602,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         results = self.poll(9, self.discovery.parse,search_string)
         self.assertIsNotNone(results, 'Results not found')
+
+        #--------------------------------------------------------------------------------------
+        # Create notification workers
+        #--------------------------------------------------------------------------------------
+
+        pids = self.unsc.create_worker(number_of_workers=1)
+        self.assertIsNotNone(pids, 'No workers were created')
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects -- Remember to put names
@@ -709,7 +720,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         for i in xrange(10):
 
-            t = self.__now()
+            t = now()
             t = UserNotificationIntTest.makeEpochTime(t)
 
             event_publisher.publish_event( ts_created= t ,
@@ -1060,11 +1071,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.delete_notification(notification_id1)
         self.unsc.delete_notification(notification_id2)
 
-        # check that the notifications are not there
-        with self.assertRaises(NotFound):
-            notific1 = self.unsc.read_notification(notification_id1)
-        with self.assertRaises(NotFound):
-            notific2 = self.unsc.read_notification(notification_id2)
+#        # check that the notifications are not there
+#        with self.assertRaises(NotFound):
+#            notific1 = self.unsc.read_notification(notification_id1)
+#        with self.assertRaises(NotFound):
+#            notific2 = self.unsc.read_notification(notification_id2)
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -1255,7 +1266,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         def publish_events():
             for i in xrange(3):
-                t = self.__now()
+                t = now()
                 t = UserNotificationIntTest.makeEpochTime(t)
 
                 event_publisher.publish_event( ts_created= t ,
@@ -1366,13 +1377,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(events_for_message), self.number_event_published)
         self.assertEquals(times, times_of_events_published)
         self.assertEquals(origins_of_events, Set(['instrument_1', 'instrument_2']))
-
-    def __now(self):
-        '''
-        This method defines what the UNS uses as its "current" time
-        '''
-        return datetime.utcnow()
-
 
     @staticmethod
     def makeEpochTime(date_time):

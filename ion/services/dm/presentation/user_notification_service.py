@@ -523,11 +523,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.stop_notification_subscriber(notification_request=notification_request)
 
-        #-------------------------------------------------------------------------------------------------------------------
-        # delete the notification from the user_info and reverse_user_info dictionaries
-        #-------------------------------------------------------------------------------------------------------------------
-
-        self.delete_notification_from_user_info(notification_id)
+#        #-------------------------------------------------------------------------------------------------------------------
+#        # delete the notification from the user_info and reverse_user_info dictionaries
+#        #-------------------------------------------------------------------------------------------------------------------
+#
+#        self.delete_notification_from_user_info(notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
         # update the resource registry
