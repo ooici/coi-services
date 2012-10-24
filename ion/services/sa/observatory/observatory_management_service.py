@@ -32,7 +32,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.objects import OrgTypeEnum
 from interface.objects import ProcessDefinition
-
+from pyon.util.containers import create_unique_identifier
 
 import constraint
 
@@ -618,7 +618,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #----------------------------------------------------------------------------------------------------
 
         dpd_obj = IonObject(RT.DataProcessDefinition,
-            name='SiteDataProduct', #as per Maurice.  todo: constant?
+            name= create_unique_identifier(prefix='SiteDataProduct'), #as per Maurice.  todo: constant?
             description=site_id,    #as per Maurice.
             module='ion.processes.data.transforms.logical_transform',
             class_name='logical_transform')
