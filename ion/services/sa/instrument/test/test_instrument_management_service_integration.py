@@ -277,8 +277,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
-                                  driver_module="ion.agents.instrument.instrument_agent",
-                                  driver_class="InstrumentAgent" )
+                                  driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
+                                  driver_class="SBE37Driver" )
         instAgent_id = self.IMS.create_instrument_agent(instAgent_obj)
         log.debug( 'new InstrumentAgent id = %s', instAgent_id)
 
