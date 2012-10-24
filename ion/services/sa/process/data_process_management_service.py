@@ -9,7 +9,7 @@ from pyon.util.log import log
 from pyon.util.ion_time import IonTime
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from pyon.public import   log, RT, PRED, OT
+from pyon.public import   log, RT, PRED, OT, LCS
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.containers import create_unique_identifier
@@ -128,11 +128,17 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_proc_def_obj
 
     def delete_data_process_definition(self, data_process_definition_id=''):
+
         self.clients.resource_registry.retire(data_process_definition_id)
 
     def force_delete_data_process_definition(self, data_process_definition_id=''):
+
+        processdef_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasProcessDefinition, object_type=RT.ProcessDefinition, id_only=True)
         self._remove_associations(data_process_definition_id)
         self.clients.resource_registry.delete(data_process_definition_id)
+        for processdef_id in processdef_ids:
+            self.clients.process_dispatcher.delete_process_definition(processdef_id)
+
 
     def find_data_process_definitions(self, filters=None):
         """
@@ -520,6 +526,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return
 
     def force_delete_data_process(self, data_process_id=""):
+
+        # if not yet deleted, the first execute delete logic
+        dp_obj = self.read_data_process(data_process_id)
+        if dp_obj.lcstate != LCS.RETIRED:
+            self.delete_data_process(data_process_id)
+
         self._remove_associations(data_process_id)
         self.clients.resource_registry.delete(data_process_id)
 

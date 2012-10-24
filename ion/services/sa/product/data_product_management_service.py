@@ -123,8 +123,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         for producer_id in producer_ids:
             self.clients.data_acquisition_management.unassign_data_product(producer_id, data_product_id)
 
-
-
         #--------------------------------------------------------------------------------
         # remove stream associations
         #--------------------------------------------------------------------------------
@@ -148,7 +146,20 @@ class DataProductManagementService(BaseDataProductManagementService):
             self.data_product.delete_one(data_product_id)
 
     def force_delete_data_product(self, data_product_id=''):
-        pass
+
+        # if not yet deleted, the first execute delete logic
+        dp_obj = self.read_data_product(data_product_id)
+        if dp_obj.lcstate != LCS.RETIRED:
+            self.delete_data_product(data_product_id)
+
+        #get the assoc producers before deleteing the links
+        producers, producer_assns = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+
+        self._remove_associations(data_product_id)
+        for producer in producers:
+            self.clients.resource_registry.delete(producer)
+
+        self.clients.resource_registry.delete(data_product_id)
 
     def remove_streams(self, data_product_id=''):
         streams, assocs = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
@@ -158,8 +169,6 @@ class DataProductManagementService(BaseDataProductManagementService):
                 self.clients.resource_registry.delete_association(assoc)
                 self.clients.pubsub_management.delete_stream(stream)
                 self.clients.dataset_management.remove_stream(dataset, stream)
-
-        
 
         return streams
 
@@ -326,8 +335,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_collection_id, rev = self.clients.resource_registry.create(dp_collection_obj)
         self.clients.resource_registry.create_association( subject=data_product_collection_id, predicate=PRED.hasVersion, object=data_product_id)
 
-
-
         return data_product_collection_id
 
 
@@ -367,12 +374,26 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        #todo: retire the collection and the associations
+        #check that all assoc data products are deleted
+        dataproduct_objs, _ = self.clients.resource_registry.find_objects(subject=data_product_collection_id, predicate=PRED.hasVersion, object_type=RT.DataProduct, id_only=False)
+        for dataproduct_obj in dataproduct_objs:
+            if dataproduct_obj.lcstate != LCS.RETIRED:
+                raise BadRequest("All Data Products in a collection must be deleted before the collection is deleted.")
 
-        pass
+        data_product_collection_obj = self.read_data_product_collection(data_product_collection_id)
+
+        if data_product_collection_obj.lcstate != LCS.RETIRED:
+            self.clients.resource_registry.retire(data_product_collection_id)
 
     def force_delete_data_product_collection(self, data_product_collection_id=''):
-        pass
+
+        # if not yet deleted, the first execute delete logic
+        dp_obj = self.read_data_product_collection(data_product_collection_id)
+        if dp_obj.lcstate != LCS.RETIRED:
+            self.delete_data_product_collection(data_product_collection_id)
+
+        self._remove_associations(data_product_collection_id)
+        self.clients.resource_registry.delete(data_product_collection_id)
 
     def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
 
@@ -652,4 +673,36 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise e
 
         return ret
+
+
+    def _remove_associations(self, resource_id=''):
+        """
+        delete all associations to/from a resource
+        """
+
+        # find all associations where this is the subject
+        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+
+        log.debug("_remove_associations will remove %s subject associations and %s object associations",
+            len(sbj_assns), len(obj_assns))
+
+        for assn in obj_assns:
+            log.debug("_remove_associations deleting object association %s", assn)
+            self.clients.resource_registry.delete_association(assn)
+
+        for assn in sbj_assns:
+            log.debug("_remove_associations deleting subject association %s", assn)
+            self.clients.resource_registry.delete_association(assn)
+
+        # find all associations where this is the subject
+        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+
+        log.debug("post-deletions, _remove_associations found %s subject associations and %s object associations",
+            len(sbj_assns), len(obj_assns))
 

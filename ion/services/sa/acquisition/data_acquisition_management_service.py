@@ -320,12 +320,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # {success: true}
         #
         log.debug("Deleting data_producer id: %s" % data_producer_id)
-        data_producer_obj = self.read_data_producer(data_producer_id)
-        if data_producer_obj is None:
-            raise NotFound("Data producer %d does not exist" % data_producer_id)
-
-        #Unregister the data producer with PubSub
-        self.clients.pubsub_management.unregister_producer(data_producer_obj.name, data_producer_obj.stream_id)
 
         return self.clients.resource_registry.retire(data_producer_id)
 
@@ -632,6 +626,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         self.clients.resource_registry.retire(external_dataset_agent_id)
 
     def force_delete_external_dataset_agent(self, external_dataset_agent_id=''):
+
+    # if not yet deleted, the first execute delete logic
+        dp_obj = self.read_external_dataset_agent(external_dataset_agent_id)
+        if dp_obj.lcstate != LCS.RETIRED:
+            self.delete_external_dataset_agent(external_dataset_agent_id)
         self._remove_associations(external_dataset_agent_id)
         self.clients.resource_registry.delete(external_dataset_agent_id)
 
@@ -678,6 +677,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         self.clients.resource_registry.retire(external_dataset_agent_instance_id)
 
     def force_delete_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
+    # if not yet deleted, the first execute delete logic
+        dp_obj = self.read_external_dataset_agent_instance(external_dataset_agent_instance_id)
+        if dp_obj.lcstate != LCS.RETIRED:
+            self.delete_external_dataset_agent_instance(external_dataset_agent_instance_id)
+
         self._remove_associations(external_dataset_agent_instance_id)
         self.clients.resource_registry.delete(external_dataset_agent_instance_id)
 
@@ -960,7 +964,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def assign_dataset_agent_to_external_dataset_model(self, dataset_agent_id='', external_dataset_model_id=''):
         #Connect the external data agent with an external data model
         external_data_agent = self.clients.resource_registry.read(dataset_agent_id)
-        if not dataset_agent:
+        if not dataset_agent_id:
             raise NotFound("DatasetAgent resource %s does not exist" % dataset_agent_id)
 
         external_dataset_model = self.clients.resource_registry.read(external_dataset_model_id)
@@ -1032,15 +1036,15 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # find all associations where this is the object
         _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
 
-        log.debug("pluck will remove %s subject associations and %s object associations",
+        log.debug("_remove_associations will remove %s subject associations and %s object associations",
                  len(sbj_assns), len(obj_assns))
 
         for assn in obj_assns:
-            log.debug("pluck deleting object association %s", assn)
+            log.debug("_remove_associations deleting object association %s", assn)
             self.clients.resource_registry.delete_association(assn)
 
         for assn in sbj_assns:
-            log.debug("pluck deleting subject association %s", assn)
+            log.debug("_remove_associations deleting subject association %s", assn)
             self.clients.resource_registry.delete_association(assn)
 
         # find all associations where this is the subject
@@ -1049,6 +1053,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # find all associations where this is the object
         _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
 
-        log.debug("post-deletions, pluck found %s subject associations and %s object associations",
+        log.debug("post-deletions, _remove_associations found %s subject associations and %s object associations",
                  len(sbj_assns), len(obj_assns))
 
