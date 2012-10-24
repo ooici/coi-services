@@ -369,7 +369,8 @@ class PubsubManagementService(BasePubsubManagementService):
         import re
         topic_name = topic_name.lower()
         topic_name = re.sub(r'\s', '', topic_name)
-        topic_name = topic_name[:24]
+        topic_name = re.sub(r'-','_',topic_name)
+        #topic_name = topic_name[:24]
 
         return topic_name
 
