@@ -152,9 +152,9 @@ class AlarmGenerator(Greenlet):
         # TODO create a more complete alarm_instance
         #
         ref_id = alarm_type['ref_id']
-        platform_id = "some platform_id of type %r (TODO)" % alarm_type['platform_type']
-        message = "%s (synthetic alarm)" % alarm_type['name']
-        group = "%s (synthetic alarm)" % alarm_type['group']
+        platform_id = "TODO_some_platform_id_of_type_%s" % alarm_type['platform_type']
+        message = "%s (synthetic alarm generated from simulator)" % alarm_type['name']
+        group = alarm_type['group']
         timestamp = time.time()
         alarm_instance = {
             'ref_id':       ref_id,

@@ -263,13 +263,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # get the name of the data process and create an IONObject for it
         data_process_name = create_unique_identifier("process_" + data_process_definition.name)
-        self.data_process = IonObject(RT.DataProcess, name=data_process_name)
+        data_process_obj = IonObject(RT.DataProcess, name=data_process_name)
 
         # register the data process
-        data_process_id, version = self.clients.resource_registry.create(self.data_process)
-        
-        self.data_process._id = data_process_id
-        self.data_process._rev = version
+        data_process_id, version = self.clients.resource_registry.create(data_process_obj)
+
+        data_process_obj = self.clients.resource_registry.read(data_process_id)
 
         #---------------------------------------------------------------------------------------
         # Make the necessary associations, registering
@@ -361,7 +360,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #------------------------------------------------------------------------------------------------------------------------------------------
         # Add the subscription id to the data process
         #------------------------------------------------------------------------------------------------------------------------------------------
-        self.data_process.input_subscription_id = input_subscription_id
+        data_process_obj.input_subscription_id = input_subscription_id
 
         log.info("Launching the process")
         debug_str = "\n\tQueue Name: %s\n\tOutput Streams: %s\n\tProcess Definition ID: %s\n\tConfiguration: %s" % (data_process_name, output_stream_dict, process_definition_id, configuration)
@@ -373,8 +372,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                            process_definition_id=process_definition_id,
                            configuration=configuration)
 
-        self.data_process.process_id = pid
-        self.clients.resource_registry.update(self.data_process)
+        data_process_obj.process_id = pid
+        self.clients.resource_registry.update(data_process_obj)
         return data_process_id
 
     def _get_input_stream_ids(self, in_data_product_ids = None):

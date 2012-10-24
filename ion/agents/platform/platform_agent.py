@@ -552,9 +552,41 @@ class PlatformAgent(ResourceAgent):
 
     def _handle_alarm_driver_event(self, driver_event):
         #
-        # TODO How are alarm events to be notified? Publish to some stream?
-        #
-        log.debug("Got alarm event but nothing done with it yet: %s", str(driver_event))
+        # TODO appropriate granularity and structure of the event.
+
+        alarm_type = driver_event._alarm_type
+        ts = driver_event._ts
+
+        alarm_instance = driver_event._alarm_instance
+        platform_id = alarm_instance.get('platform_id', None)
+        message = alarm_instance.get('message', None)
+        timestamp = alarm_instance.get('timestamp', None)
+        group = alarm_instance.get('group', None)
+
+        # TODO appropriate origin for the event
+        origin = platform_id  # self.resource_id
+
+        event_data = {
+            'description':  message,
+            'sub_type':     group,      # ID of alarm categorization
+            'ts_created':   ts,         # time of reception at the driver
+            'alarm_type':   alarm_type,
+            'x_timestamp':  timestamp,  # as given by OMS
+        }
+
+        log.info("%r: publishing platform alarm event: event_data=%s",
+                  self._platform_id, str(event_data))
+
+        try:
+            self._event_publisher.publish_event(
+                event_type='PlatformAlarmEvent',
+                origin=origin,
+                **event_data)
+
+        except Exception as e:
+            # Unexpected unless PlatformAlarmEvent not yet in ion-definitions,
+            # which is the case at time of writing.
+            log.error("Error while publishing platform alarm event: %s", str(e))
 
     ##########################################################################
     # TBD

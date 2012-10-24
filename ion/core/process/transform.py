@@ -9,9 +9,13 @@
 from pyon.ion.process import SimpleProcess
 from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.ion.stream import StreamPublisher, StreamSubscriber
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from pyon.net.endpoint import RPCServer, RPCClient
+import logging
 import gevent
+import re
 from pyon.util.log import log
+dot = logging.getLogger('dot')
 
 class TransformBase(SimpleProcess):
     '''
@@ -25,7 +29,6 @@ class TransformBase(SimpleProcess):
         '''
         Begins listening for incoming RPC calls.
         '''
-        log.info('TransformBase on_start called')
         super(TransformBase,self).on_start()
         self._rpc_server = RPCServer(self, from_name=self.id)
         self._listener = gevent.spawn(self._rpc_server.listen)
@@ -200,6 +203,14 @@ class TransformDataProcess(TransformStreamListener, TransformStreamPublisher):
 
     def on_start(self):
         super(TransformDataProcess,self).on_start()
+        if dot.isEnabledFor(logging.INFO):
+            pubsub_cli = PubsubManagementServiceProcessClient(process=self)
+            self.streams = self.CFG.get_safe('process.publish_streams',{})
+            for k,v in self.streams.iteritems():
+                stream_route = pubsub_cli.read_stream_route(v)
+                queue_name = re.sub(r'[ -]', '_', self.queue_name)
+
+                print 'DOT>> %s -> %s' %( queue_name, stream_route.routing_key.strip('.stream'))
     
     def on_quit(self):
         super(TransformDataProcess, self).on_quit()

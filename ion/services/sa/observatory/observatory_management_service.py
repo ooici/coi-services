@@ -1060,6 +1060,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             log.info('ds of ss: %s', ds[ss])
             self.PRMS.update_data_process_inputs(data_process_id, [ds[ss]])
 
+        log.info("Successfully changed subscriptions")
+
 
 
 
