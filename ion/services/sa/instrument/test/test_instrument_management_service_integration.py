@@ -261,7 +261,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
 
 
-    @unittest.skip('needs work')
+    #@unittest.skip('needs work')
     def test_checkpoint_restore(self):
 
         # Create InstrumentModel
@@ -381,6 +381,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         # spin up agent
         self.IMS.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
+
+        self.addCleanup(self.IMS.stop_instrument_agent_instance,
+                        instrument_agent_instance_id=instAgentInstance_id)
+
         #wait for start
         instance_obj = self.IMS.read_instrument_agent_instance(instAgentInstance_id)
         gate = ProcessStateGate(self.PDC.read_process,
@@ -404,4 +408,5 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.IMS.agent_state_restore(instDevice_id, snap_id)
         instance_obj = self.RR.read(instAgentInstance_id)
         self.assertNotEqual("BAD_DATA", instance_obj.driver_config["comms_config"])
+
 
