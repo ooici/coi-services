@@ -29,7 +29,7 @@ class VizTransformMatplotlibGraphs(TransformDataProcess):
     incoming data from CDM format to Matplotlib graphs
 
     """
-    output_bindings = ['graph']
+    output_bindings = ['graph_image_param_dict']
 
 
     def on_start(self):

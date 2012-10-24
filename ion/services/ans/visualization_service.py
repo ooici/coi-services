@@ -25,7 +25,10 @@ import string
 import random
 from gevent.greenlet import Greenlet
 
-
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.ans.ivisualization_service import BaseVisualizationService
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
 from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphsAlgorithm
@@ -53,6 +56,7 @@ class VisualizationService(BaseVisualizationService):
         @param callback     str
         @throws NotFound    Throws if specified data product id or its visualization product does not exist
         """
+
 
         query = None
         if visualization_parameters:
@@ -90,12 +94,10 @@ class VisualizationService(BaseVisualizationService):
         workflow_output_stream_ids, _ = self.clients.resource_registry.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasStream, None, True)
         data_product_stream_id = workflow_output_stream_ids
 
-
         # Create a queue to collect the stream granules - idempotency saves the day!
         query_token = create_unique_identifier('user_queue')
 
         xq = self.container.ex_manager.create_xn_queue(query_token)
-
         subscription_id = self.clients.pubsub_management.create_subscription(
             stream_ids=data_product_stream_id,
             exchange_name = query_token,
@@ -120,6 +122,9 @@ class VisualizationService(BaseVisualizationService):
         viz_product_type = ''
 
         for message in messages:
+
+            if message == None:
+                continue
 
             message_data = message.body
 
@@ -262,24 +267,32 @@ class VisualizationService(BaseVisualizationService):
     def _create_google_dt_data_process_definition(self):
 
         #First look to see if it exists and if not, then create it
-        dpd,_ = self.clients.resource_registry.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
+        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
+        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
+        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
+        self.pubsubclient = PubsubManagementServiceClient(node=self.container.node)
+        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
         if len(dpd) > 0:
             return dpd[0]
 
         # Data Process Definition
         log.debug("Create data process definition GoogleDtTransform")
         dpd_obj = IonObject(RT.DataProcessDefinition,
-        name='google_dt_transform',
-        description='Convert data streams to Google DataTables',
-        module='ion.processes.data.transforms.viz.google_dt',
-        class_name='VizTransformGoogleDT',
-        process_source='VizTransformGoogleDT source code here...')
+            name='google_dt_transform',
+            description='Convert data streams to Google DataTables',
+            module='ion.processes.data.transforms.viz.google_dt',
+            class_name='VizTransformGoogleDT',
+            process_source='VizTransformGoogleDT source code here...')
+        try:
+            procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
+        except Exception as ex:
+            self.fail("failed to create new VizTransformGoogleDT data process definition: %s" %ex)
 
-        procdef_id = self.clients.data_process_management.create_data_process_definition(dpd_obj)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('google_dt', id_only=True)
 
         # create a stream definition for the data from the
-        stream_def_id = self.clients.pubsub_management.create_stream_definition(name='VizTransformGoogleDT')
-        self.clients.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
+        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
 
         return procdef_id
 
@@ -344,6 +357,9 @@ class VisualizationService(BaseVisualizationService):
         gdt_stream_def = self.clients.pubsub_management.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
 
         gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(retrieved_granule, params=gdt_stream_def)
+        if gdt_data_granule == None:
+            return None
+
         gdt_rdt = RecordDictionaryTool.load_from_granule(gdt_data_granule)
         gdt_components = get_safe(gdt_rdt, 'google_dt_components')
         gdt_component = gdt_components[0]

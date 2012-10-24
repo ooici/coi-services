@@ -56,7 +56,6 @@ class VizTransformGoogleDT(TransformDataProcess):
         if not self.stream_names:
             raise BadRequest('Google DT Transform has no output streams.')
 
-
         super(VizTransformGoogleDT,self).on_start()
 
 
@@ -91,6 +90,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
         rdt = RecordDictionaryTool.load_from_granule(input)
         data_description = []
+
+        # if time was null, do not process
+        if rdt['time'] == None:
+            return None
 
         data_description.append(('time','number','time'))
         for field in rdt.fields:
@@ -141,4 +144,5 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
         out_granule = out_rdt.to_granule()
 
+        print  ">>>>>>>>>> GDT OUT GRANULE : ", out_granule
         return out_granule

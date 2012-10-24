@@ -404,10 +404,10 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             self.fail("failed to create new VizTransformMatplotlibGraphs data process definition: %s" %ex)
 
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('mpl_graph',id_only=True)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
         # create a stream definition for the data
         stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformMatplotlibGraphs', parameter_dictionary_id=pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='matplotlib_graphs' )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='graph_image_param_dict' )
 
         return procdef_id
 
