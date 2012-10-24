@@ -167,6 +167,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         log.info('Messages in user queue 4: %s ' % msg_count)
 
         subscriber.close()
+        self.container.ex_manager.delete_xn(xq)
 
 
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -265,8 +266,14 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
             msgs2[x].ack()
             self.validate_multiple_vis_queue_messages(msgs1[x], msgs2[x])
 
-        #Turning off after everything - since it is more representative of an always on stream of data!
-        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+        # kill the ctd simulator process - that is enough data
+        self.process_dispatcher.cancel_process(ctd_sim_pid)
+
+        # close the subscription and queues
+        subscriber1.close()
+        subscriber2.close()
+        self.container.ex_manager.delete_xn(xq1)
+        self.container.ex_manager.delete_xn(xq2)
 
         return
 
@@ -274,29 +281,14 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
     #@unittest.skip('Skipped because of broken record dictionary work-around')
     def test_realtime_visualization(self):
 
-        # Build the workflow definition
-        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
-
-        #Add a transformation process definition
-        google_dt_procdef_id = self.create_google_dt_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_process_output_data=False)
-        workflow_def_obj.workflow_steps.append(workflow_step_obj)
-
-        #Create it in the resource registry
-        workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
-
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
-
-        #Create and start the workflow
-        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
-
         ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 
 
         #TODO - Need to add workflow creation for google data table
         vis_params ={}
-        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=workflow_product_id, visualization_parameters=vis_params)
+        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id, visualization_parameters=vis_params)
 
         #Trying to continue to receive messages in the queue
         gevent.sleep(10.0)  # Send some messages - don't care how many
@@ -309,24 +301,21 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #Trying to continue to receive messages in the queue
         gevent.sleep(5.0)  # Send some messages - don't care how many
 
+
         #Turning off after everything - since it is more representative of an always on stream of data!
         #todo remove the try except
         try:
             self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
         except:
             log.warning("cancelling process did not work")
+
         vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
 
         if vis_data:
             self.validate_google_dt_transform_results(vis_data)
 
+        # Cleanup
         self.vis_client.terminate_realtime_visualization_data(vis_token)
-
-        #Stop the workflow processes
-        self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
-
-        #Cleanup to make sure delete is correct.
-        self.workflowclient.delete_workflow_definition(workflow_def_id)
 
 
     #@unittest.skip('Skipped because of broken record dictionary work-around')

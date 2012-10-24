@@ -144,5 +144,5 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
         out_granule = out_rdt.to_granule()
 
-        print  ">>>>>>>>>> GDT OUT GRANULE : ", out_granule
+        #print  ">>>>>>>>>> GDT OUT GRANULE : ", out_granule
         return out_granule
