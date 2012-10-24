@@ -36,7 +36,7 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule
 
 from nose.plugins.attrib import attr
-
+import gevent
 
 class FakeProcess(LocalContextMixin):
     """
@@ -231,12 +231,13 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         print  'Data set for data_product_id2 = %s' % dataset_ids[0]
         self.raw_dataset = dataset_ids[0]
 
+        def start_instrument_agent():
+            self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
-        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
+        gevent.joinall([gevent.spawn(start_instrument_agent)])
+
         self.addCleanup(self.imsclient.stop_instrument_agent_instance,
                         instrument_agent_instance_id=instAgentInstance_id)
-
-        #gevent.sleep(4)
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
