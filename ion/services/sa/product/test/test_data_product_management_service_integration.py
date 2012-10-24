@@ -232,6 +232,15 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         log.debug("deleting data product: %s" % dp_id)
         self.dpsc_cli.delete_data_product(dp_id)
 
+        self.dpsc_cli.force_delete_data_product(dp_id)
+
+        # now try to get the deleted dp object
+        try:
+            dp_obj = self.dpsc_cli.read_data_product(dp_id)
+        except NotFound as ex:
+            pass
+        else:
+            self.fail("force deleted data product was found during read")
 
         # Get the events corresponding to the data product
         ret = self.unsc.get_recent_events(resource_id=dp_id)
@@ -317,3 +326,11 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 #            config={})
 #        dummy_process = self.container.proc_manager.procs[pid]
 
+        self.dpsc_cli.force_delete_data_product(dp_id)
+        # now try to get the deleted dp object
+        try:
+            dp_obj = self.rrclient.read(dp_id)
+        except NotFound as ex:
+            pass
+        else:
+            self.fail("force_deleted data product was found during read")

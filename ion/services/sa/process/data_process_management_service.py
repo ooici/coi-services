@@ -9,7 +9,7 @@ from pyon.util.log import log
 from pyon.util.ion_time import IonTime
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from pyon.public import   log, RT, PRED, OT
+from pyon.public import   log, RT, PRED, OT, LCS
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.containers import create_unique_identifier
@@ -128,10 +128,17 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_proc_def_obj
 
     def delete_data_process_definition(self, data_process_definition_id=''):
-        self.clients.resource_registry.delete(data_process_definition_id)
+
+        self.clients.resource_registry.retire(data_process_definition_id)
 
     def force_delete_data_process_definition(self, data_process_definition_id=''):
-        pass
+
+        processdef_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasProcessDefinition, object_type=RT.ProcessDefinition, id_only=True)
+        self._remove_associations(data_process_definition_id)
+        self.clients.resource_registry.delete(data_process_definition_id)
+        for processdef_id in processdef_ids:
+            self.clients.process_dispatcher.delete_process_definition(processdef_id)
+
 
     def find_data_process_definitions(self, filters=None):
         """
@@ -263,7 +270,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         
         self.data_process._id = data_process_id
         self.data_process._rev = version
-        log.debug("DataProcessManagementService:create_data_process - Create and store a new DataProcess with the resource registry  data_process_id: %s" +  str(data_process_id))
 
         #---------------------------------------------------------------------------------------
         # Make the necessary associations, registering
@@ -300,7 +306,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             # Associate with DataProcess: register as an output product for this process
             log.debug("Link data process %s and output out data product: %s  (L4-CI-SA-RQ-260)", str(data_process_id), str(output_data_product_id))
-            self.clients.data_acquisition_management.assign_data_product(data_process_id, output_data_product_id)
+            self.clients.data_acquisition_management.assign_data_product(input_resource_id= data_process_id,data_product_id= output_data_product_id)
 
             # Retrieve the id of the OUTPUT stream from the out Data Product
             stream_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasStream, RT.Stream, True)
@@ -319,35 +325,33 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # check for attachments in data process definition
         configuration = self._find_lookup_tables(data_process_definition_id, configuration)
+        input_stream_ids = []
 
-        for  in_data_product_id in in_data_product_ids:
+        if in_data_product_ids:
+            for  in_data_product_id in in_data_product_ids:
 
-            self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
-            log.debug("Associate data process workflows with source data products %s "
-                      "hasInputProducts  %s   (L4-CI-SA-RQ-260)", str(data_process_id), str(in_data_product_ids))
+                self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
+                log.debug("Associate data process workflows with source data products %s "
+                          "hasInputProducts  %s   (L4-CI-SA-RQ-260)", str(data_process_id), str(in_data_product_ids))
 
-            #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
-            instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
+                #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
+                instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
 
-            for instdevice_id in instdevice_ids:
-                log.debug("Instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
+                for instdevice_id in instdevice_ids:
+                    log.debug("Instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
 
-                # check for attachments in instrument device
-                configuration = self._find_lookup_tables(instdevice_id, configuration)
-                instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
+                    # check for attachments in instrument device
+                    configuration = self._find_lookup_tables(instdevice_id, configuration)
+                    instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
 
-                for instmodel_id in instmodel_ids:
-                    log.debug("Instmodel_id assoc to the instDevice: %s", str(instmodel_id))
+                    for instmodel_id in instmodel_ids:
+                        # check for attachments in instrument model
+                        configuration = self._find_lookup_tables(instmodel_id, configuration)
 
-                    # check for attachments in instrument model
-                    configuration = self._find_lookup_tables(instmodel_id, configuration)
-
-
-        #------------------------------------------------------------------------------------------------------------------------------------------
-        # Get the input stream from the input_data_product, which should already be associated with a stream via the Data Producer
-        #------------------------------------------------------------------------------------------------------------------------------------------
-
-        input_stream_ids = self._get_input_stream_ids(in_data_product_ids)
+            #------------------------------------------------------------------------------------------------------------------------------------------
+            # Get the input stream from the input_data_product, which should already be associated with a stream via the Data Producer
+            #------------------------------------------------------------------------------------------------------------------------------------------
+            input_stream_ids = self._get_input_stream_ids(in_data_product_ids)
 
         #------------------------------------------------------------------------------------------------------------------------------------------
         # Create subscription to the input stream
@@ -369,11 +373,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                            process_definition_id=process_definition_id,
                            configuration=configuration)
 
-
-
-        log.debug("DataProcessManagementService:create_data_process - pid: %s", pid)
         self.data_process.process_id = pid
-        log.debug("Updating data_process with pid: %s", pid)
         self.clients.resource_registry.update(self.data_process)
         return data_process_id
 
@@ -522,11 +522,18 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.data_acquisition_management.unregister_process(data_process_id)
 
         # Delete the data process
-        self.clients.resource_registry.delete(data_process_id)
+        self.clients.resource_registry.retire(data_process_id)
         return
 
     def force_delete_data_process(self, data_process_id=""):
-        pass
+
+        # if not yet deleted, the first execute delete logic
+        dp_obj = self.read_data_process(data_process_id)
+        if dp_obj.lcstate != LCS.RETIRED:
+            self.delete_data_process(data_process_id)
+
+        self._remove_associations(data_process_id)
+        self.clients.resource_registry.delete(data_process_id)
 
     def _stop_process(self, data_process):
         pid = data_process.process_id
@@ -598,3 +605,35 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if not producer_objs:
             raise NotFound("No Producers created for this Data Process " + str(data_process_id))
         return producer_objs[0]
+
+
+    def _remove_associations(self, resource_id=''):
+        """
+        delete all associations to/from a resource
+        """
+
+        # find all associations where this is the subject
+        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+
+        log.debug("pluck will remove %s subject associations and %s object associations",
+                 len(sbj_assns), len(obj_assns))
+
+        for assn in obj_assns:
+            log.debug("pluck deleting object association %s", assn)
+            self.clients.resource_registry.delete_association(assn)
+
+        for assn in sbj_assns:
+            log.debug("pluck deleting subject association %s", assn)
+            self.clients.resource_registry.delete_association(assn)
+
+        # find all associations where this is the subject
+        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+
+        log.debug("post-deletions, pluck found %s subject associations and %s object associations",
+                 len(sbj_assns), len(obj_assns))

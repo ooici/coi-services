@@ -10,6 +10,7 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from pyon.core.exception import BadRequest, NotFound, Conflict
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest
@@ -108,135 +109,15 @@ class TestDataProductVersions(IonIntegrationTestCase):
         base_version_id = self.client.get_base_version(dpc_id)
         self.assertEquals(base_version_id, dp_id )
 
-
-    @unittest.skip('not working')
-    def test_createDataProductVersionFromSim(self):
-
-        # ctd simulator process
-        producer_definition = ProcessDefinition(name='Example Data Producer')
-        producer_definition.executable = {
-            'module':'ion.services.sa.test.simple_ctd_data_producer',
-            'class':'SimpleCtdDataProducer'
-        }
-
-        producer_procdef_id = self.processdispatchclient.create_process_definition(process_definition=producer_definition)
-
-
-        #-------------------------------
-        # Create InstrumentDevice
-        #-------------------------------
-        instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
+        self.client.delete_data_product(dp_id)
+        self.client.delete_data_product(dp2_id)
+        self.client.delete_data_product_collection(dpc_id)
+        self.client.force_delete_data_product_collection(dpc_id)
+        # now try to get the deleted dp object
         try:
-            instDevice_id1 = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
-            self.damsclient.register_instrument(instDevice_id1)
-        except BadRequest as ex:
-            self.fail("failed to create new InstrumentDevice: %s" %ex)
+            dp_obj = self.client.read_data_product_collection(dpc_id)
+        except NotFound as ex:
+            pass
+        else:
+            self.fail("deleted data product collection was found during read")
 
-        #-------------------------------
-        # Create CTD Parsed as the first data product
-        #-------------------------------
-        # create a stream definition for the data from the ctd simulator
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM', parameter_dictionary_id=pdict_id)
-
-        print 'test_createTransformsThenActivateInstrument: new Stream Definition id = ', ctd_stream_def_id
-
-        print 'Creating new CDM data product with a stream definition'
-
-
-        # Construct temporal and spatial Coordinate Reference System objects
-        tdom, sdom = time_series_domain()
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-
-
-        dp_obj = IonObject(RT.DataProduct,
-            name='ctd_parsed',
-            description='ctd stream test',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
-        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
-        print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product
-
-        self.damsclient.assign_data_product(input_resource_id=instDevice_id1, data_product_id=ctd_parsed_data_product)
-
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product)
-
-        # Retrieve the id of the OUTPUT stream from the out Data Product
-        stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
-        print 'test_createTransformsThenActivateInstrument: Data product streams1 = ', stream_ids
-        self.parsed_stream_id = stream_ids[0]
-
-        #-------------------------------
-        # Streaming
-        #-------------------------------
-
-        # Start the ctd simulator to produce some data
-        configuration = {
-            'process':{
-                'stream_id':self.parsed_stream_id,
-                }
-        }
-        producer_pid = self.processdispatchclient.schedule_process(process_definition_id= producer_procdef_id, configuration=configuration)
-
-        time.sleep(2.0)
-
-        # clean up the launched processes
-        self.processdispatchclient.cancel_process(producer_pid)
-
-
-
-        #-------------------------------
-        # Create InstrumentDevice 2
-        #-------------------------------
-        instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice2', description="SBE37IMDevice", serial_number="6789" )
-        try:
-            instDevice_id2 = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
-            self.damsclient.register_instrument(instDevice_id2)
-        except BadRequest as ex:
-            self.fail("failed to create new InstrumentDevice2: %s" %ex)
-
-        #-------------------------------
-        # Create CTD Parsed as the new version of the original data product
-        #-------------------------------
-        # create a stream definition for the data from the ctd simulator
-
-        dataproductversion_obj = IonObject(RT.DataProduct,
-            name='CTDParsedV2',
-            description="new version" ,
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
-        ctd_parsed_data_product_new_version = self.dataproductclient.create_data_product_version(ctd_parsed_data_product, dataproductversion_obj)
-
-        print 'new ctd_parsed_data_product_version_id = ', ctd_parsed_data_product_new_version
-
-        self.damsclient.assign_data_product(input_resource_id=instDevice_id1, data_product_id=ctd_parsed_data_product, data_product_version_id=ctd_parsed_data_product_new_version)
-        #-------------------------------
-        # ACTIVATE PERSISTANCE FOR DATA PRODUCT VERSIONS NOT IMPL YET!!!!!!!!
-        #-------------------------------
-        #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product_new_version)
-
-        # Retrieve the id of the OUTPUT stream from the out Data Product
-        stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_new_version, PRED.hasStream, None, True)
-        print 'test_createTransformsThenActivateInstrument: Data product streams2 = ', stream_ids
-        self.parsed_stream_id2 = stream_ids[0]
-
-        #-------------------------------
-        # Streaming
-        #-------------------------------
-
-        # Start the ctd simulator to produce some data
-        configuration = {
-            'process':{
-                'stream_id':self.parsed_stream_id2,
-                }
-        }
-        producer_pid = self.processdispatchclient.schedule_process(process_definition_id= producer_procdef_id, configuration=configuration)
-
-        time.sleep(2.0)
-
-        # clean up the launched processes
-        self.processdispatchclient.cancel_process(producer_pid)

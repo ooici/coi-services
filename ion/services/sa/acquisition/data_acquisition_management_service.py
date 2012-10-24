@@ -320,18 +320,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # {success: true}
         #
         log.debug("Deleting data_producer id: %s" % data_producer_id)
-        data_producer_obj = self.read_data_producer(data_producer_id)
-        if data_producer_obj is None:
-            raise NotFound("Data producer %d does not exist" % data_producer_id)
 
-        #Unregister the data producer with PubSub
-        self.clients.pubsub_management.unregister_producer(data_producer_obj.name, data_producer_obj.stream_id)
-
-        return self.clients.resource_registry.delete(data_producer_obj)
+        return self.clients.resource_registry.retire(data_producer_id)
 
 
     def force_delete_data_producer(self, data_producer_id=''):
-        pass
+        self._remove_associations(data_producer_id)
+        self.clients.resource_registry.delete(data_producer_id)
 
     # -----------------
     # The following operations manage EOI resources
@@ -359,11 +354,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         return external_data_provider
 
     def delete_external_data_provider(self, external_data_provider_id=''):
-        self.clients.resource_registry.delete(external_data_provider_id)
+        self.clients.resource_registry.retire(external_data_provider_id)
         return
 
     def force_delete_external_data_provider(self, external_data_provider_id=''):
-        pass
+        self._remove_associations(external_data_provider_id)
+        self.clients.resource_registry.delete(external_data_provider_id)
 
     ##########################################################################
     #
@@ -389,11 +385,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def delete_data_source(self, data_source_id=''):
         # Read and delete specified DataSource object
         log.debug("Deleting DataSource id: %s" % data_source_id)
-        self.clients.resource_registry.delete(data_source_id)
+        self.clients.resource_registry.retire(data_source_id)
         return
 
     def force_delete_data_source(self, data_source_id=''):
-        pass
+        self._remove_associations(data_source_id)
+        self.clients.resource_registry.delete(data_source_id)
 
     def create_data_source_model(self, data_source_model=None):
         # Persist DataSourceModel object and return object _id as OOI id
@@ -411,11 +408,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def delete_data_source_model(self, data_source_model_id=''):
         # Read and delete specified ExternalDatasetModel object
-        self.clients.resource_registry.delete(data_source_model_id)
+        self.clients.resource_registry.retire(data_source_model_id)
         return
 
     def force_delete_data_source_model(self, data_source_model_id=''):
-        pass
+        self._remove_associations(data_source_model_id)
+        self.clients.resource_registry.delete(data_source_model_id)
 
     def create_data_source_agent(self, data_source_agent=None, data_source_model_id='' ):
         # Persist ExternalDataSourcAgent object and return object _id as OOI id
@@ -447,10 +445,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with DataSource Models
 
-        self.clients.resource_registry.delete(data_source_agent_id)
+        self.clients.resource_registry.retire(data_source_agent_id)
 
     def force_delete_data_source_agent(self, data_source_agent_id=''):
-        pass
+        self._remove_associations(data_source_agent_id)
+        self.clients.resource_registry.delete(data_source_agent_id)
 
 
     def create_data_source_agent_instance(self, data_source_agent_instance=None, data_source_agent_id='', data_source_id=''):
@@ -494,10 +493,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with ExternalDataSourceAgent
 
-        self.clients.resource_registry.delete(data_source_agent_instance_id)
+        self.clients.resource_registry.retire(data_source_agent_instance_id)
 
     def force_delete_data_source_agent_instance(self, data_source_agent_instance_id=''):
-        pass
+        self._remove_associations(data_source_agent_instance_id)
+        self.clients.resource_registry.delete(data_source_agent_instance_id)
 
     def start_data_source_agent_instance(self, data_source_agent_instance_id=''):
         """Launch an data source agent instance process and return its process id. Agent instance resource
@@ -546,10 +546,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         external_dataset = self.clients.resource_registry.read(external_dataset_id)
         if not external_dataset:
             raise NotFound("ExternalDataSet %s does not exist" % external_dataset_id)
-        self.clients.resource_registry.delete(external_dataset_id)
+        self.clients.resource_registry.retire(external_dataset_id)
 
     def force_delete_external_dataset(self, external_dataset_id=''):
-        pass
+        self._remove_associations(external_dataset_id)
+        self.clients.resource_registry.delete(external_dataset_id)
 
     def create_external_dataset_model(self, external_dataset_model=None):
         # Persist ExternalDatasetModel object and return object _id as OOI id
@@ -572,10 +573,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         external_dataset_model = self.clients.resource_registry.read(external_dataset_model_id)
         if not external_dataset_model:
             raise NotFound("ExternalDatasetModel %s does not exist" % external_dataset_model_id)
-        self.clients.resource_registry.delete(external_dataset_model_id)
+        self.clients.resource_registry.retire(external_dataset_model_id)
 
     def force_delete_external_dataset_model(self, external_dataset_model_id=''):
-        pass
+        self._remove_associations(external_dataset_model_id)
+        self.clients.resource_registry.delete(external_dataset_model_id)
 
     def create_external_dataset_agent(self, external_dataset_agent=None, external_dataset_model_id=''):
         # Persist ExternalDatasetAgent object and return object _id as OOI id
@@ -621,10 +623,16 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with Dataset Models
 
-        self.clients.resource_registry.delete(external_dataset_agent_id)
+        self.clients.resource_registry.retire(external_dataset_agent_id)
 
     def force_delete_external_dataset_agent(self, external_dataset_agent_id=''):
-        pass
+
+    # if not yet deleted, the first execute delete logic
+        dp_obj = self.read_external_dataset_agent(external_dataset_agent_id)
+        if dp_obj.lcstate != LCS.RETIRED:
+            self.delete_external_dataset_agent(external_dataset_agent_id)
+        self._remove_associations(external_dataset_agent_id)
+        self.clients.resource_registry.delete(external_dataset_agent_id)
 
     def create_external_dataset_agent_instance(self, external_dataset_agent_instance=None, external_dataset_agent_id='', external_dataset_id=''):
         # Persist ExternalDatasetAgentInstance object and return object _id as OOI id
@@ -666,10 +674,16 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with ExternalDatasetAgent
 
-        self.clients.resource_registry.delete(external_dataset_agent_instance_id)
+        self.clients.resource_registry.retire(external_dataset_agent_instance_id)
 
     def force_delete_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
-        pass
+    # if not yet deleted, the first execute delete logic
+        dp_obj = self.read_external_dataset_agent_instance(external_dataset_agent_instance_id)
+        if dp_obj.lcstate != LCS.RETIRED:
+            self.delete_external_dataset_agent_instance(external_dataset_agent_instance_id)
+
+        self._remove_associations(external_dataset_agent_instance_id)
+        self.clients.resource_registry.delete(external_dataset_agent_instance_id)
 
     def start_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
         """Launch an dataset agent instance process and return its process id. Agent instance resource
@@ -950,7 +964,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def assign_dataset_agent_to_external_dataset_model(self, dataset_agent_id='', external_dataset_model_id=''):
         #Connect the external data agent with an external data model
         external_data_agent = self.clients.resource_registry.read(dataset_agent_id)
-        if not dataset_agent:
+        if not dataset_agent_id:
             raise NotFound("DatasetAgent resource %s does not exist" % dataset_agent_id)
 
         external_dataset_model = self.clients.resource_registry.read(external_dataset_model_id)
@@ -1011,5 +1025,34 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
 
 
+    def _remove_associations(self, resource_id=''):
+        """
+        delete all associations to/from a resource
+        """
 
+        # find all associations where this is the subject
+        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+
+        log.debug("_remove_associations will remove %s subject associations and %s object associations",
+                 len(sbj_assns), len(obj_assns))
+
+        for assn in obj_assns:
+            log.debug("_remove_associations deleting object association %s", assn)
+            self.clients.resource_registry.delete_association(assn)
+
+        for assn in sbj_assns:
+            log.debug("_remove_associations deleting subject association %s", assn)
+            self.clients.resource_registry.delete_association(assn)
+
+        # find all associations where this is the subject
+        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+
+        log.debug("post-deletions, _remove_associations found %s subject associations and %s object associations",
+                 len(sbj_assns), len(obj_assns))
 

@@ -36,7 +36,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sax')
 class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
     def setUp(self):
@@ -57,7 +57,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
 
-#    @unittest.skip('not working')
     def test_createDataProcess(self):
 
         #-------------------------------
@@ -100,10 +99,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestIntDataProcessMgmtServiceMultiOut: create input data product")
 
-
-
         tdom, sdom = time_series_domain()
-
         sdom = sdom.dump()
         tdom = tdom.dump()
 
@@ -193,7 +189,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
 
-#    @unittest.skip('not working..')
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
     def test_createDataProcessUsingSim(self):
         #-------------------------------
@@ -419,4 +414,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         print 'Deleting data process ', ctd_l0_all_data_process_id
         self.dataprocessclient.delete_data_process(ctd_l0_all_data_process_id)
+        self.dataprocessclient.delete_data_process_definition(ctd_L0_all_dprocdef_id)
+
+        self.dataprocessclient.force_delete_data_process(ctd_l0_all_data_process_id)
+        self.dataprocessclient.force_delete_data_process_definition(ctd_L0_all_dprocdef_id)
 

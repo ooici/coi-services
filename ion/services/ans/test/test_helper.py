@@ -238,8 +238,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             name='ctd_salinity',
             description='create a salinity data product',
             module='ion.processes.data.transforms.ctd.ctd_L2_salinity',
-            class_name='SalinityTransform',
-            process_source='SalinityTransform source code here...')
+            class_name='SalinityTransform')
         try:
             ctd_L2_salinity_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except Exception as ex:
@@ -266,8 +265,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             name='salinity_doubler',
             description='create a salinity doubler data product',
             module='ion.processes.data.transforms.example_double_salinity',
-            class_name='SalinityDoubler',
-            process_source='SalinityDoubler source code here...')
+            class_name='SalinityDoubler')
         try:
             salinity_doubler_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except Exception as ex:
@@ -341,8 +339,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             name='google_dt_transform',
             description='Convert data streams to Google DataTables',
             module='ion.processes.data.transforms.viz.google_dt',
-            class_name='VizTransformGoogleDT',
-            process_source='VizTransformGoogleDT source code here...')
+            class_name='VizTransformGoogleDT')
         try:
             procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except Exception as ex:
@@ -396,8 +393,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             name='mpl_graphs_transform',
             description='Convert data streams to Matplotlib graphs',
             module='ion.processes.data.transforms.viz.matplotlib_graphs',
-            class_name='VizTransformMatplotlibGraphs',
-            process_source='VizTransformMatplotlibGraphs source code here...')
+            class_name='VizTransformMatplotlibGraphs')
         try:
             procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except Exception as ex:
