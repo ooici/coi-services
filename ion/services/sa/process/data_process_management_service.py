@@ -444,13 +444,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def update_data_process_inputs(self, data_process_id="", in_stream_ids=None):
         #@TODO: INPUT STREAM VALIDATION
-
+        log.debug("Updating inputs to data process '%s'", data_process_id)
         data_process_obj = self.clients.resource_registry.read(data_process_id)
         subscription_id = data_process_obj.input_subscription_id
         was_active = False 
         if subscription_id:
             # get rid of all the current streams
             try:
+                log.debug("Deactivating subscription '%s'", subscription_id)
                 self.clients.pubsub_management.deactivate_subscription(subscription_id)
                 was_active = True
 
@@ -459,9 +460,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             self.clients.pubsub_management.delete_subscription(subscription_id)
 
-        subscription_id = self.clients.pubsub_management.create_subscription(data_process_obj.name, stream_ids=in_stream_ids)
+        new_subscription_id = self.clients.pubsub_management.create_subscription(data_process_obj.name,
+                                                                                 stream_ids=in_stream_ids)
+        data_process_obj.input_subscription_id = new_subscription_id
+
+        self.clients.resource_registry.update(data_process_obj)
+
         if was_active:
-            self.clients.pubsub_management.activate_subscription(subscription_id)
+            log.debug("Activating subscription '%s'", new_subscription_id)
+            self.clients.pubsub_management.activate_subscription(new_subscription_id)
 
             
 

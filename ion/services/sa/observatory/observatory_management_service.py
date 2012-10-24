@@ -928,7 +928,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
             if activate_subscriptions:
-                log.info("Activating subscription too")
+                log.info("Activating subscription as requested")
                 self.transfer_site_subscription(site_id)
 #
 #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
