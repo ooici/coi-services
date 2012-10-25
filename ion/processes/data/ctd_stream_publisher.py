@@ -84,7 +84,6 @@ class SimpleCtdPublisher(TransformStreamPublisher):
     def _get_new_ctd_packet(self, length):
 
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def._id)
-
         #Explicitly make these numpy arrays...
         c = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)]) 
         t = numpy.array([random.uniform(-1.7, 21.0) for i in xrange(length)]) 
@@ -105,6 +104,6 @@ class SimpleCtdPublisher(TransformStreamPublisher):
 #        rdt['coordinates'] = rdt0
 #        rdt['data'] = rdt1
 
-        g = rdt.to_granule()
+        g = rdt.to_granule(data_producer_id=self.id)
 
         return g
