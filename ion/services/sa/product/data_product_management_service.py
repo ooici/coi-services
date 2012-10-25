@@ -145,10 +145,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # Delete the data product
         #--------------------------------------------------------------------------------
-        data_product_obj = self.read_data_product(data_product_id)
 
-        if data_product_obj.lcstate != LCS.RETIRED:
-            self.data_product.delete_one(data_product_id)
+        self.data_product.delete_one(data_product_id)
 
     def force_delete_data_product(self, data_product_id=''):
 
