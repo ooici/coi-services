@@ -103,7 +103,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.
-        self._no_samples = None
         self._async_data_result = AsyncResult()
         self._data_greenlets = []
         self._stream_config = {}
@@ -166,8 +165,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         def consume_data(message, stream_route, stream_id):
             log.info('Subscriber received data message: %s.' % str(message))
             self._samples_received.append(message)
-            if self._no_samples and self._no_samples == len(self._samples_received):
-                self._async_data_result.set()
+            self._async_data_result.set()
 
         for stream_name in adhoc_get_stream_names():
             log.info('creating stream %r ...', stream_name)
@@ -320,6 +318,12 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         retval = self._execute_agent(cmd)
         self.assertTrue(retval.result is not None)
         return retval.result
+
+    def _wait_for_a_data_sample(self):
+        log.info("waiting for reception of a data sample...")
+        self._async_data_result.get(timeout=15)
+        # we just wait for one -- see consume_data above
+        self.assertEquals(len(self._samples_received), 1)
 
     def _stop_alarm_dispatch(self):
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
@@ -546,8 +550,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._start_alarm_dispatch()
 
-        log.info("sleeping...")
-        sleep(15)
+        self._wait_for_a_data_sample()
 
         self._stop_alarm_dispatch()
 
