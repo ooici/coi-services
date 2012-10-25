@@ -138,6 +138,7 @@ class ReplayProcess(BaseReplayProcess):
             fields = rdt.fields
 
         for field in fields:
+            print 'Slice is %s' % slice_
             rdt[field] = coverage.get_parameter_values(field, tdoa=slice_)
         return rdt
 
@@ -146,9 +147,14 @@ class ReplayProcess(BaseReplayProcess):
         execute_retrieve Executes a retrieval and returns the result 
         as a value in lieu of publishing it on a stream
         '''
-        coverage = DatasetManagementService._get_coverage(self.dataset_id)
-        rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters)
-        coverage.close(timeout=5)
+        try: 
+            coverage = DatasetManagementService._get_coverage(self.dataset_id)
+            rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters)
+            coverage.close(timeout=5)
+        except Exception as e:
+            import traceback
+            traceback.print_exc(e)
+            raise BadRequest('Problems reading from the coverage')
         return rdt.to_granule()
 
 
