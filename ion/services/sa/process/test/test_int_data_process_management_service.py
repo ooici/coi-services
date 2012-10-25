@@ -26,6 +26,7 @@ from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.agents.port.port_agent_process import PortAgentProcessType
 import gevent
+from sets import Set
 
 class FakeProcess(LocalContextMixin):
     """
@@ -55,36 +56,39 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
         self.dataset_management = self.datasetclient
 
-
-
     def test_createDataProcess(self):
 
-        #-------------------------------
+        #---------------------------------------------------------------------------
         # Data Process Definition
-        #-------------------------------
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create data process definition")
+        #---------------------------------------------------------------------------
         dpd_obj = IonObject(RT.DataProcessDefinition,
                             name='ctd_L0_all',
                             description='transform ctd package into three separate L0 streams',
                             module='ion.processes.data.transforms.ctd.ctd_L0_all',
                             class_name='ctd_L0_all')
-        try:
-            dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new data process definition: %s" %ex)
+        dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
+        # Make assertion on the newly registered data process definition
+        data_process_definition = self.rrclient.read(dprocdef_id)
+        self.assertEquals(data_process_definition.name, 'ctd_L0_all')
+        self.assertEquals(data_process_definition.description, 'transform ctd package into three separate L0 streams')
+        self.assertEquals(data_process_definition.module, 'ion.processes.data.transforms.ctd.ctd_L0_all')
+        self.assertEquals(data_process_definition.class_name, 'ctd_L0_all')
 
-        # test Data Process Definition creation in rr
+        # Read the data process definition using data process management and make assertions
         dprocdef_obj = self.dataprocessclient.read_data_process_definition(dprocdef_id)
-        self.assertEquals(dprocdef_obj.name,'ctd_L0_all')
+        self.assertEquals(dprocdef_obj.class_name,'ctd_L0_all')
+        self.assertEquals(dprocdef_obj.module,'ion.processes.data.transforms.ctd.ctd_L0_all')
 
+        #---------------------------------------------------------------------------
         # Create an input instrument
+        #---------------------------------------------------------------------------
+
         instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
         instrument_id, rev = self.rrclient.create(instrument_obj)
 
         # Register the instrument so that the data producer and stream object are created
         data_producer_id = self.damsclient.register_instrument(instrument_id)
-        log.debug("TestIntDataProcessMgmtServiceMultiOut  data_producer_id %s", data_producer_id)
 
         # create a stream definition for the data from the ctd simulator
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
@@ -92,12 +96,14 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         self.dataprocessclient.assign_input_stream_definition_to_data_process_definition(ctd_stream_def_id, dprocdef_id )
 
+        # Assert that the link between the stream definition and the data process definition was done
+        assocs = self.rrclient.find_associations(subject=dprocdef_id, predicate=PRED.hasInputStreamDefinition, object=ctd_stream_def_id, id_only=True)
 
-        #-------------------------------
+        self.assertIsNotNone(assocs)
+
+        #---------------------------------------------------------------------------
         # Input Data Product
-        #-------------------------------
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create input data product")
-
+        #---------------------------------------------------------------------------
         tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
@@ -111,18 +117,21 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj, stream_definition_id=ctd_stream_def_id, exchange_point='test')
 
+        #Make assertions on the input data product created
+        input_dp_obj = self.rrclient.read(input_dp_id)
+        self.assertEquals(input_dp_obj.name, 'InputDataProduct')
+        self.assertEquals(input_dp_obj.description, 'some new dp')
+
         self.damsclient.assign_data_product(instrument_id, input_dp_id)
 
         # Retrieve the stream via the DataProduct->Stream associations
         stream_ids, _ = self.rrclient.find_objects(input_dp_id, PRED.hasStream, None, True)
 
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: in stream_ids "   +  str(stream_ids))
         self.in_stream_id = stream_ids[0]
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: Input Stream: "   +  str( self.in_stream_id))
 
-        #-------------------------------
+        #---------------------------------------------------------------------------
         # Output Data Product
-        #-------------------------------
+        #---------------------------------------------------------------------------
 
         outgoing_stream_conductivity_id = self.pubsubclient.create_stream_definition(name='conductivity', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_conductivity_id, dprocdef_id,binding='conductivity' )
@@ -135,7 +144,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
         self.output_products={}
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product conductivity")
 
         output_dp_obj = IonObject(RT.DataProduct,
             name='conductivity',
@@ -146,9 +154,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         output_dp_id_1 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id)
         self.output_products['conductivity'] = output_dp_id_1
 
-
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product pressure")
-
         output_dp_obj = IonObject(RT.DataProduct,
             name='pressure',
             description='transform output pressure',
@@ -157,8 +162,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         output_dp_id_2 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id)
         self.output_products['pressure'] = output_dp_id_2
-
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create output data product temperature")
 
         output_dp_obj = IonObject(RT.DataProduct,
             name='temperature',
@@ -170,22 +173,27 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.output_products['temperature'] = output_dp_id_3
 
 
-        #-------------------------------
+        #---------------------------------------------------------------------------
         # Create the data process
-        #-------------------------------
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create_data_process start")
-        try:
+        #---------------------------------------------------------------------------
+        def _create_data_process():
             dproc_id = self.dataprocessclient.create_data_process(dprocdef_id, [input_dp_id], self.output_products)
-        except BadRequest as ex:
-            self.fail("failed to create new data process: %s" %ex)
+            return dproc_id
 
-        log.debug("TestIntDataProcessMgmtServiceMultiOut: create_data_process return")
+        dproc_id = _create_data_process()
 
-        # these assigns happen inside create_data_process
-        #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_1)
-        #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_2)
-        #self.damsclient.assign_data_product(input_resource_id=dproc_id, data_product_id=output_dp_id_3)
+        # Make assertions on the data process created
+        data_process = self.dataprocessclient.read_data_process(dproc_id)
 
+        # Assert that the data process has a process id attached
+        self.assertIsNotNone(data_process.process_id)
+
+        # Assert that the data process got the input data product's subscription id attached as its own input_susbcription_id attribute
+        self.assertIsNotNone(data_process.input_subscription_id)
+
+        output_data_product_ids = self.rrclient.find_objects(subject=dproc_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
+
+        self.assertEquals(Set(output_data_product_ids[0]), Set([output_dp_id_1,output_dp_id_2,output_dp_id_3]))
 
 
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
@@ -194,22 +202,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create InstrumentModel
         #-------------------------------
         instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model="SBE37IMModel" )
-        try:
-            instModel_id = self.imsclient.create_instrument_model(instModel_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new InstrumentModel: %s" %ex)
-        print 'test_createDataProcessUsingSim: new InstrumentModel id = ', instModel_id
-
+        instModel_id = self.imsclient.create_instrument_model(instModel_obj)
 
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
         instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver" )
-        try:
-            instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new InstrumentAgent: %s" %ex)
-        print 'test_createDataProcessUsingSim: new InstrumentAgent id = ', instAgent_id
+        instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
@@ -217,13 +216,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create InstrumentDevice
         #-------------------------------
         instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
-        try:
-            instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
-            self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
-        except BadRequest as ex:
-            self.fail("failed to create new InstrumentDevice: %s" %ex)
-
-        print 'test_createDataProcessUsingSim: new InstrumentDevice id = ', instDevice_id
+        instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
+        self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
 
         #-------------------------------
         # Create InstrumentAgentInstance to hold configuration information
@@ -253,11 +247,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE32_CDM', parameter_dictionary_id=pdict_id)
 
-        print 'test_createDataProcessUsingSim: new Stream Definition id = ', instDevice_id
-
-        print 'Creating new CDM data product with a stream definition'
-
-
         # Construct temporal and spatial Coordinate Reference System objects
         tdom, sdom = time_series_domain()
 
@@ -274,44 +263,33 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
 
-        print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product
-
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
-        print 'test_createDataProcessUsingSim: Data product streams1 = ', stream_ids
 
         #-------------------------------
         # Create CTD Raw as the second data product
         #-------------------------------
-        print 'test_createDataProcessUsingSim: Creating new RAW data product with a stream definition'
         raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW', parameter_dictionary_id=pdict_id)
 
         dp_obj.name = 'ctd_raw'
         ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id)
-        print 'new ctd_raw_data_product_id = ', ctd_raw_data_product
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
-        print 'Data product streams2 = ', stream_ids
-        
+
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Data Process Definition
         #-------------------------------
-        log.debug("test_createDataProcessUsingSim: create data process definition ctd_L0_all")
         dpd_obj = IonObject(RT.DataProcessDefinition,
                             name='ctd_L0_all',
                             description='transform ctd package into three separate L0 streams',
                             module='ion.processes.data.transforms.ctd.ctd_L0_all',
                             class_name='ctd_L0_all')
-        try:
-            ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new ctd_L0_all data process definition: %s" %ex)
-            
+        ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
             
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Output Data Products
@@ -328,7 +306,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
         self.output_products={}
-        log.debug("test_createDataProcessUsingSim: create output data product L0 conductivity")
 
         ctd_l0_conductivity_output_dp_obj = IonObject(  RT.DataProduct,
                                                         name='L0_Conductivity',
@@ -341,9 +318,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
                                                                                 outgoing_stream_l0_conductivity_id)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
 
-
-        log.debug("test_createDataProcessUsingSim: create output data product L0 pressure")
-
         ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct,
             name='L0_Pressure',
             description='transform output pressure',
@@ -353,8 +327,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj,
                                                                                     outgoing_stream_l0_pressure_id)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-
-        log.debug("test_createDataProcessUsingSim: create output data product L0 temperature")
 
         ctd_l0_temperature_output_dp_obj = IonObject(RT.DataProduct,
             name='L0_Temperature',
@@ -378,38 +350,31 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------
-        log.debug("test_createDataProcessUsingSim: create data_process start")
-        try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
-            print 'CTD_L0 data process id: ', ctd_l0_all_data_process_id
-
-        except BadRequest as ex:
-            self.fail("failed to create new data process: %s" %ex)
-
-        log.debug("test_createDataProcessUsingSim: data_process created: %s", str(ctd_l0_all_data_process_id))
-
+        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
 
         #-------------------------------
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed
         #-------------------------------
 
         # todo: add this validate for Req: L4-CI-SA-RQ-366  Data processing shall manage data topic definitions
-
-        log.debug("test_createDataProcessUsingSim: activate_data_process ")
+        # todo: This capability is not yet completed (Swarbhanu)
         self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         
 
         #todo: check that activate event is received L4-CI-SA-RQ-367
+        #todo... (it looks like no event is being published when the data process is activated... so below, we just check for now
+        # todo... that the subscription is indeed activated) (Swarbhanu)
 
 
         # todo: monitor process to see if it is active (sa-rq-182)
-        # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
-        log.debug("test_createDataProcessUsingSim: call CEI interface to monitor  ")
+        ctd_l0_all_data_process = self.rrclient.read(ctd_l0_all_data_process_id)
+        input_subscription_id = ctd_l0_all_data_process.input_subscription_id
+        subs = self.rrclient.read(input_subscription_id)
+        self.assertTrue(subs.activated)
 
-        log.debug("test_createDataProcessUsingSim: deactivate_data_process ")
+        # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
         self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)
 
-        print 'Deleting data process ', ctd_l0_all_data_process_id
         self.dataprocessclient.delete_data_process(ctd_l0_all_data_process_id)
         self.dataprocessclient.delete_data_process_definition(ctd_L0_all_dprocdef_id)
 
