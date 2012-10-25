@@ -4,6 +4,7 @@
 @package ion.services.sa.process.test.test_int_data_process_management_service
 @author  Maurice Manning
 """
+from uuid import uuid4
 
 from pyon.util.log import log
 from pyon.util.ion_time import IonTime
@@ -29,8 +30,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.override_clients(self.clients)
 
-        # todo: uncomment
-        #self.init_module_uploader()
+        self.init_module_uploader()
+
+        self.get_unique_id = (lambda : uuid4().hex)
 
     def init_module_uploader(self):
         if self.CFG:
@@ -65,18 +67,17 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
     #todo: need to know what object will be worked with here
-    def register_TBD(self, TBD_id='', process_code=''):
+    def register_data_process_definition(self, process_code=''):
         """
         register a process module by putting it in a web-accessible location
 
-        @TBD_id the agent receiving the driver
         @process_code a base64-encoded python file
         """
 
-        # retrieve the resource
-        TBD_obj = self.clients.resource_registry.read(TBD_id)
+#        # retrieve the resource
+#        data_process_definition_obj = self.clients.resource_registry.read(data_process_definition_id)
 
-        dest_filename = "process_code_%s.py" % TBD_obj._id
+        dest_filename = "process_code_%s.py" % self.get_unique_id() #data_process_definition_obj._id
 
         #process the input file (base64-encoded .py)
         uploader_obj, err = self.module_uploader.prepare(process_code, dest_filename)
@@ -88,10 +89,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if not up_success:
             raise BadRequest("Upload failed: %s" % err)
 
-        #todo: save URL somewhere
-        TBD_obj.TBD_field = uploader_obj.get_destination_url()
-        self.clients.resoruce_registry.update(TBD_obj)
+#        #todo: save module / class?
+#        data_process_definition_obj.uri = uploader_obj.get_destination_url()
+#        self.clients.resource_registry.update(data_process_definition_obj)
 
+        return uploader_obj.get_destination_url()
 
     def create_data_process_definition(self, data_process_definition=None):
 

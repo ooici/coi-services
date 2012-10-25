@@ -88,10 +88,17 @@ class RegisterModulePreparerPy(RegisterModulePreparerBase):
         """
         perform syntax check and return uploader object
         """
+
+        try:
+            contents = base64.decodestring(py_b64)
+        except Exception as e:
+            return None, e.message
+
+
         log.debug("creating tempfile with contents")
         f_handle, tempfilename = self.tempfile.mkstemp()
         log.debug("writing contents to disk at '%s'", tempfilename)
-        self.os.write(f_handle, base64.decodestring(py_b64))
+        self.os.write(f_handle, contents)
 
         log.info("syntax checking file")
         py_proc = self.subprocess.Popen(["python", "-m", "py_compile", tempfilename],
