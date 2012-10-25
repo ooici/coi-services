@@ -160,7 +160,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         start_index = coverage.num_timesteps - elements
 
         for k,v in rdt.iteritems():
-            print '%s: %s' % (k,v)
+            log.info( '%s: %s', k, v)
             slice_ = slice(start_index, None)
             coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
             coverage.flush()
