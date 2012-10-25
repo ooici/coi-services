@@ -338,7 +338,6 @@ class ZMQPyClassDriverProcess(DriverProcess):
         @retval a dict indexed by stream name of the packet factories defined.
         """
 
-        print("stream_info = %s" % stream_info)
 
         if not self._packet_factories:
             log.info("generating packet factories")
