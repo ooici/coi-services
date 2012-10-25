@@ -9,7 +9,7 @@ from pyon.util.log import log
 from pyon.util.ion_time import IonTime
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from pyon.public import   log, RT, PRED, OT, LCS
+from pyon.public import RT, PRED, OT, LCS
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.containers import create_unique_identifier
@@ -167,7 +167,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
         Disconnect the Data Product from the Data Producer
 
-        @param data_product_id    str
+        @param stream_definition_id    str
+        @param data_process_definition_id    str
         @throws NotFound    object with specified id does not exist
         """
 
@@ -197,7 +198,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
         Disconnect the Data Product from the Data Producer
 
-        @param data_product_id    str
+        @param stream_definition_id    str
+        @param data_process_definition_id    str
         @throws NotFound    object with specified id does not exist
         """
 
