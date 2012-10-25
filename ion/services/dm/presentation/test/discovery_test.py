@@ -12,7 +12,7 @@ from pyon.core.bootstrap import get_sys_name
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
-from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess, UserInfo
+from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess, UserInfo, ContactInformation
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.dm.iindex_management_service import IndexManagementServiceClient
 from interface.services.dm.icatalog_management_service import CatalogManagementServiceClient
@@ -237,7 +237,7 @@ class DiscoveryUnitTest(PyonTestCase):
 
         retval = self.discovery.query_range('index_id','field',0,100,id_only=False)
 
-        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery().range(field='field', from_value=0, to_value=100))
+        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery.range(field='field', from_value=0, to_value=100))
         retval.sort()
         self.assertTrue(retval==hits, '%s' % retval)
         
@@ -261,7 +261,7 @@ class DiscoveryUnitTest(PyonTestCase):
 
         retval = self.discovery.query_time('index_id','field',date1,date2,id_only=False)
 
-        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery().range(field='field', from_value=ts1, to_value=ts2))
+        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery.range(field='field', from_value=ts1, to_value=ts2))
         retval.sort()
         self.assertTrue(retval==hits, '%s' % retval)
         
@@ -816,3 +816,47 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         self.assertTrue(results[0]['_id'] == user_id)
         self.assertTrue(results[0]['_source'].name == 'test')
+
+
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_subobject_search(self):
+        contact = ContactInformation()
+        contact.email = 'test@gmail.com'
+        contact.individual_name_family = 'Tester'
+        contact.individual_names_given = 'Intern'
+
+        dp = DataProduct(name='example')
+        dp.contacts.append(contact)
+
+        dp_id,_ = self.rr.create(dp)
+
+        #--------------------------------------------------------------------------------
+        # Example using the full field name
+        #--------------------------------------------------------------------------------
+        search_string = 'search "contacts.email" is "test@gmail.com" from "data_products"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+        self.assertTrue(results[0]['_id'] == dp_id)
+        self.assertEquals(results[0]['_source'].name, 'example')
+
+        #--------------------------------------------------------------------------------
+        # Example using a sub-object's field name (ambiguous searching)
+        #--------------------------------------------------------------------------------
+        search_string = 'search "individual_names_given" is "Intern" from "data_products"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+        self.assertTrue(results[0]['_id'] == dp_id)
+        self.assertEquals(results[0]['_source'].name, 'example')
+
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_descriptive_phrase_search(self):
+        dp = DataProduct(name='example', description='This is simply a description for this data product')
+        dp_id, _ = self.rr.create(dp)
+
+        search_string = 'search "description" like "description for" from "data_products"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+        self.assertTrue(results[0]['_id'] == dp_id)
+        self.assertEquals(results[0]['_source'].name, 'example')
+
+

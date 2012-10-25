@@ -272,7 +272,30 @@ class DiscoveryService(BaseDiscoveryService):
             kwargs = dict(
                 source_id= source_id,
                 field    = query['field'],
-                value    = query['value'].lower(),
+                value    = query['value'],
+                limit    = limit,
+                id_only  = id_only
+            )
+            
+            if query.get('limit'):
+                kwargs['limit'] = query['limit']
+            if query.get('order'):
+                kwargs['order'] = query['order']
+            if query.get('offset'):
+                kwargs['offset'] = query['offset']
+
+            return self.query_term(**kwargs)
+
+        #---------------------------------------------
+        # Fuzzy searching (phrases and such)
+        #---------------------------------------------
+        elif QueryLanguage.query_is_fuzzy_search(query):
+            source_id = self._match_query_sources(query['index']) or query['index']
+            kwargs = dict(
+                source_id= source_id,
+                fuzzy    = True,
+                field    = query['field'],
+                value    = query['fuzzy'],
                 limit    = limit,
                 id_only  = id_only
             )
@@ -426,7 +449,7 @@ class DiscoveryService(BaseDiscoveryService):
             return result_queue
         return None
 
-    def query_term(self, source_id='', field='', value='', order=None, limit=0, offset=0, id_only=False):
+    def query_term(self, source_id='', field='', value='', fuzzy=False, order=None, limit=0, offset=0, id_only=False):
         '''
         Elasticsearch Query against an index
         > discovery.query_index('indexID', 'name', '*', order={'name':'asc'}, limit=20, id_only=False)
@@ -466,7 +489,13 @@ class DiscoveryService(BaseDiscoveryService):
         if field == '*':
             field = '_all'
 
-        query = ep.ElasticQuery().wildcard(field=field, value=value)
+        if fuzzy:
+            query = ep.ElasticQuery.fuzzy_like_this(value, fields=[field])
+        elif '*' in value:
+            query = ep.ElasticQuery.wildcard(field=field, value=value)
+        else:
+            query = ep.ElasticQuery.field(field=field, query=value)
+
         response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
 
         IndexManagementService._check_response(response)
@@ -508,7 +537,7 @@ class DiscoveryService(BaseDiscoveryService):
         if field == '*':
             field = '_all'
 
-        query = ep.ElasticQuery().range(
+        query = ep.ElasticQuery.range(
             field      = field,
             from_value = from_value,
             to_value   = to_value
@@ -558,7 +587,7 @@ class DiscoveryService(BaseDiscoveryService):
         if to_value is not None:
             to_value = time.mktime(dateutil.parser.parse(to_value).timetuple()) * 1000
 
-        query = ep.ElasticQuery().range(
+        query = ep.ElasticQuery.range(
             field      = field,
             from_value = from_value,
             to_value   = to_value
@@ -633,12 +662,11 @@ class DiscoveryService(BaseDiscoveryService):
 
         es.sorted(sorts)
 
-        filter = ep.ElasticFilter()
-        filter.geo_distance(field,origin, '%s%s' %(distance,units))
+        filter = ep.ElasticFilter.geo_distance(field,origin, '%s%s' %(distance,units))
 
         es.filtered(filter)
 
-        query = ep.ElasticQuery().match_all()
+        query = ep.ElasticQuery.match_all()
 
         response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
         IndexManagementService._check_response(response)
@@ -682,12 +710,11 @@ class DiscoveryService(BaseDiscoveryService):
             field = '_all'
 
 
-        filter = ep.ElasticFilter()
-        filter.geo_bounding_box(field, top_left, bottom_right)
+        filter = ep.ElasticFilter.geo_bounding_box(field, top_left, bottom_right)
 
         es.filtered(filter)
 
-        query = ep.ElasticQuery().match_all()
+        query = ep.ElasticQuery.match_all()
 
         response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
         IndexManagementService._check_response(response)
@@ -707,9 +734,9 @@ class DiscoveryService(BaseDiscoveryService):
         if not self.use_es:
             raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
         if QueryLanguage.query_is_term_search(query):
-            return ep.ElasticQuery().wildcard(field=query['field'],value=query['value'])
+            return ep.ElasticQuery.wildcard(field=query['field'],value=query['value'])
         if QueryLanguage.query_is_range_search(query):
-            return ep.ElasticQuery().range(
+            return ep.ElasticQuery.range(
                 field      = query['field'],
                 from_value = query['range']['from'],
                 to_value   = query['range']['to']
