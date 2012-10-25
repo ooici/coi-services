@@ -22,13 +22,15 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 
 from pyon.public import log
 
+from numpy.testing import assert_array_almost_equal
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import CFG, RT, LCS, PRED
 from pyon.core.exception import BadRequest, Inconsistent
 
 import imghdr
-import gevent, numpy
+import gevent
+import numpy
 import simplejson
 import base64
 
@@ -186,7 +188,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
     def validate_messages(self, results):
 
-        assertions = self.assertTrue
 
         salinity_bins = [None,None]
         i=0
@@ -200,7 +201,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
                 if (i%2):
                     proper_dbl = salinity_bins[0] * 2.0
-                    assertions((salinity_bins[1] == proper_dbl).all())
+                    assert_array_almost_equal(salinity_bins[1], proper_dbl)
                     log.info('Salinity test satisfactory')
 
                 i+=1 
