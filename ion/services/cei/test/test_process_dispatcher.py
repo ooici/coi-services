@@ -28,6 +28,7 @@ from ion.services.cei.test import ProcessStateWaiter
 
 try:
     from epu.states import InstanceState
+    from epu.processdispatcher.engines import domain_id_from_engine
 except ImportError:
     pass
 
@@ -779,7 +780,6 @@ pd_config = {
         'dashi_exchange': "%s.pdtests" % bootstrap.get_sys_name(),
         "engines": {
             "default": {
-                "deployable_type": "eeagent_pyon",
                 "launch_type": {
                     "name": "pyon_single",
                     "pyon_directory": "/home/cc/coi-services/",
@@ -838,13 +838,13 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             'agent': {'resource_id': self.resource_id},
         }
 
-        #send a fake dt_state message to PD's dashi binding.
+        #send a fake node_state message to PD's dashi binding.
         dashi = get_dashi(uuid.uuid4().hex,
             pd_config['processdispatcher']['dashi_uri'],
             pd_config['processdispatcher']['dashi_exchange'])
-        dt_state = dict(node_id="somenodeid", state=InstanceState.RUNNING,
-            deployable_type="eeagent_pyon")
-        dashi.fire(get_pd_dashi_name(), "dt_state", args=dt_state)
+        node_state = dict(node_id="somenodeid", state=InstanceState.RUNNING,
+            domain_id=domain_id_from_engine("default"))
+        dashi.fire(get_pd_dashi_name(), "node_state", args=node_state)
 
         self._eea_pid = self.container_client.spawn_process(name=self._eea_name,
             module="ion.agents.cei.execution_engine_agent",

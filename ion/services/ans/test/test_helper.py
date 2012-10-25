@@ -36,6 +36,8 @@ from interface.objects import Granule
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
+from seawater.gibbs import SP_from_cndr
+from seawater.gibbs import cte
 
 
 class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
@@ -477,7 +479,11 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         msg1_sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
         msg2_sal_value = rdt2['salinity']
+        b = msg1_sal_value == msg2_sal_value
 
-        assertions(msg1_sal_value == msg2_sal_value)
+        if isinstance(b,bool):
+            assertions(b)
+        else:
+            assertions(b.all())
 
         return
