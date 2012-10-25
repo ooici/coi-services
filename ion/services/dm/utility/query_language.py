@@ -23,13 +23,14 @@ class QueryLanguage(object):
                 <query> ::= <search-query> | <association-query> | <collection-query>
     <association-query> ::= "BELONGS TO" <resource-id> [<limit-parameter>]
      <collection-query> ::= "IN" <collection-id>
-         <search_query> ::= "SEARCH" <field> (<term-query> | <range-query> |<time-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
+         <search_query> ::= "SEARCH" <field> (<term-query> | <range-query> | <fuzzy-query> | <time-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
       <query-parameter> ::= <order-parameter> | <limit-parameter> | <offset-parameter>
      <offset-parameter> ::= "SKIP" <integer>
       <order-parameter> ::= "ORDER BY" <limited-string>
       <limit-parameter> ::= "LIMIT" <integer>
       <depth-parameter> ::= "DEPTH" <integer>
            <term-query> ::= "IS" <field-query>
+          <fuzzy-query> ::= "LIKE" <field-query>
           <field-query> ::= <wildcard-string>
           <range-query> ::= "VALUES" [<from-statement>] [<to-statement>]
            <time-query> ::= "TIME" [<from-statement>] [<to-statement>]
@@ -155,13 +156,17 @@ class QueryLanguage(object):
         #--------------------------------------------------------------------------------------
         # <field-query>  ::= <wildcard-string>
         # <term-query>   ::= "IS" <field-query>
+        # <fuzzy-query>  ::= "LIKE" <field-query>
         # <geo-query>    ::= "GEO" ( <geo-distance> | <geo-bbox> )
         #--------------------------------------------------------------------------------------
         field_query = wildcard_string
         term_query = CaselessLiteral("IS") + field_query
-        # Add the term to the frame object
         term_query.setParseAction(lambda x : self.frame.update({'value':x[1]}))
+        
         geo_query = CaselessLiteral("GEO") + ( geo_distance | geo_bbox )
+
+        fuzzy_query = CaselessLiteral("LIKE") + field_query
+        fuzzy_query.setParseAction(lambda x : self.frame.update({'fuzzy':x[1]}))
 
         #--------------------------------------------------------------------------------------
         # <limit-parameter>  ::= "LIMIT" <integer>
@@ -181,12 +186,12 @@ class QueryLanguage(object):
         query_parameter = limit_parameter | order_parameter | offset_parameter
 
         #--------------------------------------------------------------------------------------
-        # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query> | <time-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
+        # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query> | <fuzzy-query> | <time-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
         # <collection-query>  ::= "IN <collection-id>"
         # <association-query> ::= "BELONGS TO" <resource-id> [ <depth-parameter> ]
         # <query>             ::= <search-query> | <association-query> | <collection-query>
         #--------------------------------------------------------------------------------------
-        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | time_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
+        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | fuzzy_query | time_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
         # Add the field to the frame object
         search_query.setParseAction(lambda x : self.frame.update({'field' : x[1]}))
         collection_query = CaselessLiteral("IN") + collection_id
@@ -271,6 +276,15 @@ class QueryLanguage(object):
     #=========================================
     # Methods for checking the requests
     #=========================================
+    @classmethod
+    def query_is_fuzzy_search(cls, query=None):
+        if not query:
+            return False
+        if not isinstance(query,dict):
+            return False
+        if query.has_key('index') and query.has_key('field') and query.has_key('fuzzy'):
+            return True
+        return False
     @classmethod
     def query_is_term_search(cls, query=None):
         if not query:
