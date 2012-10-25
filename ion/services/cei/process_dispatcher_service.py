@@ -856,7 +856,7 @@ class PDNativeBackend(object):
         # start consuming domain subscription messages from the dashi EPUM
         # service if needed.
         if self.dashi:
-            self.dashi.handle(self._domain_subscription_callback, "dt_state")
+            self.dashi.handle(self._domain_subscription_callback, "node_state")
             self.consumer_thread = gevent.spawn(self.dashi.consume)
 
         self.matchmaker.start_election()
@@ -879,12 +879,10 @@ class PDNativeBackend(object):
 
         self.beat_subscriber.stop()
 
-    def _domain_subscription_callback(self, node_id, deployable_type, state,
-                                      properties=None):
+    def _domain_subscription_callback(self, node_id, domain_id, state, properties=None):
         """Callback from Dashi EPUM service when an instance changes state
         """
-        self.core.dt_state(node_id, deployable_type, state,
-            properties=properties)
+        self.core.node_state(node_id, domain_id, state, properties=properties)
 
     def _heartbeat_callback(self, heartbeat, headers):
         log.debug("Got EEAgent heartbeat. headers=%s msg=%s", headers, heartbeat)
