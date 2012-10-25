@@ -68,15 +68,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
-        self.queues = []
-
-    def tearDown(self):
-        for queue in self.queues:
-            xn = self.container.ex_manager.create_xn_queue(queue)
-            xn.delete()
-
-        super(TestVisualizationServiceIntegration,self).tearDown()
-
     def validate_messages(self, msgs):
         msg = msgs
 
@@ -235,9 +226,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         # use idempotency to create queues
         xq1 = self.container.ex_manager.create_xn_queue(user_queue_name1)
-        self.queues.append(user_queue_name1)
+        self.addCleanup(xq1.delete)
         xq2 = self.container.ex_manager.create_xn_queue(user_queue_name2)
-        self.queues.append(user_queue_name2)
+        self.addCleanup(xq2.delete)
         self.container.ex_manager.purge_queue(xq1.queue)
         self.container.ex_manager.purge_queue(xq2.queue)
 
