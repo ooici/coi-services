@@ -271,7 +271,7 @@ class VisualizationService(BaseVisualizationService):
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.pubsubclient = PubsubManagementServiceClient(node=self.container.node)
-        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
+        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform', id_only=True)
         if len(dpd) > 0:
             return dpd[0]
 
