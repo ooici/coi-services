@@ -113,9 +113,9 @@ def build_contexts():
     checksum_ctxt.fill_value = -1
     contexts.append(checksum_ctxt)
 
-    pref_ts_ctxt = ParameterContext(name='preferred_timestamp', param_type=ArrayType())
+    pref_ts_ctxt = ParameterContext(name='preferred_timestamp', param_type=QuantityType(value_encoding=np.uint64))
     pref_ts_ctxt.description = 'name of preferred timestamp'
-    pref_ts_ctxt.fill_value = None
+    pref_ts_ctxt.fill_value = 0x0
     contexts.append(pref_ts_ctxt)
 
     # TODO: This should probably be of type CategoryType when implemented
@@ -131,9 +131,11 @@ def build_contexts():
     contexts.append(viz_ts_ctxt)
 
     viz_prod_type_ctxt = ParameterContext(name='viz_product_type', param_type=ArrayType())
+    viz_prod_type_ctxt.fill_value = None
     contexts.append(viz_prod_type_ctxt)
 
     image_obj_ctxt = ParameterContext(name='image_obj', param_type=ArrayType())
+    image_obj_ctxt.fill_value = None
     contexts.append(image_obj_ctxt)
 
     image_name_ctxt = ParameterContext(name='image_name', param_type=ArrayType())

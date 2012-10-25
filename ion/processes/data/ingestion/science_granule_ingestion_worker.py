@@ -3,7 +3,7 @@
 @author Luke Campbell <LCampbell@ASAScience.com>
 @file ion/processes/data/ingestion/science_granule_ingestion_worker.py
 @date 06/26/12 11:38
-@description DESCRIPTION
+@description Ingestion Process
 '''
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.datastore.datastore import DataStore
@@ -12,11 +12,9 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.util.containers import get_ion_ts, get_safe
 from pyon.public import log, RT, PRED
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from ion.services.dm.utility.granule_utils import CoverageCraft
 from interface.objects import Granule
 from couchdb import ResourceNotFound
 from ion.core.process.transform import TransformStreamListener
-import re
 import collections
 import numpy
 
@@ -42,7 +40,12 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
 
     def on_quit(self): #pragma no cover
-        super(ScienceGranuleIngestionWorker, self).on_quit()
+        for stream, coverage in self._coverages.iteritems():
+            coverage.close(timeout=5)
+
+
+
+        self.subscriber.stop()
 
     def _new_dataset(self, stream_id):
         '''
@@ -83,7 +86,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             if result is None:
                 return None
             if len(self._coverages) >= self.CACHE_LIMIT:
-                self._coverages.popitem(0)
+                k, coverage = self._coverages.popitem(0)
+                coverage.close(timeout=5)
         self._coverages[stream_id] = result
         return result
 
@@ -149,20 +153,17 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         # Actual persistence
         #-------------------------------------------------------------------------------- 
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        start_index = coverage.num_timesteps
         elements = len(rdt)
         if not elements:
             return
         coverage.insert_timesteps(elements)
+        start_index = coverage.num_timesteps - elements
 
         for k,v in rdt.iteritems():
-            log.info('key: %s', k)
-            log.info('value: %s', v)
+            log.info( '%s: %s', k, v)
             slice_ = slice(start_index, None)
             coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
-
-        DatasetManagementService._persist_coverage(dataset_id,coverage)
-
+            coverage.flush()
 
 
     def persist(self, dataset_granule): #pragma no cover
