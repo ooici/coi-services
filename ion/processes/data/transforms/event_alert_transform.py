@@ -7,7 +7,7 @@
 '''
 from pyon.util.log import log
 from pyon.event.event import EventPublisher, EventSubscriber
-from ion.core.process.transform import TransformEventListener, TransformStreamListener
+from ion.core.process.transform import TransformEventListener, TransformStreamListener, TransformEventPublisher
 import gevent
 from gevent import queue
 
@@ -75,15 +75,11 @@ class EventAlertTransform(TransformEventListener):
                                             origin="EventAlertTransform",
                                             description= "An alert event being published.")
 
-class StreamAlertTransform(TransformStreamListener):
+class StreamAlertTransform(TransformStreamListener, TransformEventPublisher):
 
     def on_start(self):
         super(StreamAlertTransform,self).on_start()
         self.value = self.CFG.get_safe('process.value', 0)
-
-
-        # Create the publisher that will publish the Alert message
-        self.event_publisher = EventPublisher()
 
     def recv_packet(self, msg, stream_route, stream_id):
         '''
@@ -101,9 +97,8 @@ class StreamAlertTransform(TransformStreamListener):
         '''
         Publish an alert event
         '''
-        self.event_publisher.publish_event( event_type= "DeviceEvent",
-                                            origin="StreamAlertTransform",
-                                            description= "An alert event being published.")
+        self.publisher.publish_event(origin="StreamAlertTransform",
+                                    description= "An alert event being published.")
 
     def _extract_parameters_from_stream(self, msg, field ):
 

@@ -200,7 +200,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         config = {
             'process':{
                 'queue_name': 'a_queue',
-                'value': 10
+                'value': 10,
+                'event_type':'DeviceEvent'
             }
         }
 
@@ -229,7 +230,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
         message = "A dummy example message containing the word PUBLISH, and with VALUE = 5 . This message" + \
-                    " will trigger an alert event from the StreamAlertTransform"
+                    " will trigger an alert event from the StreamAlertTransform because the value provided is " \
+                    "less than 10 that was passed in through the config."
 
         pub.publish(message)
 
