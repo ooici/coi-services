@@ -5,9 +5,11 @@
         satisfy a condition. Its uses an algorithm to check the latter
 @author Swarbhanu Chatterjee
 '''
-from ion.core.process.transform import TransformEventListener, TransformStreamListener
 from pyon.util.log import log
-from pyon.event.event import EventPublisher
+from pyon.event.event import EventPublisher, EventSubscriber
+from ion.core.process.transform import TransformEventListener, TransformStreamListener, TransformEventPublisher
+import gevent
+from gevent import queue
 
 class EventAlertTransform(TransformEventListener):
 
@@ -19,11 +21,26 @@ class EventAlertTransform(TransformEventListener):
         # get the algorithm to use
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        self.max_count = self.CFG.get_safe('process.max_count', 1)
-        self.time_window = self.CFG.get_safe('process.time_window', 0)
+        self.timer_origin = self.CFG.get_safe('process.timer_origin', 'Interval Timer')
+        self.instrument_origin = self.CFG.get_safe('process.instrument_origin', '')
 
         self.counter = 0
         self.event_times = []
+
+        #-------------------------------------------------------------------------------------
+        # Set up a listener for instrument events
+        #-------------------------------------------------------------------------------------
+
+        self.instrument_event_queue = gevent.queue.Queue()
+
+        def timer_event_received(message, headers):
+            log.debug("EventAlertTransform received an instrument event here::: %s" % message)
+            self.instrument_event_queue.put(message)
+
+        self.timer_event_subscriber = EventSubscriber(origin = self.instrument_origin,
+                                                        callback=timer_event_received)
+
+        self.timer_event_subscriber.start()
 
         #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
@@ -31,25 +48,23 @@ class EventAlertTransform(TransformEventListener):
 
         self.event_publisher = EventPublisher()
 
+    def on_quit(self):
+        self.timer_event_subscriber.stop()
+        super(EventAlertTransform, self).on_quit()
+
     def process_event(self, msg, headers):
         '''
         The callback method.
         If the events satisfy the criteria, publish an alert event.
         '''
 
-        self.counter += 1
+        if self.instrument_event_queue.empty():
+            log.debug("no event received from the instrument. Publishing an alarm event!")
+            self.publish()
+        else:
+            log.debug("Events were received from the instrument in between timer events. Instrument working normally.")
+            self.instrument_event_queue.queue.clear()
 
-        self.event_times.append(msg.ts_created)
-
-        if self.counter == self.max_count:
-
-            time_diff = self.event_times[self.max_count - 1] - self.event_times[0]
-
-            if time_diff <= self.time_window:
-
-                self.publish()
-                self.counter = 0
-                self.event_times = []
 
     def publish(self):
 
@@ -60,22 +75,18 @@ class EventAlertTransform(TransformEventListener):
                                             origin="EventAlertTransform",
                                             description= "An alert event being published.")
 
-class StreamAlertTransform(TransformStreamListener):
+class StreamAlertTransform(TransformStreamListener, TransformEventPublisher):
 
     def on_start(self):
         super(StreamAlertTransform,self).on_start()
         self.value = self.CFG.get_safe('process.value', 0)
-
-
-        # Create the publisher that will publish the Alert message
-        self.event_publisher = EventPublisher()
 
     def recv_packet(self, msg, stream_route, stream_id):
         '''
         The callback method.
         If the events satisfy the criteria, publish an alert event.
         '''
-        log.info('Got incoming packet')
+        log.debug('StreamAlertTransform got an incoming packet!')
 
         value = self._extract_parameters_from_stream(msg, "VALUE")
 
@@ -86,9 +97,8 @@ class StreamAlertTransform(TransformStreamListener):
         '''
         Publish an alert event
         '''
-        self.event_publisher.publish_event( event_type= "DeviceEvent",
-                                            origin="StreamAlertTransform",
-                                            description= "An alert event being published.")
+        self.publisher.publish_event(origin="StreamAlertTransform",
+                                    description= "An alert event being published.")
 
     def _extract_parameters_from_stream(self, msg, field ):
 
