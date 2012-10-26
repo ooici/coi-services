@@ -34,7 +34,7 @@ class EventAlertTransform(TransformEventListener):
         self.instrument_event_queue = gevent.queue.Queue()
 
         def timer_event_received(message, headers):
-            log.debug("Got an instrument event here::: %s" % message)
+            log.debug("EventAlertTransform received an instrument event here::: %s" % message)
             self.instrument_event_queue.put(message)
 
         self.timer_event_subscriber = EventSubscriber(origin = self.instrument_origin,
@@ -57,11 +57,6 @@ class EventAlertTransform(TransformEventListener):
         The callback method.
         If the events satisfy the criteria, publish an alert event.
         '''
-
-        log.debug("got a timer event!! %s" % msg)
-
-#        if msg.event_origin != self.timer_origin:
-#            return
 
         if self.instrument_event_queue.empty():
             log.debug("no event received from the instrument. Publishing an alarm event!")
@@ -95,7 +90,7 @@ class StreamAlertTransform(TransformStreamListener):
         The callback method.
         If the events satisfy the criteria, publish an alert event.
         '''
-        log.info('Got incoming packet')
+        log.debug('StreamAlertTransform got an incoming packet!')
 
         value = self._extract_parameters_from_stream(msg, "VALUE")
 

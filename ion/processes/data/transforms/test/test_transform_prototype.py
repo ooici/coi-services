@@ -34,14 +34,13 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
     def now_utc(self):
         return time.mktime(datetime.datetime.utcnow().timetuple())
 
-    def _create_interval_timer_with_end_time(self):
+    def _create_interval_timer_with_end_time(self,interval_timer_interval= None ):
         '''
         A convenience method to set up an interval timer with an end time
         '''
         self.interval_timer_count = 0
-        self.interval_timer_sent_time = 0
         self.interval_timer_received_time = 0
-        self.interval_timer_interval = 2
+        self.interval_timer_interval = interval_timer_interval
 
         start_time = self.now_utc()
         self.interval_timer_end_time = start_time + 5
@@ -81,7 +80,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Set up the scheduler for an interval timer with an end time
         #-------------------------------------------------------------------------------------
-        id = self._create_interval_timer_with_end_time()
+        id = self._create_interval_timer_with_end_time(interval_timer_interval=2)
         self.assertIsNotNone(id)
 
         #-------------------------------------------------------------------------------------
@@ -124,24 +123,19 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         # publish event twice
 
-        for i in xrange(2):
+        for i in xrange(5):
             self.event_publisher.publish_event(    event_type = 'ExampleDetectableEvent',
                                                     origin = "My_favorite_instrument",
                                                     voltage = 5,
                                                     telemetry = 10,
                                                     temperature = 20)
-            gevent.sleep(4)
-#            self.assertTrue(queue.empty())
+            gevent.sleep(0.1)
+            self.assertTrue(queue.empty())
 
 
-        #publish event the third time
 
-        self.event_publisher.publish_event(     event_type = 'ExampleDetectableEvent',
-                                                origin = "My_favorite_instrument",
-                                                voltage = 5,
-                                                telemetry = 10,
-                                                temperature = 20)
-        gevent.sleep(4)
+        #publish event the third time but after a time interval larger than 2 seconds
+        gevent.sleep(5)
 
         #-------------------------------------------------------------------------------------
         # Make assertions about the alert event published by the EventAlertTransform
@@ -149,13 +143,28 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         event = queue.get(timeout=10)
 
-        log.debug("event::: %s" % event)
+        log.debug("Alarm event received from the EventAertTransform %s" % event)
 
         self.assertEquals(event.type_, "DeviceEvent")
         self.assertEquals(event.origin, "EventAlertTransform")
 
+        #------------------------------------------------------------------------------------------------
+        # Now clear the event queue being populated by alarm events and publish normally once again
+        #------------------------------------------------------------------------------------------------
+
+        queue.queue.clear()
+
+        for i in xrange(5):
+            self.event_publisher.publish_event(    event_type = 'ExampleDetectableEvent',
+                origin = "My_favorite_instrument",
+                voltage = 5,
+                telemetry = 10,
+                temperature = 20)
+            gevent.sleep(0.1)
+            self.assertTrue(queue.empty())
+
         log.debug("This completes the requirement that the EventAlertTransform publishes \
-         an event after a fixed number of events of a particular type are received from some instrument.")
+                    an alarm event when it does not hear from the instrument for some time.")
 
 
     @attr('LOCOINT')
