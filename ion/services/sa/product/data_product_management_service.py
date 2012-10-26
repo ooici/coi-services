@@ -581,11 +581,15 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def get_parameters(self, data_product_id=''):
         # The set of Parameter objects describing each variable in this data product
-        ret = IonObject(OT.ComputedListValue)
+        ret = IonObject(OT.ComputedStringValue)
         ret.value = []
         try:
-            ret.status = ComputedValueAvailability.PROVIDED
-            raise NotFound #todo: ret.value = ???
+            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+            else:
+                ret.status = ComputedValueAvailability.PROVIDED
+                ret.value = self.clients.dataset_management.get_dataset_parameters(dataset_ids[0])
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"

@@ -228,6 +228,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
                          extended_product.computed.product_download_size_estimated.status)
         self.assertEqual(0, extended_product.computed.product_download_size_estimated.value)
 
+        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
+                         extended_product.computed.computed.parameters.value.status)
+        #log.debug("test_create_data_product: parameters %s" % extended_product.computed.parameters.value)
+
         # now 'delete' the data product
         log.debug("deleting data product: %s" % dp_id)
         self.dpsc_cli.delete_data_product(dp_id)
