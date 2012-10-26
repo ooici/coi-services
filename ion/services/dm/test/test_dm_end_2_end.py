@@ -143,11 +143,13 @@ class TestDMEnd2End(IonIntegrationTestCase):
         datastore = self.get_datastore(dataset_id)
         dataset = self.dataset_management.read_dataset(dataset_id)
         
-        with gevent.timeout.Timeout(10):
+        with gevent.timeout.Timeout(40):
             success = False
             while not success:
                 success = len(datastore.query_view(dataset.view_name)) >= granules
                 gevent.sleep(0.1)
+
+        log.info(datastore.query_view(dataset.view_name))
 
 
 
