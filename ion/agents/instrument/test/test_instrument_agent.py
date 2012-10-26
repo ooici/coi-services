@@ -1030,21 +1030,24 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             agt_cmds = []
             agt_pars = []
             res_cmds = []
+            res_iface = []
             res_pars = []
             
             if len(caps_list)>0 and isinstance(caps_list[0], AgentCapability):
                 agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
                 agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
                 res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
+                res_iface = [x.name for x in retval if x.cap_type==CapabilityType.RES_IFACE]
                 res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
             
             elif len(caps_list)>0 and isinstance(caps_list[0], dict):
                 agt_cmds = [x['name'] for x in retval if x['cap_type']==CapabilityType.AGT_CMD]
                 agt_pars = [x['name'] for x in retval if x['cap_type']==CapabilityType.AGT_PAR]
                 res_cmds = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_CMD]
+                res_cmds = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_IFACE]
                 res_pars = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_PAR]
 
-            return agt_cmds, agt_pars, res_cmds, res_pars
+            return agt_cmds, agt_pars, res_cmds, res_iface, res_pars
              
         
         ##################################################################
@@ -1058,7 +1061,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
         
         # Validate capabilities for state UNINITIALIZED.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
         
         agt_cmds_uninitialized = [
             ResourceAgentEvent.INITIALIZE
@@ -1067,19 +1070,21 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_iface, [])
         self.assertItemsEqual(res_pars, [])
         
         # Get exposed capabilities in all states.
         retval = self._ia_client.get_capabilities(False)        
 
         # Validate all capabilities as read from state UNINITIALIZED.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
        
         res_cmds_iface_uninitialized_all = res_iface_all
        
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_iface_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])
                 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
@@ -1088,7 +1093,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ##################################################################
         # INACTIVE
         ##################################################################        
-        
+
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.INACTIVE)
 
@@ -1096,32 +1101,34 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
 
         # Validate capabilities for state INACTIVE.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
                 
         agt_cmds_inactive = [
             ResourceAgentEvent.GO_ACTIVE,
             ResourceAgentEvent.RESET
         ]
         
-        res_cmds_iface_inactive = [
+        res_iface_inactive = [
             'ping_resource',
             'get_resource_state'
         ]
         
         self.assertItemsEqual(agt_cmds, agt_cmds_inactive)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_iface_inactive)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_iface, res_iface_inactive)
         self.assertItemsEqual(res_pars, [])
         
         # Get exposed capabilities in all states.
         retval = self._ia_client.get_capabilities(False)        
  
          # Validate all capabilities as read from state INACTIVE.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
  
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_iface_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])
         
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
@@ -1138,7 +1145,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
 
          # Validate capabilities for state IDLE.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         agt_cmds_idle = [
             ResourceAgentEvent.GO_INACTIVE,
@@ -1146,25 +1153,27 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.RUN
         ]
         
-        res_cmds_iface_idle = [
+        res_iface_idle = [
             'ping_resource',
             'get_resource_state'            
         ]
         
         self.assertItemsEqual(agt_cmds, agt_cmds_idle)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_iface_idle)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_iface, res_iface_idle)
         self.assertItemsEqual(res_pars, [])
         
         # Get exposed capabilities in all states as read from IDLE.
         retval = self._ia_client.get_capabilities(False)        
         
          # Validate all capabilities as read from state IDLE.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
         
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_iface_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])
                         
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
@@ -1181,7 +1190,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
 
          # Validate capabilities of state COMMAND
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         agt_cmds_command = [
             ResourceAgentEvent.CLEAR,
@@ -1191,32 +1200,33 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.PAUSE
         ]
 
-        res_cmds_iface_command = [
+        res_cmds_command = [
             SBE37ProtocolEvent.TEST,
             SBE37ProtocolEvent.ACQUIRE_SAMPLE,
             SBE37ProtocolEvent.START_AUTOSAMPLE
         ]
-        res_cmds_iface_command.extend(res_iface_all)
         
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_iface_command)
+        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)
 
         # Get exposed capabilities in all states as read from state COMMAND.
         retval = self._ia_client.get_capabilities(False)        
         
          # Validate all capabilities as read from state COMMAND
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_iface_all)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)
         
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
-
+    
         ##################################################################
         # STREAMING
         ##################################################################                        
@@ -1228,7 +1238,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
 
          # Validate capabilities of state STREAMING
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
  
         agt_cmds_streaming = [
@@ -1236,28 +1246,33 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.GO_INACTIVE
         ]
 
-        res_cmds_iface_streaming = [
+        res_cmds_streaming = [
             SBE37ProtocolEvent.STOP_AUTOSAMPLE,
+        ]
+
+        res_iface_streaming = [
             'get_resource',
             'execute_resource',
             'ping_resource',
-            'get_resource_state'                                   
+            'get_resource_state'                                               
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_streaming)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_iface_streaming)
+        self.assertItemsEqual(res_cmds, res_cmds_streaming)
+        self.assertItemsEqual(res_iface, res_iface_streaming)
         self.assertItemsEqual(res_pars, res_pars_all)
         
         # Get exposed capabilities in all states as read from state STREAMING.
         retval = self._ia_client.get_capabilities(False)        
         
          # Validate all capabilities as read from state COMMAND
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_iface_all)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)
         
         gevent.sleep(5)
@@ -1276,22 +1291,24 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
 
          # Validate capabilities of state COMMAND
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_iface_command)
+        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)        
         
         # Get exposed capabilities in all states as read from state STREAMING.
         retval = self._ia_client.get_capabilities(False)        
         
          # Validate all capabilities as read from state COMMAND
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_iface_all)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)        
         
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
@@ -1308,22 +1325,24 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_capabilities()
         
         # Validate capabilities for state UNINITIALIZED.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_iface, [])
         self.assertItemsEqual(res_pars, [])
         
         # Get exposed capabilities in all states.
         retval = self._ia_client.get_capabilities(False)        
 
         # Validate all capabilities as read from state UNINITIALIZED.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
        
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_iface_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])        
         
     def test_command_errors(self):
