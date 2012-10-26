@@ -345,7 +345,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
 
         # todo: add this validate for Req: L4-CI-SA-RQ-367  Data processing shall notify registered data product consumers about data processing workflow life cycle events
-
+        #todo (contd) ... I believe the capability does not exist yet now. ANS And SA are not yet publishing any workflow life cycle events (Swarbhanu)
         
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
