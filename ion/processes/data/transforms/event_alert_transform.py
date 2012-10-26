@@ -28,7 +28,7 @@ class EventAlertTransform(TransformEventListener):
         self.event_times = []
 
         #-------------------------------------------------------------------------------------
-        # Set up a listener for scheduler events
+        # Set up a listener for instrument events
         #-------------------------------------------------------------------------------------
 
         self.instrument_event_queue = gevent.queue.Queue()
