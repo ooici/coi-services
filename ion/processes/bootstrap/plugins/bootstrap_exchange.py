@@ -29,7 +29,9 @@ class BootstrapExchange(BootstrapPlugin):
         - Purges all service queues as long as no consumers are attached, or can be
           overridden with force=True on pycc command line
         """
-        ex_manager = process.container.ex_manager
+        ex_manager         = process.container.ex_manager
+        old_use_ems        = ex_manager.use_ems
+        ex_manager.use_ems = False
 
         # get list of queues from broker with full props that have to do with our sysname
         all_queues = ex_manager._list_queues()
@@ -88,11 +90,14 @@ class BootstrapExchange(BootstrapPlugin):
 
         for rrxn in xn_objs:
             # can instantiate ExchangeNames, don't need specific types
-            # @TODO: except queue type, which needs to be fixed to record declared name type
 
+            # @TODO: most queue types have a name instead of anon
+            """
+            # @TODO: except queue type, which needs to be fixed to record declared name type
             if rrxn.xn_type == "QUEUE":
                 log.info("TODO: queue type XNs, %s", rrxn.name)
                 continue
+            """
 
             exchange_space_list, assoc_list = process.container.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, rrxn._id)
             if not len(exchange_space_list) == 1:
@@ -149,4 +154,6 @@ class BootstrapExchange(BootstrapPlugin):
             else:
                 ex_manager.purge_queue(queue)
                 log.info("Purged service queue %s of %s messages", queue, queues[queue]['messages'])
+
+        ex_manager.use_ems = old_use_ems
 
