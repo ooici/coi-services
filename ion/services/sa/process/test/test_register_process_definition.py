@@ -164,7 +164,7 @@ class TestRegisterProcessDefinitionIntegration(IonIntegrationTestCase):
 #    def test_just_the_setup(self):
 #        return
 
-    def test_register_instrument_agent_int(self):
+    def test_register_data_process_definition_int(self):
 
         self.assertRaises(BadRequest, self.DPMS.register_data_process_definition, BASE64_BADPYFILE)
 
@@ -172,8 +172,8 @@ class TestRegisterProcessDefinitionIntegration(IonIntegrationTestCase):
         cfg_host = CFG.service.data_process_management.process_release_host #'amoeaba.ucsd.edu'
         cfg_user = pwd.getpwuid(os.getuid())[0]
 
-        if "driver_release_user" in CFG.service.instrument_management:
-            cfg_user = CFG.service.instrument_management.process_release_user
+        if "driver_release_user" in CFG.service.data_process_management:
+            cfg_user = CFG.service.data_process_management.process_release_user
 
 
         remotehost = "%s@%s" % (cfg_user, cfg_host)
