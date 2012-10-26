@@ -5,9 +5,11 @@
         satisfy a condition. Its uses an algorithm to check the latter
 @author Swarbhanu Chatterjee
 '''
-from ion.core.process.transform import TransformEventListener, TransformStreamListener
 from pyon.util.log import log
-from pyon.event.event import EventPublisher
+from pyon.event.event import EventPublisher, EventSubscriber
+from ion.core.process.transform import TransformEventListener, TransformStreamListener
+import gevent
+from gevent import queue
 
 class EventAlertTransform(TransformEventListener):
 
@@ -19,11 +21,26 @@ class EventAlertTransform(TransformEventListener):
         # get the algorithm to use
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-        self.max_count = self.CFG.get_safe('process.max_count', 1)
-        self.time_window = self.CFG.get_safe('process.time_window', 0)
+        self.timer_origin = self.CFG.get_safe('process.timer_origin', 'Interval Timer')
+        self.instrument_origin = self.CFG.get_safe('process.instrument_origin', '')
 
         self.counter = 0
         self.event_times = []
+
+        #-------------------------------------------------------------------------------------
+        # Set up a listener for scheduler events
+        #-------------------------------------------------------------------------------------
+
+        self.instrument_event_queue = gevent.queue.Queue()
+
+        def timer_event_received(message, headers):
+            log.debug("Got an instrument event here::: %s" % message)
+            self.instrument_event_queue.put(message)
+
+        self.timer_event_subscriber = EventSubscriber(origin = self.instrument_origin,
+                                                        callback=timer_event_received)
+
+        self.timer_event_subscriber.start()
 
         #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
@@ -31,25 +48,28 @@ class EventAlertTransform(TransformEventListener):
 
         self.event_publisher = EventPublisher()
 
+    def on_quit(self):
+        self.timer_event_subscriber.stop()
+        super(EventAlertTransform, self).on_quit()
+
     def process_event(self, msg, headers):
         '''
         The callback method.
         If the events satisfy the criteria, publish an alert event.
         '''
 
-        self.counter += 1
+        log.debug("got a timer event!! %s" % msg)
 
-        self.event_times.append(msg.ts_created)
+#        if msg.event_origin != self.timer_origin:
+#            return
 
-        if self.counter == self.max_count:
+        if self.instrument_event_queue.empty():
+            log.debug("no event received from the instrument. Publishing an alarm event!")
+            self.publish()
+        else:
+            log.debug("Events were received from the instrument in between timer events. Instrument working normally.")
+            self.instrument_event_queue.queue.clear()
 
-            time_diff = self.event_times[self.max_count - 1] - self.event_times[0]
-
-            if time_diff <= self.time_window:
-
-                self.publish()
-                self.counter = 0
-                self.event_times = []
 
     def publish(self):
 

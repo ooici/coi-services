@@ -14,7 +14,10 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition
 import gevent, unittest, os
+import datetime, time
+from datetime import timedelta
 from interface.objects import StreamRoute
+from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 @attr('INT', group='dm')
 class TransformPrototypeIntTest(IonIntegrationTestCase):
@@ -25,27 +28,71 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.rrc = ResourceRegistryServiceClient()
+        self.ssclient = SchedulerServiceClient()
         self.event_publisher = EventPublisher()
+
+    def now_utc(self):
+        return time.mktime(datetime.datetime.utcnow().timetuple())
+
+    def _create_interval_timer_with_end_time(self):
+        '''
+        A convenience method to set up an interval timer with an end time
+        '''
+        self.interval_timer_count = 0
+        self.interval_timer_sent_time = 0
+        self.interval_timer_received_time = 0
+        self.interval_timer_interval = 2
+
+        start_time = self.now_utc()
+        self.interval_timer_end_time = start_time + 5
+
+        # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
+        sid = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval,
+            end_time=self.interval_timer_end_time,
+            event_origin="Interval Timer", event_subtype="")
+
+        self.interval_timer_sent_time = datetime.datetime.utcnow()
+
+        def cleanup_timer(scheduler, schedule_id):
+            """
+            Do a friendly cancel of the scheduled event.
+            If it fails, it's ok.
+            """
+            try:
+                scheduler.cancel_timer(schedule_id)
+            except:
+                log.warn("Couldn't cancel")
+
+
+        self.addCleanup(cleanup_timer, self.ssclient, sid)
+
+        log.debug("Got the id here!! %s" % sid)
+
+        return sid
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_event_processing(self):
-        #--------------------------------------------------------------------------------
-        # Test that events are processed by the transforms according to a provided algorithm
-        #--------------------------------------------------------------------------------
+        '''
+        Test that events are processed by the transforms according to a provided algorithm
+        '''
+
 
         #-------------------------------------------------------------------------------------
-        # Create an event alert transform
+        # Set up the scheduler for an interval timer with an end time
         #-------------------------------------------------------------------------------------
+        id = self._create_interval_timer_with_end_time()
+        self.assertIsNotNone(id)
 
         #-------------------------------------------------------------------------------------
+        # Create an event alert transform....
         # The configuration for the Event Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         configuration = {
                             'process':{
-                                'event_type': 'ExampleDetectableEvent',
-                                'max_count': 3,
-                                'time_window': 5,
+                                'event_type': 'ResourceEvent',
+                                'timer_origin': 'Interval Timer',
+                                'instrument_origin': 'My_favorite_instrument'
                             }
                         }
 
@@ -58,8 +105,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                                     configuration= configuration)
 
         self.assertIsNotNone(pid)
-
-        proc = self.container.proc_manager.procs.get(pid)
 
         #-------------------------------------------------------------------------------------
         # Publish events and make assertions about alerts
@@ -80,21 +125,19 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # publish event twice
 
         for i in xrange(2):
-            self.event_publisher.publish_event(     event_type='ExampleDetectableEvent',
-                                                    origin = "instrument_A",
-                                                    ts_created = i,
+            self.event_publisher.publish_event(    event_type = 'ExampleDetectableEvent',
+                                                    origin = "My_favorite_instrument",
                                                     voltage = 5,
                                                     telemetry = 10,
                                                     temperature = 20)
             gevent.sleep(4)
-            self.assertTrue(queue.empty())
+#            self.assertTrue(queue.empty())
 
 
         #publish event the third time
 
-        self.event_publisher.publish_event(     event_type='ExampleDetectableEvent',
-                                                origin = "instrument_A",
-                                                ts_created = 4,
+        self.event_publisher.publish_event(     event_type = 'ExampleDetectableEvent',
+                                                origin = "My_favorite_instrument",
                                                 voltage = 5,
                                                 telemetry = 10,
                                                 temperature = 20)
@@ -105,6 +148,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
 
         event = queue.get(timeout=10)
+
+        log.debug("event::: %s" % event)
 
         self.assertEquals(event.type_, "DeviceEvent")
         self.assertEquals(event.origin, "EventAlertTransform")
