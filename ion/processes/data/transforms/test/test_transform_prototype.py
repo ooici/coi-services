@@ -14,7 +14,10 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition
 import gevent, unittest, os
+import datetime, time
+from datetime import timedelta
 from interface.objects import StreamRoute
+from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 @attr('INT', group='dm')
 class TransformPrototypeIntTest(IonIntegrationTestCase):
@@ -25,27 +28,70 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.rrc = ResourceRegistryServiceClient()
+        self.ssclient = SchedulerServiceClient()
         self.event_publisher = EventPublisher()
+
+    def now_utc(self):
+        return time.mktime(datetime.datetime.utcnow().timetuple())
+
+    def _create_interval_timer_with_end_time(self,interval_timer_interval= None ):
+        '''
+        A convenience method to set up an interval timer with an end time
+        '''
+        self.interval_timer_count = 0
+        self.interval_timer_received_time = 0
+        self.interval_timer_interval = interval_timer_interval
+
+        start_time = self.now_utc()
+        self.interval_timer_end_time = start_time + 5
+
+        # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
+        sid = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval,
+            end_time=self.interval_timer_end_time,
+            event_origin="Interval Timer", event_subtype="")
+
+        self.interval_timer_sent_time = datetime.datetime.utcnow()
+
+        def cleanup_timer(scheduler, schedule_id):
+            """
+            Do a friendly cancel of the scheduled event.
+            If it fails, it's ok.
+            """
+            try:
+                scheduler.cancel_timer(schedule_id)
+            except:
+                log.warn("Couldn't cancel")
+
+
+        self.addCleanup(cleanup_timer, self.ssclient, sid)
+
+        log.debug("Got the id here!! %s" % sid)
+
+        return sid
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_event_processing(self):
-        #--------------------------------------------------------------------------------
-        # Test that events are processed by the transforms according to a provided algorithm
-        #--------------------------------------------------------------------------------
+        '''
+        Test that events are processed by the transforms according to a provided algorithm
+        '''
+
 
         #-------------------------------------------------------------------------------------
-        # Create an event alert transform
+        # Set up the scheduler for an interval timer with an end time
         #-------------------------------------------------------------------------------------
+        id = self._create_interval_timer_with_end_time(interval_timer_interval=2)
+        self.assertIsNotNone(id)
 
         #-------------------------------------------------------------------------------------
+        # Create an event alert transform....
         # The configuration for the Event Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         configuration = {
                             'process':{
-                                'event_type': 'ExampleDetectableEvent',
-                                'max_count': 3,
-                                'time_window': 5,
+                                'event_type': 'ResourceEvent',
+                                'timer_origin': 'Interval Timer',
+                                'instrument_origin': 'My_favorite_instrument'
                             }
                         }
 
@@ -58,8 +104,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                                     configuration= configuration)
 
         self.assertIsNotNone(pid)
-
-        proc = self.container.proc_manager.procs.get(pid)
 
         #-------------------------------------------------------------------------------------
         # Publish events and make assertions about alerts
@@ -79,26 +123,19 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         # publish event twice
 
-        for i in xrange(2):
-            self.event_publisher.publish_event(     event_type='ExampleDetectableEvent',
-                                                    origin = "instrument_A",
-                                                    ts_created = i,
+        for i in xrange(5):
+            self.event_publisher.publish_event(    event_type = 'ExampleDetectableEvent',
+                                                    origin = "My_favorite_instrument",
                                                     voltage = 5,
                                                     telemetry = 10,
                                                     temperature = 20)
-            gevent.sleep(4)
+            gevent.sleep(0.1)
             self.assertTrue(queue.empty())
 
 
-        #publish event the third time
 
-        self.event_publisher.publish_event(     event_type='ExampleDetectableEvent',
-                                                origin = "instrument_A",
-                                                ts_created = 4,
-                                                voltage = 5,
-                                                telemetry = 10,
-                                                temperature = 20)
-        gevent.sleep(4)
+        #publish event the third time but after a time interval larger than 2 seconds
+        gevent.sleep(5)
 
         #-------------------------------------------------------------------------------------
         # Make assertions about the alert event published by the EventAlertTransform
@@ -106,11 +143,28 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         event = queue.get(timeout=10)
 
+        log.debug("Alarm event received from the EventAertTransform %s" % event)
+
         self.assertEquals(event.type_, "DeviceEvent")
         self.assertEquals(event.origin, "EventAlertTransform")
 
+        #------------------------------------------------------------------------------------------------
+        # Now clear the event queue being populated by alarm events and publish normally once again
+        #------------------------------------------------------------------------------------------------
+
+        queue.queue.clear()
+
+        for i in xrange(5):
+            self.event_publisher.publish_event(    event_type = 'ExampleDetectableEvent',
+                origin = "My_favorite_instrument",
+                voltage = 5,
+                telemetry = 10,
+                temperature = 20)
+            gevent.sleep(0.1)
+            self.assertTrue(queue.empty())
+
         log.debug("This completes the requirement that the EventAlertTransform publishes \
-         an event after a fixed number of events of a particular type are received from some instrument.")
+                    an alarm event when it does not hear from the instrument for some time.")
 
 
     @attr('LOCOINT')
@@ -146,7 +200,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         config = {
             'process':{
                 'queue_name': 'a_queue',
-                'value': 10
+                'value': 10,
+                'event_type':'DeviceEvent'
             }
         }
 
@@ -175,7 +230,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
         message = "A dummy example message containing the word PUBLISH, and with VALUE = 5 . This message" + \
-                    " will trigger an alert event from the StreamAlertTransform"
+                    " will trigger an alert event from the StreamAlertTransform because the value provided is " \
+                    "less than 10 that was passed in through the config."
 
         pub.publish(message)
 
