@@ -1011,7 +1011,18 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             SBE37ProtocolEvent.START_AUTOSAMPLE,
             SBE37ProtocolEvent.STOP_AUTOSAMPLE
         ]
-                
+        
+        res_iface_all = [
+            'get_resource',
+            'set_resource',
+            'execute_resource',
+            'ping_resource',
+            'get_resource_state'            
+            ]
+        
+        res_cmds_iface_all = list(res_cmds_all)
+        res_cmds_iface_all.extend(res_iface_all)
+        
         res_pars_all = PARAMS.keys()
         
         
@@ -1052,6 +1063,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         agt_cmds_uninitialized = [
             ResourceAgentEvent.INITIALIZE
         ]
+                        
         self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, [])
@@ -1063,9 +1075,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Validate all capabilities as read from state UNINITIALIZED.
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
        
+        res_cmds_iface_uninitialized_all = res_iface_all
+       
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_iface_all)
         self.assertItemsEqual(res_pars, [])
                 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
@@ -1089,9 +1103,14 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.RESET
         ]
         
+        res_cmds_iface_inactive = [
+            'ping_resource',
+            'get_resource_state'
+        ]
+        
         self.assertItemsEqual(agt_cmds, agt_cmds_inactive)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_cmds_iface_inactive)
         self.assertItemsEqual(res_pars, [])
         
         # Get exposed capabilities in all states.
@@ -1102,7 +1121,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
  
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_iface_all)
         self.assertItemsEqual(res_pars, [])
         
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
@@ -1127,9 +1146,14 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.RUN
         ]
         
+        res_cmds_iface_idle = [
+            'ping_resource',
+            'get_resource_state'            
+        ]
+        
         self.assertItemsEqual(agt_cmds, agt_cmds_idle)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_cmds_iface_idle)
         self.assertItemsEqual(res_pars, [])
         
         # Get exposed capabilities in all states as read from IDLE.
@@ -1140,7 +1164,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_iface_all)
         self.assertItemsEqual(res_pars, [])
                         
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
@@ -1149,7 +1173,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ##################################################################
         # COMMAND
         ##################################################################                
-                
+        
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
@@ -1167,15 +1191,16 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.PAUSE
         ]
 
-        res_cmds_command = [
+        res_cmds_iface_command = [
             SBE37ProtocolEvent.TEST,
             SBE37ProtocolEvent.ACQUIRE_SAMPLE,
             SBE37ProtocolEvent.START_AUTOSAMPLE
         ]
-
+        res_cmds_iface_command.extend(res_iface_all)
+        
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_cmds, res_cmds_iface_command)
         self.assertItemsEqual(res_pars, res_pars_all)
 
         # Get exposed capabilities in all states as read from state COMMAND.
@@ -1186,7 +1211,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_cmds, res_cmds_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)
         
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
@@ -1195,7 +1220,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ##################################################################
         # STREAMING
         ##################################################################                        
-
+        
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.STREAMING)
 
@@ -1211,13 +1236,17 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.GO_INACTIVE
         ]
 
-        res_cmds_streaming = [
-            SBE37ProtocolEvent.STOP_AUTOSAMPLE
+        res_cmds_iface_streaming = [
+            SBE37ProtocolEvent.STOP_AUTOSAMPLE,
+            'get_resource',
+            'execute_resource',
+            'ping_resource',
+            'get_resource_state'                                   
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_streaming)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_streaming)
+        self.assertItemsEqual(res_cmds, res_cmds_iface_streaming)
         self.assertItemsEqual(res_pars, res_pars_all)
         
         # Get exposed capabilities in all states as read from state STREAMING.
@@ -1228,7 +1257,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_cmds, res_cmds_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)
         
         gevent.sleep(5)
@@ -1239,7 +1268,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ##################################################################
         # COMMAND
         ##################################################################                        
-
+        
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
@@ -1251,7 +1280,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_cmds, res_cmds_iface_command)
         self.assertItemsEqual(res_pars, res_pars_all)        
         
         # Get exposed capabilities in all states as read from state STREAMING.
@@ -1262,7 +1291,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_cmds, res_cmds_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)        
         
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
@@ -1294,9 +1323,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
        
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_iface_all)
         self.assertItemsEqual(res_pars, [])        
-                
+        
     def test_command_errors(self):
         """
         Test illegal behavior and replies. Verify ResourceAgentErrorEvents
