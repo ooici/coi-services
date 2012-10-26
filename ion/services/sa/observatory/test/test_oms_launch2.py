@@ -14,6 +14,8 @@ __license__ = 'Apache 2.0'
 from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
+from pyon.event.event import EventSubscriber
+
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.iobservatory_management_service import  ObservatoryManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
@@ -61,13 +63,19 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 # These Ids and names should correspond to corresponding entries in network.yml,
 # which is used by the RSN OMS simulator.
 # NOTE, previously using 'Node1A' (which has 19 descendents) but now using
-# 'Node1D' which only has 2 descendents: 1 direct child and 1 grand-child,
-# so the test does not take too long.
+# 'Node1D' which only has 2 descendents (1 direct child and 1 grand-child) so
+# the test does not take too long.
 BASE_PLATFORM_ID = 'Node1D'
 
 
 # TIMEOUT: timeout for each execute_agent call.
 TIMEOUT = 90
+
+# DATA_TIMEOUT: timeout for reception of data sample
+DATA_TIMEOUT = 25
+
+# EVENT_TIMEOUT: timeout for reception of event
+EVENT_TIMEOUT = 25
 
 
 class FakeProcess(LocalContextMixin):
@@ -113,6 +121,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self._data_subscribers = []
         self._samples_received = []
         self.addCleanup(self._stop_data_subscribers)
+
+        self._async_event_result = AsyncResult()
+        self._event_subscribers = []
+        self._events_received = []
+        self.addCleanup(self._stop_event_subscribers)
+        self._start_event_subscriber()
 
         self._set_up_DataProduct_obj()
         self._set_up_PlatformModel_obj()
@@ -356,6 +370,13 @@ class TestOmsLaunch(IonIntegrationTestCase):
         """
         Starts data subscriber for the given stream_name and stream_config
         """
+
+        def consume_data(message, stream_route, stream_id):
+            # A callback for processing subscribed-to data.
+            log.info('Subscriber received data message: %s.', str(message))
+            self._samples_received.append(message)
+            self._async_data_result.set()
+
         log.info('_start_data_subscriber stream_name=%r', stream_name)
 
         stream_id = stream_config['stream_id']
@@ -363,18 +384,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # Create subscription for the stream
         exchange_name = '%s_queue' % stream_name
         self.container.ex_manager.create_xn_queue(exchange_name).purge()
-        sub = StandaloneStreamSubscriber(exchange_name, self.consume_data)
+        sub = StandaloneStreamSubscriber(exchange_name, consume_data)
         sub.start()
         self._data_subscribers.append(sub)
         sub_id = self.pubsubcli.create_subscription(name=exchange_name, stream_ids=[stream_id])
         self.pubsubcli.activate_subscription(sub_id)
         sub.subscription_id = sub_id
-
-    def consume_data(self, message, stream_route, stream_id):
-        # A callback for processing subscribed-to data.
-        log.info('Subscriber received data message: %s.', str(message))
-        self._samples_received.append(message)
-        self._async_data_result.set()
 
     def _stop_data_subscribers(self):
         """
@@ -391,6 +406,45 @@ class TestOmsLaunch(IonIntegrationTestCase):
                 sub.stop()
         finally:
             self._data_subscribers = []
+
+    def _start_event_subscriber(self, event_type="PlatformAlarmEvent", sub_type="power"):
+        """
+        Starts event subscriber for events of given event_type ("PlatformAlarmEvent"
+        by default) and given sub_type ("power" by default).
+        """
+
+        def consume_event(evt, *args, **kwargs):
+            # A callback for consuming events.
+            log.info('Event subscriber received evt: %s.', str(evt))
+            self._events_received.append(evt)
+            self._async_event_result.set(evt)
+
+        sub = EventSubscriber(event_type=event_type,
+                              sub_type=sub_type,
+                              callback=consume_event)
+
+        sub.start()
+        log.info("registered event subscriber for event_type=%r, sub_type=%r",
+                 event_type, sub_type)
+
+        self._event_subscribers.append(sub)
+        sub._ready_event.wait(timeout=EVENT_TIMEOUT)
+
+    def _stop_event_subscribers(self):
+        """
+        Stops the event subscribers on cleanup.
+        """
+        try:
+            for sub in self._event_subscribers:
+                if hasattr(sub, 'subscription_id'):
+                    try:
+                        self.pubsubcli.deactivate_subscription(sub.subscription_id)
+                    except:
+                        pass
+                    self.pubsubcli.delete_subscription(sub.subscription_id)
+                sub.stop()
+        finally:
+            self._event_subscribers = []
 
     def test_oms_create_and_launch(self):
 
@@ -477,8 +531,15 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # wait for data sample
         # note: we just wait for one sample -- see consume_data above
         log.info("waiting for reception of a data sample...")
-        self._async_data_result.get(timeout=15)
+        self._async_data_result.get(timeout=DATA_TIMEOUT)
         self.assertEquals(len(self._samples_received), 1)
+
+
+        # wait for alarm event
+        # note: we just wait for one sample -- see consume_data above
+        log.info("waiting for reception of an event...")
+        self._async_event_result.get(timeout=EVENT_TIMEOUT)
+        log.info("Received events: %s", len(self._events_received))
 
 
         # STOP_ALARM_DISPATCH
