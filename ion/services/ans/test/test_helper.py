@@ -163,6 +163,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 result.set(True)
 
         subscriber = StandaloneStreamSubscriber(exchange_name='workflow_test', callback=message_received)
+        subscriber.xn.purge()
+        self.addCleanup(subscriber.xn.delete)
         subscriber.start()
 
         # after the queue has been created it is safe to activate the subscription
@@ -187,24 +189,19 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
     def validate_messages(self, results):
-
-
-        salinity_bins = [None,None]
-        i=0
-
-
+        bin1 = numpy.array([])
+        bin2 = numpy.array([])
         for message in results:
             rdt = RecordDictionaryTool.load_from_granule(message)
+            if 'salinity' in message.data_producer_id:
+                if 'double' in message.data_producer_id:
+                    bin2 = numpy.append(bin2, rdt['salinity'])
+                else:
+                    bin1 = numpy.append(bin1, rdt['salinity'])
 
-            if 'salinity' in rdt and rdt['salinity'] is not None:
-                salinity_bins[i % 2] = rdt['salinity']
 
-                if (i%2):
-                    proper_dbl = salinity_bins[0] * 2.0
-                    assert_array_almost_equal(salinity_bins[1], proper_dbl)
-                    log.info('Salinity test satisfactory')
 
-                i+=1 
+        assert_array_almost_equal(bin2, bin1 * 2.0)
 
 
 
@@ -419,6 +416,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         if isinstance(results,Granule):
             results =[results]
 
+        found_data = False
         for g in results:
             if isinstance(g,Granule):
                 rdt = RecordDictionaryTool.load_from_granule(g)
@@ -438,6 +436,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                     assertions(graph['viz_product_type'] == 'matplotlib_graphs' )
                     # check to see if the list (numpy array) contains actual images
                     assertions(imghdr.what(graph['image_name'], h = graph['image_obj']) == 'png')
+                    found_data = True
+        return found_data
 
 
 
