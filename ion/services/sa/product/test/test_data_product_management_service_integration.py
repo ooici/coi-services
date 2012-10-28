@@ -38,7 +38,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sax')
 #@unittest.skip('not working')
 class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
@@ -228,8 +228,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
                          extended_product.computed.product_download_size_estimated.status)
         self.assertEqual(0, extended_product.computed.product_download_size_estimated.value)
 
-        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
-                         extended_product.computed.computed.parameters.value.status)
+        self.assertEqual(ComputedValueAvailability.PROVIDED,
+                         extended_product.computed.parameters.status)
         #log.debug("test_create_data_product: parameters %s" % extended_product.computed.parameters.value)
 
         # now 'delete' the data product

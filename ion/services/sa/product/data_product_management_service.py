@@ -6,6 +6,8 @@ __license__ = 'Apache 2.0'
 from pyon.public import  log, IonObject
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from ion.services.sa.product.data_product_impl import DataProductImpl
+
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import DataProduct, DataProductVersion
 from interface.objects import ComputedValueAvailability
 
@@ -619,6 +621,26 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return ret
 
+    def get_provenance_product_list(self, data_product_id=''):
+        # Provides an audit trail for modifications to the original data
+
+        #todo - call get_data_product_provenance when it is completed
+        ret = IonObject(OT.ComputedListValue)
+
+        provenance_results = self.get_data_product_provenance(data_product_id)
+
+        if not provenance_results:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.value = []
+            ret.reason = "FIXME. provenance results not available"
+        else:
+            ret.status = ComputedValueAvailability.PROVIDED
+            for key, value in provenance_results.iteritems():
+                for prod_id in value['inputs'].iterkeys():
+                    ret.value.extend(self.clients.resource_registry.read(prod_id))
+
+        return ret
+
     def get_number_active_subscriptions(self, data_product_id=''):
         # The number of current subscriptions to the data
         # Returns the storage size occupied by the data content of the resource, in bytes.
@@ -673,6 +695,50 @@ class DataProductManagementService(BaseDataProductManagementService):
         try:
             ret.status = ComputedValueAvailability.PROVIDED
             raise NotFound #todo: ret.value = ???
+        except NotFound:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+        except Exception as e:
+            raise e
+
+        return ret
+
+
+    def get_last_granule(self, data_product_id=''):
+        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
+        ret = IonObject(OT.ComputedDictValue)
+        ret.value = {}
+        try:
+            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "No dataset associated with this data product"
+            else:
+                replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
+                ret.value = RecordDictionaryTool.load_from_granule(replay_granule)
+                ret.status = ComputedValueAvailability.PROVIDED
+        except NotFound:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+        except Exception as e:
+            raise e
+
+        return ret
+
+
+    def get_recent_granules(self, data_product_id=''):
+        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
+        ret = IonObject(OT.ComputedDictValue)
+        ret.value = {}
+        try:
+            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "No dataset associated with this data product"
+            else:
+                replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
+                ret.value = RecordDictionaryTool.load_from_granule(replay_granule)
+                ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
