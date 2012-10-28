@@ -44,6 +44,9 @@ import time
 
 from pyon.util.context import LocalContextMixin
 
+from interface.objects import ProcessStateEnum
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
+
 # Used to validate param config retrieved from driver.
 PARAMS = {
     SBE37Parameter.OUTPUTSAL : bool,
@@ -462,7 +465,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         pid = self.create_logger('ctd_l2_density', stream_ids[0] )
         self.loggerpids.append(pid)
 
-
     def test_createTransformsThenActivateInstrument(self):
 
         self.loggerpids = []
@@ -582,6 +584,11 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
                         instrument_agent_instance_id=instAgentInstance_id)
 
         inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
+        
+        # Wait for instrument agent to spawn
+        gate = ProcessStateGate(self.processdispatchclient.read_process,
+            inst_agent_instance_obj.agent_process_id, ProcessStateEnum.RUNNING)
+        self.assertTrue(gate.await(15), "The instrument agent instance did not spawn in 15 seconds")
 
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = ResourceAgentClient(instDevice_id,
