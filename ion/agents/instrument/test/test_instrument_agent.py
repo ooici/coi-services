@@ -1549,7 +1549,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-
+    @unittest.skip('Test very long and simulator not accurate here.')
     def test_test(self):
         """
         test_test
