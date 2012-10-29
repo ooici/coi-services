@@ -326,7 +326,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
             process = Process(process_id=process_id, name=name)
             self.container.resource_registry.create(process, object_id=process_id)
         except BadRequest:
-            log.debug("Tried to create Process %s, but already exists. This is normally ok.")
+            log.debug("Tried to create Process %s, but already exists. This is normally ok.", process_id)
 
         return self.backend.spawn(process_id, process_definition_id, schedule, configuration, name)
 
@@ -662,6 +662,7 @@ class PDLocalBackend(object):
 _PD_IGNORED_STATE = object()        # @TODO: remove?
 
 _PD_PROCESS_STATE_MAP = {
+    "300-WAITING": ProcessStateEnum.WAITING,
     "400-PENDING": ProcessStateEnum.PENDING,
     "500-RUNNING": ProcessStateEnum.RUNNING,
     "600-TERMINATING": ProcessStateEnum.TERMINATING,
@@ -672,6 +673,7 @@ _PD_PROCESS_STATE_MAP = {
 }
 
 _PD_PYON_PROCESS_STATE_MAP = {
+    ProcessStateEnum.WAITING: "300-WAITING",
     ProcessStateEnum.PENDING: "400-PENDING",
     ProcessStateEnum.RUNNING: "500-RUNNING",
     ProcessStateEnum.TERMINATING: "600-TERMINATING",

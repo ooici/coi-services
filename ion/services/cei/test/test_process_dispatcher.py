@@ -778,14 +778,13 @@ pd_config = {
         'heartbeat_queue': "hbeatq",
         'dashi_uri': "amqp://guest:guest@localhost/",
         'dashi_exchange': "%s.pdtests" % bootstrap.get_sys_name(),
+        'default_engine': "engine1",
         "engines": {
-            "default": {
-                "launch_type": {
-                    "name": "pyon_single",
-                    "pyon_directory": "/home/cc/coi-services/",
-                    "container_args": "--noshell",
-                    "supd_directory": "/tmp"
-                },
+            "engine1": {
+                "slots": 100,
+                "base_need": 1
+            },
+            "engine2": {
                 "slots": 100,
                 "base_need": 1
             }
@@ -793,6 +792,24 @@ pd_config = {
     }
 }
 
+def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):
+
+    resource_id = resource_id or uuid.uuid4().hex
+
+    return {
+        'eeagent': {
+            'heartbeat': 1,
+            'heartbeat_queue': 'hbeatq',
+            'slots': slots,
+            'name': 'pyon_eeagent',
+            'node_id': node_id,
+            'launch_type': {
+                'name': 'pyon',
+                'persistence_directory': persistence_dir,
+                },
+            },
+        'agent': {'resource_id': resource_id},
+        }
 
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 @attr('LOCOINT', group='cei')
@@ -801,6 +818,7 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
     """
 
     def setUp(self):
+        self.dashi = None
         self._start_container()
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
@@ -818,54 +836,103 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
                                               'class': 'TestProcess'}
         self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
 
-        self.resource_id = "eeagent_123456789"
-        self._eea_name = "eeagent"
+        self._eea_pids = []
+        self._tmpdirs = []
 
-        self.persistence_directory = tempfile.mkdtemp()
-
-        self.agent_config = {
-            'eeagent': {
-                'heartbeat': 1,
-                'heartbeat_queue': 'hbeatq',
-                'slots': 100,
-                'name': 'pyon_eeagent',
-                'node_id': 'somenodeid',
-                'launch_type': {
-                    'name': 'pyon',
-                    'persistence_directory': self.persistence_directory,
-                    },
-                },
-            'agent': {'resource_id': self.resource_id},
-        }
-
-        #send a fake node_state message to PD's dashi binding.
-        dashi = get_dashi(uuid.uuid4().hex,
+        self.dashi = get_dashi(uuid.uuid4().hex,
             pd_config['processdispatcher']['dashi_uri'],
             pd_config['processdispatcher']['dashi_exchange'])
-        node_state = dict(node_id="somenodeid", state=InstanceState.RUNNING,
-            domain_id=domain_id_from_engine("default"))
-        dashi.fire(get_pd_dashi_name(), "node_state", args=node_state)
 
-        self._eea_pid = self.container_client.spawn_process(name=self._eea_name,
-            module="ion.agents.cei.execution_engine_agent",
-            cls="ExecutionEngineAgent", config=self.agent_config)
-        log.info('Agent pid=%s.', str(self._eea_pid))
+        #send a fake node_state message to PD's dashi binding.
+        self.node1_id = uuid.uuid4().hex
+        self._send_node_state("engine1", self.node1_id)
+        self._start_eeagent(self.node1_id)
 
         self.waiter = ProcessStateWaiter()
 
-    def _start_eeagent(self):
-        self.container_client = ContainerAgentClient(node=self.container.node,
-            name=self.container.name)
-        self.container = self.container_client._get_container_instance()
+    def _send_node_state(self, engine_id, node_id=None):
+        node_id = node_id or uuid.uuid4().hex
+        node_state = dict(node_id=node_id, state=InstanceState.RUNNING,
+            domain_id=domain_id_from_engine(engine_id))
+        self.dashi.fire(get_pd_dashi_name(), "node_state", args=node_state)
 
-        # Start eeagent.
-        self._eea_pid = self.container_client.spawn_process(name=self._eea_name,
+    def _start_eeagent(self, node_id):
+        persistence_dir = tempfile.mkdtemp()
+        self._tmpdirs.append(persistence_dir)
+        agent_config = _get_eeagent_config(node_id, persistence_dir)
+        pid = self.container_client.spawn_process(name="eeagent",
             module="ion.agents.cei.execution_engine_agent",
-            cls="ExecutionEngineAgent", config=self.agent_config)
-        log.info('Agent pid=%s.', str(self._eea_pid))
+            cls="ExecutionEngineAgent", config=agent_config)
+        log.info('Agent pid=%s.', str(pid))
+        self._eea_pids.append(pid)
 
     def tearDown(self):
-        self.container.terminate_process(self._eea_pid)
-        shutil.rmtree(self.persistence_directory)
+        for pid in self._eea_pids:
+            self.container.terminate_process(pid)
+        for d in self._tmpdirs:
+            shutil.rmtree(d)
 
         self.waiter.stop()
+        if self.dashi:
+            self.dashi.cancel()
+
+
+    def test_requested_ee(self):
+
+        # request non-default engine
+
+        process_target = ProcessTarget(execution_engine_id="engine2")
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        process_schedule.target = process_target
+
+        pid = self.pd_cli.create_process(self.process_definition_id)
+        self.waiter.start()
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
+
+        node2_id = uuid.uuid4().hex
+        self._send_node_state("engine2", node2_id)
+        self._start_eeagent(node2_id)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
+
+        # spawn another process. it should start immediately.
+
+        process_target = ProcessTarget(execution_engine_id="engine2")
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.NEVER
+        process_schedule.target = process_target
+
+        pid2 = self.pd_cli.create_process(self.process_definition_id)
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid2)
+
+        self.waiter.await_state_event(pid2, ProcessStateEnum.RUNNING)
+
+        # one more with node exclusive
+
+        process_target = ProcessTarget(execution_engine_id="engine2",
+            node_exclusive="hats")
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.NEVER
+        process_schedule.target = process_target
+
+        pid3 = self.pd_cli.create_process(self.process_definition_id)
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid3)
+
+        self.waiter.await_state_event(pid3, ProcessStateEnum.RUNNING)
+
+        # kill the processes for good
+        self.pd_cli.cancel_process(pid)
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
+        self.pd_cli.cancel_process(pid2)
+        self.waiter.await_state_event(pid2, ProcessStateEnum.TERMINATED)
+        self.pd_cli.cancel_process(pid3)
+        self.waiter.await_state_event(pid3, ProcessStateEnum.TERMINATED)

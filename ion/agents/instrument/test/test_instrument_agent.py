@@ -1034,18 +1034,18 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             res_pars = []
             
             if len(caps_list)>0 and isinstance(caps_list[0], AgentCapability):
-                agt_cmds = [x.name for x in retval if x.cap_type==CapabilityType.AGT_CMD]
-                agt_pars = [x.name for x in retval if x.cap_type==CapabilityType.AGT_PAR]
-                res_cmds = [x.name for x in retval if x.cap_type==CapabilityType.RES_CMD]
-                res_iface = [x.name for x in retval if x.cap_type==CapabilityType.RES_IFACE]
-                res_pars = [x.name for x in retval if x.cap_type==CapabilityType.RES_PAR]
+                agt_cmds = [x.name for x in caps_list if x.cap_type==CapabilityType.AGT_CMD]
+                agt_pars = [x.name for x in caps_list if x.cap_type==CapabilityType.AGT_PAR]
+                res_cmds = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_CMD]
+                res_iface = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_IFACE]
+                res_pars = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_PAR]
             
             elif len(caps_list)>0 and isinstance(caps_list[0], dict):
-                agt_cmds = [x['name'] for x in retval if x['cap_type']==CapabilityType.AGT_CMD]
-                agt_pars = [x['name'] for x in retval if x['cap_type']==CapabilityType.AGT_PAR]
-                res_cmds = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_CMD]
-                res_cmds = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_IFACE]
-                res_pars = [x['name'] for x in retval if x['cap_type']==CapabilityType.RES_PAR]
+                agt_cmds = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.AGT_CMD]
+                agt_pars = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.AGT_PAR]
+                res_cmds = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_CMD]
+                res_iface = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_IFACE]
+                res_pars = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_PAR]
 
             return agt_cmds, agt_pars, res_cmds, res_iface, res_pars
              
