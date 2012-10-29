@@ -1,6 +1,8 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import Container, log, IonObject
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
+from ion.services.dm.utility.granule_utils import time_series_domain
+from pyon.public import log, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -10,25 +12,18 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 from pyon.util.context import LocalContextMixin
-from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
+from pyon.core.exception import NotFound
 from pyon.public import RT, PRED
 #from mock import Mock, patch
-from pyon.util.unit_test import PyonTestCase
 from pyon.util.ion_time import IonTime
 from nose.plugins.attrib import attr
-import unittest
-from ooi.logging import log
 from pyon.public import OT
 
-from ion.services.sa.test.helpers import any_old
-from ion.util.parameter_yaml_IO import get_param_dict
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
@@ -52,6 +47,12 @@ class TestDeployment(IonIntegrationTestCase):
         self.dmpsclient = DataProductManagementServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.psmsclient = PubsubManagementServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
+
+        self.c = DotDict()
+        self.c.resource_registry = self.rrclient
+        self.resource_impl = ResourceImpl(self.c)
+
 
     #@unittest.skip("targeting")
     def test_create_deployment(self):
@@ -91,11 +92,12 @@ class TestDeployment(IonIntegrationTestCase):
         self.assertEqual(len(device_ids), 1)
 
         #delete the deployment
-        self.omsclient.delete_deployment(deployment_id)
+        self.resource_impl.pluck(deployment_id)
+        self.omsclient.force_delete_deployment(deployment_id)
         # now try to get the deleted dp object
         try:
             deployment_obj = self.omsclient.read_deployment(deployment_id)
-        except NotFound as ex:
+        except NotFound:
             pass
         else:
             self.fail("deleted deployment was found during read")
@@ -142,23 +144,17 @@ class TestDeployment(IonIntegrationTestCase):
                                         description='test instrument site')
         instrument_site_id = self.omsclient.create_instrument_site(instrument_site_obj, site_id)
 
-        ctd_stream_def_id = self.psmsclient.create_stream_definition(name='SBE37_CDM')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.psmsclient.create_stream_definition(name='SBE37_CDM', parameter_dictionary_id=pdict_id)
 
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
 
-        parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='Log Data Product',
@@ -166,7 +162,7 @@ class TestDeployment(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        out_log_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        out_log_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id)
 
         #----------------------------------------------------------------------------------------------------
         # Start the transform (a logical transform) that acts as an instrument site
@@ -193,7 +189,7 @@ class TestDeployment(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        inst_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        inst_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id)
 
         #assign data products appropriately
         self.damsclient.assign_data_product(input_resource_id=instrument_device_id,

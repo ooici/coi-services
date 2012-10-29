@@ -12,31 +12,22 @@ from interface.services.sa.iobservatory_management_service import ObservatoryMan
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
-from ion.util.parameter_yaml_IO import get_param_dict
 
-from ooi.logging import log
 from nose.plugins.attrib import attr
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.public import CFG, RT, LCS, PRED, LCS, LCE
-from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.agent.agent import ResourceAgentClient, ResourceAgentState, ResourceAgentEvent
-from pyon.util.unit_test import PyonTestCase
-
+from pyon.public import RT, PRED, LCE
+from pyon.core.exception import BadRequest
+from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from interface.objects import AgentCommand
 from interface.objects import ProcessStateEnum
 from interface.objects import ProcessDefinition
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-
+from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.agents.port.port_agent_process import PortAgentProcessType
 
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 import gevent
@@ -46,9 +37,7 @@ import signal
 import unittest
 
 from pyon.util.context import LocalContextMixin
-from mock import patch
 
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
 class FakeProcess(LocalContextMixin):
     """
@@ -84,6 +73,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
         self.omsclient = ObservatoryManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
+
 
     def create_logger(self, name, stream_id=''):
 
@@ -135,7 +126,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Create InstrumentModel
         #-------------------------------
         instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model="SBE37IMModel",
-                                stream_configuration= {'raw': 'simple_data_particle_raw_param_dict' , 'parsed': 'simple_data_particle_parsed_param_dict' })
+                                stream_configuration= {'raw': 'ctd_raw_param_dict' , 'parsed': 'ctd_parsed_param_dict' })
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
@@ -148,8 +139,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
             name='agent007',
             description="SBE37IMAgent",
-            driver_module="ion.agents.instrument.instrument_agent",
-            driver_class="InstrumentAgent" )
+            driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
+            driver_class="SBE37Driver" )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -178,21 +169,16 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parsed_parameter_dictionary = get_param_dict('simple_data_particle_parsed_param_dict')
-        parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary=parsed_parameter_dictionary.dump())
+        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
 
-        raw_parameter_dictionary = get_param_dict('simple_data_particle_raw_param_dict')
-        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='raw', parameter_dictionary=raw_parameter_dictionary.dump())
+        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
+        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='raw', parameter_dictionary_id=raw_pdict_id)
 
         #-------------------------------
         # Create Old InstrumentDevice
@@ -221,11 +207,11 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        instrument_site_output_dp_id = self.dataproductclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        instrument_site_output_dp_id = self.dataproductclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
 
         self.damsclient.assign_data_product(input_resource_id=oldInstDevice_id, data_product_id=instrument_site_output_dp_id)
 
-        self.dataproductclient.activate_data_product_persistence(data_product_id=instrument_site_output_dp_id)
+        #self.dataproductclient.activate_data_product_persistence(data_product_id=instrument_site_output_dp_id)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(instrument_site_output_dp_id, PRED.hasStream, None, True)
@@ -272,8 +258,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1',
             description="SBE37IMAgentInstanceYear1",
-            driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
-            driver_class='SBE37Driver',
             comms_device_address='sbe37-simulator.oceanobservatories.org',
             comms_device_port=4001,
             port_agent_config = port_agent_config)
@@ -284,7 +268,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             oldInstDevice_id)
 
 
-        sdom, tdom = CoverageCraft.create_domains()
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
 
@@ -300,7 +284,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_parsed_data_product_year1 = self.dataproductclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        ctd_parsed_data_product_year1 = self.dataproductclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
 
 
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product_year1
@@ -366,8 +350,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2',
             description="SBE37IMAgentInstanceYear2",
-            driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
-            driver_class='SBE37Driver',
             comms_device_address='sbe37-simulator.oceanobservatories.org',
             comms_device_port=4004,
             port_agent_config = port_agent_config)
@@ -391,7 +373,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_parsed_data_product_year2 = self.dataproductclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        ctd_parsed_data_product_year2 = self.dataproductclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
 
         print 'new ctd_parsed_data_product_id = ', ctd_parsed_data_product_year2
 
@@ -411,8 +393,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
                             name='ctd_L0_all',
                             description='transform ctd package into three separate L0 streams',
                             module='ion.processes.data.transforms.ctd.ctd_L0_all',
-                            class_name='ctd_L0_all',
-                            process_source='some_source_reference')
+                            class_name='ctd_L0_all')
         try:
             ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except BadRequest as ex:
@@ -423,13 +404,13 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
+        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity', parameter_dictionary_id=parsed_pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id, binding='conductivity' )
 
-        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
+        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure', parameter_dictionary_id=parsed_pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id, binding='pressure' )
 
-        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
+        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature', parameter_dictionary_id=parsed_pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
@@ -442,7 +423,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_conductivity_output_dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_conductivity_output_dp_obj, stream_definition_id=parsed_stream_def_id)
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
         #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
@@ -455,7 +436,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
                                                     temporal_domain = tdom,
                                                     spatial_domain = sdom)
 
-        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_pressure_output_dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_pressure_output_dp_obj, stream_definition_id=parsed_stream_def_id)
 
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
         #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
@@ -468,7 +449,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
                                                         temporal_domain = tdom,
                                                         spatial_domain = sdom)
 
-        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_temperature_output_dp_obj, stream_definition_id=parsed_stream_def_id, parameter_dictionary=parsed_parameter_dictionary.dump())
+        ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_temperature_output_dp_obj, stream_definition_id=parsed_stream_def_id)
 
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
         #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
@@ -496,7 +477,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Launch InstrumentAgentInstance Sim1, connect to the resource agent client
         #-------------------------------
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
-
+        self.addCleanup(self.imsclient.stop_instrument_agent_instance,
+                        instrument_agent_instance_id=oldInstAgentInstance_id)
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(oldInstAgentInstance_id)
@@ -519,6 +501,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Launch InstrumentAgentInstance Sim2, connect to the resource agent client
         #-------------------------------
         self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=newInstAgentInstance_id)
+        self.addCleanup(self.imsclient.stop_instrument_agent_instance,
+                        instrument_agent_instance_id=newInstAgentInstance_id)
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(newInstAgentInstance_id)
@@ -628,6 +612,4 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
 
 
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=oldInstAgentInstance_id)
-        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=newInstAgentInstance_id)
 

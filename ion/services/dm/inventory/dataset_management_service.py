@@ -18,6 +18,8 @@ from interface.objects import ParameterContextResource, ParameterDictionaryResou
 from interface.objects import DataSet
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
+from coverage_model.basic_types import AxisTypeEnum
+
 
 class DatasetManagementService(BaseDatasetManagementService):
     DEFAULT_DATASTORE = 'datasets'
@@ -40,8 +42,9 @@ class DatasetManagementService(BaseDatasetManagementService):
         validate_is_not_none(temporal_domain, 'A temporal domain must be supplied to register a new dataset.')
         
         if parameter_dictionary_id:
+            pd = self.read_parameter_dictionary(parameter_dictionary_id)
             pcs = self.read_parameter_contexts(parameter_dictionary_id, id_only=False)
-            parameter_dict = self._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs])
+            parameter_dict = self._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
             parameter_dict = parameter_dict.dump()
 
         dataset                      = DataSet()
@@ -60,8 +63,7 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.add_stream(dataset_id,stream_id)
 
 
-        coverage = self._create_coverage(description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
-        self._persist_coverage(dataset_id, coverage)
+        self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
 
         return dataset_id
 
@@ -139,12 +141,12 @@ class DatasetManagementService(BaseDatasetManagementService):
     def read_parameter_context_by_name(self, name='', id_only=False):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContextResource, name=name, id_only=id_only)
         if not len(res):
-            raise NotFound('Unable to locate context with name: %s', name)
+            raise NotFound('Unable to locate context with name: %s' % name)
         return res[0]
 
 #--------
 
-    def create_parameter_dictionary(self, name='', parameter_context_ids=None, description=''):
+    def create_parameter_dictionary(self, name='', parameter_context_ids=None, temporal_context='', description=''):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionaryResource, name=name, id_only=True)
         if len(res):
             context_ids,_ = self.clients.resource_registry.find_objects(subject=res[0], predicate=PRED.hasParameterContext, id_only=True)
@@ -156,7 +158,7 @@ class DatasetManagementService(BaseDatasetManagementService):
                 raise Conflict('A parameter dictionary with name %s already exists and has a different definition' % name)
         validate_true(name, 'Name field may not be empty.')
         parameter_context_ids = parameter_context_ids or []
-        pd_res = ParameterDictionaryResource(name=name, description=description)
+        pd_res = ParameterDictionaryResource(name=name, temporal_context=temporal_context, description=description)
         pd_res_id, ver = self.clients.resource_registry.create(pd_res)
         for pc_id in parameter_context_ids:
             self._link_pcr_to_pdr(pc_id, pd_res_id)
@@ -182,7 +184,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def read_parameter_dictionary_by_name(self, name='', id_only=False):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionaryResource, name=name, id_only=id_only)
         if not len(res):
-            raise NotFound('Unable to locate context with name: %s', name)
+            raise NotFound('Unable to locate context with name: %s' % name)
         return res[0]
 
 #--------
@@ -214,9 +216,10 @@ class DatasetManagementService(BaseDatasetManagementService):
         from a service call.
         '''
         dms_cli = DatasetManagementServiceClient()
+        pd  = dms_cli.read_parameter_dictionary(parameter_dictionary_id)
         pcs = dms_cli.read_parameter_contexts(parameter_dictionary_id=parameter_dictionary_id, id_only=False)
 
-        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs])
+        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
         pdict._identifier = parameter_dictionary_id
 
         return pdict
@@ -242,25 +245,19 @@ class DatasetManagementService(BaseDatasetManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
-    def _create_coverage(self, description, parameter_dict, spatial_domain,temporal_domain):
+    def _create_coverage(self, dataset_id, description, parameter_dict, spatial_domain,temporal_domain):
 
         pdict = ParameterDictionary.load(parameter_dict)
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
-
-        scov = SimplexCoverage(description, parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
         return scov
 
     @classmethod
-    def _persist_coverage(cls, dataset_id, coverage):
-        validate_is_instance(coverage,SimplexCoverage,'Coverage is not an instance of SimplexCoverage: %s' % type(coverage))
-        filename = FileSystem.get_hierarchical_url(FS.CACHE, dataset_id, '.cov')
-        SimplexCoverage.save(coverage, filename, use_ascii=False)
-
-    @classmethod
     def _get_coverage(cls,dataset_id):
-        filename = FileSystem.get_hierarchical_url(FS.CACHE, dataset_id, '.cov')
-        coverage = SimplexCoverage.load(filename)
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        coverage = SimplexCoverage(file_root, dataset_id)
         return coverage
     
     @classmethod
@@ -272,9 +269,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         return bool(pc1 == pc2)
             
     @classmethod
-    def _merge_contexts(cls, contexts):
+    def _merge_contexts(cls, contexts, temporal):
         pdict = ParameterDictionary()
         for context in contexts:
-            pdict.add_context(context)
+            if context.name == temporal:
+                context.reference_frame = AxisTypeEnum.TIME
+                pdict.add_context(context, is_temporal=True)
+            else:
+                pdict.add_context(context)
         return pdict
 

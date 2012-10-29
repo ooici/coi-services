@@ -1,9 +1,9 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 import tempfile
-from ion.services.sa.common.module_uploader import RegisterModulePreparer
+from ion.util.module_uploader import RegisterModulePreparerEgg
 from pyon.ion.resource import LCE
-from pyon.public import Container, log, IonObject
+from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -23,7 +23,6 @@ import unittest
 from ooi.logging import log
 
 import string
-import base64
 import subprocess
 import os
 import pwd
@@ -108,10 +107,10 @@ class TestIMSRegisterAgent(PyonTestCase):
         # must call this manually
         self.IMS.on_init()
 
-        self.IMS.module_uploader = RegisterModulePreparer(dest_user="my_user",
-                                                          dest_host="my_host",
-                                                          dest_path="/my/remote/wwwroot/my/path",
-                                                          dest_wwwroot="/my/remote/wwwroot")
+        self.IMS.module_uploader = RegisterModulePreparerEgg(dest_user="my_user",
+                                                             dest_host="my_host",
+                                                             dest_path="/my/remote/wwwroot/my/path",
+                                                             dest_wwwroot="/my/remote/wwwroot")
 
         self.addCleanup(delattr, self, "IMS")
         self.addCleanup(delattr, self, "mock_ionobj")
@@ -251,5 +250,9 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
                 self.assertEqual(a.content, str(parts[0] * 3) + "\n")
 
         log.info("L4-CI-SA-RQ-148")
+
+        # cleanup
+        self.IMS.force_delete_instrument_agent(inst_agent_id)
+        self.IMS.force_delete_instrument_model(inst_model_id)
 
         return

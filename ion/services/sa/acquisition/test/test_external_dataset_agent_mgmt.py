@@ -1,47 +1,30 @@
-from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import Container, log, IonObject
+from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.objects import HdfStorage, CouchStorage
 
-from pyon.public import log
 from nose.plugins.attrib import attr
 
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from prototype.sci_data.stream_defs import ctd_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.public import CFG
 
 # MI imports
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
-from pyon.public import CFG
-from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
 from pyon.util.context import LocalContextMixin
-from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, LCS, PRED
-from mock import Mock, patch
-from pyon.util.unit_test import PyonTestCase
-from nose.plugins.attrib import attr
+from pyon.core.exception import BadRequest
+from pyon.public import RT, PRED
 import unittest
-import time
-from ion.services.sa.product.data_product_impl import DataProductImpl
-from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
-from ion.util.parameter_yaml_IO import get_param_dict
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
@@ -120,27 +103,20 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         dproducer_id = self.damsclient.register_external_data_set(extDataset_id)
 
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM')
+
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM', parameter_dictionary_id=pdict_id)
 
         log.debug("TestExternalDatasetAgentMgmt: new Stream Definition id = %s", str(ctd_stream_def_id))
 
         log.debug("TestExternalDatasetAgentMgmt: Creating new data product with a stream definition")
         dp_obj = IonObject(RT.DataProduct,name='eoi dataset data',description=' stream test')
 
-        # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-
-        parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
@@ -148,7 +124,7 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
 
         log.debug("TestExternalDatasetAgentMgmt: new dp_id = %s", str(data_product_id1) )
 

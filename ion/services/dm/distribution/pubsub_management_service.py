@@ -18,6 +18,9 @@ from interface.objects import StreamDefinition, Stream, Subscription, Topic
 from interface.services.dm.ipubsub_management_service import BasePubsubManagementService
 
 from collections import deque
+import logging
+
+dot = logging.getLogger('dot')
 
 class PubsubManagementService(BasePubsubManagementService):
 
@@ -239,6 +242,10 @@ class PubsubManagementService(BasePubsubManagementService):
 
         for stream in streams:
             log.info('%s -> %s', stream.name, subscription.exchange_name)
+            if dot.isEnabledFor(logging.INFO):
+                import re
+                queue_name = re.sub(r'[ -]','_',subscription.exchange_name)
+                print 'DOT>> %s -> %s' %(stream.stream_route.routing_key.strip('.stream'), queue_name)
             self._bind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
 
         for exchange_point in subscription.exchange_points:
@@ -369,7 +376,8 @@ class PubsubManagementService(BasePubsubManagementService):
         import re
         topic_name = topic_name.lower()
         topic_name = re.sub(r'\s', '', topic_name)
-        topic_name = topic_name[:24]
+        topic_name = re.sub(r'-','_',topic_name)
+        #topic_name = topic_name[:24]
 
         return topic_name
 

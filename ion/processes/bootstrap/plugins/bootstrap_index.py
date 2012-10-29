@@ -24,3 +24,4 @@ class BootstrapIndex(BootstrapPlugin):
             #---------------------------------------------
         else:
             log.info("Not creating the ES indexes.")
+

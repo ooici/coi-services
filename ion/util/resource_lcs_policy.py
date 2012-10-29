@@ -4,6 +4,7 @@
 @package  ion.services.sa.instrument.policy
 @author   Ian Katz
 """
+from pyon.core.exception import NotFound
 
 from pyon.public import PRED, RT, LCS
 from pyon.ion.resource import get_maturity_visibility
@@ -47,8 +48,12 @@ class ResourceLCSPolicy(object):
         @param resource_id a resource id
         """
         assert(type("") == type(resource_id))
-        resource = self.RR.read(resource_id)
-        return resource._get_type()
+        try:
+            resource = self.RR.read(resource_id)
+            return resource._get_type()
+        except Exception as e:
+            e.message = "resource_lcs_policy:_get_resource_type_by_id: %s" % e.message
+            raise e
 
     def _find_having(self, subject_type, association_predicate, some_object_id):
         """
@@ -148,8 +153,18 @@ class AgentPolicy(ResourceLCSPolicy):
 
 
     def precondition_delete(self, agent_id):
-        ret = (0 == self._find_having(RT.InstrumentAgentInstance, PRED.hasAgentDefinition, agent_id))
-        return self._make_result(ret, "InstrumentAgentInstance(s) are still using this InstrumentAgent")
+        agent_type = self._get_resource_type_by_id(agent_id)
+
+        if RT.InstrumentAgent == agent_type:
+            ret = (0 == len(self._find_having(RT.InstrumentAgentInstance, PRED.hasAgentDefinition, agent_id)))
+            return self._make_result(ret, "InstrumentAgentInstance(s) are still using this InstrumentAgent")
+
+        if RT.PlatformAgent == agent_type:
+            ret = (0 == len(self._find_having(RT.PlatformAgentInstance, PRED.hasAgentDefinition, agent_id)))
+            return self._make_result(ret, "PlatformAgentInstance(s) are still using this PlatformAgent")
+
+        return self._make_fail("Wrong agent resource type (got '%s')" % agent_type)
+
 
 class ModelPolicy(ResourceLCSPolicy):
     def lce_precondition_plan(self, model_id):
@@ -287,7 +302,7 @@ class DevicePolicy(ResourceLCSPolicy):
 
             return self._has_keyworded_attachment(device_id, KeywordFlag.VENDOR_TEST_RESULTS)
 
-        return self._make_fail("Wrong device resource type (got '%s')" % device_type)
+        return self._make_fail("Wrong device resource type for develop(got '%s')" % device_type)
 
 
     def lce_precondition_integrate(self, device_id):
@@ -332,7 +347,7 @@ class DevicePolicy(ResourceLCSPolicy):
 
         #todo: verify comms with device??
 
-        return self._make_fail("Wrong device resource type (got '%s')" % device_type)
+        return self._make_fail("Wrong device resource type for integrate(got '%s')" % device_type)
 
 
     def lce_precondition_deploy(self, device_id):
@@ -379,7 +394,7 @@ class DevicePolicy(ResourceLCSPolicy):
 
             return self._make_pass()
 
-        return self._make_fail("Wrong device resource type (got '%s')" % device_type)
+        return self._make_fail("Wrong device resource type for deploy (got '%s')" % device_type)
 
     def lce_precondition_retire(self, device_id):
 
@@ -393,14 +408,16 @@ class DevicePolicy(ResourceLCSPolicy):
                 return self._make_fail("Device is still assigned to a site")
             if 0 < len(self._find_stemming(device_id, PRED.hasDeployment, RT.Deployment)):
                 return self._make_fail("Device is still assigned to a deployment")
+            return self._make_pass()
 
         if RT.PlatformDevice == device_type:
             if 0 < len(self._find_having(RT.PlatformSite, PRED.hasDevice, device_id)):
                 return self._make_fail("Device is still assigned to a site")
             if 0 < len(self._find_stemming(device_id, PRED.hasDeployment, RT.Deployment)):
                 return self._make_fail("Device is still assigned to a deployment")
+            return self._make_pass()
 
-        return self._make_fail("Wrong device resource type (got '%s')" % device_type)
+        return self._make_fail("Wrong device resource type for retire(got '%s')" % device_type)
 
     def precondition_delete(self, device_id):
         return self.lce_precondition_retire(device_id)
@@ -452,7 +469,7 @@ class SitePolicy(ResourceLCSPolicy):
             if 0 < len(self._find_stemming(site_id, PRED.hasDeployment, RT.Deployment)):
                 return self._make_fail("Site is still assigned to a deployment")
 
-        return self._make_fail("Wrong device resource type (got '%s')" % site_type)
+        return self._make_fail("Wrong site resource type (got '%s')" % site_type)
 
     def precondition_delete(self, site_id):
         return self.lce_precondition_retire(site_id)

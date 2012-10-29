@@ -46,10 +46,26 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 #    def test_just_the_setup(self):
 #        return
 
+
+    def destroy(self, resource_ids):
+        self.OMS.force_delete_observatory(resource_ids.observatory_id)
+        self.OMS.force_delete_subsite(resource_ids.subsite_id)
+        self.OMS.force_delete_subsite(resource_ids.subsite2_id)
+        self.OMS.force_delete_subsite(resource_ids.subsiteb_id)
+        self.OMS.force_delete_subsite(resource_ids.subsitez_id)
+        self.OMS.force_delete_platform_site(resource_ids.platform_site_id)
+        self.OMS.force_delete_platform_site(resource_ids.platform_siteb_id)
+        self.OMS.force_delete_platform_site(resource_ids.platform_siteb2_id)
+        self.OMS.force_delete_platform_site(resource_ids.platform_site3_id)
+        self.OMS.force_delete_instrument_site(resource_ids.instrument_site_id)
+        self.OMS.force_delete_instrument_site(resource_ids.instrument_site2_id)
+        self.OMS.force_delete_instrument_site(resource_ids.instrument_siteb3_id)
+        self.OMS.force_delete_instrument_site(resource_ids.instrument_site4_id)
+
     #@unittest.skip('targeting')
     def test_resources_associations(self):
-        self._make_associations()
-
+        resources = self._make_associations()
+        self.destroy(resources)
 
     #@unittest.skip('targeting')    
     def test_find_related_frames_of_reference(self):
@@ -129,7 +145,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertNotIn(stuff.subsitez_id, ids[RT.Subsite])
         self.assertNotIn(stuff.platform_siteb2_id, ids[RT.PlatformSite])
         self.assertNotIn(RT.Observatory, ids)
-        
+
+        self.destroy(stuff)
 
     def _make_associations(self):
         """
@@ -235,7 +252,9 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         observatory_obj = IonObject(RT.Observatory,
                                         name='TestFacility',
                                         description='some new mf')
-        self.OMS.create_observatory(observatory_obj)
+        observatory_id = self.OMS.create_observatory(observatory_obj)
+        self.OMS.force_delete_observatory(observatory_id)
+
 
     #@unittest.skip("targeting")
     def test_find_observatory_org(self):
@@ -269,7 +288,6 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         subsite_id = self.OMS.create_subsite(subsite_obj, observatory_id)
         self.assertIsNotNone(subsite_id, "Subsite not created.")
 
-
         # verify that Subsite is linked to Observatory
         mf_subsite_assoc = self.RR.get_association(observatory_id, PRED.hasSite, subsite_id)
         self.assertIsNotNone(mf_subsite_assoc, "Subsite not connected to Observatory.")
@@ -288,7 +306,6 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
                                 description = 'sample logical platform')
         platform_site_id = self.OMS.create_platform_site(platform_site_obj, subsite_id)
         self.assertIsNotNone(platform_site_id, "PlatformSite not created.")
-
 
         # verify that PlatformSite is linked to Site
         site_lp_assoc = self.RR.get_association(subsite_id, PRED.hasSite, platform_site_id)
@@ -348,4 +365,10 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         # verify that Site is linked to Org
         assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.Subsite, id_only=True )
         self.assertEqual(len(assocs), 0)
+
+        self.RR.delete(org_id)
+        self.OMS.force_delete_observatory(observatory_id)
+        self.OMS.force_delete_subsite(subsite_id)
+        self.OMS.force_delete_platform_site(platform_site_id)
+        self.OMS.force_delete_instrument_site(instrument_site_id)
 

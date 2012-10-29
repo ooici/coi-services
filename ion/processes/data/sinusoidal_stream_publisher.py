@@ -33,6 +33,7 @@ import math
 from prototype.sci_data.stream_defs import ctd_stream_packet, SBE37_CDM_stream_definition, ctd_stream_definition
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
 
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -42,19 +43,20 @@ from coverage_model.parameter_types import QuantityType
 from coverage_model.basic_types import AxisTypeEnum
 
 class SinusoidalCtdPublisher(SimpleCtdPublisher):
-    def __init__(self, *args, **kwargs):
-        super(SinusoidalCtdPublisher, self).__init__(*args,**kwargs)
+    def on_start(self, *args, **kwargs):
+        super(SinusoidalCtdPublisher, self).on_start(*args,**kwargs)
         #@todo Init stuff
 
 
-    def _trigger_func(self, stream_id):
+    def publish_loop(self):
 
         sine_ampl = 2.0 # Amplitude in both directions
         samples = 60
-        sine_curr_deg = 0 # varies from 0 - 360
 
         startTime = time.time()
         count = samples #something other than zero
+
+        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
 
         while not self.finished.is_set():
             count = time.time() - startTime
@@ -67,10 +69,9 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
             lat = lon = numpy.array([0.0])
             tvar = numpy.array([time.time()])
 
-#            ctd_packet = ctd_stream_packet(stream_id=stream_id,
-#                c=c, t=t, p = p, lat = lat, lon = lon, time=tvar)
-
             parameter_dictionary = self._create_parameter()
+            #parameter_dictionary = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+
             rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
 
             h = numpy.array([random.uniform(0.0, 360.0)])
@@ -78,12 +79,11 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
             rdt['time'] = tvar
             rdt['lat'] = lat
             rdt['lon'] = lon
-            rdt['depth'] = h
             rdt['temp'] = t
             rdt['conductivity'] = c
             rdt['pressure'] = p
 
-            g = rdt.to_granule()
+            g = rdt.to_granule(data_producer_id=self.id)
 
             log.info('SinusoidalCtdPublisher sending 1 record!')
             self.publisher.publish(g, self.stream_id)
@@ -132,11 +132,5 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
         lon_ctxt.uom = 'degree_east'
         lon_ctxt.fill_value = 0e0
         pdict.add_context(lon_ctxt)
-
-        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=numpy.float32))
-        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        depth_ctxt.uom = 'meters'
-        depth_ctxt.fill_value = 0e0
-        pdict.add_context(depth_ctxt)
 
         return pdict

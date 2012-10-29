@@ -21,14 +21,18 @@ from interface.services.ans.ivisualization_service import VisualizationServiceCl
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from pyon.public import log
+from seawater.gibbs import SP_from_cndr
+from seawater.gibbs import cte
 
+from numpy.testing import assert_array_almost_equal
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.public import CFG, RT, LCS, PRED
 from pyon.core.exception import BadRequest, Inconsistent
 
 import imghdr
-import gevent, numpy
+import gevent
+import numpy
 import simplejson
 import base64
 
@@ -36,6 +40,8 @@ from interface.objects import Granule
 from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
+from seawater.gibbs import SP_from_cndr
+from seawater.gibbs import cte
 
 
 class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
@@ -111,8 +117,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         return self.start_input_stream_process(ctd_stream_id, 'ion.processes.data.sinusoidal_stream_publisher', 'SinusoidalCtdPublisher')
 
     def start_input_stream_process(self, ctd_stream_id, module = 'ion.processes.data.ctd_stream_publisher', class_name= 'SimpleCtdPublisher'):
-
-
         ###
         ### Start the process for producing the CTD data
         ###
@@ -137,7 +141,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         return ctd_sim_pid
 
     def start_output_stream_and_listen(self, ctd_stream_id, data_product_stream_ids, message_count_per_stream=10):
-
         assertions = self.assertTrue
         exchange_name = 'workflow_test'
 
@@ -162,6 +165,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 result.set(True)
 
         subscriber = StandaloneStreamSubscriber(exchange_name='workflow_test', callback=message_received)
+        subscriber.xn.purge()
+        self.addCleanup(subscriber.xn.delete)
         subscriber.start()
 
         # after the queue has been created it is safe to activate the subscription
@@ -186,25 +191,19 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
     def validate_messages(self, results):
-
-        assertions = self.assertTrue
-
-        salinity_bins = [None,None]
-        i=0
-
-
+        bin1 = numpy.array([])
+        bin2 = numpy.array([])
         for message in results:
             rdt = RecordDictionaryTool.load_from_granule(message)
+            if 'salinity' in message.data_producer_id:
+                if 'double' in message.data_producer_id:
+                    bin2 = numpy.append(bin2, rdt['salinity'])
+                else:
+                    bin1 = numpy.append(bin1, rdt['salinity'])
 
-            if 'salinity' in rdt and rdt['salinity'] is not None:
-                salinity_bins[i % 2] = rdt['salinity']
 
-                if (i%2):
-                    proper_dbl = salinity_bins[0] * 2.0
-                    assertions((salinity_bins[1] == proper_dbl).all())
-                    log.info('Salinity test satisfactory')
 
-                i+=1 
+        assert_array_almost_equal(bin2, bin1 * 2.0)
 
 
 
@@ -241,8 +240,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             name='ctd_salinity',
             description='create a salinity data product',
             module='ion.processes.data.transforms.ctd.ctd_L2_salinity',
-            class_name='SalinityTransform',
-            process_source='SalinityTransform source code here...')
+            class_name='SalinityTransform')
         try:
             ctd_L2_salinity_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except Exception as ex:
@@ -269,8 +267,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             name='salinity_doubler',
             description='create a salinity doubler data product',
             module='ion.processes.data.transforms.example_double_salinity',
-            class_name='SalinityDoubler',
-            process_source='SalinityDoubler source code here...')
+            class_name='SalinityDoubler')
         try:
             salinity_doubler_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except Exception as ex:
@@ -344,8 +341,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             name='google_dt_transform',
             description='Convert data streams to Google DataTables',
             module='ion.processes.data.transforms.viz.google_dt',
-            class_name='VizTransformGoogleDT',
-            process_source='VizTransformGoogleDT source code here...')
+            class_name='VizTransformGoogleDT')
         try:
             procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except Exception as ex:
@@ -399,18 +395,17 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             name='mpl_graphs_transform',
             description='Convert data streams to Matplotlib graphs',
             module='ion.processes.data.transforms.viz.matplotlib_graphs',
-            class_name='VizTransformMatplotlibGraphs',
-            process_source='VizTransformMatplotlibGraphs source code here...')
+            class_name='VizTransformMatplotlibGraphs')
         try:
             procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except Exception as ex:
             self.fail("failed to create new VizTransformMatplotlibGraphs data process definition: %s" %ex)
 
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('mpl_graph',id_only=True)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
         # create a stream definition for the data
         stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformMatplotlibGraphs', parameter_dictionary_id=pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='matplotlib_graphs' )
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='graph_image_param_dict' )
 
         return procdef_id
 
@@ -423,6 +418,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         if isinstance(results,Granule):
             results =[results]
 
+        found_data = False
         for g in results:
             if isinstance(g,Granule):
                 rdt = RecordDictionaryTool.load_from_granule(g)
@@ -442,6 +438,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                     assertions(graph['viz_product_type'] == 'matplotlib_graphs' )
                     # check to see if the list (numpy array) contains actual images
                     assertions(imghdr.what(graph['image_name'], h = graph['image_obj']) == 'png')
+                    found_data = True
+        return found_data
 
 
 
@@ -464,5 +462,31 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         image_format = results["content_type"].lstrip("image/")
 
         assertions(imghdr.what(results['image_name'], h = base64.decodestring(results['image_obj'])) == image_format)
+
+        return
+
+    def validate_multiple_vis_queue_messages(self, msg1, msg2):
+
+        assertions = self.assertTrue
+
+        # verify that the salinity in msg2 is a result of content from msg1
+        rdt1 = RecordDictionaryTool.load_from_granule(msg1.body)
+        rdt2 = RecordDictionaryTool.load_from_granule(msg2.body)
+
+        # msg1 should not have salinity
+        # assertions(rdt1['salinity'] == None)
+
+        conductivity = rdt1['conductivity']
+        pressure = rdt1['pressure']
+        temperature = rdt1['temp']
+
+        msg1_sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
+        msg2_sal_value = rdt2['salinity']
+        b = msg1_sal_value == msg2_sal_value
+
+        if isinstance(b,bool):
+            assertions(b)
+        else:
+            assertions(b.all())
 
         return

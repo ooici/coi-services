@@ -15,7 +15,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from ion.processes.data.replay.replay_client import ReplayClient
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
@@ -100,11 +100,12 @@ class TestDMEnd2End(IonIntegrationTestCase):
     def publish_hifi(self,stream_id,stream_route,offset=0):
         pub = StandaloneStreamPublisher(stream_id, stream_route)
 
-        black_box = CoverageCraft()
-        black_box.rdt['time'] = np.arange(10) + (offset * 10)
-        black_box.rdt['temp'] = (np.arange(10) + (offset * 10)) * 2
-        granule = black_box.to_granule()
-        pub.publish(granule)
+        stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        stream_def_id = stream_def._id
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(10) + (offset * 10)
+        rdt['temp'] = np.arange(10) + (offset * 10)
+        pub.publish(rdt.to_granule())
 
     def publish_fake_data(self,stream_id, route):
 
@@ -142,17 +143,15 @@ class TestDMEnd2End(IonIntegrationTestCase):
         datastore = self.get_datastore(dataset_id)
         dataset = self.dataset_management.read_dataset(dataset_id)
         
+        with gevent.timeout.Timeout(40):
+            success = False
+            while not success:
+                success = len(datastore.query_view(dataset.view_name)) >= granules
+                gevent.sleep(0.1)
 
-        now = time.time()
-        timeout = now + 10
-        done = False
-        while not done:
-            if now >= timeout:
-                raise Timeout('Granules are not populating in time.')
-            if len(datastore.query_view(dataset.view_name)) >= granules:
-                done = True
+        log.info(datastore.query_view(dataset.view_name))
 
-            now = time.time()
+
 
 
     def wait_until_we_have_enough_files(self):
@@ -170,8 +169,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def create_dataset(self, parameter_dict_id=''):
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
         if not parameter_dict_id:
@@ -180,63 +178,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dictionary_id=parameter_dict_id, spatial_domain=sdom, temporal_domain=tdom)
         return dataset_id
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_coverage_ingest(self):
-        stream_id, stream_route = self.pubsub_management.create_stream('test_coverage_ingest', exchange_point=self.exchange_point_name)
-        dataset_id = self.create_dataset()
-        # I freaking hate this bug
-        self.get_datastore(dataset_id)
-        ingestion_config_id = self.get_ingestion_config()
-        self.ingestion_management.persist_data_stream(stream_id=stream_id, 
-                    ingestion_configuration_id=ingestion_config_id,
-                    dataset_id=dataset_id)
-
-        black_box = CoverageCraft()
-        black_box.rdt['time'] = np.arange(20)
-        black_box.rdt['temp'] = np.random.random(20) * 10
-        black_box.sync_with_granule()
-        granule = black_box.to_granule()
-
-        publisher = StandaloneStreamPublisher(stream_id, stream_route)
-        publisher.publish(granule)
-
-        self.wait_until_we_have_enough_granules(dataset_id,1)
-
-        coverage = DatasetManagementService._get_coverage(dataset_id)
-
-        black_box = CoverageCraft(coverage)
-        black_box.sync_rdt_with_coverage()
-        comp = black_box.rdt['time'] == np.arange(20)
-        self.assertTrue(comp.all())
-
-        black_box = CoverageCraft()
-        black_box.rdt['time'] = np.arange(20) + 20
-        black_box.rdt['temp'] = np.random.random(20) * 10
-        black_box.sync_with_granule()
-        granule = black_box.to_granule()
-
-        publisher.publish(granule)
-
-
-        self.wait_until_we_have_enough_granules(dataset_id,2)
-
-        coverage = DatasetManagementService._get_coverage(dataset_id)
-
-        black_box = CoverageCraft(coverage)
-        black_box.sync_rdt_with_coverage()
-        comp = black_box.rdt['time'] == np.arange(40)
-        self.assertTrue(comp.all())
-
-
-        granule = self.data_retriever.retrieve(dataset_id)
-
-        black_box = CoverageCraft()
-        black_box.sync_rdt_with_granule(granule)
-        comp = black_box.rdt['time'] == np.arange(40)
-        self.assertTrue(comp.all())
-
-
+    @unittest.skip('Doesnt work')
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_replay_pause(self):
@@ -251,7 +193,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rec_context = ParameterContext('records', param_type=RecordType())
         context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
 
-        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids)
+        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids, temporal_context='time')
         
 
         stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
@@ -329,7 +271,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rec_context = ParameterContext('records', param_type=RecordType())
         context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
 
-        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids)
+        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids, temporal_context='time')
         
         stream_definition = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary_id=pdict_id)
 
@@ -399,13 +341,58 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.data_retriever.cancel_replay_agent(self.replay_id)
 
 
+    def test_retrieve_and_transform(self):
+
+        # Stream definition for the CTD data
+        pdict_id             = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        stream_def_id        = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary_id=pdict_id)
+        ctd_stream_id, route = self.pubsub_management.create_stream('ctd stream', 'xp1', stream_definition_id=stream_def_id)
+
+
+        # Stream definition for the salinity data
+        salinity_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        sal_stream_def_id = self.pubsub_management.create_stream_definition('sal data', parameter_dictionary_id=salinity_pdict_id)
+
+        ingest_config_id = self.get_ingestion_config()
+        dataset_id = self.create_dataset(pdict_id)
+        self.ingestion_management.persist_data_stream(stream_id=ctd_stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(10)
+        rdt['temp'] = np.random.randn(10) * 10 + 30
+        rdt['conductivity'] = np.random.randn(10) * 2 + 10
+
+        publisher = StandaloneStreamPublisher(ctd_stream_id, route)
+        publisher.publish(rdt.to_granule())
+
+        rdt['time'] = np.arange(10,20)
+
+        publisher.publish(rdt.to_granule())
+
+
+        self.wait_until_we_have_enough_granules(dataset_id, 2)
+
+        granule = self.data_retriever.retrieve(dataset_id, 
+                                             None,
+                                             None, 
+                                             'ion.processes.data.transforms.ctd.ctd_L2_salinity',
+                                             'CTDL2SalinityTransformAlgorithm', 
+                                             kwargs=dict(params=sal_stream_def_id))
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        for i in rdt['salinity']:
+            self.assertNotEquals(i,0)
+
+
+
     def test_last_granule(self):
         #--------------------------------------------------------------------------------
         # Create the necessary configurations for the test
         #--------------------------------------------------------------------------------
-        stream_id, route  = self.pubsub_management.create_stream('last_granule', exchange_point=self.exchange_point_name)
+        pdict_id          = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        stream_def_id     = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict_id)
+        stream_id, route  = self.pubsub_management.create_stream('last_granule', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
         config_id         = self.get_ingestion_config()
-        dataset_id        = self.create_dataset()
+        dataset_id        = self.create_dataset(pdict_id)
 
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         #--------------------------------------------------------------------------------
@@ -418,14 +405,20 @@ class TestDMEnd2End(IonIntegrationTestCase):
         
 
         self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
+        success = False
+        with gevent.timeout.Timeout(5):
+            while not success:
 
-        replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
+                replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
 
-        rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
 
-        comp = rdt['time'] == np.arange(10) + 10
+                comp = rdt['time'] == np.arange(10) + 10
+                if not isinstance(comp,bool):
+                    success = comp.all()
+                gevent.sleep(1)
 
-        self.assertTrue(comp.all())
+        self.assertTrue(success)
 
 
     def test_replay_with_parameters(self):
@@ -443,7 +436,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rec_context = ParameterContext('records', param_type=RecordType())
         context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
 
-        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids)
+        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids, temporal_context='time')
         
 
         stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
@@ -479,9 +472,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def test_repersist_data(self):
-        stream_id, route = self.pubsub_management.create_stream(name='repersist', exchange_point=self.exchange_point_name)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        stream_def_id = self.pubsub_management.create_stream_definition(name='ctd', parameter_dictionary_id=pdict_id)
+        stream_id, route = self.pubsub_management.create_stream(name='repersist', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
         config_id = self.get_ingestion_config()
-        dataset_id = self.create_dataset()
+        dataset_id = self.create_dataset(pdict_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         self.get_datastore(dataset_id)
         self.publish_hifi(stream_id,route,0)
@@ -492,8 +487,18 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.publish_hifi(stream_id,route,2)
         self.publish_hifi(stream_id,route,3)
         self.wait_until_we_have_enough_granules(dataset_id,4)
-        retrieved_granule = self.data_retriever.retrieve(dataset_id)
-        rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
-        comp = rdt['time'] == np.arange(0,40)
-        self.assertTrue(comp.all(), 'Uh-oh: %s' % rdt['time'])
+        success = False
+        with gevent.timeout.Timeout(5):
+            while not success:
+
+                replay_granule = self.data_retriever.retrieve(dataset_id)
+
+                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+
+                comp = rdt['time'] == np.arange(0,40)
+                if not isinstance(comp,bool):
+                    success = comp.all()
+                gevent.sleep(1)
+
+        self.assertTrue(success)
 

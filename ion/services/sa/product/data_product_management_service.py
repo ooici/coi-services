@@ -6,6 +6,8 @@ __license__ = 'Apache 2.0'
 from pyon.public import  log, IonObject
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from ion.services.sa.product.data_product_impl import DataProductImpl
+
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import DataProduct, DataProductVersion
 from interface.objects import ComputedValueAvailability
 
@@ -123,32 +125,46 @@ class DataProductManagementService(BaseDataProductManagementService):
         for producer_id in producer_ids:
             self.clients.data_acquisition_management.unassign_data_product(producer_id, data_product_id)
 
-
-
+        #--------------------------------------------------------------------------------
+        # suspend persistence
+        #--------------------------------------------------------------------------------
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        if self.clients.ingestion_management.is_persisted(stream_ids[0]):
+            self.suspend_data_product_persistence(data_product_id)
         #--------------------------------------------------------------------------------
         # remove stream associations
         #--------------------------------------------------------------------------------
-        self.remove_streams(data_product_id)
-
+        #self.remove_streams(data_product_id)
 
         #--------------------------------------------------------------------------------
         # remove dataset associations
         #--------------------------------------------------------------------------------
         dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
 
-        for dataset_id in dataset_ids:
-            self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
+#        for dataset_id in dataset_ids:
+#            self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
 
         #--------------------------------------------------------------------------------
         # Delete the data product
         #--------------------------------------------------------------------------------
-        data_product_obj = self.read_data_product(data_product_id)
 
-        if data_product_obj.lcstate != LCS.RETIRED:
-            self.data_product.delete_one(data_product_id)
+        self.data_product.delete_one(data_product_id)
 
     def force_delete_data_product(self, data_product_id=''):
-        pass
+
+        # if not yet deleted, the first execute delete logic
+        dp_obj = self.read_data_product(data_product_id)
+        if dp_obj.lcstate != LCS.RETIRED:
+            self.delete_data_product(data_product_id)
+
+        #get the assoc producers before deleteing the links
+        producers, producer_assns = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+
+        self._remove_associations(data_product_id)
+        for producer in producers:
+            self.clients.resource_registry.delete(producer)
+
+        self.clients.resource_registry.delete(data_product_id)
 
     def remove_streams(self, data_product_id=''):
         streams, assocs = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
@@ -158,8 +174,6 @@ class DataProductManagementService(BaseDataProductManagementService):
                 self.clients.resource_registry.delete_association(assoc)
                 self.clients.pubsub_management.delete_stream(stream)
                 self.clients.dataset_management.remove_stream(dataset, stream)
-
-        
 
         return streams
 
@@ -270,9 +284,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # detach the dataset from this data product
         #--------------------------------------------------------------------------------
-        dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
-        for dataset_id in dataset_ids:
-            self.data_product.unlink_data_set(data_product_id, dataset_id)
+#        dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+#        for dataset_id in dataset_ids:
+#            self.data_product.unlink_data_set(data_product_id, dataset_id)
 
 
     def get_data_product_provenance(self, data_product_id=''):
@@ -326,8 +340,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_collection_id, rev = self.clients.resource_registry.create(dp_collection_obj)
         self.clients.resource_registry.create_association( subject=data_product_collection_id, predicate=PRED.hasVersion, object=data_product_id)
 
-
-
         return data_product_collection_id
 
 
@@ -350,7 +362,7 @@ class DataProductManagementService(BaseDataProductManagementService):
     def read_data_product_collection(self, data_product_collection_id=''):
         """Retrieve data product information
 
-        @param data_product_version_id    str
+        @param data_product_collection_id    str
         @retval data_product    DataProductVersion
         """
         result = self.clients.resource_registry.read(data_product_collection_id)
@@ -362,17 +374,31 @@ class DataProductManagementService(BaseDataProductManagementService):
     def delete_data_product_collection(self, data_product_collection_id=''):
         """Remove a version of an data product.
 
-        @param data_product_version_id    str
+        @param data_product_collection_id    str
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
 
-        #todo: retire the collection and the associations
+        #check that all assoc data products are deleted
+        dataproduct_objs, _ = self.clients.resource_registry.find_objects(subject=data_product_collection_id, predicate=PRED.hasVersion, object_type=RT.DataProduct, id_only=False)
+        for dataproduct_obj in dataproduct_objs:
+            if dataproduct_obj.lcstate != LCS.RETIRED:
+                raise BadRequest("All Data Products in a collection must be deleted before the collection is deleted.")
 
-        pass
+        data_product_collection_obj = self.read_data_product_collection(data_product_collection_id)
+
+        if data_product_collection_obj.lcstate != LCS.RETIRED:
+            self.clients.resource_registry.retire(data_product_collection_id)
 
     def force_delete_data_product_collection(self, data_product_collection_id=''):
-        pass
+
+        # if not yet deleted, the first execute delete logic
+        dp_obj = self.read_data_product_collection(data_product_collection_id)
+        if dp_obj.lcstate != LCS.RETIRED:
+            self.delete_data_product_collection(data_product_collection_id)
+
+        self._remove_associations(data_product_collection_id)
+        self.clients.resource_registry.delete(data_product_collection_id)
 
     def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
 
@@ -495,7 +521,7 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_data_datetime(self, data_product_id=''):
         # Returns a temporal bounds object of the span of data product life span (may exist without getting a granule)
         ret = IonObject(OT.ComputedStringValue)
-
+        ret.value = ""
         ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME. also, should datetime be stored as a string?"
 
@@ -505,7 +531,7 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_data_ingestion_datetime(self, data_product_id=''):
         # Returns a temporal bounds object of the earliest/most recent values ingested into in the data product
         ret = IonObject(OT.ComputedStringValue)
-
+        ret.value = ""
         ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME. also, should datetime be stored as a string?"
 
@@ -515,9 +541,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_product_download_size_estimated(self, data_product_id=''):
         # Returns the size of the full data product if downloaded/presented in a given presentation form
         ret = IonObject(OT.ComputedIntValue)
+        ret.value = 0
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = 1024
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -530,9 +557,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_stored_data_size(self, data_product_id=''):
         # Returns the storage size occupied by the data content of the resource, in bytes.
         ret = IonObject(OT.ComputedIntValue)
+        ret.value = 0
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = 1024
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -546,7 +574,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # the datetime when the contents of the data were last modified in any way.
         # This is distinct from modifications to the data product attributes
         ret = IonObject(OT.ComputedStringValue)
-
+        ret.value = ""
         ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME. also, should datetime be stored as a string?"
 
@@ -555,10 +583,15 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def get_parameters(self, data_product_id=''):
         # The set of Parameter objects describing each variable in this data product
-        ret = IonObject(OT.ComputedListValue)
+        ret = IonObject(OT.ComputedStringValue)
+        ret.value = []
         try:
-            ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = []
+            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+            else:
+                ret.status = ComputedValueAvailability.PROVIDED
+                ret.value = self.clients.dataset_management.get_dataset_parameters(dataset_ids[0])
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -570,10 +603,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_data_url(self, data_product_id=''):
         # The unique pointer to this set of data
         ret = IonObject(OT.ComputedStringValue)
-
-        ret.status = ComputedValueAvailability.PROVIDED
+        ret.value  = ""
+        ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME."
-        ret.value  = "http://somewhere.ooici.net/get_data_product?data_product_id=%s" % data_product_id
+
 
         return ret
 
@@ -582,19 +615,41 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         #todo - call get_data_product_provenance when it is completed
         ret = IonObject(OT.ComputedStringValue)
-
+        ret.value = ""
         ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME. also, should provenance be stored as a string?"
 
+        return ret
+
+    def get_provenance_product_list(self, data_product_id=''):
+        # Provides an audit trail for modifications to the original data
+
+        #todo - call get_data_product_provenance when it is completed
+        ret = IonObject(OT.ComputedListValue)
+
+        provenance_results = self.get_data_product_provenance(data_product_id)
+
+        if not provenance_results:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.value = []
+            ret.reason = "FIXME. provenance results not available"
+        else:
+            ret.status = ComputedValueAvailability.PROVIDED
+            for key, value in provenance_results.iteritems():
+                for producer_id, dataprodlist in value['inputs'].iteritems():
+                    for dataprod in dataprodlist:
+                        ret.value.extend(self.clients.resource_registry.read(dataprod))
+                        
         return ret
 
     def get_number_active_subscriptions(self, data_product_id=''):
         # The number of current subscriptions to the data
         # Returns the storage size occupied by the data content of the resource, in bytes.
         ret = IonObject(OT.ComputedIntValue)
+        ret.value = 0
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = 34 #todo
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -606,9 +661,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_descriptors(self, data_product_id=''):
         # Returns a list of keyword/authority pairs with optional urls
         ret = IonObject(OT.ComputedListValue)
+        ret.value = []
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = []
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -621,9 +677,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_active_user_subscriptions(self, data_product_id=''):
         # The UserSubscription objects for this data product
         ret = IonObject(OT.ComputedListValue)
+        ret.value = []
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = []
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -635,9 +692,10 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_past_user_subscriptions(self, data_product_id=''):
         # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
         ret = IonObject(OT.ComputedListValue)
+        ret.value = []
         try:
             ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = []
+            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -645,4 +703,80 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise e
 
         return ret
+
+
+    def get_last_granule(self, data_product_id=''):
+        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
+        ret = IonObject(OT.ComputedDictValue)
+        ret.value = {}
+        try:
+            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "No dataset associated with this data product"
+            else:
+                replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
+                ret.value = RecordDictionaryTool.load_from_granule(replay_granule)
+                ret.status = ComputedValueAvailability.PROVIDED
+        except NotFound:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+        except Exception as e:
+            raise e
+
+        return ret
+
+
+    def get_recent_granules(self, data_product_id=''):
+        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
+        ret = IonObject(OT.ComputedDictValue)
+        ret.value = {}
+        try:
+            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "No dataset associated with this data product"
+            else:
+                replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
+                ret.value = RecordDictionaryTool.load_from_granule(replay_granule)
+                ret.status = ComputedValueAvailability.PROVIDED
+        except NotFound:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+        except Exception as e:
+            raise e
+
+        return ret
+
+
+    def _remove_associations(self, resource_id=''):
+        """
+        delete all associations to/from a resource
+        """
+
+        # find all associations where this is the subject
+        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+
+        log.debug("_remove_associations will remove %s subject associations and %s object associations",
+            len(sbj_assns), len(obj_assns))
+
+        for assn in obj_assns:
+            log.debug("_remove_associations deleting object association %s", assn)
+            self.clients.resource_registry.delete_association(assn)
+
+        for assn in sbj_assns:
+            log.debug("_remove_associations deleting subject association %s", assn)
+            self.clients.resource_registry.delete_association(assn)
+
+        # find all associations where this is the subject
+        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+
+        log.debug("post-deletions, _remove_associations found %s subject associations and %s object associations",
+            len(sbj_assns), len(obj_assns))
 

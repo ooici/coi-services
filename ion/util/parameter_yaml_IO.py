@@ -57,7 +57,6 @@ def build_contexts():
     contexts.append(temp_ctxt)
 
     t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-    t_ctxt.reference_frame = AxisTypeEnum.TIME
     t_ctxt.uom = 'seconds since 1970-01-01'
     t_ctxt.fill_value = 0x0
     contexts.append(t_ctxt)
@@ -74,12 +73,6 @@ def build_contexts():
     lon_ctxt.fill_value = 0e0
     contexts.append(lon_ctxt)
 
-    depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=np.float32))
-    depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-    depth_ctxt.uom = 'meters'
-    depth_ctxt.fill_value = 0e0
-    contexts.append(depth_ctxt)
-
     raw_ctxt = ParameterContext('raw', param_type=ArrayType())
     raw_ctxt.description = 'raw binary string values'
     raw_ctxt.uom = 'utf-8 byte string'
@@ -88,7 +81,6 @@ def build_contexts():
 
     port_ts_ctxt = ParameterContext(name='port_timestamp', param_type=QuantityType(value_encoding=np.float64))
     port_ts_ctxt._derived_from_name = 'time'
-    port_ts_ctxt.reference_frame = AxisTypeEnum.TIME
     port_ts_ctxt.uom = 'seconds'
     port_ts_ctxt.fill_value = -1
     contexts.append(port_ts_ctxt)
@@ -121,9 +113,9 @@ def build_contexts():
     checksum_ctxt.fill_value = -1
     contexts.append(checksum_ctxt)
 
-    pref_ts_ctxt = ParameterContext(name='preferred_timestamp', param_type=ArrayType())
+    pref_ts_ctxt = ParameterContext(name='preferred_timestamp', param_type=QuantityType(value_encoding=np.uint64))
     pref_ts_ctxt.description = 'name of preferred timestamp'
-    pref_ts_ctxt.fill_value = None
+    pref_ts_ctxt.fill_value = 0x0
     contexts.append(pref_ts_ctxt)
 
     # TODO: This should probably be of type CategoryType when implemented
@@ -134,15 +126,16 @@ def build_contexts():
 
     viz_ts_ctxt = ParameterContext(name='viz_timestamp', param_type=QuantityType(value_encoding=np.float64))
     viz_ts_ctxt._derived_from_name = 'time'
-    viz_ts_ctxt.reference_frame = AxisTypeEnum.TIME
     viz_ts_ctxt.uom = 'seconds'
     viz_ts_ctxt.fill_value = -1
     contexts.append(viz_ts_ctxt)
 
     viz_prod_type_ctxt = ParameterContext(name='viz_product_type', param_type=ArrayType())
+    viz_prod_type_ctxt.fill_value = None
     contexts.append(viz_prod_type_ctxt)
 
     image_obj_ctxt = ParameterContext(name='image_obj', param_type=ArrayType())
+    image_obj_ctxt.fill_value = None
     contexts.append(image_obj_ctxt)
 
     image_name_ctxt = ParameterContext(name='image_name', param_type=ArrayType())
@@ -182,6 +175,7 @@ _PARAMETER_DICTIONARIES = None
 _PARAMETER_CONTEXTS = None
 
 def get_param_dict(param_dict_name = None):
+    raise NotImplementedError('This method has been replaced by DatasetManagementService, please use read_parameter_dictionary_by_name instead')
     # read the file just once, not every time needed
     global _PARAMETER_DICTIONARIES
     global _PARAMETER_CONTEXTS

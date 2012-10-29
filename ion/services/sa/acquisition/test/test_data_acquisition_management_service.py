@@ -81,13 +81,6 @@ class TestDataAcquisitionManagement(PyonTestCase):
         self.mock_update.assert_called_once_with(dsrc)
 
 
-    def test_delete_data_source(self):
-        self.mock_read.return_value = self.data_source
-
-        self.data_acquisition_mgmt_service.delete_data_source('111')
-
-        self.mock_delete.assert_called_once_with('111')
-
 
 #    def test_register_process(self):
 #        self.mock_read.return_value = self.data_process

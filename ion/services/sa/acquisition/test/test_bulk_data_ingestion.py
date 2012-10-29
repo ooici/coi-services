@@ -7,9 +7,7 @@
 '''
 
 #from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import Container, log, IonObject, PRED, RT
-from pyon.public import RT
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.public import log, IonObject, PRED, RT
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.agent.agent import ResourceAgentClient
@@ -22,22 +20,17 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
-from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, ExternalDatasetModel, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
-from interface.objects import AgentCommand, ExternalDatasetAgent, ExternalDatasetAgentInstance, ProcessDefinition
-from ion.util.parameter_yaml_IO import get_param_dict
+from interface.objects import ExternalDataProvider, ExternalDatasetModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution 
+from interface.objects import AgentCommand, ProcessDefinition
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from gevent.event import AsyncResult
 from nose.plugins.attrib import attr
-from pyon.util.int_test import IonIntegrationTestCase
 import unittest
-import numpy
 
 class FakeProcess(LocalContextMixin):
     """
@@ -332,20 +325,13 @@ class TestBulkIngest(IonIntegrationTestCase):
         self.datasetagent_id = self.dams_client.create_external_dataset_agent(external_dataset_agent=datasetagent_obj, external_dataset_model_id=dataset_model_id)
 
         # Generate the data product and associate it to the ExternalDataset
-        streamdef_id = self.pubsub_client.create_stream_definition(name="temp", description="temp")
+        pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        streamdef_id = self.pubsub_client.create_stream_definition(name="temp", parameter_dictionary_id=pdict.identifier)
 
-        # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
-
-        sdom = sdom.dump()
+        tdom, sdom = time_series_domain()
         tdom = tdom.dump()
+        sdom = sdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
 
         dprod = IonObject(RT.DataProduct,
             name='slocum_parsed_product',
@@ -354,8 +340,7 @@ class TestBulkIngest(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         self.dproduct_id = self.dataproductclient.create_data_product(data_product=dprod,
-                                                                stream_definition_id=streamdef_id,
-                                                                parameter_dictionary= parameter_dictionary.dump())
+                                                                      stream_definition_id=streamdef_id)
 
         self.dams_client.assign_data_product(input_resource_id=ds_id, data_product_id=self.dproduct_id)
 
@@ -374,7 +359,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         self.DVR_CONFIG['dh_cfg'] = {
             'TESTING':True,
             'stream_id':stream_id,
-            'param_dictionary':parameter_dictionary.dump(),
+            'param_dictionary':pdict.dump(),
             'data_producer_id':dproducer_id, #CBM: Should this be put in the main body of the config - with mod & cls?
             'max_records':20,
         }

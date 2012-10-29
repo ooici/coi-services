@@ -21,10 +21,8 @@ from pyon.public import log, IonObject
 from pyon.public import RT, PRED
 from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
-from ion.util.parameter_yaml_IO import get_param_dict
+from ion.services.dm.utility.granule_utils import time_series_domain
 
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 import base64
 
@@ -39,7 +37,7 @@ class FakeProcess(LocalContextMixin):
 
     
 
-@attr('HARDWARE', group='foo')
+@attr('INT', group='sa')
 class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
     def setUp(self):
@@ -56,6 +54,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
+        self.dataset_management = self.datasetclient
 
 
     def test_lookupTableProcessing(self):
@@ -72,7 +71,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="ion.agents.instrument.instrument_agent", driver_class="InstrumentAgent" )
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver" )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -118,26 +117,19 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         # Create CTD Parsed as the first data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_CDM')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_CDM', parameter_dictionary_id=pdict_id)
 
         log.info( 'TestDataProcessWithLookupTable: new Stream Definition id = %s', instDevice_id)
 
         log.info( 'Creating new CDM data product with a stream definition')
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-
-        parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='ctd_parsed',
@@ -145,13 +137,11 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
 
         log.info( 'new ctd_parsed_data_product_id = %s', ctd_parsed_data_product)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
-
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
@@ -161,7 +151,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         # Create CTD Raw as the second data product
         #-------------------------------
         log.info('TestDataProcessWithLookupTable: Creating new RAW data product with a stream definition')
-        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW')
+        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW', parameter_dictionary_id=pdict_id)
 
         dp_obj = IonObject(RT.DataProduct,
             name='ctd_raw',
@@ -169,13 +159,11 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id, parameter_dictionary)
+        ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id)
 
         log.info( 'new ctd_raw_data_product_id = %s', ctd_raw_data_product)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
-
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_raw_data_product)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
@@ -189,8 +177,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
                             name='ctd_L0_all',
                             description='transform ctd package into three separate L0 streams',
                             module='ion.processes.data.transforms.ctd.ctd_L0_all',
-                            class_name='ctd_L0_all',
-                            process_source='some_source_reference')
+                            class_name='ctd_L0_all')
         try:
             ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
         except BadRequest as ex:
@@ -207,13 +194,13 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Output Data Products
         #-------------------------------
 
-        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity')
+        outgoing_stream_l0_conductivity_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_conductivity_id, ctd_L0_all_dprocdef_id, binding='conductivity' )
 
-        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure')
+        outgoing_stream_l0_pressure_id = self.pubsubclient.create_stream_definition(name='L0_Pressure', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_pressure_id, ctd_L0_all_dprocdef_id, binding='pressure' )
 
-        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature')
+        outgoing_stream_l0_temperature_id = self.pubsubclient.create_stream_definition(name='L0_Temperature', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
@@ -227,11 +214,9 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
                                                         spatial_domain = sdom)
 
         ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj,
-                                                                                    outgoing_stream_l0_conductivity_id,
-                                                                                    parameter_dictionary)
+                                                                                    outgoing_stream_l0_conductivity_id)
 
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
 
         log.debug("TestDataProcessWithLookupTable: create output data product L0 pressure")
@@ -243,10 +228,8 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj,
-                                                                                outgoing_stream_l0_pressure_id,
-                                                                                parameter_dictionary)
+                                                                                outgoing_stream_l0_pressure_id)
         self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("TestDataProcessWithLookupTable: create output data product L0 temperature")
 
@@ -258,11 +241,9 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
 
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj,
-                                                                                    outgoing_stream_l0_temperature_id,
-                                                                                    parameter_dictionary)
+                                                                                    outgoing_stream_l0_temperature_id)
 
         self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-        self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
         #-------------------------------
@@ -284,73 +265,4 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         log.info( 'TestDataProcessWithLookupTable: InstrumentDevice attachment id = %s', processAttachment)
 
 
-
-
-#        #-------------------------------
-#        # Launch InstrumentAgentInstance, connect to the resource agent client
-#        #-------------------------------
-#        self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
-#
-#        inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
-#        print 'test_createTransformsThenActivateInstrument: Instrument agent instance obj: = ', inst_agent_instance_obj
-#
-#        # Start a resource agent client to talk with the instrument agent.
-#        self._ia_client = ResourceAgentClient('iaclient', name=inst_agent_instance_obj.agent_process_id,  process=FakeProcess())
-#        print 'activate_instrument: got ia client %s', self._ia_client
-#        log.debug(" test_createTransformsThenActivateInstrument:: got ia client %s", str(self._ia_client))
-#
-#
-#        #-------------------------------
-#        # Sampling
-#        #-------------------------------
-#        cmd = AgentCommand(command='initialize')
-#        retval = self._ia_client.execute_agent(cmd)
-#        print retval
-#        log.debug("test_activateInstrument: initialize %s", str(retval))
-#
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: Sending go_active command (L4-CI-SA-RQ-334)")
-#        cmd = AgentCommand(command='go_active')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return value from go_active %s", str(reply))
-#        time.sleep(2)
-#        cmd = AgentCommand(command='get_current_state')
-#        retval = self._ia_client.execute_agent(cmd)
-#        state = retval.result
-#        log.debug("test_activateInstrument: current state after sending go_active command %s    (L4-CI-SA-RQ-334)", str(state))
-#
-#        cmd = AgentCommand(command='run')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: run %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample ")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample 2")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample 2   %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling acquire_sample 3")
-#        cmd = AgentCommand(command='acquire_sample')
-#        reply = self._ia_client.execute(cmd)
-#        log.debug("test_activateInstrument: return from acquire_sample 3   %s", str(reply))
-#        time.sleep(2)
-#
-#        log.debug("test_activateInstrument: calling reset ")
-#        cmd = AgentCommand(command='reset')
-#        reply = self._ia_client.execute_agent(cmd)
-#        log.debug("test_activateInstrument: return from reset %s", str(reply))
-#        time.sleep(2)
-#
-#        #-------------------------------
-#        # Deactivate InstrumentAgentInstance
-#        #-------------------------------
-#        self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 

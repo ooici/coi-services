@@ -83,6 +83,13 @@ class InstrumentAgentCapability(BaseEnum):
     GO_COMMAND = ResourceAgentEvent.GO_COMMAND
     GO_DIRECT_ACCESS = ResourceAgentEvent.GO_DIRECT_ACCESS
 
+class ResourceInterfaceCapability(BaseEnum):
+    GET_RESOURCE = ResourceAgentEvent.GET_RESOURCE
+    SET_RESOURCE = ResourceAgentEvent.SET_RESOURCE
+    PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
+    GET_RESOURCE_STATE = ResourceAgentEvent.GET_RESOURCE_STATE
+    EXECUTE_RESOURCE = ResourceAgentEvent.EXECUTE_RESOURCE
+
 class InstrumentAgent(ResourceAgent):
     """
     ResourceAgent derived class for the instrument agent. This class
@@ -180,12 +187,35 @@ class InstrumentAgent(ResourceAgent):
         next_state = None
 
         result = self._dvr_client.cmd_dvr('get_resource_capabilities', *args, **kwargs)
+                
         return (next_state, result)
 
     def _filter_capabilities(self, events):
 
         events_out = [x for x in events if InstrumentAgentCapability.has(x)]
         return events_out
+
+    def _get_resource_interface(self, current_state=True):
+        """
+        """
+        agent_cmds = self._fsm.get_events(current_state)
+        res_iface_cmds = [x for x in agent_cmds if ResourceInterfaceCapability.has(x)]
+    
+        # convert agent mediated resource commands into interface names.
+        result = []
+        for x in res_iface_cmds:
+            if x == ResourceAgentEvent.GET_RESOURCE:
+                result.append('get_resource')
+            elif x == ResourceAgentEvent.SET_RESOURCE:
+                result.append('set_resource')
+            elif x == ResourceAgentEvent.PING_RESOURCE:
+                result.append('ping_resource')
+            elif x == ResourceAgentEvent.GET_RESOURCE_STATE:
+                result.append('get_resource_state')
+            elif x == ResourceAgentEvent.EXECUTE_RESOURCE:
+                result.append('execute_resource')
+
+        return result
     
     ##############################################################
     # Agent interface.
@@ -750,7 +780,7 @@ class InstrumentAgent(ResourceAgent):
         pkt_version : 1
         values : [{u'value_id': u'temp', u'value': 19.0612},
             {u'value_id': u'conductivity', u'value': 3.33791},
-            {u'value_id': u'depth', u'value': 449.005}]
+            {u'value_id': u'pressure', u'value': 449.005}]
         """
         
         # If the sample event is encoded, load it back to a dict.
@@ -760,24 +790,27 @@ class InstrumentAgent(ResourceAgent):
         try:
             stream_name = val['stream_name']
             publisher = self._data_publishers[stream_name]
-            param_dict = self._param_dicts[stream_name]
+            #param_dict = self._param_dicts[stream_name]
             stream_def = self._stream_defs[stream_name]
-            #@TODO Luke: I'm not sure how but the param dicts here need to come out and just use stream defs
-            rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+            log.info("Stream definition has the followinf fields: %s" % rdt.fields)
 
             for (k, v) in val.iteritems():
                 if k == 'values':
                     for x in v:
                         value_id = x['value_id']
-                        if value_id in param_dict:
+                        if value_id in rdt:
                             value = x['value']
                             if x.get('binary', None):
                                 value = base64.b64decode(value)
-                            rdt[value_id] = numpy.array([value])
+                            rdt[value_id] = numpy.array([value]) # There might be an issue here, if value is a list...
                     
-                elif k in param_dict:
-                    rdt[k] = numpy.array([v])
+                elif k in rdt:
+                    if k == 'driver_timestamp':
+                        rdt['time'] = numpy.array([v])
+                    rdt[k] = numpy.array([v]) # There might be an issue here if value is a list
 
+            log.info('Outgoing granule: %s' % ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
             g = rdt.to_granule(data_producer_id=self.resource_id)
             publisher.publish(g)        
             

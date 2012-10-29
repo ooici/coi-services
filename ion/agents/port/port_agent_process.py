@@ -408,7 +408,9 @@ class UnixPortAgentProcess(PortAgentProcess):
 
             
         if(self._test_mode):
-            command_line.append("-s")
+            this_pid = os.getpid();
+            command_line.append("--ppid")
+            command_line.append(str(this_pid))
 
         command_line.append("-p")
         command_line.append("%s" % (self._command_port));
@@ -424,7 +426,7 @@ class UnixPortAgentProcess(PortAgentProcess):
     
     def run_command(self, command_line):
         log.debug("run command: " + str(command_line));
-        process = subprocess.Popen(command_line, stdout=subprocess.PIPE, stderr=subprocess.PIPE);
+        process = subprocess.Popen(command_line, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True);
         gevent.sleep(1);
 
         process.poll()

@@ -6,7 +6,6 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool, Paramete
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from interface.objects import Granule
 from pyon.core.exception import NotFound
-from ion.util.parameter_yaml_IO import get_param_dict
 import numpy
 import random
 import gevent
@@ -16,22 +15,17 @@ class BetterDataProducer(SimpleCtdPublisher):
         self.pdict = None
         stream_id = self.CFG.get_safe('process.stream_id')
         pubsub_cli = PubsubManagementServiceProcessClient(process=self)
-        try: 
-            stream_def = pubsub_cli.read_stream_definition(stream_id=stream_id)
-            self.pdict = ParameterDictionary.load(stream_def.parameter_dictionary)
-        except NotFound:
-            self.pdict = get_param_dict('ctd_parsed_param_dict')
+        self.stream_def = pubsub_cli.read_stream_definition(stream_id=stream_id)
         super(BetterDataProducer,self).on_start()
 
     def publish_loop(self):
         t_i = 0
         while not self.finished.is_set():
-            rdt = RecordDictionaryTool(param_dictionary=self.pdict)
+            rdt = RecordDictionaryTool(stream_definition_id=self.stream_def._id)
             rdt['time']         = numpy.arange(10) + t_i*10
             rdt['temp']         = numpy.random.random(10) * 10
             rdt['lat']          = numpy.array([0] * 10)
             rdt['lon']          = numpy.array([0] * 10)
-            rdt['depth']        = numpy.array([0] * 10)
             rdt['conductivity'] = numpy.random.random(10) * 10
             rdt['binary']         = numpy.array(['hi'] * 10, dtype='object')
             
@@ -152,11 +146,5 @@ class ExampleDataProducer(SimpleCtdPublisher):
         lon_ctxt.uom = 'degree_east'
         lon_ctxt.fill_value = 0e0
         pdict.add_context(lon_ctxt)
-
-        depth_ctxt = ParameterContext('depth', param_type=QuantityType(value_encoding=numpy.float32))
-        depth_ctxt.reference_frame = AxisTypeEnum.HEIGHT
-        depth_ctxt.uom = 'meters'
-        depth_ctxt.fill_value = 0e0
-        pdict.add_context(depth_ctxt)
 
         return pdict

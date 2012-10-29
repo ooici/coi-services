@@ -54,6 +54,8 @@ from ion.services.sa.tcaa.r3pc import R3PCClient
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_get_clear_queue
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_pop_pending_queue
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_repeated_clear_pop
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_get_pending
+# bin/nosetests -s -v ion/services/sa/tcaa/test/test_terrestrial_endpoint.py:TestTerrestrialEndpoint.test_persistent_queue
 
 class FakeProcess(LocalContextMixin):
     """
@@ -92,8 +94,12 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         
         # Set internal variables.
         self._other_host = 'localhost'
+        self._xs_name = 'remote1'
+        self._svc_name = 'terrestrial_endpoint'
+        self._listen_name = self._svc_name + self._xs_name
         self._platform_resource_id = 'abc123'
         self._resource_id = 'fake_id'
+        self._rmt_svc_name = 'fake_svc'
         self._no_requests = 10
         self._requests_sent = {}
         self._results_recv = {}
@@ -119,7 +125,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
         # Create a container client.
         log.debug('Creating container client.')
-        container_client = ContainerAgentClient(node=self.container.node,
+        self._container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
 
         # The following spawn config creates the process with the remote
@@ -131,31 +137,26 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         2012-10-10 11:34:46,654 DEBUG    ion.services.sa.tcaa.terrestrial_endpoint startup listener recv name: NP (ion_test_8257ab,Edwards-MacBook-Pro_local_2624.33,B: Edwards-MacBook-Pro_local_2624.33)
         """
         
-        # Create the remote name.
-        sys_name = get_sys_name()
-        xs_name = 'remote1'
-        svc_name = 'terrestrial_endpoint'
-        listen_name = svc_name + xs_name
-
         # Create agent config.
         endpoint_config = {
             'other_host' : self._other_host,
             'other_port' : self._other_port,
             'this_port' : 0,
+            'xs_name' : self._xs_name,
             'platform_resource_id' : self._platform_resource_id,
             'process' : {
-                'listen_name' : listen_name
+                'listen_name' : self._listen_name
             }
         }
         
         # Spawn the terrestrial enpoint process.
         log.debug('Spawning terrestrial endpoint process.')
-        te_pid = container_client.spawn_process(
+        self._te_pid = self._container_client.spawn_process(
             name='remote_endpoint_1',
             module='ion.services.sa.tcaa.terrestrial_endpoint',
             cls='TerrestrialEndpoint',
             config=endpoint_config)
-        log.debug('Endpoint pid=%s.', str(te_pid))
+        log.debug('Endpoint pid=%s.', str(self._te_pid))
 
         # Create an endpoint client.
         # The to_name may be either the process pid or
@@ -163,7 +164,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         # is svc_name + remote_name as above.
         self.te_client = TerrestrialEndpointClient(
             process=FakeProcess(),
-            to_name=listen_name)
+            to_name=self._listen_name)
         log.debug('Got te client %s.', str(self.te_client))
         
         # Remember the terrestrial port.
@@ -176,7 +177,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._event_subscriber = EventSubscriber(
             event_type='PlatformEvent',
             callback=self.consume_event,
-            origin=self._platform_resource_id)
+            origin=self._xs_name)
         self._event_subscriber.start()
         self._event_subscriber._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
         self.addCleanup(self._event_subscriber.stop)
@@ -228,7 +229,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         log.debug('Publishing telemetry event.')
         self._event_publisher.publish_event(
                             event_type='PlatformTelemetryEvent',
-                            origin=self._platform_resource_id,
+                            origin = self._platform_resource_id,
                             status = TelemetryStatusType.AVAILABLE)
     
     def on_link_down(self):
@@ -301,8 +302,22 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
                              kwargs={'kwargs1':'someval'})
         return cmd
     
+    def make_fake_svc_command(self, no):
+        """
+        Build a fake command for use in tests.
+        """
+            
+        cmdstr = 'fake_cmd_%i' % no
+        cmd = IonObject('RemoteCommand',
+                             svc_name=self._rmt_svc_name,
+                             command=cmdstr,
+                             args=['arg1', 23],
+                             kwargs={'kwargs1':'someval'})
+        return cmd
+
     def test_process_queued(self):
         """
+        test_process_queued
         Test forwarding of queued commands upon link up.
         """
         
@@ -335,6 +350,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_process_online(self):
         """
+        test_process_online
         Test forwarding commands when the link is up.
         """
 
@@ -366,6 +382,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_remote_late(self):
         """
+        test_remote_late
         Test simulates behavior when the remote side is initially unavailable.
         """
         
@@ -407,11 +424,12 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_get_clear_queue(self):
         """
+        test_get_clear_queue
         Test endpoint queue get and clear manipulators.
         """
         
         # Set up for events expected.
-        self._no_queue_mod_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests * 2
 
         # Queue commands.        
         for i in range(self._no_requests):
@@ -419,21 +437,35 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
             cmd = self.te_client.enqueue_command(cmd)
             self._requests_sent[cmd.command_id] = cmd
         
+        # Queue commands.        
+        for i in range(self._no_requests):
+            cmd = self.make_fake_svc_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+
         # Confirm queue mod events.
         self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
         
         # Confirm get queue with no id.
         queue = self.te_client.get_queue()
-        self.assertEqual(len(queue), self._no_requests)
+        self.assertEqual(len(queue), self._no_requests * 2)
 
         # Confirm get queue with id.
-        queue = self.te_client.get_queue(self._resource_id)
+        queue = self.te_client.get_queue(resource_id=self._resource_id)
+        self.assertEqual(len(queue), self._no_requests)
+
+        # Confirm get queue with svc name.
+        queue = self.te_client.get_queue(svc_name=self._rmt_svc_name)
         self.assertEqual(len(queue), self._no_requests)
 
         # Confirm get queue with bogus id.
-        queue = self.te_client.get_queue('bogus_id')        
+        queue = self.te_client.get_queue(resource_id='bogus_id')        
         self.assertEqual(len(queue), 0)
 
+        # Confirm get queue with bogus id.
+        queue = self.te_client.get_queue(svc_name='bogus_svc')        
+        self.assertEqual(len(queue), 0)
+        
         # Reset queue mod expected events.        
         self._queue_mod_evts = []
         self._no_queue_mod_evts = 1
@@ -445,12 +477,12 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         # Confirm queue mod event and mods.
         self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
         queue = self.te_client.get_queue()
-        self.assertEqual(len(poped), self._no_requests)
+        self.assertEqual(len(poped), self._no_requests * 2)
         self.assertEqual(len(queue), 0)
-
+        
         # Queue new commands and confirm event.       
         self._queue_mod_evts = []
-        self._no_queue_mod_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests * 2
         self._done_queue_mod_evts = AsyncResult()
         
         self._requests_sent = {}
@@ -459,6 +491,11 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
             cmd = self.te_client.enqueue_command(cmd)
             self._requests_sent[cmd.command_id] = cmd
         
+        for i in range(self._no_requests):
+            cmd = self.make_fake_svc_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+
         self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
 
         # Reset queue mod expected events.
@@ -467,14 +504,28 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._done_queue_mod_evts = AsyncResult()
 
         # Clear queue with id.
-        poped = self.te_client.clear_queue(self._resource_id)
+        poped = self.te_client.clear_queue(resource_id=self._resource_id)
+    
+        # Confirm mods and mod events.
+        self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(poped), self._no_requests)
+        self.assertEqual(len(queue), self._no_requests)
+
+        # Reset queue mod expected events.
+        self._queue_mod_evts = []
+        self._no_queue_mod_evts = 1
+        self._done_queue_mod_evts = AsyncResult()
+
+        # Clear queue with id.
+        poped = self.te_client.clear_queue(svc_name=self._rmt_svc_name)
     
         # Confirm mods and mod events.
         self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
         queue = self.te_client.get_queue()
         self.assertEqual(len(poped), self._no_requests)
         self.assertEqual(len(queue), 0)
-
+    
         # Queue new commands and confirm events.        
         self._queue_mod_evts = []
         self._no_queue_mod_evts = self._no_requests
@@ -489,16 +540,22 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
         
         # Clear queue with bogus id.
-        poped = self.te_client.clear_queue('bogus id')
+        poped = self.te_client.clear_queue(resource_id='bogus id')
         queue = self.te_client.get_queue()
         self.assertEqual(len(poped), 0)
         self.assertEqual(len(queue), self._no_requests)
-        
+
+        # Clear queue with bogus svc name.
+        poped = self.te_client.clear_queue(svc_name='bogus id')
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(poped), 0)
+        self.assertEqual(len(queue), self._no_requests)
+
         # Clear queue and confirm empty.
         self.te_client.clear_queue()
         queue = self.te_client.get_queue()
         self.assertEqual(len(queue), 0)
-        
+                
         # Turn on link and wait a few seconds.
         # Confirm no data or tx events arrive.
         self.on_link_up()
@@ -516,6 +573,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         
     def test_pop_pending_queue(self):
         """
+        test_pop_pending_queue
         Test endpoint queue pop manipulators.
         """
         
@@ -577,6 +635,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
 
     def test_repeated_clear_pop(self):
         """
+        test_repeated_clear_pop
         Test endpoint queue pop manipulators.
         """
 
@@ -667,3 +726,120 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         pending = self.te_client.get_pending()
         self.assertEqual(len(pending), 0)        
 
+    def test_get_pending(self):
+        """
+        test_process_queued
+        Test forwarding of queued commands upon link up.
+        """
+        
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._no_telem_evts = 2
+        
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+        
+        self.on_link_up()
+
+        self._no_requests = 3
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)        
+
+        pending = self.te_client.get_pending(resource_id=self._resource_id)
+        for x in pending:
+            self.assertIn(x.command_id, self._requests_sent.keys())
+            
+        self._no_requests = 10
+        self._done_evt = AsyncResult()
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)        
+
+        pending = self.te_client.get_pending()
+        self.assertEqual(len(pending), 0)
+                
+        self.on_link_down()
+
+        self._done_telem_evts.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
+
+    @unittest.skip('Wait for verification of resource registry use.')
+    def test_persistent_queue(self):
+        """
+        test_persistent_queue
+        Test ability of endpoint to restore a persistent queue, survive
+        reboot, etc.
+        """
+        self._no_cmd_tx_evts = self._no_requests
+        self._no_queue_mod_evts = self._no_requests
+        self._no_telem_evts = 2
+        
+        for i in range(self._no_requests):
+            cmd = self.make_fake_command(i)
+            cmd = self.te_client.enqueue_command(cmd)
+            self._requests_sent[cmd.command_id] = cmd
+                
+        # Confirm queue mod events.
+        self._done_queue_mod_evts.get(timeout=CFG.endpoint.receive.timeout)
+        
+        # Confirm get queue with no id.
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(queue), self._no_requests)
+        
+        # Stop and restart the endpoint process.
+        # Verify the queue is restored.
+        self._container_client.terminate_process(self._te_pid)
+
+        # Create agent config.
+        endpoint_config = {
+            'other_host' : self._other_host,
+            'other_port' : self._other_port,
+            'this_port' : 0,
+            'xs_name' : self._xs_name,
+            'platform_resource_id' : self._platform_resource_id,
+            'process' : {
+                'listen_name' : self._listen_name
+            }
+        }
+        
+        # Spawn the terrestrial enpoint process.
+        log.debug('Spawning terrestrial endpoint process.')
+        self._te_pid = self._container_client.spawn_process(
+            name='remote_endpoint_1',
+            module='ion.services.sa.tcaa.terrestrial_endpoint',
+            cls='TerrestrialEndpoint',
+            config=endpoint_config)
+        log.debug('Endpoint pid=%s.', str(self._te_pid))
+
+        # Create an endpoint client.
+        # The to_name may be either the process pid or
+        # the listen_name, which for this remote bridge
+        # is svc_name + remote_name as above.
+        self.te_client = TerrestrialEndpointClient(
+            process=FakeProcess(),
+            to_name=self._listen_name)
+        log.debug('Got te client %s.', str(self.te_client))
+        
+        # Remember the terrestrial port.
+        self._this_port = self.te_client.get_port()        
+        
+        # Confirm we restored the queue with the previous commands.
+        queue = self.te_client.get_queue()
+        self.assertEqual(len(queue), self._no_requests)
+        
+        self.on_link_up()
+        
+        self._done_cmd_tx_evts.get(timeout=CFG.endpoint.receive.timeout)
+        self._done_evt.get(timeout=CFG.endpoint.receive.timeout)
+
+        pending = self.te_client.get_pending()
+        self.assertEqual(len(pending), 0)
+                
+        self.on_link_down()
+
+        self._done_telem_evts.get(timeout=CFG.endpoint.receive.timeout)
+
+        self.assertItemsEqual(self._requests_sent.keys(),
+                                  self._results_recv.keys())
+        
+        

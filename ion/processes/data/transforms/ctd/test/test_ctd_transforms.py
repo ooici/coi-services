@@ -21,6 +21,7 @@ from mock import Mock, sentinel, patch, mocksignature
 from collections import defaultdict
 from interface.objects import ProcessDefinition
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.objects import StreamRoute, Granule
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
 from ion.processes.data.transforms.ctd.ctd_L0_all import ctd_L0_all
@@ -31,7 +32,6 @@ from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.ctd.ctd_L2_density import DensityTransform
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.util.parameter_yaml_IO import get_param_dict
 import unittest, gevent
 import numpy, random
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
@@ -122,8 +122,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         self.exchange_cleanup = []
 
 
-        self.pubsub = PubsubManagementServiceClient()
+        self.pubsub             = PubsubManagementServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
+        self.dataset_management = DatasetManagementServiceClient()
 
         self.exchange_name = 'ctd_L0_all_queue'
         self.exchange_point = 'test_exchange'
@@ -158,8 +159,8 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        pdict = get_param_dict('ctd_parsed_param_dict')
-        stream_def_id =  self.pubsub.create_stream_definition('ctd_all_stream_def', parameter_dictionary=pdict.dump())
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        stream_def_id =  self.pubsub.create_stream_definition('ctd_all_stream_def', parameter_dictionary_id=pdict_id)
 
         cond_stream_id, _ = self.pubsub.create_stream('test_cond',
             exchange_point='science_data',
@@ -242,7 +243,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
+        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -286,9 +287,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        pdict = get_param_dict('simple_data_particle_parsed_param_dict')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
 
-        stream_def_id =  self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary=pdict.dump())
+        stream_def_id =  self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary_id=pdict_id)
         cond_stream_id, _ = self.pubsub.create_stream('test_conductivity',
                                                         exchange_point='science_data',
                                                         stream_definition_id=stream_def_id)
@@ -334,7 +335,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
+        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -472,9 +473,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        pdict = get_param_dict('ctd_parsed_param_dict')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
-        stream_def_id =  self.pubsub.create_stream_definition('pres_stream_def', parameter_dictionary=pdict.dump())
+        stream_def_id =  self.pubsub.create_stream_definition('pres_stream_def', parameter_dictionary_id=pdict_id)
         pres_stream_id, _ = self.pubsub.create_stream('test_pressure',
                                                         stream_definition_id=stream_def_id,
                                                         exchange_point='science_data')
@@ -521,7 +522,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
+        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -561,9 +562,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        pdict = get_param_dict('simple_data_particle_parsed_param_dict')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
-        stream_def_id =  self.pubsub.create_stream_definition('temp_stream_def', parameter_dictionary=pdict.dump())
+        stream_def_id =  self.pubsub.create_stream_definition('temp_stream_def', parameter_dictionary_id=pdict_id)
         temp_stream_id, _ = self.pubsub.create_stream('test_temperature', stream_definition_id=stream_def_id,
                                                         exchange_point='science_data')
 
@@ -609,7 +610,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
+        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -651,9 +652,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         config.process.interval = 1.0
 
-        pdict = get_param_dict('simple_density_param_dict')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
-        stream_def_id =  self.pubsub.create_stream_definition('dens_stream_def', parameter_dictionary=pdict.dump())
+        stream_def_id =  self.pubsub.create_stream_definition('dens_stream_def', parameter_dictionary_id=pdict_id)
         dens_stream_id, _ = self.pubsub.create_stream('test_density', stream_definition_id=stream_def_id,
             exchange_point='science_data')
         config.process.publish_streams.density = dens_stream_id
@@ -697,7 +698,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        publish_granule = self._get_new_ctd_packet( parameter_dictionary=pdict,length = 5)
+        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -737,9 +738,8 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_name
         config.process.exchange_point = self.exchange_point
 
-        pdict = get_param_dict('simple_salinity_param_dict')
-
-        stream_def_id =  self.pubsub.create_stream_definition('sal_stream_def', parameter_dictionary=pdict.dump())
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        stream_def_id =  self.pubsub.create_stream_definition('sal_stream_def', parameter_dictionary_id=pdict_id)
         sal_stream_id, _ = self.pubsub.create_stream('test_salinity', stream_definition_id=stream_def_id,
             exchange_point='science_data')
 
@@ -784,7 +784,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Build a packet that can be published
         self.px_ctd = SimpleCtdPublisher()
-        publish_granule = self._get_new_ctd_packet(parameter_dictionary=pdict, length = 5)
+        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
         pub.publish(publish_granule)
@@ -804,12 +804,12 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         self.check_salinity_algorithm_execution(publish_granule, result)
 
 
-    def _get_new_ctd_packet(self, parameter_dictionary, length):
+    def _get_new_ctd_packet(self, stream_definition_id, length):
 
-        rdt = RecordDictionaryTool(param_dictionary=parameter_dictionary)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
 
-        for key in parameter_dictionary.keys():
-            rdt[key] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
+        for field in rdt:
+            rdt[field] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
 
         g = rdt.to_granule()
 

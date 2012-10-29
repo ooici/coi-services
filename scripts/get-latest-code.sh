@@ -43,6 +43,7 @@ get_submodule extern/pyon
 get_submodule extern/ion-definitions
 get_submodule extern/marine-integrations
 get_submodule extern/coverage-model
+get_submodule extern/parameter-definitions
 
 echo -e "\n\n=== UPDATING COI-SERVICES ===\n"
 git pull --rebase

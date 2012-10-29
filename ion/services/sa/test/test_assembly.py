@@ -1,10 +1,11 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.public import IonObject
-from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.containers import create_unique_identifier
 
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
@@ -13,7 +14,7 @@ from interface.services.sa.iobservatory_management_service import ObservatoryMan
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-from pyon.core.exception import BadRequest, NotFound, Inconsistent, Unauthorized #, Conflict
+from pyon.core.exception import NotFound, Inconsistent, Unauthorized #, Conflict
 from pyon.public import RT, LCS, LCE, PRED
 from pyon.ion.resource import get_maturity_visibility, OT
 from nose.plugins.attrib import attr
@@ -22,27 +23,21 @@ from ion.services.sa.test.helpers import any_old, add_keyworded_attachment
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 from ion.services.sa.instrument.flag import KeywordFlag
+from ion.services.dm.utility.granule_utils import time_series_domain
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
-
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
-from ion.util.parameter_yaml_IO import get_param_dict
+import string
 
 # some stuff for logging info to the console
-import sys
 log = DotDict()
-printout = sys.stdout.write
-#printout = lambda x: None
 
 def mk_logger(level):
     def logger(fmt, *args):
-        printout("%s: %s" % (level, (fmt % args)))
+        print "%s %s" % (string.ljust("%s:" % level, 8), (fmt % args))
 
     return logger
 
@@ -71,6 +66,7 @@ class TestAssembly(IonIntegrationTestCase):
         self.client.PSMS = PubsubManagementServiceClient(node=self.container.node)
 
         self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
 
 #    @unittest.skip('this test just for debugging setup')
 #    def test_just_the_setup(self):
@@ -109,6 +105,7 @@ class TestAssembly(IonIntegrationTestCase):
         """
 
         """
+
         c = self.client
 
         c2 = DotDict()
@@ -119,8 +116,8 @@ class TestAssembly(IonIntegrationTestCase):
         platform_agent_impl     = PlatformAgentImpl(c2)
         instrument_device_impl  = InstrumentDeviceImpl(c2)
         sensor_device_impl      = SensorDeviceImpl(c2)
+        resource_impl           = ResourceImpl(c2)
 
-        instrument_agent_instance_impl = InstrumentAgentInstanceImpl(c2)
 
         #generate a function that finds direct associations, using the more complex one in the service
         def gen_find_oms_association(output_type):
@@ -205,8 +202,8 @@ class TestAssembly(IonIntegrationTestCase):
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
                                   model="SBE37IMModel",
-                                  custom_attributes= {'streams':{'raw': 'simple_data_particle_raw_param_dict' ,
-                                                                 'parsed': 'simple_data_particle_parsed_param_dict' }})
+                                  custom_attributes= {'streams':{'raw': 'ctd_raw_param_dict' ,
+                                                                 'parsed': 'ctd_parsed_param_dict' }})
         instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel,
                                                         "instrument_model", 
                                                         self.client.IMS, 
@@ -236,8 +233,8 @@ class TestAssembly(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
-                                  driver_module="ion.agents.instrument.instrument_agent",
-                                  driver_class="InstrumentAgent" )
+                                  driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
+                                  driver_class="SBE37Driver" )
         instrument_agent_id = self.generic_fcruf_script(RT.InstrumentAgent,
                                                         "instrument_agent", 
                                                         self.client.IMS, 
@@ -504,11 +501,10 @@ class TestAssembly(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # create a stream definition for the data from the ctd simulator
         #------------------------------------------------------------------------------------------------
-        ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=pdict_id)
         log.debug("Created stream def id %s", ctd_stream_def_id)
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
 
         #create data products for instrument data
 
@@ -520,11 +516,11 @@ class TestAssembly(IonIntegrationTestCase):
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
         #------------------------------------------------------------------------------------------------
 
-        dp_obj.name = 'Inst Data Product'
-        inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        dp_obj.name = 'Data Product'
+        inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
         dp_obj.name = 'Log Data Product'
-        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
         #assign data products appropriately
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
@@ -569,19 +565,23 @@ class TestAssembly(IonIntegrationTestCase):
                                     platform_device_id,
                                     instrument_device_id2)
         dp_obj.name = 'Instrument Data Product 2'
-        inst_data_product_id2 = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        inst_data_product_id2 = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id2,
                                    data_product_id=inst_data_product_id2)
 
         # create a new deployment for the new device
         deployment_id2 = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, False)
+        log.debug("Associating instrument site with new deployment")
         c.OMS.deploy_instrument_site(instrument_site_id, deployment_id2)
+        log.debug("Associating instrument device with new deployment")
         c.IMS.deploy_instrument_device(instrument_device_id2, deployment_id2)
 
         # activate the new deployment -- changing the primary device -- but don't switch subscription
+        log.debug("Activating new deployment")
         c.OMS.activate_deployment(deployment_id2, False)
         #todo: assert site hasDevice instrument_device_id2
 
+        log.debug("Transferring site subscriptions")
         c.OMS.transfer_site_subscription(instrument_site_id)
 
         #----------------------------------------------
@@ -607,16 +607,42 @@ class TestAssembly(IonIntegrationTestCase):
         log.debug("L4-CI-SA-RQ-334 RETIRE")
         log.debug("L4-CI-SA-RQ-335: Instrument activation shall support transition to the retired state of instruments")
 
+        
+        #----------------------------------------------
+        #
+        # force_deletes
+        #
+        #----------------------------------------------
+
+        # need to "pluck" some resources out of associations
+        resource_impl.pluck(instrument_model_id)
+        resource_impl.pluck(platform_model_id)
+        resource_impl.pluck(instrument_agent_id)
+        resource_impl.pluck(platform_agent_id)
+        resource_impl.pluck(deployment_id)
+        resource_impl.pluck(deployment_id2)
+
+        self.generic_fd_script(observatory_id, "observatory", c.OMS)
+        self.generic_fd_script(subsite_id, "subsite", c.OMS)
+        self.generic_fd_script(platform_site_id, "platform_site", c.OMS)
+        self.generic_fd_script(instrument_site_id, "instrument_site", c.OMS)
+        self.generic_fd_script(platform_model_id, "platform_model", c.IMS)
+        self.generic_fd_script(instrument_model_id, "instrument_model", c.IMS)
+        self.generic_fd_script(sensor_model_id, "sensor_model", c.IMS)
+        self.generic_fd_script(platform_agent_id, "platform_agent", c.IMS)
+        self.generic_fd_script(instrument_agent_id, "instrument_agent", c.IMS)
+        self.generic_fd_script(platform_device_id, "platform_device", c.IMS)
+        self.generic_fd_script(instrument_device_id, "instrument_device", c.IMS)
+        self.generic_fd_script(sensor_device_id, "sensor_device", c.IMS)
+        self.generic_fd_script(platform_agent_instance_id, "platform_agent_instance", c.IMS)
+        self.generic_fd_script(instrument_agent_instance_id, "instrument_agent_instance", c.IMS)
+        self.generic_fd_script(deployment_id, "deployment", c.OMS)
+        self.generic_fd_script(deployment_id2, "deployment", c.OMS)
 
     def create_data_product_obj(self):
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
+        tdom, sdom = time_series_domain()
 
         sdom = sdom.dump()
         tdom = tdom.dump()
@@ -638,8 +664,6 @@ class TestAssembly(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
-                                          driver_module='mi.instrument.seabird.sbe37smb.ooicore.driver',
-                                          driver_class='SBE37Driver',
                                           comms_device_address='sbe37-simulator.oceanobservatories.org',
                                           comms_device_port=4001,
                                           port_agent_config = port_agent_config)
@@ -668,6 +692,7 @@ class TestAssembly(IonIntegrationTestCase):
         c2 = DotDict()
         c2.resource_registry = self.client.RR
         instrument_site_impl = InstrumentSiteImpl(c2)
+        resource_impl = ResourceImpl(c2)
 
         log.info("Create a instrument model")
         instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel,
@@ -704,18 +729,17 @@ class TestAssembly(IonIntegrationTestCase):
 
 
         log.info("Create a stream definition for the data from the ctd simulator")
-        ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data')
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.client.PSMS.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=pdict_id)
 
         log.info("Create an IonObject for a data products")
         dp_obj = self.create_data_product_obj()
 
-        dp_obj.name = 'Inst Data Product'
-        inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        dp_obj.name = create_unique_identifier('Inst Data Product')
+        inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
-        dp_obj.name = 'Log Data Product'
-        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+        dp_obj.name = create_unique_identifier('Log Data Product')
+        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
         #assign data products appropriately
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
@@ -731,19 +755,30 @@ class TestAssembly(IonIntegrationTestCase):
 
         c.OMS.activate_deployment(deployment_id, True)
 
+        # cleanup
+        resource_impl.pluck(instrument_model_id)
+        resource_impl.pluck(deployment_id)
+        resource_impl.pluck(instrument_device_id)
+        c.IMS.force_delete_instrument_model(instrument_model_id)
+        c.IMS.force_delete_instrument_device(instrument_device_id)
+        c.OMS.force_delete_instrument_site(instrument_site_id)
+        c.OMS.force_delete_deployment(deployment_id)
+
 
 
     # test all 4 deployment contexts.  can fill in these context when their fields get defined
     def test_deployment_buoy(self):
-        context = IonObject(OT.BuoyDeploymentContext)
+        context = IonObject(OT.RemotePlatformDeploymentContext)
         self.template_tst_deployment_context(context)
 
     def test_deployment_mooring(self):
-        context = IonObject(OT.MooringDeploymentContext)
+        context = IonObject(OT.CabledNodeDeploymentContext)
+        self.template_tst_deployment_context(context)
+        context = IonObject(OT.CabledInstrumentDeploymentContext)
         self.template_tst_deployment_context(context)
 
     def test_deployment_glider(self):
-        context = IonObject(OT.GliderDeploymentContext)
+        context = IonObject(OT.MobileAssetDeploymentContext)
         self.template_tst_deployment_context(context)
 
     def test_deployment_cruise(self):
@@ -856,7 +891,7 @@ class TestAssembly(IonIntegrationTestCase):
 
 
 
-    def generic_d_script(self, resource_id, resource_label, owner_service):
+    def generic_fd_script(self, resource_id, resource_label, owner_service):
         """
         delete a resource and check that it was properly deleted
 
@@ -865,7 +900,7 @@ class TestAssembly(IonIntegrationTestCase):
         @param owner_service service client instance
         """
 
-        del_op = getattr(owner_service, "delete_%s" % resource_label)
+        del_op = getattr(owner_service, "force_delete_%s" % resource_label)
         
         del_op(resource_id)
 
@@ -929,12 +964,12 @@ class TestAssembly(IonIntegrationTestCase):
         num_objs = len(find_widgets())
         log.info("I found %d %s objects", num_objs, resource_label)
 
-        log.info("Creating a %s", resource_label)
         generic_obj = actual_obj or any_old(resource_iontype)
+        log.info("Creating a %s with name='%s'", resource_label, generic_obj.name)
         generic_id = some_service.create_widget(generic_obj)
         self.assertIsNotNone(generic_id, "%s failed its creation" % resource_iontype)
 
-        log.info("Reading %s #%s", resource_label, generic_id)
+        log.info("Reading %s '%s'", resource_label, generic_id)
         generic_ret = some_service.read_widget(generic_id)
 
         log.info("Verifying equality of stored and retrieved object")
@@ -947,21 +982,23 @@ class TestAssembly(IonIntegrationTestCase):
             log.info("Verifying that resource went DEPLOYED_AVAILABLE on creation")
             self.assertEqual(generic_ret.lcstate, LCS.DEPLOYED_AVAILABLE)
 
-        log.info("Updating %s #%s", resource_label, generic_id)
+        log.info("Updating %s '%s'", resource_label, generic_id)
         generic_newname = "%s updated" % generic_ret.name
         generic_ret.name = generic_newname
         some_service.update_widget(generic_ret)
 
-        log.info("Reading platform model #%s to verify update", generic_id)
+        log.info("Reading %s '%s' to verify update", resource_iontype, generic_id)
         generic_ret = some_service.read_widget(generic_id)
 
         self.assertEqual(generic_newname, generic_ret.name)
         self.assertEqual(generic_obj.description, generic_ret.description)
 
-        log.info("Finding platform models... checking that there's a new one")
+        log.info("Finding %s objects... checking that there's a new one", resource_iontype)
         num_objs2 = len(find_widgets())
 
+        log.info("There were %s and now there are %s", num_objs, num_objs2)
         self.assertTrue(num_objs2 > num_objs)
 
+        log.info("Returning %s with id '%s'", resource_iontype, generic_id)
         return generic_id
 

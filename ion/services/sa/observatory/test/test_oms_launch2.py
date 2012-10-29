@@ -1,38 +1,58 @@
-#from interface.services.icontainer_agent import ContainerAgentClient
-#from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import Container, log, IonObject
-from pyon.util.containers import DotDict
+#!/usr/bin/env python
+
+"""
+@package ion.services.sa.observatory.test.test_oms_launch.py
+@file    ion/services/sa/observatory/test/test_oms_launch.py
+@author  Maurice Manning, Carlos Rueda
+@brief   Test cases for R2 platform agent and other CI components
+         using information from the RSN OMS interface.
+"""
+
+__author__ = 'Maurice Manning, Carlos Rueda'
+__license__ = 'Apache 2.0'
+
+from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
+from pyon.event.event import EventSubscriber
+
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from ion.services.sa.observatory.observatory_management_service import ObservatoryManagementService
-from interface.services.sa.iobservatory_management_service import IObservatoryManagementService, ObservatoryManagementServiceClient
+from interface.services.sa.iobservatory_management_service import  ObservatoryManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+
+from pyon.ion.stream import StandaloneStreamSubscriber
 
 from pyon.util.context import LocalContextMixin
-from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
+from pyon.core.exception import BadRequest
 from pyon.public import RT, PRED
-#from mock import Mock, patch
-from pyon.util.unit_test import PyonTestCase
+
 from nose.plugins.attrib import attr
-import unittest
-from ooi.logging import log
+from pyon.public import OT
+
+
+import yaml
 
 from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
-from interface.objects import ProcessDefinition
+from interface.objects import AgentCommand, ProcessStateEnum
 
-from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
+
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+
+from gevent.event import AsyncResult
+from gevent import sleep
+
+from nose.plugins.attrib import attr
 
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 
-from pyon.event.event import EventSubscriber
-from interface.objects import ProcessStateEnum
 
-from gevent import queue
 from gevent import sleep
 
 
@@ -41,17 +61,21 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 
 # The ID of the base platform for this test .
 # These Ids and names should correspond to corresponding entries in network.yml,
-# which is used by the OMS simulator.
-PLATFORM_ID = 'Node1A'
+# which is used by the RSN OMS simulator.
+# NOTE, previously using 'Node1A' (which has 19 descendents) but now using
+# 'Node1D' which only has 2 descendents (1 direct child and 1 grand-child) so
+# the test does not take too long.
+BASE_PLATFORM_ID = 'Node1D'
 
 
 # TIMEOUT: timeout for each execute_agent call.
-# NOTE: the bigger the platform network size starting from the chosen
-# PLATFORM_ID above, the more the time that should be given for commands to
-# complete, in particular, for those with a cascading effect on all the
-# descendents, eg, INITIALIZE.
-# The following TIMEOUT value intends to be big enough for all typical cases.
 TIMEOUT = 90
+
+# DATA_TIMEOUT: timeout for reception of data sample
+DATA_TIMEOUT = 25
+
+# EVENT_TIMEOUT: timeout for reception of event
+EVENT_TIMEOUT = 25
 
 
 class FakeProcess(LocalContextMixin):
@@ -63,7 +87,6 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@unittest.skip("skipped while trying new mechanisms in test_oms_launch")
 @attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
@@ -76,109 +99,64 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.omsclient = ObservatoryManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
-
+        self.dpclient = DataProductManagementServiceClient(node=self.container.node)
+        self.pubsubcli = PubsubManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
 
 
         self.platformModel_id = None
 
-        # to retrieve network structure from RSN-OMS:
+        # rsn_oms: to retrieve network structure and information from RSN-OMS:
+        # Note that OmsClientFactory will create an "embedded" RSN OMS
+        # simulator object by default.
         self.rsn_oms = OmsClientFactory.create_instance()
 
         self.all_platforms = {}
         self.topology = {}
+        self.agent_device_map = {}
+        self.agent_streamconfig_map = {}
 
-    def _prepare_platform(self, platform_id, parent_platform_objs):
-        """
-        This routine generalizes the manual construction currently done in
-        test_oms_launch.py. It is called by the recursive _traverse method.
+        self._async_data_result = AsyncResult()
+        self._data_subscribers = []
+        self._samples_received = []
+        self.addCleanup(self._stop_data_subscribers)
 
-        Note: For simplicity in this test, sites are organized in the same
-        hierarchical way as the platforms themselves.
+        self._async_event_result = AsyncResult()
+        self._event_subscribers = []
+        self._events_received = []
+        self.addCleanup(self._stop_event_subscribers)
+        self._start_event_subscriber()
 
-        @param platform_id ID of the platform to be visited
-        @param parent_platform_objs dict of objects associated to parent
-                        platform, if any.
+        self._set_up_DataProduct_obj()
+        self._set_up_PlatformModel_obj()
 
-        @retval a dict of associated objects similar to those in
-                test_oms_launch
-        """
+    def _set_up_DataProduct_obj(self):
+        # Create data product object to be used for each of the platform log streams
+        tdom, sdom = time_series_domain()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
 
-        site__obj = IonObject(RT.PlatformSite,
-                            name='%s_PlatformSite' % platform_id,
-                            description='%s_PlatformSite platform site' % platform_id)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
+        self.raw_stream_def_id = self.pubsubcli.create_stream_definition(
+            name='raw', parameter_dictionary_id=pdict_id)
+        self.dp_obj = IonObject(RT.DataProduct,
+            name='raw data',
+            description='raw stream test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
 
-        site_id = self.omsclient.create_platform_site(site__obj)
-
-        if parent_platform_objs:
-            self.rrclient.create_association(
-                subject=parent_platform_objs['site_id'],
-                predicate=PRED.hasSite,
-                object=site_id)
-
-        device__obj = IonObject(RT.PlatformDevice,
-                            name='%s_PlatformDevice' % platform_id,
-                            description='%s_PlatformDevice platform device' % platform_id)
-
-        device_id = self.imsclient.create_platform_device(device__obj)
-
-        self.imsclient.assign_platform_model_to_platform_device(self.platformModel_id, device_id)
-
-        if parent_platform_objs:
-            self.rrclient.create_association(
-                subject=parent_platform_objs['device_id'],
-                predicate=PRED.hasDevice,
-                object=device_id)
-
-        agent__obj = IonObject(RT.PlatformAgent,
-                            name='%s_PlatformAgent' % platform_id,
-                            description='%s_PlatformAgent platform agent' % platform_id)
-
-        agent_id = self.imsclient.create_platform_agent(agent__obj)
-
-        if parent_platform_objs:
-            # note, appending platform_id instead of agent_id as in test_oms_launch:
-            parent_platform_objs['children'].append(platform_id)
-#            parent_platform_objs['children'].append(agent_id)
-
-
-        self.imsclient.assign_platform_model_to_platform_agent(self.platformModel_id, agent_id)
-
-        agent_instance_obj = IonObject(RT.PlatformAgentInstance,
-                                name='%s_PlatformAgentInstance' % platform_id,
-                                description="%s_PlatformAgentInstance" % platform_id,
-                                driver_module='ion.agents.platform.platform_agent',
-                                driver_class='PlatformAgent')
-
-        agent_instance_id = self.imsclient.create_platform_agent_instance(
-                            agent_instance_obj, agent_id, device_id)
-
-        plat_objs = {
-            'platform_id':        platform_id,
-            'site__obj':          site__obj,
-            'site_id':            site_id,
-            'device__obj':        device__obj,
-            'device_id':          device_id,
-            'agent__obj':         agent__obj,
-            'agent_id':           agent_id,
-            'agent_instance_obj': agent_instance_obj,
-            'agent_instance_id':  agent_instance_id,
-            'children':           []
-        }
-        #
-        # Note: there're other pieces of information that can be retrieved
-        # using self.rsn_oms (for example self.rsn_oms.getPlatformAttributes)
-        # that could be added to the plat_objs dictionary. At the moment,
-        # basically only the network topology is passed to the base platform
-        # agent, which will then query the RSN-OMS interface for associated
-        # attributes and other information. For this to happen, note that the
-        # topology here is defined in terms of platform IDs (not agent IDs as
-        # in test_oms_launch).
-        # TODO need to determine the overall strategy.
-        #
-
-        log.info("plat_objs for platform_id %r = %s", platform_id, str(plat_objs))
-        return plat_objs
+    def _set_up_PlatformModel_obj(self):
+        # Create PlatformModel
+        platformModel_obj = IonObject(RT.PlatformModel,
+                                      name='RSNPlatformModel',
+                                      description="RSNPlatformModel",
+                                      model="RSNPlatformModel")
+        try:
+            self.platformModel_id = self.imsclient.create_platform_model(platformModel_obj)
+        except BadRequest as ex:
+            self.fail("failed to create new PLatformModel: %s" %ex)
+        log.debug( 'new PlatformModel id = %s', self.platformModel_id)
 
     def _traverse(self, platform_id, parent_platform_objs=None):
         """
@@ -204,57 +182,282 @@ class TestOmsLaunch(IonIntegrationTestCase):
         for subplatform_id in subplatform_ids:
             self._traverse(subplatform_id, plat_objs)
 
-        # note, topology in terms of platform_id instead of agent_id as in
-        # test_oms_launch:
+        # note, topology indexed by platform_id
         self.topology[platform_id] = plat_objs['children']
-#        self.topology[plat_objs['agent_id']] = plat_objs['children']
 
         return plat_objs
 
+    def _prepare_platform(self, platform_id, parent_platform_objs):
+        """
+        This routine generalizes the manual construction currently done in
+        test_oms_launch.py. It is called by the recursive _traverse method so
+        all platforms starting from a given base platform are prepared.
+
+        Note: For simplicity in this test, sites are organized in the same
+        hierarchical way as the platforms themselves.
+
+        @param platform_id ID of the platform to be visited
+        @param parent_platform_objs dict of objects associated to parent
+                        platform, if any.
+
+        @retval a dict of associated objects similar to those in
+                test_oms_launch
+        """
+
+        site__obj = IonObject(RT.PlatformSite,
+                            name='%s_PlatformSite' % platform_id,
+                            description='%s_PlatformSite platform site' % platform_id)
+
+        site_id = self.omsclient.create_platform_site(site__obj)
+
+        if parent_platform_objs:
+            # establish hasSite association with the parent
+            self.rrclient.create_association(
+                subject=parent_platform_objs['site_id'],
+                predicate=PRED.hasSite,
+                object=site_id)
+
+        # prepare platform attributes and ports:
+        monitor_attributes = self._prepare_platform_attributes(platform_id)
+        ports =              self._prepare_platform_ports(platform_id)
+
+        device__obj = IonObject(RT.PlatformDevice,
+                        name='%s_PlatformDevice' % platform_id,
+                        description='%s_PlatformDevice platform device' % platform_id,
+                        ports=ports,
+                        platform_monitor_attributes = monitor_attributes)
+
+        device_id = self.imsclient.create_platform_device(device__obj)
+
+        self.imsclient.assign_platform_model_to_platform_device(self.platformModel_id, device_id)
+        self.rrclient.create_association(subject=site_id, predicate=PRED.hasDevice, object=device_id)
+        self.damsclient.register_instrument(instrument_id=device_id)
+
+
+        if parent_platform_objs:
+            # establish hasDevice association with the parent
+            self.rrclient.create_association(
+                subject=parent_platform_objs['device_id'],
+                predicate=PRED.hasDevice,
+                object=device_id)
+
+        agent__obj = IonObject(RT.PlatformAgent,
+                            name='%s_PlatformAgent' % platform_id,
+                            description='%s_PlatformAgent platform agent' % platform_id)
+
+        agent_id = self.imsclient.create_platform_agent(agent__obj)
+
+        if parent_platform_objs:
+            # add this platform_id to parent's children:
+            parent_platform_objs['children'].append(platform_id)
+
+
+        self.imsclient.assign_platform_model_to_platform_agent(self.platformModel_id, agent_id)
+
+        agent_instance_obj = IonObject(RT.PlatformAgentInstance,
+                                name='%s_PlatformAgentInstance' % platform_id,
+                                description="%s_PlatformAgentInstance" % platform_id)
+
+        agent_instance_id = self.imsclient.create_platform_agent_instance(
+                            agent_instance_obj, agent_id, device_id)
+
+        plat_objs = {
+            'platform_id':        platform_id,
+            'site__obj':          site__obj,
+            'site_id':            site_id,
+            'device__obj':        device__obj,
+            'device_id':          device_id,
+            'agent__obj':         agent__obj,
+            'agent_id':           agent_id,
+            'agent_instance_obj': agent_instance_obj,
+            'agent_instance_id':  agent_instance_id,
+            'children':           []
+        }
+
+        log.info("plat_objs for platform_id %r = %s", platform_id, str(plat_objs))
+
+        self.agent_device_map[platform_id] = device__obj
+
+        stream_config = self._create_stream_config(plat_objs)
+        self.agent_streamconfig_map[platform_id] = stream_config
+        self._start_data_subscriber(agent_instance_id, stream_config)
+
+        return plat_objs
+
+    def _prepare_platform_attributes(self, platform_id):
+        """
+        Returns the list of PlatformMonitorAttributes objects corresponding to
+        the attributes associated to the given platform.
+        """
+        result = self.rsn_oms.getPlatformAttributes(platform_id)
+        self.assertTrue(platform_id in result)
+        ret_infos = result[platform_id]
+
+        monitor_attributes = []
+        for attrName, attrDfn in ret_infos.iteritems():
+            log.debug("platform_id=%r: preparing attribute=%r", platform_id, attrName)
+
+            monitor_rate = attrDfn['monitorCycleSeconds']
+            units =        attrDfn['units']
+
+            plat_attr_obj = IonObject(OT.PlatformMonitorAttributes,
+                                      id=attrName,
+                                      monitor_rate=monitor_rate,
+                                      units=units)
+
+            monitor_attributes.append(plat_attr_obj)
+
+        return monitor_attributes
+
+    def _prepare_platform_ports(self, platform_id):
+        """
+        Returns the list of PlatformPort objects corresponding to the ports
+        associated to the given platform.
+        """
+        result = self.rsn_oms.getPlatformPorts(platform_id)
+        self.assertTrue(platform_id in result)
+        port_dict = result[platform_id]
+
+        ports = []
+        for port_id, port in port_dict.iteritems():
+            log.debug("platform_id=%r: preparing port=%r", platform_id, port_id)
+            ip_address = port['comms']['ip']
+            plat_port_obj = IonObject(OT.PlatformPort,
+                                      port_id=port_id,
+                                      ip_address=ip_address)
+
+            ports.append(plat_port_obj)
+
+        return ports
+
+    def _create_stream_config(self, plat_objs):
+
+        platform_id = plat_objs['platform_id']
+        device_id =   plat_objs['device_id']
+
+
+        #create the log data product
+        self.dp_obj.name = '%s raw data' % platform_id
+        data_product_id = self.dpclient.create_data_product(data_product=self.dp_obj, stream_definition_id=self.raw_stream_def_id)
+        self.damsclient.assign_data_product(input_resource_id=device_id, data_product_id=data_product_id)
+        # Retrieve the id of the OUTPUT stream from the out Data Product
+        stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)
+
+        stream_config = self._build_stream_config(stream_ids[0])
+        return stream_config
+
+    def _build_stream_config(self, stream_id=''):
+
+        raw_parameter_dictionary = DatasetManagementService.get_parameter_dictionary_by_name('ctd_raw_param_dict')
+
+        #get the streamroute object from pubsub by passing the stream_id
+        stream_def_ids, _ = self.rrclient.find_objects(stream_id,
+            PRED.hasStreamDefinition,
+            RT.StreamDefinition,
+            True)
+
+
+        stream_route = self.pubsubcli.read_stream_route(stream_id=stream_id)
+        stream_config = {'routing_key' : stream_route.routing_key,
+                         'stream_id' : stream_id,
+                         'stream_definition_ref' : stream_def_ids[0],
+                         'exchange_point' : stream_route.exchange_point,
+                         'parameter_dictionary':raw_parameter_dictionary.dump()}
+
+        return stream_config
+
+    def _start_data_subscriber(self, stream_name, stream_config):
+        """
+        Starts data subscriber for the given stream_name and stream_config
+        """
+
+        def consume_data(message, stream_route, stream_id):
+            # A callback for processing subscribed-to data.
+            log.info('Subscriber received data message: %s.', str(message))
+            self._samples_received.append(message)
+            self._async_data_result.set()
+
+        log.info('_start_data_subscriber stream_name=%r', stream_name)
+
+        stream_id = stream_config['stream_id']
+
+        # Create subscription for the stream
+        exchange_name = '%s_queue' % stream_name
+        self.container.ex_manager.create_xn_queue(exchange_name).purge()
+        sub = StandaloneStreamSubscriber(exchange_name, consume_data)
+        sub.start()
+        self._data_subscribers.append(sub)
+        sub_id = self.pubsubcli.create_subscription(name=exchange_name, stream_ids=[stream_id])
+        self.pubsubcli.activate_subscription(sub_id)
+        sub.subscription_id = sub_id
+
+    def _stop_data_subscribers(self):
+        """
+        Stop the data subscribers on cleanup.
+        """
+        try:
+            for sub in self._data_subscribers:
+                if hasattr(sub, 'subscription_id'):
+                    try:
+                        self.pubsubcli.deactivate_subscription(sub.subscription_id)
+                    except:
+                        pass
+                    self.pubsubcli.delete_subscription(sub.subscription_id)
+                sub.stop()
+        finally:
+            self._data_subscribers = []
+
+    def _start_event_subscriber(self, event_type="PlatformAlarmEvent", sub_type="power"):
+        """
+        Starts event subscriber for events of given event_type ("PlatformAlarmEvent"
+        by default) and given sub_type ("power" by default).
+        """
+
+        def consume_event(evt, *args, **kwargs):
+            # A callback for consuming events.
+            log.info('Event subscriber received evt: %s.', str(evt))
+            self._events_received.append(evt)
+            self._async_event_result.set(evt)
+
+        sub = EventSubscriber(event_type=event_type,
+                              sub_type=sub_type,
+                              callback=consume_event)
+
+        sub.start()
+        log.info("registered event subscriber for event_type=%r, sub_type=%r",
+                 event_type, sub_type)
+
+        self._event_subscribers.append(sub)
+        sub._ready_event.wait(timeout=EVENT_TIMEOUT)
+
+    def _stop_event_subscribers(self):
+        """
+        Stops the event subscribers on cleanup.
+        """
+        try:
+            for sub in self._event_subscribers:
+                if hasattr(sub, 'subscription_id'):
+                    try:
+                        self.pubsubcli.deactivate_subscription(sub.subscription_id)
+                    except:
+                        pass
+                    self.pubsubcli.delete_subscription(sub.subscription_id)
+                sub.stop()
+        finally:
+            self._event_subscribers = []
 
     def test_oms_create_and_launch(self):
 
+        # pick a base platform:
+        base_platform_id = BASE_PLATFORM_ID
 
-        # Start data suscribers, add stop to cleanup.
-        # Define stream_config.
-        self._no_samples = None
-        #self._async_data_result = AsyncResult()
-        self._data_greenlets = []
-        self._stream_config = {}
-        self._samples_received = []
-        self._data_subscribers = []
-
-
-        # Create PlatformModel
-        platformModel_obj = IonObject(RT.PlatformModel,
-                                      name='RSNPlatformModel',
-                                      description="RSNPlatformModel",
-                                      model="RSNPlatformModel")
-        try:
-            self.platformModel_id = self.imsclient.create_platform_model(platformModel_obj)
-        except BadRequest as ex:
-            self.fail("failed to create new PLatformModel: %s" %ex)
-        log.debug( 'new PlatformModel id = %s', self.platformModel_id)
-
-
-
-        # trigger the traversal of the RSN-OMS reported network from some base
-        # platform: if the root, we'd use self.rsn_oms.getRootPlatformID(),
-        # but here we use another platform ID that exists in network.yml:
-        base_platform_id = PLATFORM_ID
+        # and trigger the traversal of the branch rooted at that base platform
+        # to create corresponding ION objects and configuration dictionaries:
         base_platform_objs = self._traverse(base_platform_id)
 
         log.info("base_platform_id = %r", base_platform_id)
         log.info("topology = %s", str(self.topology))
 
-
-        #-------------------------------
-        # quick local test of retrieving associations:
-        device_id = base_platform_objs['device_id']
-        objs, assocs = self.rrclient.find_objects(device_id, PRED.hasDevice, RT.PlatformDevice, id_only=True)
-        log.debug('Found associated devices for device_id=%r: objs=%s, assocs=%s', device_id, objs, assocs)
-        for obj in objs: log.debug("Retrieved object=%s", obj)
-        #-------------------------------
 
         #-------------------------------
         # Launch Base Platform AgentInstance, connect to the resource agent client
@@ -286,22 +489,24 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         # note: ID value for 'platform_id' should be consistent with IDs in topology:
         PLATFORM_CONFIG = {
-            'platform_id': base_platform_id,
-#            'platform_id': base_platform_objs['agent_id'],
-            'platform_topology' : self.topology,
+            'platform_id':             base_platform_id,
+            'platform_topology':       self.topology,
 
-            'driver_config': DVR_CONFIG,
-            'container_name': self.container.name,
+            'agent_device_map':        self.agent_device_map,
+            'agent_streamconfig_map':  self.agent_streamconfig_map,
+
+            'driver_config':           DVR_CONFIG,
+            'container_name':          self.container.name,
         }
 
-        log.debug("Base PLATFORM_CONFIG = %s", PLATFORM_CONFIG)
+        log.debug("Base PLATFORM_CONFIG =\n%s", PLATFORM_CONFIG)
 
         # ping_agent can be issued before INITIALIZE
         retval = self._pa_client.ping_agent(timeout=TIMEOUT)
         log.debug( 'Base Platform ping_agent = %s', str(retval) )
 
-        # INITIALIZE should trigger the creation of the whole platform
-        # hierarchy rooted at PLATFORM_CONFIG['platform_id']
+        # issue INITIALIZE command to the base platform, which will launch the
+        # creation of the whole platform hierarchy rooted at PLATFORM_CONFIG['platform_id']
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'Base Platform INITIALIZE = %s', str(retval) )
@@ -312,7 +517,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'Base Platform GO_ACTIVE = %s', str(retval) )
 
-        # RUN
+        # RUN: this command includes the launch of the resource monitoring greenlets
         cmd = AgentCommand(command=PlatformAgentEvent.RUN)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'Base Platform RUN = %s', str(retval) )
@@ -323,9 +528,18 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
 
+        # wait for data sample
+        # note: we just wait for one sample -- see consume_data above
+        log.info("waiting for reception of a data sample...")
+        self._async_data_result.get(timeout=DATA_TIMEOUT)
+        self.assertEquals(len(self._samples_received), 1)
 
-        log.info("sleeping to eventually see some event notifications/data pubs...")
-        sleep(15)
+
+        # wait for alarm event
+        # note: we just wait for one sample -- see consume_data above
+        log.info("waiting for reception of an event...")
+        self._async_event_result.get(timeout=EVENT_TIMEOUT)
+        log.info("Received events: %s", len(self._events_received))
 
 
         # STOP_ALARM_DISPATCH
@@ -333,6 +547,16 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
 
+        # GO_INACTIVE
+        cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        log.debug( 'Base Platform GO_INACTIVE = %s', str(retval) )
+
+        # RESET: Resets the base platform agent, which includes termination of
+        # its sub-platforms processes:
+        cmd = AgentCommand(command=PlatformAgentEvent.RESET)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        log.debug( 'Base Platform RESET = %s', str(retval) )
 
         #-------------------------------
         # Stop Base Platform AgentInstance

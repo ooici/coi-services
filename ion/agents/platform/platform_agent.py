@@ -31,7 +31,6 @@ from ion.agents.platform.platform_driver import AlarmDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from ion.services.dm.utility.granule.granule import build_granule
 import numpy
 from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
 
@@ -137,6 +136,10 @@ class PlatformAgent(ResourceAgent):
             self._on_init()
 
         log.info("PlatformAgent constructor complete.")
+
+    def on_start(self):
+        super(PlatformAgent, self).on_start()
+        log.info('platform agent is running')
 
     def _reset(self):
         """
@@ -461,7 +464,7 @@ class PlatformAgent(ResourceAgent):
         stream_def = self._stream_defs[stream_name]
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
-        # because currently using param-dict for 'simple_data_particle_raw_param_dict',
+        # because currently using param-dict for 'ctd_raw_param_dict',
         # the following are invalid:
 #        rdt['value'] =  numpy.array([driver_event._value])
 
@@ -539,8 +542,7 @@ class PlatformAgent(ResourceAgent):
 
         rdt['value'] =  numpy.array([driver_event._value])
 
-        g = build_granule(data_producer_id=self.resource_id,
-            param_dictionary=param_dict, record_dictionary=rdt)
+        g = rdt.to_granule(data_producer_id=self.resource_id)
 
         stream_id = self._data_streams[stream_name]
         publisher.publish(g, stream_id=stream_id)
@@ -550,9 +552,41 @@ class PlatformAgent(ResourceAgent):
 
     def _handle_alarm_driver_event(self, driver_event):
         #
-        # TODO How are alarm events to be notified? Publish to some stream?
-        #
-        log.debug("Got alarm event but nothing done with it yet: %s", str(driver_event))
+        # TODO appropriate granularity and structure of the event.
+
+        alarm_type = driver_event._alarm_type
+        ts = driver_event._ts
+
+        alarm_instance = driver_event._alarm_instance
+        platform_id = alarm_instance.get('platform_id', None)
+        message = alarm_instance.get('message', None)
+        timestamp = alarm_instance.get('timestamp', None)
+        group = alarm_instance.get('group', None)
+
+        # TODO appropriate origin for the event
+        origin = platform_id  # self.resource_id
+
+        event_data = {
+            'description':  message,
+            'sub_type':     group,      # ID of alarm categorization
+            'ts_created':   ts,         # time of reception at the driver
+            'external_alarm_type':   alarm_type,
+            'external_timestamp':    timestamp,  # as given by OMS
+        }
+
+        log.info("%r: publishing platform alarm event: event_data=%s",
+                  self._platform_id, str(event_data))
+
+        try:
+            self._event_publisher.publish_event(
+                event_type='PlatformAlarmEvent',
+                origin=origin,
+                **event_data)
+
+        except Exception as e:
+            # Unexpected unless PlatformAlarmEvent not yet in ion-definitions,
+            # which is the case at time of writing.
+            log.error("Error while publishing platform alarm event: %s", str(e))
 
     ##########################################################################
     # TBD

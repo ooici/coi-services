@@ -28,28 +28,34 @@ import os
 class TestExchangeManagementService(PyonTestCase):
 
     def setUp(self):
+
+        self.container = Mock()
+
         mock_clients = self._create_service_mock('exchange_management')
 
         self.exchange_management_service = ExchangeManagementService()
         self.exchange_management_service.clients = mock_clients
 
-        self.exchange_management_service.container = Mock()
+        self.exchange_management_service.container = self.container
 
         # Rename to save some typing
-        self.mock_create = mock_clients.resource_registry.create
-        self.mock_read = mock_clients.resource_registry.read
-        self.mock_update = mock_clients.resource_registry.update
-        self.mock_delete = mock_clients.resource_registry.delete
-        self.mock_create_association = mock_clients.resource_registry.create_association
-        self.mock_delete_association = mock_clients.resource_registry.delete_association
-        self.mock_find_objects = mock_clients.resource_registry.find_objects
-        self.mock_find_resources = mock_clients.resource_registry.find_resources
-        self.mock_find_subjects = mock_clients.resource_registry.find_subjects
+        self.mock_create = self.container.resource_registry.create
+        self.mock_read = self.container.resource_registry.read
+        self.mock_update = self.container.resource_registry.update
+        self.mock_delete = self.container.resource_registry.delete
+        self.mock_create_association = self.container.resource_registry.create_association
+        self.mock_delete_association = self.container.resource_registry.delete_association
+        self.mock_find_objects = self.container.resource_registry.find_objects
+        self.mock_find_resources = self.container.resource_registry.find_resources
+        self.mock_find_subjects = self.container.resource_registry.find_subjects
 
         # Exchange Space
         self.exchange_space = Mock()
         self.exchange_space.name = "Foo"
 
+        # fixup for direct RR access
+        self.container.resource_registry.create.return_value = (sentinel.id, sentinel.rev)
+        self.container.resource_registry.find_subjects.return_value = (sentinel.id, [])
 
     def test_create_exchange_space(self):
         self.mock_create.return_value = ['111', 1]
@@ -72,7 +78,7 @@ class TestExchangeManagementService(PyonTestCase):
         exchange_space = self.exchange_management_service.read_exchange_space('111')
 
         assert exchange_space is self.mock_read.return_value
-        self.mock_read.assert_called_once_with('111', '')
+        self.mock_read.assert_called_once_with('111')
 
         exchange_space.name = 'Bar'
 
@@ -89,7 +95,7 @@ class TestExchangeManagementService(PyonTestCase):
 
         self.exchange_management_service.delete_exchange_space('111')
 
-        self.mock_read.assert_called_once_with('111', '')
+        self.mock_read.assert_called_once_with('111')
         self.mock_delete.assert_called_once_with('111')
 
     def test_read_exchange_space_not_found(self):
@@ -101,7 +107,7 @@ class TestExchangeManagementService(PyonTestCase):
 
         ex = cm.exception
         self.assertEqual(ex.message, 'Exchange Space bad does not exist')
-        self.mock_read.assert_called_once_with('bad', '')
+        self.mock_read.assert_called_once_with('bad')
 
     def test_delete_exchange_space_not_found(self):
         self.mock_read.return_value = None
@@ -112,7 +118,7 @@ class TestExchangeManagementService(PyonTestCase):
 
         ex = cm.exception
         self.assertEqual(ex.message, 'Exchange Space bad does not exist')
-        self.mock_read.assert_called_once_with('bad', '')
+        self.mock_read.assert_called_once_with('bad')
 
 
 @attr('INT', group='coi')

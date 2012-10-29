@@ -69,7 +69,9 @@ class TestProcessSlowStart(BaseService):
     name = __name__ + "test"
 
     def on_init(self):
+        log.info("Waiting for TestProcessSlowStart to start")
         gevent.sleep(2)
+        log.info("TestProcessSlowStart started")
 
 
 @attr('INT', group='cei')
@@ -360,7 +362,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         }
         self._start_eeagent()
 
-    def wait_for_state(self, upid, desired_state, timeout=5):
+    def wait_for_state(self, upid, desired_state, timeout=30):
         attempts = 0
         last_state = None
         while timeout > attempts:
@@ -420,7 +422,22 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
             self.eea_client.launch_process(upid, round, run_type, parameters)
 
         for upid in upids:
-            self.wait_for_state(upid, [500, 'RUNNING'])
+            self.wait_for_state(upid, [500, 'RUNNING'], timeout=60)
+
+    @needs_eeagent
+    def test_start_cancel(self):
+        upid = str(uuid.uuid4().hex)
+        round = 0
+        run_type = "pyon"
+        proc_name = 'test_x'
+        module = 'ion.agents.cei.test.test_eeagent'
+        cls = 'TestProcessSlowStart'
+        parameters = {'name': proc_name, 'module': module, 'cls': cls}
+        self.eea_client.launch_process(upid, round, run_type, parameters)
+        self.wait_for_state(upid, [400, 'PENDING'])
+        self.eea_client.terminate_process(upid, round)
+        self.wait_for_state(upid, [700, 'TERMINATED'])
+
 
     @needs_eeagent
     def test_kill_and_revive(self):

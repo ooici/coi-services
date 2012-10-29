@@ -16,7 +16,7 @@ from interface.services.ans.ivisualization_service import VisualizationServiceCl
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 
-from pyon.public import log, IonObject, RT
+from pyon.public import log, IonObject, RT, PRED
 
 
 from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
@@ -86,7 +86,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
     @attr('LOCOINT')
     #@patch.dict('pyon.ion.exchange.CFG', {'container':{'exchange':{'auto_register': False}}})
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("in progress")
     def test_visualization_queue(self):
 
         #The list of data product streams to monitor
@@ -119,9 +118,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #subscriber._chan.stop_consume()
 
         ctd_sim_pid = self.start_simple_input_stream_process(ctd_stream_id)
-
         gevent.sleep(10.0)  # Send some messages - don't care how many
-
 
         msg_count,_ = xq.get_stats()
         log.info('Messages in user queue 1: %s ' % msg_count)
@@ -170,34 +167,135 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         log.info('Messages in user queue 4: %s ' % msg_count)
 
         subscriber.close()
+        self.container.ex_manager.delete_xn(xq)
 
-    @unittest.skip('Skipped because of broken record dictionary work-around')
-    def test_realtime_visualization(self):
+
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    def test_multiple_visualization_queue(self):
+
+        # set up a workflow with the salinity transform and the doubler. We will direct the original stream and the doubled stream to queues
+        # and test to make sure the subscription to the queues is working correctly
+        assertions = self.assertTrue
 
         # Build the workflow definition
-        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='GoogleDT_Test_Workflow',description='Tests the workflow of converting stream data to Google DT')
+        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Viz_Test_Workflow',description='A workflow to test collection of multiple data products in queues')
 
-        #Add a transformation process definition
-        google_dt_procdef_id = self.create_google_dt_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id, persist_process_output_data=False)
+        workflow_data_product_name = 'TEST-Workflow_Output_Product' #Set a specific output product name
+        #-------------------------------------------------------------------------------------------------------------------------
+        #Add a transformation process definition for salinity
+        #-------------------------------------------------------------------------------------------------------------------------
+
+        ctd_L2_salinity_dprocdef_id = self.create_salinity_data_process_definition()
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_process_output_data=False)  #Don't persist the intermediate data product
+        configuration = {'stream_name' : 'salinity'}
+        workflow_step_obj.configuration = configuration
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
         workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
 
+        aids = self.rrclient.find_associations(workflow_def_id, PRED.hasDataProcessDefinition)
+        assertions(len(aids) == 1 )
+
+        #The list of data product streams to monitor
+        data_product_stream_ids = list()
+
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
+        data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=30)
 
+        workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
+        assertions(len(workflow_output_ids) == 1 )
+
+        #Walk the associations to find the appropriate output data streams to validate the messages
+        workflow_dp_ids,_ = self.rrclient.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
+        assertions(len(workflow_dp_ids) == 1 )
+
+        for dp_id in workflow_dp_ids:
+            stream_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasStream, None, True)
+            assertions(len(stream_ids) == 1 )
+            data_product_stream_ids.append(stream_ids[0])
+
+        # Now for each of the data_product_stream_ids create a queue and pipe their data to the queue
+
+
+        user_queue_name1 = 'user_queue_1'
+        user_queue_name2 = 'user_queue_2'
+
+        # use idempotency to create queues
+        xq1 = self.container.ex_manager.create_xn_queue(user_queue_name1)
+        self.addCleanup(xq1.delete)
+        xq2 = self.container.ex_manager.create_xn_queue(user_queue_name2)
+        self.addCleanup(xq2.delete)
+        self.container.ex_manager.purge_queue(xq1.queue)
+        self.container.ex_manager.purge_queue(xq2.queue)
+
+        # the create_subscription call takes a list of stream_ids so create temp ones
+
+        dp_stream_id1 = list()
+        dp_stream_id1.append(data_product_stream_ids[0])
+        dp_stream_id2 = list()
+        dp_stream_id2.append(data_product_stream_ids[1])
+
+        salinity_subscription_id1 = self.pubsubclient.create_subscription( stream_ids=dp_stream_id1,
+            exchange_name = user_queue_name1, name = "user visualization queue1")
+
+        salinity_subscription_id2 = self.pubsubclient.create_subscription( stream_ids=dp_stream_id2,
+            exchange_name = user_queue_name2, name = "user visualization queue2")
+
+        # Create subscribers for the output of the queue
+        subscriber1 = Subscriber(from_name=xq1)
+        subscriber1.initialize()
+        subscriber2 = Subscriber(from_name=xq2)
+        subscriber2.initialize()
+
+        # after the queue has been created it is safe to activate the subscription
+        self.pubsubclient.activate_subscription(subscription_id=salinity_subscription_id1)
+        self.pubsubclient.activate_subscription(subscription_id=salinity_subscription_id2)
+
+        # Start input stream and wait for some time
+        ctd_sim_pid = self.start_simple_input_stream_process(ctd_stream_id)
+        gevent.sleep(5.0)  # Send some messages - don't care how many
+
+        msg_count,_ = xq1.get_stats()
+        log.info('Messages in user queue 1: %s ' % msg_count)
+        msg_count,_ = xq2.get_stats()
+        log.info('Messages in user queue 2: %s ' % msg_count)
+
+        msgs1 = subscriber1.get_all_msgs(timeout=2)
+        msgs2 = subscriber2.get_all_msgs(timeout=2)
+
+        for x in range(min(len(msgs1), len(msgs2))):
+            msgs1[x].ack()
+            msgs2[x].ack()
+            self.validate_multiple_vis_queue_messages(msgs1[x].body, msgs2[x].body)
+
+        # kill the ctd simulator process - that is enough data
+        self.process_dispatcher.cancel_process(ctd_sim_pid)
+
+        # close the subscription and queues
+        subscriber1.close()
+        subscriber2.close()
+        self.container.ex_manager.delete_xn(xq1)
+        self.container.ex_manager.delete_xn(xq2)
+
+        return
+
+
+    #@unittest.skip('Skipped because of broken record dictionary work-around')
+    def test_realtime_visualization(self):
+
+        #Create the input data product
+        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
         ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 
 
         #TODO - Need to add workflow creation for google data table
         vis_params ={}
-        vis_params['in_product_type'] = 'google_dt'
-        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=workflow_product_id, visualization_parameters=vis_params)
+        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id, visualization_parameters=vis_params)
 
         #Trying to continue to receive messages in the queue
         gevent.sleep(10.0)  # Send some messages - don't care how many
@@ -210,27 +308,24 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #Trying to continue to receive messages in the queue
         gevent.sleep(5.0)  # Send some messages - don't care how many
 
+
         #Turning off after everything - since it is more representative of an always on stream of data!
         #todo remove the try except
         try:
             self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
         except:
             log.warning("cancelling process did not work")
+
         vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
 
         if vis_data:
             self.validate_google_dt_transform_results(vis_data)
 
+        # Cleanup
         self.vis_client.terminate_realtime_visualization_data(vis_token)
 
-        #Stop the workflow processes
-        self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
 
-        #Cleanup to make sure delete is correct.
-        self.workflowclient.delete_workflow_definition(workflow_def_id)
-
-
-    @unittest.skip('Skipped because of broken record dictionary work-around')
+    #@unittest.skip('Skipped because of broken record dictionary work-around')
     def test_google_dt_overview_visualization(self):
 
         #Create the input data product
@@ -252,7 +347,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.validate_vis_service_google_dt_results(vis_data)
 
 
-    @unittest.skip('Skipped because of broken record dictionary work-around')
+    #@unittest.skip('Skipped because of broken record dictionary work-around')
     def test_mpl_graphs_overview_visualization(self):
 
         #Create the input data product

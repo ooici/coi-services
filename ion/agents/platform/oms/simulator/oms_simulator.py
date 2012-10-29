@@ -45,9 +45,32 @@ class OmsSimulator(OmsClient):
         self._reg_alarm_listeners = {}
 
         self._alarm_notifier = AlarmNotifier()
-        self._alarm_generator = AlarmGenerator(self._alarm_notifier)
-        self._alarm_generator.start()
-        log.debug("alarm generator started")
+        # AlarmGenerator only kept while there are listeners registered
+        self._alarm_generator = None
+
+    def _start_alarm_generator_if_listeners(self):
+        if not self._alarm_generator and len(self._reg_alarm_listeners):
+            self._alarm_generator = AlarmGenerator(self._alarm_notifier)
+            self._alarm_generator.start()
+            log.debug("alarm generator started (%s listeners registered)",
+                      len(self._reg_alarm_listeners))
+
+    def _stop_alarm_generator_if_no_listeners(self):
+        if self._alarm_generator and not len(self._reg_alarm_listeners):
+            log.debug("alarm generator stopping (no listeners registered)")
+            self._alarm_generator.stop()
+            self._alarm_generator = None
+
+    def _deactivate_simulator(self):
+        """
+        Special method only intended to be called for when the simulator is run
+        in "embedded" form. See test_oms_simulator for the particular case.
+        """
+        log.info("_deactivate_simulator called. alarm_generator=%s; %s listeners registered",
+                 self._alarm_generator, len(self._reg_alarm_listeners))
+        if self._alarm_generator:
+            self._alarm_generator.stop()
+            self._alarm_generator = None
 
     def _get_platform_types(self, pyobj):
         """
@@ -356,6 +379,8 @@ class OmsSimulator(OmsClient):
 
                 log.info("%r registered for alarm_type=%r", url, alarm_type)
 
+        self._start_alarm_generator_if_listeners()
+
         return {url: result_list}
 
     def unregisterAlarmListener(self, url, alarm_types):
@@ -408,6 +433,8 @@ class OmsSimulator(OmsClient):
         else:
             # we don't keep any url with empty list
             del self._reg_alarm_listeners[url]
+
+        self._stop_alarm_generator_if_no_listeners()
 
         return {url: result_list}
 

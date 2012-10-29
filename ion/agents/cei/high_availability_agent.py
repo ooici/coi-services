@@ -3,8 +3,10 @@ import gevent
 from pyon.agent.simple_agent import SimpleResourceAgent
 from pyon.event.event import EventPublisher
 from pyon.public import log, get_sys_name
+from pyon.core.exception import BadRequest
 
-from interface.objects import AgentCommand, ProcessDefinition, ProcessSchedule, ProcessStateEnum
+from interface.objects import AgentCommand, ProcessDefinition, ProcessSchedule,\
+        ProcessStateEnum, ProcessQueueingMode, ProcessTarget, ProcessRestartMode, Service
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.agents.cei.util import looping_call
 from ion.services.cei.process_dispatcher_service import _core_process_definition_from_ion, \
@@ -37,6 +39,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         log.debug("HighAvailabilityAgent init")
         SimpleResourceAgent.__init__(self)
         self.dashi_handler = None
+        self.service_id = None
 
     def on_init(self):
         if not HighAvailabilityCore:
@@ -62,18 +65,23 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         cfg = self.CFG.get_safe("highavailability")
 
         # use default PD name as the sole PD if none are provided in config
-        pds = self.CFG.get_safe("highavailability.process_dispatchers",
+        self.pds = self.CFG.get_safe("highavailability.process_dispatchers",
             [ProcessDispatcherService.name])
 
-        process_definition_id = self.CFG.get_safe("highavailability.process_definition_id")
-        process_configuration = self.CFG.get_safe("highavailability.process_configuration")
+        self.process_definition_id = self.CFG.get_safe("highavailability.process_definition_id")
+        self.process_configuration = self.CFG.get_safe("highavailability.process_configuration")
         aggregator_config = self.CFG.get_safe("highavailability.aggregator")
+
+        self.service_id = self._register_service()
+
         # TODO: Allow other core class?
         self.core = HighAvailabilityCore(cfg, ProcessDispatcherSimpleAPIClient,
-                pds, self.policy, process_definition_id=process_definition_id,
+                self.pds, self.policy, process_definition_id=self.process_definition_id,
                 parameters=policy_parameters,
-                process_configuration=process_configuration,
-                aggregator_config=aggregator_config)
+                process_configuration=self.process_configuration,
+                aggregator_config=aggregator_config,
+                pd_client_kwargs={'container': self.container,
+                    'service_id': self.service_id})
 
         self.policy_thread = looping_call(self.policy_interval, self.core.apply_policy)
 
@@ -112,6 +120,51 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         if self.dashi_handler:
             self.dashi_handler.stop()
 
+        self._unregister_service()
+
+    def _register_service(self):
+        if not self.process_definition_id:
+            log.error("No process definition id. Not registering service")
+            return
+
+        if len(self.pds) < 1:
+            log.error("Must have at least one PD available to register a service")
+            return
+
+        pd_name = self.pds[0]
+        pd = ProcessDispatcherServiceClient(to_name=pd_name)
+        definition = pd.read_process_definition(self.process_definition_id)
+
+        existing_services, _ = self.container.resource_registry.find_resources(
+                restype="Service", name=definition.name)
+
+        if len(existing_services) > 0:
+            if len(existing_services) > 1:
+                log.warning("There is more than one service object for %s. Using the first one" % definition.name)
+            service_id = existing_services[0]._id
+        else:
+            svc_obj = Service(name=definition.name, exchange_name=definition.name)
+            service_id, _ = self.container.resource_registry.create(svc_obj)
+
+        svcdefs, _ = self.container.resource_registry.find_resources(
+                restype="ServiceDefinition", name=definition.name)
+
+        if svcdefs:
+            self.container.resource_registry.create_association(
+                    service_id, "hasServiceDefinition", svcdefs[0]._id)
+        else:
+            log.error("Cannot find ServiceDefinition resource for %s",
+                    definition.name)
+
+        return service_id
+
+    def _unregister_service(self):
+        if not self.service_id:
+            log.error("No service id. Cannot unregister service")
+            return
+
+        self.container.resource_registry.delete(self.service_id, del_associations=True)
+
     def rcmd_reconfigure_policy(self, new_policy):
         """Service operation: Change the parameters of the policy used for service
 
@@ -128,7 +181,9 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         return self.core.status()
 
     def rcmd_dump(self):
-        return self.core.dump()
+        dump = self.core.dump()
+        dump['service_id'] = self.service_id
+        return dump
 
 
 class HADashiHandler(object):
@@ -203,21 +258,40 @@ class ProcessDispatcherSimpleAPIClient(object):
     }
 
     def __init__(self, name, real_client=None, **kwargs):
+        self.container = kwargs.get('container')
+        if self.container:
+            del(kwargs['container'])
+        self.service_id = kwargs.get('service_id')
+        if self.container:
+            del(kwargs['service_id'])
+
         if real_client is not None:
             self.real_client = real_client
         else:
             self.real_client = ProcessDispatcherServiceClient(to_name=name, **kwargs)
         self.event_pub = EventPublisher()
 
+    def _associate_process(self, process):
+        try:
+            self.container.resource_registry.create_association(self.service_id,
+                "hasProcess", process.process_id)
+        except AttributeError, Exception:
+            log.exception("Couldn't associate service %s to process %s" % (self.service_id, process.process_id))
+
+
     def create_definition(self, definition_id, definition_type, executable,
                           name=None, description=None):
+
+        if name is None:
+            raise BadRequest("create_definition must have a name supplied")
 
         # note: we lose the description
         definition = ProcessDefinition(name=name)
         definition.executable = {'module': executable.get('module'),
                 'class': executable.get('class')}
         definition.definition_type = definition_type
-        return self.real_client.create_process_definition(definition, definition_id)
+        created_definition = self.real_client.create_process_definition(
+                definition, definition_id)
 
     def describe_definition(self, definition_id):
 
@@ -234,14 +308,40 @@ class ProcessDispatcherSimpleAPIClient(object):
             origin=definition.name, origin_type="DispatchedHAProcess",
             state=ProcessStateEnum.RUNNING)
 
-        pid = self.real_client.create_process(definition_id)
+        create_upid = self.real_client.create_process(definition_id)
 
         process_schedule = ProcessSchedule()
+        if queueing_mode is not None:
+            try:
+                process_schedule.queueing_mode = ProcessQueueingMode._value_map[queueing_mode]
+            except KeyError:
+                msg = "%s is not a known ProcessQueueingMode" % (queueing_mode)
+                raise BadRequest(msg)
+
+        if restart_mode is not None:
+            try:
+                process_schedule.restart_mode = ProcessRestartMode._value_map[restart_mode]
+            except KeyError:
+                msg = "%s is not a known ProcessRestartMode" % (restart_mode)
+                raise BadRequest(msg)
+
+        target = ProcessTarget()
+        if execution_engine_id is not None:
+            target.execution_engine_id = execution_engine_id
+        if node_exclusive is not None:
+            target.node_exclusive = node_exclusive
+        if constraints is not None:
+            target.constraints = constraints
+
+        process_schedule.target = target
 
         sched_pid = self.real_client.schedule_process(definition_id,
-                process_schedule, configuration=configuration, process_id=upid)
+                process_schedule, configuration=configuration, process_id=create_upid)
 
         proc = self.real_client.read_process(sched_pid)
+
+        self._associate_process(proc)
+
         dict_proc = {'upid': proc.process_id,
                 'state': self.state_map.get(proc.process_state, self.unknown_state),
                 }

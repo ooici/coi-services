@@ -82,20 +82,24 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
             conductivity = rdt['conductivity']
             pressure = rdt['pressure']
             temperature = rdt['temp']
+            time = rdt['time']
 
             result = {}
 
             # build the granules for conductivity, temperature and pressure
             result['conductivity'] = ctd_L0_algorithm._build_granule(   stream_definition_id= params['conductivity'],
                                                                         field_name= 'conductivity',
+                                                                        time=time,
                                                                         value= conductivity)
 
             result['temp'] = ctd_L0_algorithm._build_granule(stream_definition_id= params['temperature'],
                                                            field_name= 'temp',
+                                                           time=time,
                                                            value= temperature)
 
             result['pressure'] = ctd_L0_algorithm._build_granule(stream_definition_id= params['pressure'],
                                                                  field_name= 'pressure',
+                                                                 time=time,
                                                                  value= pressure)
 
             result_list.append(result)
@@ -103,7 +107,7 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
         return result_list
 
     @staticmethod
-    def _build_granule(stream_definition_id=None, field_name='', value=None):
+    def _build_granule(stream_definition_id=None, field_name='', value=None, time=None):
         '''
         @param param_dictionary ParameterDictionary
         @param field_name str
@@ -113,6 +117,7 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
         '''
         root_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
         root_rdt[field_name] = value
+        root_rdt['time'] = time
 
         return root_rdt.to_granule()
 

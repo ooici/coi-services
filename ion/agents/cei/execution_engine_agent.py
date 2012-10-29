@@ -43,6 +43,7 @@ class ExecutionEngineAgent(SimpleResourceAgent):
         if not EEAgentCore:
             msg = "EEAgentCore isn't available. Use autolaunch.cfg buildout"
             log.error(msg)
+            self.heartbeat_thread = None
             return
         log.debug("ExecutionEngineAgent Pyon on_init")
         launch_type_name = self.CFG.eeagent.launch_type.name
@@ -60,7 +61,8 @@ class ExecutionEngineAgent(SimpleResourceAgent):
         interval = self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT)
         if interval > 0:
             self.heartbeater = HeartBeater(self.CFG, self._factory, log=log)
-            self.heartbeat_thread = looping_call(interval, self.heartbeater.poll)
+            self.heartbeater.poll()
+            self.heartbeat_thread = looping_call(0.1, self.heartbeater.poll)
         else:
             self.heartbeat_thread = None
 
@@ -101,11 +103,14 @@ class HeartBeater(object):
         self._res = None
         self._done = False
         self._factory = factory
-        self._next_beat(datetime.datetime.now())
         self._publisher = Publisher()
         self._pd_name = CFG.eeagent.get('heartbeat_queue', 'heartbeat_queue')
 
         self._factory.set_state_change_callback(self._state_change_callback, None)
+        self._first_beat()
+
+    def _first_beat(self):
+        self._beat_time = datetime.datetime.now()
 
     def _next_beat(self, now):
         self._beat_time = now + datetime.timedelta(seconds=self._interval)

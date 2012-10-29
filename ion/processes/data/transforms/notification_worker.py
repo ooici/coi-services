@@ -10,22 +10,22 @@
 from pyon.public import log, RT
 from pyon.util.async import spawn
 from pyon.core.exception import BadRequest, NotFound
-from pyon.ion.process import SimpleProcess
-from pyon.event.event import EventSubscriber, EventPublisher
+from ion.core.process.transform import TransformEventListener
+from pyon.event.event import EventSubscriber
 from ion.services.dm.utility.uns_utility_methods import send_email, calculate_reverse_user_info
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, check_user_notification_interest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 import gevent, time
 
-class NotificationWorker(SimpleProcess):
+class NotificationWorker(TransformEventListener):
     """
     Instances of this class acts as a Notification Worker.
     """
     def on_init(self):
-        self.event_pub = EventPublisher()
         self.user_info = {}
         self.resource_registry = ResourceRegistryServiceClient()
+        super(NotificationWorker, self).on_init()
 
     def test_hook(self, user_info, reverse_user_info ):
         '''
@@ -85,15 +85,6 @@ class NotificationWorker(SimpleProcess):
         )
         self.reload_user_info_subscriber.start()
 
-        #------------------------------------------------------------------------------------
-        # Create an event subscriber for all events that are of interest for notifications
-        #------------------------------------------------------------------------------------
-
-        self.event_subscriber = EventSubscriber(
-            queue_name = 'uns_queue',
-            callback=self.process_event
-        )
-        self.event_subscriber.start()
 
     def process_event(self, msg, headers):
         """
@@ -120,27 +111,15 @@ class NotificationWorker(SimpleProcess):
 
     def on_stop(self):
         # close subscribers safely
-        self.event_subscriber.stop()
         self.reload_user_info_subscriber.stop()
+
+        super(NotificationWorker, self).on_stop()
 
     def on_quit(self):
         # close subscribers safely
-        self.event_subscriber.stop()
         self.reload_user_info_subscriber.stop()
 
-    def poll(self, tries, callback, *args, **kwargs):
-        '''
-        Polling wrapper for queries
-        Elasticsearch may not index and cache the changes right away so we may need
-        a couple of tries and a little time to go by before the results show.
-        '''
-        for i in xrange(tries):
-            retval = callback(*args, **kwargs)
-            if retval:
-                return retval
-            time.sleep(0.2)
-        return None
-
+        super(NotificationWorker, self).on_quit()
 
     def load_user_info(self):
         '''

@@ -59,11 +59,9 @@ class TestInstrumentManagementServiceMeta(IonIntegrationTestCase):
 rimi = ResourceImplMetatestIntegration(TestInstrumentManagementServiceMeta, InstrumentManagementService, log)
 rimi.test_all_in_one(True)
 
-rimi.add_resource_impl_inttests(InstrumentAgentInstanceImpl, {"driver_module": "rhubarb"})
 rimi.add_resource_impl_inttests(InstrumentAgentImpl, {"driver_module": "potato"})
 rimi.add_resource_impl_inttests(InstrumentDeviceImpl, {"serial_number": "123", "firmware_version": "x"})
 rimi.add_resource_impl_inttests(InstrumentModelImpl, {})
-rimi.add_resource_impl_inttests(PlatformAgentInstanceImpl, {"driver_module": "sausage"})
 rimi.add_resource_impl_inttests(PlatformAgentImpl, {"description": "the big donut"})
 rimi.add_resource_impl_inttests(PlatformDeviceImpl, {"serial_number": "2345"})
 rimi.add_resource_impl_inttests(PlatformModelImpl, {"description": "tammy breathed deeply"})

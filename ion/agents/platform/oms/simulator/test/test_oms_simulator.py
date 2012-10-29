@@ -15,15 +15,16 @@ from pyon.public import log
 from ion.agents.platform.oms.simulator.logger import Logger
 Logger.set_logger(log)
 
+from pyon.util.unit_test import IonUnitTestCase
+
 from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
 from ion.agents.platform.oms.test.oms_test_mixin import OmsTestMixin
 
-import unittest
 from nose.plugins.attrib import attr
 
 
 @attr('UNIT', group='sa')
-class Test(unittest.TestCase, OmsTestMixin):
+class Test(IonUnitTestCase, OmsTestMixin):
     """
     Test cases for the simulator, which is instantiated directly (ie.,
     no connection to external simulator is involved).
@@ -31,10 +32,11 @@ class Test(unittest.TestCase, OmsTestMixin):
 
     @classmethod
     def setUpClass(cls):
-        cls.oms = OmsSimulator()
         OmsTestMixin.start_http_server()
+        cls.oms = OmsSimulator()
 
     @classmethod
     def tearDownClass(cls):
+        cls.oms._deactivate_simulator()
         alarm_notifications = OmsTestMixin.stop_http_server()
         log.info("alarm_notifications = %s" % str(alarm_notifications))
