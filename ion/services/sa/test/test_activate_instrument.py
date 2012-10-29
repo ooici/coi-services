@@ -21,8 +21,8 @@ from interface.objects import ProcessStateEnum
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType
 
-from pyon.public import RT, PRED
-from pyon.public import IonObject
+from pyon.public import RT, PRED, CFG
+from pyon.public import IonObject, log
 from pyon.datastore.datastore import DataStore
 
 from pyon.util.int_test import IonIntegrationTestCase
@@ -31,11 +31,11 @@ from pyon.util.context import LocalContextMixin
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 
-
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule
 
 from nose.plugins.attrib import attr
+from mock import patch
 import gevent
 
 class FakeProcess(LocalContextMixin):
@@ -48,6 +48,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('SMOKE', group='sa')
+#@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -319,7 +320,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         replay_data = self.dataretrieverclient.retrieve(self.parsed_dataset)
         self.assertIsInstance(replay_data, Granule)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        print 'RDT parsed: %s' % rdt.pretty_print()
+        log.debug("RDT parsed: %s", str(rdt.pretty_print()) )
         temp_vals = rdt['temp']
         self.assertTrue(len(temp_vals) == 3)
 
@@ -327,10 +328,22 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
         self.assertIsInstance(replay_data, Granule)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        print 'RDT raw: %s' % rdt.pretty_print()
+        log.debug("RDT raw: %s", str(rdt.pretty_print()) )
 
         raw_vals = rdt['raw']
         self.assertTrue(len(raw_vals) == 3)
+
+
+#        #--------------------------------------------------------------------------------
+#        # Get the extended data product to see if it contains the granules
+#        #--------------------------------------------------------------------------------
+#        extended_product = self.dpclient.get_data_product_extension(data_product_id1)
+#        self.assertEqual(data_product_id1, extended_product._id)
+#        print "test_activateInstrumentSample: extended_product.computed.last_granule.value %s" % str(extended_product.computed.last_granule.value)
+#        print "test_activateInstrumentSample: extended_product.computed.recent_granules.value %s" % str(extended_product.computed.recent_granules.value)
+#        log.debug("test_activateInstrumentSample: extended_product.computed.provenance_product_list.value %s", str(extended_product.computed.provenance_product_list.value) )
+
+
 
         #-------------------------------
         # Deactivate loggers

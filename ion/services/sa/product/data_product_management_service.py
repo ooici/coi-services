@@ -636,9 +636,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         else:
             ret.status = ComputedValueAvailability.PROVIDED
             for key, value in provenance_results.iteritems():
-                for prod_id in value['inputs'].iterkeys():
-                    ret.value.extend(self.clients.resource_registry.read(prod_id))
-
+                for producer_id, dataprodlist in value['inputs'].iteritems():
+                    for dataprod in dataprodlist:
+                        ret.value.extend(self.clients.resource_registry.read(dataprod))
+                        
         return ret
 
     def get_number_active_subscriptions(self, data_product_id=''):
