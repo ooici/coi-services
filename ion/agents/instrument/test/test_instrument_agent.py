@@ -21,6 +21,7 @@ import time
 import socket
 import re
 import json
+import unittest
 
 # 3rd party imports.
 import gevent
