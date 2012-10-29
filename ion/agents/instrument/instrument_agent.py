@@ -83,6 +83,13 @@ class InstrumentAgentCapability(BaseEnum):
     GO_COMMAND = ResourceAgentEvent.GO_COMMAND
     GO_DIRECT_ACCESS = ResourceAgentEvent.GO_DIRECT_ACCESS
 
+class ResourceInterfaceCapability(BaseEnum):
+    GET_RESOURCE = ResourceAgentEvent.GET_RESOURCE
+    SET_RESOURCE = ResourceAgentEvent.SET_RESOURCE
+    PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
+    GET_RESOURCE_STATE = ResourceAgentEvent.GET_RESOURCE_STATE
+    EXECUTE_RESOURCE = ResourceAgentEvent.EXECUTE_RESOURCE
+
 class InstrumentAgent(ResourceAgent):
     """
     ResourceAgent derived class for the instrument agent. This class
@@ -180,12 +187,35 @@ class InstrumentAgent(ResourceAgent):
         next_state = None
 
         result = self._dvr_client.cmd_dvr('get_resource_capabilities', *args, **kwargs)
+                
         return (next_state, result)
 
     def _filter_capabilities(self, events):
 
         events_out = [x for x in events if InstrumentAgentCapability.has(x)]
         return events_out
+
+    def _get_resource_interface(self, current_state=True):
+        """
+        """
+        agent_cmds = self._fsm.get_events(current_state)
+        res_iface_cmds = [x for x in agent_cmds if ResourceInterfaceCapability.has(x)]
+    
+        # convert agent mediated resource commands into interface names.
+        result = []
+        for x in res_iface_cmds:
+            if x == ResourceAgentEvent.GET_RESOURCE:
+                result.append('get_resource')
+            elif x == ResourceAgentEvent.SET_RESOURCE:
+                result.append('set_resource')
+            elif x == ResourceAgentEvent.PING_RESOURCE:
+                result.append('ping_resource')
+            elif x == ResourceAgentEvent.GET_RESOURCE_STATE:
+                result.append('get_resource_state')
+            elif x == ResourceAgentEvent.EXECUTE_RESOURCE:
+                result.append('execute_resource')
+
+        return result
     
     ##############################################################
     # Agent interface.

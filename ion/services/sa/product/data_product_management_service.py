@@ -6,6 +6,8 @@ __license__ = 'Apache 2.0'
 from pyon.public import  log, IonObject
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from ion.services.sa.product.data_product_impl import DataProductImpl
+
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import DataProduct, DataProductVersion
 from interface.objects import ComputedValueAvailability
 
@@ -126,7 +128,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # suspend persistence
         #--------------------------------------------------------------------------------
-        self.suspend_data_product_persistence(data_product_id)
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        if self.clients.ingestion_management.is_persisted(stream_ids[0]):
+            self.suspend_data_product_persistence(data_product_id)
         #--------------------------------------------------------------------------------
         # remove stream associations
         #--------------------------------------------------------------------------------
@@ -143,10 +147,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # Delete the data product
         #--------------------------------------------------------------------------------
-        data_product_obj = self.read_data_product(data_product_id)
 
-        if data_product_obj.lcstate != LCS.RETIRED:
-            self.data_product.delete_one(data_product_id)
+        self.data_product.delete_one(data_product_id)
 
     def force_delete_data_product(self, data_product_id=''):
 
@@ -360,7 +362,7 @@ class DataProductManagementService(BaseDataProductManagementService):
     def read_data_product_collection(self, data_product_collection_id=''):
         """Retrieve data product information
 
-        @param data_product_version_id    str
+        @param data_product_collection_id    str
         @retval data_product    DataProductVersion
         """
         result = self.clients.resource_registry.read(data_product_collection_id)
@@ -372,7 +374,7 @@ class DataProductManagementService(BaseDataProductManagementService):
     def delete_data_product_collection(self, data_product_collection_id=''):
         """Remove a version of an data product.
 
-        @param data_product_version_id    str
+        @param data_product_collection_id    str
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
@@ -581,11 +583,15 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def get_parameters(self, data_product_id=''):
         # The set of Parameter objects describing each variable in this data product
-        ret = IonObject(OT.ComputedListValue)
+        ret = IonObject(OT.ComputedStringValue)
         ret.value = []
         try:
-            ret.status = ComputedValueAvailability.PROVIDED
-            raise NotFound #todo: ret.value = ???
+            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+            else:
+                ret.status = ComputedValueAvailability.PROVIDED
+                ret.value = self.clients.dataset_management.get_dataset_parameters(dataset_ids[0])
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -613,6 +619,27 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret.status = ComputedValueAvailability.NOTAVAILABLE
         ret.reason = "FIXME. also, should provenance be stored as a string?"
 
+        return ret
+
+    def get_provenance_product_list(self, data_product_id=''):
+        # Provides an audit trail for modifications to the original data
+
+        #todo - call get_data_product_provenance when it is completed
+        ret = IonObject(OT.ComputedListValue)
+
+        provenance_results = self.get_data_product_provenance(data_product_id)
+
+        if not provenance_results:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.value = []
+            ret.reason = "FIXME. provenance results not available"
+        else:
+            ret.status = ComputedValueAvailability.PROVIDED
+            for key, value in provenance_results.iteritems():
+                for producer_id, dataprodlist in value['inputs'].iteritems():
+                    for dataprod in dataprodlist:
+                        ret.value.extend(self.clients.resource_registry.read(dataprod))
+                        
         return ret
 
     def get_number_active_subscriptions(self, data_product_id=''):
@@ -669,6 +696,50 @@ class DataProductManagementService(BaseDataProductManagementService):
         try:
             ret.status = ComputedValueAvailability.PROVIDED
             raise NotFound #todo: ret.value = ???
+        except NotFound:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+        except Exception as e:
+            raise e
+
+        return ret
+
+
+    def get_last_granule(self, data_product_id=''):
+        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
+        ret = IonObject(OT.ComputedDictValue)
+        ret.value = {}
+        try:
+            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "No dataset associated with this data product"
+            else:
+                replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
+                ret.value = RecordDictionaryTool.load_from_granule(replay_granule)
+                ret.status = ComputedValueAvailability.PROVIDED
+        except NotFound:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+        except Exception as e:
+            raise e
+
+        return ret
+
+
+    def get_recent_granules(self, data_product_id=''):
+        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
+        ret = IonObject(OT.ComputedDictValue)
+        ret.value = {}
+        try:
+            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "No dataset associated with this data product"
+            else:
+                replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
+                ret.value = RecordDictionaryTool.load_from_granule(replay_granule)
+                ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"

@@ -91,8 +91,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         rdt = RecordDictionaryTool.load_from_granule(input)
         data_description = []
 
+        if 'time' not in rdt: return None
+
         # if time was null, do not process
-        if rdt['time'] == None:
+        if rdt['time'] is None:
             return None
 
         data_description.append(('time','number','time'))
@@ -144,5 +146,4 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
         out_granule = out_rdt.to_granule()
 
-        #print  ">>>>>>>>>> GDT OUT GRANULE : ", out_granule
         return out_granule

@@ -83,7 +83,7 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
             rdt['conductivity'] = c
             rdt['pressure'] = p
 
-            g = rdt.to_granule()
+            g = rdt.to_granule(data_producer_id=self.id)
 
             log.info('SinusoidalCtdPublisher sending 1 record!')
             self.publisher.publish(g, self.stream_id)

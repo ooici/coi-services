@@ -152,7 +152,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         return
 
 
-    def assign_data_product(self, input_resource_id='', data_product_id='', data_product_version_id=''):
+    def assign_data_product(self, input_resource_id='', data_product_id=''):
         #Connect the producer for an existing input resource with a data product
 
         # Verify that both ids are valid
@@ -166,41 +166,26 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("Data Producer for input resource %s does not exist" % input_resource_id)
 
         data_producer_id = ''
-        if not data_product_version_id:
-            #connect the producer to the product directly
-            self.clients.resource_registry.create_association(input_resource_id,  PRED.hasOutputProduct,  data_product_id)
 
-            #create data producer resource for this data product
-            data_producer_obj = IonObject(RT.DataProducer,name=data_product_obj.name, description=data_product_obj.description)
-            data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
-            log.debug("DAMS:assign_data_product: data_producer_id %s" % str(data_producer_id))
+        #connect the producer to the product directly
+        self.clients.resource_registry.create_association(input_resource_id,  PRED.hasOutputProduct,  data_product_id)
 
-            # Associate the Product with the Producer
-            self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)
+        #create data producer resource for this data product
+        data_producer_obj = IonObject(RT.DataProducer,name=data_product_obj.name, description=data_product_obj.description)
+        data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
+        log.debug("DAMS:assign_data_product: data_producer_id %s" % str(data_producer_id))
 
-            # Associate the Producer with the main Producer
-            self.clients.resource_registry.create_association(data_producer_id,  PRED.hasParent,  primary_producer_ids[0])
-            # Associate the input resource with the child data Producer
-            self.clients.resource_registry.create_association(input_resource_id,  PRED.hasDataProducer, data_producer_id)
-        else:
-            data_product_version_obj = self.clients.resource_registry.read(data_product_version_id)
-            #connect the producer to the product version directly
-            self.clients.resource_registry.create_association(input_resource_id,  PRED.hasOutputProduct,  data_product_version_id)
+        # Associate the Product with the Producer
+        self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)
 
-            # Associate the DataProductVersion with the main Producer from the input device/transform/extdataset
-            self.clients.resource_registry.create_association(data_product_version_id,  PRED.hasDataProducer,  primary_producer_ids[0])
-            #Associate the Data Producer of the version with the Data Producer of the Primary version
-
-            #find the data producer resource associated with the primary data product (version 1)
-            initial_producer_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, RT.DataProducer, id_only=True)
-            if not initial_producer_ids:
-                raise NotFound("Data Producer for initial data product version %s does not exist" % data_product_id)
-            else:
-                self.clients.resource_registry.create_association(primary_producer_ids[0],  PRED.hasDependency,  initial_producer_ids[0])
+        # Associate the Producer with the main Producer
+        self.clients.resource_registry.create_association(data_producer_id,  PRED.hasParent,  primary_producer_ids[0])
+        # Associate the input resource with the child data Producer
+        self.clients.resource_registry.create_association(input_resource_id,  PRED.hasDataProducer, data_producer_id)
 
         return
 
-    def unassign_data_product(self, input_resource_id='', data_product_id='', data_product_version_id=''):
+    def unassign_data_product(self, input_resource_id='', data_product_id=''):
         """
         Disconnect the Data Product from the Data Producer
 
@@ -218,49 +203,32 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         else:
             log.debug("unassign_data_product: primary producer ids %s" % str(primary_producer_ids))
 
-        if not data_product_version_id:
-            #find the hasDataProduct association between the data product and the input resource
-            associations = self.clients.resource_registry.find_associations(subject=input_resource_id, predicate=PRED.hasOutputProduct, object=data_product_id, id_only=True)
+
+        #find the hasDataProduct association between the data product and the input resource
+        associations = self.clients.resource_registry.find_associations(subject=input_resource_id, predicate=PRED.hasOutputProduct, object=data_product_id, id_only=True)
+        for association in associations:
+            log.debug("unassign_data_product: unlink input resource with data product %s" % association)
+            self.clients.resource_registry.delete_association(association)
+
+        #find the data producer resource associated with the source resource that is creating the data product
+        producers, producer_assns = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+        for producer, producer_assn in zip(producers, producer_assns):
+            #remove the link to the data product
+            self.clients.resource_registry.delete_association(producer_assn)
+
+            #remove the link to the parent data producer
+            associations = self.clients.resource_registry.find_associations(subject=producer, predicate=PRED.hasParent, id_only=True)
             for association in associations:
-                log.debug("unassign_data_product: unlink input resource with data product %s" % association)
                 self.clients.resource_registry.delete_association(association)
 
-            #find the data producer resource associated with the source resource that is creating the data product
-            producers, producer_assns = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
-            for producer, producer_assn in zip(producers, producer_assns):
-                #remove the link to the data product
-                self.clients.resource_registry.delete_association(producer_assn)
-
-                #remove the link to the parent data producer
-                associations = self.clients.resource_registry.find_associations(subject=producer, predicate=PRED.hasParent, id_only=True)
-                for association in associations:
-                    self.clients.resource_registry.delete_association(association)
-
-                #remove the link to the input resource
-                associations = self.clients.resource_registry.find_associations(input_resource_id, PRED.hasDataProducer, producer, id_only=True)
-                for association in associations:
-                    self.clients.resource_registry.delete_association(association)
-
-                log.debug("DAMS:unassign_data_product delete producer: %s ", str(producer) )
-                self.clients.resource_registry.delete(producer)
-        else:
-            #find the data producer resource associated with the source resource that is creating the data product
-            producers, producer_assns = self.clients.resource_registry.find_objects(data_product_version_id, PRED.hasDataProducer, RT.DataProducer, True)
-            for producer, producer_assn in zip(producers, producer_assns):
-                #remove the link to the data product
-                self.clients.resource_registry.delete_association(producer_assn)
-
-            #find the hasDataProduct association between the data product and the input resource
-            associations = self.clients.resource_registry.find_associations(subject=input_resource_id, predicate=PRED.hasOutputProduct, object=data_product_version_id, id_only=True)
+            #remove the link to the input resource
+            associations = self.clients.resource_registry.find_associations(input_resource_id, PRED.hasDataProducer, producer, id_only=True)
             for association in associations:
-                log.debug("unassign_data_product: unlink input resource with data product version %s" % association)
                 self.clients.resource_registry.delete_association(association)
 
-            # find the dependency link between the producer for this version and the producer of the original data product
-            associations = self.clients.resource_registry.find_associations(subject=primary_producer_ids, predicate=PRED.hasDependency, object=RT.DataProducer, id_only=True)
-            for association in associations:
-                log.debug("unassign_data_product: unlink producer with original product producer %s" % association)
-                self.clients.resource_registry.delete_association(association)
+            log.debug("DAMS:unassign_data_product delete producer: %s ", str(producer) )
+            self.clients.resource_registry.delete(producer)
+
         return
 
 

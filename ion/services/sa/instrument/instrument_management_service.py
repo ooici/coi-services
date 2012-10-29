@@ -471,8 +471,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_instance_obj = instance_objs[0]
 
         #retrieve the instrument agent for this device
-        agent_instance_ids, _ = self.clients.resource_registry.find_objects(subject=instrument_device_id, predicate=PRED.hasAgentInstance, object_type=RT.InstrumentAgentInstance, id_only=True)
-        agent_objs, _ =  self.clients.resource_registry.find_objects(subject=agent_instance_ids[0], predicate=PRED.hasAgentDefinition, object_type=RT.InstrumentAgent, id_only=False)
+        agent_objs = self.instrument_agent_instance.find_stemming_agent_definition(instrument_agent_instance_obj._id)
+
         if not agent_objs:
             raise BadRequest("InstrumentDevice %s does not have an agent defined" % instrument_device_id)
         instrument_agent_obj = agent_objs[0]

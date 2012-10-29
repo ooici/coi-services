@@ -56,8 +56,8 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-
-#@unittest.skip("Under reconstruction")
+import unittest
+@unittest.skip("To be replaced by test_oms_launch2")
 @attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 

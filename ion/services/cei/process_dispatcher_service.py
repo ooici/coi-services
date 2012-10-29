@@ -326,7 +326,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
             process = Process(process_id=process_id, name=name)
             self.container.resource_registry.create(process, object_id=process_id)
         except BadRequest:
-            log.debug("Tried to create Process %s, but already exists. This is normally ok.")
+            log.debug("Tried to create Process %s, but already exists. This is normally ok.", process_id)
 
         return self.backend.spawn(process_id, process_definition_id, schedule, configuration, name)
 
@@ -662,6 +662,7 @@ class PDLocalBackend(object):
 _PD_IGNORED_STATE = object()        # @TODO: remove?
 
 _PD_PROCESS_STATE_MAP = {
+    "300-WAITING": ProcessStateEnum.WAITING,
     "400-PENDING": ProcessStateEnum.PENDING,
     "500-RUNNING": ProcessStateEnum.RUNNING,
     "600-TERMINATING": ProcessStateEnum.TERMINATING,
@@ -672,6 +673,7 @@ _PD_PROCESS_STATE_MAP = {
 }
 
 _PD_PYON_PROCESS_STATE_MAP = {
+    ProcessStateEnum.WAITING: "300-WAITING",
     ProcessStateEnum.PENDING: "400-PENDING",
     ProcessStateEnum.RUNNING: "500-RUNNING",
     ProcessStateEnum.TERMINATING: "600-TERMINATING",
@@ -856,7 +858,7 @@ class PDNativeBackend(object):
         # start consuming domain subscription messages from the dashi EPUM
         # service if needed.
         if self.dashi:
-            self.dashi.handle(self._domain_subscription_callback, "dt_state")
+            self.dashi.handle(self._domain_subscription_callback, "node_state")
             self.consumer_thread = gevent.spawn(self.dashi.consume)
 
         self.matchmaker.start_election()
@@ -879,12 +881,10 @@ class PDNativeBackend(object):
 
         self.beat_subscriber.stop()
 
-    def _domain_subscription_callback(self, node_id, deployable_type, state,
-                                      properties=None):
+    def _domain_subscription_callback(self, node_id, domain_id, state, properties=None):
         """Callback from Dashi EPUM service when an instance changes state
         """
-        self.core.dt_state(node_id, deployable_type, state,
-            properties=properties)
+        self.core.node_state(node_id, domain_id, state, properties=properties)
 
     def _heartbeat_callback(self, heartbeat, headers):
         log.debug("Got EEAgent heartbeat. headers=%s msg=%s", headers, heartbeat)

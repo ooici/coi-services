@@ -220,14 +220,21 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
             data_product_stream_ids.append(stream_ids[0])
 
         # Now for each of the data_product_stream_ids create a queue and pipe their data to the queue
+
+
         user_queue_name1 = 'user_queue_1'
         user_queue_name2 = 'user_queue_2'
 
         # use idempotency to create queues
         xq1 = self.container.ex_manager.create_xn_queue(user_queue_name1)
+        self.addCleanup(xq1.delete)
         xq2 = self.container.ex_manager.create_xn_queue(user_queue_name2)
+        self.addCleanup(xq2.delete)
+        self.container.ex_manager.purge_queue(xq1.queue)
+        self.container.ex_manager.purge_queue(xq2.queue)
 
         # the create_subscription call takes a list of stream_ids so create temp ones
+
         dp_stream_id1 = list()
         dp_stream_id1.append(data_product_stream_ids[0])
         dp_stream_id2 = list()
@@ -264,7 +271,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         for x in range(min(len(msgs1), len(msgs2))):
             msgs1[x].ack()
             msgs2[x].ack()
-            self.validate_multiple_vis_queue_messages(msgs1[x], msgs2[x])
+            self.validate_multiple_vis_queue_messages(msgs1[x].body, msgs2[x].body)
 
         # kill the ctd simulator process - that is enough data
         self.process_dispatcher.cancel_process(ctd_sim_pid)

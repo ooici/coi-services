@@ -60,8 +60,8 @@ class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         pressure = rdt['pressure']
         temperature = rdt['temp']
 
-        longitude = rdt['lon'] if rdt['lon'] else 0
-        latitude = rdt['lat'] if rdt['lat'] else 0
+        longitude = rdt['lon'] if rdt['lon'] is not None else 0
+        latitude = rdt['lat'] if rdt['lat'] is not None else 0
 
 
         sp = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)

@@ -207,7 +207,7 @@ if __name__ == "__main__":
 
 """
 $ date
-Tue Aug 14 15:17:24 PDT 2012
+Mon Oct 29 11:59:56 PDT 2012
 $ bin/python ion/agents/platform/oms/test/oms_simple.py
 ping() = pong
 getPlatformMap() = [['LJ01A', 'LV01A'], ['LJ01B', 'LV01B'], ['LJ01C', 'LV01C'], ['LJ01D', 'MJ01C'], ['LJ03A', 'LV03A'], ['LV01A', 'Node1A'], ['LV01B', 'Node1B'], ['LV01C', 'Node1C'], ['LV03A', 'Node3A'], ['MJ01A', 'Node1A'], ['MJ01B', 'LV01B'], ['MJ01C', 'Node1D'], ['MJ03A', 'Node3A'], ['MJ03B', 'Node3B'], ['MJ03C', 'Node3B'], ['MJ03D', 'Node3B'], ['MJ03E', 'Node3B'], ['MJ03F', 'Node3B'], ['Node1A', 'ShoreStation'], ['Node1B', 'Node1A'], ['Node1C', 'Node1B'], ['Node1D', 'Node1C'], ['Node3A', 'Node5A'], ['Node3B', 'Node3A'], ['Node5A', 'ShoreStation'], ['PC01A', 'LV01A'], ['PC01B', 'LV01C'], ['PC03A', 'LV03A'], ['SC01A', 'PC01A'], ['SC01B', 'PC01B'], ['SC03A', 'PC03A'], ['SF01A', 'SC01A'], ['SF01B', 'SC01B'], ['SF03A', 'SC03A'], ['ShoreStation', '']]
@@ -248,7 +248,7 @@ ShoreStation
                     SC03A
                         SF03A
 
-getDeviceListByType('Network') = ['10.180.80.180', '10.1.2.12', '10.180.80.182', '10.180.80.50', '10.180.80.52', '10.180.80.58', '10.180.80.54']
+getDeviceListByType('Network') = ['10.180.80.180', '10.1.2.12', '10.180.80.182', '10.180.80.184', '10.180.80.185', '10.180.80.50', '10.180.80.52', '10.180.80.58', '10.180.80.54', '10.180.80.195', '10.180.80.194', '10.180.80.189']
 getDeviceListByType('Server') = ['fremont.benhall.rsn.apl.washington.edu', '10.180.80.30', '10.180.80.13', '10.180.80.11']
 getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.1.45.0') = [2]
 getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.1.80.0') = [2]

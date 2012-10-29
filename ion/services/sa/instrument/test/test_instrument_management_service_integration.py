@@ -261,7 +261,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
 
 
-    #@unittest.skip('needs work')
     def test_checkpoint_restore(self):
 
         # Create InstrumentModel

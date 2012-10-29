@@ -134,15 +134,12 @@ class UserNotificationTest(PyonTestCase):
         # Test with no user provided
         #------------------------------------------------------------------------------------------------------
 
-        delivery_config = DeliveryConfig()
-
         # Create a notification object
         notification_request = NotificationRequest(name='Setting_email',
             origin = 'origin',
             origin_type = 'origin_type',
             event_type= 'event_type',
-            event_subtype = 'event_subtype' ,
-            delivery_config= delivery_config)
+            event_subtype = 'event_subtype')
 
         with self.assertRaises(BadRequest) as br:
             notification_id =  self.user_notification.create_notification(notification=notification_request)
