@@ -335,9 +335,6 @@ class VisualizationService(BaseVisualizationService):
 
         gdt = None
         query = None
-        if visualization_parameters:
-            if visualization_parameters.has_key('query'):
-                query=visualization_parameters['query']
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
@@ -347,7 +344,7 @@ class VisualizationService(BaseVisualizationService):
 
         # Ideally just need the latest granule to figure out the list of images
         #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0])
+        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query)
         if retrieved_granule is None:
             return None
 
@@ -410,13 +407,25 @@ class VisualizationService(BaseVisualizationService):
         # Error check
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
+        if visualization_parameters == {}:
+            visualization_parameters = None
 
+        # Extract the retrieval related parameters. Definitely init all parameters first
         query = None
-        if visualization_parameters:
-            query = visualization_parameters
+        if visualization_parameters :
+            query = {'parameters':[], 'start_time':0,'end_time':0, 'stride_time':1}
             # Error check and damage control. Definitely need time
-            if 'parameters' in query and not 'time' in query['parameters']:
-                query['parameters'].append('time')
+            if 'parameters' in visualization_parameters:
+                if not 'time' in visualization_parameters['parameters']:
+                    visualization_parameters['parameters'].append('time')
+                query['parameters'] = visualization_parameters['parameters']
+
+            if 'stride_time' in visualization_parameters:
+                query['stride_time'] = visualization_parameters['stride_time']
+            if 'start_time' in visualization_parameters:
+                query['start_time'] = visualization_parameters['start_time']
+            if 'end_time' in visualization_parameters:
+                query['end_time'] = visualization_parameters['end_time']
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
@@ -434,6 +443,9 @@ class VisualizationService(BaseVisualizationService):
         mpl_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
         mpl_stream_def = self.clients.pubsub_management.create_stream_definition('mpl', parameter_dictionary_id=mpl_pdict_id)
         mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=visualization_parameters, params=mpl_stream_def)
+
+        if mpl_data_granule == None:
+            return None
 
         mpl_rdt = RecordDictionaryTool.load_from_granule(mpl_data_granule)
 
