@@ -137,8 +137,8 @@ class DataRetrieverService(BaseDataRetrieverService):
     def retrieve_last_granule(self, dataset_id=''):
         return ReplayProcess.get_last_granule(self.container,dataset_id)
 
-    def retrieve_last_data_point(self, dataset_id=''):
-        return ReplayProcess.get_last_values(dataset_id)
+    def retrieve_last_data_points(self, dataset_id='', number_of_points=100):
+        return ReplayProcess.get_last_values(dataset_id, number_of_points)
 
 
     def replay_data_process(self, dataset_id, query, delivery_format, replay_stream_id):
