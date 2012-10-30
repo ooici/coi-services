@@ -248,6 +248,22 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             retval = self._execute_agent(cmd)
             self.assertEquals("PONG", retval.result)
 
+    def _get_metadata(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_METADATA)
+        retval = self._execute_agent(cmd)
+        md = retval.result
+        self.assertIsInstance(md, dict)
+        # TODO verify possible subset of required entries in the dict.
+        log.info("GET_METADATA = %s", md)
+
+    def _get_ports(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_PORTS)
+        retval = self._execute_agent(cmd)
+        md = retval.result
+        self.assertIsInstance(md, dict)
+        # TODO verify possible subset of required entries in the dict.
+        log.info("GET_PORTS = %s", md)
+
     def _get_resource(self):
         kwargs = dict(attr_names=ATTR_NAMES, from_time=time.time())
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
@@ -346,6 +362,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
 
+            PlatformAgentEvent.GET_METADATA,
+            PlatformAgentEvent.GET_PORTS,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
 
             PlatformAgentEvent.START_ALARM_DISPATCH,
@@ -424,6 +442,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         agt_cmds_inactive = [
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.GET_METADATA,
+            PlatformAgentEvent.GET_PORTS,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GO_ACTIVE,
             PlatformAgentEvent.PING_RESOURCE,
@@ -497,6 +517,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         agt_cmds_command = [
             PlatformAgentEvent.GO_INACTIVE,
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.GET_METADATA,
+            PlatformAgentEvent.GET_PORTS,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_RESOURCE,
@@ -544,6 +566,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._ping_agent()
         self._ping_resource()
+
+        self._get_metadata()
+        self._get_ports()
 
         self._get_resource()
         self._set_resource()

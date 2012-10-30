@@ -130,6 +130,15 @@ class PlatformDriver(object):
         """
         raise NotImplemented()
 
+    def get_metadata(self):
+        """
+        To be implemented by subclass.
+        Returns the metadata associated to the platform.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplemented()
+
     def get_attribute_values(self, attr_names, from_time):
         """
         To be implemented by subclass.
@@ -156,6 +165,15 @@ class PlatformDriver(object):
                 as a list of (value,timestamp) pairs for each attribute indicated
                 in the input. Returned timestamps are NTP v4 8-byte strings
                 indicating the time when the value was set.
+        """
+        raise NotImplemented()
+
+    def get_ports(self):
+        """
+        To be implemented by subclass.
+        Returns information about the ports associated to the platform.
+
+        @raise PlatformConnectionException
         """
         raise NotImplemented()
 

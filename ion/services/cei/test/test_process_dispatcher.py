@@ -29,8 +29,11 @@ from ion.services.cei.test import ProcessStateWaiter
 try:
     from epu.states import InstanceState
     from epu.processdispatcher.engines import domain_id_from_engine
+    _HAS_EPU = True
 except ImportError:
-    pass
+    InstanceState = None
+    domain_id_from_engine = None
+    _HAS_EPU = False
 
 # NOTE: much of the Process Dispatcher functionality is tested directly in the
 # epu repository where the code resides. This file only attempts to test the
@@ -811,6 +814,7 @@ def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):
         'agent': {'resource_id': resource_id},
         }
 
+@unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 @attr('LOCOINT', group='cei')
 class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):

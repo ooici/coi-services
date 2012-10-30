@@ -67,6 +67,8 @@ class PlatformAgentState(ResourceAgentState):
 
 
 class PlatformAgentEvent(ResourceAgentEvent):
+    GET_METADATA              = 'PLATFORM_AGENT_GET_METADATA'
+    GET_PORTS                 = 'PLATFORM_AGENT_GET_PORTS'
     GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
     START_ALARM_DISPATCH      = 'PLATFORM_AGENT_START_ALARM_DISPATCH'
     STOP_ALARM_DISPATCH       = 'PLATFORM_AGENT_STOP_ALARM_DISPATCH'
@@ -83,6 +85,8 @@ class PlatformAgentCapability(BaseEnum):
     GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
     SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
 
+    GET_METADATA              = PlatformAgentEvent.GET_METADATA
+    GET_PORTS                 = PlatformAgentEvent.GET_PORTS
     GET_SUBPLATFORM_IDS       = PlatformAgentEvent.GET_SUBPLATFORM_IDS
 
     START_ALARM_DISPATCH      = PlatformAgentEvent.START_ALARM_DISPATCH
@@ -937,19 +941,6 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
-    def _handler_command_get_subplatform_ids(self, *args, **kwargs):
-        """
-        Gets the IDs of my direct subplatforms.
-        """
-        log.debug("%r/%s args=%s kwargs=%s",
-            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        result = self._plat_driver.get_subplatform_ids()
-
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
-
 
     ##############################################################
     # Capabilities interface and event handlers.
@@ -1078,6 +1069,45 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
+    def _handler_get_metadata(self, *args, **kwargs):
+        """
+        Gets platform's metadata
+        """
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        result = self._plat_driver.get_metadata()
+
+        next_state = self.get_agent_state()
+
+        return (next_state, result)
+
+    def _handler_get_ports(self, *args, **kwargs):
+        """
+        Gets info about platform's ports
+        """
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        result = self._plat_driver.get_ports()
+
+        next_state = self.get_agent_state()
+
+        return (next_state, result)
+
+    def _handler_get_subplatform_ids(self, *args, **kwargs):
+        """
+        Gets the IDs of my direct subplatforms.
+        """
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        result = self._plat_driver.get_subplatform_ids()
+
+        next_state = self.get_agent_state()
+
+        return (next_state, result)
+
     ##############################################################
     # FSM setup.
     ##############################################################
@@ -1101,7 +1131,9 @@ class PlatformAgent(ResourceAgent):
 
         # INACTIVE state event handlers.
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.RESET, self._handler_inactive_reset)
-        self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_command_get_subplatform_ids)
+        self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
+        self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
+        self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
@@ -1116,7 +1148,9 @@ class PlatformAgent(ResourceAgent):
         # COMMAND state event handlers.
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.RESET, self._handler_command_reset)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_command_get_subplatform_ids)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
+        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)

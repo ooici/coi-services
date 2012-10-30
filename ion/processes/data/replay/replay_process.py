@@ -226,9 +226,9 @@ class ReplayProcess(BaseReplayProcess):
 
 
     @classmethod
-    def get_last_values(cls, dataset_id):
+    def get_last_values(cls, dataset_id, number_of_points):
         coverage = DatasetManagementService._get_coverage(dataset_id)
-        rdt = cls._coverage_to_granule(coverage,tdoa=slice(-1,None))
+        rdt = cls._coverage_to_granule(coverage,tdoa=slice(-number_of_points,None))
         coverage.close(timeout=5)
         
         return rdt.to_granule()

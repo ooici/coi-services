@@ -355,6 +355,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         ingest_config_id = self.get_ingestion_config()
         dataset_id = self.create_dataset(pdict_id)
+        #--------------------------------------------------------------------------------
+        # Again with this ridiculous problem
+        #--------------------------------------------------------------------------------
+        self.get_datastore(dataset_id)
         self.ingestion_management.persist_data_stream(stream_id=ctd_stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
