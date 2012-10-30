@@ -317,10 +317,13 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         class Server(HTTPServer):
 
+            requests = 0
+
             def serve_forever(self):
                 self._serving = 1
                 while self._serving:
                     self.handle_request()
+                    self.requests += 1
 
             def stop(self):
                 self._serving = 0
@@ -480,7 +483,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         round = 0
         run_type = "pyon"
         proc_name = 'test_transform'
-        module = "ion.my.module"
+        module = "ion.my.module.to.download"
         module_uri = 'file://%s/downloads/module_to_download.py' % get_this_directory()
         bad_module_uri = 'file:///tmp/notreal/module_to_download.py'
 
@@ -508,6 +511,12 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         downloads_directory = os.path.join(get_this_directory(), "downloads")
         http_port = 8910
         http_port = self._start_webserver(downloads_directory, port=http_port)
+
+        while self._webserver is None:
+            print "Waiting for webserver to come up"
+            gevent.sleep(1)
+
+        assert self._webserver.requests == 0
 
         u_pid = "test0"
         round = 0
@@ -557,6 +566,84 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         self.wait_for_state(u_pid, [500, 'RUNNING'])
 
+        self.eea_client.terminate_process(u_pid, round)
+        state = self.eea_client.dump_state().result
+        proc = get_proc_for_upid(state, u_pid)
+
+    @needs_eeagent
+    def test_caching(self):
+
+        downloads_directory = os.path.join(get_this_directory(), "downloads")
+        http_port = 8910
+        http_port = self._start_webserver(downloads_directory, port=http_port)
+
+        while self._webserver is None:
+            print "Waiting for webserver to come up"
+            gevent.sleep(1)
+
+        self._enable_code_download(['*'])
+        assert self._webserver.requests == 0
+
+        u_pid = "test0"
+        round = 0
+        run_type = "pyon"
+        proc_name = 'test_transform'
+        module = "ion.my.module"
+        module_uri = "http://localhost:%s/module_to_download.py" % http_port
+        cls = 'TestDownloadProcess'
+        parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
+
+        # Launch a process, check that webserver is hit
+        response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        self.wait_for_state(u_pid, [500, 'RUNNING'])
+        self.eea_client.terminate_process(u_pid, round)
+        state = self.eea_client.dump_state().result
+        proc = get_proc_for_upid(state, u_pid)
+
+        assert self._webserver.requests == 1
+
+
+        # Launch another process, check that webserver is still only hit once
+        response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
+
+        self.wait_for_state(u_pid, [500, 'RUNNING'])
+
+        self.eea_client.terminate_process(u_pid, round)
+        state = self.eea_client.dump_state().result
+        proc = get_proc_for_upid(state, u_pid)
+
+        assert self._webserver.requests == 1
+
+        u_pid = "test5"
+        round = 0
+        run_type = "pyon"
+        proc_name = 'test_transformx'
+        module = "ion.agents.cei.test.test_eeagent"
+        module_uri = "http://localhost:%s/module_to_download.py" % http_port
+        cls = 'TestProcess'
+        parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
+
+        # Test that a module that is already available in tarball won't trigger a download
+        response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        self.wait_for_state(u_pid, [500, 'RUNNING'])
+        self.eea_client.terminate_process(u_pid, round)
+        state = self.eea_client.dump_state().result
+        proc = get_proc_for_upid(state, u_pid)
+
+        assert self._webserver.requests == 1
+
+        u_pid = "test9"
+        round = 0
+        run_type = "pyon"
+        proc_name = 'test_transformx'
+        module = "ion.agents.cei.test.test_eeagent"
+        module_uri = "http://localhost:%s/module_to_download.py" % http_port
+        cls = 'TestProcessNotReal'
+        parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
+
+        # Test behaviour of a non existant class with no download
+        response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        self.wait_for_state(u_pid, [850, 'FAILED'])
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
         proc = get_proc_for_upid(state, u_pid)

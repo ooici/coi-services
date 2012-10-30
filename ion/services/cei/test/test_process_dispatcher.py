@@ -157,7 +157,7 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
     #TODO: add some more thorough tests
 
     def setUp(self):
- 
+
         self.mock_backend = DotDict()
         self.mock_backend['create_definition'] = Mock()
         self.mock_backend['read_definition'] = Mock()
@@ -298,7 +298,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         proc_def = DotDict()
         proc_def['name'] = "someprocess"
-        proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
+        proc_def['executable'] = {'module': 'my_module', 'class': 'class', 'url': 'myurl'}
         mock_read_definition = Mock()
         mock_read_definition.return_value = proc_def
         self.pd_service.backend.read_definition = mock_read_definition
@@ -801,6 +801,10 @@ def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):
 
     return {
         'eeagent': {
+            'code_download': {
+                'enabled': True,
+                'whitelist': ['*']
+            },
             'heartbeat': 1,
             'heartbeat_queue': 'hbeatq',
             'slots': slots,
@@ -940,3 +944,40 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self.waiter.await_state_event(pid2, ProcessStateEnum.TERMINATED)
         self.pd_cli.cancel_process(pid3)
         self.waiter.await_state_event(pid3, ProcessStateEnum.TERMINATED)
+
+
+    def test_code_download(self):
+
+        url = "file://%s" % os.path.join(os.path.dirname(__file__), 'test_process_dispatcher.py')
+        process_definition_no_url = ProcessDefinition(name='test_process_nodownload')
+        process_definition_no_url.executable = {'module': 'ion.my.test.process',
+                'class': 'TestProcess'}
+        process_definition_id_no_url = self.pd_cli.create_process_definition(process_definition_no_url)
+
+        process_definition = ProcessDefinition(name='test_process_download')
+        process_definition.executable = {'module': 'ion.my.test.process',
+                'class': 'TestProcess', 'url': url}
+        process_definition_id = self.pd_cli.create_process_definition(process_definition)
+
+        process_target = ProcessTarget()
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        process_schedule.target = process_target
+
+        self.waiter.start()
+
+        # Test a module with no download fails
+        pid_no_url = self.pd_cli.create_process(process_definition_id_no_url)
+
+        self.pd_cli.schedule_process(process_definition_id_no_url,
+            process_schedule, process_id=pid_no_url)
+
+        self.waiter.await_state_event(pid_no_url, ProcessStateEnum.FAILED)
+
+        # Test a module with a URL runs
+        pid = self.pd_cli.create_process(process_definition_id)
+
+        self.pd_cli.schedule_process(process_definition_id,
+            process_schedule, process_id=pid)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
