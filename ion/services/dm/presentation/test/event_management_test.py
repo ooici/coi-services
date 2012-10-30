@@ -27,19 +27,6 @@ class EventManagementTest(PyonTestCase):
         mock_clients = self._create_service_mock('event_management')
         self.event_management = EventManagementService()
         self.event_management.clients = mock_clients
-        self.event_management.container = DotDict()
-        self.event_management.container.node = Mock()
-
-        self.event_management.container['spawn_process'] = Mock()
-        self.event_management.container['id'] = 'mock_container_id'
-        self.event_management.container['proc_manager'] = DotDict()
-        self.event_management.container.proc_manager['terminate_process'] = Mock()
-        self.event_management.container.proc_manager['procs'] = {}
-
-        self.mock_cc_spawn = self.event_management.container.spawn_process
-        self.mock_cc_terminate = self.event_management.container.proc_manager.terminate_process
-        self.mock_cc_procs = self.event_management.container.proc_manager.procs
-
         self.mock_rr_client = self.event_management.clients.resource_registry
         self.mock_pd_client = self.event_management.clients.process_dispatcher
         self.mock_pubsub_client = self.event_management.clients.pubsub_management
@@ -222,20 +209,7 @@ class EventManagementIntTest(IonIntegrationTestCase):
         Test that the CRUD method for event types work correctly
         """
 
-        event_in = PlatformEvent(origin='inst_1',origin_type='inst_type',sub_type='inst_subtype', ts_created='1234' )
-
-        event_id = self.event_management.create_event(event_in)
-
-        self.assertIsNotNone(event_id)
-
-        event_out = self.event_management.read_event(event_id)
-
-        self.assertEquals(event_out.type_, event_in.type_)
-        self.assertEquals(event_out.origin, event_in.origin)
-        self.assertEquals(event_out.origin_type, event_in.origin_type)
-        self.assertEquals(event_out.sub_type, event_in.sub_type)
-        self.assertEquals(event_out.ts_created, event_in.ts_created)
-
+        pass
 
     def test_create_read_update_delete_event_process_definition(self):
         """

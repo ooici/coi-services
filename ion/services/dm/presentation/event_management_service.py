@@ -183,10 +183,12 @@ class EventManagementService(BaseEventManagementService):
         self.clients.resource_registry.delete(event_process_id)
 
     def activate_event_process(self, event_process_id=''):
+        #todo need to activate the subscription
         pass
 
 
     def deactivate_event_process(self, event_process_id=''):
+        #todo need to deactivate the subscription
         pass
 
 
