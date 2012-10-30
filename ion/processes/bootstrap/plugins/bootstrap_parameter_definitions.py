@@ -20,7 +20,7 @@ class BootstrapParameterDefinitions(BootstrapPlugin):
     def on_initial_bootstrap(self, process, config, **kwargs):
         self.dataset_management = DatasetManagementServiceProcessClient(process=process)
         self.dict_defs = config.get_safe('process.bootstrap.dict_defs','res/config/param_dict_defs.yml')
-        self.context_path = config.get_safe('process.bootstrap.definitions', 'parameter_definitions')
+        self.context_path = config.get_safe('process.bootstrap.definitions', 'ion.core.plugin')
         self.loader_config = config.get_safe('process.bootstrap.config', {})
 
         contexts = self.load_contexts()

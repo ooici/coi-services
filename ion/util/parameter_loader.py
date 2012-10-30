@@ -28,7 +28,7 @@ class ParameterLoader(object):
         '''
         Builds a set of parameter definitions by loading the parameter definition plugins in definitions_path
         '''
-        contexts = __import__(definitions_path)
+        contexts = __import__(definitions_path,fromlist=[''])
 
         package = contexts
         contexts = {}
