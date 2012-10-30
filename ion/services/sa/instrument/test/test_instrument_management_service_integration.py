@@ -66,7 +66,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         """
         
         #stuff we control
-#        instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
+        instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
         instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
         instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel))
         instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
@@ -85,11 +85,11 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         
         #instrument_agent
         self.RR.create_association(instrument_agent_id, PRED.hasModel, instrument_model_id)
-#        self.RR.create_association(instrument_agent_instance_id, PRED.hasAgentDefinition, instrument_agent_id)
+        self.RR.create_association(instrument_agent_instance_id, PRED.hasAgentDefinition, instrument_agent_id)
 
         #instrument_device
         self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
-#        self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
+        self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
         self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
         self.RR.create_association(instrument_device_id, PRED.hasDevice, sensor_device_id)
         self.RR.create_association(org_id, PRED.hasResource, instrument_device_id)
@@ -158,6 +158,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #check model
         inst_model_obj = self.RR.read(instrument_model_id)
         self.assertEqual(inst_model_obj.name, extended_instrument.instrument_model.name)
+
+        #check agent instance
+        inst_agent_instance_obj = self.RR.read(instrument_agent_instance_id)
+        self.assertEqual(inst_agent_instance_obj.name, extended_instrument.agent_instance.name)
 
         #check agent
         inst_agent_obj = self.RR.read(instrument_agent_id)
