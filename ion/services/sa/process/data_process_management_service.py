@@ -8,16 +8,19 @@ from uuid import uuid4
 
 from pyon.util.log import log
 from pyon.util.ion_time import IonTime
-from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from pyon.public import RT, PRED, OT, LCS
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.containers import create_unique_identifier
-from interface.objects import ProcessDefinition
 from pyon.util.containers import DotDict
-from ion.services.sa.instrument.data_process_impl import DataProcessImpl
 from pyon.util.arg_check import validate_is_not_none, validate_true
+from pyon.ion.resource import ExtendedResourceContainer
+from interface.objects import ProcessDefinition
+
+from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+
+from ion.services.sa.instrument.data_process_impl import DataProcessImpl
 
 from ion.util.module_uploader import RegisterModulePreparerPy
 import os
@@ -615,6 +618,65 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if not producer_objs:
             raise NotFound("No Producers created for this Data Process " + str(data_process_id))
         return producer_objs[0]
+
+
+    ############################
+    #
+    #  EXTENDED RESOURCES
+    #
+    ############################
+
+
+
+    def get_data_process_definition_extension(self, data_process_definition_id='', ext_associations=None, ext_exclude=None):
+        #Returns an DataProcessDefinition Extension object containing additional related information
+
+        if not data_process_definition_id:
+            raise BadRequest("The data_process_definition_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_data_process_definition = extended_resource_handler.create_extended_resource_container(
+            OT.DataProcessDefinitionExtension,
+            data_process_definition_id,
+            OT.DataProcessDefinitionComputedAttributes,
+            ext_associations,
+            ext_exclude)
+
+        #Loop through any attachments and remove the actual content since we don't need
+        #   to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_data_process_definition, 'attachments'):
+            for att in extended_data_process_definition.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
+
+        return extended_data_process_definition
+
+    def get_data_process_extension(self, data_process_id='', ext_associations=None, ext_exclude=None):
+        #Returns an DataProcessDefinition Extension object containing additional related information
+
+        if not data_process_id:
+            raise BadRequest("The data_process_definition_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_data_process = extended_resource_handler.create_extended_resource_container(
+            OT.DataProcessExtension,
+            data_process_id,
+            OT.DataProcessComputedAttributes,
+            ext_associations,
+            ext_exclude)
+
+        #Loop through any attachments and remove the actual content since we don't need
+        #   to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_data_process, 'attachments'):
+            for att in extended_data_process.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
+
+        return extended_data_process
 
 
     def _remove_associations(self, resource_id=''):

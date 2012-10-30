@@ -15,6 +15,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.objects import LastUpdate, ComputedValueAvailability
 from ion.services.dm.utility.granule_utils import time_series_domain
 from pyon.public import log, IonObject
 from pyon.public import CFG, RT, PRED 
@@ -27,6 +28,7 @@ from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.agents.port.port_agent_process import PortAgentProcessType
 import gevent
 from sets import Set
+
 
 class FakeProcess(LocalContextMixin):
     """
@@ -374,6 +376,22 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
         self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)
+
+
+        #-------------------------------
+        # Retrieve the extended resources for data process definition and for data process
+        #-------------------------------
+        extended_process_definition = self.dataprocessclient.get_data_process_definition_extension(ctd_L0_all_dprocdef_id)
+        self.assertEqual(1, len(extended_process_definition.data_processes))
+        log.debug("test_createDataProcess: extended_process_definition  %s", str(extended_process_definition))
+
+        extended_process = self.dataprocessclient.get_data_process_extension(ctd_l0_all_data_process_id)
+        self.assertEqual(1, len(extended_process.input_data_products))
+        log.debug("test_createDataProcess: extended_process  %s", str(extended_process))
+
+        #-------------------------------
+        # Cleanup
+        #-------------------------------
 
         self.dataprocessclient.delete_data_process(ctd_l0_all_data_process_id)
         self.dataprocessclient.delete_data_process_definition(ctd_L0_all_dprocdef_id)
