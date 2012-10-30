@@ -362,14 +362,9 @@ class OmsPlatformDriver(PlatformDriver):
             raise PlatformException(msg=msg)
 
         if response[self._platform_id] == InvalidResponse.PLATFORM_ID:
-            #
-            # TODO Note, this should normally be an error; but I'm just
-            # logging a warning because at this moment there's a mix of
-            # information sources: topology from a dictionary but some other
-            # pieces from OMS, like platform attributes.
-            #
-            log.warn("response reports invalid platform_id for %r", self._platform_id)
-            return None
+            msg = "response reports invalid platform_id for %r" % self._platform_id
+            log.error(msg)
+            raise PlatformException(msg=msg)
         else:
             return response[self._platform_id]
 
@@ -481,6 +476,40 @@ class OmsPlatformDriver(PlatformDriver):
         ports = self._verify_platform_id_in_response(response)
 
         return ports
+
+    def _verify_port_id_in_response(self, port_id, dic):
+        """
+        Verifies the presence of port_id in the dic.
+
+        @param dic Dictionary returned by _oms
+
+        @retval dic[port_id]
+        """
+        if not port_id in dic:
+            msg = "unexpected: dic does not contain entry for %r" % port_id
+            log.error(msg)
+            raise PlatformException(msg=msg)
+
+        if dic[port_id] == InvalidResponse.PORT_ID:
+            msg = "%r: response reports invalid port_id for %r" % (
+                                 self._platform_id, port_id)
+            log.error(msg)
+            raise PlatformException(msg=msg)
+        else:
+            return dic[port_id]
+
+    def set_up_port(self, port_id, attributes):
+        log.debug("%r: setting port: port_id=%s attributes=%s",
+                  self._platform_id, port_id, attributes)
+
+        response = self._oms.setUpPort(self._platform_id, port_id, attributes)
+        log.debug("%r: setUpPort response: %s",
+            self._platform_id, response)
+
+        dic_plat = self._verify_platform_id_in_response(response)
+        self._verify_port_id_in_response(port_id, dic_plat)
+
+        return dic_plat  # note: return the dic for the platform
 
     ###############################################
     # Alarms:

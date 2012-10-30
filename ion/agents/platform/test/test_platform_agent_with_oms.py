@@ -32,6 +32,9 @@ from ion.agents.platform.test.helper import ATTR_NAMES
 from ion.agents.platform.test.helper import WRITABLE_ATTR_NAMES
 from ion.agents.platform.test.helper import VALID_ATTR_VALUE
 from ion.agents.platform.test.helper import INVALID_ATTR_VALUE
+from ion.agents.platform.test.helper import PORT_ID
+from ion.agents.platform.test.helper import PORT_ATTR_NAME
+from ion.agents.platform.test.helper import VALID_PORT_ATTR_VALUE
 from ion.agents.platform.test.helper import HelperTestMixin
 
 from pyon.ion.stream import StandaloneStreamSubscriber
@@ -264,6 +267,21 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         # TODO verify possible subset of required entries in the dict.
         log.info("GET_PORTS = %s", md)
 
+    def _set_up_port(self):
+        # TODO real settings and corresp verification
+
+        kwargs = dict(
+            port_id = PORT_ID,
+            attributes = { PORT_ATTR_NAME: VALID_PORT_ATTR_VALUE }
+        )
+        cmd = AgentCommand(command=PlatformAgentEvent.SET_UP_PORT, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        result = retval.result
+        log.info("SET_UP_PORT = %s", result)
+        self.assertIsInstance(result, dict)
+        self.assertTrue(PORT_ID in result)
+        self.assertTrue(PORT_ATTR_NAME in result[PORT_ID])
+
     def _get_resource(self):
         kwargs = dict(attr_names=ATTR_NAMES, from_time=time.time())
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
@@ -364,6 +382,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
+            PlatformAgentEvent.SET_UP_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
 
             PlatformAgentEvent.START_ALARM_DISPATCH,
@@ -519,6 +538,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.RESET,
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
+            PlatformAgentEvent.SET_UP_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_RESOURCE,
@@ -572,6 +592,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._get_resource()
         self._set_resource()
+
+        self._set_up_port()
 
         self._start_alarm_dispatch()
 
