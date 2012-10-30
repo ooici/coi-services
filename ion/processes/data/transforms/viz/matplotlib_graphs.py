@@ -10,7 +10,10 @@ import numpy as np
 
 import StringIO
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
-from ion.core.process.transform import TransformDataProcess
+from ion.core.process.transform import TransformDataProcess, TransformEventListener
+from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
+from pyon.event.event import EventSubscriber
 
 # Matplotlib related imports
 # Need try/catch because of weird import error
@@ -22,7 +25,7 @@ except:
     print >> sys.stderr, "Cannot import matplotlib"
 
 
-class VizTransformMatplotlibGraphs(TransformDataProcess):
+class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener):
 
     """
     This class is used for instantiating worker processes that have subscriptions to data streams and convert
@@ -35,6 +38,8 @@ class VizTransformMatplotlibGraphs(TransformDataProcess):
     def on_start(self):
 
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
+        self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=self)
+        self.rrclient = ResourceRegistryServiceProcessClient(node=self.container.node, process=self)
 
         self.stream_info  = self.CFG.get_safe('process.publish_streams',{})
         self.stream_names = self.stream_info.keys()
@@ -43,6 +48,18 @@ class VizTransformMatplotlibGraphs(TransformDataProcess):
         if not self.stream_names:
             raise BadRequest('MPL Transform has no output streams.')
 
+        graph_time_periods= self.CFG.get_safe('graph_time_periods')
+        print ">>>>>>>>>>>>>>>>>>>>> CFG.graph_time_periods = ", graph_time_periods
+
+        # If this is meant to be an event driven process, schedule an event to be generated every few minutes/hours
+        event_timer_interval = self.CFG.get_safe('event_timer_interval')
+        if event_timer_interval:
+            event_origin = "Interval_Timer_Matplotlib"
+            sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
+            sub.start()
+
+            self.interval_timer_id = self.ssclient.create_interval_timer(start_time="now" , interval=event_timer_interval,
+                event_origin=event_origin, event_subtype="")
 
         super(VizTransformMatplotlibGraphs,self).on_start()
 
@@ -58,6 +75,22 @@ class VizTransformMatplotlibGraphs(TransformDataProcess):
         stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
         return stream_def._id
 
+    def process_event(self, msg, headers):
+
+        return
+
+    def interval_timer_callback(self, *args, **kwargs):
+
+        print " >>>>>>>>>>>>>>>>>>> EVENT GENERATED <<<<<<<<<<<<<<<<"
+        # retrieve data for every case of the output graph
+        return
+
+    def on_quit(self):
+
+        #Cancel the timer
+        self.ssclient.cancel_timer(self.interval_timer_id)
+        super(VizTransformMatplotlibGraphs,self).on_quit()
+
 
 class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
     @staticmethod
@@ -66,24 +99,36 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
         log.debug('Matplotlib transform: Received Viz Data Packet')
         stream_definition_id = params
 
-        #Note config parameters
-
         # parse the incoming data
         rdt = RecordDictionaryTool.load_from_granule(input)
 
+        # build a list of fields/variables that need to be plotted. Use the list provided by the UI
+        # since the retrieved granule might have extra fields. Why ? Ans : Bugs, baby, bugs !
+        fields = []
+        if config:
+            if config['parameters']:
+                fields = config['parameters']
+        else:
+            fields = rdt.fields
+
         vardict = {}
         vardict['time'] = get_safe(rdt, 'time')
+        if vardict['time'] == None:
+            log.error("Matplotlib transform: Did not receive a time field to work with")
+            return None
 
-        for field in rdt.fields:
+        for field in fields:
             if field == 'time':
                 continue
 
             vardict[field] = get_safe(rdt, field)
 
+            print
+
         arrLen = len(vardict['time'])
         # init the graph_data structure for storing values
         graph_data = {}
-        for varname in vardict.keys():    #psd.list_field_names():
+        for varname in vardict.keys():
             graph_data[varname] = []
 
         # If code reached here, the graph data storage has been initialized. Just add values

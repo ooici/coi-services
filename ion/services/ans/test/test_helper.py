@@ -21,6 +21,8 @@ from interface.services.ans.ivisualization_service import VisualizationServiceCl
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from pyon.public import log
+from seawater.gibbs import SP_from_cndr
+from seawater.gibbs import cte
 
 from numpy.testing import assert_array_almost_equal
 
@@ -468,11 +470,11 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         assertions = self.assertTrue
 
         # verify that the salinity in msg2 is a result of content from msg1
-        rdt1 = RecordDictionaryTool.load_from_granule(msg1)
-        rdt2 = RecordDictionaryTool.load_from_granule(msg2)
+        rdt1 = RecordDictionaryTool.load_from_granule(msg1.body)
+        rdt2 = RecordDictionaryTool.load_from_granule(msg2.body)
 
         # msg1 should not have salinity
-        assertions(rdt1['salinity'] == None)
+        # assertions(rdt1['salinity'] == None)
 
         conductivity = rdt1['conductivity']
         pressure = rdt1['pressure']

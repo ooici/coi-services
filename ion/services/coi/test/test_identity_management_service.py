@@ -14,7 +14,7 @@ from pyon.public import PRED, RT, IonObject
 from ion.services.coi.identity_management_service import IdentityManagementService
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient, IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
-
+from unittest.case import skip
 from pyon.util.context import LocalContextMixin
 
 @attr('UNIT', group='coi')
@@ -432,6 +432,7 @@ class TestIdentityManagementService(PyonTestCase):
 #
 #    def test_signon_known_user(self):
 
+
 @attr('INT', group='coi')
 class TestIdentityManagementServiceInt(IonIntegrationTestCase):
     
@@ -486,14 +487,17 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         self.identity_management_service.delete_actor_identity(user_id)
 
+
+
+
     def test_user_info(self):
-        actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})        
+        actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})
         user_id = self.identity_management_service.create_actor_identity(actor_identity_obj)
 
-        user_credentials_obj = IonObject("UserCredentials", {"name": self.subject})        
+        user_credentials_obj = IonObject("UserCredentials", {"name": self.subject})
         self.identity_management_service.register_user_credentials(user_id, user_credentials_obj)
 
-        user_info_obj = IonObject("UserInfo", {"name": "Foo"})        
+        user_info_obj = IonObject("UserInfo", {"name": "Foo"})
         user_info = self.identity_management_service.create_user_info(user_id, user_info_obj)
 
         with self.assertRaises(Conflict) as cm:
@@ -507,11 +511,11 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
         user_info_obj = self.identity_management_service.find_user_info_by_subject(self.subject)
 
         user_info_obj = self.identity_management_service.read_user_info(user_info)
-        
+
         user_info_obj.name = 'Jane Doe'
-        
+
         self.identity_management_service.update_user_info(user_info_obj)
-        
+
         self.identity_management_service.delete_user_info(user_info)
 
         with self.assertRaises(NotFound) as cm:
@@ -533,6 +537,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
         self.identity_management_service.unregister_user_credentials(user_id, self.subject)
 
         self.identity_management_service.delete_actor_identity(user_id)
+
 
     def test_signon(self):
         certificate =  """-----BEGIN CERTIFICATE-----
@@ -603,3 +608,117 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         self.identity_management_service.unregister_user_credentials(user_id, self.subject)
 
         self.identity_management_service.delete_actor_identity(user_id)
+
+
+
+    def test_account_merge(self):
+        certificate =  """-----BEGIN CERTIFICATE-----
+MIIEMzCCAxugAwIBAgICBQAwDQYJKoZIhvcNAQEFBQAwajETMBEGCgmSJomT8ixkARkWA29yZzEX
+MBUGCgmSJomT8ixkARkWB2NpbG9nb24xCzAJBgNVBAYTAlVTMRAwDgYDVQQKEwdDSUxvZ29uMRsw
+GQYDVQQDExJDSUxvZ29uIEJhc2ljIENBIDEwHhcNMTAxMTE4MjIyNTA2WhcNMTAxMTE5MTAzMDA2
+WjBvMRMwEQYKCZImiZPyLGQBGRMDb3JnMRcwFQYKCZImiZPyLGQBGRMHY2lsb2dvbjELMAkGA1UE
+BhMCVVMxFzAVBgNVBAoTDlByb3RlY3ROZXR3b3JrMRkwFwYDVQQDExBSb2dlciBVbndpbiBBMjU0
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6QhsWxhUXbIxg+1ZyEc7d+hIGvchVmtb
+g0kKLmivgoVsA4U7swNDRH6svW242THta0oTf6crkRx7kOKg6jma2lcAC1sjOSddqX7/92ChoUPq
+7LWt2T6GVVA10ex5WAeB/o7br/Z4U8/75uCBis+ru7xEDl09PToK20mrkcz9M4HqIv1eSoPkrs3b
+2lUtQc6cjuHRDU4NknXaVMXTBHKPM40UxEDHJueFyCiZJFg3lvQuSsAl4JL5Z8pC02T8/bODBuf4
+dszsqn2SC8YDw1xrujvW2Bd7Q7BwMQ/gO+dZKM1mLJFpfEsR9WrjMeg6vkD2TMWLMr0/WIkGC8u+
+6M6SMQIDAQABo4HdMIHaMAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgSwMBMGA1UdJQQMMAoG
+CCsGAQUFBwMCMBgGA1UdIAQRMA8wDQYLKwYBBAGCkTYBAgEwagYDVR0fBGMwYTAuoCygKoYoaHR0
+cDovL2NybC5jaWxvZ29uLm9yZy9jaWxvZ29uLWJhc2ljLmNybDAvoC2gK4YpaHR0cDovL2NybC5k
+b2Vncmlkcy5vcmcvY2lsb2dvbi1iYXNpYy5jcmwwHwYDVR0RBBgwFoEUaXRzYWdyZWVuMUB5YWhv
+by5jb20wDQYJKoZIhvcNAQEFBQADggEBAEYHQPMY9Grs19MHxUzMwXp1GzCKhGpgyVKJKW86PJlr
+HGruoWvx+DLNX75Oj5FC4t8bOUQVQusZGeGSEGegzzfIeOI/jWP1UtIjzvTFDq3tQMNvsgROSCx5
+CkpK4nS0kbwLux+zI7BWON97UpMIzEeE05pd7SmNAETuWRsHMP+x6i7hoUp/uad4DwbzNUGIotdK
+f8b270icOVgkOKRdLP/Q4r/x8skKSCRz1ZsRdR+7+B/EgksAJj7Ut3yiWoUekEMxCaTdAHPTMD/g
+Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
+-----END CERTIFICATE-----"""
+        subject = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254"
+        certificate_2 = """-----BEGIN CERTIFICATE-----
+MIIEMzCCAxugAwIBAgIDAJ/lMA0GCSqGSIb3DQEBCwUAMGsxEzARBgoJkiaJk/IsZAEZFgNvcmcx
+FzAVBgoJkiaJk/IsZAEZFgdjaWxvZ29uMQswCQYDVQQGEwJVUzEQMA4GA1UEChMHQ0lMb2dvbjEc
+MBoGA1UEAxMTQ0lMb2dvbiBPcGVuSUQgQ0EgMTAeFw0xMjEwMTcwMDE2NDlaFw0xMjEwMTcxMjIx
+NDlaMGkxEzARBgoJkiaJk/IsZAEZEwNvcmcxFzAVBgoJkiaJk/IsZAEZEwdjaWxvZ29uMQswCQYD
+VQQGEwJVUzEPMA0GA1UEChMGR29vZ2xlMRswGQYDVQQDExJPd2VuIE93bmVycmVwIEE4OTMwggEi
+MA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDYLdpgg88sntivH+af4oamlp7blsUQcCQ5Yc/b
+VDP/dwEKfxTcW36tMV3asLO7GcL7z4FESG761LAe86siT9rcwg2ttLkRjI9KeA3sFjC28N8XjKZ1
+estCqG3odqw2pjo3VEFaU57219vIYMJhjmHKEgSnlMQeChMYun/sYIO5uNFba9BfiB6/PRS+bgee
+cXRsIAm1vkB89AHdEjqdvH0uSN+jGjF6aAPXsESh70DUAHzs14lbFAomig7AZafT+weh0G5pnayC
+lutVnhb9SyS3s1+A6kx8z9mkDUwY/NKXisuDeXa+WbRVq51D+Lc7ffOI+Ph+ynyfFGMcCBzbMADX
+AgMBAAGjgeEwgd4wDAYDVR0TAQH/BAIwADAOBgNVHQ8BAf8EBAMCBLAwEwYDVR0lBAwwCgYIKwYB
+BQUHAwIwGAYDVR0gBBEwDzANBgsrBgEEAYKRNgEDAzBsBgNVHR8EZTBjMC+gLaArhilodHRwOi8v
+Y3JsLmNpbG9nb24ub3JnL2NpbG9nb24tb3BlbmlkLmNybDAwoC6gLIYqaHR0cDovL2NybC5kb2Vn
+cmlkcy5vcmcvY2lsb2dvbi1vcGVuaWQuY3JsMCEGA1UdEQQaMBiBFm93ZW5vd25lcnJlcEBnbWFp
+bC5jb20wDQYJKoZIhvcNAQELBQADggEBAHWd6ZOjSmJyOUyyLgZAPJpkSuk7DT5mFRhszJhfTGnu
+gANHRIJZMs5e/LCMypE+ftxb8mnhAE+kURA2DmeucazHUDP5oYofU+8KMYqcNKnPpLnuiw+bCJPa
+3BDxrYoi+vVislHb0U+QDjVYtUtQ2b1/Xhv8ShH89O9i65bbOq+sqez6z2AD9RWOEwRwpQLc9D65
+9lkrsKGmJtuG8q3NTpZ1DSuaLOtn0QqttdmCg3pu5edRtgdpGadaSGR4s222JasV439bSTL8Z0Ug
+HtjSclGqi8IBmvRkTZI61zTVbGdOKMP90LV1p8noJVLRkZpWRjLxI5xy9El8daAWMdjfrSc=
+-----END CERTIFICATE-----"""
+        subject_2 = "/DC=org/DC=cilogon/C=US/O=Google/CN=Owen Ownerrep A893"
+
+        # Try to merge with nonexistent email account
+        with self.assertRaises(NotFound):
+            self.identity_management_service.initiate_account_merge("email3333_333@example.com")
+
+        # Create two users
+        id, valid_until, registered = self.identity_management_service.signon(certificate, True)
+        self.assertFalse(registered)
+        id_2, valid_until_2, registered_2 = self.identity_management_service.signon(certificate_2, True)
+        self.assertFalse(registered_2)
+
+        # Validate the two accounts are different
+        self.assertNotEqual(id, id_2, "The two accounts should have two different user id")
+
+        # Create UserInfo
+        contact_info_obj = IonObject("ContactInformation",{"email": "user_one@example.com"})
+        user_info_obj = IonObject("UserInfo", {"name": "Dude", "contact": contact_info_obj})
+        user_info_id = self.identity_management_service.create_user_info(id, user_info_obj)
+
+        contact_info_obj_2 = IonObject("ContactInformation",{"email": "user_two@example.com"})
+        user_info_obj_2 = IonObject("UserInfo", {"name": "theDude", "contact": contact_info_obj_2})
+        user_info_id_2 = self.identity_management_service.create_user_info(id_2, user_info_obj_2)
+
+        # Make sure the two users are registered
+        id, valid_until, registered = self.identity_management_service.signon(certificate, True)
+        self.assertTrue(registered)
+        id_2, valid_until_2, registered_2 = self.identity_management_service.signon(certificate_2, True)
+        self.assertTrue(registered_2)
+
+        token = self.identity_management_service.initiate_account_merge("user_two@example.com",  headers={'ion-actor-id':id})
+
+        # Try merging accounts with invalid token string
+        with self.assertRaises(NotFound):
+            self.identity_management_service.complete_account_merge(token_string="0xBeeF", headers={'ion-actor-id':id})
+
+        # Try merging accounts with a different user
+        # Since this user hasn't initiated account merge, the token doesn't exist in his/her UserInfo
+        with self.assertRaises(NotFound):
+            self.identity_management_service.complete_account_merge(token, headers={'ion-actor-id':id_2})
+
+        self.identity_management_service.complete_account_merge(token, headers={'ion-actor-id':id})
+
+        # Try merging the account again
+        with self.assertRaises(BadRequest):
+            self.identity_management_service.complete_account_merge(token, headers={'ion-actor-id':id})
+
+        # Signon again and verify the two accounts have been merged
+        id, valid_until, registered = self.identity_management_service.signon(certificate, True)
+        self.assertTrue(registered)
+        id_2, valid_until_2, registered_2 = self.identity_management_service.signon(certificate_2, True)
+        self.assertTrue(registered_2)
+
+        # Validate the two accounts are the same
+        self.assertEqual(id, id_2, "The two accounts should have the same id")
+
+        # Try to merge to your own account
+        with self.assertRaises(BadRequest):
+            token = self.identity_management_service.initiate_account_merge("user_one@example.com",  headers={'ion-actor-id':id})
+
+        #  Done testing. Delete user
+        self.identity_management_service.delete_user_info(user_info_id)
+        self.identity_management_service.unregister_user_credentials(id, subject)
+        self.identity_management_service.delete_actor_identity(id)
+
+
+

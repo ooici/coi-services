@@ -349,6 +349,16 @@ class InstrumentAgent(ResourceAgent):
 
         return (next_state, result)
 
+    def _handler_done(self, *args, **kwargs):
+        """
+        """
+        next_state = None
+        result = None
+
+        next_state = ResourceAgentState.COMMAND
+          
+        return (next_state, result)        
+
     ##############################################################
     # UNINITIALIZED event handlers.
     ##############################################################    
@@ -896,7 +906,7 @@ class InstrumentAgent(ResourceAgent):
             self._fsm.on_event(val)
             
         except:
-            log.error('Instrument agent %s error processing \
+            log.warning('Instrument agent %s error processing \
                       asynchronous agent event %s', self.id, val)
 
 
@@ -965,6 +975,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.DONE, self._handler_done)
         
         # CALIBRATE state event handlers.
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -972,6 +983,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.DONE, self._handler_done)
                 
         # BUSY state event handlers.
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -979,6 +991,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.DONE, self._handler_done)
 
         # DIRECT_ACCESS state event handlers.
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)

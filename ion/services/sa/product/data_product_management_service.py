@@ -613,11 +613,16 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_provenance(self, data_product_id=''):
         # Provides an audit trail for modifications to the original data
 
-        #todo - call get_data_product_provenance when it is completed
-        ret = IonObject(OT.ComputedStringValue)
-        ret.value = ""
-        ret.status = ComputedValueAvailability.NOTAVAILABLE
-        ret.reason = "FIXME. also, should provenance be stored as a string?"
+        ret = IonObject(OT.ComputedDictValue)
+
+        try:
+            ret.value = self.get_data_product_provenance(data_product_id)
+            ret.status = ComputedValueAvailability.PROVIDED
+        except NotFound:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "Error in DataProuctMgmtService:get_data_product_provenance"
+        except Exception as e:
+            raise e
 
         return ret
 
@@ -632,14 +637,16 @@ class DataProductManagementService(BaseDataProductManagementService):
         if not provenance_results:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.value = []
-            ret.reason = "FIXME. provenance results not available"
+            ret.reason = "Error in DataProuctMgmtService:get_data_product_provenance"
         else:
+            results = []
             ret.status = ComputedValueAvailability.PROVIDED
             for key, value in provenance_results.iteritems():
                 for producer_id, dataprodlist in value['inputs'].iteritems():
                     for dataprod in dataprodlist:
-                        ret.value.extend(self.clients.resource_registry.read(dataprod))
-                        
+                        results.append( self.clients.resource_registry.read(dataprod) )
+            ret.value = set(results)  #remove dups in list
+
         return ret
 
     def get_number_active_subscriptions(self, data_product_id=''):
