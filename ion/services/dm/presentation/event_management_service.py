@@ -198,6 +198,7 @@ class EventManagementService(BaseEventManagementService):
         self.clients.resource_registry.delete(event_process_id)
 
     def activate_event_process(self, event_process_id=''):
+        pass
 
 
 
