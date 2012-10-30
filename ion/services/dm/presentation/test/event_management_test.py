@@ -7,7 +7,7 @@
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
-from pyon.public import IonObject, RT, OT, PRED, Container, CFG
+from pyon.public import IonObject, RT, log
 from pyon.core.exception import NotFound, BadRequest
 
 from ion.services.dm.presentation.event_management_service import EventManagementService
@@ -89,13 +89,13 @@ class EventManagementTest(PyonTestCase):
         self.mock_pd_client.schedule_process=mocksignature(self.mock_pd_client.schedule_process)
         self.mock_pd_client.schedule_process.return_value='pid'
 
-        pid = self.event_management.create_event_process_definition(version='version',
+        procdef_id = self.event_management.create_event_process_definition(version='version',
                                                                     module ='module',
                                                                     class_name='class_name',
                                                                     uri='uri',
                                                                     arguments='arguments')
 
-        self.assertEquals(pid, 'pid')
+        self.assertEquals(procdef_id, 'procdef_id')
         self.mock_pd_client.schedule_process.assert_called_once_with('procdef_id', None, {}, '', '')
 
     def test_update_event_process_definition(self):
@@ -209,15 +209,66 @@ class EventManagementIntTest(IonIntegrationTestCase):
         Test that the CRUD method for event types work correctly
         """
 
-        pass
+        event_type = EventType(name="an event type")
+        event_type.origin = 'instrument_1'
+
+        # create
+        event_type_id = self.event_management.create_event_type(event_type)
+        self.assertIsNotNone(event_type_id)
+
+        # read
+        read_event_type = self.event_management.read_event_type(event_type_id)
+        self.assertEquals(read_event_type.name, event_type.name)
+        self.assertEquals(read_event_type.origin, event_type.origin)
+
+        #update
+        read_event_type.origin = 'instrument_2'
+        read_event_type.producer = 'producer'
+
+        self.event_management.update_event_type(read_event_type)
+        updated_event_type = self.event_management.read_event_type(event_type_id)
+
+        self.assertEquals(updated_event_type.origin, 'instrument_2')
+        self.assertEquals(updated_event_type.producer, 'producer')
+
+        # delete
+        self.event_management.delete_event_type(event_type_id)
+
+        with self.assertRaises(NotFound):
+            self.event_management.read_event_type(event_type_id)
 
     def test_create_read_update_delete_event_process_definition(self):
         """
         Test that the CRUD methods for the event process definitions work correctly
         """
 
-        pass
+        # Create
+        module = 'ion.processes.data.transforms.event_alert_transform'
+        class_name = 'EventAlertTransform'
+        procdef_id = self.event_management.create_event_process_definition(version='ver_1',
+                                                                            module=module,
+                                                                            class_name=class_name,
+                                                                            uri='http://hare.com',
+                                                                            arguments=['arg1', 'arg2'])
+        # Read
+        read_process_def = self.event_management.read_event_process_definition(procdef_id)
+        self.assertEquals(read_process_def.executable['module'], module)
+        self.assertEquals(read_process_def.executable['class'], class_name)
 
+        # Update
+        self.event_management.update_event_process_definition(event_process_definition_id=procdef_id,
+                                                                class_name='StreamAlertTransform',
+                                                                arguments=['arg3', 'arg4'])
+
+        updated_event_process_def = self.event_management.read_event_process_definition(procdef_id)
+        self.assertEquals(updated_event_process_def.executable['class'], 'StreamAlertTransform')
+        self.assertEquals(updated_event_process_def.arguments, ['arg3', 'arg4'])
+
+        # Delete
+        self.event_management.delete_event_process_definition(procdef_id)
+
+        with self.assertRaises(NotFound):
+            self.event_management.read_event_process_definition(procdef_id)
 
     def test_create_read_update_delete_event_process(self):
         """
@@ -225,3 +276,18 @@ class EventManagementIntTest(IonIntegrationTestCase):
         """
 
         pass
+
+    def test_activate_deactivate_data_process(self):
+        """
+        Test that the activation and deactivation of event processes happens correctly
+        """
+
+        pass
+
+    def test_update_event_process_inputs(self):
+        """
+        Test that the event process inputs can be correctly updated
+        """
+
+        pass
+

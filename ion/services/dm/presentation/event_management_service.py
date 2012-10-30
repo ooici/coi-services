@@ -10,7 +10,7 @@ from pyon.core.exception import BadRequest
 from pyon.util.containers import create_unique_identifier, DotDict
 from interface.services.dm.ievent_management_service import BaseEventManagementService
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition
+from interface.objects import ProcessDefinition, EventProcessDetail
 import time
 from datetime import datetime
 
@@ -46,8 +46,8 @@ class EventManagementService(BaseEventManagementService):
         @retval event_id        str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
-        event_type_id, _ = self.clients.resource_registry.create(event_type)
 
+        event_type_id, _ = self.clients.resource_registry.create(event_type)
         return event_type_id
 
     def update_event_type(self, event_type=None):
@@ -91,18 +91,23 @@ class EventManagementService(BaseEventManagementService):
 
         config = DotDict()
 
+        # Create the event process detail object
+        event_process_detail = EventProcessDetail()
+
         process_definition = ProcessDefinition(name=create_unique_identifier('event_process'))
         process_definition.executable = {
             'module':module,
             'class': class_name
         }
+        process_definition.url = uri
         process_definition.version = version
         process_definition.arguments = arguments
+        process_definition.definition = event_process_detail
 
         procdef_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
         pid = self.clients.process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=config)
 
-        return pid
+        return procdef_id
 
     def update_event_process_definition(self, event_process_definition_id='', version='', module='', class_name='', uri='', arguments=None):
         """
@@ -127,14 +132,23 @@ class EventManagementService(BaseEventManagementService):
 
     def create_event_process(self, process_definition_id='', event_types=None, sub_types=None, origins=None, origin_types=None):
 
-        config = DotDict()
+        # read the process definition object
+        process_definition = self.clients.resource_registry.read(process_definition_id)
 
-        config.event_types = event_types
-        config.sub_types = sub_types
-        config.origins = origins
-        config.origin_types = origin_types
+        # Get the event process detail object from the process definition
+        event_process_detail = process_definition.definition
 
-        pid = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id, configuration=config)
+        # pack in the event types and other stuff the event processes will need into the EventProcessDetail object
+        event_process_detail.event_types = event_types
+        event_process_detail.sub_types = sub_types
+        event_process_detail.origins = origins
+        event_process_detail.origin_types = origin_types
+
+        # Tuck in the just created event process detail object back into the process definition
+        process_definition.definition = event_process_detail
+
+        # Schedule the process
+        pid = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id)
 
         return pid
 
@@ -149,29 +163,32 @@ class EventManagementService(BaseEventManagementService):
 
         process = self.clients.resource_registry.read(event_process_id)
 
+        # todo: How to get the event process detail object that is carried in the definitions attribute of the process def?
+        # todo: How can we get the process def from the process that was launched using it?
 
-        subscription_id = data_process_obj.input_subscription_id
-        was_active = False
-        if subscription_id:
-            # get rid of all the current streams
-            try:
-                log.debug("Deactivating subscription '%s'", subscription_id)
-                self.clients.pubsub_management.deactivate_subscription(subscription_id)
-                was_active = True
 
-            except BadRequest:
-                log.info('Subscription was not active')
-
-            self.clients.pu.delete_subscription(subscription_id)
-
-        new_subscription_id = self.clients.pubsub_management.create_subscription(data_process_obj.name,
-            stream_ids=in_stream_ids)
-        data_process_obj.input_subscription_id = new_subscription_id
-
-        if was_active:
-            log.debug("Activating subscription '%s'", new_subscription_id)
-            self.clients.pubsub_management.activate_subscription(new_subscription_id)
-
+#        subscription_id = data_process_obj.input_subscription_id
+#        was_active = False
+#        if subscription_id:
+#            # get rid of all the current streams
+#            try:
+#                log.debug("Deactivating subscription '%s'", subscription_id)
+#                self.clients.pubsub_management.deactivate_subscription(subscription_id)
+#                was_active = True
+#
+#            except BadRequest:
+#                log.info('Subscription was not active')
+#
+#            self.clients.pu.delete_subscription(subscription_id)
+#
+#        new_subscription_id = self.clients.pubsub_management.create_subscription(data_process_obj.name,
+#            stream_ids=in_stream_ids)
+#        data_process_obj.input_subscription_id = new_subscription_id
+#
+#        if was_active:
+#            log.debug("Activating subscription '%s'", new_subscription_id)
+#            self.clients.pubsub_management.activate_subscription(new_subscription_id)
+#
 
         self.clients.resource_registry.update(event_process)
 
