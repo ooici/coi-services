@@ -130,6 +130,15 @@ class PlatformDriver(object):
         """
         raise NotImplemented()
 
+    def get_metadata(self):
+        """
+        To be implemented by subclass.
+        Returns the metadata associated to the platform.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplemented()
+
     def get_attribute_values(self, attr_names, from_time):
         """
         To be implemented by subclass.

@@ -225,6 +225,19 @@ class OmsPlatformDriver(PlatformDriver):
 
         return build_network_definition(map)
 
+    def get_metadata(self):
+        """
+        """
+        retval = self._oms.getPlatformMetadata(self._platform_id)
+        log.debug("getPlatformMetadata = %s", retval)
+
+        if not self._platform_id in retval:
+            raise PlatformException("Unexpected: response does not include "
+                                    "requested platform '%s'" % self._platform_id)
+
+        md = retval[self._platform_id]
+        return md
+
     def get_attribute_values(self, attr_names, from_time):
         """
         """
