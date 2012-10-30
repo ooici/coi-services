@@ -21,6 +21,7 @@ class BootstrapParameterDefinitions(BootstrapPlugin):
         self.dataset_management = DatasetManagementServiceProcessClient(process=process)
         self.dict_defs = config.get_safe('process.bootstrap.dict_defs','res/config/param_dict_defs.yml')
         self.context_path = config.get_safe('process.bootstrap.definitions', 'parameter_definitions')
+        self.loader_config = config.get_safe('process.bootstrap.config', {})
 
         contexts = self.load_contexts()
         self.load_dictionaries(self.dict_defs, contexts)
@@ -29,7 +30,7 @@ class BootstrapParameterDefinitions(BootstrapPlugin):
     def load_contexts(self):
 
         try:
-            contexts = ParameterLoader.build_contexts(self.context_path)
+            contexts = ParameterLoader.build_contexts(self.context_path, self.loader_config)
             for name, context in contexts.iteritems():
                 context_id = self.dataset_management.create_parameter_context(name=name, parameter_context=context.dump())
                 contexts[name] = context_id
