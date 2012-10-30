@@ -46,9 +46,6 @@ class EventManagementService(BaseEventManagementService):
         @retval event_id        str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
-        if hasattr(object, "_id") and hasattr(object, "_rev"):
-            raise BadRequest("Object does not have required '_id' or '_rev' attribute")
-
         event_type_id, _ = self.clients.resource_registry.create(event_type)
 
         return event_type_id
@@ -64,9 +61,6 @@ class EventManagementService(BaseEventManagementService):
         @throws NotFound        object with specified id does not exist
         @throws Conflict        object not based on latest persisted object version
         """
-        if not hasattr(object, "_id") or not hasattr(object, "_rev"):
-            raise BadRequest("Object does not have required '_id' or '_rev' attribute")
-
         self.clients.resource_registry.update(event_type)
 
     def read_event_type(self, event_type_id=''):
