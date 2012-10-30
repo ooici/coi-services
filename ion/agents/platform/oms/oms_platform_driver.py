@@ -453,6 +453,38 @@ class OmsPlatformDriver(PlatformDriver):
             resmon.stop()
         self._monitors.clear()
 
+    ###############################################
+    # Ports:
+
+    def get_ports(self):
+
+        if self._agent_device_map:
+            return self._get_ports_using_agent_device_map()
+        else:
+            return self._get_ports_using_oms()
+
+    def _get_ports_using_agent_device_map(self):
+        ports = {}
+        for port_id, port in self._nnode.ports.iteritems():
+            ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
+        log.debug("%r: _get_ports_using_agent_device_map: %s",
+              self._platform_id, ports)
+        return ports
+
+    def _get_ports_using_oms(self):
+        log.debug("%r: getting ports", self._platform_id)
+
+        response = self._oms.getPlatformPorts(self._platform_id)
+        log.debug("%r: _get_ports_using_oms: %s",
+            self._platform_id, response)
+
+        ports = self._verify_platform_id_in_response(response)
+
+        return ports
+
+    ###############################################
+    # Alarms:
+
     def _register_alarm_listener(self, url):
         """
         Registers given url for all alarm types.

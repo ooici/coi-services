@@ -168,6 +168,15 @@ class PlatformDriver(object):
         """
         raise NotImplemented()
 
+    def get_ports(self):
+        """
+        To be implemented by subclass.
+        Returns information about the ports associated to the platform.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplemented()
+
     def get_subplatform_ids(self):
         """
         Gets the IDs of the subplatforms of this driver's associated
