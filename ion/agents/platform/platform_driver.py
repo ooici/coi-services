@@ -177,6 +177,20 @@ class PlatformDriver(object):
         """
         raise NotImplemented()
 
+    def set_up_port(self, port_id, attributes):
+        """
+        To be implemented by subclass.
+        Sets up a port in this platform.
+
+        @param port_id      Port ID
+        @param attributes   Attribute dictionary
+
+        @retval The resulting configuration of the port.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplemented()
+
     def get_subplatform_ids(self):
         """
         Gets the IDs of the subplatforms of this driver's associated

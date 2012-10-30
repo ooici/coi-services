@@ -69,6 +69,7 @@ class PlatformAgentState(ResourceAgentState):
 class PlatformAgentEvent(ResourceAgentEvent):
     GET_METADATA              = 'PLATFORM_AGENT_GET_METADATA'
     GET_PORTS                 = 'PLATFORM_AGENT_GET_PORTS'
+    SET_UP_PORT               = 'PLATFORM_AGENT_SET_UP_PORT'
     GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
     START_ALARM_DISPATCH      = 'PLATFORM_AGENT_START_ALARM_DISPATCH'
     STOP_ALARM_DISPATCH       = 'PLATFORM_AGENT_STOP_ALARM_DISPATCH'
@@ -87,6 +88,7 @@ class PlatformAgentCapability(BaseEnum):
 
     GET_METADATA              = PlatformAgentEvent.GET_METADATA
     GET_PORTS                 = PlatformAgentEvent.GET_PORTS
+    SET_UP_PORT               = PlatformAgentEvent.SET_UP_PORT
     GET_SUBPLATFORM_IDS       = PlatformAgentEvent.GET_SUBPLATFORM_IDS
 
     START_ALARM_DISPATCH      = PlatformAgentEvent.START_ALARM_DISPATCH
@@ -1095,6 +1097,27 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
+    def _handler_set_up_port(self, *args, **kwargs):
+        """
+        Sets up attributes for a given port in this platform.
+        """
+        log.debug("%r/%s args=%s kwargs=%s",
+            self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise BadRequest('set_up_port missing port_id argument.')
+
+        attributes = kwargs.get('attributes', None)
+        if attributes is None:
+            raise BadRequest('set_up_port missing attributes argument.')
+
+        result = self._plat_driver.set_up_port(port_id, attributes)
+
+        next_state = self.get_agent_state()
+
+        return (next_state, result)
+
     def _handler_get_subplatform_ids(self, *args, **kwargs):
         """
         Gets the IDs of my direct subplatforms.
@@ -1150,6 +1173,7 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.RESET, self._handler_command_reset)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.SET_UP_PORT, self._handler_set_up_port)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
