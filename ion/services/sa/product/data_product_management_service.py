@@ -741,8 +741,9 @@ class DataProductManagementService(BaseDataProductManagementService):
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
                 ret.reason = "No dataset associated with this data product"
             else:
-                replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
-                ret.value = RecordDictionaryTool.load_from_granule(replay_granule)
+                replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0])
+                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+                ret.value =  {k : rdt[k] for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
