@@ -224,34 +224,31 @@ class IdentityManagementService(BaseIdentityManagementService):
             log.debug("Signon returning user_id, valid_until, registered: %s, %s, False" % (user_id, valid_until))
             return user_id, valid_until, False
 
-    def get_actor_identity_extension(self, user_id='', org_id='', ext_associations=None, ext_exclude=None):
-        """Returns an ActorIdentityExtension object containing additional related information
+    def get_user_info_extension(self, user_info_id=''):
+        """Returns an UserInfoExtension object containing additional related information
 
-        @param user_id    str
-        @param org_id    str
-        @param ext_associations    dict
-        @param ext_exclude    list
-        @retval actor_identity    ActorIdentityExtension
+        @param user_info_id    str
+        @retval user_info    UserInfoExtension
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified user_id does not exist
         """
-        if not user_id:
+        if not user_info_id:
             raise BadRequest("The user_id parameter is empty")
 
         extended_resource_handler = ExtendedResourceContainer(self)
-        extended_user = extended_resource_handler.create_extended_resource_container(OT.ActorIdentityExtension, user_id, None, ext_associations, ext_exclude)
-
-        #If the org_id is not provided then skip looking for Org related roles.
-        if org_id:
-            #Did not setup a dependency to org_management service to avoid a potential circular bootstrap issue
-            # since this method should never be called until the system is fully running
-            try:
-                org_client = OrgManagementServiceProcessClient(process=self)
-                roles = org_client.find_org_roles_by_user(org_id, user_id)
-                extended_user.roles = roles
-            except Exception, e:
-                #If this information is not available yet, them just move on and caller can retry later
-                pass
+        extended_user = extended_resource_handler.create_extended_resource_container(OT.UserInfoExtension, user_info_id, focus_resource_type=RT.UserInfo)
+#
+#        #If the org_id is not provided then skip looking for Org related roles.
+#        if org_id:
+#            #Did not setup a dependency to org_management service to avoid a potential circular bootstrap issue
+#            # since this method should never be called until the system is fully running
+#            try:
+#                org_client = OrgManagementServiceProcessClient(process=self)
+#                roles = org_client.find_org_roles_by_user(org_id, user_id)
+#                extended_user.roles = roles
+#            except Exception, e:
+#                #If this information is not available yet, them just move on and caller can retry later
+#                pass
 
         return extended_user
 
