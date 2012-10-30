@@ -24,7 +24,7 @@ class EventManagementService(BaseEventManagementService):
 
     def on_start(self):
         super(EventManagementService, self).on_start()
-        self.process_dispatcher = ProcessDispatcherServiceClient()
+        self.clients.process_dispatcher = ProcessDispatcherServiceClient()
 
 
     def on_quit(self):
@@ -91,9 +91,9 @@ class EventManagementService(BaseEventManagementService):
         self.clients.resource_registry.delete(event_type_id)
 
     def create_event_process_definition(self, version='', module='', class_name='', uri='', arguments=None):
-        '''
+        """
         Create a resource which defines the processing of events, from transform definition to scheduling
-        '''
+        """
 
         config = DotDict()
 
@@ -105,27 +105,27 @@ class EventManagementService(BaseEventManagementService):
         process_definition.version = version
         process_definition.arguments = arguments
 
-        procdef_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
-        pid = self.process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=config)
+        procdef_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
+        pid = self.clients.process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=config)
 
         return pid
 
     def update_event_process_definition(self, event_process_definition_id='', version='', module='', class_name='', uri='', arguments=None):
-        '''
+        """
         Update the process definition for the event process
-        '''
+        """
 
-        event_process_def = self.clients.resource_registry.read(event_process_definition_id)
+        # The event_process_def is really only a process_def
+        process_def = self.clients.resource_registry.read(event_process_definition_id)
 
-        event_process_def.executable['module'] = module
-        event_process_def.executable['class'] = class_name
-        event_process_def.version = version
-        event_process_def.arguments = arguments
+        process_def.executable['module'] = module
+        process_def.executable['class'] = class_name
+        process_def.version = version
+        process_def.arguments = arguments
 
-        self.clients.resource_registry.update(event_process_def)
+        self.clients.resource_registry.update(process_def)
 
     def read_event_process_definition(self, event_process_definition_id=''):
-
         return self.clients.resource_registry.read(event_process_definition_id)
 
     def delete_event_process_definition(self, event_process_definition_id=''):
@@ -140,30 +140,21 @@ class EventManagementService(BaseEventManagementService):
         config.origins = origins
         config.origin_types = origin_types
 
-        pid = self.process_dispatcher.schedule_process(process_definition_id= process_definition_id, configuration=config)
+        pid = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id, configuration=config)
 
         return pid
 
     def update_event_process(self):
+        #todo need to know/decide what this method should be doing
         pass
 
     def update_event_process_inputs(self, event_process_id='', event_types=None, sub_types=None, origins=None, origin_types=None):
-        '''
+        """
         Update the subscriptions of an event process
-        '''
+        """
 
-        event_process = self.clients.resource_registry.read(event_process_id)
+        process = self.clients.resource_registry.read(event_process_id)
 
-        #todo how to update the subscriptions of the event process
-#        self.event_types = event_types or []
-#        self.origins = origins or []
-#        self.process_id = process_id
-#        self.configurat
-
-        event_process.event_types = event_types
-        event_process.sub_types = sub_types
-        event_process.origins = origins
-        event_process.origin_types = origin_types
 
         subscription_id = data_process_obj.input_subscription_id
         was_active = False
@@ -200,6 +191,9 @@ class EventManagementService(BaseEventManagementService):
     def activate_event_process(self, event_process_id=''):
         pass
 
+
+    def deactivate_event_process(self, event_process_id=''):
+        pass
 
 
 
