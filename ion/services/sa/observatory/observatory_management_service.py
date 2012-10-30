@@ -12,7 +12,7 @@ and the relationships between them
 
 
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
-from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE
+from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.containers import DotDict
 
@@ -1272,10 +1272,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     ############################
 
 
-    def get_observatory_extension(self, observatory_id='', ext_associations=None, ext_exclude=None):
+    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None):
         """Returns an InstrumentDeviceExtension object containing additional related information
 
-        @param observatory_id    str
+        @param site_id    str
         @param ext_associations    dict
         @param ext_exclude    list
         @retval observatory    ObservatoryExtension
@@ -1283,14 +1283,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    An object with the specified observatory_id does not exist
         """
 
-        if not observatory_id:
+        if not site_id:
             raise BadRequest("The observatory_id parameter is empty")
 
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_instrument = extended_resource_handler.create_extended_resource_container(
             OT.ObservatoryExtension,
-            observatory_id,
+            site_id,
             OT.ObservatoryComputedAttributes,
             ext_associations,
             ext_exclude)
