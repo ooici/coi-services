@@ -157,7 +157,7 @@ class EventManagementService(BaseEventManagementService):
 
         self.clients.resource_registry.delete(event_process_definition_id)
 
-    def create_event_process(self, process_definition_id='', event_types=None, sub_types=None, origins=None, origin_types=None):
+    def create_event_process(self, process_definition_id='', event_types=None, sub_types=None, origins=None, origin_types=None, out_data_products=None):
         """
         Create an event process using a process definition. Pass to the event process,
         the info about the events that the event process will subscribe to.
@@ -171,12 +171,15 @@ class EventManagementService(BaseEventManagementService):
         @return process_id
         """
 
+        #-------------------------------------------------------------------------
+        # The process definition
+        #-------------------------------------------------------------------------
 
         # read the process definition object
         process_definition = self.clients.resource_registry.read(process_definition_id)
 
         # Get the event process detail object from the process definition
-        event_process_detail = process_definition.definition
+        event_process_detail = process_definition.definition or EventProcessDetail()
 
         # pack in the event types and other stuff the event processes will need into the EventProcessDetail object
         event_process_detail.event_types = event_types
@@ -187,20 +190,36 @@ class EventManagementService(BaseEventManagementService):
         # Tuck in the just created event process detail object back into the process definition
         process_definition.definition = event_process_detail
 
+        #-------------------------------------------------------------------------
+        # The output streams for the event process if any are provided
+        #-------------------------------------------------------------------------
+
+        output_stream_dict = {}
+
+        if out_data_products:
+            for binding, output_data_product_id in out_data_products.iteritems():
+                stream_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasStream, RT.Stream, True)
+                if not stream_ids:
+                    raise NotFound("No Stream created for output Data Product " + str(output_data_product_id))
+                if len(stream_ids) != 1:
+                    raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
+                output_stream_dict[binding] = stream_ids[0]
+
+        #-------------------------------------------------------------------------
+        # Launch the process
+        #-------------------------------------------------------------------------
+
         # Create a config to pass the event_types, origins etc to the process, which is about to be created
         config = DotDict()
         config.process.event_types = event_types
         config.process.sub_types = sub_types
         config.process.origins = origins
         config.process.origin_types = origin_types
+        config.process.publish_streams = output_stream_dict
 
         # Schedule the process
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id,
                                                                         configuration=config)
-
-        # Keep the config also in the process so that we can have access to it for later updating...
-        process = self.clients.resource_registry.read(process_id)
-        process.process_configuration = config
 
         # Associate the process with the process definition
         self.clients.resource_registry.create_association(  subject=process_id,
