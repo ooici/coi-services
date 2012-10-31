@@ -5,12 +5,13 @@ __author__ = 'Stephen P. Henrie, Michael Meisinger'
 from pyon.public import CFG, IonObject, RT, PRED, OT, LCS
 from pyon.core.exception import  Inconsistent, NotFound, BadRequest
 from pyon.ion.directory import Directory
+from pyon.ion.resource import ExtendedResourceContainer
 from pyon.core.registry import issubtype
 from pyon.util.log import log
 from pyon.event.event import EventPublisher
 from pyon.util.containers import is_basic_identifier, get_ion_ts
 from pyon.core.governance.negotiation import Negotiation
-from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, ComputedValueAvailability
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from ion.services.coi.policy_management_service import ORG_MEMBER_ROLE, ORG_MANAGER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
@@ -1035,3 +1036,77 @@ class OrgManagementService(BaseOrgManagementService):
             log.error('is_resource_acquired_exclusively: %s for user_id:%s and resource_id:%s' %  (e.message, user_id, resource_id))
 
         return False
+
+
+
+    #-----------------------------------------------
+    #  COMPUTED RESOURCES
+    #-----------------------------------------------
+    def get_org_extension(self, org_id='', ext_associations=None, ext_exclude=None):
+        """Returns an MarineFacilityOrgExtension object containing additional related information
+
+        @param org_id    str
+        @param ext_associations    dict
+        @param ext_exclude    list
+        @retval observatory    ObservatoryExtension
+        @throws BadRequest    A parameter is missing
+        @throws NotFound    An object with the specified observatory_id does not exist
+        """
+
+        if not org_id:
+            raise BadRequest("The org_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_org = extended_resource_handler.create_extended_resource_container(
+            OT.MarineFacilityOrgExtension,
+            org_id,
+            OT.MarineFacilityOrgComputedAttributes,
+            ext_associations,
+            ext_exclude)
+
+        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
+        #TODO - see if there is a better way to do this in the extended resource frame work.
+        if hasattr(extended_org, 'attachments'):
+            for att in extended_org.attachments:
+                if hasattr(att, 'content'):
+                    delattr(att, 'content')
+
+        return extended_org
+
+    def get_instruments_not_deployed(self, org_id='', ext_associations=None, ext_exclude=None):
+    #Returns a list of instrument devices that owned by this Org but not currently deployed to a Site
+
+        ret = IonObject(OT.ComputedListValue)
+        retlist = []
+        instrument_device_ids, _ =  self.clients.resource_registry.find_objects(subject=org_id ,predicate=PRED.hasResource, object_type=RT.InstrumentDevices, id_only=True)
+        for instrument_device_id in instrument_device_ids:
+            site_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Site ,predicate=PRED.hasDevice, object=instrument_device_id, id_only=True)
+            if not site_ids:
+                #this device is not currently deployed, add it to the list
+                retlist.append( self.clients.resource_registry.read(instrument_device_id) )
+
+        ret.value = retlist
+        ret.status = ComputedValueAvailability.PROVIDED
+        ret.reason = ""
+
+        return ret
+
+
+    def get_platforms_not_deployed(self, org_id='', ext_associations=None, ext_exclude=None):
+    #Returns a list of instrument devices that owned by this Org but not currently deployed to a Site
+
+        ret = IonObject(OT.ComputedListValue)
+        retlist = []
+        platform_device_ids, _ =  self.clients.resource_registry.find_objects(subject=org_id ,predicate=PRED.hasResource, object_type=RT.PlatformDevices, id_only=True)
+        for platform_device_id in platform_device_ids:
+            site_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Site ,predicate=PRED.hasDevice, object=platform_device_id, id_only=True)
+            if not site_ids:
+                #this device is not currently deployed, add it to the list
+                retlist.append( self.clients.resource_registry.read(platform_device_id) )
+
+        ret.value = retlist
+        ret.status = ComputedValueAvailability.PROVIDED
+        ret.reason = ""
+
+        return ret
