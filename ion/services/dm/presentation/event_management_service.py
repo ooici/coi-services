@@ -31,8 +31,7 @@ class EventManagementService(BaseEventManagementService):
         """
         Handles stop/terminate.
 
-        Cleans up ant subscribers that may be spawned through this service or
-        terminate any scheduled tasks to the scheduler.
+        Cleans up ant subscribers that may be spawned through this service
         """
         super(EventManagementService, self).on_quit()
 
@@ -43,7 +42,7 @@ class EventManagementService(BaseEventManagementService):
         by which Event will be identified in the data store.
 
         @param event            Event
-        @retval event_id        str
+        @return event_id        str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
 
@@ -51,7 +50,8 @@ class EventManagementService(BaseEventManagementService):
         return event_type_id
 
     def update_event_type(self, event_type=None):
-        """Updates the provided Event object.  Throws NotFound exception if
+        """
+        Updates the provided Event object.  Throws NotFound exception if
         an existing version of Event is not found.  Throws Conflict if
         the provided Event object is not based on the latest persisted
         version of the object.
@@ -64,19 +64,21 @@ class EventManagementService(BaseEventManagementService):
         self.clients.resource_registry.update(event_type)
 
     def read_event_type(self, event_type_id=''):
-        """Returns the Event object for the specified event id.
+        """
+        Returns the Event object for the specified event id.
         Throws exception if id does not match any persisted Event
         objects.
 
         @param event_id     str
-        @retval event       Event
+        @return event       Event
         @throws NotFound    object with specified id does not exist
         """
         event_type = self.clients.resource_registry.read(event_type_id)
         return event_type
 
     def delete_event_type(self, event_type_id=''):
-        """For now, permanently deletes Event object with the specified
+        """
+        For now, permanently deletes Event object with the specified
         id. Throws exception if id does not match any persisted Event.
 
         @param event_id     str
@@ -86,14 +88,21 @@ class EventManagementService(BaseEventManagementService):
 
     def create_event_process_definition(self, version='', module='', class_name='', uri='', arguments=None):
         """
-        Create a resource which defines the processing of events, from transform definition to scheduling
-        """
+        Create a resource which defines the processing of events.
 
-        config = DotDict()
+        @param version str
+        @param module str
+        @param class_name str
+        @param uri str
+        @param arguments list
+
+        @return procdef_id str
+        """
 
         # Create the event process detail object
         event_process_detail = EventProcessDetail()
 
+        # Create the process definition
         process_definition = ProcessDefinition(name=create_unique_identifier('event_process'))
         process_definition.executable = {
             'module':module,
@@ -105,13 +114,19 @@ class EventManagementService(BaseEventManagementService):
         process_definition.definition = event_process_detail
 
         procdef_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
-        pid = self.clients.process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=config)
 
         return procdef_id
 
     def update_event_process_definition(self, event_process_definition_id='', version='', module='', class_name='', uri='', arguments=None):
         """
-        Update the process definition for the event process
+        Update the process definition for the event process.
+
+        @param event_process_definition_id str
+        @param version str
+        @param module str
+        @param class_name str
+        @param uri str
+        @arguments list
         """
 
         # The event_process_def is really only a process_def
@@ -125,12 +140,37 @@ class EventManagementService(BaseEventManagementService):
         self.clients.resource_registry.update(process_def)
 
     def read_event_process_definition(self, event_process_definition_id=''):
+        """
+        Read the event process definition.
+
+        @param event_process_definition_id str
+        @return process_definition ProcessDefinition() object
+        """
         return self.clients.resource_registry.read(event_process_definition_id)
 
     def delete_event_process_definition(self, event_process_definition_id=''):
+        """
+        Delete the event process definition.
+
+        @param event_process_definition_id str
+        """
+
         self.clients.resource_registry.delete(event_process_definition_id)
 
     def create_event_process(self, process_definition_id='', event_types=None, sub_types=None, origins=None, origin_types=None):
+        """
+        Create an event process using a process definition. Pass to the event process,
+        the info about the events that the event process will subscribe to.
+
+        @param process_definition_id str
+        @param event_types list
+        @param sub_types list
+        @param origins list
+        @param origin_types list
+
+        @return process_id
+        """
+
 
         # read the process definition object
         process_definition = self.clients.resource_registry.read(process_definition_id)
@@ -147,30 +187,83 @@ class EventManagementService(BaseEventManagementService):
         # Tuck in the just created event process detail object back into the process definition
         process_definition.definition = event_process_detail
 
-        # Schedule the process
-        pid = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id)
+        # Create a config to pass the event_types, origins etc to the process, which is about to be created
+        config = DotDict()
+        config.process.event_types = event_types
+        config.process.sub_types = sub_types
+        config.process.origins = origins
+        config.process.origin_types = origin_types
 
-        #todo check if using the pid is correct
-        self.clients.resource_registry.create_association(  subject=pid,
+        # Schedule the process
+        process_id = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id,
+                                                                        configuration=config)
+
+        # Keep the config also in the process so that we can have access to it for later updating...
+        process = self.clients.resource_registry.read(process_id)
+        process.process_configuration = config
+
+        # Associate the process with the process definition
+        self.clients.resource_registry.create_association(  subject=process_id,
                                                             predicate=PRED.hasProcessDefinition,
                                                             object=process_definition_id)
 
-        return pid
+        return process_id
 
     def update_event_process(self):
-        #todo need to know/decide what this method should be doing
-        pass
+        raise NotImplementedError('Not implemented for R2.0')
 
     def update_event_process_inputs(self, event_process_id='', event_types=None, sub_types=None, origins=None, origin_types=None):
         """
-        Update the subscriptions of an event process
+        Update the subscriptions of an event process.
+
+        @param event_process_id str
+        @param event_types list
+        @param sub_types list
+        @param origins list
+        @param origin_types list
         """
 
-        process = self.clients.resource_registry.read(event_process_id)
+        raise NotImplementedError('Not implemented for R2.0')
 
-        # todo: How to get the event process detail object that is carried in the definitions attribute of the process def?
-        # todo: How can we get the process def from the process that was launched using it?
 
+        #----------------------------------------------
+        # Update the process definition
+        #----------------------------------------------
+
+#        process_definition_ids, _ = self.clients.resource_registry.find_objects(   subject=event_process_id,
+#                                                                            predicate=PRED.hasProcessDefinition,
+#                                                                            object_type=RT.ProcessDefinition,
+#                                                                            id_only=True)
+#        log.debug("process definition ids: %s" % process_definition_ids)
+#
+#        process_definition_id = process_definition_ids[0]
+#
+#        process_definition = self.clients.resource_registry.read(process_definition_id)
+#
+#        event_process_detail = process_definition.definition or EventProcessDetail()
+#        event_process_detail.event_types = event_types
+#        event_process_detail.sub_types = sub_types
+#        event_process_detail.origins = origins
+#        event_process_detail.origin_types = origin_types
+#
+#        # Include the updated event process detail
+#        process_definition.definition = event_process_detail
+#
+#        #----------------------------------------------
+#        # Update the process config
+#        #----------------------------------------------
+#
+#        process = self.clients.resource_registry.read(event_process_id)
+#
+#        config = process.process_configuration or DotDict()
+#        config.process.event_types = event_types
+#        config.process.sub_types = sub_types
+#        config.process.origins = origins
+#        config.process.origin_types = origin_types
+#
+#        process.process_configuration = config
+
+#####----------------
 
 #        subscription_id = data_process_obj.input_subscription_id
 #        was_active = False
@@ -195,23 +288,44 @@ class EventManagementService(BaseEventManagementService):
 #            self.clients.pubsub_management.activate_subscription(new_subscription_id)
 #
 
-        self.clients.resource_registry.update(event_process)
+#        self.clients.resource_registry.update(process)
 
 
     def read_event_process(self, event_process_id=''):
+        """
+        Read the event process.
+
+        @param event_process_id str
+        @return event_process Process() object
+        """
+
         return self.clients.resource_registry.read(event_process_id)
 
     def delete_event_process(self, event_process_id=''):
+        """
+        Delete the event process.
+
+        @param event_process_id str
+        """
+
         self.clients.resource_registry.delete(event_process_id)
 
     def activate_event_process(self, event_process_id=''):
-        #todo need to activate the subscription
-        pass
+        """
+        Activate the event process.
 
+        @param event_process_id
+        """
+        raise NotImplementedError('Not implemented for R2.0')
 
     def deactivate_event_process(self, event_process_id=''):
-        #todo need to deactivate the subscription
-        pass
+        """
+        Deactivate the event process.
+
+        @param event_process_id
+        """
+
+        raise NotImplementedError('Not implemented for R2.0')
 
 
 
