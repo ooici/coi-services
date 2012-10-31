@@ -109,6 +109,10 @@ class DatasetManagementService(BaseDatasetManagementService):
         coverage = self._get_coverage(dataset_id)
         return coverage.parameter_dictionary.dump()
 
+    def get_dataset_length(self, dataset_id=''):
+        coverage = self._get_coverage(dataset_id)
+        return coverage.num_timesteps
+
 #--------
 
     def create_parameter_context(self, name='', parameter_context=None, description=''):
