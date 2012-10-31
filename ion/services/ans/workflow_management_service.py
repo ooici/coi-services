@@ -8,8 +8,6 @@ from interface.services.ans.iworkflow_management_service import BaseWorkflowMana
 from pyon.util.containers import is_basic_identifier, create_unique_identifier, get_safe
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.public import Container, log, IonObject, RT,PRED, OT
-from ion.services.dm.utility.granule_utils import CoverageCraft
-from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 class WorkflowManagementService(BaseWorkflowManagementService):
@@ -112,13 +110,16 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         self.clients.resource_registry.delete(workflow_definition_id)
 
 
-    def create_data_process_workflow(self, workflow_definition_id='', input_data_product_id=''):
+    def create_data_process_workflow(self, workflow_definition_id='', input_data_product_id='', persist_workflow_data_product=True, output_data_product_name='', configuration={}):
         """Instantiates a Data Process Workflow specified by a Workflow Definition resource and an input data product id.
-      Returns the id of the workflow and the data product id for the final output product.
+        Returns the id of the workflow and the data product id for the final output product.
 
         @param workflow_definition_id    str
         @param input_data_product_id    str
-        @retval workflow_id str
+        @param persist_workflow_data_product    bool
+        @param output_data_product_name    str
+        @param configuration    IngestionConfiguration
+        @retval workflow_id    str
         @retval output_data_product_id    str
         @throws BadRequest    if any of the required parameters are not set
         @throws NotFound    object with specified id does not exist
@@ -138,9 +139,14 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         if not input_data_product:
             raise NotFound("The input data product %s does not exist" % input_data_product_id)
 
+        if output_data_product_name:
+            workflow_name = '%s_%s' % (workflow_definition.name, output_data_product_name)
+        else:
+            workflow_name = create_unique_identifier('workflow_%s' % (workflow_definition.name))
 
-        #Create Workflow object and associations to track the instantiation of a work flow definition.
-        workflow = IonObject(RT.Workflow, name=workflow_definition.name)
+         #Create Workflow object and associations to track the instantiation of a work flow definition.
+        workflow = IonObject(RT.Workflow, name=workflow_name, persist_process_output_data=persist_workflow_data_product,
+                                output_data_product_name=output_data_product_name, configuration=configuration)
         workflow_id, _ = self.clients.resource_registry.create(workflow)
         self.clients.resource_registry.create_association(workflow_id, PRED.hasDefinition,workflow_definition_id )
         self.clients.resource_registry.create_association(workflow_id, PRED.hasInputProduct,input_data_product_id )
@@ -156,14 +162,18 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             log.debug("wf_step.data_process_definition_id: %s" , wf_step.data_process_definition_id)
 
             data_process_definition = self.clients.resource_registry.read(wf_step.data_process_definition_id)
+
             for binding, stream_definition_id in data_process_definition.output_bindings.iteritems():
 
                 #--------------------------------------------------------------------------------
                 # Create an output data product for each binding/stream definition
                 #--------------------------------------------------------------------------------
 
-                data_product_name = wf_step.output_data_product_name or create_unique_identifier('%s_%s' % (workflow_definition.name, data_process_definition.name))
-                data_product_name = '%s_%s' % (data_product_name,binding)
+                #Handle the last step differently as it is the output of the workflow.
+                if wf_step == workflow_definition.workflow_steps[-1] and output_data_product_name:
+                    data_product_name = output_data_product_name
+                else:
+                    data_product_name = create_unique_identifier('%s_%s_%s' % (workflow_name, data_process_definition.name, binding))
 
                 tdom, sdom = time_series_domain()
 
@@ -174,17 +184,26 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                                              spatial_domain  = sdom.dump())
                 data_product_id = self.clients.data_product_management.create_data_product(data_product_obj, stream_definition_id=stream_definition_id)
 
+
                 # Persist if necessary
-                if wf_step.persist_process_output_data:
+                if wf_step == workflow_definition.workflow_steps[-1] and persist_workflow_data_product:
                     self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
+                else:
+                    if wf_step.persist_process_output_data:
+                        self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
 
 
                 #Associate the intermediate data products with the workflow
                 self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProduct, data_product_id )
                 output_data_products[binding] = data_product_id
 
-            
-            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], output_data_products, configuration=wf_step.configuration)
+            #May have to merge configuration blocks where the workflow entries will override the configuration in a step
+            if configuration:
+                process_config = dict(wf_step.configuration.items() + configuration.items())
+            else:
+                process_config = wf_step.configuration
+
+            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], output_data_products, configuration=process_config)
             self.clients.data_process_management.activate_data_process(data_process_id)
 
             #Track the the data process with an association to the workflow
@@ -197,16 +216,11 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             data_process_input_dp_id = output_data_products.values()[0]
 
 
-
         #Track the output data product with an association
         self.clients.resource_registry.create_association(workflow_id, PRED.hasOutputProduct, output_data_product_id )
 
         return workflow_id, output_data_product_id
 
-
-
-
-            # Find the link between the output Stream Definition resource and the Data Process Definition resource
 
     def terminate_data_process_workflow(self, workflow_id='', delete_data_products=True):
         """Terminates a Workflow specific by a Workflow Definition resource which includes all internal processes.
