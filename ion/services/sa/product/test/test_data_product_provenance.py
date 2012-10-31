@@ -70,7 +70,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         instModel_obj = IonObject(RT.InstrumentModel,
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
-                                  model="SBE37IMModel",
                                   stream_configuration= {'parsed': 'ctd_parsed_param_dict' } )
 
         try:
