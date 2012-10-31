@@ -279,8 +279,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         # close the subscription and queues
         subscriber1.close()
         subscriber2.close()
-        self.container.ex_manager.delete_xn(xq1)
-        self.container.ex_manager.delete_xn(xq2)
+        #self.container.ex_manager.delete_xn(xq1)
+        #self.container.ex_manager.delete_xn(xq2)
 
         return
 

@@ -91,11 +91,12 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         rdt = RecordDictionaryTool.load_from_granule(input)
         data_description = []
 
+        # if time was null or misisng, do not process
         if 'time' not in rdt: return None
-
-        # if time was null, do not process
         if rdt['time'] is None:
             return None
+
+        time_fill_value = 0 # should be derived from the granule's param dict.
 
         data_description.append(('time','number','time'))
         for field in rdt.fields:
@@ -108,15 +109,14 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
             data_description.append((field, 'number', field))
 
-        #for i in xrange(len(rdt)):
-        #    var_tuple = [ float(rdt[field][i]) if rdt[field] is not None else 0.0 for field in rdt.fields]
-        #    data_table_content.append(var_tuple)
-
         for i in xrange(len(rdt)):
             varTuple = []
 
-            # Put time first
+            # Put time first if its not zero. Retrieval returns 0 secs for malformed entries
+            if rdt['time'][i] == time_fill_value:
+                continue
             varTuple.append(rdt['time'][i])
+
             for dd in data_description:
                 field = dd[0]
                 # ignore time since its been already added
