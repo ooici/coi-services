@@ -191,6 +191,32 @@ class PlatformDriver(object):
         """
         raise NotImplemented()
 
+    def turn_on_port(self, port_id):
+        """
+        To be implemented by subclass.
+        Turns on a port in this platform.
+
+        @param port_id      Port ID
+
+        @retval The resulting on/off of the port.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplemented()
+
+    def turn_off_port(self, port_id):
+        """
+        To be implemented by subclass.
+        Turns off a port in this platform.
+
+        @param port_id      Port ID
+
+        @retval The resulting on/off of the port.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplemented()
+
     def get_subplatform_ids(self):
         """
         Gets the IDs of the subplatforms of this driver's associated

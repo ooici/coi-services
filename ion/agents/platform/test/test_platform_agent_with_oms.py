@@ -282,6 +282,34 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(PORT_ID in result)
         self.assertTrue(PORT_ATTR_NAME in result[PORT_ID])
 
+    def _turn_on_port(self):
+        # TODO real settings and corresp verification
+
+        kwargs = dict(
+            port_id = PORT_ID
+        )
+        cmd = AgentCommand(command=PlatformAgentEvent.TURN_ON_PORT, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        result = retval.result
+        log.info("TURN_ON_PORT = %s", result)
+        self.assertIsInstance(result, dict)
+        self.assertTrue(PORT_ID in result)
+        self.assertIsInstance(result[PORT_ID], bool)
+
+    def _turn_off_port(self):
+        # TODO real settings and corresp verification
+
+        kwargs = dict(
+            port_id = PORT_ID
+        )
+        cmd = AgentCommand(command=PlatformAgentEvent.TURN_OFF_PORT, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        result = retval.result
+        log.info("TURN_OFF_PORT = %s", result)
+        self.assertIsInstance(result, dict)
+        self.assertTrue(PORT_ID in result)
+        self.assertIsInstance(result[PORT_ID], bool)
+
     def _get_resource(self):
         kwargs = dict(attr_names=ATTR_NAMES, from_time=time.time())
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
@@ -383,6 +411,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
             PlatformAgentEvent.SET_UP_PORT,
+            PlatformAgentEvent.TURN_ON_PORT,
+            PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
 
             PlatformAgentEvent.START_ALARM_DISPATCH,
@@ -539,6 +569,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
             PlatformAgentEvent.SET_UP_PORT,
+            PlatformAgentEvent.TURN_ON_PORT,
+            PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_RESOURCE,
@@ -589,11 +621,13 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._get_metadata()
         self._get_ports()
+        self._get_subplatform_ids()
 
         self._get_resource()
         self._set_resource()
 
         self._set_up_port()
+        self._turn_on_port()
 
         self._start_alarm_dispatch()
 
@@ -601,7 +635,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._stop_alarm_dispatch()
 
-        self._get_subplatform_ids()
+        self._turn_off_port()
 
         self._go_inactive()
         self._reset()

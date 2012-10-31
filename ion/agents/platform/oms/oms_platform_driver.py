@@ -511,6 +511,32 @@ class OmsPlatformDriver(PlatformDriver):
 
         return dic_plat  # note: return the dic for the platform
 
+    def turn_on_port(self, port_id):
+        log.debug("%r: turning on port: port_id=%s",
+                  self._platform_id, port_id)
+
+        response = self._oms.turnOnPort(self._platform_id, port_id)
+        log.debug("%r: turnOnPort response: %s",
+            self._platform_id, response)
+
+        dic_plat = self._verify_platform_id_in_response(response)
+        self._verify_port_id_in_response(port_id, dic_plat)
+
+        return dic_plat  # note: return the dic for the platform
+
+    def turn_off_port(self, port_id):
+        log.debug("%r: turning off port: port_id=%s",
+                  self._platform_id, port_id)
+
+        response = self._oms.turnOffPort(self._platform_id, port_id)
+        log.debug("%r: turnOffPort response: %s",
+            self._platform_id, response)
+
+        dic_plat = self._verify_platform_id_in_response(response)
+        self._verify_port_id_in_response(port_id, dic_plat)
+
+        return dic_plat  # note: return the dic for the platform
+
     ###############################################
     # Alarms:
 
