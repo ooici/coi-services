@@ -68,7 +68,7 @@ class Plugin(ParameterPlugin):
             if record['Fill Value']:
                 context.fill_value = self.fill_value(record['Fill Value'], record['Parameter Type'])
             if record['Axis']:
-                context.reference_frame = self.ref_frame(record['Axis'])
+                context.axis = self.ref_frame(record['Axis'])
             for key in self.additional_attrs.iterkeys():
                 if key in record and record[key]:
                     setattr(context,self.additional_attrs[key],record[key])

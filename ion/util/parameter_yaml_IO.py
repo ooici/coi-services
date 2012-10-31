@@ -62,13 +62,13 @@ def build_contexts():
     contexts.append(t_ctxt)
 
     lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
-    lat_ctxt.reference_frame = AxisTypeEnum.LAT
+    lat_ctxt.axis = AxisTypeEnum.LAT
     lat_ctxt.uom = 'degree_north'
     lat_ctxt.fill_value = 0e0
     contexts.append(lat_ctxt)
 
     lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
-    lon_ctxt.reference_frame = AxisTypeEnum.LON
+    lon_ctxt.axis = AxisTypeEnum.LON
     lon_ctxt.uom = 'degree_east'
     lon_ctxt.fill_value = 0e0
     contexts.append(lon_ctxt)
