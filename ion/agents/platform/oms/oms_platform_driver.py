@@ -225,6 +225,19 @@ class OmsPlatformDriver(PlatformDriver):
 
         return build_network_definition(map)
 
+    def get_metadata(self):
+        """
+        """
+        retval = self._oms.getPlatformMetadata(self._platform_id)
+        log.debug("getPlatformMetadata = %s", retval)
+
+        if not self._platform_id in retval:
+            raise PlatformException("Unexpected: response does not include "
+                                    "requested platform '%s'" % self._platform_id)
+
+        md = retval[self._platform_id]
+        return md
+
     def get_attribute_values(self, attr_names, from_time):
         """
         """
@@ -349,14 +362,9 @@ class OmsPlatformDriver(PlatformDriver):
             raise PlatformException(msg=msg)
 
         if response[self._platform_id] == InvalidResponse.PLATFORM_ID:
-            #
-            # TODO Note, this should normally be an error; but I'm just
-            # logging a warning because at this moment there's a mix of
-            # information sources: topology from a dictionary but some other
-            # pieces from OMS, like platform attributes.
-            #
-            log.warn("response reports invalid platform_id for %r", self._platform_id)
-            return None
+            msg = "response reports invalid platform_id for %r" % self._platform_id
+            log.error(msg)
+            raise PlatformException(msg=msg)
         else:
             return response[self._platform_id]
 
@@ -439,6 +447,98 @@ class OmsPlatformDriver(PlatformDriver):
         for resmon in self._monitors.itervalues():
             resmon.stop()
         self._monitors.clear()
+
+    ###############################################
+    # Ports:
+
+    def get_ports(self):
+
+        if self._agent_device_map:
+            return self._get_ports_using_agent_device_map()
+        else:
+            return self._get_ports_using_oms()
+
+    def _get_ports_using_agent_device_map(self):
+        ports = {}
+        for port_id, port in self._nnode.ports.iteritems():
+            ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
+        log.debug("%r: _get_ports_using_agent_device_map: %s",
+              self._platform_id, ports)
+        return ports
+
+    def _get_ports_using_oms(self):
+        log.debug("%r: getting ports", self._platform_id)
+
+        response = self._oms.getPlatformPorts(self._platform_id)
+        log.debug("%r: _get_ports_using_oms: %s",
+            self._platform_id, response)
+
+        ports = self._verify_platform_id_in_response(response)
+
+        return ports
+
+    def _verify_port_id_in_response(self, port_id, dic):
+        """
+        Verifies the presence of port_id in the dic.
+
+        @param dic Dictionary returned by _oms
+
+        @retval dic[port_id]
+        """
+        if not port_id in dic:
+            msg = "unexpected: dic does not contain entry for %r" % port_id
+            log.error(msg)
+            raise PlatformException(msg=msg)
+
+        if dic[port_id] == InvalidResponse.PORT_ID:
+            msg = "%r: response reports invalid port_id for %r" % (
+                                 self._platform_id, port_id)
+            log.error(msg)
+            raise PlatformException(msg=msg)
+        else:
+            return dic[port_id]
+
+    def set_up_port(self, port_id, attributes):
+        log.debug("%r: setting port: port_id=%s attributes=%s",
+                  self._platform_id, port_id, attributes)
+
+        response = self._oms.setUpPort(self._platform_id, port_id, attributes)
+        log.debug("%r: setUpPort response: %s",
+            self._platform_id, response)
+
+        dic_plat = self._verify_platform_id_in_response(response)
+        self._verify_port_id_in_response(port_id, dic_plat)
+
+        return dic_plat  # note: return the dic for the platform
+
+    def turn_on_port(self, port_id):
+        log.debug("%r: turning on port: port_id=%s",
+                  self._platform_id, port_id)
+
+        response = self._oms.turnOnPort(self._platform_id, port_id)
+        log.debug("%r: turnOnPort response: %s",
+            self._platform_id, response)
+
+        dic_plat = self._verify_platform_id_in_response(response)
+        self._verify_port_id_in_response(port_id, dic_plat)
+
+        return dic_plat  # note: return the dic for the platform
+
+    def turn_off_port(self, port_id):
+        log.debug("%r: turning off port: port_id=%s",
+                  self._platform_id, port_id)
+
+        response = self._oms.turnOffPort(self._platform_id, port_id)
+        log.debug("%r: turnOffPort response: %s",
+            self._platform_id, response)
+
+        dic_plat = self._verify_platform_id_in_response(response)
+        self._verify_port_id_in_response(port_id, dic_plat)
+
+        return dic_plat  # note: return the dic for the platform
+
+    ###############################################
+    # Alarms:
 
     def _register_alarm_listener(self, url):
         """

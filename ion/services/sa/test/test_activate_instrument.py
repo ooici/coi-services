@@ -339,8 +339,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 #        #--------------------------------------------------------------------------------
 #        extended_product = self.dpclient.get_data_product_extension(data_product_id1)
 #        self.assertEqual(data_product_id1, extended_product._id)
-#        print "test_activateInstrumentSample: extended_product.computed.last_granule.value %s" % str(extended_product.computed.last_granule.value)
-#        print "test_activateInstrumentSample: extended_product.computed.recent_granules.value %s" % str(extended_product.computed.recent_granules.value)
+#        log.debug( "test_activateInstrumentSample: extended_product.computed.last_granule.value %s", str(extended_product.computed.last_granule.value) )
+#        log.debug( "test_activateInstrumentSample: extended_product.computed.recent_granules.value %s", str(extended_product.computed.recent_granules.value) )
 #        log.debug("test_activateInstrumentSample: extended_product.computed.provenance_product_list.value %s", str(extended_product.computed.provenance_product_list.value) )
 
 

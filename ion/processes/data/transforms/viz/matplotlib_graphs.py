@@ -88,7 +88,9 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
     def on_quit(self):
 
         #Cancel the timer
-        self.ssclient.cancel_timer(self.interval_timer_id)
+        if hasattr(self, 'interval_timer_id'):
+            self.ssclient.cancel_timer(self.interval_timer_id)
+
         super(VizTransformMatplotlibGraphs,self).on_quit()
 
 

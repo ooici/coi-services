@@ -453,9 +453,7 @@ class IONLoader(ImmediateProcess):
         contacts = self._get_contacts(row, field='contact_id', type='Org')
         res_obj = self._create_object_from_row("Org", row, "org/")
         if contacts:
-            if len(contacts)>1:
-                raise iex.BadRequest('Org contact_id should be single value, not list')
-            res_obj.contact = contacts[0]
+            res_obj.contacts = [contacts[0]]
         log.trace("Org: %s", res_obj)
 
         headers = self._get_op_headers(row)

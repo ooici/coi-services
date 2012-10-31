@@ -583,15 +583,26 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def get_parameters(self, data_product_id=''):
         # The set of Parameter objects describing each variable in this data product
-        ret = IonObject(OT.ComputedStringValue)
+        ret = IonObject(OT.ComputedListValue)
         ret.value = []
         try:
-            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
-            if not dataset_ids:
+            stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+            if not stream_ids:
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "There is no Stream associated with this DataProduct"
             else:
-                ret.status = ComputedValueAvailability.PROVIDED
-                ret.value = self.clients.dataset_management.get_dataset_parameters(dataset_ids[0])
+                stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_ids[0], predicate=PRED.hasStreamDefinition, id_only=True)
+                if not stream_def_ids:
+                    ret.status = ComputedValueAvailability.NOTAVAILABLE
+                    ret.reason = "There is no StreamDefinition associated with this DataProduct"
+                else:
+                    param_dict_ids, _ = self.clients.resource_registry.find_objects(subject=stream_def_ids[0], predicate=PRED.hasParameterDictionary, id_only=True)
+                    if not param_dict_ids:
+                        ret.status = ComputedValueAvailability.NOTAVAILABLE
+                        ret.reason = "There is no ParameterDictionary associated with this DataProduct"
+                    else:
+                        ret.status = ComputedValueAvailability.PROVIDED
+                        ret.value = self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0])
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -665,21 +676,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return ret
 
-    def get_descriptors(self, data_product_id=''):
-        # Returns a list of keyword/authority pairs with optional urls
-        ret = IonObject(OT.ComputedListValue)
-        ret.value = []
-        try:
-            ret.status = ComputedValueAvailability.PROVIDED
-            raise NotFound #todo: ret.value = ???
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
-        except Exception as e:
-            raise e
-
-        return ret
-
 
     def get_active_user_subscriptions(self, data_product_id=''):
         # The UserSubscription objects for this data product
@@ -723,7 +719,8 @@ class DataProductManagementService(BaseDataProductManagementService):
                 ret.reason = "No dataset associated with this data product"
             else:
                 replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
-                ret.value = RecordDictionaryTool.load_from_granule(replay_granule)
+                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+                ret.value =  {k : rdt[k] for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
@@ -744,8 +741,9 @@ class DataProductManagementService(BaseDataProductManagementService):
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
                 ret.reason = "No dataset associated with this data product"
             else:
-                replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
-                ret.value = RecordDictionaryTool.load_from_granule(replay_granule)
+                replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0])
+                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+                ret.value =  {k : rdt[k] for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE

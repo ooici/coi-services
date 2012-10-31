@@ -595,13 +595,13 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         org_client = OrgManagementServiceClient(node=self.container.node)
         ion_org = org_client.find_org()
 
-        extended_user = self.identity_management_service.get_actor_identity_extension(user_id, ion_org._id)
-        self.assertEqual(actor_identity_obj.type_,extended_user.resource.type_)
-        self.assertEqual(len(extended_user.roles),1)
-
-        extended_user = self.identity_management_service.get_actor_identity_extension(user_id)
-        self.assertEqual(actor_identity_obj.type_,extended_user.resource.type_)
+        extended_user = self.identity_management_service.get_user_info_extension(user_info)
+        self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
         self.assertEqual(len(extended_user.roles),0)
+
+#        extended_user = self.identity_management_service.get_user_info_extension(user_id)
+#        self.assertEqual(actor_identity_obj.type_,extended_user.resource.type_)
+#        self.assertEqual(len(extended_user.roles),0)
 
         self.identity_management_service.delete_user_info(user_info)
 

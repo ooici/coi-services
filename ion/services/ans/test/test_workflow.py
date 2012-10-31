@@ -4,8 +4,7 @@ import unittest, os
 from nose.plugins.attrib import attr
 
 from pyon.public import CFG, RT, LCS, PRED,IonObject, log
-from pyon.core.exception import BadRequest, Inconsistent
-from pyon.util.containers import DotDict
+
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -20,13 +19,10 @@ from interface.services.ans.iworkflow_management_service import WorkflowManageme
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
-from ion.services.dm.utility.granule import RecordDictionaryTool
-from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
+
 from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
 
 from pyon.util.context import LocalContextMixin
-from pyon.util.poller import poll
-import gevent
 
 
 class FakeProcess(LocalContextMixin):
@@ -66,7 +62,6 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("In progress")
     def test_SA_transform_components(self):
 
         assertions = self.assertTrue
@@ -86,7 +81,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         # Salinity: Data Process Definition
         ctd_L2_salinity_dprocdef_id = self.create_salinity_data_process_definition()
 
-        l2_salinity_all_data_process_id, ctd_l2_salinity_output_dp_id = self.create_transform_process(ctd_L2_salinity_dprocdef_id,ctd_parsed_data_product_id,'salinity' )
+        l2_salinity_all_data_process_id, ctd_l2_salinity_output_dp_id = self.create_transform_process(ctd_L2_salinity_dprocdef_id,ctd_parsed_data_product_id, 'salinity' )
 
         ## get the stream id for the transform outputs
         stream_ids, _ = self.rrclient.find_objects(ctd_l2_salinity_output_dp_id, PRED.hasStream, None, True)
@@ -123,7 +118,6 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @attr('SMOKE')
-    #@unittest.skip("in progress")
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_transform_workflow(self):
 
@@ -140,8 +134,6 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         ctd_L2_salinity_dprocdef_id = self.create_salinity_data_process_definition()
         workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_process_output_data=False)  #Don't persist the intermediate data product
-        configuration = {'stream_name' : 'salinity'}
-        workflow_step_obj.configuration = configuration
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #-------------------------------------------------------------------------------------------------------------------------
@@ -149,9 +141,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         #-------------------------------------------------------------------------------------------------------------------------
 
         salinity_doubler_dprocdef_id = self.create_salinity_doubler_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id, output_data_product_name=workflow_data_product_name, persist_process_output_data=True)
-        configuration = {'stream_name' : 'salinity'}
-        workflow_step_obj.configuration = configuration
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id, )
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -168,7 +158,8 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=300)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id,
+                persist_workflow_data_product=True, output_data_product_name=workflow_data_product_name, timeout=300)
 
         workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_output_ids) == 1 )
@@ -222,7 +213,6 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("in progress")
     def test_google_dt_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -289,7 +279,6 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("in progress")
     def test_mpl_graphs_transform_workflow(self):
 
         assertions = self.assertTrue
@@ -359,7 +348,6 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-    #@unittest.skip("in progress")
     def test_multiple_workflow_instances(self):
 
         assertions = self.assertTrue
@@ -389,7 +377,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         ctd_stream_id2, ctd_parsed_data_product_id2 = self.create_ctd_input_stream_and_data_product('ctd_parsed2')
         data_product_stream_ids.append(ctd_stream_id2)
 
-        #Create and start the first workflow
+        #Create and start the second workflow
         workflow_id2, workflow_product_id2 = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id2, timeout=20)
 
         #Walk the associations to find the appropriate output data streams to validate the messages
