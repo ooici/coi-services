@@ -14,30 +14,42 @@ import pkgutil
 import requests
 import gevent
 
+class ParameterPlugin(object):
+    def __init__(self, config):
+        raise NotImplementedError('Parameter Plugin is an abstract class')
+        
+    def load(self):
+        raise NotImplementedError('Parameter Plugin is an abstract class')
+
+
 class ParameterLoader(object):
     @classmethod 
-    def build_contexts(cls, definitions_path):
+    def build_contexts(cls, definitions_path, loader_config={}):
         '''
         Builds a set of parameter definitions by loading the parameter definition plugins in definitions_path
         '''
-        contexts = __import__(definitions_path)
+        contexts = __import__(definitions_path,fromlist=[''])
 
         package = contexts
         contexts = {}
         for importer, modname, ispkg in pkgutil.walk_packages(package.__path__, package.__name__ + '.'):
-            module = __import__(modname, fromlist='dummy')
-            if not ispkg:
-                cls.load_module(module, contexts)
+            try:
+                module = __import__(modname, fromlist='dummy')
+                if not ispkg:
+                    cls.load_module(module, contexts, loader_config)
+            except Exception as e:
+                print 'Exception %s: %s' %(type(e), e.message)
 
         return contexts
     @classmethod
-    def load_module(cls,module,contexts):
+    def load_module(cls,module,contexts,cfg):
         '''
         Load parameter definition plugin using a module
         '''
-        if hasattr(module,'load'):
+        if hasattr(module,'Plugin') and issubclass(module.Plugin, ParameterPlugin):
             print 'Loading %s' % module.__name__
-            ctxt_list = module.load()
+            plugin = module.Plugin(cfg)
+            ctxt_list = plugin.load()
             if isinstance(ctxt_list, list):
                 ctxt_list = [i for i in ctxt_list if isinstance(i, ParameterContext)]
                 for ctxt in ctxt_list:

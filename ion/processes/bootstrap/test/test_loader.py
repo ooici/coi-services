@@ -30,9 +30,9 @@ class TestLoader(IonIntegrationTestCase):
             if org.name=='RSN':
                 self.assertFalse(found, msg='Found more than one Org "RSN" -- should have preloaded one')
                 found = True
-                self.assertFalse(org.contact is None)
-                self.assertEquals('Delaney', org.contact.individual_name_family)
-                self.assertEquals('primary', org.contact.roles[0])
+                self.assertFalse(org.contacts is None)
+                self.assertEquals('Delaney', org.contacts[0].individual_name_family)
+                self.assertEquals('primary', org.contacts[0].roles[0])
         self.assertTrue(found, msg='Did not find Org "RSN" -- should have been preloaded')
 
         # check data product

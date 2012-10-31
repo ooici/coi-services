@@ -141,7 +141,7 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
         pdict = ParameterDictionary()
 
         t_ctxt = ParameterContext('data', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.axis = AxisTypeEnum.TIME
         t_ctxt.uom = 'seconds since 01-01-1970'
         pdict.add_context(t_ctxt)
 

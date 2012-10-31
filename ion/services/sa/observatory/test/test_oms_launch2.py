@@ -150,8 +150,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # Create PlatformModel
         platformModel_obj = IonObject(RT.PlatformModel,
                                       name='RSNPlatformModel',
-                                      description="RSNPlatformModel",
-                                      model="RSNPlatformModel")
+                                      description="RSNPlatformModel")
         try:
             self.platformModel_id = self.imsclient.create_platform_model(platformModel_obj)
         except BadRequest as ex:
@@ -536,7 +535,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
 
         # wait for alarm event
-        # note: we just wait for one sample -- see consume_data above
+        # note: we just wait for one sample -- see consume_event above
         log.info("waiting for reception of an event...")
         self._async_event_result.get(timeout=EVENT_TIMEOUT)
         log.info("Received events: %s", len(self._events_received))

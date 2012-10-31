@@ -451,7 +451,6 @@ class VisualizationService(BaseVisualizationService):
         if ds_ids is None or not ds_ids:
             return None
 
-        print ">>>>>>>>>>>>>>   QUERY = ", query
         # Ideally just need the latest granule to figure out the list of images
         #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
         retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)

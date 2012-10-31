@@ -32,6 +32,9 @@ from ion.agents.platform.test.helper import ATTR_NAMES
 from ion.agents.platform.test.helper import WRITABLE_ATTR_NAMES
 from ion.agents.platform.test.helper import VALID_ATTR_VALUE
 from ion.agents.platform.test.helper import INVALID_ATTR_VALUE
+from ion.agents.platform.test.helper import PORT_ID
+from ion.agents.platform.test.helper import PORT_ATTR_NAME
+from ion.agents.platform.test.helper import VALID_PORT_ATTR_VALUE
 from ion.agents.platform.test.helper import HelperTestMixin
 
 from pyon.ion.stream import StandaloneStreamSubscriber
@@ -248,6 +251,65 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             retval = self._execute_agent(cmd)
             self.assertEquals("PONG", retval.result)
 
+    def _get_metadata(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_METADATA)
+        retval = self._execute_agent(cmd)
+        md = retval.result
+        self.assertIsInstance(md, dict)
+        # TODO verify possible subset of required entries in the dict.
+        log.info("GET_METADATA = %s", md)
+
+    def _get_ports(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_PORTS)
+        retval = self._execute_agent(cmd)
+        md = retval.result
+        self.assertIsInstance(md, dict)
+        # TODO verify possible subset of required entries in the dict.
+        log.info("GET_PORTS = %s", md)
+
+    def _set_up_port(self):
+        # TODO real settings and corresp verification
+
+        kwargs = dict(
+            port_id = PORT_ID,
+            attributes = { PORT_ATTR_NAME: VALID_PORT_ATTR_VALUE }
+        )
+        cmd = AgentCommand(command=PlatformAgentEvent.SET_UP_PORT, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        result = retval.result
+        log.info("SET_UP_PORT = %s", result)
+        self.assertIsInstance(result, dict)
+        self.assertTrue(PORT_ID in result)
+        self.assertTrue(PORT_ATTR_NAME in result[PORT_ID])
+
+    def _turn_on_port(self):
+        # TODO real settings and corresp verification
+
+        kwargs = dict(
+            port_id = PORT_ID
+        )
+        cmd = AgentCommand(command=PlatformAgentEvent.TURN_ON_PORT, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        result = retval.result
+        log.info("TURN_ON_PORT = %s", result)
+        self.assertIsInstance(result, dict)
+        self.assertTrue(PORT_ID in result)
+        self.assertIsInstance(result[PORT_ID], bool)
+
+    def _turn_off_port(self):
+        # TODO real settings and corresp verification
+
+        kwargs = dict(
+            port_id = PORT_ID
+        )
+        cmd = AgentCommand(command=PlatformAgentEvent.TURN_OFF_PORT, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        result = retval.result
+        log.info("TURN_OFF_PORT = %s", result)
+        self.assertIsInstance(result, dict)
+        self.assertTrue(PORT_ID in result)
+        self.assertIsInstance(result[PORT_ID], bool)
+
     def _get_resource(self):
         kwargs = dict(attr_names=ATTR_NAMES, from_time=time.time())
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
@@ -346,6 +408,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
 
+            PlatformAgentEvent.GET_METADATA,
+            PlatformAgentEvent.GET_PORTS,
+            PlatformAgentEvent.SET_UP_PORT,
+            PlatformAgentEvent.TURN_ON_PORT,
+            PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
 
             PlatformAgentEvent.START_ALARM_DISPATCH,
@@ -424,6 +491,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         agt_cmds_inactive = [
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.GET_METADATA,
+            PlatformAgentEvent.GET_PORTS,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GO_ACTIVE,
             PlatformAgentEvent.PING_RESOURCE,
@@ -497,6 +566,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         agt_cmds_command = [
             PlatformAgentEvent.GO_INACTIVE,
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.GET_METADATA,
+            PlatformAgentEvent.GET_PORTS,
+            PlatformAgentEvent.SET_UP_PORT,
+            PlatformAgentEvent.TURN_ON_PORT,
+            PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_RESOURCE,
@@ -545,8 +619,15 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._ping_agent()
         self._ping_resource()
 
+        self._get_metadata()
+        self._get_ports()
+        self._get_subplatform_ids()
+
         self._get_resource()
         self._set_resource()
+
+        self._set_up_port()
+        self._turn_on_port()
 
         self._start_alarm_dispatch()
 
@@ -554,7 +635,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._stop_alarm_dispatch()
 
-        self._get_subplatform_ids()
+        self._turn_off_port()
 
         self._go_inactive()
         self._reset()

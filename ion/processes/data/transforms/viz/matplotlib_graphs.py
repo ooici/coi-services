@@ -50,8 +50,6 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
 
         graph_time_periods= self.CFG.get_safe('graph_time_periods')
 
-        print ">>>>>>>>>>>>>>>>>>>>> CFG = ", self.CFG.originators
-
         # If this is meant to be an event driven process, schedule an event to be generated every few minutes/hours
         event_timer_interval = self.CFG.get_safe('event_timer_interval')
         if event_timer_interval:
@@ -81,9 +79,6 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
         return
 
     def interval_timer_callback(self, *args, **kwargs):
-
-        print " >>>>>>>>>>>>>>>>>>> EVENT GENERATED <<<<<<<<<<<<<<<<"
-
         #Find out the input data product to this process
 
         # retrieve data for every case of the output graph
@@ -92,7 +87,9 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
     def on_quit(self):
 
         #Cancel the timer
-        self.ssclient.cancel_timer(self.interval_timer_id)
+        if hasattr(self, 'interval_timer_id'):
+            self.ssclient.cancel_timer(self.interval_timer_id)
+
         super(VizTransformMatplotlibGraphs,self).on_quit()
 
 

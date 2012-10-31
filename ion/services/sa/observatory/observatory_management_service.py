@@ -12,7 +12,7 @@ and the relationships between them
 
 
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
-from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE
+from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.containers import DotDict
 
@@ -30,8 +30,8 @@ from interface.services.sa.iobservatory_management_service import BaseObservator
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.objects import OrgTypeEnum
-from interface.objects import ProcessDefinition
+from interface.objects import OrgTypeEnum, ComputedValueAvailability
+
 from pyon.util.containers import create_unique_identifier
 
 import constraint
@@ -1272,10 +1272,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     ############################
 
 
-    def get_observatory_extension(self, observatory_id='', ext_associations=None, ext_exclude=None):
+    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None):
         """Returns an InstrumentDeviceExtension object containing additional related information
 
-        @param observatory_id    str
+        @param site_id    str
         @param ext_associations    dict
         @param ext_exclude    list
         @retval observatory    ObservatoryExtension
@@ -1283,26 +1283,26 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    An object with the specified observatory_id does not exist
         """
 
-        if not observatory_id:
+        if not site_id:
             raise BadRequest("The observatory_id parameter is empty")
 
         extended_resource_handler = ExtendedResourceContainer(self)
 
-        extended_instrument = extended_resource_handler.create_extended_resource_container(
-            OT.ObservatoryExtension,
-            observatory_id,
-            OT.ObservatoryComputedAttributes,
+        extended_site = extended_resource_handler.create_extended_resource_container(
+            OT.SiteExtension,
+            site_id,
+            OT.SiteComputedAttributes,
             ext_associations,
             ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
         #TODO - see if there is a better way to do this in the extended resource frame work.
-        if hasattr(extended_instrument, 'attachments'):
-            for att in extended_instrument.attachments:
+        if hasattr(extended_site, 'attachments'):
+            for att in extended_site.attachments:
                 if hasattr(att, 'content'):
                     delattr(att, 'content')
 
-        return extended_instrument
+        return extended_site
 
 
         #Bogus functions for computed attributes
@@ -1330,3 +1330,23 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def get_number_platforms_deployed(self, observatory_id):
         return "0"
+
+
+    def get_data_products(self, site_id='', ext_associations=None, ext_exclude=None):
+    #Returns a list of data products produced by devices at this Site as well as any site data products
+
+        ret = IonObject(OT.ComputedListValue)
+        retlist = []
+        device_ids, _ =  self.clients.resource_registry.find_objects(subject=site_id ,predicate=PRED.hasDevice, object_type=RT.Device, id_only=True)
+        for device_id in device_ids:
+            product_objs, _ = self.clients.resource_registry.find_objects(subject=device_id ,predicate=PRED.hasOutputProduct, id_only=False)
+            retlist.append( product_objs )
+
+        site_prod_objs = self.clients.resource_registry.find_objects(subject=site_id ,predicate=PRED.hasDataProduct,  id_only=False)
+        retlist.append( site_prod_objs )
+
+        ret.value = retlist
+        ret.status = ComputedValueAvailability.PROVIDED
+        ret.reason = ""
+
+        return ret

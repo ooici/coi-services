@@ -147,7 +147,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
     def test_oms_create_and_launch(self):
 
         # Create PlatformModel
-        platformModel_obj = IonObject(RT.PlatformModel, name='RSNPlatformModel', description="RSNPlatformModel", model="RSNPlatformModel" )
+        platformModel_obj = IonObject(RT.PlatformModel, name='RSNPlatformModel', description="RSNPlatformModel" )
         try:
             platformModel_id = self.imsclient.create_platform_model(platformModel_obj)
         except BadRequest as ex:

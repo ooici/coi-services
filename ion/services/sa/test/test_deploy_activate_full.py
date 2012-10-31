@@ -125,7 +125,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentModel
         #-------------------------------
-        instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel", model="SBE37IMModel",
+        instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel",
                                 stream_configuration= {'raw': 'ctd_raw_param_dict' , 'parsed': 'ctd_parsed_param_dict' })
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)

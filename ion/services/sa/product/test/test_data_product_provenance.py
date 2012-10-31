@@ -19,6 +19,9 @@ from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest 
 from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
+
+from interface.objects import LastUpdate, ComputedValueAvailability
+
 from ion.services.dm.utility.granule_utils import time_series_domain
 import base64
 
@@ -28,7 +31,7 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='saaa')
+@attr('INT', group='sa')
 #@unittest.skip('not working')
 class TestDataProductProvenance(IonIntegrationTestCase):
 
@@ -67,7 +70,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         instModel_obj = IonObject(RT.InstrumentModel,
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
-                                  model="SBE37IMModel",
                                   stream_configuration= {'parsed': 'ctd_parsed_param_dict' } )
 
         try:
@@ -532,6 +534,14 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         density_dict = (provenance_dict[str(ctd_l2_density_output_dp_id)])
         self.assertEquals(density_dict['producer'], [l2_density_all_data_process_id])
 
+
+        #-------------------------------
+        # Retrieve the extended resource for this data product
+        #-------------------------------
+        extended_product = self.dpmsclient.get_data_product_extension(ctd_l2_density_output_dp_id)
+        self.assertEqual(ComputedValueAvailability.PROVIDED, extended_product.computed.provenance_product_list.status)
+        log.debug("TestDataProductProvenance: provenance_product_list  %s", str(extended_product.computed.provenance_product_list.value))
+        #log.debug("TestDataProductProvenance: provenance  %s", str(extended_product.computed.provenance.value))
 
         #-------------------------------
         # Request the xml report

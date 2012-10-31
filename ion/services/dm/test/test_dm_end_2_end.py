@@ -10,6 +10,7 @@ from pyon.datastore.datastore import DataStore
 from pyon.ion.exchange import ExchangeNameQueue
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from pyon.public import RT, log
+from pyon.util.poller import poll
 from pyon.util.int_test import IonIntegrationTestCase
 
 from ion.processes.data.replay.replay_client import ReplayClient
@@ -355,6 +356,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         ingest_config_id = self.get_ingestion_config()
         dataset_id = self.create_dataset(pdict_id)
+        #--------------------------------------------------------------------------------
+        # Again with this ridiculous problem
+        #--------------------------------------------------------------------------------
+        self.get_datastore(dataset_id)
         self.ingestion_management.persist_data_stream(stream_id=ctd_stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
@@ -405,20 +410,36 @@ class TestDMEnd2End(IonIntegrationTestCase):
         
 
         self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
-        success = False
-        with gevent.timeout.Timeout(5):
-            while not success:
 
+
+        success = False
+        def verifier():
                 replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
 
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
 
                 comp = rdt['time'] == np.arange(10) + 10
                 if not isinstance(comp,bool):
-                    success = comp.all()
-                gevent.sleep(1)
+                    return comp.all()
+                return False
+        success = poll(verifier)
 
         self.assertTrue(success)
+
+        success = False
+        def verify_points():
+                replay_granule = self.data_retriever.retrieve_last_data_points(dataset_id,5)
+
+                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+
+                comp = rdt['time'] == np.arange(15,20)
+                if not isinstance(comp,bool):
+                    return comp.all()
+                return False
+        success = poll(verify_points)
+
+        self.assertTrue(success)
+
 
 
     def test_replay_with_parameters(self):

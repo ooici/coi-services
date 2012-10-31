@@ -109,6 +109,10 @@ class DatasetManagementService(BaseDatasetManagementService):
         coverage = self._get_coverage(dataset_id)
         return coverage.parameter_dictionary.dump()
 
+    def get_dataset_length(self, dataset_id=''):
+        coverage = self._get_coverage(dataset_id)
+        return coverage.num_timesteps
+
 #--------
 
     def create_parameter_context(self, name='', parameter_context=None, description=''):
@@ -273,7 +277,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         pdict = ParameterDictionary()
         for context in contexts:
             if context.name == temporal:
-                context.reference_frame = AxisTypeEnum.TIME
+                context.axis = AxisTypeEnum.TIME
                 pdict.add_context(context, is_temporal=True)
             else:
                 pdict.add_context(context)

@@ -230,8 +230,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.addCleanup(xq1.delete)
         xq2 = self.container.ex_manager.create_xn_queue(user_queue_name2)
         self.addCleanup(xq2.delete)
-        self.container.ex_manager.purge_queue(xq1.queue)
-        self.container.ex_manager.purge_queue(xq2.queue)
+        xq1.purge()
+        xq2.purge()
 
         # the create_subscription call takes a list of stream_ids so create temp ones
 
@@ -271,7 +271,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         for x in range(min(len(msgs1), len(msgs2))):
             msgs1[x].ack()
             msgs2[x].ack()
-            self.validate_multiple_vis_queue_messages(msgs1[x].body, msgs2[x].body)
+            self.validate_multiple_vis_queue_messages(msgs1[x], msgs2[x])
 
         # kill the ctd simulator process - that is enough data
         self.process_dispatcher.cancel_process(ctd_sim_pid)
@@ -279,8 +279,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         # close the subscription and queues
         subscriber1.close()
         subscriber2.close()
-        #self.container.ex_manager.delete_xn(xq1)
-        #self.container.ex_manager.delete_xn(xq2)
 
         return
 
