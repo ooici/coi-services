@@ -720,7 +720,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             else:
                 replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                ret.value =  {k : rdt[k] for k,v in rdt.iteritems()}
+                ret.value =  {k : rdt[k].tolist() for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
@@ -743,7 +743,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             else:
                 replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0])
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                ret.value =  {k : rdt[k] for k,v in rdt.iteritems()}
+                ret.value =  {k : rdt[k].tolist() for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
