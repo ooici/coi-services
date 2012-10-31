@@ -210,8 +210,8 @@ class TransformDataProcess(TransformStreamListener, TransformStreamPublisher):
                 stream_route = pubsub_cli.read_stream_route(v)
                 queue_name = re.sub(r'[ -]', '_', self.queue_name)
 
-                print 'DOT>> %s -> %s' %( queue_name, stream_route.routing_key.strip('.stream'))
-    
+                dot.info('   %s -> %s' %( queue_name, stream_route.routing_key.strip('.stream')))
+
     def on_quit(self):
         super(TransformDataProcess, self).on_quit()
 
