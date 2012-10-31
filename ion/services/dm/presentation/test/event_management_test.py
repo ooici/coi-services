@@ -18,7 +18,6 @@ from mock import Mock, mocksignature
 from nose.plugins.attrib import attr
 import unittest
 
-#@unittest.skip('Skipping before tests get completed')
 @attr('UNIT',group='dm')
 class EventManagementTest(PyonTestCase):
     def setUp(self):
@@ -145,7 +144,7 @@ class EventManagementTest(PyonTestCase):
 
         self.assertEquals(pid, 'pid')
 
-    @unittest.skip("The method for the test has not yet been implemented")
+    @unittest.skip("The method to be tested has not yet been implemented")
     def test_update_event_process(self):
         """
         Test updating an event process

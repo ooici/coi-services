@@ -150,6 +150,11 @@ class EventManagementService(BaseEventManagementService):
         # Schedule the process
         pid = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id)
 
+        #todo check if using the pid is correct
+        self.clients.resource_registry.create_association(  subject=pid,
+                                                            predicate=PRED.hasProcessDefinition,
+                                                            object=process_definition_id)
+
         return pid
 
     def update_event_process(self):
