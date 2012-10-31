@@ -95,7 +95,6 @@ class EventManagementTest(PyonTestCase):
                                                                     arguments='arguments')
 
         self.assertEquals(procdef_id, 'procdef_id')
-        self.mock_pd_client.schedule_process.assert_called_once_with('procdef_id', None, {}, '', '')
 
     def test_update_event_process_definition(self):
         """
@@ -137,19 +136,33 @@ class EventManagementTest(PyonTestCase):
         """
         Test creating an event process
         """
-        self.mock_pd_client.schedule_process=mocksignature(self.mock_pd_client.schedule_process)
-        self.mock_pd_client.schedule_process.return_value = 'pid'
+        process_definition = ProcessDefinition(name='test')
 
-        pid = self.event_management.create_event_process()
+        self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
+        self.mock_rr_client.read.return_value = process_definition
 
-        self.assertEquals(pid, 'pid')
+        self.mock_rr_client.find_objects = Mock()
+        self.mock_rr_client.find_objects.return_value = ['stream_id_1']
+
+        self.mock_pd_client.schedule_process = Mock()
+        self.mock_pd_client.schedule_process.return_value = 'process_id'
+
+        self.mock_rr_client.create_association = mocksignature(self.mock_rr_client.create_association)
+
+        pid = self.event_management.create_event_process(process_definition_id='proc_Def_id',
+            event_types=['type_1', 'type_2'],
+            sub_types=['subtype_1', 'subtype_2'],
+            origins=['or_1', 'or_2'],
+            origin_types=['t1', 't2'],
+        )
+
+        self.assertEquals(pid, 'process_id')
 
     @unittest.skip("The method to be tested has not yet been implemented")
     def test_update_event_process(self):
         """
         Test updating an event process
         """
-        #todo What the update_event_process() should do has not yet been decided
         pass
 
     def test_read_event_process(self):
@@ -172,18 +185,21 @@ class EventManagementTest(PyonTestCase):
 
         self.mock_rr_client.delete.assert_called_once_with('event_process_id')
 
+    @unittest.skip("The method to be tested has not yet been implemented")
     def test_activate_event_process(self):
         """
         Test activating an event process
         """
         pass
 
+    @unittest.skip("The method to be tested has not yet been implemented")
     def test_deactivate_event_process(self):
         """
         Test deactivating an event process
         """
         pass
 
+    @unittest.skip("The method to be tested has not yet been implemented")
     def update_event_process_inputs(self):
         """
         Test updating event process inputs
@@ -269,13 +285,19 @@ class EventManagementIntTest(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             self.event_management.read_event_process_definition(procdef_id)
 
-    def test_create_read_update_delete_event_process(self):
+    def test_create_read_delete_event_process(self):
         """
         Test that the CRUD methods for the event processes work correctly
         """
 
-        pass
+        # Create a process definition
 
+
+        # Use the process definition to create a process
+
+
+
+    @unittest.skip("Not yet implemented in R 2.0")
     def test_activate_deactivate_data_process(self):
         """
         Test that the activation and deactivation of event processes happens correctly
@@ -283,6 +305,7 @@ class EventManagementIntTest(IonIntegrationTestCase):
 
         pass
 
+    @unittest.skip("Not yet implemented in R 2.0")
     def test_update_event_process_inputs(self):
         """
         Test that the event process inputs can be correctly updated

@@ -5,11 +5,12 @@
 @description Implementation of the EventManagementService
 '''
 
-from pyon.public import log
+from pyon.public import log, PRED, RT
 from pyon.core.exception import BadRequest
 from pyon.util.containers import create_unique_identifier, DotDict
 from interface.services.dm.ievent_management_service import BaseEventManagementService
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import ProcessDefinition, EventProcessDetail
 import time
 from datetime import datetime
@@ -25,7 +26,7 @@ class EventManagementService(BaseEventManagementService):
     def on_start(self):
         super(EventManagementService, self).on_start()
         self.clients.process_dispatcher = ProcessDispatcherServiceClient()
-
+        self.clients.data_acquisition_management = DataAcquisitionManagementServiceClient
 
     def on_quit(self):
         """
@@ -106,9 +107,9 @@ class EventManagementService(BaseEventManagementService):
         process_definition = ProcessDefinition(name=create_unique_identifier('event_process'))
         process_definition.executable = {
             'module':module,
-            'class': class_name
+            'class': class_name,
+            'url': uri
         }
-        process_definition.url = uri
         process_definition.version = version
         process_definition.arguments = arguments
         process_definition.definition = event_process_detail
@@ -226,6 +227,11 @@ class EventManagementService(BaseEventManagementService):
                                                             predicate=PRED.hasProcessDefinition,
                                                             object=process_definition_id)
 
+        # Register the process as a data producer
+        #todo Need to update data acquisition management so that it can register an event process
+        # todo(contd) ... which is of Process type and not DataProcess type
+#        self.clients.data_acquisition_management.register_process(process_id)
+
         return process_id
 
     def update_event_process(self):
@@ -243,72 +249,6 @@ class EventManagementService(BaseEventManagementService):
         """
 
         raise NotImplementedError('Not implemented for R2.0')
-
-
-        #----------------------------------------------
-        # Update the process definition
-        #----------------------------------------------
-
-#        process_definition_ids, _ = self.clients.resource_registry.find_objects(   subject=event_process_id,
-#                                                                            predicate=PRED.hasProcessDefinition,
-#                                                                            object_type=RT.ProcessDefinition,
-#                                                                            id_only=True)
-#        log.debug("process definition ids: %s" % process_definition_ids)
-#
-#        process_definition_id = process_definition_ids[0]
-#
-#        process_definition = self.clients.resource_registry.read(process_definition_id)
-#
-#        event_process_detail = process_definition.definition or EventProcessDetail()
-#        event_process_detail.event_types = event_types
-#        event_process_detail.sub_types = sub_types
-#        event_process_detail.origins = origins
-#        event_process_detail.origin_types = origin_types
-#
-#        # Include the updated event process detail
-#        process_definition.definition = event_process_detail
-#
-#        #----------------------------------------------
-#        # Update the process config
-#        #----------------------------------------------
-#
-#        process = self.clients.resource_registry.read(event_process_id)
-#
-#        config = process.process_configuration or DotDict()
-#        config.process.event_types = event_types
-#        config.process.sub_types = sub_types
-#        config.process.origins = origins
-#        config.process.origin_types = origin_types
-#
-#        process.process_configuration = config
-
-#####----------------
-
-#        subscription_id = data_process_obj.input_subscription_id
-#        was_active = False
-#        if subscription_id:
-#            # get rid of all the current streams
-#            try:
-#                log.debug("Deactivating subscription '%s'", subscription_id)
-#                self.clients.pubsub_management.deactivate_subscription(subscription_id)
-#                was_active = True
-#
-#            except BadRequest:
-#                log.info('Subscription was not active')
-#
-#            self.clients.pu.delete_subscription(subscription_id)
-#
-#        new_subscription_id = self.clients.pubsub_management.create_subscription(data_process_obj.name,
-#            stream_ids=in_stream_ids)
-#        data_process_obj.input_subscription_id = new_subscription_id
-#
-#        if was_active:
-#            log.debug("Activating subscription '%s'", new_subscription_id)
-#            self.clients.pubsub_management.activate_subscription(new_subscription_id)
-#
-
-#        self.clients.resource_registry.update(process)
-
 
     def read_event_process(self, event_process_id=''):
         """
