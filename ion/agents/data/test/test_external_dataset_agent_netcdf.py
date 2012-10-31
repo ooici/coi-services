@@ -172,17 +172,17 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
         pdict = ParameterDictionary()
 
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.axis = AxisTypeEnum.TIME
         t_ctxt.uom = 'seconds since 01-01-1970'
         pdict.add_context(t_ctxt)
 
         lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.axis = AxisTypeEnum.LAT
         lat_ctxt.uom = 'degree_north'
         pdict.add_context(lat_ctxt)
 
         lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.axis = AxisTypeEnum.LON
         lon_ctxt.uom = 'degree_east'
         pdict.add_context(lon_ctxt)
 
