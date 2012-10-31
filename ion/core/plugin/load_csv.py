@@ -63,16 +63,16 @@ class Plugin(ParameterPlugin):
             return list(reader)
 
     def build_context(self,record):
-            context = ParameterContext(name=record['Name'], param_type=self.param_type(record['Parameter Type']))
-            context.uom = record['Unit of Measure']
-            if record['Fill Value']:
-                context.fill_value = self.fill_value(record['Fill Value'], record['Parameter Type'])
-            if record['Axis']:
-                context.axis = self.ref_frame(record['Axis'])
-            for key in self.additional_attrs.iterkeys():
-                if key in record and record[key]:
-                    setattr(context,self.additional_attrs[key],record[key])
-            return context
+        context = ParameterContext(name=record['Name'], param_type=self.param_type(record['Parameter Type']))
+        context.uom = record['Unit of Measure']
+        if record['Fill Value']:
+            context.fill_value = self.fill_value(record['Fill Value'], record['Parameter Type'])
+        if record['Axis']:
+            context.axis = self.ref_frame(record['Axis'])
+        for key in self.additional_attrs.iterkeys():
+            if key in record and record[key]:
+                setattr(context,self.additional_attrs[key],record[key])
+        return context
 
 
     def param_type(self,s):
