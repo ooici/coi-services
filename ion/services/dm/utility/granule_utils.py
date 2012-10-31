@@ -151,19 +151,19 @@ class CoverageCraft(object):
         '''
         pdict = ParameterDictionary()
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
-        t_ctxt.reference_frame = AxisTypeEnum.TIME
+        t_ctxt.axis = AxisTypeEnum.TIME
         t_ctxt.uom = 'seconds since 1970-01-01'
         t_ctxt.fill_value = 0x0
         pdict.add_context(t_ctxt)
 
         lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.float32))
-        lat_ctxt.reference_frame = AxisTypeEnum.LAT
+        lat_ctxt.axis = AxisTypeEnum.LAT
         lat_ctxt.uom = 'degree_north'
         lat_ctxt.fill_value = 0e0
         pdict.add_context(lat_ctxt)
 
         lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.float32))
-        lon_ctxt.reference_frame = AxisTypeEnum.LON
+        lon_ctxt.axis = AxisTypeEnum.LON
         lon_ctxt.uom = 'degree_east'
         lon_ctxt.fill_value = 0e0
         pdict.add_context(lon_ctxt)
