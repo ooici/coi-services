@@ -470,16 +470,20 @@ class PlatformAgent(ResourceAgent):
                      self._platform_id, stream_name)
             return
 
+        param_name =  driver_event.attr_id
+        param_value = driver_event.value
+
         param_dict = self._param_dicts[stream_name]
         stream_def = self._stream_defs[stream_name]
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
-        # because currently using param-dict for 'ctd_raw_param_dict',
-        # the following are invalid:
-#        rdt['value'] =  numpy.array([driver_event._value])
+        if param_name not in rdt:
+            # TODO can it just be skipped without any warning of logging? (as in InstrumentAgent)
+            log.warn('%r: got attribute value event for unconfigured parameter %r in stream %s',
+                     self._platform_id, param_name, stream_name)
+            return
 
-        # ... so, simply fill in 'raw':
-        rdt['raw'] =  numpy.array([driver_event._value])
+        rdt[param_name] = numpy.array([param_value])
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
