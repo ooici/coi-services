@@ -1,20 +1,20 @@
 #!/usr/bin/env python
 
-"""Process that loads ION resources via service calls based on given definitions
+"""Process that loads ION resources via service calls based on definitions in spreadsheets using loader functions.
 
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master scenario=R2_DEMO
 
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls" scenario=R2_DEMO
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
 
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
 
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True assets=res/preload/r2_ioc/ooi_assets
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadui=True
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadooi path=res/preload/r2_ioc scenario=R2_DEMO,SCALE_TEST
+
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=parseooi assets=res/preload/r2_ioc/ooi_assets
 
     ui_path= override location to get UI preload files (default is path + '/ui_assets')
     assets= override location to get OOI asset file (default is path + '/ooi_assets')
@@ -27,19 +27,20 @@
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 
 import ast
+import calendar
 import csv
 import re
 import requests
 import StringIO
 import time
-import calendar
-from interface import objects
+import xlrd
 
 from pyon.core.bootstrap import get_service_registry
 from pyon.core.exception import NotFound
 from pyon.ion.resource import get_restype_lcsm
 from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any, get_ion_ts
+from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
 from coverage_model.parameter import ParameterContext
@@ -51,6 +52,8 @@ try:
     import xlrd
 except:
     log.warning('failed to import xlrd, cannot use http path')
+
+from interface import objects
 
 DEBUG = True
 
@@ -65,10 +68,8 @@ TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydF9rai1nU
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
 
-class IONLoader(ImmediateProcess):
-    """
-    """
 
+class IONLoader(ImmediateProcess):
     COL_SCENARIO = "Scenario"
     COL_ID = "ID"
     COL_OWNER = "owner_id"
@@ -106,36 +107,36 @@ class IONLoader(ImmediateProcess):
         self._preload_ids()
 
         log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, self.path, scenarios))
-        if op:
-            if op == "load":
-                if not scenarios:
-                    raise iex.BadRequest("Must provide scenarios to load: scenario=sc1,sc2,...")
+        if not op:
+            raise iex.BadRequest("No operation specified")
 
-                if self.loadooi:
-                    self.extract_ooi_assets()
-                if self.loadui:
-                    specs_path = 'interface/ui_specs.json' if self.exportui else None
-                    self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
+        if op == "load":
+            if not scenarios:
+                raise iex.BadRequest("Must provide scenarios to load: scenario=sc1,sc2,...")
 
-                # Load existing resources by preload ID
-                self._prepare_incremental()
-
-                items = scenarios.split(',')
-                for scenario in items:
-                    self.load_ion(scenario)
-            elif op == "loadooi":
+            if self.loadooi:
                 self.extract_ooi_assets()
-            elif op == "loadooi1":
-                self.extract_ooi_assets1()
-            elif op == "loadui":
+            if self.loadui:
                 specs_path = 'interface/ui_specs.json' if self.exportui else None
                 self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
-            elif op == "deleteui":
-                self.ui_loader.delete_ui()
-            else:
-                raise iex.BadRequest("Operation unknown")
+
+            # Load existing resources by preload ID
+            self._prepare_incremental()
+
+            items = scenarios.split(',')
+            for scenario in items:
+                self.load_ion(scenario)
+        elif op == "parseooi":
+            self.extract_ooi_assets()
+        elif op == "parseooi1":
+            self.extract_ooi_assets1()
+        elif op == "loadui":
+            specs_path = 'interface/ui_specs.json' if self.exportui else None
+            self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
+        elif op == "deleteui":
+            self.ui_loader.delete_ui()
         else:
-            raise iex.BadRequest("No operation specified")
+            raise iex.BadRequest("Operation unknown")
 
     def on_quit(self):
         pass
@@ -164,13 +165,12 @@ class IONLoader(ImmediateProcess):
                       'InstrumentAgent',
                       'InstrumentAgentInstance',
                       'DataProcessDefinition',
-                      #'IngestionConfiguration',
-                      'DataProduct',
-                      'DataProcess',
-                      'DataProductLink',
+#                      'DataProduct',
+#                      'DataProcess',
+#                      'DataProductLink',
                       'Attachment',
-                      'WorkflowDefinition',
-                      'Workflow',
+#                      'WorkflowDefinition',
+#                      'Workflow',
                       'Deployment', ]
 
 
@@ -1197,6 +1197,10 @@ class IONLoader(ImmediateProcess):
         li['port_max_depth'] = row["PortMaxDepth"]
 
     def extract_ooi_assets1(self):
+        """
+        Parses SAF Instrument Application export CSV files into intermediate memory structures.
+        This information can later be loaded in to actual load_ion() function.
+        """
         if not self.asset_path:
             raise iex.BadRequest("Must provide path for assets: path=dir or assets=dir")
         if self.asset_path.startswith('http'):
@@ -1204,15 +1208,25 @@ class IONLoader(ImmediateProcess):
 
         log.info("Parsing OOI assets from path=%s", self.asset_path)
 
-        categories = [ 'AttributeReportClass',
+        categories = [ # Core concept attributes
+                       'AttributeReportArrays',
+                       'AttributeReportClass',
                        'AttributeReportDataProducts',
+                       'AttributeReportFamilies',
                        'AttributeReportMakeModel',
+                       'AttributeReportNodes',
                        'AttributeReportPorts',
                        'AttributeReportReferenceDesignator',
+                       'AttributeReportSeries',
+                       'AttributeReportSites',
+                       'AttributeReportSubseries',
                        'AttributeReportSubsites',
-                       'InstrumentTableDetailed',
-                       'InstrumentCatalogFull']
+                       # Additional attributes and links out of aggregate reports
+                       'InstrumentCatalogFull',
+                       'DataQCLookupTables',
+                       'DataProductSpreadsheet']
 
+        # These variables hold the representations of parsed OOI assets
         self.ooi_objects = {}
         self.ooi_obj_attrs = {}
         self.warnings = []
@@ -1220,8 +1234,7 @@ class IONLoader(ImmediateProcess):
         for category in categories:
             row_do, row_skip = 0, 0
 
-            funcname = "_parse_%s" % category
-            catfunc = getattr(self, funcname)
+            catfunc = getattr(self, "_parse_%s" % category)
             filename = "%s/%s.csv" % (self.asset_path, category)
             log.debug("Loading category %s from file %s", category, filename)
             try:
@@ -1232,9 +1245,8 @@ class IONLoader(ImmediateProcess):
                     reader = csv.DictReader(csvfile, delimiter=',')
                     for row in reader:
                         row_do += 1
-
                         catfunc(row)
-            except IOError, ioe:
+            except IOError as ioe:
                 log.warn("OOI asset file %s error: %s" % (filename, str(ioe)))
 
             log.debug("Loaded assets %s: %d rows read" % (category, row_do))
@@ -1250,6 +1262,7 @@ class IONLoader(ImmediateProcess):
             #print "\n".join(sorted(list(self.ooi_obj_attrs[ot])))
 
     def _add_object_attribute(self, objtype, objid, key, value, **kwargs):
+        """Add a single attribute to an identified object of given type. Create object/type on first occurrence"""
         if objtype not in self.ooi_objects:
             self.ooi_objects[objtype] = {}
         ot_objects = self.ooi_objects[objtype]
@@ -1275,34 +1288,111 @@ class IONLoader(ImmediateProcess):
                 obj_entry[okey] = oval
             ot_obj_attrs.add(okey)
 
+    # Note: The following _parse_AttributeReport* function parse decomposed CSV files. Every attribute is in
+    # its own row. There are, however, "static" attributes that are repeated with each attribute row.
+
+    def _parse_AttributeReportArrays(self, row):
+        ooi_rd = OOIReferenceDesignator(row['Array'])
+        if ooi_rd.error or not ooi_rd.rd_type == "asset" or not ooi_rd.rd_subtype == "array":
+            msg = "invalid_rd: %s is not an array reference designator" % (ooi_rd.rd)
+            self.warnings.append((ooi_rd.rd, msg))
+            return
+        self._add_object_attribute('array',
+            ooi_rd.rd, row['Attribute'], row['AttributeValue'],
+            Array_Name=row['Array_Name'])
+
     def _parse_AttributeReportClass(self, row):
+        ooi_rd = OOIReferenceDesignator(row['Class'])
+        if ooi_rd.error or not ooi_rd.rd_type == "inst_class":
+            msg = "invalid_rd: %s is not an instrument class reference designator" % (ooi_rd.rd)
+            self.warnings.append((ooi_rd.rd, msg))
+            return
         self._add_object_attribute('class',
-            row['Class'], row['Attribute'], row['AttributeValue'],
+            ooi_rd.rd, row['Attribute'], row['AttributeValue'],
             Class_Name=row['Class_Name'])
 
     def _parse_AttributeReportDataProducts(self, row):
+        ooi_rd = OOIReferenceDesignator(row['Data_Product_Identifier'])
+        if ooi_rd.error or not ooi_rd.rd_type == "dataproduct":
+            msg = "invalid_rd: %s is not a data product reference designator" % (ooi_rd.rd)
+            self.warnings.append((ooi_rd.rd, msg))
+            return
         self._add_object_attribute('data_product',
-            row['Data_Product_Identifier'], row['Attribute'], row['AttributeValue'],
+            ooi_rd.rd, row['Attribute'], row['AttributeValue'],
             Data_Product_Name=row['Data_Product_Name'], Data_Product_Level=row['Data_Product_Level'])
 
+    def _parse_AttributeReportFamilies(self, row):
+        self._add_object_attribute('family',
+            row['Family'], row['Attribute'], row['AttributeValue'],
+            Family_Name=row['Family_Name'])
+
     def _parse_AttributeReportMakeModel(self, row):
-        self._add_object_attribute('model',
+        self._add_object_attribute('makemodel',
             row['Make_Model'], row['Attribute'], row['Attribute_Value'],
             Manufacturer=row['Manufacturer'], Make_Model_Description=row['Make_Model_Description'])
 
+    def _parse_AttributeReportNodes(self, row):
+        ooi_rd = OOIReferenceDesignator(row['Node'])
+        if ooi_rd.error or not ooi_rd.rd_type == "asset" or not ooi_rd.rd_subtype == "node":
+            msg = "invalid_rd: %s is not a node designator" % (ooi_rd.rd)
+            self.warnings.append((ooi_rd.rd, msg))
+            return
+        self._add_object_attribute('node',
+            ooi_rd.rd, row['Attribute'], row['AttributeValue'],
+            Node_Type=row['Node_Type'], Node_Site_Sequence=row['Node_Site_Sequence'])
+
     def _parse_AttributeReportPorts(self, row):
+        ooi_rd = OOIReferenceDesignator(row['Port'])
+        if ooi_rd.error or not ooi_rd.rd_type == "asset" or not ooi_rd.rd_subtype == "port":
+            msg = "invalid_rd: %s is not a port designator" % (ooi_rd.rd)
+            self.warnings.append((ooi_rd.rd, msg))
+            return
         self._add_object_attribute('port',
-            row['Port'], row['Attribute'], row['AttributeValue'])
+            ooi_rd.rd, row['Attribute'], row['AttributeValue'])
 
     def _parse_AttributeReportReferenceDesignator(self, row):
-        self._add_object_attribute('sensor',
-            row['Reference_Designator'], row['Attribute'], row['AttributeValue'], Class=row['Class'])
+        ooi_rd = OOIReferenceDesignator(row['Reference_Designator'])
+        if ooi_rd.error or not ooi_rd.rd_type == "asset" or not ooi_rd.rd_subtype == "instrument":
+            msg = "invalid_rd: %s is not an instrument designator" % (ooi_rd.rd)
+            self.warnings.append((ooi_rd.rd, msg))
+            return
+        self._add_object_attribute('instrument',
+            ooi_rd.rd, row['Attribute'], row['AttributeValue'],
+            Class=row['Class'])
+
+    def _parse_AttributeReportSeries(self, row):
+        key = row['Class'] + "_" + row['Series']
+        self._add_object_attribute('series',
+            key, row['Attribute'], row['AttributeValue'],
+            Series=row['Series'], Series_Name=row['Series_Name'], Class=row['Class'])
+
+    def _parse_AttributeReportSites(self, row):
+        ooi_rd = OOIReferenceDesignator(row['Site'])
+        if ooi_rd.error or not ooi_rd.rd_type == "asset" or not ooi_rd.rd_subtype == "site":
+            msg = "invalid_rd: %s is not a site designator" % (ooi_rd.rd)
+            self.warnings.append((ooi_rd.rd, msg))
+            return
+        self._add_object_attribute('site',
+            ooi_rd.rd, row['Attribute'], row['AttributeValue'], Site_Name=row['Site_Name'])
+
+    def _parse_AttributeReportSubseries(self, row):
+        key = row['Class'] + "_" + row['Series'] + "_" + row['Subseries']
+        self._add_object_attribute('subseries',
+            key, row['Attribute'], row['AttributeValue'], Subseries=row['Subseries'], Subseries_Name=row['Subseries_Name'], Class=row['Class'])
 
     def _parse_AttributeReportSubsites(self, row):
+        ooi_rd = OOIReferenceDesignator(row['Subsite'])
+        if ooi_rd.error or not ooi_rd.rd_type == "asset" or not ooi_rd.rd_subtype == "subsite":
+            msg = "invalid_rd: %s is not a subsite designator" % (ooi_rd.rd)
+            self.warnings.append((ooi_rd.rd, msg))
+            return
         self._add_object_attribute('subsite',
-            row['Subsite'], row['Attribute'], row['AttributeValue'], Subsite_Name=row['Subsite_Name'])
+            ooi_rd.rd, row['Attribute'], row['AttributeValue'], Subsite_Name=row['Subsite_Name'])
 
     def _parse_InstrumentTableDetailed(self, row):
+        """
+        This adds additional attributes to "instruments" from the detailed table.
+        """
         refid = row['ReferenceDesignator']
         entry = dict(
             observatory_id=row['LArray_PublicID'],
@@ -1315,6 +1405,8 @@ class IONLoader(ImmediateProcess):
             refid, None, None, **entry)
 
     def _parse_InstrumentCatalogFull(self, row):
+        # This adds the subseries to current sensors and make/model. Also lists node types
+
         #		LSlot_InstrumentSequence			MMInstrument_Manufacturer	MMInstrument_PublicID	MMInstrument_Description	First_Deployment_Date
         refid = row['ReferenceDesignator']
         entry = dict(
@@ -1343,8 +1435,6 @@ class IONLoader(ImmediateProcess):
         self._add_object_attribute('nodetype',
             ntype_id, None, None, description=ntype_desc)
 
-    def _scan_ooi_reference_designators(self):
-        pass
 
 class XLSParser(object):
 
@@ -1397,6 +1487,5 @@ class XLSParser(object):
 
     def utf8ize(self, l):
         return [unicode(s).encode("utf-8") if hasattr(s,'encode') else s for s in l]
-
 
 
