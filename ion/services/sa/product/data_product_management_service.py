@@ -128,8 +128,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # suspend persistence
         #--------------------------------------------------------------------------------
-        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
-        if self.clients.ingestion_management.is_persisted(stream_ids[0]):
+        if self.is_persisted(data_product_id):
             self.suspend_data_product_persistence(data_product_id)
         #--------------------------------------------------------------------------------
         # remove stream associations
@@ -233,15 +232,11 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
 
         # find datasets for the data product
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
-
-        log.debug("Found the following datasets: %s, for the data product: %s" % (dataset_ids, data_product_id))
-
-        for dataset_id in dataset_ids:
-            log.debug("Activating data product persistence for dataset_id: %s"  % str(dataset_id))
-            dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
-                                                    ingestion_configuration_id=ingestion_configuration_id,
-                                                    dataset_id=dataset_id)
+        dataset_id = self._get_dataset_id(data_product_id)
+        log.debug("Activating data product persistence for dataset_id: %s"  % str(dataset_id))
+        dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
+                                                ingestion_configuration_id=ingestion_configuration_id,
+                                                dataset_id=dataset_id)
 
         #--------------------------------------------------------------------------------
         # todo: dataset_configuration_obj contains the ingest config for now...
@@ -249,6 +244,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         data_product_obj.dataset_configuration_id = ingestion_configuration_id
         self.update_data_product(data_product_obj)
+
+
+
+    def is_persisted(self, data_product_id=''):
+        # Is the data product currently persisted into a data set?
+        stream_id = self._get_stream_id(data_product_id)
+        return self.clients.ingestion_management.is_persisted(stream_id)
 
 
 
@@ -275,11 +277,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         # get the Stream associated with this data product; if no stream then create one, if multiple streams then Throw
         #streams = self.data_product.find_stemming_stream(data_product_id)
         #--------------------------------------------------------------------------------
-        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
-        validate_is_not_none(stream_ids, 'Data Product %s must have one stream associated' % str(data_product_id))
+        stream_id = self._get_stream_id(data_product_id)
+        validate_is_not_none(stream_id, 'Data Product %s must have one stream associated' % str(data_product_id))
 
-        for stream_id in stream_ids:
-            ret = self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=data_product_obj.dataset_configuration_id)
+        ret = self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=data_product_obj.dataset_configuration_id)
 
         #--------------------------------------------------------------------------------
         # detach the dataset from this data product
@@ -481,8 +482,15 @@ class DataProductManagementService(BaseDataProductManagementService):
                 continue
         return retval
 
+    def _get_dataset_id(self, data_product_id=''):
+        # find datasets for the data product
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
+        return dataset_ids[0]
 
-
+    def _get_stream_id(self, data_product_id=''):
+        # find datasets for the data product
+        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
+        return stream_ids[0]
 
     ############################
     #
@@ -586,12 +594,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = IonObject(OT.ComputedListValue)
         ret.value = []
         try:
-            stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
-            if not stream_ids:
+            stream_id = self._get_stream_id(data_product_id)
+            if not stream_id:
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
                 ret.reason = "There is no Stream associated with this DataProduct"
             else:
-                stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_ids[0], predicate=PRED.hasStreamDefinition, id_only=True)
+                stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition, id_only=True)
                 if not stream_def_ids:
                     ret.status = ComputedValueAvailability.NOTAVAILABLE
                     ret.reason = "There is no StreamDefinition associated with this DataProduct"
