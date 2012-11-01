@@ -9,14 +9,17 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
 from pyon.public import IonObject, RT, log
 from pyon.core.exception import NotFound, BadRequest
-
+from pyon.event.event import EventPublisher
+from pyon.ion.stream import StandaloneStreamSubscriber
 from ion.services.dm.presentation.event_management_service import EventManagementService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ievent_management_service import EventManagementServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import PlatformEvent, EventType, ProcessDefinition
 from mock import Mock, mocksignature
 from nose.plugins.attrib import attr
-import unittest
+import unittest, gevent
 
 @attr('UNIT',group='dm')
 class EventManagementTest(PyonTestCase):
@@ -29,6 +32,7 @@ class EventManagementTest(PyonTestCase):
         self.mock_rr_client = self.event_management.clients.resource_registry
         self.mock_pd_client = self.event_management.clients.process_dispatcher
         self.mock_pubsub_client = self.event_management.clients.pubsub_management
+        self.mock_dams_client = self.event_management.clients.data_acquisition_management
 
     def test_create_event_type(self):
         """
@@ -37,6 +41,8 @@ class EventManagementTest(PyonTestCase):
         event_type = EventType(name="Test event type")
         self.mock_rr_client.create = mocksignature(self.mock_rr_client.create)
         self.mock_rr_client.create.return_value = ('event_type_id','rev_1')
+
+        self.mock_dams_client.register_process = mocksignature(self.mock_dams_client.register_process)
 
         event_type_id = self.event_management.create_event_type(event_type)
 
@@ -137,6 +143,7 @@ class EventManagementTest(PyonTestCase):
         Test creating an event process
         """
         process_definition = ProcessDefinition(name='test')
+        process_definition.definition = ''
 
         self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
         self.mock_rr_client.read.return_value = process_definition
@@ -217,7 +224,19 @@ class EventManagementIntTest(IonIntegrationTestCase):
 
         self.event_management = EventManagementServiceClient()
         self.rrc = ResourceRegistryServiceClient()
+        self.process_dispatcher = ProcessDispatcherServiceClient()
+        self.pubsub = PubsubManagementServiceClient()
 
+        self.queue_cleanup = []
+        self.exchange_cleanup = []
+
+    def tearDown(self):
+        for queue in self.queue_cleanup:
+            xn = self.container.ex_manager.create_xn_queue(queue)
+            xn.delete()
+        for exchange in self.exchange_cleanup:
+            xp = self.container.ex_manager.create_xp(exchange)
+            xp.delete()
 
     def test_create_read_update_delete_event_type(self):
         """
@@ -284,6 +303,64 @@ class EventManagementIntTest(IonIntegrationTestCase):
 
         with self.assertRaises(NotFound):
             self.event_management.read_event_process_definition(procdef_id)
+
+    def test_event_in_stream_out_transform(self):
+        '''
+        Test that event
+        '''
+
+        stream_id, _ = self.pubsub.create_stream('test_stream', exchange_point='science_data')
+
+        #---------------------------------------------------------------------------------------------
+        # Launch a ctd transform
+        #---------------------------------------------------------------------------------------------
+        # Create the process definition
+        process_definition = ProcessDefinition(
+            name='EventToStreamTransform',
+            description='For testing an event-in/stream-out transform')
+        process_definition.executable['module']= 'ion.processes.data.transforms.event_in_stream_out_transform'
+        process_definition.executable['class'] = 'EventToStreamTransform'
+        proc_def_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
+
+        # Build the config
+        config = DotDict()
+        config.process.queue_name = 'test_queue'
+        config.process.exchange_point = 'science_data'
+        config.process.publish_streams.output = stream_id
+        config.process.event_type = 'ExampleDetectableEvent'
+        config.process.variables = ['voltage', 'temperature' ]
+
+        # Schedule the process
+        self.process_dispatcher.schedule_process(process_definition_id=proc_def_id, configuration=config)
+
+        #---------------------------------------------------------------------------------------------
+        # Create a subscriber for testing
+        #---------------------------------------------------------------------------------------------
+
+        ar_cond = gevent.event.AsyncResult()
+        def subscriber_callback(m, r, s):
+            ar_cond.set(m)
+        sub = StandaloneStreamSubscriber('sub', subscriber_callback)
+        self.addCleanup(sub.stop)
+        sub_id = self.pubsub.create_subscription('subscription_cond',
+            stream_ids=[stream_id],
+            exchange_name='sub')
+        self.pubsub.activate_subscription(sub_id)
+        self.queue_cleanup.append(sub.xn.queue)
+        sub.start()
+
+        gevent.sleep(4)
+
+        #---------------------------------------------------------------------------------------------
+        # Publish an event. The transform has been configured to receive this event
+        #---------------------------------------------------------------------------------------------
+
+        event_publisher = EventPublisher("ExampleDetectableEvent")
+        event_publisher.publish_event(origin = 'fake_origin', voltage = '5', temperature = '273')
+
+        # Assert that the transform processed the event and published data on the output stream
+        result_cond = ar_cond.get(timeout=10)
+        self.assertTrue(result_cond)
 
     def test_create_read_delete_event_process(self):
         """

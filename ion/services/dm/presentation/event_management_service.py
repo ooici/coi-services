@@ -135,6 +135,7 @@ class EventManagementService(BaseEventManagementService):
 
         process_def.executable['module'] = module
         process_def.executable['class'] = class_name
+        process_def.executable['uri'] = uri
         process_def.version = version
         process_def.arguments = arguments
 
@@ -228,9 +229,7 @@ class EventManagementService(BaseEventManagementService):
                                                             object=process_definition_id)
 
         # Register the process as a data producer
-        #todo Need to update data acquisition management so that it can register an event process
-        # todo(contd) ... which is of Process type and not DataProcess type
-#        self.clients.data_acquisition_management.register_process(process_id)
+        self.clients.data_acquisition_management.register_event_process(process_id = process_id)
 
         return process_id
 
@@ -266,7 +265,10 @@ class EventManagementService(BaseEventManagementService):
 
         @param event_process_id str
         """
+        # unregister the process as a data producer
+        self.clients.data_acquisition_management.unregister_event_process(process_id = event_process_id)
 
+        # delete using the resource registry
         self.clients.resource_registry.delete(event_process_id)
 
     def activate_event_process(self, event_process_id=''):
