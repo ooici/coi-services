@@ -768,8 +768,7 @@ class IONLoader(ImmediateProcess):
             try:
                 param_type = QuantityType(value_encoding = np.dtype(row['Parameter Type']))
             except TypeError:
-                param_type = QuantityType(value_encoding = np.dtype('float32'))
-                log.error('Invalid parameter type for parameter %s: %s', row['Name'], row['Parameter Type'])
+                log.exception('Invalid parameter type for parameter %s: %s', row['Name'], row['Parameter Type'])
         
         context = ParameterContext(name=row['Name'], param_type=param_type)
         context.uom = row['Unit of Measure']
