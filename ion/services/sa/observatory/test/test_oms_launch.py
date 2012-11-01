@@ -1,3 +1,8 @@
+
+#
+# NOTE: Deprecated  -- See test_oms_launch2
+#
+
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import log, IonObject
@@ -255,7 +260,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         ports.append(  IonObject(OT.PlatformPort, port_id='Node1A_port_2', ip_address='Node1A_port_2_IP')  )
         monitor_attributes = []
         #create the attributes that are specific to this model type
-        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1A_attr_1', monitor_rate=5, units='xyz')  )
+        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='input_voltage', monitor_rate=5, units='xyz')  )
         monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1A_attr_2', monitor_rate=5, units='xyz')  )
 
         platform1A_device__obj = IonObject(RT.PlatformDevice,

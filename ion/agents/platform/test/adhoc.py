@@ -59,4 +59,4 @@ def adhoc_get_parameter_dictionary(stream_name):
 
 # some of the attribute names in the simulated network (network.yml)
 def adhoc_get_stream_names():
-    return ['Node1A_attr_1', 'Node1A_attr_2']
+    return ['input_voltage', 'Node1A_attr_2']
