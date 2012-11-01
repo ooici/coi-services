@@ -6,6 +6,7 @@ from pyon.public import IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.containers import create_unique_identifier
+from pyon.ion.resource import LCS
 
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
@@ -542,8 +543,6 @@ class TestAssembly(IonIntegrationTestCase):
 
         self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.DEPLOY, LCS.DEPLOYED)
         self.generic_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEPLOY, LCS.DEPLOYED)
-        log.debug("L4-CI-SA-RQ-334 DEPLOY")
-
 
         #now along comes a new device
         log.info("Create instrument device 2")
@@ -579,6 +578,10 @@ class TestAssembly(IonIntegrationTestCase):
         log.debug("Activating new deployment")
         c.OMS.activate_deployment(deployment_id2, False)
         #todo: assert site hasDevice instrument_device_id2
+        assocs = self.client.RR.find_associations(instrument_site_id, PRED.hasDevice, instrument_device_id2, id_only=True)
+        self.assertIsNotNone(assocs)
+
+        log.debug("L4-CI-SA-RQ-334 DEPLOY: Proposed change - Instrument activation shall support transition to the active state for instruments")
 
         log.debug("Transferring site subscriptions")
         c.OMS.transfer_site_subscription(instrument_site_id)
@@ -600,13 +603,18 @@ class TestAssembly(IonIntegrationTestCase):
         self.assertEqual(instrument_site_id, inst_sites[0]._id)
 
         c.IMS.delete_instrument_agent(instrument_agent_id)
-        log.debug("L4-CI-SA-RQ-382")
+        instr_agent_obj_read = self.client.RR.read(instrument_agent_id)
+        self.assertEquals(instr_agent_obj_read.lcstate,LCS.RETIRED)
+        log.debug("L4-CI-SA-RQ-382: Proposed change - Instrument activation shall manage the life cycle of Instrument Agents")
 
         c.IMS.delete_instrument_device(instrument_device_id)
+        # Check whether the instrument device has been retired
+        instrument_obj_read = self.client.RR.read(instrument_device_id)
+        log.debug("The instruments lcs state has been set to %s after the delete operation" % instrument_obj_read.lcstate)
+        self.assertEquals(instrument_obj_read.lcstate, LCS.RETIRED)
         log.debug("L4-CI-SA-RQ-334 RETIRE")
         log.debug("L4-CI-SA-RQ-335: Instrument activation shall support transition to the retired state of instruments")
 
-        
         #----------------------------------------------
         #
         # force_deletes

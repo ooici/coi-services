@@ -37,6 +37,8 @@ class NotificationWorker(TransformEventListener):
         super(NotificationWorker,self).on_start()
 
         self.smtp_client = setting_up_smtp_client()
+        self.reverse_user_info = None
+        self.user_info = None
 
         #------------------------------------------------------------------------------------
         # Start by loading the user info and reverse user info dictionaries
@@ -81,6 +83,7 @@ class NotificationWorker(TransformEventListener):
         # the subscriber for the ReloadUSerInfoEvent
         self.reload_user_info_subscriber = EventSubscriber(
             event_type="ReloadUserInfoEvent",
+            origin='UserNotificationService',
             callback=reload_user_info
         )
         self.reload_user_info_subscriber.start()
