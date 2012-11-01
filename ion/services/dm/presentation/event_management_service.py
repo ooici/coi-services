@@ -11,7 +11,7 @@ from pyon.util.containers import create_unique_identifier, DotDict
 from interface.services.dm.ievent_management_service import BaseEventManagementService
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.objects import ProcessDefinition, EventProcessDetail
+from interface.objects import ProcessDefinition, EventProcessDetail, EventProcessDefinitionDetail
 import time
 from datetime import datetime
 
@@ -87,7 +87,7 @@ class EventManagementService(BaseEventManagementService):
         """
         self.clients.resource_registry.delete(event_type_id)
 
-    def create_event_process_definition(self, version='', module='', class_name='', uri='', arguments=None):
+    def create_event_process_definition(self, version='', module='', class_name='', uri='', arguments=None, event_types = None, sub_types = None, origin_types = None):
         """
         Create a resource which defines the processing of events.
 
@@ -101,7 +101,10 @@ class EventManagementService(BaseEventManagementService):
         """
 
         # Create the event process detail object
-        event_process_detail = EventProcessDetail()
+        event_process_definition_detail = EventProcessDefinitionDetail()
+        event_process_definition_detail.event_types = event_types
+        event_process_definition_detail.sub_types = sub_types
+        event_process_definition_detail.origin_types = origin_types
 
         # Create the process definition
         process_definition = ProcessDefinition(name=create_unique_identifier('event_process'))
@@ -112,13 +115,13 @@ class EventManagementService(BaseEventManagementService):
         }
         process_definition.version = version
         process_definition.arguments = arguments
-        process_definition.definition = event_process_detail
+        process_definition.definition = event_process_definition_detail
 
         procdef_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
         return procdef_id
 
-    def update_event_process_definition(self, event_process_definition_id='', version='', module='', class_name='', uri='', arguments=None):
+    def update_event_process_definition(self, event_process_definition_id='', version='', module='', class_name='', uri='', arguments=None, event_types=None, sub_types=None, origin_types=None):
         """
         Update the process definition for the event process.
 
@@ -133,12 +136,21 @@ class EventManagementService(BaseEventManagementService):
         # The event_process_def is really only a process_def
         process_def = self.clients.resource_registry.read(event_process_definition_id)
 
+        # Fetch or make the EventProcessDefinitionDetail object
+        event_process_def_detail = process_def.definition or EventProcessDefinitionDetail()
+        event_process_def_detail.event_types = event_types
+        event_process_def_detail.sub_types = sub_types
+        event_process_def_detail.origin_types = origin_types
+
+        # Update the fields of the process definition
         process_def.executable['module'] = module
         process_def.executable['class'] = class_name
         process_def.executable['uri'] = uri
         process_def.version = version
         process_def.arguments = arguments
+        process_def.definition = event_process_def_detail
 
+        # Finally update the resource registry
         self.clients.resource_registry.update(process_def)
 
     def read_event_process_definition(self, event_process_definition_id=''):
@@ -181,16 +193,16 @@ class EventManagementService(BaseEventManagementService):
         process_definition = self.clients.resource_registry.read(process_definition_id)
 
         # Get the event process detail object from the process definition
-        event_process_detail = process_definition.definition or EventProcessDetail()
+        event_process_def_detail = process_definition.definition or EventProcessDefinitionDetail()
 
         # pack in the event types and other stuff the event processes will need into the EventProcessDetail object
-        event_process_detail.event_types = event_types
-        event_process_detail.sub_types = sub_types
-        event_process_detail.origins = origins
-        event_process_detail.origin_types = origin_types
+        event_process_def_detail.event_types = event_types
+        event_process_def_detail.sub_types = sub_types
+        event_process_def_detail.origins = origins
+        event_process_def_detail.origin_types = origin_types
 
         # Tuck in the just created event process detail object back into the process definition
-        process_definition.definition = event_process_detail
+        process_definition.definition = event_process_def_detail
 
         #-------------------------------------------------------------------------
         # The output streams for the event process if any are provided
@@ -221,7 +233,8 @@ class EventManagementService(BaseEventManagementService):
 
         # Schedule the process
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id,
-                                                                        configuration=config)
+                                                                            configuration=config)
+
 
         # Associate the process with the process definition
         self.clients.resource_registry.create_association(  subject=process_id,
