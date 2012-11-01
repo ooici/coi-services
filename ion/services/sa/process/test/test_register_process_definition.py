@@ -1,34 +1,25 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
-import tempfile
+
 from ion.util.module_uploader import RegisterModulePreparerPy
-from pyon.ion.resource import LCE
-from pyon.public import Container, IonObject
-from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.services.sa.process.data_process_management_service import DataProcessManagementService
-from interface.services.sa.idata_process_management_service import IDataProcessManagementService, DataProcessManagementServiceClient
-from interface.objects import AttachmentType
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 
-from pyon.util.context import LocalContextMixin
-from pyon.core.exception import BadRequest, NotFound, Conflict
-from pyon.public import RT, PRED, LCS
+from pyon.core.exception import BadRequest
+#from pyon.public import RT, PRED, LCS
 from pyon.public import CFG
-from mock import Mock, patch
+from mock import Mock
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 import unittest
-from ooi.logging import log
 
-import string
 import subprocess
 import os
 import pwd
-
-from ion.services.sa.test.helpers import any_old
-
+from urllib2 import urlopen
 
 """
 contents of the file encoded below:
@@ -188,6 +179,12 @@ class TestRegisterProcessDefinitionIntegration(IonIntegrationTestCase):
             raise unittest.SkipTest("SSH/SCP credentials to %s didn't work" % remotehost)
 
 
-        self.DPMS.register_data_process_definition(BASE64_PYFILE)
+        remote_url = self.DPMS.register_data_process_definition(BASE64_PYFILE)
+
+        code = urlopen(remote_url).code
+        if 400 <= code:
+            self.fail(("Uploaded succeeded, but fetching '%s' failed with code %s.  " +
+                      "CFG for web root on remote host is '%s', is that correct?") %
+                      (remote_url, code, CFG.service.data_process_management.process_release_wwwroot))
 
         return
