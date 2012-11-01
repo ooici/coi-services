@@ -36,12 +36,17 @@ import calendar
 from interface import objects
 
 from pyon.core.bootstrap import get_service_registry
+from pyon.core.exception import NotFound
 from pyon.ion.resource import get_restype_lcsm
 from pyon.public import CFG, log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import named_any, get_ion_ts
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.util.parameter_yaml_IO import get_param_dict
+from coverage_model.parameter import ParameterContext
+from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
+from coverage_model.basic_types import AxisTypeEnum
+from ion.util.parameter_loader import ParameterPlugin
+import numpy as np
 try:
     import xlrd
 except:
@@ -55,7 +60,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidF9fUVl4QlQxQ2RNQ3ZnaTRWVTdaM2c&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydF9rai1nUzlaSktNVXVobTROV0NXaEE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -143,6 +148,8 @@ class IONLoader(ImmediateProcess):
                       'Org',
                       'UserRole',
                       'CoordinateSystem',
+                      'ParameterDefs',
+                      'ParameterDictionary',
                       'PlatformModel',
                       'InstrumentModel',
                       'Observatory',
@@ -182,7 +189,6 @@ class IONLoader(ImmediateProcess):
             if self.loadooi and catfunc_ooi:
                 log.debug('performing OOI parsing of %s', category)
                 catfunc_ooi()
-
             catfunc = getattr(self, "_load_%s" % category)
             filename = "%s/%s.csv" % (self.path, category)
             log.info("Loading category %s", category)
@@ -751,6 +757,70 @@ class IONLoader(ImmediateProcess):
         svc_client = self._get_service_client("pubsub_management")
         res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id)
         self._register_id(row[self.COL_ID], res_id)
+    
+    def _load_ParameterDefs(self, row):
+        param_type = row['Parameter Type']
+        if param_type == 'record':
+            param_type = RecordType()
+        elif param_type == 'array':
+            param_type = ArrayType()
+        else:
+            try:
+                param_type = QuantityType(value_encoding = np.dtype(row['Parameter Type']))
+            except TypeError:
+                param_type = QuantityType(value_encoding = np.dtype('float32'))
+                log.error('Invalid parameter type for parameter %s: %s', row['Name'], row['Parameter Type'])
+        
+        context = ParameterContext(name=row['Name'], param_type=param_type)
+        context.uom = row['Unit of Measure']
+        additional_attrs = {
+            'Attributes':'attributes',
+            'Index Key':'index_key',
+            'Ion Name':'ion_name',
+            'Standard Name':'standard_name',
+            'Long Name':'long_name',
+            'OOI Short Name':'ooi_short_name',
+            'CDM Data Type':'cdm_data_type',
+            'Variable Reports':'variable_reports',
+            'References List':'references_list',
+            'Comment' : 'comment',
+            'Code Reports':'code_reports'
+            }
+        if row['Fill Value'] and row['Parameter Type'] not in ('array','row'):
+            if 'uint' in row['Parameter Type']:
+                context.fill_value = abs(int(row['Fill Value']))
+            elif 'int' in row['Parameter Type']:
+                context.fill_value = int(row['Fill Value'])
+            else:
+                context.fill_value = float(row['Fill Value'])
+
+        if row['Axis']:
+            s = row['Axis'].lower()
+            if s == 'lat':
+                context.axis = AxisTypeEnum.LAT
+            elif s == 'lon':
+                context.axis = AxisTypeEnum.LON
+        for key in additional_attrs.iterkeys():
+            if key in row and row[key]:
+                setattr(context,additional_attrs[key],row[key])
+
+        dataset_management = self._get_service_client('dataset_management')
+        context_id = dataset_management.create_parameter_context(name=row['Name'], parameter_context=context.dump())
+
+    def _load_ParameterDictionary(self, row):
+        s = re.sub(r'\s+','',row['parameters'])
+        contexts = s.split(',')
+        dataset_management = self._get_service_client('dataset_management')
+        try:
+            context_ids = [dataset_management.read_parameter_context_by_name(i)._id for i in contexts]
+            temporal_parameter = row['temporal_parameter'] or ''
+            dataset_management.create_parameter_dictionary(name=row['name'], 
+                        parameter_context_ids=context_ids,
+                        temporal_context=temporal_parameter)
+        except NotFound as e:
+            log.error('Missing parameter context %s', e.message)
+
+
 
     def _load_PlatformDevice(self, row):
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
@@ -760,6 +830,8 @@ class IONLoader(ImmediateProcess):
         if ass_id:
             ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
+
+
 
     def _load_SensorDevice(self, row):
         res_id = self._basic_resource_create(row, "SensorDevice", "sd/",
