@@ -534,6 +534,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
         reply = self._ia_client_sim1.execute_agent(cmd)
         log.debug("test_deployAsPrimaryDevice: return value from go_active %s", str(reply))
+        self.assertTrue(reply)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)
         retval = self._ia_client_sim1.execute_agent(cmd)
