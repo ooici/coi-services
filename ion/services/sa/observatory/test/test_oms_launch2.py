@@ -532,14 +532,14 @@ class TestOmsLaunch(IonIntegrationTestCase):
 #        just sleep to at least see warnings in the log.
         sleep(25)
 #        # wait for data sample
-#        # note: we just wait for one sample -- see consume_data above
+#        # just wait for at least one -- see consume_data above
 #        log.info("waiting for reception of a data sample...")
 #        self._async_data_result.get(timeout=DATA_TIMEOUT)
-#        self.assertEquals(len(self._samples_received), 1)
+#        self.assertTrue(len(self._samples_received) >= 1)
 
 
         # wait for alarm event
-        # note: we just wait for one sample -- see consume_event above
+        # just wait for at least one event -- see consume_event above
         log.info("waiting for reception of an event...")
         self._async_event_result.get(timeout=EVENT_TIMEOUT)
         log.info("Received events: %s", len(self._events_received))

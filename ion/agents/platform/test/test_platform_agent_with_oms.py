@@ -384,8 +384,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
     def _wait_for_a_data_sample(self):
         log.info("waiting for reception of a data sample...")
         self._async_data_result.get(timeout=15)
-        # we just wait for one -- see consume_data above
-        self.assertEquals(len(self._samples_received), 1)
+        # just wait for at least one -- see consume_data above
+        self.assertTrue(len(self._samples_received) >= 1)
 
     def _stop_alarm_dispatch(self):
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
