@@ -2,7 +2,7 @@
 from interface.objects import AttachmentType
 #from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import Container, IonObject
-from ooi.logging import log
+
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.event.event import EventSubscriber
@@ -20,6 +20,7 @@ from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
 from pyon.public import RT, LCS, PRED
 from nose.plugins.attrib import attr
 import unittest
+import string
 
 from ion.services.sa.test.helpers import any_old
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
@@ -28,6 +29,19 @@ from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
+
+# some stuff for logging info to the console
+log = DotDict()
+
+def mk_logger(level):
+    def logger(fmt, *args):
+        print "%s %s" % (string.ljust("%s:" % level, 8), (fmt % args))
+
+    return logger
+
+log.debug = mk_logger("DEBUG")
+log.info  = mk_logger("INFO")
+log.warn  = mk_logger("WARNING")
 
 
 @attr('INT', group='sa')
@@ -57,7 +71,7 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
 #        return
 
 
-    def test_l4_ci_sa_rq_161_235_336(self):
+    def test_instrument_device_attachments_l4_ci_sa_rq_161_235_336(self):
 
         instrum_device = IonObject(RT.Attachment,name="sample_instrument_device",description="blah blah")
 
@@ -86,7 +100,7 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
         log.info("L4-CI-SA-RQ-336")
 
 
-    def test_l4_ci_sa_rq_145_323(self):
+    def test_instrument_device_metadata_notification_l4_ci_sa_rq_145_323(self):
         """
         Instrument management shall update physical resource metadata when change occurs
 
@@ -178,24 +192,6 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
         """
         pass
 
-
-    @unittest.skip('Policy capabilities not yet available')
-    def test_l4_ci_sa_rq_138(self):
-        """
-        Physical resource control shall be subject to policy
-
-        Instrument management control capabilities shall be subject to policy
-
-        The actor accessing the control capabilities must be authorized to send commands.
-
-        note from maurice 2012-05-18: Talk to tim M to verify that this is policy.  If it is then talk with Stephen to
-                                      get an example of a policy test and use that to create a test stub that will be
-                                      completed when we have instrument policies.
-
-        Tim M: The "actor", aka observatory operator, will access the instrument through ION.
-
-        """
-        pass
 
 
     @unittest.skip('Capabilities not yet available')
