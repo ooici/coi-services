@@ -22,6 +22,13 @@
 
     TODO: constraints defined in multiple tables as list of IDs, but not used
     TODO: support attachments using HTTP URL
+
+    Note: For quick debugging without restarting the services container:
+    - Once after starting r2deploy:
+    bin/pycc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=dump path=res/preload/local/my_dump
+    - Before each test of the ion_loader:
+    bin/pycc -fc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=load path=res/preload/local/my_dump
+
 """
 
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
@@ -99,6 +106,7 @@ class IONLoader(ImmediateProcess):
         self.loadooi = self.CFG.get("loadooi", False)
         self.loadui = self.CFG.get("loadui", False)
         self.exportui = self.CFG.get("exportui", False)
+        self.bulk = self.CFG.get("bulk", False)
 
         self.obj_classes = {}
         self.resource_ids = {}    # Holds a mapping of preload labels to resource ids
@@ -1224,7 +1232,8 @@ class IONLoader(ImmediateProcess):
                        # Additional attributes and links out of aggregate reports
                        'InstrumentCatalogFull',
                        'DataQCLookupTables',
-                       'DataProductSpreadsheet']
+                       'DataProductSpreadsheet',
+                       'AllSensorTypeCounts']
 
         # These variables hold the representations of parsed OOI assets
         self.ooi_objects = {}
@@ -1251,6 +1260,9 @@ class IONLoader(ImmediateProcess):
 
             log.debug("Loaded assets %s: %d rows read" % (category, row_do))
 
+        # Do some validation checking
+        self._perform_ooi_checks()
+
         # Post processing
         if self.warnings:
             log.warn("WARNINGS:\n%s", "\n".join(["%s: %s" % (a, b) for a, b in self.warnings]))
@@ -1261,7 +1273,7 @@ class IONLoader(ImmediateProcess):
             #print ot
             #print "\n".join(sorted(list(self.ooi_obj_attrs[ot])))
 
-    def _add_object_attribute(self, objtype, objid, key, value, **kwargs):
+    def _add_object_attribute(self, objtype, objid, key, value, value_is_list=False, **kwargs):
         """Add a single attribute to an identified object of given type. Create object/type on first occurrence"""
         if objtype not in self.ooi_objects:
             self.ooi_objects[objtype] = {}
@@ -1274,15 +1286,23 @@ class IONLoader(ImmediateProcess):
             ot_objects[objid] = {}
         obj_entry = ot_objects[objid]
         if key:
-            if key in obj_entry:
-                msg = "duplicate_key: %s.%s has duplicate key: %s (old=%s, new=%s)" % (objtype, objid, key, obj_entry[key], value)
+            if value_is_list:
+                if key in obj_entry:
+                    if value in obj_entry[key]:
+                        msg = "duplicate_attr_list_value: %s.%s has attribute '%s' with duplicate list value: %s" % (objtype, objid, key, value)
+                        self.warnings.append((objid, msg))
+                    obj_entry[key].append(value)
+                else:
+                    obj_entry[key] = [value]
+            elif key in obj_entry:
+                msg = "duplicate_attr: %s.%s has duplicate attribute '%s' def: (old=%s, new=%s)" % (objtype, objid, key, obj_entry[key], value)
                 self.warnings.append((objid, msg))
             else:
                 obj_entry[key] = value
             ot_obj_attrs.add(key)
         for okey, oval in kwargs.iteritems():
             if okey in obj_entry and obj_entry[okey] != oval:
-                msg = "different_static: %s.%s has different value for key: %s (old=%s, new=%s)" % (objtype, objid, okey, obj_entry[okey], oval)
+                msg = "different_static_attr: %s.%s has different attribute '%s' value: (old=%s, new=%s)" % (objtype, objid, okey, obj_entry[okey], oval)
                 self.warnings.append((objid, msg))
             else:
                 obj_entry[okey] = oval
@@ -1312,8 +1332,9 @@ class IONLoader(ImmediateProcess):
             Class_Name=row['Class_Name'])
 
     def _parse_AttributeReportDataProducts(self, row):
-        ooi_rd = OOIReferenceDesignator(row['Data_Product_Identifier'])
-        if ooi_rd.error or not ooi_rd.rd_type == "dataproduct":
+        key = row['Data_Product_Identifier'] + "_L" + row['Data_Product_Level']
+        ooi_rd = OOIReferenceDesignator(key)
+        if ooi_rd.error or not ooi_rd.rd_type == "dataproduct" or not ooi_rd.rd_subtype == "level":
             msg = "invalid_rd: %s is not a data product reference designator" % (ooi_rd.rd)
             self.warnings.append((ooi_rd.rd, msg))
             return
@@ -1389,52 +1410,112 @@ class IONLoader(ImmediateProcess):
         self._add_object_attribute('subsite',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'], Subsite_Name=row['Subsite_Name'])
 
-    def _parse_InstrumentTableDetailed(self, row):
-        """
-        This adds additional attributes to "instruments" from the detailed table.
-        """
-        refid = row['ReferenceDesignator']
-        entry = dict(
-            observatory_id=row['LArray_PublicID'],
-            subsite_id=row['LSubsite_PublicID'],
-            node_type_id=row['NodeType'],
-            sensor_class_id=row['SClass_PublicID'],
-            model_id=row['MMInstrument_PublicID']
-        )
-        self._add_object_attribute('sensor',
-            refid, None, None, **entry)
-
     def _parse_InstrumentCatalogFull(self, row):
-        # This adds the subseries to current sensors and make/model. Also lists node types
-
-        #		LSlot_InstrumentSequence			MMInstrument_Manufacturer	MMInstrument_PublicID	MMInstrument_Description	First_Deployment_Date
+        # This adds the subseries to current sensors and make/model.
+        # Also used to infer node types and names
         refid = row['ReferenceDesignator']
         entry = dict(
-            sensor_series=row['SSeries_PublicID'],
-            sensor_subseries=row['SSubseries_PublicID']
+            Class=row['SClass_PublicID'],
+            instrument_subseries=row['SSubseries_PublicID'],
+            makemodel=row['MMInstrument_PublicID'],
+            ready_for_2013=row['Textbox16']
         )
-        self._add_object_attribute('sensor',
+        self._add_object_attribute('instrument',
             refid, None, None, **entry)
-
-        # Build up the series here
-        sid = "%s-%s" % (row['SClass_PublicID'], row['SSeries_PublicID'])
-        self._add_object_attribute('series',
-            sid, None, None)
-
-        # Build up the subseries here
-        ssid = "%s-%s-%s" % (row['SClass_PublicID'], row['SSeries_PublicID'], row['SSubseries_PublicID'])
-        ssentry = dict(description=row['SSubseries_Description'])
-        self._add_object_attribute('subseries',
-            ssid, None, None, **ssentry)
 
         # Build up the node type here
         ntype_txt = row['Textbox11']
-        #re.match('(\w+)\s+\((.+)\)\s*')
         ntype_id = ntype_txt[:2]
         ntype_desc = ntype_txt[3:-1].strip('()')
         self._add_object_attribute('nodetype',
             ntype_id, None, None, description=ntype_desc)
 
+    def _parse_DataQCLookupTables(self, row):
+        # Adds a list of data products with level to instruments
+        refid = row['ReferenceDesignator']
+        self._add_object_attribute('instrument',
+            refid, None, None, Class=row['SClass_PublicID'])
+
+        dpl = row['Data_Product_With_Level']
+        m = re.match('^([A-Z0-9_]{7}) \((L\d)\)$', dpl)
+        if not m:
+            msg = "invalid_rd: %s is not a data product designator" % (dpl)
+            self.warnings.append((refid, msg))
+            return
+        dp_type, dp_level = m.groups()
+        dpl = dp_type + "_" + dp_level
+
+        self._add_object_attribute('instrument',
+            refid, 'data_product_list', dpl, value_is_list=True)
+
+    def _parse_DataProductSpreadsheet(self, row):
+        # Adds a list of instrument class to data product
+        key = row['Data_Product_Identifier'] + "_" + row['Data_Product_Level1']
+        entry = dict(
+            data_product_name=row['Data_Product_Name'],
+            units=row['Units'],
+            dps=row['DPS_DCN_s_'],
+            diagrams=row['Processing_Flow_Diagram_DCN_s_'],
+        )
+        self._add_object_attribute('data_product',
+            key, None, None, **entry)
+        self._add_object_attribute('data_product',
+            key, 'instrument_class_list', row['Instrument_Class'], value_is_list=True)
+
+    def _parse_AllSensorTypeCounts(self, row):
+        # Adds family to instrument class
+        self._add_object_attribute('class',
+            row['Class'], None, None, Family=row['Family'])
+
+    def _perform_ooi_checks(self):
+        # Perform some consistency checking on imported objects
+        ui_checks = [
+            ('ref_exists', ['instrument', 'data_product_list', 'data_product'], None),
+            ('ref_exists', ['data_product', 'instrument_class_list', 'class'], None),
+            ]
+        for check, ckargs, ckkwargs in ui_checks:
+            ckargs = [] if ckargs is None else ckargs
+            ckkwargs = {} if ckkwargs is None else ckkwargs
+            checkfunc = getattr(self, "_checkooi_%s" % check)
+            checkfunc(*ckargs, **ckkwargs)
+
+    def _checkooi_ref_exists(self, objtype, attr, target_type, **kwargs):
+        if objtype not in self.ooi_objects:
+            msg = "ref_exists: %s not a valid object type" % (objtype)
+            self.warnings.append(("GENERAL", msg))
+            return
+        ot_objects = self.ooi_objects[objtype]
+        if target_type not in self.ooi_objects:
+            msg = "ref_exists: %s not a valid target object type" % (target_type)
+            self.warnings.append(("GENERAL", msg))
+            return
+        ottarg_objects = self.ooi_objects[target_type]
+
+        refattrset = set()
+        total_ref = 0
+
+        for obj_key,obj in ot_objects.iteritems():
+            ref_attr = obj.get(attr, None)
+            if ref_attr is None:
+                #msg = "ref_exists: %s.%s attribute is None" % (objtype, attr)
+                #self.warnings.append((obj_key, msg))
+                continue
+            elif type(ref_attr) is list:
+                for rattval in ref_attr:
+                    refattrset.add(rattval)
+                    total_ref += 1
+                    if rattval not in ottarg_objects:
+                        msg = "ref_exists: %s.%s (list) contains a non-existing object reference (value=%s)" % (objtype, attr, rattval)
+                        self.warnings.append((obj_key, msg))
+            else:
+                refattrset.add(ref_attr)
+                total_ref += 1
+                if ref_attr not in ottarg_objects:
+                    msg = "ref_exists: %s.%s not an existing object reference (value=%s)" % (objtype, attr, ref_attr)
+                    self.warnings.append((obj_key, msg))
+
+        log.debug("_checkooi_ref_exists: Checked %s objects type %s against type %s" % (len(ot_objects), objtype, target_type))
+        log.debug("_checkooi_ref_exists: Different references=%s (of total=%s) vs target objects=%s" % (len(refattrset), total_ref, len(ottarg_objects)))
 
 class XLSParser(object):
 
