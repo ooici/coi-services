@@ -36,9 +36,9 @@ class NotificationWorker(TransformEventListener):
     def on_start(self):
         super(NotificationWorker,self).on_start()
 
-        self.smtp_client = setting_up_smtp_client()
         self.reverse_user_info = None
         self.user_info = None
+        self.smtp_client = setting_up_smtp_client()
 
         #------------------------------------------------------------------------------------
         # Start by loading the user info and reverse user info dictionaries
