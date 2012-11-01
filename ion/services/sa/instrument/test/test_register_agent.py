@@ -249,7 +249,7 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
                 self.assertIn(parts[0], a.keywords)
                 self.assertEqual(a.content, str(parts[0] * 3) + "\n")
 
-        log.info("L4-CI-SA-RQ-148")
+        log.info("L4-CI-SA-RQ-148: The test services shall ensure that test results are incorporated into physical resource metadata. ")
 
         # cleanup
         self.IMS.force_delete_instrument_agent(inst_agent_id)
