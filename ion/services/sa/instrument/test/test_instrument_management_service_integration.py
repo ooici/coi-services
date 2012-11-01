@@ -20,7 +20,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum
+from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StatusType
 
 from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
@@ -30,7 +30,7 @@ import unittest
 from ion.services.sa.test.helpers import any_old
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sax')
 class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -195,8 +195,12 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                          extended_instrument.computed.power_status_roll_up.status)
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.communications_status_roll_up.status)
+        self.assertEqual(StatusType.STATUS_OK,
+            extended_instrument.computed.communications_status_roll_up.value)
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.data_status_roll_up.status)
+        self.assertEqual(StatusType.STATUS_OK,
+            extended_instrument.computed.data_status_roll_up.value)
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.location_status_roll_up.status)
 
@@ -271,7 +275,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         instModel_obj = IonObject(RT.InstrumentModel,
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
-                                  model="SBE37IMModel",
                                   stream_configuration= {'raw': 'ctd_raw_param_dict' , 'parsed': 'ctd_parsed_param_dict' })
         instModel_id = self.IMS.create_instrument_model(instModel_obj)
         log.debug( 'new InstrumentModel id = %s ', instModel_id)

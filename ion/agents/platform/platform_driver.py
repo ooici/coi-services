@@ -22,6 +22,10 @@ class DriverEvent(object):
     def __init__(self, ts):
         self._ts = ts
 
+    @property
+    def ts(self):
+        return self._ts
+
 
 class AttributeValueDriverEvent(DriverEvent):
     """
@@ -33,10 +37,22 @@ class AttributeValueDriverEvent(DriverEvent):
         self._attr_id = attr_id
         self._value = value
 
+    @property
+    def platform_id(self):
+        return self._platform_id
+
+    @property
+    def attr_id(self):
+        return self._attr_id
+
+    @property
+    def value(self):
+        return self._value
+
     def __str__(self):
         return "%s(platform_id=%r, attr_id=%r, value=%r, ts=%r)" % (
-            self.__class__.__name__, self._platform_id, self._attr_id,
-            self._value, self._ts)
+            self.__class__.__name__, self.platform_id, self.attr_id,
+            self.value, self.ts)
 
 
 class AlarmDriverEvent(DriverEvent):
@@ -48,10 +64,18 @@ class AlarmDriverEvent(DriverEvent):
         self._alarm_type = alarm_type
         self._alarm_instance = alarm_instance
 
+    @property
+    def alarm_type(self):
+        return self._alarm_type
+
+    @property
+    def alarm_instance(self):
+        return self._alarm_instance
+
     def __str__(self):
         return "%s(alarm_type=%r, alarm_instance=%s, ts=%r)" % (
-            self.__class__.__name__, self._alarm_type, self._alarm_instance,
-            self._ts)
+            self.__class__.__name__, self.alarm_type, self.alarm_instance,
+            self.ts)
 
 
 class PlatformDriver(object):

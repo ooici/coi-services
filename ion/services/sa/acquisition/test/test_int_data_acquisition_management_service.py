@@ -250,8 +250,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             print 'Creating new data source model'
             datamodel_obj = IonObject(RT.DataSourceModel,
                                name='DataSourceModel1',
-                               description='data source model',
-                               model='model1')
+                               description='data source model')
             try:
                 datamodel_id = self.client.create_data_source_model(datamodel_obj)
             except BadRequest as ex:

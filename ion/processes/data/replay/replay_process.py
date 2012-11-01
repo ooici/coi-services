@@ -228,6 +228,11 @@ class ReplayProcess(BaseReplayProcess):
     @classmethod
     def get_last_values(cls, dataset_id, number_of_points):
         coverage = DatasetManagementService._get_coverage(dataset_id)
+        if coverage.num_timesteps < number_of_points:
+            if coverage.num_timesteps == 0:
+                rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
+                return rdt.to_granule()
+            number_of_points = coverage.num_timesteps
         rdt = cls._coverage_to_granule(coverage,tdoa=slice(-number_of_points,None))
         coverage.close(timeout=5)
         
@@ -236,8 +241,6 @@ class ReplayProcess(BaseReplayProcess):
     def _replay(self):
         coverage = DatasetManagementService._get_coverage(self.dataset_id)
         rdt = self._coverage_to_granule(coverage, self.start_time, self.end_time, self.stride_time, self.parameters, self.stream_def_id)
-
-
         elements = len(rdt)
         
         for i in xrange(elements / self.publish_limit):

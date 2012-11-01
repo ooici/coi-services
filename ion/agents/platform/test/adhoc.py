@@ -35,22 +35,22 @@ def adhoc_get_parameter_dictionary(stream_name):
     pdict.add_context(ctxt)
 
     ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int64')))
-    ctxt.reference_frame = AxisTypeEnum.TIME
+    ctxt.axis = AxisTypeEnum.TIME
     ctxt.uom = 'seconds since 01-01-1970'
     pdict.add_context(ctxt)
 
     ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-    ctxt.reference_frame = AxisTypeEnum.LON
+    ctxt.axis = AxisTypeEnum.LON
     ctxt.uom = 'degree_east'
     pdict.add_context(ctxt)
 
     ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-    ctxt.reference_frame = AxisTypeEnum.LAT
+    ctxt.axis = AxisTypeEnum.LAT
     ctxt.uom = 'degree_north'
     pdict.add_context(ctxt)
 
     ctxt = ParameterContext('height', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-    ctxt.reference_frame = AxisTypeEnum.HEIGHT
+    ctxt.axis = AxisTypeEnum.HEIGHT
     ctxt.uom = 'unknown'
     pdict.add_context(ctxt)
 
@@ -59,4 +59,4 @@ def adhoc_get_parameter_dictionary(stream_name):
 
 # some of the attribute names in the simulated network (network.yml)
 def adhoc_get_stream_names():
-    return ['Node1A_attr_1', 'Node1A_attr_2']
+    return ['input_voltage', 'Node1A_attr_2']

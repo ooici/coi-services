@@ -49,7 +49,6 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
             raise BadRequest('MPL Transform has no output streams.')
 
         graph_time_periods= self.CFG.get_safe('graph_time_periods')
-        print ">>>>>>>>>>>>>>>>>>>>> CFG.graph_time_periods = ", graph_time_periods
 
         # If this is meant to be an event driven process, schedule an event to be generated every few minutes/hours
         event_timer_interval = self.CFG.get_safe('event_timer_interval')
@@ -80,8 +79,8 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
         return
 
     def interval_timer_callback(self, *args, **kwargs):
+        #Find out the input data product to this process
 
-        print " >>>>>>>>>>>>>>>>>>> EVENT GENERATED <<<<<<<<<<<<<<<<"
         # retrieve data for every case of the output graph
         return
 
@@ -158,7 +157,6 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
         # If there's no data, wait
         # For the simple case of testing, lets plot all time variant variables one at a time
         xAxisVar = 'time'
-        xAxisFloatData = graph_data[xAxisVar]
 
         # Prepare the set of y axis variables that will be plotted. This needs to be smarter and passed as
         # config variable to the transform
@@ -168,6 +166,27 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
                 continue
             yAxisVars.append(varName)
 
+
+        # Do a error check for incorrect time values. Ignore all time == fill_values
+        time_fill_value = 0
+        clean_data_flag = False
+        while not clean_data_flag:
+            clean_data_flag = True
+            # Go through the data and see if we can find empty time entries. Delete it along
+            # with all corresponding variables
+            for idx in xrange(len(graph_data[xAxisVar])):
+                if graph_data[xAxisVar][idx] == time_fill_value:
+                    graph_data[xAxisVar].pop(idx)
+                    for varName in yAxisVars:
+                        try:
+                            graph_data[varName].pop(idx)
+                        except IndexError:
+                            # Do nothing really. Must be a malformed granule
+                            pass
+                    clean_data_flag = False
+                    break
+
+        xAxisFloatData = graph_data[xAxisVar]
         idx = 0
         for varName in yAxisVars:
             yAxisFloatData = graph_data[varName]

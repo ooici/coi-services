@@ -333,8 +333,25 @@ class VisualizationService(BaseVisualizationService):
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
 
-        gdt = None
+        if visualization_parameters == {}:
+            visualization_parameters = None
+
+        # Extract the retrieval related parameters. Definitely init all parameters first
         query = None
+        if visualization_parameters :
+            query = {'parameters':[], 'start_time':0,'end_time':0, 'stride_time':1}
+            # Error check and damage control. Definitely need time
+            if 'parameters' in visualization_parameters:
+                if not 'time' in visualization_parameters['parameters']:
+                    visualization_parameters['parameters'].append('time')
+                query['parameters'] = visualization_parameters['parameters']
+
+            if 'stride_time' in visualization_parameters:
+                query['stride_time'] = visualization_parameters['stride_time']
+            if 'start_time' in visualization_parameters:
+                query['start_time'] = visualization_parameters['start_time']
+            if 'end_time' in visualization_parameters:
+                query['end_time'] = visualization_parameters['end_time']
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
@@ -344,9 +361,11 @@ class VisualizationService(BaseVisualizationService):
 
         # Ideally just need the latest granule to figure out the list of images
         #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query)
+        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
         if retrieved_granule is None:
             return None
+
+        temp_rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
 
         # send the granule through the transform to get the google datatable
         gdt_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)

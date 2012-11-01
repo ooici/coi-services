@@ -201,7 +201,6 @@ class TestAssembly(IonIntegrationTestCase):
         instModel_obj = IonObject(RT.InstrumentModel,
                                   name='SBE37IMModel',
                                   description="SBE37IMModel",
-                                  model="SBE37IMModel",
                                   custom_attributes= {'streams':{'raw': 'ctd_raw_param_dict' ,
                                                                  'parsed': 'ctd_parsed_param_dict' }})
         instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel,
