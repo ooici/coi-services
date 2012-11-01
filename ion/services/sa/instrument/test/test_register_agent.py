@@ -1,6 +1,7 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 import tempfile
+from urllib2 import urlopen
 from ion.util.module_uploader import RegisterModulePreparerEgg
 from pyon.ion.resource import LCE
 from pyon.public import Container, IonObject
@@ -249,6 +250,17 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
                 self.assertIn(parts[0], a.keywords)
                 self.assertEqual(a.content, str(parts[0] * 3) + "\n")
 
+            elif "text/url" == a.content_type:
+                remote_url = a.content.split("URL=")[1]
+
+                code = urlopen(remote_url).code
+                if 400 <= code:
+                    self.fail(("Uploaded succeeded, but fetching '%s' failed with code %s.  " +
+                               "CFG for web root on remote host is '%s', is that correct?") %
+                              (remote_url, code, CFG.service.instrument_management.driver_release_wwwroot))
+
+
+        log.info("L4-CI-SA-RQ-148")
         log.info("L4-CI-SA-RQ-148: The test services shall ensure that test results are incorporated into physical resource metadata. ")
 
         # cleanup

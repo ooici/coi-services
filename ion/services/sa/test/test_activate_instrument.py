@@ -333,6 +333,22 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertTrue(len(raw_vals) == 3)
 
 
+        print "l4-ci-sa-rq-138"
+        """
+        Physical resource control shall be subject to policy
+
+        Instrument management control capabilities shall be subject to policy
+
+        The actor accessing the control capabilities must be authorized to send commands.
+
+        note from maurice 2012-05-18: Talk to tim M to verify that this is policy.  If it is then talk with Stephen to
+                                      get an example of a policy test and use that to create a test stub that will be
+                                      completed when we have instrument policies.
+
+        Tim M: The "actor", aka observatory operator, will access the instrument through ION.
+
+        """
+
 #        #--------------------------------------------------------------------------------
 #        # Get the extended data product to see if it contains the granules
 #        #--------------------------------------------------------------------------------
