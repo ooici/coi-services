@@ -1284,7 +1284,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         if not site_id:
-            raise BadRequest("The observatory_id parameter is empty")
+            raise BadRequest("The site_id parameter is empty")
 
         extended_resource_handler = ExtendedResourceContainer(self)
 

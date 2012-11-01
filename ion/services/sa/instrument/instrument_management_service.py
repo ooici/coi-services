@@ -25,8 +25,8 @@ import json
 import datetime
 import time
 
-from interface.objects import ProcessDefinition
-from interface.objects import AttachmentType
+from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, StatusType
+
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
@@ -57,7 +57,6 @@ from ion.agents.port.port_agent_process import PortAgentProcess, PortAgentProces
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
-from interface.objects import ComputedValueAvailability
 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
@@ -1687,8 +1686,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     # TODO: this causes a problem because an instrument agent must be running in order to look up extended attributes.
-    def obtain_agent_handle(self, instrument_device_id):
-        ia_client = ResourceAgentClient(instrument_device_id,  process=self)
+    def obtain_agent_handle(self, device_id):
+        ia_client = ResourceAgentClient(device_id,  process=self)
 
 
 #       #todo: any validation?
@@ -1700,11 +1699,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return ia_client
 
-    def obtain_agent_calculation(self, instrument_device_id, result_container):
+    def obtain_agent_calculation(self, device_id, result_container):
         ret = IonObject(result_container)
         a_client = None
         try:
-            a_client = self.obtain_agent_handle(instrument_device_id)
+            a_client = self.obtain_agent_handle(device_id)
             ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
@@ -1736,15 +1735,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ret.value = "" #todo: use ia_client
         return ret
 
-    def get_power_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+    def get_power_status_roll_up(self, device_id):
+        # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
         #todo: listen for events/streams from instrument agent -- there will be alarms
 
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
-        if ia_client:
-            ret.value = 0 #todo: use ia_client
-        return ret
+        retval = IonObject(OT.ComputedIntValue)
 
-    def get_communications_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        #call eventsdb to check  power-related events from this device.
+
+
+        retval.value = StatusType.STATUS_OK
+        return retval
+
+    def get_communications_status_roll_up(self, device_id):
+        # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
         #todo: following algorithm:
         # if telemetry agent exists:
         #     get comms schedule from telemetry agent (tbd)
@@ -1754,26 +1758,35 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #      ping device
 
 
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
-        if ia_client:
-            ret.value = 0 #todo: use ia_client
-        return ret
+        retval = IonObject(OT.ComputedIntValue)
 
-    def get_data_status_roll_up(self, instrument_device_id): # BLACK, RED, GREEN, YELLOW
+        #call eventsdb to check  comms-related events from this device.
+
+
+        retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
+        return retval
+
+    def get_data_status_roll_up(self, device_id):
+        # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
         #todo: listen for events/streams from instrument agent -- there will be alarms
 
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
-        if ia_client:
-            ret.value = 0 #todo: use ia_client
-        return ret
+        retval = IonObject(OT.ComputedIntValue)
 
-    def get_location_status_roll_up(self, instrument_device_id): # CV: BLACK, RED, GREEN, YELLOW
+        #call eventsdb to check  data-related events from this device.
+
+        retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
+        return retval
+
+    def get_location_status_roll_up(self, device_id):
+        # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
         #todo: listen for events/streams from instrument agent -- there will be alarms
 
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
-        if ia_client:
-            ret.value = 0 #todo: use ia_client
-        return ret
+        retval = IonObject(OT.ComputedIntValue)
+
+        #call eventsdb to check  data-related events from this device.
+
+        retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
+        return retval
 
     # apparently fulfilled by some base object now
 #    def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
@@ -1794,7 +1807,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_last_calibration_datetime(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
-            ret.value = 45.5 #todo: use ia_client
+            ret.value = 0 #todo: use ia_client
         return ret
 
 
@@ -1831,15 +1844,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return extended_platform
 
     def get_aggregated_status(self, platform_device_id):
-        # The status roll-up that summarizes the entire status of the device  (CV:  RED, YELLOW, GREEN, BLACK)
+        # The status roll-up that summarizes the entire status of the device
+        # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
         #todo: class for constants?
 
         #todo: does framework validate id?
+
 
         #recursive function to determine the aggregate status by visiting all relevant nodes
         def get_status_helper(acc, device_id, device_type):
             if "todo: early exit criteria" == acc:
                 return acc
+
+            retval = IonObject(OT.ComputedIntValue)
 
             if RT.InstrumentDevice == device_type:
                 stat_p = self.get_power_status_roll_up(device_id)
@@ -1871,7 +1888,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise NotImplementedError("Completely avoidable error, got bad device_type: %s" % device_type)
 
         retval = get_status_helper(None, platform_device_id, RT.PlatformDevice)
-        retval = "RED" #todo: remove this line
+        retval.value= StatusType.STATUS_OK  #default until transfrom is defined.
 
         return retval
 
