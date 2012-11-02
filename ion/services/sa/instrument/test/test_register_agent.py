@@ -253,11 +253,18 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
             elif "text/url" == a.content_type:
                 remote_url = a.content.split("URL=")[1]
 
-                code = urlopen(remote_url).code
-                if 400 <= code:
-                    self.fail(("Uploaded succeeded, but fetching '%s' failed with code %s.  " +
+                failmsg = ""
+                try:
+                    code = urlopen(remote_url).code
+                    if 400 <= code:
+                        failmsg = "HTTP code %s" % code
+                except Exception as e:
+                    failmsg = str(e)
+
+                if failmsg:
+                    self.fail(("Uploaded succeeded, but fetching '%s' failed with '%s'.  " +
                                "CFG for web root on remote host is '%s', is that correct?") %
-                              (remote_url, code, CFG.service.instrument_management.driver_release_wwwroot))
+                              (remote_url, failmsg, CFG.service.instrument_management.driver_release_wwwroot))
 
 
         log.info("L4-CI-SA-RQ-148")

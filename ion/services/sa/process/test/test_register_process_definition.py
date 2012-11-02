@@ -181,10 +181,17 @@ class TestRegisterProcessDefinitionIntegration(IonIntegrationTestCase):
 
         remote_url = self.DPMS.register_data_process_definition(BASE64_PYFILE)
 
-        code = urlopen(remote_url).code
-        if 400 <= code:
-            self.fail(("Uploaded succeeded, but fetching '%s' failed with code %s.  " +
+        failmsg = ""
+        try:
+            code = urlopen(remote_url).code
+            if 400 <= code:
+                failmsg = "HTTP code %s" % code
+        except Exception as e:
+            failmsg = str(e)
+
+        if failmsg:
+            self.fail(("Uploaded succeeded, but fetching '%s' failed with '%s'.  " +
                       "CFG for web root on remote host is '%s', is that correct?") %
-                      (remote_url, code, CFG.service.data_process_management.process_release_wwwroot))
+                      (remote_url, failmsg, CFG.service.data_process_management.process_release_wwwroot))
 
         return
