@@ -118,3 +118,77 @@ class StreamAlertTransform(TransformStreamListener, TransformEventPublisher):
 
 
 
+class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, TransformEventPublisher):
+
+    def on_start(self):
+        super(StreamAlertTransform,self).on_start()
+        self.value = self.CFG.get_safe('process.value', 0)
+
+        self.granules = []
+        self.worried_about_range = False
+        self.worried_about_no_granules = False
+
+    def recv_packet(self, msg, stream_route, stream_id):
+        '''
+        The callback method.
+        If the events satisfy the criteria, publish an alert event.
+        '''
+        log.debug('StreamAlertTransform got an incoming packet!')
+
+        value = self._extract_parameters_from_stream(msg, "VALUE")
+
+        if msg.find("PUBLISH") > -1 and (value < self.value):
+            self.publish()
+
+    def process_event(self, msg, headers):
+        '''
+        When timer events come, if no granule has arrived since the last timer event, publish an alarm
+        '''
+
+        if self.granules.empty():
+            log.debug("No granule arrived since the last timer event. Publishing an alarm!!!")
+            self.worried_about_no_granules = True
+            self.publish()
+        else:
+            log.debug("Granules have arrived since the last timer event.")
+            self.worried_about_no_granules = False
+            self.granules.clear()
+
+
+    def publish(self):
+        '''
+        Publish an alert event
+        '''
+        if self.worried_about_range:
+            self.publisher.publish_event(origin="DemoStreamAlertTransform",
+                event_type = 'DeviceStatusEvent',
+                sub_type = 'OUT_OF_RANGE',
+                description= "An alert event being published.")
+        else:
+            self.publisher.publish_event(origin="DemoStreamAlertTransform",
+                event_type = 'DeviceStatusEvent',
+                sub_type = 'IN_RANGE',
+                description= "Instrument working normally.")
+
+        if self.worried_about_no_granules:
+            self.publisher.publish_event(origin="DemoStreamAlertTransform",
+                event_type = 'DeviceStatusEvent',
+                sub_type = 'NO_DATA',
+                description= "An alert event being published.")
+
+    def _extract_parameters_from_stream(self, msg, field ):
+
+        tokens = msg.split(" ")
+
+        try:
+            for token in tokens:
+                token = token.strip()
+                if token == '=':
+                    i = tokens.index(token)
+                    if tokens[i-1] == field:
+                        return int(tokens[i+1].strip())
+        except IndexError:
+            log.warning("Could not extract value from the message. Please check its format.")
+
+        return self.value
+
