@@ -62,6 +62,7 @@ except:
     log.warning('failed to import xlrd, cannot use http path')
 
 from interface import objects
+import logging
 
 DEBUG = True
 
@@ -71,11 +72,42 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydF9rai1nUzlaSktNVXVobTROV0NXaEE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidERDN0RoLWZfdEVyVzRraE05ZDVjeGc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
 
+# The preload spreadsheets (tabs) in the order they should be loaded
+DEFAULT_CATEGORIES = [
+    'Constraint',
+    'Contact',
+    'User',
+    'Org',
+    'UserRole',
+    'CoordinateSystem',
+    'ParameterDefs',
+    'ParameterDictionary',
+    'PlatformModel',
+    'InstrumentModel',
+    'Observatory',
+    'Subsite',
+    'PlatformSite',
+    'InstrumentSite',
+    'StreamDefinition',
+    'PlatformDevice',
+    'InstrumentDevice',
+    'SensorModel',
+    'SensorDevice',
+    'InstrumentAgent',
+    'InstrumentAgentInstance',
+    'DataProcessDefinition',
+    'DataProduct',
+    'DataProcess',
+    'DataProductLink',
+    'Attachment',
+    'WorkflowDefinition',
+    'Workflow',
+    'Deployment', ]
 
 class IONLoader(ImmediateProcess):
     COL_SCENARIO = "Scenario"
@@ -100,6 +132,11 @@ class IONLoader(ImmediateProcess):
         default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
         self.ui_path = self.CFG.get("ui_path", default_ui_path)
         scenarios = self.CFG.get("scenario", None)
+        category_csv = self.CFG.get("categories", None)
+        if category_csv:
+            self.categories = category_csv.split(",")
+        else:
+            self.categories = DEFAULT_CATEGORIES
         global DEBUG
         DEBUG = self.CFG.get("debug", False)
         self.loadooi = self.CFG.get("loadooi", False)
@@ -160,46 +197,6 @@ class IONLoader(ImmediateProcess):
 
     def load_ion(self, scenario):
         log.info("Loading from path: %s" % self.path)
-        # The preload spreadsheets (tabs) in the order they should be loaded
-
-        categories = ['Constraint',
-                      'Contact',
-                      'User',
-                      'Org',
-                      'UserRole',
-                      'CoordinateSystem',
-                      'ParameterDefs',
-                      'ParameterDictionary',
-                      'PlatformModel',
-                      'InstrumentModel',
-                      'Observatory',
-                      'Subsite',
-                      'PlatformSite',
-                      'InstrumentSite',
-                      'StreamDefinition',
-                      'PlatformDevice',
-                      'InstrumentDevice',
-                      'SensorModel',
-                      'SensorDevice',
-                      'InstrumentAgent',
-                      'InstrumentAgentInstance',
-                      'DataProcessDefinition',
-                      'DataProduct',
-                      'DataProcess',
-                      'DataProductLink',
-                      'Attachment',
-                      'WorkflowDefinition',
-                      'Workflow',
-                      'Deployment', ]
-
-        """categories = [
-                      'PlatformModel',
-                      'InstrumentModel',
-                      'Observatory',
-                      'Subsite',
-                      'PlatformSite',
-                      'InstrumentSite',
-        ]"""
 
         # Fetch the spreadsheet directly from a URL (from a GoogleDocs published spreadsheet)
         if self.path.startswith('http'):
@@ -210,7 +207,7 @@ class IONLoader(ImmediateProcess):
         else:
             self.csv_files = None
 
-        for category in categories:
+        for category in self.categories:
             row_do, row_skip = 0, 0
 
             # First load all OOI assets for this category
@@ -896,7 +893,7 @@ class IONLoader(ImmediateProcess):
                 param_type = QuantityType(value_encoding = np.dtype(row['Parameter Type']))
             except TypeError:
                 log.exception('Invalid parameter type for parameter %s: %s', row['Name'], row['Parameter Type'])
-        
+
         context = ParameterContext(name=row['Name'], param_type=param_type)
         context.uom = row['Unit of Measure']
         additional_attrs = {
@@ -1038,6 +1035,10 @@ class IONLoader(ImmediateProcess):
         tdom, sdom = time_series_domain()
 
         res_obj = self._create_object_from_row("DataProduct", row, "dp/")
+
+        constraint_id = row['geo_constraint_id']
+        if constraint_id:
+            res_obj.geospatial_bounds = self.constraint_defs[constraint_id]
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
         # HACK: cannot parse CSV value directly when field defined as "list"

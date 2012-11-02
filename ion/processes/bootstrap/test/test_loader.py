@@ -47,6 +47,7 @@ class TestLoader(IonIntegrationTestCase):
         self.assertTrue(streams)
         self.assertEquals(1, len(streams))
         self.assertTrue(self.ingestion_management.is_persisted(streams[0]))
+        self.assertTrue(math.fabs(dp.geospatial_bounds.geospatial_latitude_limit_north-44.7)<.01)
 
         # but L1 data product should not be persisted
         res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='Conductivity L1', id_only=True)
