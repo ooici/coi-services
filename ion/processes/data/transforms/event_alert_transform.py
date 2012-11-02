@@ -33,14 +33,14 @@ class EventAlertTransform(TransformEventListener):
 
         self.instrument_event_queue = gevent.queue.Queue()
 
-        def timer_event_received(message, headers):
+        def instrument_event_received(message, headers):
             log.debug("EventAlertTransform received an instrument event here::: %s" % message)
             self.instrument_event_queue.put(message)
 
-        self.timer_event_subscriber = EventSubscriber(origin = self.instrument_origin,
-                                                        callback=timer_event_received)
+        self.instrument_event_subscriber = EventSubscriber(origin = self.instrument_origin,
+                                                        callback=instrument_event_received)
 
-        self.timer_event_subscriber.start()
+        self.instrument_event_subscriber.start()
 
         #-------------------------------------------------------------------------------------
         # Create the publisher that will publish the Alert message
@@ -49,7 +49,7 @@ class EventAlertTransform(TransformEventListener):
         self.event_publisher = EventPublisher()
 
     def on_quit(self):
-        self.timer_event_subscriber.stop()
+        self.instrument_event_subscriber.stop()
         super(EventAlertTransform, self).on_quit()
 
     def process_event(self, msg, headers):
