@@ -33,5 +33,5 @@ class Test(IonIntegrationTestCase, OmsTestMixin):
 
     @classmethod
     def tearDownClass(cls):
-        alarm_notifications = OmsTestMixin.stop_http_server()
-        log.info("alarm_notifications = %s" % str(alarm_notifications))
+        event_notifications = OmsTestMixin.stop_http_server()
+        log.info("event_notifications = %s" % str(event_notifications))

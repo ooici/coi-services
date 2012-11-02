@@ -28,7 +28,7 @@ import yaml
 BOGUS_PLATFORM_ID = 'bogus_plat_id'
 BOGUS_ATTR_NAMES = ['bogus_attr1', 'bogus_attr2']
 BOGUS_PORT_ID = 'bogus_port_id'
-BOGUS_ALARM_TYPE = "bogus_alarm_type"
+BOGUS_EVENT_TYPE = "bogus_event_type"
 
 
 class OmsTestMixin(HelperTestMixin):
@@ -255,10 +255,10 @@ class OmsTestMixin(HelperTestMixin):
             self._verify_invalid_platform_id(requested_platform_id, retval)
 
     ###################################################################
-    # ALARMS
+    # EVENTS
     ###################################################################
 
-    # { (url, alarm_type): [alarm_instance, ...], ...}
+    # { (url, event_type): [event_instance, ...], ...}
     _notifications = {}
     _http_server = None
 
@@ -266,37 +266,37 @@ class OmsTestMixin(HelperTestMixin):
     def start_http_server(cls, host='localhost', port=0):
         """
         A subclass call this to start a server that handles the notification
-        of alarms keeping record of them in the member _notifications, which
+        of events keeping record of them in the member _notifications, which
         can be consulted directly and it is also returned by stop_http_server.
         """
         def application(environ, start_response):
             input = environ['wsgi.input']
             body = "\n".join(input.readlines())
-            alarm_instance = yaml.load(body)
-            log.info('notification received alarm_instance=%s' % str(alarm_instance))
-            if not 'url' in alarm_instance:
+            event_instance = yaml.load(body)
+            log.info('notification received event_instance=%s' % str(event_instance))
+            if not 'url' in event_instance:
                 log.warn("expecting 'url' entry in notification call")
                 return
-            if not 'ref_id' in alarm_instance:
+            if not 'ref_id' in event_instance:
                 log.warn("expecting 'ref_id' entry in notification call")
                 return
 
-            url = alarm_instance['url']
-            alarm_type = alarm_instance['ref_id']
+            url = event_instance['url']
+            event_type = event_instance['ref_id']
 
-            if (url, alarm_type) in cls._notifications:
-                cls._notifications[(url, alarm_type)].append(alarm_instance)
+            if (url, event_type) in cls._notifications:
+                cls._notifications[(url, event_type)].append(event_instance)
             else:
-                cls._notifications[(url, alarm_type)] = [alarm_instance]
+                cls._notifications[(url, event_type)] = [event_instance]
 
             status = '200 OK'
             headers = [('Content-Type', 'text/plain')]
             start_response(status, headers)
-            return alarm_type
+            return event_type
 
         cls._notifications = {}
         cls._http_server = WSGIServer((host, port), application)
-        log.info("HTTP SERVER: starting http server for receiving alarm notifications...")
+        log.info("HTTP SERVER: starting http server for receiving event notifications...")
         cls._http_server.start()
         address = cls._http_server.address
         log.info("HTTP SERVER: ... http server started: address: host=%r port=%r" % address)
@@ -331,160 +331,160 @@ class OmsTestMixin(HelperTestMixin):
         cls._notifications = {}  # re-initialize
         return ret
 
-    def _get_all_alarm_types(self):
-        all_alarms = self.oms.describeAlarmTypes([])
-        self.assertIsInstance(all_alarms, dict)
-        log.info('all_alarms = %s' % all_alarms)
-        return all_alarms
+    def _get_all_event_types(self):
+        all_events = self.oms.describeEventTypes([])
+        self.assertIsInstance(all_events, dict)
+        log.info('all_events = %s' % all_events)
+        return all_events
 
-    def test_ba_describeAlarmTypes(self):
-        all_alarms = self._get_all_alarm_types()
-        if len(all_alarms) == 0:
+    def test_ba_describeEventTypes(self):
+        all_events = self._get_all_event_types()
+        if len(all_events) == 0:
             return
 
-        # get a specific alarm
-        alarm_type_id = all_alarms.keys()[0]
-        alarms = self.oms.describeAlarmTypes([alarm_type_id])
-        self.assertIsInstance(alarms, dict)
-        self.assertEquals(len(alarms), 1)
-        self.assertTrue(alarm_type_id in alarms)
+        # get a specific event
+        event_type_id = all_events.keys()[0]
+        events = self.oms.describeEventTypes([event_type_id])
+        self.assertIsInstance(events, dict)
+        self.assertEquals(len(events), 1)
+        self.assertTrue(event_type_id in events)
 
-    def test_bb_describeAlarmTypes_invalid_alarm_type(self):
-        alarm_type_id = BOGUS_ALARM_TYPE
-        alarms = self.oms.describeAlarmTypes([alarm_type_id])
-        self.assertIsInstance(alarms, dict)
-        self.assertEquals(len(alarms), 1)
-        self.assertTrue(alarm_type_id in alarms)
-        self.assertEquals(InvalidResponse.ALARM_TYPE, alarms[alarm_type_id])
+    def test_bb_describeEventTypes_invalid_event_type(self):
+        event_type_id = BOGUS_EVENT_TYPE
+        events = self.oms.describeEventTypes([event_type_id])
+        self.assertIsInstance(events, dict)
+        self.assertEquals(len(events), 1)
+        self.assertTrue(event_type_id in events)
+        self.assertEquals(InvalidResponse.EVENT_TYPE, events[event_type_id])
 
-    def test_bc_getAlarmsByPlatformType(self):
-        # get all alarm types
-        all_alarms = self.oms.getAlarmsByPlatformType([])
-        self.assertIsInstance(all_alarms, dict)
+    def test_bc_getEventsByPlatformType(self):
+        # get all event types
+        all_events = self.oms.getEventsByPlatformType([])
+        self.assertIsInstance(all_events, dict)
 
-        log.info('all_alarms = %s' % all_alarms)
-        if len(all_alarms) == 0:
+        log.info('all_events = %s' % all_events)
+        if len(all_events) == 0:
             return
 
         # arbitrarily get first platform type again
-        platform_type = all_alarms.keys()[0]
-        alarms = self.oms.getAlarmsByPlatformType([platform_type])
-        self.assertIsInstance(alarms, dict)
-        self.assertEquals(len(alarms), 1)
-        self.assertTrue(platform_type in alarms)
-        self.assertEquals(all_alarms[platform_type], alarms[platform_type])
+        platform_type = all_events.keys()[0]
+        events = self.oms.getEventsByPlatformType([platform_type])
+        self.assertIsInstance(events, dict)
+        self.assertEquals(len(events), 1)
+        self.assertTrue(platform_type in events)
+        self.assertEquals(all_events[platform_type], events[platform_type])
 
-    def test_bd_getAlarmsByPlatformType_invalid_platform_type(self):
+    def test_bd_getEventsByPlatformType_invalid_platform_type(self):
         platform_type = "bogus_platform_type"
-        alarms = self.oms.getAlarmsByPlatformType([platform_type])
-        self.assertIsInstance(alarms, dict)
-        self.assertEquals(len(alarms), 1)
-        self.assertTrue(platform_type in alarms)
-        self.assertEquals(InvalidResponse.PLATFORM_TYPE, alarms[platform_type])
+        events = self.oms.getEventsByPlatformType([platform_type])
+        self.assertIsInstance(events, dict)
+        self.assertEquals(len(events), 1)
+        self.assertTrue(platform_type in events)
+        self.assertEquals(InvalidResponse.PLATFORM_TYPE, events[platform_type])
 
-    def _get_registered_alarm_listeners(self):
-        listeners = self.oms.getRegisteredAlarmListeners()
-        log.info("getRegisteredAlarmListeners returned %s" % str(listeners))
+    def _get_registered_event_listeners(self):
+        listeners = self.oms.getRegisteredEventListeners()
+        log.info("getRegisteredEventListeners returned %s" % str(listeners))
         self.assertIsInstance(listeners, dict)
         return listeners
 
-    def _register_alarm_listener(self, url, alarm_types):
-        result = self.oms.registerAlarmListener(url, alarm_types)
-        log.info("registerAlarmListener returned %s" % str(result))
+    def _register_event_listener(self, url, event_types):
+        result = self.oms.registerEventListener(url, event_types)
+        log.info("registerEventListener returned %s" % str(result))
         self.assertIsInstance(result, dict)
         self.assertEquals(len(result), 1)
         self.assertTrue(url in result)
         return result[url]
 
-    def _register_one_alarm_listener(self):
-        all_alarms = self._get_all_alarm_types()
-        if len(all_alarms) == 0:
-            log.info("WARNING: No alarm types reported so not registering any listener")
+    def _register_one_event_listener(self):
+        all_events = self._get_all_event_types()
+        if len(all_events) == 0:
+            log.info("WARNING: No event types reported so not registering any listener")
             return None
 
-        # arbitrarily pick first alarm type
-        alarm_type_id = all_alarms.keys()[0]
+        # arbitrarily pick first event type
+        event_type_id = all_events.keys()[0]
 
         url = self.__get_url()
-        res = self._register_alarm_listener(url, [alarm_type_id])[0]
+        res = self._register_event_listener(url, [event_type_id])[0]
 
         # check that it's registered
-        listeners = self._get_registered_alarm_listeners()
+        listeners = self._get_registered_event_listeners()
         self.assertTrue(url in listeners)
 
-        log.info("_register_one_alarm_listener: res=%s" % str(res))
+        log.info("_register_one_event_listener: res=%s" % str(res))
         return url, res
 
-    def test_be_registerAlarmListener(self):
-        self._register_one_alarm_listener()
+    def test_be_registerEventListener(self):
+        self._register_one_event_listener()
 
         if self._http_server:
             # wait for a bit to see if we get some notifications
-            log.info("waiting for possible alarm notifications...")
+            log.info("waiting for possible event notifications...")
             time.sleep(6)
 
-    def test_bf_registerAlarmListener_invalid_alarm_type(self):
+    def test_bf_registerEventListener_invalid_event_type(self):
         url = self.__get_url()
-        alarm_type_id = BOGUS_ALARM_TYPE
-        res = self._register_alarm_listener(url, [alarm_type_id])
+        event_type_id = BOGUS_EVENT_TYPE
+        res = self._register_event_listener(url, [event_type_id])
         self.assertEquals(len(res), 1)
-        self.assertEquals((alarm_type_id, InvalidResponse.ALARM_TYPE), tuple(res[0]))
+        self.assertEquals((event_type_id, InvalidResponse.EVENT_TYPE), tuple(res[0]))
 
         # check that it's registered
-        listeners = self._get_registered_alarm_listeners()
+        listeners = self._get_registered_event_listeners()
         self.assertTrue(url in listeners)
 
-    def test_bg_getRegisteredAlarmListeners(self):
-        self._get_registered_alarm_listeners()
+    def test_bg_getRegisteredEventListeners(self):
+        self._get_registered_event_listeners()
 
-    def _unregister_alarm_listener(self, url, alarm_types):
-        result = self.oms.unregisterAlarmListener(url, alarm_types)
-        log.info("unregisterAlarmListener returned %s" % str(result))
+    def _unregister_event_listener(self, url, event_types):
+        result = self.oms.unregisterEventListener(url, event_types)
+        log.info("unregisterEventListener returned %s" % str(result))
         self.assertIsInstance(result, dict)
         self.assertEquals(len(result), 1)
         self.assertTrue(url in result)
         return result[url]
 
-    def test_bh_unregisterAlarmListener(self):
-        result = self._get_registered_alarm_listeners()
+    def test_bh_unregisterEventListener(self):
+        result = self._get_registered_event_listeners()
         if len(result) == 0:
-            log.info("WARNING: No alarm listeners to unregister")
+            log.info("WARNING: No event listeners to unregister")
             return
 
         url = result.keys()[0]
-        alarm_pairs = result[url]
-        self.assertTrue(len(alarm_pairs) > 0)
-        alarm_type_id, time = alarm_pairs[0]
-        self._unregister_alarm_listener(url, [alarm_type_id])
+        event_pairs = result[url]
+        self.assertTrue(len(event_pairs) > 0)
+        event_type_id, time = event_pairs[0]
+        self._unregister_event_listener(url, [event_type_id])
 
         # check that it's unregistered
-        listeners = self._get_registered_alarm_listeners()
+        listeners = self._get_registered_event_listeners()
         self.assertTrue(url not in listeners)
 
-    def test_bi_unregisterAlarmListener_not_registered_url(self):
+    def test_bi_unregisterEventListener_not_registered_url(self):
         url = "http://_never_registered_url"
-        alarm_type_id = "dummy_alarm_type"
-        res = self._unregister_alarm_listener(url, [alarm_type_id])
-        self.assertEquals(InvalidResponse.ALARM_LISTENER_URL, res)
+        event_type_id = "dummy_event_type"
+        res = self._unregister_event_listener(url, [event_type_id])
+        self.assertEquals(InvalidResponse.EVENT_LISTENER_URL, res)
 
-    def test_bj_unregisterAlarmListener_invalid_alarm_type(self):
+    def test_bj_unregisterEventListener_invalid_event_type(self):
         reg_res = None
-        result = self._get_registered_alarm_listeners()
+        result = self._get_registered_event_listeners()
         if len(result) == 0:
             # register one
-            url, reg_res = self._register_one_alarm_listener()
+            url, reg_res = self._register_one_event_listener()
         else:
             url = result.keys()[0]
 
-        # here we have a valid url; now use a bogus alarm type:
-        log.info("unregistering %s" % BOGUS_ALARM_TYPE)
-        res = self._unregister_alarm_listener(url, [BOGUS_ALARM_TYPE])
-        self.assertEquals((BOGUS_ALARM_TYPE, InvalidResponse.ALARM_TYPE), tuple(res[0]))
+        # here we have a valid url; now use a bogus event type:
+        log.info("unregistering %s" % BOGUS_EVENT_TYPE)
+        res = self._unregister_event_listener(url, [BOGUS_EVENT_TYPE])
+        self.assertEquals((BOGUS_EVENT_TYPE, InvalidResponse.EVENT_TYPE), tuple(res[0]))
 
         if reg_res:
             # unregister the one created above
-            alarm_type_id, reg_time = reg_res
-            log.info("unregistering %s" % alarm_type_id)
-            self._unregister_alarm_listener(url, [alarm_type_id])
+            event_type_id, reg_time = reg_res
+            log.info("unregistering %s" % event_type_id)
+            self._unregister_event_listener(url, [event_type_id])
 
-        self._get_registered_alarm_listeners()
+        self._get_registered_event_listeners()

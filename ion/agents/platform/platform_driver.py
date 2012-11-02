@@ -55,26 +55,26 @@ class AttributeValueDriverEvent(DriverEvent):
             self.value, self.ts)
 
 
-class AlarmDriverEvent(DriverEvent):
+class EventDriverEvent(DriverEvent):
     """
-    Event to notify an alarm.
+    Event to notify an event.
     """
-    def __init__(self, ts, alarm_type, alarm_instance):
+    def __init__(self, ts, event_type, event_instance):
         DriverEvent.__init__(self, ts)
-        self._alarm_type = alarm_type
-        self._alarm_instance = alarm_instance
+        self._event_type = event_type
+        self._event_instance = event_instance
 
     @property
-    def alarm_type(self):
-        return self._alarm_type
+    def event_type(self):
+        return self._event_type
 
     @property
-    def alarm_instance(self):
-        return self._alarm_instance
+    def event_instance(self):
+        return self._event_instance
 
     def __str__(self):
-        return "%s(alarm_type=%r, alarm_instance=%s, ts=%r)" % (
-            self.__class__.__name__, self.alarm_type, self.alarm_instance,
+        return "%s(event_type=%r, event_instance=%s, ts=%r)" % (
+            self.__class__.__name__, self.event_type, self.event_instance,
             self.ts)
 
 
@@ -290,17 +290,17 @@ class PlatformDriver(object):
             log.warn("self._send_event not set to notify driver_event=%s",
                      str(driver_event))
 
-    def start_alarm_dispatch(self, params):
+    def start_event_dispatch(self, params):
         """
         To be implemented by subclass.
-        Starts the dispatch of alarms received from the platform network to do
+        Starts the dispatch of events received from the platform network to do
         corresponding event notifications.
         """
         raise NotImplemented()
 
-    def stop_alarm_dispatch(self):
+    def stop_event_dispatch(self):
         """
         To be implemented by subclass.
-        Stops the dispatch of alarms received from the platform network.
+        Stops the dispatch of events received from the platform network.
         """
         raise NotImplemented()

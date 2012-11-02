@@ -72,12 +72,12 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
     def _stop_resource_monitoring(self):
         self._plat_driver.stop_resource_monitoring()
 
-    def _start_alarm_dispatch(self):
+    def _start_event_dispatch(self):
         params = {}  # TODO params not used yet
-        self._plat_driver.start_alarm_dispatch(params)
+        self._plat_driver.start_event_dispatch(params)
 
-    def _stop_alarm_dispatch(self):
-        self._plat_driver.stop_alarm_dispatch()
+    def _stop_event_dispatch(self):
+        self._plat_driver.stop_event_dispatch()
 
     def test(self):
 
@@ -87,10 +87,10 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
         self._get_attribute_values()
 
         self._start_resource_monitoring()
-        self._start_alarm_dispatch()
+        self._start_event_dispatch()
 
         log.info("sleeping to eventually see some events...")
         sleep(15)
 
-        self._stop_alarm_dispatch()
+        self._stop_event_dispatch()
         self._stop_resource_monitoring()
