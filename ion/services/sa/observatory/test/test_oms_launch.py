@@ -471,9 +471,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'ShoreSide Platform RUN = %s', str(retval) )
 
-        # START_ALARM_DISPATCH
+        # START_EVENT_DISPATCH
         kwargs = dict(params="TODO set params")
-        cmd = AgentCommand(command=PlatformAgentEvent.START_ALARM_DISPATCH, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH, kwargs=kwargs)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
 
@@ -482,8 +482,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         sleep(15)
 
 
-        # STOP_ALARM_DISPATCH
-        cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
+        # STOP_EVENT_DISPATCH
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
 

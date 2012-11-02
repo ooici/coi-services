@@ -369,9 +369,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(x in retval.result for x in self.SUBPLATFORM_IDS)
         return retval.result
 
-    def _start_alarm_dispatch(self):
+    def _start_event_dispatch(self):
         kwargs = dict(params="TODO set params")
-        cmd = AgentCommand(command=PlatformAgentEvent.START_ALARM_DISPATCH, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self.assertTrue(retval.result is not None)
         return retval.result
@@ -382,8 +382,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         # just wait for at least one -- see consume_data above
         self.assertTrue(len(self._samples_received) >= 1)
 
-    def _stop_alarm_dispatch(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
+    def _stop_event_dispatch(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
         retval = self._execute_agent(cmd)
         self.assertTrue(retval.result is not None)
         return retval.result
@@ -410,8 +410,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
 
-            PlatformAgentEvent.START_ALARM_DISPATCH,
-            PlatformAgentEvent.STOP_ALARM_DISPATCH,
+            PlatformAgentEvent.START_EVENT_DISPATCH,
+            PlatformAgentEvent.STOP_EVENT_DISPATCH,
         ]
 
 
@@ -572,8 +572,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
 
-            PlatformAgentEvent.START_ALARM_DISPATCH,
-            PlatformAgentEvent.STOP_ALARM_DISPATCH,
+            PlatformAgentEvent.START_EVENT_DISPATCH,
+            PlatformAgentEvent.STOP_EVENT_DISPATCH,
         ]
 
         res_cmds_command = [
@@ -624,11 +624,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._set_up_port()
         self._turn_on_port()
 
-        self._start_alarm_dispatch()
+        self._start_event_dispatch()
 
         self._wait_for_a_data_sample()
 
-        self._stop_alarm_dispatch()
+        self._stop_event_dispatch()
 
         self._turn_off_port()
 

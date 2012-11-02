@@ -411,6 +411,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         Starts event subscriber for events of given event_type ("PlatformAlarmEvent"
         by default) and given sub_type ("power" by default).
         """
+        # TODO note: ion-definitions still using 'PlatformAlarmEvent' but we
+        # should probably define 'PlatformExternalEvent' or something like that.
 
         def consume_event(evt, *args, **kwargs):
             # A callback for consuming events.
@@ -521,9 +523,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'Base Platform RUN = %s', str(retval) )
 
-        # START_ALARM_DISPATCH
+        # START_EVENT_DISPATCH
         kwargs = dict(params="TODO set params")
-        cmd = AgentCommand(command=PlatformAgentEvent.START_ALARM_DISPATCH, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH, kwargs=kwargs)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
 
@@ -538,15 +540,15 @@ class TestOmsLaunch(IonIntegrationTestCase):
 #        self.assertTrue(len(self._samples_received) >= 1)
 
 
-        # wait for alarm event
+        # wait for event
         # just wait for at least one event -- see consume_event above
         log.info("waiting for reception of an event...")
         self._async_event_result.get(timeout=EVENT_TIMEOUT)
         log.info("Received events: %s", len(self._events_received))
 
 
-        # STOP_ALARM_DISPATCH
-        cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
+        # STOP_EVENT_DISPATCH
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
 
