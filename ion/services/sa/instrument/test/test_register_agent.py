@@ -111,7 +111,7 @@ class TestIMSRegisterAgent(PyonTestCase):
         self.IMS.module_uploader = RegisterModulePreparerEgg(dest_user="my_user",
                                                              dest_host="my_host",
                                                              dest_path="/my/remote/wwwroot/my/path",
-                                                             dest_wwwroot="/my/remote/wwwroot")
+                                                             dest_wwwprefix="http://my_host/my/path")
 
         self.addCleanup(delattr, self, "IMS")
         self.addCleanup(delattr, self, "mock_ionobj")
@@ -213,7 +213,6 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
         if "driver_release_user" in CFG.service.instrument_management:
             cfg_user = CFG.service.instrument_management.driver_release_user
 
-
         remotehost = "%s@%s" % (cfg_user, cfg_host)
 
         ssh_retval = subprocess.call(["ssh", "-o", "PasswordAuthentication=no",
@@ -262,9 +261,8 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
                     failmsg = str(e)
 
                 if failmsg:
-                    self.fail(("Uploaded succeeded, but fetching '%s' failed with '%s'.  " +
-                               "CFG for web root on remote host is '%s', is that correct?") %
-                              (remote_url, failmsg, CFG.service.instrument_management.driver_release_wwwroot))
+                    self.fail(("Uploaded succeeded, but fetching '%s' failed with '%s'. ") %
+                              (remote_url, failmsg))
 
 
         log.info("L4-CI-SA-RQ-148")

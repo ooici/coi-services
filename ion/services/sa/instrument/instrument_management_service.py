@@ -130,16 +130,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             cfg_remotepath  = self.CFG.get_safe("service.instrument_management.driver_release_directory", None)
             cfg_user        = self.CFG.get_safe("service.instrument_management.driver_release_user",
                                                 pwd.getpwuid(os.getuid())[0])
-            cfg_wwwroot     = self.CFG.get_safe("service.instrument_management.driver_release_wwwroot", "/")
+            cfg_wwwprefix   = self.CFG.get_safe("service.instrument_management.driver_release_wwwprefix", None)
 
-            if cfg_host is None or cfg_remotepath is None:
-                raise BadRequest("Missing configuration items for host and directory -- destination of driver release")
+            if cfg_host is None or cfg_remotepath is None or cfg_wwwprefix is None:
+                raise BadRequest("Missing configuration items; host='%s', directory='%s', wwwprefix='%s'" %
+                                 (cfg_host, cfg_remotepath, cfg_wwwprefix))
 
 
             self.module_uploader = RegisterModulePreparerEgg(dest_user=cfg_user,
                                                              dest_host=cfg_host,
                                                              dest_path=cfg_remotepath,
-                                                             dest_wwwroot=cfg_wwwroot)
+                                                             dest_wwwprefix=cfg_wwwprefix)
 
     def override_clients(self, new_clients):
         """
