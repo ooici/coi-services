@@ -1128,15 +1128,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # publish some events for the event repository
         event_publisher_1 = EventPublisher("PlatformEvent")
-        event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
+        event_publisher_2 = EventPublisher("PlatformEvent")
 
         for i in xrange(10):
             event_publisher_1.publish_event(origin='my_special_find_events_origin', ts_created = i)
             event_publisher_2.publish_event(origin='another_origin', ts_created = i)
 
         def poller():
-            events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= 4, max_datetime=7)
-            return len(events) >= 4
+            events_dict = self.unsc.find_events( origins=['my_special_find_events_origin','another_origin'],
+                                            type = 'PlatformEvent',
+                                            min_datetime= 4,
+                                            max_datetime=7)
+            return len(events_dict['my_special_find_events_origin']) >= 4 and len(events_dict['another_origin']) >= 4
 
         success = self.event_poll(poller, 10)
 
