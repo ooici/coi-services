@@ -762,6 +762,15 @@ class DataProductManagementService(BaseDataProductManagementService):
         return ret
 
 
+    def get_is_persisted(self, data_product_id=''):
+        # Returns True if data product is currently being persisted
+        ret = IonObject(OT.ComputedIntValue)
+        ret.value = self.is_persisted(data_product_id)
+        ret.status = ComputedValueAvailability.PROVIDED
+
+        return ret
+
+
     def _remove_associations(self, resource_id=''):
         """
         delete all associations to/from a resource

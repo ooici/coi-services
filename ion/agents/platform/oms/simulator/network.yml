@@ -188,14 +188,14 @@ network:
             precision: 1
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitorCycleSeconds: 2
           - attr_id: Input Bus Current
             type: float
             units: Amps
             min_val: -50
             max_val: 50
             precision: 0.1
-            read_write: read
+            read_write: write  # just for testing
             group: power
             monitorCycleSeconds: 5
           - attr_id: MVPC Temperature

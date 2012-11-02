@@ -1,17 +1,17 @@
 
 from pyon.net.endpoint import Subscriber
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
-from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
-from interface.services.ans.ivisualization_service import VisualizationServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceProcessClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceProcessClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceProcessClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceProcessClient
+from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceProcessClient
+from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceProcessClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
+from interface.services.ans.ivisualization_service import VisualizationServiceProcessClient
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
@@ -33,14 +33,10 @@ from pyon.util.context import LocalContextMixin
 import logging
 
 
-class FakeProcess(LocalContextMixin):
-    """
-    A fake process used because the test case is not an ion process.
-    """
-    name = ''
-    id=''
-    process_type = ''
-
+class VisualizationServiceTestProcess(LocalContextMixin):
+    name = 'visualization_test'
+    id='visualization_int_test'
+    process_type = 'simple'
 
 @attr('INT', group='as')
 class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
@@ -53,18 +49,22 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         logging.disable(logging.NOTSET)
 
+        #Instantiate a process to represent the test
+        process=VisualizationServiceTestProcess()
+
         # Now create client to DataProductManagementService
-        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
-        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
-        self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
-        self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
-        self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
-        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
-        self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
-        self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
-        self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
-        self.vis_client = VisualizationServiceClient(node=self.container.node)
-        self.ingestion_management = IngestionManagementServiceClient(node=self.container.node)
+        self.rrclient = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
+        self.damsclient = DataAcquisitionManagementServiceProcessClient(node=self.container.node, process=process)
+        self.pubsubclient =  PubsubManagementServiceProcessClient(node=self.container.node, process=process)
+        self.ingestclient = IngestionManagementServiceProcessClient(node=self.container.node, process=process)
+        self.imsclient = InstrumentManagementServiceProcessClient(node=self.container.node, process=process)
+        self.dataproductclient = DataProductManagementServiceProcessClient(node=self.container.node, process=process)
+        self.dataprocessclient = DataProcessManagementServiceProcessClient(node=self.container.node, process=process)
+        self.datasetclient =  DatasetManagementServiceProcessClient(node=self.container.node, process=process)
+        self.workflowclient = WorkflowManagementServiceProcessClient(node=self.container.node, process=process)
+        self.process_dispatcher = ProcessDispatcherServiceProcessClient(node=self.container.node, process=process)
+        self.data_retriever = DataRetrieverServiceProcessClient(node=self.container.node, process=process)
+        self.vis_client = VisualizationServiceProcessClient(node=self.container.node, process=process)
 
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
@@ -271,7 +271,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         for x in range(min(len(msgs1), len(msgs2))):
             msgs1[x].ack()
             msgs2[x].ack()
-            self.validate_multiple_vis_queue_messages(msgs1[x], msgs2[x])
+            self.validate_multiple_vis_queue_messages(msgs1[x].body, msgs2[x].body)
 
         # kill the ctd simulator process - that is enough data
         self.process_dispatcher.cancel_process(ctd_sim_pid)

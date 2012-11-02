@@ -87,7 +87,7 @@ class CatalogManagementService(BaseCatalogManagementService):
         @param catalog_id    str
         @retval success    bool
         """
-        objs, assocs = self.clients.resource_registry.find_associations_mult(subjects=[catalog_id], id_only=True)
+        objs, assocs = self.clients.resource_registry.find_objects_mult(subjects=[catalog_id], id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc._id)
 

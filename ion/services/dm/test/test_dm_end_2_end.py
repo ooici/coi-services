@@ -490,6 +490,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(comp.all(),'%s' % rdt.pretty_print())
         self.assertEquals(set(rdt.iterkeys()), set(['time','temp']))
 
+        extents = self.dataset_management.dataset_extents(dataset_id=dataset_id, parameters=['time','temp'])
+        self.assertTrue(extents['time']>=20)
+        self.assertTrue(extents['temp']>=20)
+
 
 
     def test_repersist_data(self):

@@ -295,6 +295,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         Check agent state and reset if necessary.
         This called if a test fails and reset hasn't occurred.
         """
+        if self._ia_client is None:
+            return
+
         state = self._ia_client.get_agent_state()
         if state != ResourceAgentState.UNINITIALIZED:
             cmd = AgentCommand(command=ResourceAgentEvent.RESET)
