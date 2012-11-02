@@ -124,8 +124,11 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.find_associations(subject=subject, predicate=predicate,
             object=object, assoc_type=assoc_type, id_only=id_only)
     @mask_couch_error
-    def find_associations_mult(self, subjects=[], id_only=False):
-        return self.resource_registry.find_associations_mult(subjects=subjects, id_only=id_only)
+    def find_objects_mult(self, subjects=[], id_only=False):
+        return self.resource_registry.find_objects_mult(subjects=subjects, id_only=id_only)
+    @mask_couch_error
+    def find_subjects_mult(self, objects=[], id_only=False):
+        return self.resource_registry.find_subjects_mult(objects=objects, id_only=id_only)
 
     @mask_couch_error
     def get_association(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
