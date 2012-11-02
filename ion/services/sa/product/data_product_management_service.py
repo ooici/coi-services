@@ -238,6 +238,10 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                 ingestion_configuration_id=ingestion_configuration_id,
                                                 dataset_id=dataset_id)
 
+        # register the dataset for externalization
+        self.clients.dataset_management.register_dataset(dataset_id)
+
+
         #--------------------------------------------------------------------------------
         # todo: dataset_configuration_obj contains the ingest config for now...
         # Update the data product object
