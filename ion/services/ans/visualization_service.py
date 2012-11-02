@@ -478,3 +478,67 @@ class VisualizationService(BaseVisualizationService):
             return ret_dict
         else:
             return callback + "(" + simplejson.dumps(ret_dict) + ")"
+
+
+
+    def get_dataproduct_kml(self, visualization_parameters = None):
+
+        kml_content = ""
+        ui_server = "http://localhost:3000" # This server hosts the UI and is used for creating all embedded links within KML
+        if visualization_parameters:
+            if "ui_server" in visualization_parameters:
+                ui_server = visualization_parameters["ui_server"]
+
+        # First step. Discover all Data products in the system
+        dps,_ = self.clients.resource_registry.find_resources(RT.DataProduct, None, None, False)
+
+        # Start creating the kml in memory
+        # Common KML tags
+        kml_content += "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        kml_content += "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
+        #kml_content += "\txmlns:atom=\"http://www.w3.org/2005/Atom\">\n"
+        kml_content += "<Document>\n"
+        kml_content += "<name>DataProduct geo-reference information</name>\n"
+        # define line styles. Used for polygons
+        kml_content += "<Style id=\"yellowLine\">\n<LineStyle>\n<color>ff61f2f2</color>\n<width>4</width>\n</LineStyle>\n</Style>"
+
+        # Enter all DP in to KML placemarks
+        for dp in dps:
+            _lat = _lon = 0.0
+            bounds = dp.geospatial_bounds
+            if bounds == None:
+                continue
+
+            # approximate placemark position
+            _lon_center = bounds.geospatial_longitude_limit_west + (bounds.geospatial_longitude_limit_east - bounds.geospatial_longitude_limit_west) / 2.0
+            _lat_center = bounds.geospatial_latitude_limit_south + (bounds.geospatial_latitude_limit_north - bounds.geospatial_latitude_limit_south) / 2.0
+
+            # Start Placemark tag for point
+            kml_content += "<Placemark>\n"
+
+            # name of placemark
+            kml_content += "<name>"
+            kml_content += dp.ooi_short_name
+            kml_content += "</name>\n"
+
+            # Description
+            kml_content += "<description>\n<![CDATA["
+            # insert HTML description here
+            html_description = "<h1>Data Product : " + dp.ooi_short_name + "</h1>\n"
+            html_description += "<a href=\"" + ui_server + "/DataProduct/face/" + str(dp._id) + "/\">More information.</a> "
+
+            kml_content += html_description
+            kml_content += "]]>\n</description>\n"
+
+            # Point information
+            kml_content += "<Point>\n<coordinates>" + str(_lon_center) + "," + str(_lat_center) + "</coordinates>\n</Point>\n"
+
+            # Close Placemark
+            kml_content += "</Placemark>\n"
+
+        # ------
+        kml_content += "</Document>\n"
+        kml_content += "</kml>\n"
+
+        print " >>>>>>>>>>>>>>>>>>>>>>>>>>  KML : ", kml_content
+        return kml_content
