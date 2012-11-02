@@ -17,6 +17,7 @@ from ion.agents.platform.util.network import NNode
 from ion.agents.platform.oms.simulator.oms_alarms import AlarmInfo
 from ion.agents.platform.oms.simulator.oms_alarms import AlarmNotifier
 from ion.agents.platform.oms.simulator.oms_alarms import AlarmGenerator
+from ion.agents.platform.oms.simulator.oms_values import generate_values
 
 import yaml
 import time
@@ -190,22 +191,15 @@ class OmsSimulator(OmsClient):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        timestamp = time.time()
+        to_time = time.time()
         attrs = self._idp[platform_id].attrs
         vals = {}
         for attrName in attrNames:
             if attrName in attrs:
                 attr = attrs[attrName]
-                val = attr._value
-
-                if val is None:
-                    val = self._next_value
-                    self._next_value += 1
-
-                if val is not None and from_time < timestamp:
-                    vals[attrName] = (val, timestamp)
-                else:
-                    vals[attrName] = ('', '')
+                values = generate_values(platform_id, attr.attr_id, from_time, to_time)
+                vals[attrName] = values
+                # Note: [] if there are no values
             else:
                 vals[attrName] = InvalidResponse.ATTRIBUTE_NAME_VALUE
 

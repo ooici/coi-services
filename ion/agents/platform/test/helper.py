@@ -19,27 +19,39 @@ log = Logger.get_logger()
 
 from ion.agents.platform.oms.oms_client import InvalidResponse
 
-#######################################################################
-# Various IDs from network.yml, which is used by the OMS simulator, and
-# ad hoc values for testing
-PLATFORM_ID = 'Node1A'
-SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
-ATTR_NAMES = ['input_voltage', 'Node1A_attr_2']
-WRITABLE_ATTR_NAMES = ['Node1A_attr_2']
-VALID_ATTR_VALUE = "7"  # within the range
-INVALID_ATTR_VALUE = "9876"  # out of range
-
-PORT_ID = 'Node1A_port_1'
-PORT_ATTR_NAME = 'maxCurrentDraw'
-VALID_PORT_ATTR_VALUE = 12345
-
-#######################################################################
-
 
 class HelperTestMixin:
     """
     A mixin to facilitate common validations in tests.
     """
+
+    @classmethod
+    def setUpClass(cls):
+        """
+        Sets some various IDs from network.yml, which is used by the OMS
+        simulator, and ad hoc values for testing.
+        """
+        cls.PLATFORM_ID = 'Node1A'
+        cls.SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
+        cls.ATTR_NAMES = ['input_voltage', 'Node1A_attr_2']
+        cls.WRITABLE_ATTR_NAMES = ['Node1A_attr_2']
+        cls.VALID_ATTR_VALUE = "7"  # within the range
+        cls.INVALID_ATTR_VALUE = "9876"  # out of range
+
+        cls.PORT_ID = 'Node1A_port_1'
+        cls.PORT_ATTR_NAME = 'maxCurrentDraw'
+        cls.VALID_PORT_ATTR_VALUE = 12345
+
+        import os
+        if os.getenv('SMALL_PLATFORM_NETWORK') is not None:
+            # This env variable helps use a smaller network locally.
+            print("SMALL_PLATFORM_NETWORK")
+            cls.PLATFORM_ID = 'Node1D'
+            cls.SUBPLATFORM_IDS = ['MJ01C']
+            cls.ATTR_NAMES = ['input_voltage', 'Input Bus Current']
+            cls.WRITABLE_ATTR_NAMES = ['Input Bus Current']
+
+            cls.PORT_ID = 'Node1D_port_1'
 
     def _verify_valid_platform_id(self, platform_id, dic):
         """

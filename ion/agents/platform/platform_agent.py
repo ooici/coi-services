@@ -478,12 +478,11 @@ class PlatformAgent(ResourceAgent):
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
         if param_name not in rdt:
-            # TODO can it just be skipped without any warning of logging? (as in InstrumentAgent)
-            log.warn('%r: got attribute value event for unconfigured parameter %r in stream %s',
+            log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r',
                      self._platform_id, param_name, stream_name)
             return
 
-        rdt[param_name] = numpy.array([param_value])
+        rdt[param_name] = numpy.array(param_value)
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
@@ -552,9 +551,18 @@ class PlatformAgent(ResourceAgent):
                      self._platform_id, stream_name)
             return
 
+        # note: values = [ (val, ts), ...]
+        values = driver_event.value
+
+        # notify only array of actual values
+        only_values = [v for v, t in values]
+
+        # TODO determine how to pass the whole array of (val, ts) pairs or some
+        # equivalent variation appropriately.
+
         rdt = RecordDictionaryTool(param_dictionary=param_dict)
 
-        rdt['value'] =  numpy.array([driver_event._value])
+        rdt['value'] = numpy.array(only_values)
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
 

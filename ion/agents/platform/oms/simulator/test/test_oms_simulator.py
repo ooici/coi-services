@@ -32,6 +32,7 @@ class Test(IonUnitTestCase, OmsTestMixin):
 
     @classmethod
     def setUpClass(cls):
+        OmsTestMixin.setUpClass()
         OmsTestMixin.start_http_server()
         cls.oms = OmsSimulator()
 

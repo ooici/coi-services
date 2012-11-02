@@ -23,8 +23,7 @@ from nose.plugins.attrib import attr
 
 from gevent import sleep
 
-from ion.agents.platform.test.helper import PLATFORM_ID
-from ion.agents.platform.test.helper import ATTR_NAMES
+from ion.agents.platform.test.helper import HelperTestMixin
 
 
 DVR_CONFIG = {
@@ -33,10 +32,14 @@ DVR_CONFIG = {
 
 
 @attr('INT', group='sa')
-class TestOmsPlatformDriver(IonIntegrationTestCase):
+class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
+
+    @classmethod
+    def setUpClass(cls):
+        HelperTestMixin.setUpClass()
 
     def setUp(self):
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         self._plat_driver = OmsPlatformDriver(platform_id, DVR_CONFIG)
 
         self._plat_driver.set_event_listener(self.evt_recv)
@@ -55,11 +58,12 @@ class TestOmsPlatformDriver(IonIntegrationTestCase):
         self._plat_driver.go_active()
 
     def _get_attribute_values(self):
+        attrNames = self.ATTR_NAMES
         from_time = time.time()
-        attr_values = self._plat_driver.get_attribute_values(ATTR_NAMES, from_time)
+        attr_values = self._plat_driver.get_attribute_values(attrNames, from_time)
         log.info("attr_values = %s" % str(attr_values))
         self.assertIsInstance(attr_values, dict)
-        for attr_name in ATTR_NAMES:
+        for attr_name in attrNames:
             self.assertTrue(attr_name in attr_values)
 
     def _start_resource_monitoring(self):

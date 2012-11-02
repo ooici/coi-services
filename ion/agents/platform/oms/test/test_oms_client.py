@@ -27,6 +27,7 @@ class Test(IonIntegrationTestCase, OmsTestMixin):
 
     @classmethod
     def setUpClass(cls):
+        OmsTestMixin.setUpClass()
         cls.oms = OmsClientFactory.create_instance()
         OmsTestMixin.start_http_server()
 

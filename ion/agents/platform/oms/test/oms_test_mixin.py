@@ -16,11 +16,6 @@ from ion.agents.platform.oms.simulator.logger import Logger
 log = Logger.get_logger()
 
 from ion.agents.platform.test.helper import HelperTestMixin
-from ion.agents.platform.test.helper import PLATFORM_ID
-from ion.agents.platform.test.helper import SUBPLATFORM_IDS
-from ion.agents.platform.test.helper import ATTR_NAMES
-from ion.agents.platform.test.helper import WRITABLE_ATTR_NAMES
-from ion.agents.platform.test.helper import PORT_ID
 
 from ion.agents.platform.oms.oms_client import InvalidResponse
 
@@ -40,6 +35,10 @@ class OmsTestMixin(HelperTestMixin):
     """
     A mixin to facilitate test cases for OMS objects following the OMS-CI interface.
     """
+    @classmethod
+    def setUpClass(cls):
+        HelperTestMixin.setUpClass()
+
     def test_aa_ping(self):
         response = self.oms.hello.ping()
         self.assertEquals(response, "pong")
@@ -55,12 +54,12 @@ class OmsTestMixin(HelperTestMixin):
         self.assertEquals("ShoreStation", platform_id)
 
     def test_ab_getSubplatformIDs(self):
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         retval = self.oms.config.getSubplatformIDs(platform_id)
         log.info("getSubplatformIDs(%r) = %s" % (platform_id,  retval))
         subplatform_ids = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(subplatform_ids, list)
-        self.assertTrue(x in subplatform_ids for x in SUBPLATFORM_IDS)
+        self.assertTrue(x in subplatform_ids for x in self.SUBPLATFORM_IDS)
 
     def test_ac_getPlatformTypes(self):
         retval = self.oms.config.getPlatformTypes()
@@ -71,7 +70,7 @@ class OmsTestMixin(HelperTestMixin):
             self.assertIsInstance(v, str)
 
     def test_ad_getPlatformMetadata(self):
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         retval = self.oms.config.getPlatformMetadata(platform_id)
         log.info("getPlatformMetadata(%r) = %s" % (platform_id,  retval))
         md = self._verify_valid_platform_id(platform_id, retval)
@@ -85,7 +84,7 @@ class OmsTestMixin(HelperTestMixin):
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_af_getPlatformAttributes(self):
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         retval = self.oms.config.getPlatformAttributes(platform_id)
         log.info("getPlatformAttributes(%r) = %s" % (platform_id, retval))
         infos = self._verify_valid_platform_id(platform_id, retval)
@@ -98,9 +97,9 @@ class OmsTestMixin(HelperTestMixin):
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_ah_getPlatformAttributeValues(self):
-        platform_id = PLATFORM_ID
-        attrNames = ATTR_NAMES
-        from_time = time.time()
+        platform_id = self.PLATFORM_ID
+        attrNames = self.ATTR_NAMES
+        from_time = time.time() - 50  # a 50-sec time window
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         log.info("getPlatformAttributeValues = %s" % retval)
         vals = self._verify_valid_platform_id(platform_id, retval)
@@ -110,16 +109,16 @@ class OmsTestMixin(HelperTestMixin):
 
     def test_ah_getPlatformAttributeValues_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID
-        attrNames = ATTR_NAMES
-        from_time = time.time()
+        attrNames = self.ATTR_NAMES
+        from_time = time.time() - 50  # a 50-sec time window
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         log.info("getPlatformAttributeValues = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_ah_getPlatformAttributeValues_invalid_attributes(self):
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         attrNames = BOGUS_ATTR_NAMES
-        from_time = time.time()
+        from_time = time.time() - 50  # a 50-sec time window
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         log.info("getPlatformAttributeValues = %s" % retval)
         vals = self._verify_valid_platform_id(platform_id, retval)
@@ -128,10 +127,10 @@ class OmsTestMixin(HelperTestMixin):
             self._verify_invalid_attribute_id(attrName, vals)
 
     def test_ah_setPlatformAttributeValues(self):
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         # try for all test attributes, but check below for both those writable
         # and not writable
-        attrNames = ATTR_NAMES
+        attrNames = self.ATTR_NAMES
 
         def valueFor(attrName):
             # simple string value, ok because there is no strict value check yet
@@ -144,7 +143,7 @@ class OmsTestMixin(HelperTestMixin):
         vals = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(vals, dict)
         for attrName in attrNames:
-            if attrName in WRITABLE_ATTR_NAMES:
+            if attrName in self.WRITABLE_ATTR_NAMES:
                 self._verify_valid_attribute_id(attrName, vals)
             else:
                 self._verify_not_writable_attribute_id(attrName, vals)
@@ -156,7 +155,7 @@ class OmsTestMixin(HelperTestMixin):
         return ports
 
     def test_ak_getPlatformPorts(self):
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         ports = self._getPlatformPorts(platform_id)
         for port_id, info in ports.iteritems():
             self.assertIsInstance(info, dict)
@@ -171,8 +170,8 @@ class OmsTestMixin(HelperTestMixin):
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_am_setUpPort(self):
-        platform_id = PLATFORM_ID
-        port_id = PORT_ID
+        platform_id = self.PLATFORM_ID
+        port_id = self.PORT_ID
         # TODO proper attributes and values
         valid_attributes = {'maxCurrentDraw': 1, 'initCurrent': 2,
                       'dataThroughput': 3, 'instrumentType': 'FOO'}
@@ -194,14 +193,14 @@ class OmsTestMixin(HelperTestMixin):
 
     def test_am_setUpPort_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID
-        port_id = PORT_ID
+        port_id = self.PORT_ID
         attributes = {}
         retval = self.oms.setUpPort(platform_id, port_id, attributes)
         log.info("setUpPort = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_am_setUpPort_invalid_port_id(self):
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         port_id = BOGUS_PORT_ID
         attributes = {}
         retval = self.oms.setUpPort(platform_id, port_id, attributes)
@@ -210,7 +209,7 @@ class OmsTestMixin(HelperTestMixin):
         self._verify_invalid_port_id(port_id, ports)
 
     def test_an_turnOnPort(self):
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         ports = self._getPlatformPorts(platform_id)
         for port_id in ports.iterkeys():
             retval = self.oms.turnOnPort(platform_id, port_id)
@@ -222,7 +221,7 @@ class OmsTestMixin(HelperTestMixin):
 
     def test_an_turnOnPort_invalid_platform_id(self):
         # use valid for getPlatformPorts
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         ports = self._getPlatformPorts(platform_id)
 
         # use invalid for turnOnPort
@@ -233,7 +232,7 @@ class OmsTestMixin(HelperTestMixin):
             self._verify_invalid_platform_id(requested_platform_id, retval)
 
     def test_ao_turnOffPort(self):
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         ports = self._getPlatformPorts(platform_id)
         for port_id in ports.iterkeys():
             retval = self.oms.turnOffPort(platform_id, port_id)
@@ -245,7 +244,7 @@ class OmsTestMixin(HelperTestMixin):
 
     def test_ao_turnOffPort_invalid_platform_id(self):
         # use valid for getPlatformPorts
-        platform_id = PLATFORM_ID
+        platform_id = self.PLATFORM_ID
         ports = self._getPlatformPorts(platform_id)
 
         # use invalid for turnOffPort

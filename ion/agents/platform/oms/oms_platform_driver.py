@@ -307,8 +307,8 @@ class OmsPlatformDriver(PlatformDriver):
             #
             # TODO the following value-related checks are minimal
             #
-            if "int" == type:
-                if min_val and int(attr_value) < int(min_val):
+            if type in ["float", "int"]:
+                if min_val and float(attr_value) < float(min_val):
                     vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
                     errors = True
                     log.debug(
@@ -318,7 +318,7 @@ class OmsPlatformDriver(PlatformDriver):
                         self._platform_id)
                     continue
 
-                if max_val and int(attr_value) > int(max_val):
+                if max_val and float(attr_value) > float(max_val):
                     vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
                     errors = True
                     log.debug(
