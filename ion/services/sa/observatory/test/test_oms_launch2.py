@@ -87,7 +87,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='saz')
 class TestOmsLaunch(IonIntegrationTestCase):
 
     def setUp(self):
@@ -137,12 +137,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
-        self.raw_stream_def_id = self.pubsubcli.create_stream_definition(
-            name='raw', parameter_dictionary_id=pdict_id)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('platform_eng_parsed', id_only=True)
+        self.platform_eng_stream_def_id = self.pubsubcli.create_stream_definition(
+            name='platform_eng', parameter_dictionary_id=pdict_id)
         self.dp_obj = IonObject(RT.DataProduct,
-            name='raw data',
-            description='raw stream test',
+            name='platform_eng data',
+            description='platform_eng test',
             temporal_domain = tdom,
             spatial_domain = sdom)
 
@@ -336,8 +336,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
 
         #create the log data product
-        self.dp_obj.name = '%s raw data' % platform_id
-        data_product_id = self.dpclient.create_data_product(data_product=self.dp_obj, stream_definition_id=self.raw_stream_def_id)
+        self.dp_obj.name = '%s platform_eng data' % platform_id
+        data_product_id = self.dpclient.create_data_product(data_product=self.dp_obj, stream_definition_id=self.platform_eng_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=device_id, data_product_id=data_product_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)
@@ -347,7 +347,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
     def _build_stream_config(self, stream_id=''):
 
-        raw_parameter_dictionary = DatasetManagementService.get_parameter_dictionary_by_name('ctd_raw_param_dict')
+        platform_eng_dictionary = DatasetManagementService.get_parameter_dictionary_by_name('platform_eng_parsed')
 
         #get the streamroute object from pubsub by passing the stream_id
         stream_def_ids, _ = self.rrclient.find_objects(stream_id,
@@ -361,7 +361,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                          'stream_id' : stream_id,
                          'stream_definition_ref' : stream_def_ids[0],
                          'exchange_point' : stream_route.exchange_point,
-                         'parameter_dictionary':raw_parameter_dictionary.dump()}
+                         'parameter_dictionary':platform_eng_dictionary.dump()}
 
         return stream_config
 
