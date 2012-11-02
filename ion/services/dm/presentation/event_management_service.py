@@ -7,6 +7,7 @@
 
 from pyon.public import log, PRED, RT
 from pyon.core.exception import BadRequest
+from pyon.util.arg_check import validate_is_not_none
 from pyon.util.containers import create_unique_identifier, DotDict
 from interface.services.dm.ievent_management_service import BaseEventManagementService
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -133,14 +134,17 @@ class EventManagementService(BaseEventManagementService):
         @arguments list
         """
 
-        # The event_process_def is really only a process_def
+        # The event_process_def is really only a process_def. Read up the process definition
         process_def = self.clients.resource_registry.read(event_process_definition_id)
 
-        # Fetch or make the EventProcessDefinitionDetail object
+        # Fetch or make a new EventProcessDefinitionDetail object
         event_process_def_detail = process_def.definition or EventProcessDefinitionDetail()
-        event_process_def_detail.event_types = event_types
-        event_process_def_detail.sub_types = sub_types
-        event_process_def_detail.origin_types = origin_types
+        if event_types:
+            event_process_def_detail.event_types = event_types
+        if sub_types:
+            event_process_def_detail.sub_types = sub_types
+        if origin_types:
+            event_process_def_detail.origin_types = origin_types
 
         # Update the fields of the process definition
         process_def.executable['module'] = module
@@ -185,6 +189,24 @@ class EventManagementService(BaseEventManagementService):
         @return process_id
         """
 
+        # A process definition is required to be passed in
+        validate_is_not_none(process_definition_id)
+
+        #-------------------------------------------------------------------------
+        # The output streams for the event process if any are provided
+        #-------------------------------------------------------------------------
+
+        output_streams = {}
+
+        if out_data_products:
+            for binding, output_data_product_id in out_data_products.iteritems():
+                stream_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasStream, RT.Stream, True)
+                if not stream_ids:
+                    raise NotFound("No Stream created for output Data Product " + str(output_data_product_id))
+                if len(stream_ids) != 1:
+                    raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
+                output_streams[binding] = stream_ids[0]
+
         #-------------------------------------------------------------------------
         # The process definition
         #-------------------------------------------------------------------------
@@ -194,30 +216,15 @@ class EventManagementService(BaseEventManagementService):
 
         # Get the event process detail object from the process definition
         event_process_def_detail = process_definition.definition or EventProcessDefinitionDetail()
+        event_process_detail = EventProcessDetail()
 
-        # pack in the event types and other stuff the event processes will need into the EventProcessDetail object
-        event_process_def_detail.event_types = event_types
-        event_process_def_detail.sub_types = sub_types
-        event_process_def_detail.origins = origins
-        event_process_def_detail.origin_types = origin_types
-
-        # Tuck in the just created event process detail object back into the process definition
-        process_definition.definition = event_process_def_detail
-
-        #-------------------------------------------------------------------------
-        # The output streams for the event process if any are provided
-        #-------------------------------------------------------------------------
-
-        output_stream_dict = {}
-
-        if out_data_products:
-            for binding, output_data_product_id in out_data_products.iteritems():
-                stream_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasStream, RT.Stream, True)
-                if not stream_ids:
-                    raise NotFound("No Stream created for output Data Product " + str(output_data_product_id))
-                if len(stream_ids) != 1:
-                    raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
-                output_stream_dict[binding] = stream_ids[0]
+        # But if event_types etc have been specified when the method is called, put them in the new
+        # event process detail object, thus overwriting the ones that were transferred from the event process def detail object
+        event_process_detail.event_types = event_types or event_process_def_detail.event_types
+        event_process_detail.sub_types = sub_types or event_process_def_detail.sub_types
+        event_process_detail.origins = origins
+        event_process_detail.origin_types = origin_types or event_process_def_detail.origin_types
+        event_process_detail.output_streams = output_streams
 
         #-------------------------------------------------------------------------
         # Launch the process
@@ -229,7 +236,13 @@ class EventManagementService(BaseEventManagementService):
         config.process.sub_types = sub_types
         config.process.origins = origins
         config.process.origin_types = origin_types
-        config.process.publish_streams = output_stream_dict
+        config.process.publish_streams = output_streams
+
+        # Create the process
+        #todo check this!
+        process_id = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id,
+                                                                    detail = event_process_detail
+                                                                    )
 
         # Schedule the process
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id,

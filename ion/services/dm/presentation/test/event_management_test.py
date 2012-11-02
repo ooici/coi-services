@@ -12,10 +12,13 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.event.event import EventPublisher
 from pyon.ion.stream import StandaloneStreamSubscriber
 from ion.services.dm.presentation.event_management_service import EventManagementService
+from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ievent_management_service import EventManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.objects import PlatformEvent, EventType, ProcessDefinition
 from mock import Mock, mocksignature
 from nose.plugins.attrib import attr
@@ -98,7 +101,10 @@ class EventManagementTest(PyonTestCase):
                                                                     module ='module',
                                                                     class_name='class_name',
                                                                     uri='uri',
-                                                                    arguments='arguments')
+                                                                    arguments='arguments',
+                                                                    event_types=['t1', 't2'],
+                                                                    sub_types=['t3'],
+                                                                    origin_types=['or1', 'or2'])
 
         self.assertEquals(procdef_id, 'procdef_id')
 
@@ -114,7 +120,11 @@ class EventManagementTest(PyonTestCase):
 
         self.mock_rr_client.update = mocksignature(self.mock_rr_client.update)
 
-        self.event_management.update_event_process_definition(process_definition_id)
+        self.event_management.update_event_process_definition(  event_process_definition_id =process_definition_id,
+                                                                version='version',
+                                                                event_types=['t1', 't2'],
+                                                                sub_types=['t3'],
+                                                                origin_types=['or1', 'or2'])
 
         self.mock_rr_client.update.assert_called_once_with(process_def)
 
@@ -149,7 +159,7 @@ class EventManagementTest(PyonTestCase):
         self.mock_rr_client.read.return_value = process_definition
 
         self.mock_rr_client.find_objects = Mock()
-        self.mock_rr_client.find_objects.return_value = ['stream_id_1']
+        self.mock_rr_client.find_objects.return_value = ['stream_id_1'], 'obj_assoc_1'
 
         self.mock_pd_client.schedule_process = Mock()
         self.mock_pd_client.schedule_process.return_value = 'process_id'
@@ -161,6 +171,7 @@ class EventManagementTest(PyonTestCase):
             sub_types=['subtype_1', 'subtype_2'],
             origins=['or_1', 'or_2'],
             origin_types=['t1', 't2'],
+            out_data_products={'conductivity': 'id1'}
         )
 
         self.assertEquals(pid, 'process_id')
@@ -226,6 +237,8 @@ class EventManagementIntTest(IonIntegrationTestCase):
         self.rrc = ResourceRegistryServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
         self.pubsub = PubsubManagementServiceClient()
+        self.dataset_management = DatasetManagementServiceClient()
+        self.data_product_management = DataProductManagementServiceClient()
 
         self.queue_cleanup = []
         self.exchange_cleanup = []
@@ -283,7 +296,9 @@ class EventManagementIntTest(IonIntegrationTestCase):
                                                                             module=module,
                                                                             class_name=class_name,
                                                                             uri='http://hare.com',
-                                                                            arguments=['arg1', 'arg2'])
+                                                                            arguments=['arg1', 'arg2'],
+                                                                            event_types=['ExampleDetectableEvent', 'type_2'],
+                                                                            sub_types=['sub_type_1'])
         # Read
         read_process_def = self.event_management.read_event_process_definition(procdef_id)
         self.assertEquals(read_process_def.executable['module'], module)
@@ -292,11 +307,13 @@ class EventManagementIntTest(IonIntegrationTestCase):
         # Update
         self.event_management.update_event_process_definition(event_process_definition_id=procdef_id,
                                                                 class_name='StreamAlertTransform',
-                                                                arguments=['arg3', 'arg4'])
+                                                                arguments=['arg3', 'arg4'],
+                                                                event_types=['event_type_new'])
 
         updated_event_process_def = self.event_management.read_event_process_definition(procdef_id)
         self.assertEquals(updated_event_process_def.executable['class'], 'StreamAlertTransform')
         self.assertEquals(updated_event_process_def.arguments, ['arg3', 'arg4'])
+        self.assertEquals(updated_event_process_def.event_types, ['event_type_new'])
 
         # Delete
         self.event_management.delete_event_process_definition(procdef_id)
@@ -367,12 +384,69 @@ class EventManagementIntTest(IonIntegrationTestCase):
         Test that the CRUD methods for the event processes work correctly
         """
 
+        #---------------------------------------------------------------------------------------------
         # Create a process definition
+        #---------------------------------------------------------------------------------------------
 
+        # Create
+        module = 'ion.processes.data.transforms.event_alert_transform'
+        class_name = 'EventAlertTransform'
+        procdef_id = self.event_management.create_event_process_definition(version='ver_1',
+            module=module,
+            class_name=class_name,
+            uri='http://hare.com',
+            arguments=['arg1', 'arg2'],
+            event_types=['ExampleDetectableEvent', 'type_2'],
+            sub_types=['sub_type_1'])
 
+        # Read
+        read_process_def = self.event_management.read_event_process_definition(procdef_id)
+        self.assertEquals(read_process_def.arguments, ['arg1', 'arg2'])
+
+        #---------------------------------------------------------------------------------------------
         # Use the process definition to create a process
+        #---------------------------------------------------------------------------------------------
 
+        # Create a stream
+        param_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        parameter_dictionary = self.dataset_management.read_parameter_dictionary(parameter_dictionary_id=param_dict_id)
 
+        stream_def_id = self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary_id=param_dict_id)
+
+        tdom, sdom = time_series_domain()
+        tdom, sdom = tdom.dump(), sdom.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='DP1',
+            description='some new dp',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        # Create a data product
+        data_product_id = self.data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id, parameter_dictionary=parameter_dictionary)
+
+        # Create an event process
+        event_process_id = self.event_management.create_event_process(  process_definition_id=procdef_id,
+                                                                        event_types=['ExampleDetectableEvent','DetectionEvent'],
+                                                                        sub_types=['s1', 's2'],
+                                                                        origins=['or_1', 'or_2'],
+                                                                        origin_types=['or_t1', 'or_t2'])
+
+        #---------------------------------------------------------------------------------------------
+        # Read the event process object and make assertions
+        #---------------------------------------------------------------------------------------------                                                                out_data_products={'conductivity': data_product_id})
+        event_process_obj = self.event_management.read_event_process(event_process_id=event_process_id)
+
+        # Get the stream associated with the data product for the sake of making assertions
+        stream_ids, _ = self.rrc.find_objects(data_product_id, PRED.hasStream, id_only=True)
+        stream_id = stream_ids[0]
+
+        # Assertions!
+        self.assertEquals(event_process_obj.detail.output_streams['conductivity'], stream_id)
+        self.assertEquals(event_process_obj.detail.event_types, ['ExampleDetectableEvent', 'DetectionEvent'])
+        self.assertEquals(event_process_obj.detail.sub_types, ['s1', 's2'])
+        self.assertEquals(event_process_obj.detail.origins, ['or_1', 'or_2'])
+        self.assertEquals(event_process_obj.detail.origin_types, ['or_t1', 'or_t2'])
 
     @unittest.skip("Not yet implemented in R 2.0")
     def test_activate_deactivate_data_process(self):
