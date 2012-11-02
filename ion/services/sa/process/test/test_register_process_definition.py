@@ -65,7 +65,7 @@ class TestRegisterProcessDefinition(PyonTestCase):
         self.DPMS.module_uploader = RegisterModulePreparerPy(dest_user="my_user",
                                                              dest_host="my_host",
                                                              dest_path="/my/remote/wwwroot/my/path",
-                                                             dest_wwwroot="/my/remote/wwwroot")
+                                                             dest_wwwprefix="http://my_host/my/path")
 
         self.addCleanup(delattr, self, "DPMS")
         self.addCleanup(delattr, self, "mock_ionobj")
@@ -75,7 +75,7 @@ class TestRegisterProcessDefinition(PyonTestCase):
         #pass
 
 
-    def _mock_uploader_subprocess(self, emulate_success):
+    def _mock_uploader_modules(self, emulate_success):
         self.mock_dict = {}
 
         popen_mock = Mock()
@@ -107,24 +107,24 @@ class TestRegisterProcessDefinition(PyonTestCase):
         self.DPMS.get_unique_id = (lambda: "my_uuid")
 
         print "Willing mock with bad py file"
-        self._mock_uploader_subprocess(True)
+        self._mock_uploader_modules(True)
         self.assertRaises(BadRequest, self.DPMS.register_data_process_definition, BASE64_BADPYFILE)
 
         print "Unwilling mock with good py file"
-        self._mock_uploader_subprocess(False)
+        self._mock_uploader_modules(False)
         self.assertRaises(BadRequest, self.DPMS.register_data_process_definition, BASE64_PYFILE)
 
         print "Willing mock with good py file"
-        self._mock_uploader_subprocess(True)
+        self._mock_uploader_modules(True)
         uri = self.DPMS.register_data_process_definition(BASE64_PYFILE)
 
         scp_dest = "my_user@my_host:/my/remote/wwwroot/my/path/process_code_my_uuid.py"
-        self.mock_dict["subprocess"].Popen.assert_called_once_with(["scp", "-v", "-o", "PasswordAuthentication=no",
-                                                                    "-o", 'StrictHostKeyChecking=no',
-                                                                    'my_tempfile_name',
-                                                                    scp_dest],
-                                                                   stdout=self.mock_dict["subprocess"].PIPE,
-                                                                   stderr=self.mock_dict["subprocess"].PIPE)
+        self.mock_dict["subprocess"].Popen.assert_any_call(["scp", "-v", "-o", "PasswordAuthentication=no",
+                                                            "-o", 'StrictHostKeyChecking=no',
+                                                            'my_tempfile_name',
+                                                            scp_dest],
+                                                           stdout=self.mock_dict["subprocess"].PIPE,
+                                                           stderr=self.mock_dict["subprocess"].PIPE)
 
 
         self.assertEqual("http://my_host/my/path/process_code_my_uuid.py", uri)
@@ -190,8 +190,7 @@ class TestRegisterProcessDefinitionIntegration(IonIntegrationTestCase):
             failmsg = str(e)
 
         if failmsg:
-            self.fail(("Uploaded succeeded, but fetching '%s' failed with '%s'.  " +
-                      "CFG for web root on remote host is '%s', is that correct?") %
-                      (remote_url, failmsg, CFG.service.data_process_management.process_release_wwwroot))
+            self.fail(("Uploaded succeeded, but fetching '%s' failed with '%s'.") %
+                      (remote_url, failmsg))
 
         return
