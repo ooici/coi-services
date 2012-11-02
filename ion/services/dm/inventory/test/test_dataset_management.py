@@ -7,6 +7,7 @@ from pyon.core.exception import NotFound
 from pyon.util.int_test import IonIntegrationTestCase
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -24,8 +25,26 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        self.resource_registry = ResourceRegistryServiceClient()
+        self.resource_registry  = ResourceRegistryServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
+
+    def test_dataset_crud(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        tdom, sdom = time_series_domain()
+        dataset_id = self.dataset_management.create_dataset(name='ctd_dataset', parameter_dictionary_id=pdict_id, spatial_domain=sdom.dump(), temporal_domain=tdom.dump())
+
+        ds_obj = self.dataset_management.read_dataset(dataset_id)
+        self.assertEquals(ds_obj.name, 'ctd_dataset')
+        
+        ds_obj.name = 'something different'
+        self.dataset_management.update_dataset(ds_obj)
+        self.dataset_management.register_dataset(dataset_id)
+        ds_obj2 = self.dataset_management.read_dataset(dataset_id)
+        self.assertEquals(ds_obj.name, ds_obj2.name)
+        self.assertTrue(ds_obj2.registered)
+
+        
+
    
     
     def test_context_crud(self):
