@@ -27,7 +27,7 @@ from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver import AttributeValueDriverEvent
-from ion.agents.platform.platform_driver import EventDriverEvent
+from ion.agents.platform.platform_driver import ExternalEventDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -438,8 +438,8 @@ class PlatformAgent(ResourceAgent):
             self._handle_attribute_value_event(driver_event)
             return
 
-        if isinstance(driver_event, EventDriverEvent):
-            self._handle_event_driver_event(driver_event)
+        if isinstance(driver_event, ExternalEventDriverEvent):
+            self._handle_external_event_driver_event(driver_event)
             return
 
         #
@@ -572,7 +572,7 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
                 self._platform_id, stream_name, str(rdt), str(g))
 
-    def _handle_event_driver_event(self, driver_event):
+    def _handle_external_event_driver_event(self, driver_event):
         #
         # TODO appropriate granularity and structure of the event.
 
@@ -603,7 +603,7 @@ class PlatformAgent(ResourceAgent):
             'external_timestamp':    timestamp,  # as given by OMS
         }
 
-        log.info("%r: publishing platform event event: event_data=%s",
+        log.info("%r: publishing external platform event: event_data=%s",
                   self._platform_id, str(event_data))
 
         try:

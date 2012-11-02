@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
-from ion.agents.platform.platform_driver import EventDriverEvent
+from ion.agents.platform.platform_driver import ExternalEventDriverEvent
 
 import time
 from gevent.pywsgi import WSGIServer
@@ -135,7 +135,7 @@ class OmsEventListener(object):
         # event_instance has its own timestamp
         ts = time.time()
 
-        driver_event = EventDriverEvent(ts, event_type, event_instance)
+        driver_event = ExternalEventDriverEvent(ts, event_type, event_instance)
         self._notify_driver_event(driver_event)
 
     def stop_http_server(self):
