@@ -289,8 +289,10 @@ class ProcessDispatcherSimpleAPIClientTest(PyonTestCase):
         self.mock_real_client.read_process = Mock()
         self.mock_eventpub = DotDict()
         self.mock_eventpub.publish_event = Mock()
+        self.mock_container = Mock()
 
-        self.client = ProcessDispatcherSimpleAPIClient('fake', real_client=self.mock_real_client)
+        self.client = ProcessDispatcherSimpleAPIClient('fake',
+            real_client=self.mock_real_client, container=self.mock_container)
         self.client.event_pub = self.mock_eventpub
 
     def test_schedule(self):
