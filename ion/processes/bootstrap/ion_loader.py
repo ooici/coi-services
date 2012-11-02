@@ -36,6 +36,7 @@ __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 import ast
 import calendar
 import csv
+import re
 import requests
 import StringIO
 import time
