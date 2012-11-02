@@ -498,14 +498,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return driver_config, agent_config
 
-    def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
+    def start_instrument_agent_instance(self, instrument_agent_instance_id='', start_port_agent=True):
         """
         Agent instance must first be created and associated with a instrument device
         Launch the instument agent instance and return the id
         """
         instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
 
-        #if there is a agent pid then assume that a drive is already started
+        #if there is an agent pid then assume that a drive is already started
         if instrument_agent_instance_obj.agent_process_id:
             raise BadRequest("Instrument Agent Instance already running for this device pid: %s" %
                              str(instrument_agent_instance_obj.agent_process_id))
@@ -517,7 +517,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_id  = self.instrument_agent.find_having_model(instrument_model_id)[0]._id
 
         #retrieve the associated process definition
-        #todo: this association is not in the diagram... is it ok?
         process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id,
                                                                          PRED.hasProcessDefinition,
                                                                          RT.ProcessDefinition,
@@ -534,7 +533,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not process_def_obj:
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
-        self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
+        if start_port_agent:
+            self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
+
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
         driver_config, agent_config = self._generate_instrument_agent_config(instrument_device_id)
