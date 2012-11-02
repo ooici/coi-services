@@ -482,7 +482,34 @@ class PlatformAgent(ResourceAgent):
                      self._platform_id, param_name, stream_name)
             return
 
-        rdt[param_name] = numpy.array(param_value)
+        # Note that at the moment, notification from the driver has the form
+        # of a non-empty list of pairs (val, ts)
+        assert isinstance(param_value, list)
+        assert isinstance(param_value[0], tuple)
+
+        # TODO harmonize retrieved list of (val, ts) pairs into appropriate
+        # format for subscribers.
+        # *NOTE*
+        # A possible way would be to just publish the pair array directly, ie:
+#        rdt[param_name] = numpy.array(param_value)
+        # which would require that "input_voltage" (the parameter currently
+        # under experimentation) be defined accordingly.
+        # But this parameter is defined as a float so, for the moment,
+        # we can either publish the very last value or the array with only
+        # the values. Below are these two options, with one commented out.
+        last_val, last_ts = param_value[-1]
+
+#        # If publishing just the very last value:
+#        rdt[param_name] = numpy.array([last_val])
+#        log.info("%r: PUBLISHING LAST VALUE %s=%s (last_ts=%s)",
+#                 self._platform_id, stream_name, last_val, last_ts)
+
+        # If publishing the array of just the values:
+        pub_vals = [v for v, t in param_value]
+        rdt[param_name] = numpy.array(pub_vals)
+        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d) = %s (last_ts=%s)",
+                 self._platform_id, param_name, len(pub_vals), str(pub_vals), last_ts)
+
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
