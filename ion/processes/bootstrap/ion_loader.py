@@ -62,8 +62,6 @@ from ion.util.parameter_loader import ParameterPlugin
 from interface import objects
 import logging
 
-DEBUG = True
-
 DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 ### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
@@ -131,16 +129,14 @@ class IONLoader(ImmediateProcess):
         self.ui_path = self.CFG.get("ui_path", default_ui_path)
         scenarios = self.CFG.get("scenario", None)
         category_csv = self.CFG.get("categories", None)
-        if category_csv:
-            self.categories = category_csv.split(",")
-        else:
-            self.categories = DEFAULT_CATEGORIES
-        global DEBUG
-        DEBUG = self.CFG.get("debug", False)
-        self.loadooi = self.CFG.get("loadooi", False)
-        self.loadui = self.CFG.get("loadui", False)
-        self.exportui = self.CFG.get("exportui", False)
-        self.bulk = self.CFG.get("bulk", True)
+        self.categories = category_csv.split(",") if category_csv else DEFAULT_CATEGORIES
+
+        self.debug = self.CFG.get("debug", False)        # Debug mode with certain shorthands
+        self.loadooi = self.CFG.get("loadooi", False)    # Import OOI asset data
+        self.loadui = self.CFG.get("loadui", False)      # Import UI asset data
+        self.exportui = self.CFG.get("exportui", False)  # Save UI JSON file
+        self.update = self.CFG.get("update", False)      # Support update to existing resources
+        self.bulk = self.CFG.get("bulk", True)           # Use bulk insert where available
 
         # External loader tools
         self.ui_loader = UILoader(self)
@@ -235,7 +231,8 @@ class IONLoader(ImmediateProcess):
                       'Attachment',
                       'WorkflowDefinition',
                       'Workflow',
-                      'Deployment', ]
+                      'Deployment',
+                      ]
 
         # Fetch the spreadsheet directly from a URL (from a GoogleDocs published spreadsheet)
         if self.path.startswith('http'):
@@ -296,7 +293,7 @@ class IONLoader(ImmediateProcess):
 
     def _load_system_ids(self):
         """Read some system objects for later reference"""
-        if not DEBUG:
+        if not self.debug:
             org_objs,_ = self.container.resource_registry.find_resources(name="ION", restype=RT.Org, id_only=False)
             if not org_objs:
                 raise iex.BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
@@ -529,10 +526,11 @@ class IONLoader(ImmediateProcess):
         if org_ids:
             org_ids = self._get_typed_value(org_ids, targettype="simplelist")
             for org_id in org_ids:
+                org_res_id = self.resource_ids[org_id]
                 if self.bulk and res_id in self.bulk_objects:
                     # Note: org_id is alias, res_id is internal ID
-                    org_obj = self.resource_objs[org_id]
-                    res_obj = self.bulk_objects.get(res_id, None)
+                    org_obj = self._get_resource_obj(org_id)
+                    res_obj = self._get_resource_obj(res_id)
                     # Create association to given Org
                     # Simulate OMS.assign_resource_to_observatory_org -> Org MS.share_resource
                     assoc_obj = self._create_association(org_obj, PRED.hasResource, res_obj)
@@ -604,103 +602,6 @@ class IONLoader(ImmediateProcess):
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
 
-    def _load_User(self, row):
-        # TODO: Make the calls below with an actor_id for the web server
-        alias = row['ID']
-        subject = row["subject"]
-        name = row["name"]
-        description = row['description']
-        ims = self._get_service_client("identity_management")
-
-        # Prepare contact and UserInfo attributes
-        contacts = self._get_contacts(row, field='contact_id', type='User')
-        if len(contacts) > 1:
-            raise iex.BadRequest('User %s defined with too many contacts (should be 1)' % alias)
-        contact = contacts[0] if len(contacts)==1 else None
-        user_attrs = dict(name=name, description=description)
-        if contact:
-            user_attrs['name'] = "%s %s" % (contact.individual_names_given, contact.individual_name_family)
-            user_attrs['contact'] = contact
-
-        # Build ActorIdentity
-        actor_name = "Identity for %s" % user_attrs['name']
-        actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
-        actor_id = ims.create_actor_identity(actor_identity_obj)
-        actor_identity_obj._id = actor_id
-        self._register_id(alias, actor_id, actor_identity_obj)
-
-        # Build UserCredentials
-        user_credentials_obj = IonObject("UserCredentials", name=subject,
-            description="Default credentials for %s" % user_attrs['name'])
-        ims.register_user_credentials(actor_id, user_credentials_obj)
-
-        # Build UserInfo
-        user_info_obj = IonObject("UserInfo", **user_attrs)
-        ims.create_user_info(actor_id, user_info_obj)
-
-    def _load_Org(self, row):
-        log.trace("Loading Org (ID=%s)", row[self.COL_ID])
-        contacts = self._get_contacts(row, field='contact_id', type='Org')
-        res_obj = self._create_object_from_row("Org", row, "org/")
-        if contacts:
-            res_obj.contacts = [contacts[0]]
-        log.trace("Org: %s", res_obj)
-
-        headers = self._get_op_headers(row)
-
-        res_id = None
-        org_type = row["org_type"]
-        if org_type == "MarineFacility":
-            svc_client = self._get_service_client("observatory_management")
-            res_id = svc_client.create_marine_facility(res_obj, headers=headers)
-        elif org_type == "VirtualObservatory":
-            svc_client = self._get_service_client("observatory_management")
-            res_id = svc_client.create_virtual_observatory(res_obj, headers=headers)
-        else:
-            log.warn("Unknown Org type: %s" % org_type)
-
-        if res_id:
-            res_obj._id = res_id
-            self._register_id(row[self.COL_ID], res_id, res_obj)
-
-    def _load_UserRole(self, row):
-        org_id = row["org_id"]
-        if org_id:
-            if org_id == self.ID_ORG_ION and DEBUG:
-                return
-            org_id = self.resource_ids[org_id]
-
-        user_id = self.resource_ids[row["user_id"]]
-        role_name = row["role_name"]
-
-        svc_client = self._get_service_client("org_management")
-
-        auto_enroll = self._get_typed_value(row["auto_enroll"], targettype="bool")
-        if auto_enroll:
-            svc_client.enroll_member(org_id, user_id)
-
-        if role_name != "ORG_MEMBER":
-            svc_client.grant_role(org_id, user_id, role_name)
-
-    def _load_PlatformModel(self, row):
-        res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
-            "instrument_management", "create_platform_model",
-            support_bulk=True)
-
-    def _load_PlatformModel_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("nodetype")
-
-        for ooi_id, ooi_obj in ooi_objs.iteritems():
-            fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
-            fakerow['pm/name'] = "%s (%s)" % (ooi_obj['name'], ooi_id)
-            fakerow['pm/alt_ids'] = "['OOI:" + ooi_id + "']"
-            # TODO: MF determination
-#            mf_id = 'MF_RSN' if pm_def['code'].startswith("R") else 'MF_CGSN'
-#            fakerow['mf_ids'] = mf_id
-
-            self._load_PlatformModel(fakerow)
-
     def _load_Contact(self, row):
         """ create constraint IonObject but do not insert into DB,
             cache in dictionary for inclusion in other preload objects """
@@ -711,7 +612,7 @@ class IONLoader(ImmediateProcess):
 
         roles = self._get_typed_value(row['c/roles'], targettype='simplelist')
         del row['c/roles']
-#        phones = self._get_typed_value(row['c/phones'], targettype='simplelist')
+        #        phones = self._get_typed_value(row['c/phones'], targettype='simplelist')
         phones = self._parse_phones(row['c/phones'])
         del row['c/phones']
 
@@ -781,10 +682,120 @@ class IONLoader(ImmediateProcess):
         end = calendar.timegm(time.strptime(row['end'], format))
         return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
 
+    def _load_User(self, row):
+        # TODO: Make the calls below with an actor_id for the web server
+        alias = row['ID']
+        subject = row["subject"]
+        name = row["name"]
+        description = row['description']
+        ims = self._get_service_client("identity_management")
+
+        # Prepare contact and UserInfo attributes
+        contacts = self._get_contacts(row, field='contact_id', type='User')
+        if len(contacts) > 1:
+            raise iex.BadRequest('User %s defined with too many contacts (should be 1)' % alias)
+        contact = contacts[0] if len(contacts)==1 else None
+        user_attrs = dict(name=name, description=description)
+        if contact:
+            user_attrs['name'] = "%s %s" % (contact.individual_names_given, contact.individual_name_family)
+            user_attrs['contact'] = contact
+
+        # Build ActorIdentity
+        actor_name = "Identity for %s" % user_attrs['name']
+        actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
+        actor_id = ims.create_actor_identity(actor_identity_obj)
+        actor_identity_obj._id = actor_id
+        self._register_id(alias, actor_id, actor_identity_obj)
+
+        # Build UserCredentials
+        user_credentials_obj = IonObject("UserCredentials", name=subject,
+            description="Default credentials for %s" % user_attrs['name'])
+        ims.register_user_credentials(actor_id, user_credentials_obj)
+
+        # Build UserInfo
+        user_info_obj = IonObject("UserInfo", **user_attrs)
+        ims.create_user_info(actor_id, user_info_obj)
+
+    def _load_Org(self, row):
+        log.trace("Loading Org (ID=%s)", row[self.COL_ID])
+        contacts = self._get_contacts(row, field='contact_id', type='Org')
+        res_obj = self._create_object_from_row("Org", row, "org/")
+        if contacts:
+            res_obj.contacts = [contacts[0]]
+        log.trace("Org: %s", res_obj)
+
+        headers = self._get_op_headers(row)
+
+        res_id = None
+        org_type = row["org_type"]
+        if org_type == "MarineFacility":
+            svc_client = self._get_service_client("observatory_management")
+            res_id = svc_client.create_marine_facility(res_obj, headers=headers)
+        elif org_type == "VirtualObservatory":
+            svc_client = self._get_service_client("observatory_management")
+            res_id = svc_client.create_virtual_observatory(res_obj, headers=headers)
+        else:
+            log.warn("Unknown Org type: %s" % org_type)
+
+        if res_id:
+            res_obj._id = res_id
+            self._register_id(row[self.COL_ID], res_id, res_obj)
+
+    def _load_UserRole(self, row):
+        org_id = row["org_id"]
+        if org_id:
+            if org_id == self.ID_ORG_ION and self.debug:
+                return
+            org_id = self.resource_ids[org_id]
+
+        user_id = self.resource_ids[row["user_id"]]
+        role_name = row["role_name"]
+
+        svc_client = self._get_service_client("org_management")
+
+        auto_enroll = self._get_typed_value(row["auto_enroll"], targettype="bool")
+        if auto_enroll:
+            svc_client.enroll_member(org_id, user_id)
+
+        if role_name != "ORG_MEMBER":
+            svc_client.grant_role(org_id, user_id, role_name)
+
+    def _load_PlatformModel(self, row):
+        res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
+            "instrument_management", "create_platform_model",
+            support_bulk=True)
+
+    def _get_org_ids(self, ooi_rd_list):
+        if not ooi_rd_list:
+            return ""
+        marine_ios = set()
+        for ooi_rd in ooi_rd_list:
+            marine_io = self.ooi_loader.get_marine_io(ooi_rd)
+            if marine_io == "CG":
+                marine_ios.add("MF_CGSN")
+            elif marine_io == "RSN":
+                marine_ios.add("MF_RSN")
+            elif marine_io == "EA":
+                marine_ios.add("MF_EA")
+        return ",".join(marine_ios)
+
+    def _load_PlatformModel_OOI(self):
+        ooi_objs = self.ooi_loader.get_type_assets("nodetype")
+
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            fakerow = {}
+            fakerow[self.COL_ID] = ooi_id
+            fakerow['pm/name'] = "%s (%s)" % (ooi_obj['name'], ooi_id)
+            fakerow['pm/alt_ids'] = "['OOI:" + ooi_id + "']"
+            fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
+
+            self._load_PlatformModel(fakerow)
+
     def _load_SensorModel(self, row):
         row['sm/reference_urls'] = repr(self._get_typed_value(row['sm/reference_urls'], targettype="simplelist"))
         self._basic_resource_create(row, "SensorModel", "sm/",
-            "instrument_management", "create_sensor_model")
+            "instrument_management", "create_sensor_model",
+            support_bulk=True)
 
     def _load_InstrumentModel(self, row):
         row['im/reference_urls'] = repr(self._get_typed_value(row['im/reference_urls'], targettype="simplelist"))
@@ -812,8 +823,7 @@ class IONLoader(ImmediateProcess):
             fakerow['im/instrument_family'] = class_obj['family']
             fakerow['raw_stream_def'] = ''
             fakerow['parsed_stream_def'] = ''
-
-            #fakerow['mf_ids'] = 'MF_RSN,MF_CGSN'
+            fakerow['org_ids'] = self._get_org_ids(class_obj.get('array_list', None))
 
             self._load_InstrumentModel(fakerow)
 
@@ -836,6 +846,7 @@ class IONLoader(ImmediateProcess):
             fakerow['obs/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['constraint_ids'] = ''
             fakerow['coordinate_system'] = ''
+            fakerow['org_ids'] = self._get_org_ids([ooi_id])
 
             self._load_Observatory(fakerow)
 
@@ -869,6 +880,7 @@ class IONLoader(ImmediateProcess):
             fakerow['constraint_ids'] = ''
             fakerow['coordinate_system'] = ''
             fakerow['parent_site_id'] = ooi_id[:2]
+            fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
 
             self._load_Subsite(fakerow)
 
@@ -960,6 +972,7 @@ class IONLoader(ImmediateProcess):
             fakerow['coordinate_system'] = ''
             fakerow['parent_site_id'] = ooi_id[:8]
             fakerow['platform_model_ids'] = ooi_id[9:11]
+            fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
 
             self._load_PlatformSite(fakerow)
 
@@ -1021,21 +1034,12 @@ class IONLoader(ImmediateProcess):
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = ''
             fakerow['parent_site_id'] = ''
-
-#            im_id = ''
-#            for im in inst_objs:
-#                if im.startswith(ooi_id):
-#                    if not im_id:
-#                        im_id = inst_objs[im]['instrument_model']
-#                    else:
-#                        log.warn("InstrumentSite %s has additional model: %s, %s" % (ooi_id, im_id, inst_objs[im]['instrument_model']))
+            fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             fakerow['instrument_model_ids'] = ooi_obj['instrument_model']
             fakerow['parent_site_id'] = ooi_id[:14]
 
             self._load_InstrumentSite(fakerow)
 
-            #if DEBUG and i>20:
-            #    break
 
     def _load_StreamDefinition(self, row):
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
@@ -1110,7 +1114,6 @@ class IONLoader(ImmediateProcess):
             log.error('Missing parameter context %s', e.message)
 
 
-
     def _load_PlatformDevice(self, row):
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
                                             "instrument_management", "create_platform_device")
@@ -1119,8 +1122,6 @@ class IONLoader(ImmediateProcess):
         if ass_id:
             ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
-
-
 
     def _load_SensorDevice(self, row):
         res_id = self._basic_resource_create(row, "SensorDevice", "sd/",
@@ -1216,7 +1217,7 @@ class IONLoader(ImmediateProcess):
         res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id)
         self._register_id(row[self.COL_ID], res_id, res_obj)
 
-        if not DEBUG and row['persist_data']=='1':
+        if not self.debug and row['persist_data']=='1':
             svc_client.activate_data_product_persistence(res_id)
         self._resource_advance_lcs(row, res_id, "DataProduct")
 

@@ -78,6 +78,8 @@ class OOILoader(object):
         self._perform_ooi_checks()
 
         # Post processing
+        self._post_process()
+
         if self.warnings:
             log.warn("WARNINGS:\n%s", "\n".join(["%s: %s" % (a, b) for a, b in self.warnings]))
 
@@ -90,7 +92,7 @@ class OOILoader(object):
     def get_type_assets(self, objtype):
         return self.ooi_objects.get(objtype, None)
 
-    def _add_object_attribute(self, objtype, objid, key, value, value_is_list=False, mapping=None, **kwargs):
+    def _add_object_attribute(self, objtype, objid, key, value, value_is_list=False, list_dup_ok=False, mapping=None, **kwargs):
         """
         Add a single attribute to an identified object of given type. Create object/type on first occurrence.
         The kwargs are static attributes"""
@@ -109,9 +111,11 @@ class OOILoader(object):
             if value_is_list:
                 if key in obj_entry:
                     if value in obj_entry[key]:
-                        msg = "duplicate_attr_list_value: %s.%s has attribute '%s' with duplicate list value: %s" % (objtype, objid, key, value)
-                        self.warnings.append((objid, msg))
-                    obj_entry[key].append(value)
+                        if not list_dup_ok:
+                            msg = "duplicate_attr_list_value: %s.%s has attribute '%s' with duplicate list value: %s" % (objtype, objid, key, value)
+                            self.warnings.append((objid, msg))
+                    else:
+                        obj_entry[key].append(value)
                 else:
                     obj_entry[key] = [value]
             elif key in obj_entry:
@@ -269,6 +273,14 @@ class OOILoader(object):
         self._add_object_attribute('nodetype',
             ntype_id, None, None, name=ntype_name)
 
+        # Determine on which arrays the nodetype is used
+        self._add_object_attribute('nodetype',
+            ntype_id, 'array_list', refid[:2], value_is_list=True, list_dup_ok=True)
+
+        # Determine on which arrays the instrument class is used
+        self._add_object_attribute('class',
+            row['SClass_PublicID'], 'array_list', refid[:2], value_is_list=True, list_dup_ok=True)
+
     def _parse_DataQCLookupTables(self, row):
         # Adds a list of data products with level to instruments
         refid = row['ReferenceDesignator']
@@ -355,3 +367,13 @@ class OOILoader(object):
 
         log.debug("_checkooi_ref_exists: Checked %s objects type %s against type %s" % (len(ot_objects), objtype, target_type))
         log.debug("_checkooi_ref_exists: Different references=%s (of total=%s) vs target objects=%s" % (len(refattrset), total_ref, len(ottarg_objects)))
+
+    def _post_process(self):
+        pass
+
+    def get_marine_io(self, ooi_rd_str):
+        ooi_rd = OOIReferenceDesignator(ooi_rd_str)
+        if ooi_rd.error:
+            return None
+        else:
+            return ooi_rd.marine_io
