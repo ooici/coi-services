@@ -466,6 +466,14 @@ class LoadSystemPolicy(ImmediateProcess):
                     </Subject>
                     <Subject>
                         <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
                             <SubjectAttributeDesignator
                                  AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
@@ -479,7 +487,7 @@ class LoadSystemPolicy(ImmediateProcess):
         </Rule> '''
 
         policy_id = policy_client.create_service_access_policy('process_dispatcher', 'PD_Role_Permitted',
-            'Permit these operations in the Process Dispatcher Service for role of Instrument Operator and Org Manager',
+            'Permit these operations in the Process Dispatcher Service for role of Instrument Operator, Observatory Manager and Org Manager',
             policy_text, headers=sa_user_header)
 
 
@@ -523,6 +531,12 @@ class LoadSystemPolicy(ImmediateProcess):
                         </ActionMatch>
                     </Action>
                     <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">execute_.*_lifecycle</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">request_direct_access</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
@@ -547,6 +561,14 @@ class LoadSystemPolicy(ImmediateProcess):
                     </Subject>
                     <Subject>
                         <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
                             <SubjectAttributeDesignator
                                  AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
@@ -559,8 +581,8 @@ class LoadSystemPolicy(ImmediateProcess):
 
         </Rule> '''
 
-        policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Instrument_Operator_Role_Permitted',
-            'Permit these operations in the Instrument Management Service for role of Instrument Operator',
+        policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Role_Permitted_Operations',
+            'Permit these operations in the Instrument Management Service for role of Instrument Operator, Observatory Operator or Org Manager',
             policy_text, headers=sa_user_header)
 
 
