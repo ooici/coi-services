@@ -77,6 +77,7 @@ class TestProcessSlowStart(BaseService):
 @attr('INT', group='cei')
 class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
 
+    @needs_eeagent
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2cei.yml')
@@ -168,6 +169,7 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
 @attr('INT', group='cei')
 class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
 
+    @needs_eeagent
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2cei.yml')
@@ -249,6 +251,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
     _webserver = None
 
+    @needs_eeagent
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2cei.yml')
