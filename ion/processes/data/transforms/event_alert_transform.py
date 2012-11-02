@@ -154,7 +154,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
             self.granules.clear()
 
 
-    def publish(self, subtype = subtype):
+    def publish(self, subtype = None):
         '''
         Publish an alert event
         '''
