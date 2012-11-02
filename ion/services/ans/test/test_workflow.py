@@ -3,20 +3,19 @@
 import unittest, os
 from nose.plugins.attrib import attr
 
-from pyon.public import CFG, RT, LCS, PRED,IonObject, log
+from pyon.public import CFG, RT, LCS, PRED,IonObject
 
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
-from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
-from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceProcessClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
+from interface.services.dm.iingestion_management_service import IngestionManagementServiceProcessClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceProcessClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceProcessClient
+from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceProcessClient
+from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceProcessClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
 
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
@@ -25,14 +24,10 @@ from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
 from pyon.util.context import LocalContextMixin
 
 
-class FakeProcess(LocalContextMixin):
-    """
-    A fake process used because the test case is not an ion process.
-    """
-    name = ''
-    id=''
-    process_type = ''
-
+class WorkflowServiceTestProcess(LocalContextMixin):
+    name = 'workflow_test'
+    id='workflow_int_test'
+    process_type = 'simple'
 
 @attr('INT', group='as')
 class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
@@ -43,18 +38,21 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        #Instantiate a process to represent the test
+        process=WorkflowServiceTestProcess()
+
         # Now create client to DataProductManagementService
-        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
-        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
-        self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
-        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
-        self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
-        self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
-        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
-        self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
-        self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
-        self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
-        self.data_retriever = DataRetrieverServiceClient(node=self.container.node)
+        self.rrclient = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
+        self.damsclient = DataAcquisitionManagementServiceProcessClient(node=self.container.node, process=process)
+        self.pubsubclient =  PubsubManagementServiceProcessClient(node=self.container.node, process=process)
+        self.ingestclient = IngestionManagementServiceProcessClient(node=self.container.node, process=process)
+        self.imsclient = InstrumentManagementServiceProcessClient(node=self.container.node, process=process)
+        self.dataproductclient = DataProductManagementServiceProcessClient(node=self.container.node, process=process)
+        self.dataprocessclient = DataProcessManagementServiceProcessClient(node=self.container.node, process=process)
+        self.datasetclient =  DatasetManagementServiceProcessClient(node=self.container.node, process=process)
+        self.workflowclient = WorkflowManagementServiceProcessClient(node=self.container.node, process=process)
+        self.process_dispatcher = ProcessDispatcherServiceProcessClient(node=self.container.node, process=process)
+        self.data_retriever = DataRetrieverServiceProcessClient(node=self.container.node, process=process)
 
         self.ctd_stream_def = SBE37_CDM_stream_definition()
 
@@ -116,6 +114,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         #Validate the data from each of the messages along the way
         self.validate_messages(results)
 
+
     @attr('LOCOINT')
     @attr('SMOKE')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -123,28 +122,33 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         assertions = self.assertTrue
 
-        # Build the workflow definition
-        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Salinity_Test_Workflow',description='tests a workflow of multiple transform data processes')
+        print "Building the workflow definition"
+        workflow_def_obj = IonObject(RT.WorkflowDefinition,
+                                     name='Salinity_Test_Workflow',
+                                     description='tests a workflow of multiple transform data processes')
 
         workflow_data_product_name = 'TEST-Workflow_Output_Product' #Set a specific output product name
 
         #-------------------------------------------------------------------------------------------------------------------------
-        #Add a transformation process definition for salinity
+        print "Adding a transformation process definition for salinity"
         #-------------------------------------------------------------------------------------------------------------------------
 
         ctd_L2_salinity_dprocdef_id = self.create_salinity_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=ctd_L2_salinity_dprocdef_id, persist_process_output_data=False)  #Don't persist the intermediate data product
+        workflow_step_obj = IonObject('DataProcessWorkflowStep',
+                                      data_process_definition_id=ctd_L2_salinity_dprocdef_id,
+                                      persist_process_output_data=False)  #Don't persist the intermediate data product
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #-------------------------------------------------------------------------------------------------------------------------
-        #Add a transformation process definition for salinity doubler
+        print "Adding a transformation process definition for salinity doubler"
         #-------------------------------------------------------------------------------------------------------------------------
 
         salinity_doubler_dprocdef_id = self.create_salinity_doubler_data_process_definition()
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=salinity_doubler_dprocdef_id, )
+        workflow_step_obj = IonObject('DataProcessWorkflowStep',
+                                      data_process_definition_id=salinity_doubler_dprocdef_id, )
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
-        #Create it in the resource registry
+        print "Creating workflow def in the resource registry"
         workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
 
         aids = self.rrclient.find_associations(workflow_def_id, PRED.hasDataProcessDefinition)
@@ -153,28 +157,29 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         #The list of data product streams to monitor
         data_product_stream_ids = list()
 
-        #Create the input data product
+        print "Creating the input data product"
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
         data_product_stream_ids.append(ctd_stream_id)
 
-        #Create and start the workflow
-        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id,
+        print "Creating and starting the workflow"
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id,
+                                                                                            ctd_parsed_data_product_id,
                 persist_workflow_data_product=True, output_data_product_name=workflow_data_product_name, timeout=300)
 
         workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_output_ids) == 1 )
 
-        #persist the output product
+        print "persisting the output product"
         #self.dataproductclient.activate_data_product_persistence(workflow_product_id)
         dataset_ids,_ = self.rrclient.find_objects(workflow_product_id, PRED.hasDataset, RT.DataSet, True)
         assertions(len(dataset_ids) == 1 )
         dataset_id = dataset_ids[0]
 
-        #Verify the output data product name matches what was specified in the workflow definition
+        print "Verifying the output data product name matches what was specified in the workflow definition"
         workflow_product = self.rrclient.read(workflow_product_id)
         assertions(workflow_product.name.startswith(workflow_data_product_name), 'Nope: %s != %s' % (workflow_product.name, workflow_data_product_name))
 
-        #Walk the associations to find the appropriate output data streams to validate the messages
+        print "Walking the associations to find the appropriate output data streams to validate the messages"
         workflow_dp_ids,_ = self.rrclient.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
         assertions(len(workflow_dp_ids) == 2 )
 
@@ -183,33 +188,33 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
 
-        log.debug("data_product_stream_ids: %s" % data_product_stream_ids)
+        print "data_product_stream_ids: %s" % data_product_stream_ids
 
-        #Start the output stream listener to monitor and collect messages
+        print "Starting the output stream listener to monitor to collect messages"
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
-        log.debug("results::: %s" % results)
+        print "results::: %s" % results
 
-        #Stop the workflow processes
+        print "Stopping the workflow processes"
         self.workflowclient.terminate_data_process_workflow(workflow_id, False, timeout=250)  # Should test true at some point
 
-        #Make sure the Workflow object was removed
+        print "Making sure the Workflow object was removed"
         objs, _ = self.rrclient.find_resources(restype=RT.Workflow)
         assertions(len(objs) == 0)
 
-        #Validate the data from each of the messages along the way
+        print "Validating the data from each of the messages along the way"
         self.validate_messages(results)
 
-        log.debug("Checking to see if dataset id = %s, was persisted...." % dataset_id)
-
-        #validate that the data was persisted and can be retrieved
+        print "Checking to see if dataset id = %s, was persisted, and that it can be retrieved...." % dataset_id
         self.validate_data_ingest_retrieve(dataset_id)
 
-        #Cleanup to make sure delete is correct.
+        print "Cleaning up to make sure delete is correct."
         self.workflowclient.delete_workflow_definition(workflow_def_id)
 
         workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition)
         assertions(len(workflow_def_ids) == 0 )
+
+
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')

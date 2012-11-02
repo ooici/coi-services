@@ -16,9 +16,13 @@ from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevic
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.dm.iindex_management_service import IndexManagementServiceClient
 from interface.services.dm.icatalog_management_service import CatalogManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.services.dm.presentation.discovery_service import DiscoveryService
 from ion.services.dm.inventory.index_management_service import IndexManagementService
+from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
 from mock import Mock, patch
@@ -51,7 +55,7 @@ class DiscoveryUnitTest(PyonTestCase):
         self.rr_find_assoc = mock_clients.resource_registry.find_associations
         self.rr_find_res = mock_clients.resource_registry.find_resources
         self.rr_find_obj = mock_clients.resource_registry.find_objects
-        self.rr_find_assocs_mult = mock_clients.resource_registry.find_associations_mult
+        self.rr_find_assocs_mult = mock_clients.resource_registry.find_objects_mult
         self.rr_create_assoc = mock_clients.resource_registry.create_association
         self.rr_delete_assoc = mock_clients.resource_registry.delete_association
 
@@ -423,12 +427,15 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         self._start_container()
         self.addCleanup(DiscoveryIntTest.es_cleanup)
-        self.container.start_rel_from_url('res/deploy/r2dm.yml', config)
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml', config)
 
-        self.discovery = DiscoveryServiceClient()
-        self.catalog   = CatalogManagementServiceClient()
-        self.ims       = IndexManagementServiceClient()
-        self.rr        = ResourceRegistryServiceClient()
+        self.discovery               = DiscoveryServiceClient()
+        self.catalog                 = CatalogManagementServiceClient()
+        self.ims                     = IndexManagementServiceClient()
+        self.rr                      = ResourceRegistryServiceClient()
+        self.dataset_management      = DatasetManagementServiceClient()
+        self.pubsub_management       = PubsubManagementServiceClient()
+        self.data_product_management = DataProductManagementServiceClient()
 
     @staticmethod
     def es_cleanup():
@@ -859,4 +866,34 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == dp_id)
         self.assertEquals(results[0]['_source'].name, 'example')
 
+
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_ownership_searching(self):
+        # Create two data products so that there is competition to the search, one is parsed 
+        # (with conductivity as a parameter) and the other is raw
+        dp = DataProduct(name='example dataproduct')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict_id)
+        tdom, sdom = time_series_domain()
+        dp.spatial_domain = sdom.dump()
+        dp.temporal_domain = tdom.dump()
+        dp_id = self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id, exchange_point='xp1')
+
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_raw_param_dict')
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd raw', parameter_dictionary_id=pdict_id)
+        dp = DataProduct(name='WRONG')
+        dp.spatial_domain = sdom.dump()
+        dp.temporal_domain = tdom.dump()
+        self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id, exchange_point='xp1')
+
+        parameter_search = 'search "name" is "conductivity" from "resources_index"'
+        results = self.poll(9, self.discovery.parse, parameter_search)
+        param_id = results[0]['_id']
+
+        data_product_search = 'search "name" is "*" from "data_products_index" and has "%s"' % param_id
+        results = self.poll(9, self.discovery.parse, data_product_search)
+        print results
+        self.assertEquals(results[0], dp_id)
+
+        
 

@@ -27,10 +27,11 @@ class Test(IonIntegrationTestCase, OmsTestMixin):
 
     @classmethod
     def setUpClass(cls):
+        OmsTestMixin.setUpClass()
         cls.oms = OmsClientFactory.create_instance()
         OmsTestMixin.start_http_server()
 
     @classmethod
     def tearDownClass(cls):
-        alarm_notifications = OmsTestMixin.stop_http_server()
-        log.info("alarm_notifications = %s" % str(alarm_notifications))
+        event_notifications = OmsTestMixin.stop_http_server()
+        log.info("event_notifications = %s" % str(event_notifications))

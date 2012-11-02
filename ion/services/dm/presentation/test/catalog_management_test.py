@@ -32,7 +32,7 @@ class CatalogManagementUnitTest(PyonTestCase):
         self.rr_update = mock_clients.resource_registry.update
         self.rr_delete = mock_clients.resource_registry.delete
         self.rr_find_assoc = mock_clients.resource_registry.find_associations
-        self.rr_find_assocs_mult = mock_clients.resource_registry.find_associations_mult
+        self.rr_find_assocs_mult = mock_clients.resource_registry.find_objects_mult
         self.rr_find_res = mock_clients.resource_registry.find_resources
         self.rr_find_obj = mock_clients.resource_registry.find_objects
         self.rr_find_subj = mock_clients.resource_registry.find_subjects

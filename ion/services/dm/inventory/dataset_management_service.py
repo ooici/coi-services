@@ -56,6 +56,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.parameter_dictionary = parameter_dict
         dataset.temporal_domain      = temporal_domain
         dataset.spatial_domain       = spatial_domain
+        dataset.registered           = False
 
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
@@ -84,6 +85,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(dataset_id)
+
+    def register_dataset(self, dataset_id=''):
+        dataset_obj = self.read_dataset(dataset_id)
+        dataset_obj.registered = True
+        self.update_dataset(dataset=dataset_obj)
 
 #--------
 
@@ -190,6 +196,40 @@ class DatasetManagementService(BaseDatasetManagementService):
         if not len(res):
             raise NotFound('Unable to locate context with name: %s' % name)
         return res[0]
+
+#--------
+
+    def dataset_bounds(self, dataset_id='', parameters=None):
+        self.read_dataset(dataset_id) # Validates proper dataset
+        parameters = parameters or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_bounds(parameters)
+
+    def dataset_bounds_by_axis(self, dataset_id='', axis=None):
+        self.read_dataset(dataset_id) # Validates proper dataset
+        axis = axis or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_bounds_by_axis(axis)
+
+    def dataset_extents(self, dataset_id='', parameters=None):
+        self.read_dataset(dataset_id)
+        parameters = parameters or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_extents(parameters)
+
+    def dataset_extents_by_axis(self, dataset_id='', axis=None):
+        self.read_dataset(dataset_id) 
+        axis = axis or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_extents_by_axis(axis)
+
+    def dataset_size(self,dataset_id='', parameters=None, slice_=None, in_bytes=False):
+        self.read_dataset(dataset_id) 
+        parameters = parameters or None
+        slice_     = slice_ if isinstance(slice_, slice) else None
+
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_size(parameters, slice_, in_bytes)
 
 #--------
 

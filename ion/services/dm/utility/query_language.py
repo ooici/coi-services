@@ -20,8 +20,9 @@ class QueryLanguage(object):
 
 
              <sentence> ::= <query> [<query-filter>] [("AND" <sentence>)|("OR" <sentence>)]
-                <query> ::= <search-query> | <association-query> | <collection-query>
+                <query> ::= <search-query> | <association-query> | <collection-query> | <owner-query>
     <association-query> ::= "BELONGS TO" <resource-id> [<limit-parameter>]
+          <owner-query> ::= "HAS" <resource-id> [<limit-parameter>]
      <collection-query> ::= "IN" <collection-id>
          <search_query> ::= "SEARCH" <field> (<term-query> | <range-query> | <fuzzy-query> | <time-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
       <query-parameter> ::= <order-parameter> | <limit-parameter> | <offset-parameter>
@@ -189,7 +190,8 @@ class QueryLanguage(object):
         # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query> | <fuzzy-query> | <time-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
         # <collection-query>  ::= "IN <collection-id>"
         # <association-query> ::= "BELONGS TO" <resource-id> [ <depth-parameter> ]
-        # <query>             ::= <search-query> | <association-query> | <collection-query>
+        # <owner-query>       ::= "HAS" <resource-id> [ <depth-parameter> ]
+        # <query>             ::= <search-query> | <association-query> | <collection-query> | <owner-query>
         #--------------------------------------------------------------------------------------
         search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | fuzzy_query | time_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
         # Add the field to the frame object
@@ -199,7 +201,9 @@ class QueryLanguage(object):
         association_query = CaselessLiteral("BELONGS") + CaselessLiteral("TO") + resource_id + Optional(depth_parameter)
         # Add the association to the frame object
         association_query.setParseAction(lambda x : self.frame.update({'association':x[2]}))
-        query = search_query | association_query | collection_query
+        owner_query = CaselessLiteral("HAS") + resource_id + Optional(depth_parameter)
+        owner_query.setParseAction(lambda x : self.frame.update({'owner':x[1]}))
+        query = search_query | association_query | collection_query | owner_query
 
         #--------------------------------------------------------------------------------------
         # <primary-query>  ::= <query> [<query-filter>]
@@ -326,6 +330,16 @@ class QueryLanguage(object):
         if query.has_key('association'):
             return True
         return False
+    @classmethod
+    def query_is_owner_search(cls,query=None):
+        if not query:
+            return False
+        if not isinstance(query,dict):
+            return False
+        if query.has_key('owner'):
+            return True
+        return False
+
     @classmethod
     def query_is_collection_search(cls, query=None):
         if not query:

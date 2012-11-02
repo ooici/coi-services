@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.oms_alarm_listener
-@file    ion/agents/platform/oms/oms_alarm_listener.py
+@package ion.agents.platform.oms.oms_event_listener
+@file    ion/agents/platform/oms/oms_event_listener.py
 @author  Carlos Rueda
-@brief   HTTP server to get RSN OMS alarm notifications
+@brief   HTTP server to get RSN OMS event notifications
 """
 
 __author__ = 'Carlos Rueda'
@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
-from ion.agents.platform.platform_driver import AlarmDriverEvent
+from ion.agents.platform.platform_driver import EventDriverEvent
 
 import time
 from gevent.pywsgi import WSGIServer
@@ -21,9 +21,9 @@ import yaml
 
 
 
-class OmsAlarmListener(object):
+class OmsEventListener(object):
     """
-    HTTP server to get RSN OMS alarm notifications and do corresponding
+    HTTP server to get RSN OMS event notifications and do corresponding
     notifications to driver/agent via callback.
     """
 
@@ -31,7 +31,7 @@ class OmsAlarmListener(object):
         """
         Creates a listener.
 
-        @param notify_driver_event callback to notify alarm events. Must be
+        @param notify_driver_event callback to notify event events. Must be
                                     provided.
         """
 
@@ -41,7 +41,7 @@ class OmsAlarmListener(object):
         self._http_server = None
         self._url = None
 
-        # _notifications: if not None, { alarm_type: [alarm_instance, ...], ...}
+        # _notifications: if not None, { event_type: [event_instance, ...], ...}
         self._notifications = None
 
     @property
@@ -54,7 +54,7 @@ class OmsAlarmListener(object):
 
     def keep_notifications(self, keep=True, reset=True):
         """
-        By default, received alarm notifications are not kept. Call this with
+        By default, received event notifications are not kept. Call this with
         True (the default) to keep them, or with False to not keep them.
         If they are currently kept and the reset param is True (the default),
         then the notifications dict is reinitialized.
@@ -75,7 +75,7 @@ class OmsAlarmListener(object):
 
     def start_http_server(self, host='localhost', port=0):
         """
-        Starts a HTTP server that handles the notification of received alarms.
+        Starts a HTTP server that handles the notification of received events.
 
         @param host by default 'localhost'
         @param port by default 0 to get one dynamically.
@@ -86,7 +86,7 @@ class OmsAlarmListener(object):
             self._notifications.clear()
 
         self._http_server = WSGIServer((host, port), self.__application)
-        log.info("starting http server for receiving alarm notifications...")
+        log.info("starting http server for receiving event notifications...")
         self._http_server.start()
         self._url = "http://%s:%s" % self._http_server.address
         log.info("http server started: url=%r", self._url)
@@ -96,20 +96,20 @@ class OmsAlarmListener(object):
         input = environ['wsgi.input']
         body = "\n".join(input.readlines())
 #        log.trace('notification received payload=%s', body)
-        alarm_instance = yaml.load(body)
-        log.trace('notification received alarm_instance=%s', str(alarm_instance))
-        if not 'url' in alarm_instance:
+        event_instance = yaml.load(body)
+        log.trace('notification received event_instance=%s', str(event_instance))
+        if not 'url' in event_instance:
             log.warn("expecting 'url' entry in notification call")
             return
-        if not 'ref_id' in alarm_instance:
+        if not 'ref_id' in event_instance:
             log.warn("expecting 'ref_id' entry in notification call")
             return
 
-        url = alarm_instance['url']
-        alarm_type = alarm_instance['ref_id']
+        url = event_instance['url']
+        event_type = event_instance['ref_id']
 
         if self._url == url:
-            self._alarm_received(alarm_type, alarm_instance)
+            self._event_received(event_type, event_instance)
         else:
             log.warn("got notification call with an unexpected url=%s (expected url=%s)",
                      url, self._url)
@@ -118,24 +118,24 @@ class OmsAlarmListener(object):
         status = '200 OK'
         headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
-        return alarm_type
+        return event_type
 
-    def _alarm_received(self, alarm_type, alarm_instance):
-        log.trace('received alarm_instance=%s', str(alarm_instance))
+    def _event_received(self, event_type, event_instance):
+        log.trace('received event_instance=%s', str(event_instance))
 
         if self._notifications:
-            if alarm_type in self._notifications:
-                self._notifications[alarm_type].append(alarm_instance)
+            if event_type in self._notifications:
+                self._notifications[event_type].append(event_instance)
             else:
-                self._notifications[alarm_type] = [alarm_instance]
+                self._notifications[event_type] = [event_instance]
 
-        log.debug('notifying alarm_instance=%s', str(alarm_instance))
+        log.debug('notifying event_instance=%s', str(event_instance))
 
         # note the ts for the event is the time of reception -- the
-        # alarm_instance has its own timestamp
+        # event_instance has its own timestamp
         ts = time.time()
 
-        driver_event = AlarmDriverEvent(ts, alarm_type, alarm_instance)
+        driver_event = EventDriverEvent(ts, event_type, event_instance)
         self._notify_driver_event(driver_event)
 
     def stop_http_server(self):

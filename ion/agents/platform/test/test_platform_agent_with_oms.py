@@ -26,15 +26,6 @@ from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
-from ion.agents.platform.test.helper import PLATFORM_ID
-from ion.agents.platform.test.helper import SUBPLATFORM_IDS
-from ion.agents.platform.test.helper import ATTR_NAMES
-from ion.agents.platform.test.helper import WRITABLE_ATTR_NAMES
-from ion.agents.platform.test.helper import VALID_ATTR_VALUE
-from ion.agents.platform.test.helper import INVALID_ATTR_VALUE
-from ion.agents.platform.test.helper import PORT_ID
-from ion.agents.platform.test.helper import PORT_ATTR_NAME
-from ion.agents.platform.test.helper import VALID_PORT_ATTR_VALUE
 from ion.agents.platform.test.helper import HelperTestMixin
 
 from pyon.ion.stream import StandaloneStreamSubscriber
@@ -53,14 +44,6 @@ from nose.plugins.attrib import attr
 
 
 # TIMEOUT: timeout for each execute_agent call.
-# NOTE: the bigger the platform network size starting from the chosen
-# PLATFORM_ID above, the more the time that should be given for commands to
-# complete, in particular, for those with a cascading effect on all the
-# descendents, eg, INITIALIZE. In the current network.yml there are 19
-# descendent platforms from 'Node1A' taking around 25secs for the INITIALIZE
-# command to complete on my local env (this elapsed time reduces to ~14secs
-# when using --with-pycc).
-# The following TIMEOUT value intends to be big enough for all typical cases.
 TIMEOUT = 90
 
 
@@ -68,12 +51,6 @@ DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
     'dvr_cls': 'OmsPlatformDriver',
     'oms_uri': 'embsimulator',
-}
-
-PLATFORM_CONFIG = {
-    'platform_id': PLATFORM_ID,
-    'driver_config': DVR_CONFIG,
-    'container_name': None,  # determined in setUp
 }
 
 # Agent parameters.
@@ -95,14 +72,21 @@ class FakeProcess(LocalContextMixin):
 @attr('INT', group='sa')
 class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
+        HelperTestMixin.setUpClass()
 
+    def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
 
-        PLATFORM_CONFIG['container_name'] = self.container.name
+        self.PLATFORM_CONFIG = {
+            'platform_id': self.PLATFORM_ID,
+            'driver_config': DVR_CONFIG,
+            'container_name': self.container.name
+        }
 
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.
@@ -125,21 +109,21 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         if os.getenv("STANDALONE") is not None:
             standalone = {
-                'platform_id': PLATFORM_ID,
+                'platform_id': self.PLATFORM_ID,
                 'container': self.container,
                 'pubsub_client': self._pubsub_client
             }
             self._launcher = LauncherFactory.createLauncher(standalone=standalone)
-            self._pid = self._launcher.launch(PLATFORM_ID, self._agent_config)
+            self._pid = self._launcher.launch(self.PLATFORM_ID, self._agent_config)
             self._pa_client = self._pid
 
-            log.debug("STANDALONE: LAUNCHED PLATFORM_ID=%r", PLATFORM_ID)
+            log.debug("STANDALONE: LAUNCHED PLATFORM_ID=%r", self.PLATFORM_ID)
 
         else:
             self._launcher = LauncherFactory.createLauncher()
-            self._pid = self._launcher.launch(PLATFORM_ID, self._agent_config)
+            self._pid = self._launcher.launch(self.PLATFORM_ID, self._agent_config)
 
-            log.debug("LAUNCHED PLATFORM_ID=%r", PLATFORM_ID)
+            log.debug("LAUNCHED PLATFORM_ID=%r", self.PLATFORM_ID)
 
             # Start a resource agent client to talk with the agent.
             self._pa_client = ResourceAgentClient(PA_RESOURCE_ID, process=FakeProcess())
@@ -270,83 +254,94 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
     def _set_up_port(self):
         # TODO real settings and corresp verification
 
+        port_id = self.PORT_ID
+        port_attrName = self.PORT_ATTR_NAME
+
         kwargs = dict(
-            port_id = PORT_ID,
-            attributes = { PORT_ATTR_NAME: VALID_PORT_ATTR_VALUE }
+            port_id = port_id,
+            attributes = { port_attrName: self.VALID_PORT_ATTR_VALUE }
         )
         cmd = AgentCommand(command=PlatformAgentEvent.SET_UP_PORT, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         result = retval.result
         log.info("SET_UP_PORT = %s", result)
         self.assertIsInstance(result, dict)
-        self.assertTrue(PORT_ID in result)
-        self.assertTrue(PORT_ATTR_NAME in result[PORT_ID])
+        self.assertTrue(port_id in result)
+        self.assertTrue(port_attrName in result[port_id])
 
     def _turn_on_port(self):
         # TODO real settings and corresp verification
 
+        port_id = self.PORT_ID
+
         kwargs = dict(
-            port_id = PORT_ID
+            port_id = port_id
         )
         cmd = AgentCommand(command=PlatformAgentEvent.TURN_ON_PORT, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         result = retval.result
         log.info("TURN_ON_PORT = %s", result)
         self.assertIsInstance(result, dict)
-        self.assertTrue(PORT_ID in result)
-        self.assertIsInstance(result[PORT_ID], bool)
+        self.assertTrue(port_id in result)
+        self.assertIsInstance(result[port_id], bool)
 
     def _turn_off_port(self):
         # TODO real settings and corresp verification
 
+        port_id = self.PORT_ID
+
         kwargs = dict(
-            port_id = PORT_ID
+            port_id = port_id
         )
         cmd = AgentCommand(command=PlatformAgentEvent.TURN_OFF_PORT, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         result = retval.result
         log.info("TURN_OFF_PORT = %s", result)
         self.assertIsInstance(result, dict)
-        self.assertTrue(PORT_ID in result)
-        self.assertIsInstance(result[PORT_ID], bool)
+        self.assertTrue(port_id in result)
+        self.assertIsInstance(result[port_id], bool)
 
     def _get_resource(self):
-        kwargs = dict(attr_names=ATTR_NAMES, from_time=time.time())
+        attrNames = self.ATTR_NAMES
+        kwargs = dict(attr_names=attrNames, from_time=time.time())
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         attr_values = retval.result
         self.assertIsInstance(attr_values, dict)
-        for attr_name in ATTR_NAMES:
+        for attr_name in attrNames:
             self._verify_valid_attribute_id(attr_name, attr_values)
 
     def _set_resource(self):
-        attrNames = ATTR_NAMES
+        attrNames = self.ATTR_NAMES
+        writ_attrNames = self.WRITABLE_ATTR_NAMES
 
         # TODO more realistic value depending on attribute's type
-        attrs = [(attrName, VALID_ATTR_VALUE) for attrName in attrNames]
+        attrs = [(attrName, self.VALID_ATTR_VALUE) for attrName in attrNames]
         kwargs = dict(attrs=attrs)
         cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         attr_values = retval.result
         self.assertIsInstance(attr_values, dict)
         for attrName in attrNames:
-            if attrName in WRITABLE_ATTR_NAMES:
+            if attrName in writ_attrNames:
                 self._verify_valid_attribute_id(attrName, attr_values)
             else:
                 self._verify_not_writable_attribute_id(attrName, attr_values)
 
         # now test setting invalid values to writable attributes:
-        attrs = [(attrName, INVALID_ATTR_VALUE) for attrName in WRITABLE_ATTR_NAMES]
+        attrs = [(attrName, self.INVALID_ATTR_VALUE) for attrName in
+                 writ_attrNames]
+        log.info("%r: setting attributes=%s", self.PLATFORM_ID, attrs)
         kwargs = dict(attrs=attrs)
         cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         attr_values = retval.result
         self.assertIsInstance(attr_values, dict)
-        for attrName in WRITABLE_ATTR_NAMES:
+        for attrName in writ_attrNames:
             self._verify_invalid_attribute_id(attrName, attr_values)
 
     def _initialize(self):
-        kwargs = dict(plat_config=PLATFORM_CONFIG)
+        kwargs = dict(plat_config=self.PLATFORM_CONFIG)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
@@ -371,12 +366,12 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         cmd = AgentCommand(command=PlatformAgentEvent.GET_SUBPLATFORM_IDS)
         retval = self._execute_agent(cmd)
         self.assertIsInstance(retval.result, list)
-        self.assertTrue(x in retval.result for x in SUBPLATFORM_IDS)
+        self.assertTrue(x in retval.result for x in self.SUBPLATFORM_IDS)
         return retval.result
 
-    def _start_alarm_dispatch(self):
+    def _start_event_dispatch(self):
         kwargs = dict(params="TODO set params")
-        cmd = AgentCommand(command=PlatformAgentEvent.START_ALARM_DISPATCH, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self.assertTrue(retval.result is not None)
         return retval.result
@@ -384,11 +379,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
     def _wait_for_a_data_sample(self):
         log.info("waiting for reception of a data sample...")
         self._async_data_result.get(timeout=15)
-        # we just wait for one -- see consume_data above
-        self.assertEquals(len(self._samples_received), 1)
+        # just wait for at least one -- see consume_data above
+        self.assertTrue(len(self._samples_received) >= 1)
 
-    def _stop_alarm_dispatch(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
+    def _stop_event_dispatch(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
         retval = self._execute_agent(cmd)
         self.assertTrue(retval.result is not None)
         return retval.result
@@ -415,8 +410,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
 
-            PlatformAgentEvent.START_ALARM_DISPATCH,
-            PlatformAgentEvent.STOP_ALARM_DISPATCH,
+            PlatformAgentEvent.START_EVENT_DISPATCH,
+            PlatformAgentEvent.STOP_EVENT_DISPATCH,
         ]
 
 
@@ -577,8 +572,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
 
-            PlatformAgentEvent.START_ALARM_DISPATCH,
-            PlatformAgentEvent.STOP_ALARM_DISPATCH,
+            PlatformAgentEvent.START_EVENT_DISPATCH,
+            PlatformAgentEvent.STOP_EVENT_DISPATCH,
         ]
 
         res_cmds_command = [
@@ -629,11 +624,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._set_up_port()
         self._turn_on_port()
 
-        self._start_alarm_dispatch()
+        self._start_event_dispatch()
 
         self._wait_for_a_data_sample()
 
-        self._stop_alarm_dispatch()
+        self._stop_event_dispatch()
 
         self._turn_off_port()
 

@@ -111,7 +111,7 @@ class TestIMSRegisterAgent(PyonTestCase):
         self.IMS.module_uploader = RegisterModulePreparerEgg(dest_user="my_user",
                                                              dest_host="my_host",
                                                              dest_path="/my/remote/wwwroot/my/path",
-                                                             dest_wwwroot="/my/remote/wwwroot")
+                                                             dest_wwwprefix="http://my_host/my/path")
 
         self.addCleanup(delattr, self, "IMS")
         self.addCleanup(delattr, self, "mock_ionobj")
@@ -213,7 +213,6 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
         if "driver_release_user" in CFG.service.instrument_management:
             cfg_user = CFG.service.instrument_management.driver_release_user
 
-
         remotehost = "%s@%s" % (cfg_user, cfg_host)
 
         ssh_retval = subprocess.call(["ssh", "-o", "PasswordAuthentication=no",
@@ -253,11 +252,17 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
             elif "text/url" == a.content_type:
                 remote_url = a.content.split("URL=")[1]
 
-                code = urlopen(remote_url).code
-                if 400 <= code:
-                    self.fail(("Uploaded succeeded, but fetching '%s' failed with code %s.  " +
-                               "CFG for web root on remote host is '%s', is that correct?") %
-                              (remote_url, code, CFG.service.instrument_management.driver_release_wwwroot))
+                failmsg = ""
+                try:
+                    code = urlopen(remote_url).code
+                    if 400 <= code:
+                        failmsg = "HTTP code %s" % code
+                except Exception as e:
+                    failmsg = str(e)
+
+                if failmsg:
+                    self.fail(("Uploaded succeeded, but fetching '%s' failed with '%s'. ") %
+                              (remote_url, failmsg))
 
 
         log.info("L4-CI-SA-RQ-148")

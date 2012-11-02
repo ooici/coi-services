@@ -32,11 +32,12 @@ class Test(IonUnitTestCase, OmsTestMixin):
 
     @classmethod
     def setUpClass(cls):
+        OmsTestMixin.setUpClass()
         OmsTestMixin.start_http_server()
         cls.oms = OmsSimulator()
 
     @classmethod
     def tearDownClass(cls):
         cls.oms._deactivate_simulator()
-        alarm_notifications = OmsTestMixin.stop_http_server()
-        log.info("alarm_notifications = %s" % str(alarm_notifications))
+        event_notifications = OmsTestMixin.stop_http_server()
+        log.info("event_notifications = %s" % str(event_notifications))
