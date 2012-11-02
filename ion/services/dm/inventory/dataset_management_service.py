@@ -56,6 +56,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.parameter_dictionary = parameter_dict
         dataset.temporal_domain      = temporal_domain
         dataset.spatial_domain       = spatial_domain
+        dataset.registered           = False
 
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
@@ -84,6 +85,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(dataset_id)
+
+    def register_dataset(self, dataset_id=''):
+        dataset_obj = self.read_dataset(dataset_id)
+        dataset_obj.registered = True
+        self.update_dataset(dataset=dataset_obj)
 
 #--------
 
