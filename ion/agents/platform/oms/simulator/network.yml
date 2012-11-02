@@ -1,5 +1,14 @@
 #
-# network definition for the mock OMS object
+# Network definition for the RSN OMS simulator.
+#
+# Versions of this file have been generated automatically, but then
+# manually adjusted as needed.
+#
+# Noteworthy changes:
+#
+# 2012-12-31: systematic renaming: "Node.._attr_1" -> "input_voltage" per
+# definition in the "Parameter definitions" spreadsheet and in preparation for
+# IOC demo.
 #
 
 platform_types:
@@ -69,11 +78,12 @@ network:
   - platform_id: Node1A
     platform_types: []
     attrs:
-    - attr_id: Node1A_attr_1
-      type: int
-      units: xyz
-      min_val: -2
-      max_val: 10
+    - attr_id: input_voltage
+      type: float
+      units: Volts
+      min_val: -500
+      max_val: 500
+      precision: 1
       read_write: read
       group: power
       monitorCycleSeconds: 5
@@ -118,11 +128,12 @@ network:
     - platform_id: Node1B
       platform_types: []
       attrs:
-      - attr_id: Node1B_attr_1
-        type: int
-        units: xyz
-        min_val: -2
-        max_val: 10
+      - attr_id: input_voltage
+        type: float
+        units: Volts
+        min_val: -500
+        max_val: 500
+        precision: 1
         read_write: read
         group: power
         monitorCycleSeconds: 5
@@ -143,11 +154,12 @@ network:
       - platform_id: Node1C
         platform_types: []
         attrs:
-        - attr_id: Node1C_attr_1
-          type: int
-          units: xyz
-          min_val: -2
-          max_val: 10
+        - attr_id: input_voltage
+          type: float
+          units: Volts
+          min_val: -500
+          max_val: 500
+          precision: 1
           read_write: read
           group: power
           monitorCycleSeconds: 5
@@ -168,22 +180,22 @@ network:
         - platform_id: Node1D
           platform_types: []
           attrs:
-          - attr_id: Input Bus Current
-            type: float
-            units: Amps
-            min_val: -50
-            max_val: 50
-            precision: 0.1
-            read_write: read
-            group: power
-            monitorCycleSeconds: 5
-          - attr_id: Input Voltage
+          - attr_id: input_voltage
             type: float
             units: Volts
             min_val: -500
             max_val: 500
             precision: 1
             read_write: read
+            group: power
+            monitorCycleSeconds: 2
+          - attr_id: Input Bus Current
+            type: float
+            units: Amps
+            min_val: -50
+            max_val: 50
+            precision: 0.1
+            read_write: write  # just for testing
             group: power
             monitorCycleSeconds: 5
           - attr_id: MVPC Temperature
@@ -581,11 +593,12 @@ network:
   - platform_id: Node5A
     platform_types: []
     attrs:
-    - attr_id: Node5A_attr_1
-      type: int
-      units: xyz
-      min_val: -2
-      max_val: 10
+    - attr_id: input_voltage
+      type: float
+      units: Volts
+      min_val: -500
+      max_val: 500
+      precision: 1
       read_write: read
       group: power
       monitorCycleSeconds: 5
@@ -606,11 +619,12 @@ network:
     - platform_id: Node3A
       platform_types: []
       attrs:
-      - attr_id: Node3A_attr_1
-        type: int
-        units: xyz
-        min_val: -2
-        max_val: 10
+      - attr_id: input_voltage
+        type: float
+        units: Volts
+        min_val: -500
+        max_val: 500
+        precision: 1
         read_write: read
         group: power
         monitorCycleSeconds: 5
@@ -631,11 +645,12 @@ network:
       - platform_id: Node3B
         platform_types: []
         attrs:
-        - attr_id: Node3B_attr_1
-          type: int
-          units: xyz
-          min_val: -2
-          max_val: 10
+        - attr_id: input_voltage
+          type: float
+          units: Volts
+          min_val: -500
+          max_val: 500
+          precision: 1
           read_write: read
           group: power
           monitorCycleSeconds: 5

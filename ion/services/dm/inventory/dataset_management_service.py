@@ -8,6 +8,7 @@
 from pyon.public import PRED, RT
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.datastore.datastore import DataStore
+from pyon.net.endpoint import RPCClient
 from pyon.util.arg_check import validate_is_instance, validate_true, validate_is_not_none
 from pyon.util.file_sys import FileSystem, FS
 from pyon.util.log import log
@@ -19,6 +20,8 @@ from interface.objects import DataSet
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
+
+import os
 
 
 class DatasetManagementService(BaseDatasetManagementService):
@@ -56,6 +59,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.parameter_dictionary = parameter_dict
         dataset.temporal_domain      = temporal_domain
         dataset.spatial_domain       = spatial_domain
+        dataset.registered           = False
 
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
@@ -84,6 +88,22 @@ class DatasetManagementService(BaseDatasetManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(dataset_id)
+
+    def register_dataset(self, dataset_id=''):
+        dataset_obj = self.read_dataset(dataset_id)
+        dataset_obj.registered = True
+        self.update_dataset(dataset=dataset_obj)
+
+        procs,_ = self.clients.resource_registry.find_resources(restype=RT.Process, id_only=True)
+        pid = None
+        for p in procs:
+            if 'registration_worker' in p:
+                pid = p
+        if not pid: 
+            return
+        rpc_cli = RPCClient(to_name=pid)
+        rpc_cli.request({'coverage_path':self._get_coverage_path(dataset_id)}, op='register_dap_dataset')
+
 
 #--------
 
@@ -193,6 +213,40 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
+    def dataset_bounds(self, dataset_id='', parameters=None):
+        self.read_dataset(dataset_id) # Validates proper dataset
+        parameters = parameters or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_bounds(parameters)
+
+    def dataset_bounds_by_axis(self, dataset_id='', axis=None):
+        self.read_dataset(dataset_id) # Validates proper dataset
+        axis = axis or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_bounds_by_axis(axis)
+
+    def dataset_extents(self, dataset_id='', parameters=None):
+        self.read_dataset(dataset_id)
+        parameters = parameters or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_extents(parameters)
+
+    def dataset_extents_by_axis(self, dataset_id='', axis=None):
+        self.read_dataset(dataset_id) 
+        axis = axis or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_extents_by_axis(axis)
+
+    def dataset_size(self,dataset_id='', parameters=None, slice_=None, in_bytes=False):
+        self.read_dataset(dataset_id) 
+        parameters = parameters or None
+        slice_     = slice_ if isinstance(slice_, slice) else None
+
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_size(parameters, slice_, in_bytes)
+
+#--------
+
     @classmethod
     def get_parameter_context(cls, parameter_context_id=''):
         '''
@@ -263,6 +317,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
         coverage = SimplexCoverage(file_root, dataset_id)
         return coverage
+
+    @classmethod
+    def _get_coverage_path(cls, dataset_id):
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        return os.path.join(file_root, dataset_id)
     
     @classmethod
     def _compare_pc(cls, pc1, pc2):

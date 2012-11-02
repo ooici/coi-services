@@ -177,7 +177,7 @@ class LoadSystemPolicy(ImmediateProcess):
         '''
 
         policy_id = policy_client.create_common_service_access_policy( 'Deny_Everything',
-            'A global policy rule that permits access to everything with the ION Manager role',
+            'A global policy rule that denies access to everything by default',
             policy_text, headers=sa_user_header)
 
 

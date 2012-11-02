@@ -1,6 +1,7 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 import tempfile
+from urllib2 import urlopen
 from ion.util.module_uploader import RegisterModulePreparerEgg
 from pyon.ion.resource import LCE
 from pyon.public import Container, IonObject
@@ -110,7 +111,7 @@ class TestIMSRegisterAgent(PyonTestCase):
         self.IMS.module_uploader = RegisterModulePreparerEgg(dest_user="my_user",
                                                              dest_host="my_host",
                                                              dest_path="/my/remote/wwwroot/my/path",
-                                                             dest_wwwroot="/my/remote/wwwroot")
+                                                             dest_wwwprefix="http://my_host/my/path")
 
         self.addCleanup(delattr, self, "IMS")
         self.addCleanup(delattr, self, "mock_ionobj")
@@ -212,7 +213,6 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
         if "driver_release_user" in CFG.service.instrument_management:
             cfg_user = CFG.service.instrument_management.driver_release_user
 
-
         remotehost = "%s@%s" % (cfg_user, cfg_host)
 
         ssh_retval = subprocess.call(["ssh", "-o", "PasswordAuthentication=no",
@@ -249,7 +249,24 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
                 self.assertIn(parts[0], a.keywords)
                 self.assertEqual(a.content, str(parts[0] * 3) + "\n")
 
+            elif "text/url" == a.content_type:
+                remote_url = a.content.split("URL=")[1]
+
+                failmsg = ""
+                try:
+                    code = urlopen(remote_url).code
+                    if 400 <= code:
+                        failmsg = "HTTP code %s" % code
+                except Exception as e:
+                    failmsg = str(e)
+
+                if failmsg:
+                    self.fail(("Uploaded succeeded, but fetching '%s' failed with '%s'. ") %
+                              (remote_url, failmsg))
+
+
         log.info("L4-CI-SA-RQ-148")
+        log.info("L4-CI-SA-RQ-148: The test services shall ensure that test results are incorporated into physical resource metadata. ")
 
         # cleanup
         self.IMS.force_delete_instrument_agent(inst_agent_id)

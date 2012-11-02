@@ -29,7 +29,8 @@ def adhoc_get_parameter_dictionary(stream_name):
 
     pdict = ParameterDictionary()
 
-    ctxt = ParameterContext('value', param_type=QuantityType(value_encoding=numpy.float32))
+#    ctxt = ParameterContext('value', param_type=QuantityType(value_encoding=numpy.float32))
+    ctxt = ParameterContext('value', param_type=QuantityType(value_encoding=numpy.dtype('float64')))
     ctxt.uom = 'unknown'
     ctxt.fill_value = 0e0
     pdict.add_context(ctxt)
@@ -59,4 +60,4 @@ def adhoc_get_parameter_dictionary(stream_name):
 
 # some of the attribute names in the simulated network (network.yml)
 def adhoc_get_stream_names():
-    return ['Node1A_attr_1', 'Node1A_attr_2']
+    return ['input_voltage', 'Node1A_attr_2']

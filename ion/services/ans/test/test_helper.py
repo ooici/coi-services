@@ -1,26 +1,7 @@
 from pyon.public import Container, log, IonObject
 from interface.objects import CouchStorage, ProcessDefinition
 from pyon.ion.stream import StandaloneStreamSubscriber
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
-from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
-from ion.processes.data.transforms.example_double_salinity import SalinityDoubler
-from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDT
-from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphs
 from ion.services.dm.utility.granule_utils import time_series_domain
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
-from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
-from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
-from interface.services.ans.ivisualization_service import VisualizationServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-
-from pyon.public import log
 from seawater.gibbs import SP_from_cndr
 from seawater.gibbs import cte
 
@@ -55,25 +36,11 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         cc = self.container
         assertions = self.assertTrue
 
-        # Now create client to DataProductManagementService
-        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
-        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
-        self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
-        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
-        self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
-        self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
-        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
-        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
-        self.workflowclient = WorkflowManagementServiceClient(node=self.container.node)
-        self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
-        self.vis_client = VisualizationServiceClient(node=self.container.node)
-
-
         #-------------------------------
         # Create CTD Parsed as the initial data product
         #-------------------------------
         # create a stream definition for the data from the ctd simulator
-        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_pdict_id = self.datasetclient.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=ctd_pdict_id)
 
 
@@ -210,7 +177,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
     def validate_data_ingest_retrieve(self, dataset_id):
 
         assertions = self.assertTrue
-        self.data_retriever = DataRetrieverServiceClient(node=self.container.node)
 
         #validate that data was ingested
         replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
@@ -247,8 +213,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             self.fail("failed to create new SalinityTransform data process definition: %s" %ex)
 
         # create a stream definition for the data from the salinity Transform
-        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
-        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_pdict_id = self.datasetclient.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         sal_stream_def_id = self.pubsubclient.create_stream_definition(name='Salinity', parameter_dictionary_id=ctd_pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id, binding='salinity' )
 
@@ -275,7 +240,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
         # create a stream definition for the data from the salinity Transform
-        ctd_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_pdict_id = self.datasetclient.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(name='SalinityDoubler', parameter_dictionary_id=ctd_pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id, binding='salinity' )
 
@@ -330,7 +295,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
     def create_google_dt_data_process_definition(self):
 
         #First look to see if it exists and if not, then create it
-        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
         dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
         if len(dpd) > 0:
             return dpd[0]
@@ -347,7 +311,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         except Exception as ex:
             self.fail("failed to create new VizTransformGoogleDT data process definition: %s" %ex)
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('google_dt', id_only=True)
+        pdict_id = self.datasetclient.read_parameter_dictionary_by_name('google_dt', id_only=True)
 
         # create a stream definition for the data from the
         stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
@@ -388,7 +352,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         if len(dpd) > 0:
             return dpd[0]
 
-        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
         #Data Process Definition
         log.debug("Create data process definition MatplotlibGraphsTransform")
         dpd_obj = IonObject(RT.DataProcessDefinition,
@@ -402,7 +365,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             self.fail("failed to create new VizTransformMatplotlibGraphs data process definition: %s" %ex)
 
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
+        pdict_id = self.datasetclient.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
         # create a stream definition for the data
         stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformMatplotlibGraphs', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='graph_image_param_dict' )

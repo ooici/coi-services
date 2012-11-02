@@ -1,3 +1,8 @@
+
+#
+# NOTE: Deprecated  -- See test_oms_launch2
+#
+
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 from pyon.public import log, IonObject
@@ -255,7 +260,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         ports.append(  IonObject(OT.PlatformPort, port_id='Node1A_port_2', ip_address='Node1A_port_2_IP')  )
         monitor_attributes = []
         #create the attributes that are specific to this model type
-        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1A_attr_1', monitor_rate=5, units='xyz')  )
+        monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='input_voltage', monitor_rate=5, units='xyz')  )
         monitor_attributes.append(  IonObject(OT.PlatformMonitorAttributes, id='Node1A_attr_2', monitor_rate=5, units='xyz')  )
 
         platform1A_device__obj = IonObject(RT.PlatformDevice,
@@ -466,9 +471,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'ShoreSide Platform RUN = %s', str(retval) )
 
-        # START_ALARM_DISPATCH
+        # START_EVENT_DISPATCH
         kwargs = dict(params="TODO set params")
-        cmd = AgentCommand(command=PlatformAgentEvent.START_ALARM_DISPATCH, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH, kwargs=kwargs)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
 
@@ -477,8 +482,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         sleep(15)
 
 
-        # STOP_ALARM_DISPATCH
-        cmd = AgentCommand(command=PlatformAgentEvent.STOP_ALARM_DISPATCH)
+        # STOP_EVENT_DISPATCH
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
 
