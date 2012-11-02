@@ -12,6 +12,8 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from nose.plugins.attrib import attr
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.objects import ProcessDefinition
 import gevent, unittest, os
 import datetime, time
@@ -28,6 +30,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.rrc = ResourceRegistryServiceClient()
+        self.dataset_management = DatasetManagementServiceClient()
+        self.pubsub_management = PubsubManagementServiceClient()
         self.ssclient = SchedulerServiceClient()
         self.event_publisher = EventPublisher()
 
@@ -263,3 +267,96 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         pid = process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=configuration)
 
         return pid
+
+    def test_demo_stream_granules_processing(self):
+        #--------------------------------------------------------------------------------
+        #Test that streams are processed by the transforms according to a provided algorithm
+        #--------------------------------------------------------------------------------
+
+        #todo: In this simple implementation, we are checking if the stream has the word, PUBLISH,
+        #todo(contd) and if the word VALUE=<number> exists and that number is less than something
+
+        #todo later on we are going to use complex algorithms to make this prototype powerful
+
+        #-------------------------------------------------------------------------------------
+        # Start a subscriber to listen for an alert event from the Stream Alert Transform
+        #-------------------------------------------------------------------------------------
+
+        queue = gevent.queue.Queue()
+
+        def event_received(message, headers):
+            queue.put(message)
+
+        event_subscriber = EventSubscriber( origin="DemoStreamAlertTransform",
+            event_type="DeviceStatusEvent",
+            callback=event_received)
+
+        event_subscriber.start()
+
+        #-------------------------------------------------------------------------------------
+        # The configuration for the Stream Alert Transform... set up the event types to listen to
+        #-------------------------------------------------------------------------------------
+        config = {
+            'process':{
+                'queue_name': 'a_queue',
+                'value': 10,
+                'event_type':'ResourceEvent'
+            }
+        }
+
+        #-------------------------------------------------------------------------------------
+        # Create the process
+        #-------------------------------------------------------------------------------------
+        pid = TransformPrototypeIntTest.create_process( name= 'DemoStreamAlertTransform',
+            module='ion.processes.data.transforms.event_alert_transform',
+            class_name='DemoStreamAlertTransform',
+            configuration= config)
+
+        self.assertIsNotNone(pid)
+
+        #-------------------------------------------------------------------------------------
+        # Publish streams and make assertions about alerts
+        #-------------------------------------------------------------------------------------
+
+        pdict_id, _ = self.dataset_management.read_parameter_dictionary_by_name(name= 'platform_eng_parsed', id_only=True)
+
+        stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
+        stream_id, stream_route = self.pubsub_management.create_stream( name='test_demo_alert',
+                                                                        exchange_point='xp1',
+                                                                        stream_definition_id=stream_def_id)
+
+        # publish a few granules
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=3)
+
+        event = queue.get(timeout=10)
+        self.assertEquals(event.type_, "DeviceStatusEvent")
+        self.assertEquals(event.origin, "DemoStreamAlertTransform")
+
+        #todo try the different good/bad/good scenarios and assert on the type/subtype of the published events by DemoStreamAlertTransform
+
+        self.purge_queues(exchange_name)
+
+
+
+    def _get_new_ctd_packet(self, stream_definition_id, length):
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
+
+        for field in rdt:
+            rdt[field] = random.uniform(0.0,5.0)
+
+        g = rdt.to_granule()
+
+        return g
+
+    def _publish_granules(self, stream_id, stream_route, number):
+
+        for i in xrange(number):
+            pub = StandaloneStreamPublisher(stream_id, stream_route)
+
+            stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+            stream_def_id = stream_def._id
+
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+            rdt['input_voltage'] = random.uniform(0.0,5.0)
+            pub.publish(rdt.to_granule())

@@ -125,8 +125,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.value = self.CFG.get_safe('process.value', 0)
 
         self.granules = []
-        self.worried_about_range = False
-        self.worried_about_no_granules = False
 
     def recv_packet(self, msg, stream_route, stream_id):
         '''
@@ -138,7 +136,10 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         value = self._extract_parameters_from_stream(msg, "VALUE")
 
         if msg.find("PUBLISH") > -1 and (value < self.value):
-            self.publish()
+            self.publish(subtype='OUT_OF_RANGE')
+        else:
+            self.publish(subtype='IN_RANGE')
+
 
     def process_event(self, msg, headers):
         '''
@@ -147,34 +148,21 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
 
         if self.granules.empty():
             log.debug("No granule arrived since the last timer event. Publishing an alarm!!!")
-            self.worried_about_no_granules = True
-            self.publish()
+            self.publish(subtype= 'NO_DATA')
         else:
             log.debug("Granules have arrived since the last timer event.")
-            self.worried_about_no_granules = False
             self.granules.clear()
 
 
-    def publish(self):
+    def publish(self, subtype = subtype):
         '''
         Publish an alert event
         '''
-        if self.worried_about_range:
-            self.publisher.publish_event(origin="DemoStreamAlertTransform",
-                event_type = 'DeviceStatusEvent',
-                sub_type = 'OUT_OF_RANGE',
-                description= "An alert event being published.")
-        else:
-            self.publisher.publish_event(origin="DemoStreamAlertTransform",
-                event_type = 'DeviceStatusEvent',
-                sub_type = 'IN_RANGE',
-                description= "Instrument working normally.")
+        self.publisher.publish_event(origin="DemoStreamAlertTransform",
+            event_type = 'DeviceStatusEvent',
+            sub_type = subtype,
+            description= "Event to deliver the status of instrument.")
 
-        if self.worried_about_no_granules:
-            self.publisher.publish_event(origin="DemoStreamAlertTransform",
-                event_type = 'DeviceStatusEvent',
-                sub_type = 'NO_DATA',
-                description= "An alert event being published.")
 
     def _extract_parameters_from_stream(self, msg, field ):
 
