@@ -322,9 +322,9 @@ class EventManagementIntTest(IonIntegrationTestCase):
             self.event_management.read_event_process_definition(procdef_id)
 
     def test_event_in_stream_out_transform(self):
-        '''
-        Test that event
-        '''
+        """
+        Test the event-in/stream-out transform
+        """
 
         stream_id, _ = self.pubsub.create_stream('test_stream', exchange_point='science_data')
 

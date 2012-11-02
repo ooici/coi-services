@@ -134,6 +134,8 @@ class EventManagementService(BaseEventManagementService):
         @arguments list
         """
 
+        validate_is_not_none(event_process_definition_id)
+
         # The event_process_def is really only a process_def. Read up the process definition
         process_def = self.clients.resource_registry.read(event_process_definition_id)
 
@@ -245,8 +247,9 @@ class EventManagementService(BaseEventManagementService):
                                                                     )
 
         # Schedule the process
-        process_id = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id,
-                                                                            configuration=config)
+        process_id = self.clients.process_dispatcher.schedule_process(  process_definition_id= process_definition_id,
+                                                                        process_id=process_id,
+                                                                        configuration=config)
 
 
         # Associate the process with the process definition
