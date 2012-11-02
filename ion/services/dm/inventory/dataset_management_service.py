@@ -193,6 +193,40 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
+    def dataset_bounds(self, dataset_id='', parameters=None):
+        self.read_dataset(dataset_id) # Validates proper dataset
+        parameters = parameters or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_bounds(parameters)
+
+    def dataset_bounds_by_axis(self, dataset_id='', axis=None):
+        self.read_dataset(dataset_id) # Validates proper dataset
+        axis = axis or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_bounds_by_axis(axis)
+
+    def dataset_extents(self, dataset_id='', parameters=None):
+        self.read_dataset(dataset_id)
+        parameters = parameters or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_extents(parameters)
+
+    def dataset_extents_by_axis(self, dataset_id='', axis=None):
+        self.read_dataset(dataset_id) 
+        axis = axis or None
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_extents_by_axis(axis)
+
+    def dataset_size(self,dataset_id='', parameters=None, slice_=None, in_bytes=False):
+        self.read_dataset(dataset_id) 
+        parameters = parameters or None
+        slice_     = slice_ if isinstance(slice_, slice) else None
+
+        coverage = self._get_coverage(dataset_id)
+        return coverage.get_data_size(parameters, slice_, in_bytes)
+
+#--------
+
     @classmethod
     def get_parameter_context(cls, parameter_context_id=''):
         '''
