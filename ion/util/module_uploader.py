@@ -1,4 +1,5 @@
 import os
+import stat
 import base64
 import tempfile
 import subprocess
@@ -222,18 +223,22 @@ class RegisterModuleUploader(object):
 
         log.debug("creating tempfile with contents")
         f_handle, tempfilename = self.tempfile.mkstemp()
+
         log.debug("writing contents to disk at '%s'", tempfilename)
         self.os.write(f_handle, base64.decodestring(self.dest_contents))
 
-        remotefilename = "%s@%s:%s/%s" % (self.dest_user,
-                                          self.dest_host,
-                                          self.dest_path,
-                                          self.dest_file)
+        log.debug("setting tempfile permissions to 664")
+        self.os.fchmod(f_handle, stat.S_IWUSR | stat.S_IRUSR | stat.S_IWGRP | stat.S_IRGRP | stat.S_IROTH)
 
-        log.info("executing scp: '%s' to '%s'", tempfilename, remotefilename)
+        scp_destination = "%s@%s:%s/%s" % (self.dest_user,
+                                           self.dest_host,
+                                           self.dest_path,
+                                           self.dest_file)
+
+        log.info("executing scp: '%s' to '%s'", tempfilename, scp_destination)
         scp_proc = self.subprocess.Popen(["scp", "-v", "-o", "PasswordAuthentication=no",
                                            "-o", "StrictHostKeyChecking=no",
-                                          tempfilename, remotefilename],
+                                          tempfilename, scp_destination],
                                           stdout=self.subprocess.PIPE,
                                           stderr=self.subprocess.PIPE)
 
