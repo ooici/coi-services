@@ -127,6 +127,9 @@ def generate_values(platform_id, attr_id, from_time, to_time):
 
 
 if __name__ == "__main__":
+    # do not restrict the absolute from_time for this demo program:
+    _START_TIME = 0
+
     import sys
 
     cur_time = time.time()
