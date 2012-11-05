@@ -86,8 +86,7 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-import unittest
-@unittest.skip("while 'Unable to locate context with name: platform_eng_parsed' is fixed")
+
 @attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
@@ -530,15 +529,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
 
-#        TODO re-enable the following check once the platform attributes are
-#        included in the parameter dictionaries. For the moment,
-#        just sleep to at least see warnings in the log.
-        sleep(25)
-#        # wait for data sample
-#        # just wait for at least one -- see consume_data above
-#        log.info("waiting for reception of a data sample...")
-#        self._async_data_result.get(timeout=DATA_TIMEOUT)
-#        self.assertTrue(len(self._samples_received) >= 1)
+        # wait for data sample
+        # just wait for at least one -- see consume_data above
+        log.info("waiting for reception of a data sample...")
+        self._async_data_result.get(timeout=DATA_TIMEOUT)
+        self.assertTrue(len(self._samples_received) >= 1)
 
 
         # wait for event
