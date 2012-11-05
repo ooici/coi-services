@@ -148,8 +148,12 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         bad_values = AlertTransformAlgorithm.execute(input=msg, params = self.valid_values)
 
         if bad_values:
-            # Data is out-of-range
-            self.publish(subtype=self.instrument_variable, state= DeviceStatusType.OUT_OF_RANGE)
+            for bad_value in bad_values:
+                self.publisher.publish(event_type= 'DeviceStatusEvent',
+                            subtype=self.instrument_variable,
+                            value= bad_value,
+                            state= DeviceStatusType.OUT_OF_RANGE,
+                            description= "Event to deliver the status of instrument.")
 
 
     def process_event(self, msg, headers):
@@ -159,49 +163,38 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
 
         if self.granules.empty():
             log.debug("No granule arrived since the last timer event. Publishing an alarm!!!")
-            self.publish(subtype=self.instrument_variable, state=DeviceStatusType.NO_DATA)
+            self.publisher.publish(event_type='DeviceCommsEvent',
+                        subtype=self.instrument_variable,
+                        state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
+                        description='Event to deliver the communications status of a device')
         else:
             log.debug("Granules have arrived since the last timer event.")
             self.granules.clear()
 
-
-    def publish(self, subtype = None, state = None, value = None):
-        '''
-        Publish an alert event
-        '''
-        self.publisher.publish_event(origin="DemoStreamAlertTransform",
-            event_type = 'DeviceStatusEvent',
-            sub_type = subtype,
-            state = state,
-            value = value,
-            valid_values = self.valid_values,
-            description= "Event to deliver the status of instrument.")
-
-
-#    def _check_values_in_granule(self, granule = None, field = None):
-#
-#        rdt = RecordDictionaryTool.load_from_granule(granule)
-#
-#        value_array[:] = rdt[field]
-#
-#        if value_array.min() < self.valid_values[0] or value_array.max() > self.valid_values[1]:
-#            return False
-#        else:
-#            return True
 
 class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
     @staticmethod
     @SimpleGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
+        """
+        Find if the input data has values, which are out of range
 
+        :param input:
+        :param context:
+        :param config:
+        :param params:
+        :param state:
+        :return:
+        """
         rdt = RecordDictionaryTool.load_from_granule(input)
 
+        bad_values = []
         for key, value in rdt.iteritems():
             if value < params[0] or value > params[1]:
-                return value
+                bad_values.append(value)
 
-        return None
+        return bad_values
 
 
 
