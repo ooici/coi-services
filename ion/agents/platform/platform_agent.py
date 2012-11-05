@@ -27,7 +27,7 @@ from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver import AttributeValueDriverEvent
-from ion.agents.platform.platform_driver import EventDriverEvent
+from ion.agents.platform.platform_driver import ExternalEventDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -438,8 +438,8 @@ class PlatformAgent(ResourceAgent):
             self._handle_attribute_value_event(driver_event)
             return
 
-        if isinstance(driver_event, EventDriverEvent):
-            self._handle_event_driver_event(driver_event)
+        if isinstance(driver_event, ExternalEventDriverEvent):
+            self._handle_external_event_driver_event(driver_event)
             return
 
         #
@@ -482,7 +482,34 @@ class PlatformAgent(ResourceAgent):
                      self._platform_id, param_name, stream_name)
             return
 
-        rdt[param_name] = numpy.array(param_value)
+        # Note that at the moment, notification from the driver has the form
+        # of a non-empty list of pairs (val, ts)
+        assert isinstance(param_value, list)
+        assert isinstance(param_value[0], tuple)
+
+        # TODO harmonize retrieved list of (val, ts) pairs into appropriate
+        # format for subscribers.
+        # *NOTE*
+        # A possible way would be to just publish the pair array directly, ie:
+#        rdt[param_name] = numpy.array(param_value)
+        # which would require that "input_voltage" (the parameter currently
+        # under experimentation) be defined accordingly.
+        # But this parameter is defined as a float so, for the moment,
+        # we can either publish the very last value or the array with only
+        # the values. Below are these two options, with one commented out.
+        last_val, last_ts = param_value[-1]
+
+#        # If publishing just the very last value:
+#        rdt[param_name] = numpy.array([last_val])
+#        log.info("%r: PUBLISHING LAST VALUE %s=%s (last_ts=%s)",
+#                 self._platform_id, stream_name, last_val, last_ts)
+
+        # If publishing the array of just the values:
+        pub_vals = [v for v, t in param_value]
+        rdt[param_name] = numpy.array(pub_vals)
+        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d) = %s (last_ts=%s)",
+                 self._platform_id, param_name, len(pub_vals), str(pub_vals), last_ts)
+
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
@@ -572,7 +599,7 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
                 self._platform_id, stream_name, str(rdt), str(g))
 
-    def _handle_event_driver_event(self, driver_event):
+    def _handle_external_event_driver_event(self, driver_event):
         #
         # TODO appropriate granularity and structure of the event.
 
@@ -603,7 +630,7 @@ class PlatformAgent(ResourceAgent):
             'external_timestamp':    timestamp,  # as given by OMS
         }
 
-        log.info("%r: publishing platform event event: event_data=%s",
+        log.info("%r: publishing external platform event: event_data=%s",
                   self._platform_id, str(event_data))
 
         try:

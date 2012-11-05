@@ -89,7 +89,7 @@ class VisStreamLauncher(ImmediateProcess):
             data_product_id = dp_ids[0]
         else:
             # Create InstrumentModel
-            instModel_obj = IonObject(RT.InstrumentModel, name=self.data_source_name, description=self.data_source_name, model=self.data_source_name)
+            instModel_obj = IonObject(RT.InstrumentModel, name=self.data_source_name, description=self.data_source_name)
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
 
             # Create InstrumentDevice

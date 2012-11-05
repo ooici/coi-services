@@ -78,19 +78,21 @@ class OOILoader(object):
         self._perform_ooi_checks()
 
         # Post processing
+        self._post_process()
+
         if self.warnings:
             log.warn("WARNINGS:\n%s", "\n".join(["%s: %s" % (a, b) for a, b in self.warnings]))
 
         for ot, oo in self.ooi_objects.iteritems():
-            log.warn("Type %s has %s entries", ot, len(oo))
-            log.warn("Type %s has %s attributes", ot, self.ooi_obj_attrs[ot])
+            log.info("Type %s has %s entries", ot, len(oo))
+            #log.debug("Type %s has %s attributes", ot, self.ooi_obj_attrs[ot])
             #print ot
             #print "\n".join(sorted(list(self.ooi_obj_attrs[ot])))
 
     def get_type_assets(self, objtype):
         return self.ooi_objects.get(objtype, None)
 
-    def _add_object_attribute(self, objtype, objid, key, value, value_is_list=False, mapping=None, **kwargs):
+    def _add_object_attribute(self, objtype, objid, key, value, value_is_list=False, list_dup_ok=False, mapping=None, **kwargs):
         """
         Add a single attribute to an identified object of given type. Create object/type on first occurrence.
         The kwargs are static attributes"""
@@ -109,9 +111,11 @@ class OOILoader(object):
             if value_is_list:
                 if key in obj_entry:
                     if value in obj_entry[key]:
-                        msg = "duplicate_attr_list_value: %s.%s has attribute '%s' with duplicate list value: %s" % (objtype, objid, key, value)
-                        self.warnings.append((objid, msg))
-                    obj_entry[key].append(value)
+                        if not list_dup_ok:
+                            msg = "duplicate_attr_list_value: %s.%s has attribute '%s' with duplicate list value: %s" % (objtype, objid, key, value)
+                            self.warnings.append((objid, msg))
+                    else:
+                        obj_entry[key].append(value)
                 else:
                     obj_entry[key] = [value]
             elif key in obj_entry:
@@ -269,6 +273,14 @@ class OOILoader(object):
         self._add_object_attribute('nodetype',
             ntype_id, None, None, name=ntype_name)
 
+        # Determine on which arrays the nodetype is used
+        self._add_object_attribute('nodetype',
+            ntype_id, 'array_list', refid[:2], value_is_list=True, list_dup_ok=True)
+
+        # Determine on which arrays the instrument class is used
+        self._add_object_attribute('class',
+            row['SClass_PublicID'], 'array_list', refid[:2], value_is_list=True, list_dup_ok=True)
+
     def _parse_DataQCLookupTables(self, row):
         # Adds a list of data products with level to instruments
         refid = row['ReferenceDesignator']
@@ -356,149 +368,12 @@ class OOILoader(object):
         log.debug("_checkooi_ref_exists: Checked %s objects type %s against type %s" % (len(ot_objects), objtype, target_type))
         log.debug("_checkooi_ref_exists: Different references=%s (of total=%s) vs target objects=%s" % (len(refattrset), total_ref, len(ottarg_objects)))
 
+    def _post_process(self):
+        pass
 
-    # -------------------------------------------------------------------------------------------
-    # OLD STUFF
-
-    def extract_ooi_assets_old(self):
-        if not self.asset_path:
-            raise iex.BadRequest("Must provide path for assets: path=dir or assets=dir")
-        if self.asset_path.startswith('http'):
-            raise iex.BadRequest('Asset path must be local directory, not URL: ' + self.asset_path)
-
-        log.info("Parsing OOI assets from path=%s", self.asset_path)
-
-        categories = [ 'Report2_InstrumentTypes',
-                       'Report4_InstrumentsPerSite',
-                       'Report1_InstrumentLocations',
-                       'Report3_InstrumentTypeByLocation',
-                       'Report6_ReferenceDesignatorListWithDepth' ]
-
-        self.obs_sites = {}
-        self.sub_sites = {}
-        self.platform_models = {}
-        self.instrument_models = {}
-        self.logical_platforms = {}
-        self.logical_instruments = {}
-
-        for category in categories:
-            row_do, row_skip = 0, 0
-
-            funcname = "_parse_%s" % category
-            catfunc = getattr(self, funcname)
-            filename = "%s/%s.csv" % (self.asset_path, category)
-            log.debug("Loading category %s from file %s", category, filename)
-            try:
-                with open(filename, "rb") as csvfile:
-                    for i in xrange(9):
-                        # Skip the first rows, because they are garbage
-                        csvfile.readline()
-                    reader = csv.DictReader(csvfile, delimiter=',')
-                    for row in reader:
-                        row_do += 1
-
-                        catfunc(row)
-            except IOError, ioe:
-                log.warn("OOI asset file %s error: %s" % (filename, str(ioe)))
-
-            log.debug("Loaded assets %s: %d rows read" % (category, row_do))
-
-    def _parse_Report2_InstrumentTypes(self, row):
-        """
-        Extract instrument models
-        """
-        im = dict(name=row["InstrumentTypes"],
-            family=row["Family"],
-            code=row["Class"],
-            instrument_count=row["Count"])
-
-        self.instrument_models[row["Class"]] = im
-
-    def _parse_Report4_InstrumentsPerSite(self, row):
-        """
-        Extract observatory sites and sub-sites
-        """
-        observatory = row["Observatory"]
-        site_code, site_name = observatory.split(" ", 1)
-
-        # Observatory site
-        if site_code not in self.obs_sites:
-            site_name = site_name.strip("()")
-            site = dict(code=site_code, name=site_name)
-            self.obs_sites[site_code] = site
-
-        # Subsite
-        subsite = dict(code=row["SubsiteCode"],
-            name=row["SubsiteName"],
-            instrument_count=row["InstrumentCount"],
-            parent_site=site_code)
-        self.sub_sites[row["SubsiteCode"]] = subsite
-
-    def _parse_Report1_InstrumentLocations(self, row):
-        """
-        Extract platform models and logical platforms
-        """
-        lp_code = row["LocationCode"]
-        lp_name = row["SiteName"]
-        platform_model = row["NodeType"]
-
-        # Platform model
-        pm_code, pm_name = platform_model.split(" ", 1)
-        if pm_code not in self.platform_models:
-            pm_name = pm_name.strip("()")
-            #pm_name = platform_model
-            pm = dict(code=pm_code, name=pm_name)
-            self.platform_models[pm_code] = pm
-
-        # Logical platform
-        site_code,lp_c = lp_code.split("-")
-        lp = dict(code=lp_code,
-            name=lp_name,
-            instrument_count=row["InstrumentCount"],
-            platform_model=pm_code,
-            site=site_code)
-
-        if site_code not in self.sub_sites:
-            log.warn("Site %s not registered" % site_code)
-            if self.sub_sites[site_code]['name'] != site_name:
-                log.warn("Registered site %s name %s does not match %s" % (site_code, self.sub_sites[site_code]['name'], site_name))
-
-        assert lp_code not in self.logical_platforms, "Double entry %s" % lp_code
-        self.logical_platforms[lp_code] = lp
-
-
-    def _parse_Report3_InstrumentTypeByLocation(self, row):
-        """
-        Extracts logical instrument
-        """
-        lp_code = row["LocationCode"]
-        im_code = row["SensorInstrumentClass"]
-
-        li_code = "%s-%s" % (lp_code, im_code)
-
-        # Logical instrument
-        li_name = "%s %s" % (row["SubsiteName"], row["SensorInstrumentName"])
-        li = dict(code=li_code,
-            name=li_name,
-            sensor_count=row["SensorCount"],
-            instrument_model=im_code,
-            logical_platform=lp_code)
-
-        assert li_code not in self.logical_instruments, "Double entry %s" % li_code
-        self.logical_instruments[li_code] = li
-
-    def _parse_Report6_ReferenceDesignatorListWithDepth(self, row):
-        """
-        Add port information to logical instrument
-        """
-        rd_code = row["ReferenceDesignator"]
-        osite_code, lp_part, port_part, li_part = rd_code.split("-")
-
-        # Logical Instrument
-        li_code = "%s-%s-%s" % (osite_code, lp_part, row["InstrumentClass"])
-        li = self.logical_instruments[li_code]
-        li['port_number'] = row["PortNumber"]
-        li['instrument_series'] = row["InstrumentSeries"]
-        li['port_min_depth'] = row["PortMinDepth"]
-        li['port_max_depth'] = row["PortMaxDepth"]
-
+    def get_marine_io(self, ooi_rd_str):
+        ooi_rd = OOIReferenceDesignator(ooi_rd_str)
+        if ooi_rd.error:
+            return None
+        else:
+            return ooi_rd.marine_io

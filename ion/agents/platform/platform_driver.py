@@ -55,9 +55,9 @@ class AttributeValueDriverEvent(DriverEvent):
             self.value, self.ts)
 
 
-class EventDriverEvent(DriverEvent):
+class ExternalEventDriverEvent(DriverEvent):
     """
-    Event to notify an event.
+    Event to notify an external event.
     """
     def __init__(self, ts, event_type, event_instance):
         DriverEvent.__init__(self, ts)

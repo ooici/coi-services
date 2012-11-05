@@ -8,6 +8,7 @@
 from pyon.public import PRED, RT
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.datastore.datastore import DataStore
+from pyon.net.endpoint import RPCClient
 from pyon.util.arg_check import validate_is_instance, validate_true, validate_is_not_none
 from pyon.util.file_sys import FileSystem, FS
 from pyon.util.log import log
@@ -19,6 +20,8 @@ from interface.objects import DataSet
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
+
+import os
 
 
 class DatasetManagementService(BaseDatasetManagementService):
@@ -90,6 +93,17 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset_obj = self.read_dataset(dataset_id)
         dataset_obj.registered = True
         self.update_dataset(dataset=dataset_obj)
+
+        procs,_ = self.clients.resource_registry.find_resources(restype=RT.Process, id_only=True)
+        pid = None
+        for p in procs:
+            if 'registration_worker' in p:
+                pid = p
+        if not pid: 
+            return
+        rpc_cli = RPCClient(to_name=pid)
+        rpc_cli.request({'coverage_path':self._get_coverage_path(dataset_id)}, op='register_dap_dataset')
+
 
 #--------
 
@@ -303,6 +317,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
         coverage = SimplexCoverage(file_root, dataset_id)
         return coverage
+
+    @classmethod
+    def _get_coverage_path(cls, dataset_id):
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        return os.path.join(file_root, dataset_id)
     
     @classmethod
     def _compare_pc(cls, pc1, pc2):

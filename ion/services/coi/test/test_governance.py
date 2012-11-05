@@ -16,7 +16,7 @@ from pyon.datastore.datastore import DatastoreManager
 from pyon.event.event import EventRepository
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound, Unauthorized, InstStateError
-from pyon.public import PRED, RT, IonObject, CFG, log, OT, LCS
+from pyon.public import PRED, RT, IonObject, CFG, log, OT, LCS, LCE
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
@@ -879,11 +879,24 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
 
         #Create the instrument agent with the user that has the proper role
-        ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent2', description='The Instrument Agent')
+        ia_obj = IonObject(RT.InstrumentAgent, name='Instrument Agent1', description='The Instrument Agent')
         self.ims_client.create_instrument_agent(ia_obj, headers=user_header)
 
+        #Ensure the instrument agent has been created
         ia_list,_ = self.rr_client.find_resources(restype=RT.InstrumentAgent)
         self.assertEqual(len(ia_list),1)
+        self.assertEquals(ia_list[0].lcstate, LCS.DRAFT_PRIVATE)
+
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_agent_lifecycle(ia_list[0]._id, LCE.PLAN)
+        self.assertIn( 'instrument_management(execute_instrument_agent_lifecycle) has been denied',cm.exception.message)
+
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR
+        self.ims_client.execute_instrument_agent_lifecycle(ia_list[0]._id, LCE.PLAN, headers=user_header)
+        ia = self.rr_client.read(ia_list[0]._id)
+        self.assertEquals(ia.lcstate, LCS.PLANNED_PRIVATE)
+
 
         #First make a acquire resource request with an non-enrolled user.
         with self.assertRaises(BadRequest) as cm:
