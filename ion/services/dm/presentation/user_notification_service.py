@@ -523,11 +523,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.stop_notification_subscriber(notification_request=notification_request)
 
-#        #-------------------------------------------------------------------------------------------------------------------
-#        # delete the notification from the user_info and reverse_user_info dictionaries
-#        #-------------------------------------------------------------------------------------------------------------------
-#
-#        self.delete_notification_from_user_info(notification_id)
+        #        #-------------------------------------------------------------------------------------------------------------------
+        #        # delete the notification from the user_info and reverse_user_info dictionaries
+        #        #-------------------------------------------------------------------------------------------------------------------
+        #
+        #        self.delete_notification_from_user_info(notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
         # update the resource registry
@@ -572,66 +572,63 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
-    def find_events(self, origins= None, type='', min_datetime=0, max_datetime=0, limit= -1, descending=False):
+    def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit= -1, descending=False):
         """
         This method leverages couchdb view and simple filters. It does not use elastic search.
 
         Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
         if no events exist for the given parameters.
 
-        @param origins        list of str
+        @param origin         str
         @param event_type     str
         @param min_datetime   int  seconds
         @param max_datetime   int  seconds
         @param limit          int         (integer limiting the number of results (0 means unlimited))
         @param descending     boolean     (if True, reverse order (of production time) is applied, e.g. most recent first)
-        @retval event_dict    dict {'origin_id' : [events] }
-        @throws NotFound      object with specified parameters does not exist
-        @throws NotFound      object with specified parameters does not exist
+        @retval event_list    []
+        @throws NotFound    object with specified parameters does not exist
+        @throws NotFound    object with specified parameters does not exist
         """
-
         datastore = self.container.datastore_manager.get_datastore('events')
 
-        events_dict = {}
 
+        # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
+        # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
+        # provide a limit, one has to just omit it from the opts dictionary and pass that into the query_view() method.
+        # Passing a null or negative for the limit to query view through opts results in a ServerError so we cannot do that.
+        if limit > -1:
+            opts = dict(
+                start_key = [origin, type or 0, min_datetime or 0],
+                end_key   = [origin, type or {}, max_datetime or {}],
+                descending = descending,
+                limit = limit,
+                include_docs = True
+            )
 
-        for origin in origins:
+        else:
+            opts = dict(
+                start_key = [origin, type or 0, min_datetime or 0],
+                end_key   = [origin, type or {}, max_datetime or {}],
+                descending = descending,
+                include_docs = True
+            )
 
-            # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
-            # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
-            # provide a limit, one has to just omit it from the opts dictionary and pass that into the query_view() method.
-            # Passing a null or negative for the limit to query view through opts results in a ServerError so we cannot do that.
-            if limit > -1:
-                opts = dict(
-                    start_key = [origin, type or 0, min_datetime or 0],
-                    end_key   = [origin, type or {}, max_datetime or {}],
-                    descending = descending,
-                    limit = limit,
-                    include_docs = True
-                )
+        results = datastore.query_view('event/by_origintype',opts=opts)
 
-            else:
-                opts = dict(
-                    start_key = [origin, type or 0, min_datetime or 0],
-                    end_key   = [origin, type or {}, max_datetime or {}],
-                    descending = descending,
-                    include_docs = True
-                )
+        events = []
+        for res in results:
+            event_obj = res['doc']
+            events.append(event_obj)
 
-            results = datastore.query_view('event/by_origintype',opts=opts)
+        log.debug("(find_events) UNS found the following relevant events: %s" % events)
 
-            events_dict[origin] = []
+        if -1 < limit < len(events):
+            list = []
+            for i in xrange(limit):
+                list.append(events[i])
+            return list
 
-            if -1 < limit < len(results): # if limit is specified
-                for res in results:
-                    event_obj = res['doc']
-                    events_dict[origin].append(event_obj)
-            else: # if limit is not specified
-                events_dict[origin] = results
-
-        log.debug("(find_events) UNS found the following relevant events: %s" % events_dict)
-
-        return events_dict
+        return events
 
 
     #todo Uses Elastic Search. Later extend this to a larger search criteria
@@ -712,8 +709,7 @@ class UserNotificationService(BaseUserNotificationService):
         '''
 
         now = self.makeEpochTime(datetime.utcnow())
-        events_dict = self.find_events(origins= [resource_id],limit=limit, max_datetime=now, descending=False)
-        events = events_dict[resource_id]
+        events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=False)
 
         ret = IonObject(OT.ComputedListValue)
         if events:
@@ -937,7 +933,7 @@ class UserNotificationService(BaseUserNotificationService):
         msg['From'] = self.ION_NOTIFICATION_EMAIL_ADDRESS
         msg['To'] = msg_recipient
         log.debug("EventProcessor.subscription_callback(): sending email to %s"\
-        %msg_recipient)
+                  %msg_recipient)
 
         smtp_sender = CFG.get_safe('server.smtp.sender')
 

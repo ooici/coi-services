@@ -563,16 +563,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # Check for UNS ------->
 
-#        # check that the notification is not there anymore in the resource registry
-#        with self.assertRaises(NotFound):
-#            notification = self.rrc.read(notification_id_2)
+    #        # check that the notification is not there anymore in the resource registry
+    #        with self.assertRaises(NotFound):
+    #            notification = self.rrc.read(notification_id_2)
 
-#        # check that the user_info dictionary for the user is not holding the notification anymore
-#        self.assertFalse(notification_request_2 in proc1.event_processor.user_info['user_1']['notifications'])
-#
-#        log.debug("Verified that the event processor correctly updated its user info dictionaries after an delete_notification()")
-#
-#        log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
+    #        # check that the user_info dictionary for the user is not holding the notification anymore
+    #        self.assertFalse(notification_request_2 in proc1.event_processor.user_info['user_1']['notifications'])
+    #
+    #        log.debug("Verified that the event processor correctly updated its user info dictionaries after an delete_notification()")
+    #
+    #        log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -1068,11 +1068,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.delete_notification(notification_id1)
         self.unsc.delete_notification(notification_id2)
 
-#        # check that the notifications are not there
-#        with self.assertRaises(NotFound):
-#            notific1 = self.unsc.read_notification(notification_id1)
-#        with self.assertRaises(NotFound):
-#            notific2 = self.unsc.read_notification(notification_id2)
+    #        # check that the notifications are not there
+    #        with self.assertRaises(NotFound):
+    #            notific1 = self.unsc.read_notification(notification_id1)
+    #        with self.assertRaises(NotFound):
+    #            notific2 = self.unsc.read_notification(notification_id2)
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -1128,18 +1128,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # publish some events for the event repository
         event_publisher_1 = EventPublisher("PlatformEvent")
-        event_publisher_2 = EventPublisher("PlatformEvent")
+        event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
 
         for i in xrange(10):
             event_publisher_1.publish_event(origin='my_special_find_events_origin', ts_created = i)
             event_publisher_2.publish_event(origin='another_origin', ts_created = i)
 
         def poller():
-            events_dict = self.unsc.find_events( origins=['my_special_find_events_origin','another_origin'],
-                                            type = 'PlatformEvent',
-                                            min_datetime= 4,
-                                            max_datetime=7)
-            return len(events_dict['my_special_find_events_origin']) >= 4 and len(events_dict['another_origin']) >= 4
+            events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= 4, max_datetime=7)
+            return len(events) >= 4
 
         success = self.event_poll(poller, 10)
 
