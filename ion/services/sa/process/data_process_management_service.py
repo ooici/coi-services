@@ -44,7 +44,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             cfg_remotepath  = self.CFG.get_safe("service.data_process_management.process_release_directory", None)
             cfg_user        = self.CFG.get_safe("service.data_process_management.process_release_user",
                                                 pwd.getpwuid(os.getuid())[0])
-            cfg_wwwprefix     = self.CFG.get_safe("service.data_process_management.process_release_host", None)
+            cfg_wwwprefix     = self.CFG.get_safe("service.data_process_management.process_release_wwwprefix", None)
 
             if cfg_host is None or cfg_remotepath is None or cfg_wwwprefix is None:
                 raise BadRequest("Missing configuration items; host='%s', directory='%s', wwwprefix='%s'" %

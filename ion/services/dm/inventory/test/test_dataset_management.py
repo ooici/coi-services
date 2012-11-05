@@ -43,8 +43,6 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         self.assertEquals(ds_obj.name, ds_obj2.name)
         self.assertTrue(ds_obj2.registered)
 
-        
-
    
     
     def test_context_crud(self):
@@ -68,7 +66,7 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
 
         pdict = DatasetManagementService.get_parameter_dictionary(pdict_res_id)
         self.assertIsInstance(pdict, ParameterDictionary)
-        self.assertTrue('time' in pdict)
+        self.assertTrue('time_test' in pdict)
         self.assertEquals(pdict.identifier, pdict_res_id)
 
         self.assertEquals(set(pdict_contexts), set(context_ids))
@@ -79,30 +77,30 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
 
     def create_contexts(self):
         context_ids = []
-        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.float32))
+        cond_ctxt = ParameterContext('conductivity_test', param_type=QuantityType(value_encoding=np.float32))
         cond_ctxt.uom = 'unknown'
         cond_ctxt.fill_value = 0e0
-        context_ids.append(self.dataset_management.create_parameter_context(name='conductivity', parameter_context=cond_ctxt.dump()))
+        context_ids.append(self.dataset_management.create_parameter_context(name='conductivity_test', parameter_context=cond_ctxt.dump()))
 
-        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.float32))
+        pres_ctxt = ParameterContext('pressure_test', param_type=QuantityType(value_encoding=np.float32))
         pres_ctxt.uom = 'Pascal'
         pres_ctxt.fill_value = 0x0
-        context_ids.append(self.dataset_management.create_parameter_context(name='pressure', parameter_context=pres_ctxt.dump()))
+        context_ids.append(self.dataset_management.create_parameter_context(name='pressure_test', parameter_context=pres_ctxt.dump()))
 
-        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=np.float32))
+        sal_ctxt = ParameterContext('salinity_test', param_type=QuantityType(value_encoding=np.float32))
         sal_ctxt.uom = 'PSU'
         sal_ctxt.fill_value = 0x0
-        context_ids.append(self.dataset_management.create_parameter_context(name='salinity', parameter_context=sal_ctxt.dump()))
+        context_ids.append(self.dataset_management.create_parameter_context(name='salinity_test', parameter_context=sal_ctxt.dump()))
 
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.float32))
+        temp_ctxt = ParameterContext('temp_test', param_type=QuantityType(value_encoding=np.float32))
         temp_ctxt.uom = 'degree_Celsius'
         temp_ctxt.fill_value = 0e0
-        context_ids.append(self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump()))
+        context_ids.append(self.dataset_management.create_parameter_context(name='temp_test', parameter_context=temp_ctxt.dump()))
 
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.int64))
+        t_ctxt = ParameterContext('time_test', param_type=QuantityType(value_encoding=np.int64))
         t_ctxt.uom = 'seconds since 1970-01-01'
         t_ctxt.fill_value = 0x0
-        context_ids.append(self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump()))
+        context_ids.append(self.dataset_management.create_parameter_context(name='time_test', parameter_context=t_ctxt.dump()))
 
         return context_ids
 

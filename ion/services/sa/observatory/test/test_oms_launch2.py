@@ -535,6 +535,10 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self._async_data_result.get(timeout=DATA_TIMEOUT)
         self.assertTrue(len(self._samples_received) >= 1)
 
+        log.info("waiting a bit more for reception of more data samples...")
+        sleep(10)
+        log.info("Got data samples: %d", len(self._samples_received))
+
 
         # wait for event
         # just wait for at least one event -- see consume_event above
