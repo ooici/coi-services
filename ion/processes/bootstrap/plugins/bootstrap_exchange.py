@@ -9,6 +9,11 @@ from ion.core.bootstrap_process import BootstrapPlugin
 from pyon.public import log
 from pyon.public import get_sys_name, RT, PRED
 from pyon.ion.exchange import ExchangeSpace, ExchangePoint, ExchangeName
+from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
+import pprint
+from interface.objects import ExchangeName as ResExchangeName
+from interface.objects import ExchangeSpace as ResExchangeSpace
+from interface.objects import ExchangePoint as ResExchangePoint
 
 class BootstrapExchange(BootstrapPlugin):
     """
@@ -16,7 +21,35 @@ class BootstrapExchange(BootstrapPlugin):
     """
 
     def on_initial_bootstrap(self, process, config, **kwargs):
-        pass
+        """
+        Bootstraps initial objects in the system from configuration (pyon.yml) via
+        EMS calls.
+        """
+        org_ids = process.container.resource_registry.find_resources(RT.Org, id_only=True)
+        if not (len(org_ids) and len(org_ids[0]) == 1):
+            raise StandardError("Could not determine org_id")
+
+        org_id = org_ids[0][0]
+
+        ems_client = ExchangeManagementServiceProcessClient(process=process)
+
+        for xsname, xpdict in config.get_safe('exchange_spaces', {}).iteritems():
+            xso = ResExchangeSpace(name=xsname)
+            xso_id = ems_client.create_exchange_space(xso, org_id)
+
+            log.info("ExchangeSpace %s, id %s", xsname, xso_id)
+
+            for xpname, xpopts in xpdict.get('exchange_points', {}).iteritems():
+
+                # @TODO: some translation for types CFG currentl has it as "topic_tree" and we've been using "ttree"
+                ttype = xpopts.get('type', 'topic_tree')
+                if ttype == "topic_tree":
+                    ttype = "ttree"
+
+                xpo = ResExchangePoint(name=xpname, topology_type=ttype)
+                xpo_id = ems_client.create_exchange_point(xpo, xso_id)
+
+                log.info("\tExchangePoint %s, id %s", xpname, xpo_id)
 
     def on_restart(self, process, config, **kwargs):
         """
