@@ -44,9 +44,9 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
 
         proc_def_id = self.pds_client.create_process_definition(process_definition=process_definition)
 
-        process_res_id = self.pds_client.create_process(process_definition_id=proc_def_id)
-
-        self.pds_client.schedule_process(process_definition_id=proc_def_id, process_id=process_res_id)
+#        process_res_id = self.pds_client.create_process(process_definition_id=proc_def_id)
+#
+#        self.pds_client.schedule_process(process_definition_id=proc_def_id, process_id=process_res_id)
 
     def ingestion_worker(self, process, config):
         # ingestion
