@@ -8,6 +8,7 @@
 from pyon.util.log import log
 from pyon.util.arg_check import validate_is_instance, validate_true
 from pyon.event.event import EventPublisher, EventSubscriber
+from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.core.process.transform import TransformEventListener, TransformStreamListener, TransformEventPublisher
 from interface.objects import DeviceStatusType
 import gevent
@@ -144,14 +145,11 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         @param stream_id str
         '''
         log.debug('StreamAlertTransform got an incoming packet!')
-        good_values = self._check_values_in_granule(granule=msg, field=self.instrument_variable)
+        bad_values = AlertTransformAlgorithm.execute(input=msg, params = self.valid_values)
 
-        if not good_values:
+        if bad_values:
             # Data is out-of-range
             self.publish(subtype=self.instrument_variable, state= DeviceStatusType.OUT_OF_RANGE)
-        else:
-            # Data is in-range
-            self.publish(subtype=self.instrument_variable, state=DeviceStatusType.OK)
 
 
     def process_event(self, msg, headers):
@@ -180,16 +178,31 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
             description= "Event to deliver the status of instrument.")
 
 
-    def _check_values_in_granule(self, granule = None, field = None):
+#    def _check_values_in_granule(self, granule = None, field = None):
+#
+#        rdt = RecordDictionaryTool.load_from_granule(granule)
+#
+#        value_array[:] = rdt[field]
+#
+#        if value_array.min() < self.valid_values[0] or value_array.max() > self.valid_values[1]:
+#            return False
+#        else:
+#            return True
 
-        rdt = RecordDictionaryTool.load_from_granule(granule)
+class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
-        value_array[:] = rdt[field]
-        
-        if value_array.min() < self.valid_values[0] or value_array.max() > self.valid_values[1]:
-            return False
-        else:
-            return True
+    @staticmethod
+    @SimpleGranuleTransformFunction.validate_inputs
+    def execute(input=None, context=None, config=None, params=None, state=None):
+
+        rdt = RecordDictionaryTool.load_from_granule(input)
+
+        for key, value in rdt.iteritems():
+            if value < params[0] or value > params[1]:
+                return value
+
+        return None
+
 
 
 
