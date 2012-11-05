@@ -12,7 +12,7 @@ from pyon.core.bootstrap import get_sys_name
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
-from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess, UserInfo, ContactInformation
+from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess, UserInfo, ContactInformation, DataSet
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.dm.iindex_management_service import IndexManagementServiceClient
 from interface.services.dm.icatalog_management_service import CatalogManagementServiceClient
@@ -577,16 +577,15 @@ class DiscoveryIntTest(IonIntegrationTestCase):
     @skipIf(not use_es, 'No ElasticSearch')
     def test_associative_searching(self):
 
-        view_id = self.discovery.create_view('devices', fields=['platform_family'])
-        site_id,_ = self.rr.create(Site('my_site'))
-        pd_id, _  = self.rr.create(PlatformDevice('my_device', platform_family='abc123'))
-        self.rr.create_association(subject=site_id, object=pd_id, predicate=PRED.hasDevice)
+        dp_id,_ = self.rr.create(DataProduct('test_foo'))
+        ds_id,_ = self.rr.create(DataSet('test_bar', registered=True))
+        self.rr.create_association(subject=dp_id, object=ds_id, predicate='hasDataset')
 
-        search_string = "search 'platform_family' is 'abc*' from '%s' and belongs to '%s'"%(view_id, site_id)
+        search_string = "search 'type_' is 'DataSet' from 'resources_index' and belongs to '%s'" % dp_id
 
         results = self.poll(5, self.discovery.parse,search_string)
         self.assertIsNotNone(results, 'Results not found')
-        self.assertTrue(pd_id in results)
+        self.assertTrue(ds_id in results)
 
     def test_iterative_associative_searching(self):
         #--------------------------------------------------------------------------------
