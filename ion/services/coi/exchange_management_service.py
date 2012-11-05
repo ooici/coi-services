@@ -32,9 +32,14 @@ class ExchangeManagementService(BaseExchangeManagementService):
         if not org:
             raise NotFound("Org %s does not exist" % org_id)
 
+        xss, assocs = self.container.resource_registry.find_objects(subject=org_id, predicate=PRED.hasExchangeSpace, id_only=False)
+        for xs in xss:
+            if xs.name == exchange_space.name:
+                return xs._id
+
         exchange_space_id,rev = self.container.resource_registry.create(exchange_space)
 
-        aid = self.container.resource_registry.create_association(org_id, PRED.hasExchangeSpace, exchange_space_id)
+        self.container.resource_registry.create_association(org_id, PRED.hasExchangeSpace, exchange_space_id)
 
         # Now do the work
 
@@ -86,12 +91,17 @@ class ExchangeManagementService(BaseExchangeManagementService):
             self.container.resource_registry.delete_association(assoc._id)
 
         # delete assocs to XNs
-        _, assocs = self.container.resource_registry.find_objects(exchange_space_id, PRED.hasExchangeName, RT.ExchangeName, id_only=True)
+        _, assocs = self.container.resource_registry.find_objects(exchange_space_id, PRED.hasExchangeName, id_only=True)
         for assoc in assocs:
             self.container.resource_registry.delete_association(assoc._id)
 
         # delete assocs to XPs
-        _, assocs = self.container.resource_registry.find_objects(exchange_space_id, PRED.hasExchangePoint, RT.ExchangePoint, id_only=True)
+        _, assocs = self.container.resource_registry.find_objects(exchange_space_id, PRED.hasExchangePoint, id_only=True)
+        for assoc in assocs:
+            self.container.resource_registry.delete_association(assoc._id)
+
+        # delete assocs to XBs
+        _, assocs = self.container.resource_registry.find_objects(exchange_space_id, PRED.hasExchangeBroker, id_only=True)
         for assoc in assocs:
             self.container.resource_registry.delete_association(assoc._id)
 
@@ -286,6 +296,11 @@ class ExchangeManagementService(BaseExchangeManagementService):
         @retval exchange_broker_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
+        xbs, _ = self.container.resource_registry.find_resources(RT.ExchangeBroker)
+        for xb in xbs:
+            if xb.name == exchange_broker.name:
+                return xb._id
+
         exchange_broker_id, _ver = self.container.resource_registry.create(exchange_broker)
         return exchange_broker_id
 
