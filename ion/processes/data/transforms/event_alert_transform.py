@@ -121,7 +121,7 @@ class StreamAlertTransform(TransformStreamListener, TransformEventPublisher):
 class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, TransformEventPublisher):
 
     def on_start(self):
-        super(StreamAlertTransform,self).on_start()
+        super(DemoStreamAlertTransform,self).on_start()
         self.value = self.CFG.get_safe('process.value', 0)
 
         self.granules = []
