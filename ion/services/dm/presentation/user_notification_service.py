@@ -523,11 +523,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.stop_notification_subscriber(notification_request=notification_request)
 
-#        #-------------------------------------------------------------------------------------------------------------------
-#        # delete the notification from the user_info and reverse_user_info dictionaries
-#        #-------------------------------------------------------------------------------------------------------------------
-#
-#        self.delete_notification_from_user_info(notification_id)
+        #        #-------------------------------------------------------------------------------------------------------------------
+        #        # delete the notification from the user_info and reverse_user_info dictionaries
+        #        #-------------------------------------------------------------------------------------------------------------------
+        #
+        #        self.delete_notification_from_user_info(notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
         # update the resource registry
@@ -933,7 +933,7 @@ class UserNotificationService(BaseUserNotificationService):
         msg['From'] = self.ION_NOTIFICATION_EMAIL_ADDRESS
         msg['To'] = msg_recipient
         log.debug("EventProcessor.subscription_callback(): sending email to %s"\
-        %msg_recipient)
+                  %msg_recipient)
 
         smtp_sender = CFG.get_safe('server.smtp.sender')
 

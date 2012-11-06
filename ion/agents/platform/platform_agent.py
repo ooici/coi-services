@@ -27,7 +27,7 @@ from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver import AttributeValueDriverEvent
-from ion.agents.platform.platform_driver import AlarmDriverEvent
+from ion.agents.platform.platform_driver import ExternalEventDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -73,8 +73,8 @@ class PlatformAgentEvent(ResourceAgentEvent):
     TURN_ON_PORT              = 'PLATFORM_AGENT_TURN_ON_PORT'
     TURN_OFF_PORT             = 'PLATFORM_AGENT_TURN_OFF_PORT'
     GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
-    START_ALARM_DISPATCH      = 'PLATFORM_AGENT_START_ALARM_DISPATCH'
-    STOP_ALARM_DISPATCH       = 'PLATFORM_AGENT_STOP_ALARM_DISPATCH'
+    START_EVENT_DISPATCH      = 'PLATFORM_AGENT_START_EVENT_DISPATCH'
+    STOP_EVENT_DISPATCH       = 'PLATFORM_AGENT_STOP_EVENT_DISPATCH'
 
 
 class PlatformAgentCapability(BaseEnum):
@@ -95,8 +95,8 @@ class PlatformAgentCapability(BaseEnum):
     TURN_OFF_PORT             = PlatformAgentEvent.TURN_OFF_PORT
     GET_SUBPLATFORM_IDS       = PlatformAgentEvent.GET_SUBPLATFORM_IDS
 
-    START_ALARM_DISPATCH      = PlatformAgentEvent.START_ALARM_DISPATCH
-    STOP_ALARM_DISPATCH       = PlatformAgentEvent.STOP_ALARM_DISPATCH
+    START_EVENT_DISPATCH      = PlatformAgentEvent.START_EVENT_DISPATCH
+    STOP_EVENT_DISPATCH       = PlatformAgentEvent.STOP_EVENT_DISPATCH
 
 
 
@@ -438,8 +438,8 @@ class PlatformAgent(ResourceAgent):
             self._handle_attribute_value_event(driver_event)
             return
 
-        if isinstance(driver_event, AlarmDriverEvent):
-            self._handle_alarm_driver_event(driver_event)
+        if isinstance(driver_event, ExternalEventDriverEvent):
+            self._handle_external_event_driver_event(driver_event)
             return
 
         #
@@ -478,12 +478,24 @@ class PlatformAgent(ResourceAgent):
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
         if param_name not in rdt:
-            # TODO can it just be skipped without any warning of logging? (as in InstrumentAgent)
-            log.warn('%r: got attribute value event for unconfigured parameter %r in stream %s',
+            log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r',
                      self._platform_id, param_name, stream_name)
             return
 
-        rdt[param_name] = numpy.array([param_value])
+        # Note that at the moment, notification from the driver has the form
+        # of a non-empty list of pairs (val, ts)
+        assert isinstance(param_value, list)
+        assert isinstance(param_value[0], tuple)
+
+        # separate values and timestamps:
+        vals, timestamps = zip(*param_value)
+
+        rdt[param_name]            = numpy.array(vals)
+        rdt['preferred_timestamp'] = numpy.array(timestamps)
+
+        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d) = %s (last_ts=%s)",
+                 self._platform_id, param_name, len(vals), str(vals), timestamps[-1])
+
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
@@ -552,9 +564,18 @@ class PlatformAgent(ResourceAgent):
                      self._platform_id, stream_name)
             return
 
+        # note: values = [ (val, ts), ...]
+        values = driver_event.value
+
+        # notify only array of actual values
+        only_values = [v for v, t in values]
+
+        # TODO determine how to pass the whole array of (val, ts) pairs or some
+        # equivalent variation appropriately.
+
         rdt = RecordDictionaryTool(param_dictionary=param_dict)
 
-        rdt['value'] =  numpy.array([driver_event._value])
+        rdt['value'] = numpy.array(only_values)
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
 
@@ -564,31 +585,38 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
                 self._platform_id, stream_name, str(rdt), str(g))
 
-    def _handle_alarm_driver_event(self, driver_event):
+    def _handle_external_event_driver_event(self, driver_event):
         #
         # TODO appropriate granularity and structure of the event.
 
-        alarm_type = driver_event._alarm_type
+        event_type = driver_event._event_type
         ts = driver_event._ts
 
-        alarm_instance = driver_event._alarm_instance
-        platform_id = alarm_instance.get('platform_id', None)
-        message = alarm_instance.get('message', None)
-        timestamp = alarm_instance.get('timestamp', None)
-        group = alarm_instance.get('group', None)
+        event_instance = driver_event._event_instance
+        platform_id = event_instance.get('platform_id', None)
+        message = event_instance.get('message', None)
+        timestamp = event_instance.get('timestamp', None)
+        group = event_instance.get('group', None)
 
         # TODO appropriate origin for the event
         origin = platform_id  # self.resource_id
 
+        # TODO re 'external_alarm_type' and event_type='PlatformAlarmEvent' below:
+        # ion-definitions still has 'PlatformAlarmEvent' and 'external_alarm_type'
+        # but it should be changed so it reflects the more generic "platform event"
+        # term. However, note that there is already a pre-existing 'PlatformEvent'
+        # in ion-definitions so we may need to define 'PlatformExternalEvent'
+        # or something like that.
+
         event_data = {
             'description':  message,
-            'sub_type':     group,      # ID of alarm categorization
+            'sub_type':     group,      # ID of event categorization
             'ts_created':   ts,         # time of reception at the driver
-            'external_alarm_type':   alarm_type,
+            'external_alarm_type':   event_type,
             'external_timestamp':    timestamp,  # as given by OMS
         }
 
-        log.info("%r: publishing platform alarm event: event_data=%s",
+        log.info("%r: publishing external platform event: event_data=%s",
                   self._platform_id, str(event_data))
 
         try:
@@ -598,9 +626,7 @@ class PlatformAgent(ResourceAgent):
                 **event_data)
 
         except Exception as e:
-            # Unexpected unless PlatformAlarmEvent not yet in ion-definitions,
-            # which is the case at time of writing.
-            log.error("Error while publishing platform alarm event: %s", str(e))
+            log.error("Error while publishing platform event: %s", str(e))
 
     ##########################################################################
     # TBD
@@ -1041,7 +1067,7 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
-    def _handler_start_alarm_dispatch(self, *args, **kwargs):
+    def _handler_start_event_dispatch(self, *args, **kwargs):
         """
         """
         log.debug("%r/%s args=%s kwargs=%s",
@@ -1049,32 +1075,32 @@ class PlatformAgent(ResourceAgent):
 
         params = kwargs.get('params', None)
         if params is None:
-            raise BadRequest('start_alarm_dispatch missing params argument.')
+            raise BadRequest('start_event_dispatch missing params argument.')
 
         try:
-            result = self._plat_driver.start_alarm_dispatch(params)
+            result = self._plat_driver.start_event_dispatch(params)
 
             next_state = self.get_agent_state()
 
         except Exception as ex:
-            log.error("error in start_alarm_dispatch %s", str(ex)) #, exc_Info=True)
+            log.error("error in start_event_dispatch %s", str(ex)) #, exc_Info=True)
             raise
 
         return (next_state, result)
 
-    def _handler_stop_alarm_dispatch(self, *args, **kwargs):
+    def _handler_stop_event_dispatch(self, *args, **kwargs):
         """
         """
         log.debug("%r/%s args=%s kwargs=%s",
             self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         try:
-            result = self._plat_driver.stop_alarm_dispatch()
+            result = self._plat_driver.stop_event_dispatch()
 
             next_state = self.get_agent_state()
 
         except Exception as ex:
-            log.error("error in stop_alarm_dispatch %s", str(ex)) #, exc_Info=True)
+            log.error("error in stop_event_dispatch %s", str(ex)) #, exc_Info=True)
             raise
 
         return (next_state, result)
@@ -1223,5 +1249,5 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
-        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.START_ALARM_DISPATCH, self._handler_start_alarm_dispatch)
-        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.STOP_ALARM_DISPATCH, self._handler_stop_alarm_dispatch)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.START_EVENT_DISPATCH, self._handler_start_event_dispatch)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, PlatformAgentEvent.STOP_EVENT_DISPATCH, self._handler_stop_event_dispatch)

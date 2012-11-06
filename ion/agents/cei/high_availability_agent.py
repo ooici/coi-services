@@ -262,7 +262,7 @@ class ProcessDispatcherSimpleAPIClient(object):
         if self.container:
             del(kwargs['container'])
         self.service_id = kwargs.get('service_id')
-        if self.container:
+        if self.service_id:
             del(kwargs['service_id'])
 
         if real_client is not None:

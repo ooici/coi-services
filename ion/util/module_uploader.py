@@ -1,4 +1,5 @@
 import os
+import stat
 import base64
 import tempfile
 import subprocess
@@ -20,25 +21,18 @@ class RegisterModulePreparerBase(object):
                  dest_user='',
                  dest_host='',
                  dest_path='',
-                 dest_wwwroot=''):
+                 dest_wwwprefix=''):
 
         self.dest_user = dest_user
         self.dest_host = dest_host
         self.dest_path = dest_path
-        if '' == dest_wwwroot:
-            self.dest_wwwroot = self.dest_path
-        else:
-            self.dest_wwwroot = dest_wwwroot
+        self.dest_wwwprefix = dest_wwwprefix
 
         #for mock
         self.modules = {}
         self.modules["subprocess"] = subprocess
         self.modules["tempfile"]   = tempfile
         self.modules["os"]         = os
-
-        self.subprocess = subprocess
-        self.tempfile   = tempfile
-        self.os         = os
 
 
     def get_uploader_class(self):
@@ -52,8 +46,7 @@ class RegisterModulePreparerBase(object):
         """
         calculate the destination URL from the filename
         """
-        www_rel = path_subtract(self.dest_path, self.dest_wwwroot)
-        return "http://%s%s/%s" % (self.dest_host, www_rel, dest_filename)
+        return "%s/%s" % (self.dest_wwwprefix, dest_filename)
 
 
     def prepare(self, dest_contents_b64, dest_filename=None):
@@ -89,21 +82,24 @@ class RegisterModulePreparerPy(RegisterModulePreparerBase):
         perform syntax check and return uploader object
         """
 
+        mytempfile   = self.modules["tempfile"]
+        myos         = self.modules["os"]
+        mysubprocess = self.modules["subprocess"]
+
         try:
             contents = base64.decodestring(py_b64)
         except Exception as e:
             return None, e.message
 
-
         log.debug("creating tempfile with contents")
-        f_handle, tempfilename = self.tempfile.mkstemp()
+        f_handle, tempfilename = mytempfile.mkstemp()
         log.debug("writing contents to disk at '%s'", tempfilename)
-        self.os.write(f_handle, contents)
+        myos.write(f_handle, contents)
 
         log.info("syntax checking file")
-        py_proc = self.subprocess.Popen(["python", "-m", "py_compile", tempfilename],
-                                        stdout=self.subprocess.PIPE,
-                                        stderr=self.subprocess.PIPE)
+        py_proc = mysubprocess.Popen(["python", "-m", "py_compile", tempfilename],
+                                        stdout=mysubprocess.PIPE,
+                                        stderr=mysubprocess.PIPE)
 
         py_out, py_err = py_proc.communicate()
 
@@ -111,10 +107,11 @@ class RegisterModulePreparerPy(RegisterModulePreparerBase):
         log.debug("removing tempfile at '%s'", tempfilename)
 
         if 0 != py_proc.returncode:
-            return False, ("Syntax check failed.  (STDOUT: %s) (STDERR: %s)"
+            return None, ("Syntax check failed.  (STDOUT: %s) (STDERR: %s)"
                            % (py_out, py_err))
 
         ret = self.uploader_object_factory(py_b64, dest_filename or tempfilename)
+
         return ret, ""
 
 
@@ -226,18 +223,22 @@ class RegisterModuleUploader(object):
 
         log.debug("creating tempfile with contents")
         f_handle, tempfilename = self.tempfile.mkstemp()
+
         log.debug("writing contents to disk at '%s'", tempfilename)
         self.os.write(f_handle, base64.decodestring(self.dest_contents))
 
-        remotefilename = "%s@%s:%s/%s" % (self.dest_user,
-                                          self.dest_host,
-                                          self.dest_path,
-                                          self.dest_file)
+        log.debug("setting tempfile permissions to 664")
+        self.os.fchmod(f_handle, stat.S_IWUSR | stat.S_IRUSR | stat.S_IWGRP | stat.S_IRGRP | stat.S_IROTH)
 
-        log.info("executing scp: '%s' to '%s'", tempfilename, remotefilename)
+        scp_destination = "%s@%s:%s/%s" % (self.dest_user,
+                                           self.dest_host,
+                                           self.dest_path,
+                                           self.dest_file)
+
+        log.info("executing scp: '%s' to '%s'", tempfilename, scp_destination)
         scp_proc = self.subprocess.Popen(["scp", "-v", "-o", "PasswordAuthentication=no",
                                            "-o", "StrictHostKeyChecking=no",
-                                          tempfilename, remotefilename],
+                                          tempfilename, scp_destination],
                                           stdout=self.subprocess.PIPE,
                                           stderr=self.subprocess.PIPE)
 

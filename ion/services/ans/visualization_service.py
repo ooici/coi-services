@@ -25,10 +25,6 @@ import string
 import random
 from gevent.greenlet import Greenlet
 
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.ans.ivisualization_service import BaseVisualizationService
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
 from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphsAlgorithm
@@ -266,12 +262,7 @@ class VisualizationService(BaseVisualizationService):
 
     def _create_google_dt_data_process_definition(self):
 
-        #First look to see if it exists and if not, then create it
-        self.dataset_management =  DatasetManagementServiceClient(node=self.container.node)
-        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
-        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
-        self.pubsubclient = PubsubManagementServiceClient(node=self.container.node)
-        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform', id_only=True)
+        dpd,_ = self.clients.resource_registry.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform', id_only=True)
         if len(dpd) > 0:
             return dpd[0]
 
@@ -283,15 +274,15 @@ class VisualizationService(BaseVisualizationService):
             module='ion.processes.data.transforms.viz.google_dt',
             class_name='VizTransformGoogleDT')
         try:
-            procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
+            procdef_id = self.clients.data_process_management.create_data_process_definition(dpd_obj)
         except Exception as ex:
             self.fail("failed to create new VizTransformGoogleDT data process definition: %s" %ex)
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('google_dt', id_only=True)
+        pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt', id_only=True)
 
         # create a stream definition for the data from the
-        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
+        stream_def_id = self.clients.pubsub_management.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
+        self.clients.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
 
         return procdef_id
 
@@ -478,3 +469,67 @@ class VisualizationService(BaseVisualizationService):
             return ret_dict
         else:
             return callback + "(" + simplejson.dumps(ret_dict) + ")"
+
+
+
+    def get_dataproduct_kml(self, visualization_parameters = None):
+
+        kml_content = ""
+        ui_server = "http://localhost:3000" # This server hosts the UI and is used for creating all embedded links within KML
+        if visualization_parameters:
+            if "ui_server" in visualization_parameters:
+                ui_server = visualization_parameters["ui_server"]
+
+        # First step. Discover all Data products in the system
+        dps,_ = self.clients.resource_registry.find_resources(RT.DataProduct, None, None, False)
+
+        # Start creating the kml in memory
+        # Common KML tags
+        kml_content += "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        kml_content += "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
+        #kml_content += "\txmlns:atom=\"http://www.w3.org/2005/Atom\">\n"
+        kml_content += "<Document>\n"
+        kml_content += "<name>DataProduct geo-reference information</name>\n"
+        # define line styles. Used for polygons
+        kml_content += "<Style id=\"yellowLine\">\n<LineStyle>\n<color>ff61f2f2</color>\n<width>4</width>\n</LineStyle>\n</Style>"
+
+        # Enter all DP in to KML placemarks
+        for dp in dps:
+            _lat = _lon = 0.0
+            bounds = dp.geospatial_bounds
+            if bounds == None:
+                continue
+
+            # approximate placemark position
+            _lon_center = bounds.geospatial_longitude_limit_west + (bounds.geospatial_longitude_limit_east - bounds.geospatial_longitude_limit_west) / 2.0
+            _lat_center = bounds.geospatial_latitude_limit_south + (bounds.geospatial_latitude_limit_north - bounds.geospatial_latitude_limit_south) / 2.0
+
+            # Start Placemark tag for point
+            kml_content += "<Placemark>\n"
+
+            # name of placemark
+            kml_content += "<name>"
+            kml_content += dp.ooi_short_name
+            kml_content += "</name>\n"
+
+            # Description
+            kml_content += "<description>\n<![CDATA["
+            # insert HTML description here
+            html_description = "<h1>Data Product : " + dp.ooi_short_name + "</h1>\n"
+            html_description += "<a href=\"" + ui_server + "/DataProduct/face/" + str(dp._id) + "/\">More information.</a> "
+
+            kml_content += html_description
+            kml_content += "]]>\n</description>\n"
+
+            # Point information
+            kml_content += "<Point>\n<coordinates>" + str(_lon_center) + "," + str(_lat_center) + "</coordinates>\n</Point>\n"
+
+            # Close Placemark
+            kml_content += "</Placemark>\n"
+
+        # ------
+        kml_content += "</Document>\n"
+        kml_content += "</kml>\n"
+
+        print " >>>>>>>>>>>>>>>>>>>>>>>>>>  KML : ", kml_content
+        return kml_content

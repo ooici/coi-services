@@ -1059,11 +1059,12 @@ class OrgManagementService(BaseOrgManagementService):
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_org = extended_resource_handler.create_extended_resource_container(
-            OT.MarineFacilityOrgExtension,
-            org_id,
-            OT.MarineFacilityOrgComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            extended_resource_type=OT.MarineFacilityOrgExtension,
+            resource_id=org_id,
+            computed_resource_type=OT.MarineFacilityOrgComputedAttributes,
+            origin_resource_type=RT.Org,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
         #TODO - see if there is a better way to do this in the extended resource frame work.

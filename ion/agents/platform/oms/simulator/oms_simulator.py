@@ -14,9 +14,10 @@ from ion.agents.platform.oms.oms_client import OmsClient
 from ion.agents.platform.oms.oms_client import VALID_PORT_ATTRIBUTES
 from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.util.network import NNode
-from ion.agents.platform.oms.simulator.oms_alarms import AlarmInfo
-from ion.agents.platform.oms.simulator.oms_alarms import AlarmNotifier
-from ion.agents.platform.oms.simulator.oms_alarms import AlarmGenerator
+from ion.agents.platform.oms.simulator.oms_events import EventInfo
+from ion.agents.platform.oms.simulator.oms_events import EventNotifier
+from ion.agents.platform.oms.simulator.oms_events import EventGenerator
+from ion.agents.platform.oms.simulator.oms_values import generate_values
 
 import yaml
 import time
@@ -39,38 +40,38 @@ class OmsSimulator(OmsClient):
 
         self._next_value = 990000
 
-        # registered alarm listeners: {url: [(alarm_type, reg_time), ...], ...},
+        # registered event listeners: {url: [(event_type, reg_time), ...], ...},
         # where reg_time is the time of (latest) registration.
         # NOTE: for simplicity, we don't keep info about unregistered listeners
-        self._reg_alarm_listeners = {}
+        self._reg_event_listeners = {}
 
-        self._alarm_notifier = AlarmNotifier()
-        # AlarmGenerator only kept while there are listeners registered
-        self._alarm_generator = None
+        self._event_notifier = EventNotifier()
+        # EventGenerator only kept while there are listeners registered
+        self._event_generator = None
 
-    def _start_alarm_generator_if_listeners(self):
-        if not self._alarm_generator and len(self._reg_alarm_listeners):
-            self._alarm_generator = AlarmGenerator(self._alarm_notifier)
-            self._alarm_generator.start()
-            log.debug("alarm generator started (%s listeners registered)",
-                      len(self._reg_alarm_listeners))
+    def _start_event_generator_if_listeners(self):
+        if not self._event_generator and len(self._reg_event_listeners):
+            self._event_generator = EventGenerator(self._event_notifier)
+            self._event_generator.start()
+            log.debug("event generator started (%s listeners registered)",
+                      len(self._reg_event_listeners))
 
-    def _stop_alarm_generator_if_no_listeners(self):
-        if self._alarm_generator and not len(self._reg_alarm_listeners):
-            log.debug("alarm generator stopping (no listeners registered)")
-            self._alarm_generator.stop()
-            self._alarm_generator = None
+    def _stop_event_generator_if_no_listeners(self):
+        if self._event_generator and not len(self._reg_event_listeners):
+            log.debug("event generator stopping (no listeners registered)")
+            self._event_generator.stop()
+            self._event_generator = None
 
     def _deactivate_simulator(self):
         """
         Special method only intended to be called for when the simulator is run
         in "embedded" form. See test_oms_simulator for the particular case.
         """
-        log.info("_deactivate_simulator called. alarm_generator=%s; %s listeners registered",
-                 self._alarm_generator, len(self._reg_alarm_listeners))
-        if self._alarm_generator:
-            self._alarm_generator.stop()
-            self._alarm_generator = None
+        log.info("_deactivate_simulator called. event_generator=%s; %s listeners registered",
+                 self._event_generator, len(self._reg_event_listeners))
+        if self._event_generator:
+            self._event_generator.stop()
+            self._event_generator = None
 
     def _get_platform_types(self, pyobj):
         """
@@ -190,22 +191,15 @@ class OmsSimulator(OmsClient):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        timestamp = time.time()
+        to_time = time.time()
         attrs = self._idp[platform_id].attrs
         vals = {}
         for attrName in attrNames:
             if attrName in attrs:
                 attr = attrs[attrName]
-                val = attr._value
-
-                if val is None:
-                    val = self._next_value
-                    self._next_value += 1
-
-                if val is not None and from_time < timestamp:
-                    vals[attrName] = (val, timestamp)
-                else:
-                    vals[attrName] = ('', '')
+                values = generate_values(platform_id, attr.attr_id, from_time, to_time)
+                vals[attrName] = values
+                # Note: [] if there are no values
             else:
                 vals[attrName] = InvalidResponse.ATTRIBUTE_NAME_VALUE
 
@@ -303,20 +297,20 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: {port_id: port._on}}
 
-    def describeAlarmTypes(self, alarm_type_ids):
-        if len(alarm_type_ids) == 0:
-            return AlarmInfo.ALARM_TYPES
+    def describeEventTypes(self, event_type_ids):
+        if len(event_type_ids) == 0:
+            return EventInfo.EVENT_TYPES
 
         result = {}
-        for k in alarm_type_ids:
-            if not k in AlarmInfo.ALARM_TYPES:
-                result[k] = InvalidResponse.ALARM_TYPE
+        for k in event_type_ids:
+            if not k in EventInfo.EVENT_TYPES:
+                result[k] = InvalidResponse.EVENT_TYPE
             else:
-                result[k] = AlarmInfo.ALARM_TYPES[k]
+                result[k] = EventInfo.EVENT_TYPES[k]
 
         return result
 
-    def getAlarmsByPlatformType(self, platform_types):
+    def getEventsByPlatformType(self, platform_types):
         if len(platform_types) == 0:
             platform_types = self._platform_types.keys()
 
@@ -326,93 +320,93 @@ class OmsSimulator(OmsClient):
                 result[platform_type] = InvalidResponse.PLATFORM_TYPE
                 continue
 
-            result[platform_type] = [v for v in AlarmInfo.ALARM_TYPES.itervalues() \
+            result[platform_type] = [v for v in EventInfo.EVENT_TYPES.itervalues() \
                 if v['platform_type'] == platform_type]
 
         return result
 
-    def _validate_alarm_listener_url(self, url):
+    def _validate_event_listener_url(self, url):
         """
         Does a basic, static validation of the url.
         """
         # TODO implement it; for now always returning True
         return True
 
-    def registerAlarmListener(self, url, alarm_types):
-        log.debug("registerAlarmListener called: url=%r, alarm_types=%s",
-                 url, str(alarm_types))
+    def registerEventListener(self, url, event_types):
+        log.debug("registerEventListener called: url=%r, event_types=%s",
+                 url, str(event_types))
 
-        if not self._validate_alarm_listener_url(url):
-            return {url: InvalidResponse.ALARM_LISTENER_URL}
+        if not self._validate_event_listener_url(url):
+            return {url: InvalidResponse.EVENT_LISTENER_URL}
 
-        if not url in self._reg_alarm_listeners:
+        if not url in self._reg_event_listeners:
             # create entry for this new url
-            existing_pairs = self._reg_alarm_listeners[url] = []
+            existing_pairs = self._reg_event_listeners[url] = []
         else:
-            existing_pairs = self._reg_alarm_listeners[url]
+            existing_pairs = self._reg_event_listeners[url]
 
         if len(existing_pairs):
             existing_types, reg_times = zip(*existing_pairs)
         else:
             existing_types = reg_times = []
 
-        if len(alarm_types) == 0:
-            alarm_types = list(AlarmInfo.ALARM_TYPES.keys())
+        if len(event_types) == 0:
+            event_types = list(EventInfo.EVENT_TYPES.keys())
 
         result_list = []
-        for alarm_type in alarm_types:
-            if not alarm_type in AlarmInfo.ALARM_TYPES:
-                result_list.append((alarm_type, InvalidResponse.ALARM_TYPE))
+        for event_type in event_types:
+            if not event_type in EventInfo.EVENT_TYPES:
+                result_list.append((event_type, InvalidResponse.EVENT_TYPE))
                 continue
 
-            if alarm_type in existing_types:
+            if event_type in existing_types:
                 # already registered:
-                reg_time = reg_times[existing_types.index(alarm_type)]
-                result_list.append((alarm_type, reg_time))
+                reg_time = reg_times[existing_types.index(event_type)]
+                result_list.append((event_type, reg_time))
             else:
                 #
                 # new registration
                 #
-                reg_time = self._alarm_notifier.add_listener(url, alarm_type)
-                existing_pairs.append((alarm_type, reg_time))
-                result_list.append((alarm_type, reg_time))
+                reg_time = self._event_notifier.add_listener(url, event_type)
+                existing_pairs.append((event_type, reg_time))
+                result_list.append((event_type, reg_time))
 
-                log.info("%r registered for alarm_type=%r", url, alarm_type)
+                log.info("%r registered for event_type=%r", url, event_type)
 
-        self._start_alarm_generator_if_listeners()
+        self._start_event_generator_if_listeners()
 
         return {url: result_list}
 
-    def unregisterAlarmListener(self, url, alarm_types):
-        log.debug("unregisterAlarmListener called: url=%r, alarm_types=%s",
-                 url, str(alarm_types))
+    def unregisterEventListener(self, url, event_types):
+        log.debug("unregisterEventListener called: url=%r, event_types=%s",
+                 url, str(event_types))
 
-        if not url in self._reg_alarm_listeners:
-            return {url: InvalidResponse.ALARM_LISTENER_URL}
+        if not url in self._reg_event_listeners:
+            return {url: InvalidResponse.EVENT_LISTENER_URL}
 
-        existing_pairs = self._reg_alarm_listeners[url]
+        existing_pairs = self._reg_event_listeners[url]
 
         assert len(existing_pairs), "we don't keep any url with empty list"
 
         existing_types, reg_times = zip(*existing_pairs)
 
-        if len(alarm_types) == 0:
-            alarm_types = list(AlarmInfo.ALARM_TYPES.keys())
+        if len(event_types) == 0:
+            event_types = list(EventInfo.EVENT_TYPES.keys())
 
         result_list = []
-        for alarm_type in alarm_types:
-            if not alarm_type in AlarmInfo.ALARM_TYPES:
-                result_list.append((alarm_type, InvalidResponse.ALARM_TYPE))
+        for event_type in event_types:
+            if not event_type in EventInfo.EVENT_TYPES:
+                result_list.append((event_type, InvalidResponse.EVENT_TYPE))
                 continue
 
-            if alarm_type in existing_types:
+            if event_type in existing_types:
                 #
                 # registered, so remove it
                 #
-                unreg_time = self._alarm_notifier.remove_listener(url, alarm_type)
-                idx = existing_types.index(alarm_type)
+                unreg_time = self._event_notifier.remove_listener(url, event_type)
+                idx = existing_types.index(event_type)
                 del existing_pairs[idx]
-                result_list.append((alarm_type, unreg_time))
+                result_list.append((event_type, unreg_time))
 
                 # update for next iteration (index for next proper removal):
                 if len(existing_pairs):
@@ -420,23 +414,23 @@ class OmsSimulator(OmsClient):
                 else:
                     existing_types = reg_times = []
 
-                log.info("%r unregistered for alarm_type=%r", url, alarm_type)
+                log.info("%r unregistered for event_type=%r", url, event_type)
 
             else:
                 # not registered, report 0
                 unreg_time = 0
-                result_list.append((alarm_type, unreg_time))
+                result_list.append((event_type, unreg_time))
 
         if len(existing_pairs):
             # reflect the updates:
-            self._reg_alarm_listeners[url] = existing_pairs
+            self._reg_event_listeners[url] = existing_pairs
         else:
             # we don't keep any url with empty list
-            del self._reg_alarm_listeners[url]
+            del self._reg_event_listeners[url]
 
-        self._stop_alarm_generator_if_no_listeners()
+        self._stop_event_generator_if_no_listeners()
 
         return {url: result_list}
 
-    def getRegisteredAlarmListeners(self):
-        return self._reg_alarm_listeners
+    def getRegisteredEventListeners(self):
+        return self._reg_event_listeners

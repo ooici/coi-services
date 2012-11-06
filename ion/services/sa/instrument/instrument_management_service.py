@@ -130,16 +130,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             cfg_remotepath  = self.CFG.get_safe("service.instrument_management.driver_release_directory", None)
             cfg_user        = self.CFG.get_safe("service.instrument_management.driver_release_user",
                                                 pwd.getpwuid(os.getuid())[0])
-            cfg_wwwroot     = self.CFG.get_safe("service.instrument_management.driver_release_wwwroot", "/")
+            cfg_wwwprefix   = self.CFG.get_safe("service.instrument_management.driver_release_wwwprefix", None)
 
-            if cfg_host is None or cfg_remotepath is None:
-                raise BadRequest("Missing configuration items for host and directory -- destination of driver release")
+            if cfg_host is None or cfg_remotepath is None or cfg_wwwprefix is None:
+                raise BadRequest("Missing configuration items; host='%s', directory='%s', wwwprefix='%s'" %
+                                 (cfg_host, cfg_remotepath, cfg_wwwprefix))
 
 
             self.module_uploader = RegisterModulePreparerEgg(dest_user=cfg_user,
                                                              dest_host=cfg_host,
                                                              dest_path=cfg_remotepath,
-                                                             dest_wwwroot=cfg_wwwroot)
+                                                             dest_wwwprefix=cfg_wwwprefix)
 
     def override_clients(self, new_clients):
         """
@@ -498,14 +499,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return driver_config, agent_config
 
-    def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
+    def start_instrument_agent_instance(self, instrument_agent_instance_id='', start_port_agent=True):
         """
         Agent instance must first be created and associated with a instrument device
         Launch the instument agent instance and return the id
         """
         instrument_agent_instance_obj = self.clients.resource_registry.read(instrument_agent_instance_id)
 
-        #if there is a agent pid then assume that a drive is already started
+        #if there is an agent pid then assume that a drive is already started
         if instrument_agent_instance_obj.agent_process_id:
             raise BadRequest("Instrument Agent Instance already running for this device pid: %s" %
                              str(instrument_agent_instance_obj.agent_process_id))
@@ -517,7 +518,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_id  = self.instrument_agent.find_having_model(instrument_model_id)[0]._id
 
         #retrieve the associated process definition
-        #todo: this association is not in the diagram... is it ok?
         process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id,
                                                                          PRED.hasProcessDefinition,
                                                                          RT.ProcessDefinition,
@@ -534,7 +534,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not process_def_obj:
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
-        self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
+        if start_port_agent:
+            self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
+
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
         driver_config, agent_config = self._generate_instrument_agent_config(instrument_device_id)
@@ -1671,8 +1673,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.InstrumentDeviceExtension,
             instrument_device_id,
             OT.InstrumentDeviceComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            origin_resource_type=None,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way
@@ -1761,7 +1764,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval = IonObject(OT.ComputedIntValue)
 
         #call eventsdb to check  comms-related events from this device.
+        max = datetime.datetime.utcnow()
+        min = datetime.datetime.utcnow() - datetime.timedelta(seconds=15)
 
+        event_list = self.clients.user_notification.find_events(origin=device_id, type = 'PlatformEvent', min_datetime= min, max_datetime=max)
 
         retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
         return retval
@@ -1831,8 +1837,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.PlatformDeviceExtension,
             platform_device_id,
             OT.PlatformDeviceComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            origin_resource_type=None,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
         #TODO - see if there is a better way to do this in the extended resource frame work.

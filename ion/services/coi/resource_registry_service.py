@@ -124,8 +124,11 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.find_associations(subject=subject, predicate=predicate,
             object=object, assoc_type=assoc_type, id_only=id_only)
     @mask_couch_error
-    def find_associations_mult(self, subjects=[], id_only=False):
-        return self.resource_registry.find_associations_mult(subjects=subjects, id_only=id_only)
+    def find_objects_mult(self, subjects=[], id_only=False):
+        return self.resource_registry.find_objects_mult(subjects=subjects, id_only=id_only)
+    @mask_couch_error
+    def find_subjects_mult(self, objects=[], id_only=False):
+        return self.resource_registry.find_subjects_mult(objects=objects, id_only=id_only)
 
     @mask_couch_error
     def get_association(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
@@ -173,10 +176,10 @@ class ResourceRegistryService(BaseResourceRegistryService):
         if resource_id.find('[') > -1:
             res_input = eval(resource_id)
             extended_resource_list = extended_resource_handler.create_extended_resource_container_list(resource_extension,
-                res_input, None, ext_associations, ext_exclude)
+                res_input, computed_resource_type=None, origin_resource_type=None, ext_associations=ext_associations, ext_exclude=ext_exclude)
             return extended_resource_list
 
         extended_resource = extended_resource_handler.create_extended_resource_container(resource_extension,
-            resource_id, None, ext_associations, ext_exclude)
+            resource_id, computed_resource_type=None,origin_resource_type=None, ext_associations=ext_associations, ext_exclude=ext_exclude)
 
         return extended_resource

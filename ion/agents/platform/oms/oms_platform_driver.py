@@ -20,7 +20,7 @@ from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.oms.oms_resource_monitor import OmsResourceMonitor
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from ion.agents.platform.oms.oms_client import InvalidResponse
-from ion.agents.platform.oms.oms_alarm_listener import OmsAlarmListener
+from ion.agents.platform.oms.oms_event_listener import OmsEventListener
 from ion.agents.platform.util.network import NNode
 from ion.agents.platform.util.network import Attr
 from ion.agents.platform.util.network import Port
@@ -60,7 +60,7 @@ class OmsPlatformDriver(PlatformDriver):
 
         # we can instantiate this here as the the actual http server is
         # started via corresponding method.
-        self._alarm_listener = OmsAlarmListener(self._notify_driver_event)
+        self._event_listener = OmsEventListener(self._notify_driver_event)
 
     def ping(self):
         """
@@ -307,8 +307,8 @@ class OmsPlatformDriver(PlatformDriver):
             #
             # TODO the following value-related checks are minimal
             #
-            if "int" == type:
-                if min_val and int(attr_value) < int(min_val):
+            if type in ["float", "int"]:
+                if min_val and float(attr_value) < float(min_val):
                     vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
                     errors = True
                     log.debug(
@@ -318,7 +318,7 @@ class OmsPlatformDriver(PlatformDriver):
                         self._platform_id)
                     continue
 
-                if max_val and int(attr_value) > int(max_val):
+                if max_val and float(attr_value) > float(max_val):
                     vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
                     errors = True
                     log.debug(
@@ -538,36 +538,36 @@ class OmsPlatformDriver(PlatformDriver):
         return dic_plat  # note: return the dic for the platform
 
     ###############################################
-    # Alarms:
+    # Events:
 
-    def _register_alarm_listener(self, url):
+    def _register_event_listener(self, url):
         """
-        Registers given url for all alarm types.
+        Registers given url for all event types.
         """
-        result = self._oms.registerAlarmListener(url, [])
-        log.info("registerAlarmListener url=%r returned: %s", url, str(result))
+        result = self._oms.registerEventListener(url, [])
+        log.info("registerEventListener url=%r returned: %s", url, str(result))
 
-    def _unregister_alarm_listener(self, url):
+    def _unregister_event_listener(self, url):
         """
-        Unregisters given url for all alarm types.
+        Unregisters given url for all event types.
         """
-        result = self._oms.unregisterAlarmListener(url, [])
-        log.info("unregisterAlarmListener url=%r returned: %s", url, str(result))
+        result = self._oms.unregisterEventListener(url, [])
+        log.info("unregisterEventListener url=%r returned: %s", url, str(result))
 
-    def start_alarm_dispatch(self, params):
+    def start_event_dispatch(self, params):
         # start http server:
-        self._alarm_listener.start_http_server()
+        self._event_listener.start_http_server()
 
         # then, register my listener:
-        self._register_alarm_listener(self._alarm_listener.url)
+        self._register_event_listener(self._event_listener.url)
 
         return "OK"
 
-    def stop_alarm_dispatch(self):
+    def stop_event_dispatch(self):
         # unregister my listener:
-        self._unregister_alarm_listener(self._alarm_listener.url)
+        self._unregister_event_listener(self._event_listener.url)
 
         # then, stop http server:
-        self._alarm_listener.stop_http_server()
+        self._event_listener.stop_http_server()
 
         return "OK"

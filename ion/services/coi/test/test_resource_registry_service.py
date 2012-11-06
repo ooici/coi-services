@@ -465,7 +465,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
             self.assertTrue(o._id in res_list)
 
     #@unittest.skip('this test just for debugging setup')
-    def test_find_associations_mult(self):
+    def test_find_objects_mult(self):
         dp = DataProcess()
         transform = Transform()
         pd = ProcessDefinition()
@@ -477,10 +477,10 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.resource_registry_service.create_association(subject=dp_id, object=transform_id, predicate=PRED.hasTransform)
         self.resource_registry_service.create_association(subject=transform_id, object=pd_id, predicate=PRED.hasProcessDefinition)
 
-        results, _  = self.resource_registry_service.find_associations_mult(subjects=[dp_id],id_only=True)
+        results, _  = self.resource_registry_service.find_objects_mult(subjects=[dp_id],id_only=True)
         self.assertTrue(results == [transform_id])
 
-        results, _  = self.resource_registry_service.find_associations_mult(subjects=[dp_id, transform_id], id_only=True)
+        results, _  = self.resource_registry_service.find_objects_mult(subjects=[dp_id, transform_id], id_only=True)
         results.sort()
         correct = [transform_id, pd_id]
         correct.sort()

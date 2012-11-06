@@ -135,7 +135,7 @@ class DiscoveryService(BaseDiscoveryService):
         return True
 
     def delete_view(self, view_id=''):
-        _, assocs = self.clients.resource_registry.find_associations_mult(subjects=[view_id])
+        _, assocs = self.clients.resource_registry.find_objects_mult(subjects=[view_id])
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc._id)
         self.clients.resource_registry.delete(view_id)
@@ -197,7 +197,7 @@ class DiscoveryService(BaseDiscoveryService):
         """
         
         def edges(resource_ids=[]):
-            return self.clients.resource_registry.find_associations_mult(subjects=resource_ids,id_only=True)[0]
+            return self.clients.resource_registry.find_objects_mult(subjects=resource_ids,id_only=True)[0]
             
         visited_resources = deque(edges([resource_id]))
         traversal_queue = deque()
@@ -216,6 +216,34 @@ class DiscoveryService(BaseDiscoveryService):
 
         return list(visited_resources)
 
+    def reverse_traverse(self, resource_id=''):
+        """Breadth-first traversal of the association graph for a specified resource.
+
+        @param resource_id    str
+        @retval resources    list
+        """
+        
+        def edges(resource_ids=[]):
+            return self.clients.resource_registry.find_subjects_mult(objects=resource_ids,id_only=True)[0]
+            
+        visited_resources = deque(edges([resource_id]))
+        traversal_queue = deque()
+        done = False
+        t = None
+        while not done:
+            t = traversal_queue or deque(visited_resources)
+            traversal_queue = deque()
+            for e in edges(t):
+                if not e in visited_resources:
+                    visited_resources.append(e)
+                    traversal_queue.append(e)
+            if not len(traversal_queue): done = True
+
+
+
+        return list(visited_resources)
+    
+
     def iterative_traverse(self, resource_id='', limit=-1):
         '''
         Iterative breadth first traversal of the resource associations
@@ -224,7 +252,7 @@ class DiscoveryService(BaseDiscoveryService):
         # Retrieve edges for this resource
         #--------------------------------------------------------------------------------
         def edges(resource_ids=[]):
-            return self.clients.resource_registry.find_associations_mult(subjects=resource_ids,id_only=True)[0]
+            return self.clients.resource_registry.find_objects_mult(subjects=resource_ids,id_only=True)[0]
             
         gathered = deque()
         visited_resources = deque(edges([resource_id]))
@@ -241,6 +269,34 @@ class DiscoveryService(BaseDiscoveryService):
             limit -= 1
 
         return list(visited_resources)
+
+    def iterative_reverse_traverse(self, resource_id='', limit=-1):
+        '''
+        Iterative breadth first traversal of the resource associations
+        '''
+        #--------------------------------------------------------------------------------
+        # Retrieve edges for this resource
+        #--------------------------------------------------------------------------------
+        def edges(resource_ids=[]):
+            return self.clients.resource_registry.find_subjects_mult(objects=resource_ids,id_only=True)[0]
+            
+        gathered = deque()
+        visited_resources = deque(edges([resource_id]))
+        while limit>0:
+            t = gathered or deque(visited_resources)
+            for e in edges(t):
+                if not e in visited_resources:
+                    visited_resources.append(e)
+                    gathered.append(e)
+            if not len(gathered): break
+
+            t = deque(gathered)
+            gathered = deque()
+            limit -= 1
+
+        return list(visited_resources)
+
+
             
 
 
@@ -320,6 +376,15 @@ class DiscoveryService(BaseDiscoveryService):
             if query.get('depth'):
                 kwargs['depth'] = query['depth']
             return self.query_association(**kwargs)
+
+        elif QueryLanguage.query_is_owner_search(query):
+            kwargs = dict(
+                resource_id = query['owner'],
+                id_only     = id_only
+            )
+            if query.get('depth'):
+                kwargs['depth'] = query['depth']
+            return self.query_owner(**kwargs)
         
         #---------------------------------------------
         # Range Search
@@ -614,6 +679,21 @@ class DiscoveryService(BaseDiscoveryService):
         resources = self.clients.resource_registry.read_mult(resource_ids)
 
         return resources
+
+    def query_owner(self, resource_id='', depth=0, id_only=False):
+        validate_true(resource_id, 'Unspecified resource')
+        if depth:
+            resource_ids = self.iterative_traverse(resource_id, depth-1)
+        else:
+            resource_ids = self.reverse_traverse(resource_id)
+        if id_only:
+            return resource_ids
+
+        resources = self.clients.resource_registry.read_mult(resource_ids)
+
+        return resources
+
+
 
     def query_collection(self,collection_id='', id_only=False):
         validate_true(collection_id, 'Unspecified collection id')

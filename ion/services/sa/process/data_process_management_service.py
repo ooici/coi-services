@@ -44,15 +44,16 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             cfg_remotepath  = self.CFG.get_safe("service.data_process_management.process_release_directory", None)
             cfg_user        = self.CFG.get_safe("service.data_process_management.process_release_user",
                                                 pwd.getpwuid(os.getuid())[0])
-            cfg_wwwroot     = self.CFG.get_safe("service.instrument_management.process_release_wwwroot", "/")
+            cfg_wwwprefix     = self.CFG.get_safe("service.data_process_management.process_release_wwwprefix", None)
 
-            if cfg_host is None or cfg_remotepath is None:
-                raise BadRequest("Missing configuration items for host and directory -- destination of process release")
+            if cfg_host is None or cfg_remotepath is None or cfg_wwwprefix is None:
+                raise BadRequest("Missing configuration items; host='%s', directory='%s', wwwprefix='%s'" %
+                                 (cfg_host, cfg_remotepath, cfg_wwwprefix))
 
             self.module_uploader = RegisterModulePreparerPy(dest_user=cfg_user,
                                                             dest_host=cfg_host,
                                                             dest_path=cfg_remotepath,
-                                                            dest_wwwroot=cfg_wwwroot)
+                                                            dest_wwwprefix=cfg_wwwprefix)
 
 
     def override_clients(self, new_clients):
@@ -495,27 +496,26 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Delete the specified DataProcessDefinition object
         data_process_obj = self.read_data_process(data_process_id)
 
-        # delete the association with DataProcessDefinition
+        log.debug("delete the association with DataProcessDefinition")
         dpd_assn_ids = self.clients.resource_registry.find_associations(subject=data_process_id,  predicate=PRED.hasProcessDefinition, id_only=True)
         for dpd_assn_id in dpd_assn_ids:
             self.clients.resource_registry.delete_association(dpd_assn_id)
 
         self._stop_process(data_process_obj)
 
-        #--------------------------------------------------------------------------------
-        # Finalize the Data Products by Removing streams associated with the dataset and product
-        #--------------------------------------------------------------------------------
 
+        log.debug("Finalizing data products by removing streams associated with the dataset and product")
         out_products, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
         for out_product, assoc in zip(out_products, assocs):
             data_product_management = DataProductManagementServiceClient()
             data_product_management.remove_streams(out_product)
+            log.debug("deleting association with output data product '%s'" % out_product)
             self.clients.resource_registry.delete_association(assoc)
 
             self.clients.data_acquisition_management.unassign_data_product(data_process_id, out_product)
 
 
-        # Delete the input products link
+        log.debug("Delete the input product links")
         inprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasInputProduct)
         for inprod_association in inprod_associations:
             self.clients.resource_registry.delete_association(inprod_association)
@@ -549,6 +549,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.delete(data_process_id)
 
     def _stop_process(self, data_process):
+        log.debug("stopping data process '%s'" % data_process.process_id)
         pid = data_process.process_id
         self.clients.process_dispatcher.cancel_process(pid)
 
@@ -591,18 +592,28 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         data_process_obj = self.read_data_process(data_process_id)
 
+        if not data_process_obj.input_subscription_id:
+            log.warn("data process '%s' has no subscription id to deactivate", data_process_id)
+            return
 
-        #update the producer context with the deactivation time
-        # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
-        producer_obj = self._get_process_producer(data_process_id)
-        producertype = type(producer_obj).__name__
-        if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
-            log.debug("deactivate_data_process:deactivation_time  %s ", str(IonTime().to_string()))
-            producer_obj.producer_context.deactivation_time = IonTime().to_string()
-            self.clients.resource_registry.update(producer_obj)
+        subscription_obj = self.clients.pubsub_management.read_subscription(data_process_obj.input_subscription_id)
 
-        subscription_id = data_process_obj.input_subscription_id
-        self.clients.pubsub_management.deactivate_subscription(subscription_id=subscription_id)
+        if subscription_obj.activated:
+
+            #update the producer context with the deactivation time
+            # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
+            producer_obj = self._get_process_producer(data_process_id)
+            producertype = type(producer_obj).__name__
+            if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
+                log.debug("data_process '%s' (producer '%s'): deactivation_time = %s ",
+                          data_process_id, producer_obj._id, str(IonTime().to_string()))
+                producer_obj.producer_context.deactivation_time = IonTime().to_string()
+                self.clients.resource_registry.update(producer_obj)
+
+            subscription_id = data_process_obj.input_subscription_id
+            log.debug("Deactivating subscription '%s'", subscription_id)
+            self.clients.pubsub_management.deactivate_subscription(subscription_id=subscription_id)
+
 
 
     def attach_process(self, process=''):
@@ -637,11 +648,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_data_process_definition = extended_resource_handler.create_extended_resource_container(
-            OT.DataProcessDefinitionExtension,
-            data_process_definition_id,
-            OT.DataProcessDefinitionComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            extended_resource_type=OT.DataProcessDefinitionExtension,
+            resource_id=data_process_definition_id,
+            computed_resource_type=OT.DataProcessDefinitionComputedAttributes,
+            origin_resource_type=RT.DataProcessDefinition,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way
@@ -662,11 +674,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_data_process = extended_resource_handler.create_extended_resource_container(
-            OT.DataProcessExtension,
-            data_process_id,
-            OT.DataProcessComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            extended_resource_type=OT.DataProcessExtension,
+            resource_id=data_process_id,
+            computed_resource_type=OT.DataProcessComputedAttributes,
+            origin_resource_type=RT.DataProcess,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way

@@ -19,6 +19,11 @@ import logging
 from gevent import Greenlet, sleep
 
 
+# A small increment to the latest received timestamp for purposes of the next
+# request so we don't get that last sample repeated:
+_DELTA_TIME = 0.0001
+
+
 class OmsResourceMonitor(object):
     """
     Monitor for a specific attribute in a given platform.
@@ -91,13 +96,15 @@ class OmsResourceMonitor(object):
         """
         Retrieves the attribute value from the OMS.
         """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: retrieving attribute %r", self._platform_id, self._attr_id)
-
         attrNames = [self._attr_id]
-        from_time = self._last_ts if self._last_ts else 0
+        from_time = (self._last_ts + _DELTA_TIME) if self._last_ts else 0.0
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: retrieving attribute %r from_time %f",
+                      self._platform_id, self._attr_id, from_time)
 
         retval = self._oms.getPlatformAttributeValues(self._platform_id, attrNames, from_time)
+
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: getPlatformAttributeValues returned %s", self._platform_id, retval)
 
@@ -106,34 +113,50 @@ class OmsResourceMonitor(object):
             return
 
         retrieved_vals = retval[self._platform_id]
+
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: retrieved_vals = %s", self._platform_id, str(retrieved_vals))
+            log.debug("%r: retrieved attribute %r values from_time %f = %s",
+                      self._platform_id, self._attr_id, from_time, str(retrieved_vals))
+
         if self._attr_id in retrieved_vals:
-            value, ts = retrieved_vals[self._attr_id]
-            if value and ts:
-                self._value_retrieved((value, ts))
-            else:
-                if log.isEnabledFor(logging.DEBUG):
-                    log.debug("%r: No value reported for attribute=%r from_time=%r",
-                        self._platform_id, self._attr_id, from_time)
+            values = retrieved_vals[self._attr_id]
+            if values:
+                self._values_retrieved(values)
+
+            elif log.isEnabledFor(logging.DEBUG):
+                log.debug("%r: No values reported for attribute=%r from_time=%f",
+                    self._platform_id, self._attr_id, from_time)
         else:
             log.warn("%r: unexpected: response does not include requested attribute %r",
                 self._platform_id, self._attr_id)
 
-    def _value_retrieved(self, value_and_ts):
+    def _values_retrieved(self, values):
         """
-        A value has been retrieved from OMS. Create and notify corresponding
-        event to platform agent.
+        A values response has been received from OMS. Create and notify
+        corresponding event to platform agent.
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: attr=%r: value retrieved = %s",
-                self._platform_id, self._attr_id, str(value_and_ts))
+            ln = len(values)
+            # just show a couple of elements
+            arrstr = "["
+            if ln <= 3:
+                vals = [str(e) for e in values[:ln]]
+                arrstr += ", ".join(vals)
+            else:
+                vals = [str(e) for e in values[:2]]
+                last_e = values[-1]
+                arrstr += ", ".join(vals)
+                arrstr += ", ..., " +str(last_e)
+            arrstr += "]"
+            log.debug("%r: attr=%r: values retrieved(%s) = %s",
+                self._platform_id, self._attr_id, ln, arrstr)
 
-        value, ts = value_and_ts
+        # update _last_ts based on last element in values:
+        _, ts = values[-1]
         self._last_ts = ts
 
         driver_event = AttributeValueDriverEvent(ts, self._platform_id,
-                                              self._attr_id, value)
+                                              self._attr_id, values)
         self._notify_driver_event(driver_event)
 
     def stop(self):
