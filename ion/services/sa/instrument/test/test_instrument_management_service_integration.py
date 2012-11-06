@@ -30,7 +30,7 @@ import unittest
 from ion.services.sa.test.helpers import any_old
 
 
-@attr('INT', group='saxx')
+@attr('INT', group='sa')
 class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):
