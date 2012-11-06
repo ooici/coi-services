@@ -200,7 +200,7 @@ class IONLoader(ImmediateProcess):
         """
         log.info("Loading scenario %s from path: %s", scenario, self.path)
         if self.bulk:
-            log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
+            log.info("Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
 
         # The preload spreadsheets (tabs) in the order they should be loaded
         categories = ['Constraint',
@@ -257,7 +257,7 @@ class IONLoader(ImmediateProcess):
             # Now load entries from preload spreadsheet top to bottom where scenario matches
             catfunc = getattr(self, "_load_%s" % category)
             filename = "%s/%s.csv" % (self.path, category)
-            log.info("Loading category %s", category)
+            log.debug("Loading category %s", category)
             try:
                 csvfile = None
                 if self.csv_files is not None:
@@ -326,13 +326,13 @@ class IONLoader(ImmediateProcess):
     def _finalize_bulk(self):
         ds = DatastoreManager.get_datastore_instance("resources")
         res = ds.create_mult(self.bulk_objects.values(), allow_ids=True)
-        log.info("Bulk stored %s resource objects/associations into resource registry" % (len(res)))
+        log.debug("Bulk stored %d resource objects/associations into resource registry", len(res))
         self.bulk_objects.clear()
         # Now add them to the known objects
 
     def _create_object_from_row(self, objtype, row, prefix='',
                                 constraints=None, constraint_field='constraint_list',
-                                contacts=None, contact_field='contact_ids'):
+                                contacts=None, contact_field='contacts'):
         """
         Construct an IONObject of a determined type from given row dict with attributes.
         Convert all attributes according to their schema target type. Supports nested objects.
@@ -1201,11 +1201,15 @@ class IONLoader(ImmediateProcess):
     def _load_DataProduct(self, row):
         tdom, sdom = time_series_domain()
 
-        res_obj = self._create_object_from_row("DataProduct", row, "dp/")
+        contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
+        res_obj = self._create_object_from_row("DataProduct", row, "dp/", contacts=contacts, contact_field='contacts')
 
         constraint_id = row['geo_constraint_id']
         if constraint_id:
             res_obj.geospatial_bounds = self.constraint_defs[constraint_id]
+        gcrs_id = row['coordinate_system_id']
+        if gcrs_id:
+            res_obj.geospatial_coordinate_reference_system = self.resource_ids[gcrs_id]
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
         # HACK: cannot parse CSV value directly when field defined as "list"

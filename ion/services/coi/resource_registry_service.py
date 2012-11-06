@@ -76,8 +76,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.create_attachment(resource_id=resource_id, attachment=attachment)
 
     @mask_couch_error
-    def read_attachment(self, attachment_id=''):
-        return self.resource_registry.read_attachment(attachment_id=attachment_id)
+    def read_attachment(self, attachment_id='', include_content=False):
+        return self.resource_registry.read_attachment(attachment_id=attachment_id, include_content=include_content)
 
     @mask_couch_error
     def delete_attachment(self, attachment_id=''):
