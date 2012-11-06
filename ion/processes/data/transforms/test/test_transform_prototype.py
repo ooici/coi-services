@@ -37,15 +37,15 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.ssclient = SchedulerServiceClient()
         self.event_publisher = EventPublisher()
 
-        self.xns = []
-        self.xps = []
+        self.exchange_names = []
+        self.exchange_points = []
 
     def tearDown(self):
 
-        for xn in self.xns:
+        for xn in self.exchange_names:
             xni = self.container.ex_manager.create_xn_queue(xn)
             xni.delete()
-        for xp in self.xps:
+        for xp in self.exchange_points:
             xpi = self.container.ex_manager.create_xp(xp)
             xpi.delete()
 
@@ -350,16 +350,18 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name(name= 'platform_eng_parsed', id_only=True)
 
-        stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
+        stream_def_id = self.pubsub_management.create_stream_definition('demo_stream', parameter_dictionary_id=pdict_id)
         stream_id, stream_route = self.pubsub_management.create_stream( name='test_demo_alert',
                                                                         exchange_point='xp1',
                                                                         stream_definition_id=stream_def_id)
-        self.xps.append('xp1')
+        self.exchange_points.append('xp1')
+
+        log.debug("here the stream_def_id: %s, the stream_id::: %s" % (stream_def_id, stream_id))
 
         sub_1 = self.pubsub_management.create_subscription(name='sub_1', stream_ids=[stream_id], exchange_points=['xp1'], exchange_name='a_queue')
         self.pubsub_management.activate_subscription(sub_1)
 
-        self.xns.append('sub_1')
+        self.exchange_names.append('sub_1')
 
     # publish a few granules
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=3)
@@ -379,6 +381,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
         stream_def_id = stream_def._id
+
+        log.debug("now, this side below, the stream_def_id: %s, the stream_id::: %s" % (stream_def_id, stream_id))
+
 
         log.debug("stream_id: %s, stream_def_id: %s, stream_route: %s" % (stream_id, stream_def_id, stream_route))
 

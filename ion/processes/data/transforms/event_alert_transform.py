@@ -135,16 +135,8 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.instrument_variable = self.CFG.get_safe('process.variable', 'input_voltage')
         self.time_variable = self.CFG.get_safe('process.time_variable', 'preferred_timestamp')
 
-        valid_values = self.CFG.get_safe('process.valid_values', [-200,200])
-        validate_is_instance(valid_values, list)
-
-        #-------------------------------------------------------------------------------------
-        # Set up the config to use to pass info to the transform algorithm
-        #-------------------------------------------------------------------------------------
-        self.config = DotDict()
-        self.config.valid_values = valid_values
-        self.config.variable = self.instrument_variable
-        self.config.time_variable = self.instrument_variable
+        self.valid_values = self.CFG.get_safe('process.valid_values', [-200,200])
+        validate_is_instance(self.valid_values, list)
 
         #-------------------------------------------------------------------------------------
         # the list of granules that arrive in between two timer events
@@ -163,8 +155,18 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         @param stream_route StreamRoute object
         @param stream_id str
         '''
-        log.debug('StreamAlertTransform got an incoming packet!')
-        bad_values, bad_value_times = AlertTransformAlgorithm.execute(input=msg, config = self.config)
+
+        #-------------------------------------------------------------------------------------
+        # Set up the config to use to pass info to the transform algorithm
+        #-------------------------------------------------------------------------------------
+        config = DotDict()
+        config.valid_values = self.valid_values
+        config.variable = self.instrument_variable
+        config.time_variable = self.instrument_variable
+
+        log.debug("config:: %s" % config)
+        log.debug('StreamAlertTransform got an incoming packet! :%s' % msg)
+        bad_values, bad_value_times = AlertTransformAlgorithm.execute(msg, config = config)
 
         # If there are any bad values, publish an alert event for each of them, with information about their time stamp
         if bad_values:
@@ -203,20 +205,27 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         """
         Find if the input data has values, which are out of range
 
-        :param input granule:
-        :param context parameter context:
-        :param config DotDict:
-        :param params list:
-        :param state:
-        :return bad_values, bad_value_times tuple of lists:
+        @param input granule
+        @param context parameter context
+        @param config DotDict
+        @param params list
+        @param state
+        @return bad_values, bad_value_times tuple of lists
         """
 
+        log.debug("came here!!!!  %s" % input)
+        log.debug("type of input::: %s" % type(input))
+
         rdt = RecordDictionaryTool.load_from_granule(input)
+
+        log.debug("got the rdt: %s" % rdt)
 
         # Retrieve the name used for the variable, the name used for timestamps and the range of valid values from the config
         valid_values = config.get_safe('valid_values', [-100,100])
         variable = config.get_safe('variable', 'input_voltage')
         time_variable = config.get_safe('time_variable', 'preferred_timestamp')
+
+        log.debug("got valid_values: %s" % valid_values)
 
         # These variables will store the bad values and the timestamps of those values
         bad_values = []
@@ -226,12 +235,18 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         values = rdt[variable][:]
         times = rdt[time_variable][:]
 
-        # check which values fall out of range
+        log.debug("got values from the granule: %s" % values)
+        log.debug("got times from the granule: %s" % times)
+
+    # check which values fall out of range
         while index < len(values):
             value = values[index]
             if value < valid_values[0] or value > valid_values[1]:
                 bad_values.append(value)
                 bad_value_times.append(times[index])
+
+        log.debug("got bad_values: %s" % bad_values)
+        log.debug("got bad_value_times: %s" % bad_value_times)
 
         # return the list of bad values and their timestamps
         return bad_values, bad_value_times
