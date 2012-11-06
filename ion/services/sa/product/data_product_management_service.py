@@ -557,7 +557,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret.value = 0
         try:
             dataset_id = self._get_dataset_id(data_product_id)
-            size_in_bytes = 0 #self.clients.dataset_management.dataset_size(dataset_id, in_bytes=False)
+            size_in_bytes = self.clients.dataset_management.dataset_size(dataset_id, in_bytes=False)
             ret.status = ComputedValueAvailability.PROVIDED
             ret.value = size_in_bytes
         except NotFound:
@@ -575,7 +575,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret.value = 0
         try:
             dataset_id = self._get_dataset_id(data_product_id)
-            size_in_bytes = 0 #self.clients.dataset_management.dataset_size(dataset_id, in_bytes=True)
+            size_in_bytes = self.clients.dataset_management.dataset_size(dataset_id, in_bytes=True)
             ret.status = ComputedValueAvailability.PROVIDED
             ret.value = size_in_bytes
         except NotFound:
