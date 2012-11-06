@@ -13,8 +13,6 @@ from interface.services.dm.ievent_management_service import BaseEventManagementS
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import ProcessDefinition, EventProcessDetail, EventProcessDefinitionDetail
-import time
-from datetime import datetime
 
 class EventManagementService(BaseEventManagementService):
     """
@@ -211,7 +209,9 @@ class EventManagementService(BaseEventManagementService):
         # read the process definition object
         process_definition = self.clients.resource_registry.read(process_definition_id)
 
+        #-------------------------------------------------------------------------
         # Get the event process detail object from the process definition
+        #-------------------------------------------------------------------------
         event_process_def_detail = process_definition.definition or EventProcessDefinitionDetail()
         event_process_detail = EventProcessDetail()
 
@@ -235,33 +235,28 @@ class EventManagementService(BaseEventManagementService):
         config.process.origin_types = origin_types
         config.process.publish_streams = output_streams
 
-        # Create the process
-        process_id = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id
-                                                                    )
-
-        # Update the process
-        event_process = self.clients.resource_registry.read(process_id)
-        event_process.detail = event_process_detail
-        self.clients.resource_registry.update(event_process)
 
         # Schedule the process
-        process_id = self.clients.process_dispatcher.schedule_process(  process_definition_id= process_definition_id,
-                                                                        process_id=process_id,
-                                                                        configuration=config)
+        pid = self.clients.process_dispatcher.schedule_process(process_definition_id= process_definition_id,
+                                                                configuration=config)
+
+        event_process = self.clients.resource_registry.read(pid)
+        event_process.detail = event_process_detail
+        self.clients.resource_registry.update(event_process)
 
         #-------------------------------------------------------------------------
         # Associate the process with the process definition
         #-------------------------------------------------------------------------
-        self.clients.resource_registry.create_association(  subject=process_id,
+        self.clients.resource_registry.create_association(  subject=pid,
                                                             predicate=PRED.hasProcessDefinition,
                                                             object=process_definition_id)
 
         #-------------------------------------------------------------------------
         # Register the process as a data producer
         #-------------------------------------------------------------------------
-        self.clients.data_acquisition_management.register_event_process(process_id = process_id)
+        self.clients.data_acquisition_management.register_event_process(process_id = pid)
 
-        return process_id
+        return pid
 
     def update_event_process(self):
         raise NotImplementedError('Not implemented for R2.0')

@@ -106,12 +106,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("Process %s does not exist" % process_id)
 
         #find the data process definition
-        process_def_objs, _ = self.clients.resource_registry.find_objects(subject=process_id,  predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition, id_only=False)
+        process_def_objs, _ = self.clients.resource_registry.find_objects(subject=process_id,  predicate=PRED.hasProcessDefinition, object_type=RT.ProcessDefinition, id_only=False)
         if not process_def_objs:
             raise NotFound("Process Definition for Process %s does not exist" % process_id)
 
         #create a DataProcessProducerContext to hold the state of the this producer
-        producer_context_obj = IonObject(OT.DataProcessProducerContext,  configuration=process_obj.process_configuration, parameters=process_def_objs[0].parameters)
+        producer_context_obj = IonObject(OT.DataProcessProducerContext,  configuration=process_obj.process_configuration)
 
         #create data producer resource and associate to this process_id
         data_producer_obj = IonObject(RT.DataProducer,name=process_obj.name, description="primary producer resource for this process",
