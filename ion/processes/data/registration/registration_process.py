@@ -6,6 +6,7 @@ from xml.dom.minidom import parse, parseString
 from pyon.ion.process import StandaloneProcess
 from coverage_model.coverage import SimplexCoverage
 from pyon.util.file_sys import FileSystem
+import numpy as np
 import base64
 import StringIO
 from zipfile import ZipFile
@@ -84,6 +85,9 @@ class RegistrationProcess(StandaloneProcess):
 
         datasets = {}
         for key in cov.list_parameters():
+            pc = cov.get_parameter_context(key)
+            if np.dtype(pc.param_type.value_encoding).char == 'O':
+                continue
             param = cov.get_parameter(key)
             dims = (cov.temporal_parameter_name,)
             if len(param.shape) == 2:
