@@ -1763,7 +1763,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval = IonObject(OT.ComputedIntValue)
 
         #call eventsdb to check  comms-related events from this device.
+        max = datetime.datetime.utcnow()
+        min = datetime.datetime.utcnow() - datetime.timedelta(seconds=15)
 
+        event_list = self.clients.user_notification.find_events(origin=device_id, type = 'PlatformEvent', min_datetime= min, max_datetime=max)
 
         retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
         return retval
