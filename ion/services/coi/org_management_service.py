@@ -1080,12 +1080,12 @@ class OrgManagementService(BaseOrgManagementService):
 
         ret = IonObject(OT.ComputedListValue)
         retlist = []
-        instrument_device_ids, _ =  self.clients.resource_registry.find_objects(subject=org_id ,predicate=PRED.hasResource, object_type=RT.InstrumentDevices, id_only=True)
-        for instrument_device_id in instrument_device_ids:
-            site_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Site ,predicate=PRED.hasDevice, object=instrument_device_id, id_only=True)
-            if not site_ids:
-                #this device is not currently deployed, add it to the list
-                retlist.append( self.clients.resource_registry.read(instrument_device_id) )
+#        instrument_device_ids, _ =  self.clients.resource_registry.find_objects(subject=org_id ,predicate=PRED.hasResource, object_type=RT.InstrumentDevices, id_only=True)
+#        for instrument_device_id in instrument_device_ids:
+#            site_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Site ,predicate=PRED.hasDevice, object=instrument_device_id, id_only=True)
+#            if not site_ids:
+#                #this device is not currently deployed, add it to the list
+#                retlist.append( self.clients.resource_registry.read(instrument_device_id) )
 
         ret.value = retlist
         ret.status = ComputedValueAvailability.PROVIDED
@@ -1099,12 +1099,12 @@ class OrgManagementService(BaseOrgManagementService):
 
         ret = IonObject(OT.ComputedListValue)
         retlist = []
-        platform_device_ids, _ =  self.clients.resource_registry.find_objects(subject=org_id ,predicate=PRED.hasResource, object_type=RT.PlatformDevices, id_only=True)
-        for platform_device_id in platform_device_ids:
-            site_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Site ,predicate=PRED.hasDevice, object=platform_device_id, id_only=True)
-            if not site_ids:
-                #this device is not currently deployed, add it to the list
-                retlist.append( self.clients.resource_registry.read(platform_device_id) )
+#        platform_device_ids, _ =  self.clients.resource_registry.find_objects(subject=org_id ,predicate=PRED.hasResource, object_type=RT.PlatformDevices, id_only=True)
+#        for platform_device_id in platform_device_ids:
+#            site_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Site ,predicate=PRED.hasDevice, object=platform_device_id, id_only=True)
+#            if not site_ids:
+#                #this device is not currently deployed, add it to the list
+#                retlist.append( self.clients.resource_registry.read(platform_device_id) )
 
         ret.value = retlist
         ret.status = ComputedValueAvailability.PROVIDED
