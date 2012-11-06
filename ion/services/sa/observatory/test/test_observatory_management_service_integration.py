@@ -5,8 +5,9 @@ from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from ion.services.sa.observatory.observatory_management_service import ObservatoryManagementService
-from interface.services.sa.iobservatory_management_service import IObservatoryManagementService, ObservatoryManagementServiceClient
+from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+from interface.services.coi.iorg_management_service import OrgManagementServiceClient
+from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
@@ -40,6 +41,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
         self.OMS = ObservatoryManagementServiceClient(node=self.container.node)
+        self.org_management_service = OrgManagementServiceClient(node=self.container.node)
+        self.instrument_management_service =  InstrumentManagementServiceClient(node=self.container.node)
         #print 'TestObservatoryManagementServiceIntegration: started services'
 
 #    @unittest.skip('this exists only for debugging the launch process')
@@ -67,7 +70,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         resources = self._make_associations()
         self.destroy(resources)
 
-    #@unittest.skip('targeting')    
+    #@unittest.skip('targeting')
     def test_find_related_frames_of_reference(self):
         # finding subordinates gives a dict of obj lists, convert objs to ids
         def idify(adict):
@@ -371,4 +374,48 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.force_delete_subsite(subsite_id)
         self.OMS.force_delete_platform_site(platform_site_id)
         self.OMS.force_delete_instrument_site(instrument_site_id)
+
+    @unittest.skip("in development...")
+    def test_observatory_org_extended(self):
+
+        org_obj = IonObject(RT.Org,
+            name='TestOrg',
+            description='some new mf org')
+
+        org_id =  self.OMS.create_marine_facility(org_obj)
+
+        observatory_obj = IonObject(RT.Observatory,
+            name='TestObservatory',
+            description='some new obs')
+        observatory_id = self.OMS.create_observatory(observatory_obj)
+
+        #make association
+        self.OMS.assign_resource_to_observatory_org(observatory_id, org_id)
+
+        #create a subsite with parent Observatory
+        subsite_obj =  IonObject(RT.Subsite,
+            name= 'TestSubsite',
+            description = 'sample subsite')
+        subsite_id = self.OMS.create_subsite(subsite_obj, observatory_id)
+        self.assertIsNotNone(subsite_id, "Subsite not created.")
+
+        # create two devices, one deployed and one not
+        instDevice1_obj = IonObject(RT.InstrumentDevice,
+            name='SBE37IMDevice1',
+            description="SBE37IMDevice1",
+            serial_number="1" )
+        instDevice1_id = self.instrument_management_service.create_instrument_device(instrument_device=instDevice1_obj)
+        self.OMS.assign_resource_to_observatory_org(resource_id=instDevice1_id, org_id=org_id)
+        self.RR.create_association(subject=subsite_id, predicate=PRED.hasDevice, object=instDevice1_id)
+
+        instDevice2_obj = IonObject(RT.InstrumentDevice,
+            name='SBE37IMDevice2',
+            description="SBE37IMDevice2",
+            serial_number="2" )
+        instDevice2_id = self.instrument_management_service.create_instrument_device(instrument_device=instDevice2_obj)
+        self.OMS.assign_resource_to_observatory_org(resource_id=instDevice2_id, org_id=org_id)
+
+
+        #test the extended resource
+        extended_org = self.org_management_service.get_org_extension(org_id)
 
