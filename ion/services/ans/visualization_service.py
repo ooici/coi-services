@@ -330,11 +330,12 @@ class VisualizationService(BaseVisualizationService):
         # Extract the retrieval related parameters. Definitely init all parameters first
         query = None
         if visualization_parameters:
-            query = {'parameters':[], 'start_time':0,'end_time':0, 'stride_time':1}
+            query = {'parameters':[]}
             # Error check and damage control. Definitely need time
             if 'parameters' in visualization_parameters:
                 if not 'time' in visualization_parameters['parameters']:
                     visualization_parameters['parameters'].append('time')
+                print ">>>>>>>>>>>>>>>>>>>>  VIS PARAMS :", visualization_parameters['parameters']
                 query['parameters'] = visualization_parameters['parameters']
 
             if 'stride_time' in visualization_parameters:
@@ -423,7 +424,7 @@ class VisualizationService(BaseVisualizationService):
         # Extract the retrieval related parameters. Definitely init all parameters first
         query = None
         if visualization_parameters :
-            query = {'parameters':[], 'start_time':0,'end_time':0, 'stride_time':1}
+            query = {'parameters':[]}
             # Error check and damage control. Definitely need time
             if 'parameters' in visualization_parameters:
                 if not 'time' in visualization_parameters['parameters']:
