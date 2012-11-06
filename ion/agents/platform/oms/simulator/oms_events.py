@@ -13,8 +13,8 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from gevent import Greenlet, sleep
-
+import sys
+from time import sleep
 import time
 import httplib
 import yaml
@@ -133,16 +133,25 @@ class EventNotifier(object):
             conn.close()
 
 
-class EventGenerator(Greenlet):
+class EventGenerator(object):
     """
     Simple helper to generate and trigger event notifications.
     """
 
     def __init__(self, notifier):
-        Greenlet.__init__(self)
         self._notifier = notifier
         self._keep_running = True
         self._index = 0  # in EventInfo.EVENT_TYPES
+
+        # self._runnable set depending on whether we're under pyon or not
+        if 'pyon' in sys.modules:
+            from gevent import Greenlet
+            self._runnable = Greenlet(self._run)
+            log.debug("!!!! EventGenerator: pyon detected: using Greenlet")
+        else:
+            from threading import Thread
+            self._runnable = Thread(target=self._run)
+            log.debug("!!!! EventGenerator: pyon not detected: using Thread")
 
     def generate_and_notify_event(self):
         if self._index >= len(EventInfo.EVENT_TYPES):
@@ -169,6 +178,9 @@ class EventGenerator(Greenlet):
 
         log.debug("notifying event_instance=%s", str(event_instance))
         self._notifier.notify(event_instance)
+
+    def start(self):
+        self._runnable.start()
 
     def _run(self):
         sleep(3)  # wait a bit before first event
