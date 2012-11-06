@@ -100,12 +100,12 @@ DEFAULT_CATEGORIES = [
     'InstrumentAgent',
     'InstrumentAgentInstance',
     'DataProcessDefinition',
-    'DataProduct',
-    'DataProcess',
-    'DataProductLink',
+    #'DataProduct',
+    #'DataProcess',
+    #'DataProductLink',
     'Attachment',
-    'WorkflowDefinition',
-    'Workflow',
+    #'WorkflowDefinition',
+    #'Workflow',
     'Deployment', ]
 
 class IONLoader(ImmediateProcess):
@@ -144,6 +144,7 @@ class IONLoader(ImmediateProcess):
         # External loader tools
         self.ui_loader = UILoader(self)
         self.ooi_loader = OOILoader(self, asset_path=self.asset_path)
+        self.resource_ds = DatastoreManager.get_datastore_instance("resources")
 
         # Initialize variables used during subsequent load
         self.obj_classes = {}     # Cache of class for object types
@@ -203,7 +204,7 @@ class IONLoader(ImmediateProcess):
         """
         log.info("Loading scenario %s from path: %s", scenario, self.path)
         if self.bulk:
-            log.info("Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
+            log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
 
         # The preload spreadsheets (tabs) in the order they should be loaded
         categories = ['Constraint',
@@ -247,7 +248,7 @@ class IONLoader(ImmediateProcess):
             self.csv_files = None
 
         for category in self.categories:
-            row_do, row_skip = 0, 0
+            row_do, row_skip, num_bulk = 0, 0, 0
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
             # First load all OOI assets for this category
@@ -284,7 +285,7 @@ class IONLoader(ImmediateProcess):
                     catfunc(row)
 
                 if self.bulk:
-                    self._finalize_bulk()
+                    num_bulk = self._finalize_bulk(category)
             except IOError, ioe:
                 log.warn("Resource category file %s error: %s" % (filename, str(ioe)), exc_info=True)
             finally:
@@ -292,7 +293,7 @@ class IONLoader(ImmediateProcess):
                     csvfile.close()
                     csvfile = None
 
-            log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
+            log.info("Loaded category %s: %d resources from scenario rows, %s bulk, %d rows skipped" % (category, row_do, num_bulk, row_skip))
 
     def _load_system_ids(self):
         """Read some system objects for later reference"""
@@ -326,12 +327,13 @@ class IONLoader(ImmediateProcess):
         res_obj_mapping = dict(zip(res_preload_ids, res_objs))
         self.resource_objs.update(res_obj_mapping)
 
-    def _finalize_bulk(self):
-        ds = DatastoreManager.get_datastore_instance("resources")
-        res = ds.create_mult(self.bulk_objects.values(), allow_ids=True)
+    def _finalize_bulk(self, category):
+        res = self.resource_ds.create_mult(self.bulk_objects.values(), allow_ids=True)
         log.debug("Bulk stored %d resource objects/associations into resource registry", len(res))
+        num_objects = len([1 for obj in self.bulk_objects.values() if obj._get_type() != "Association"])
         self.bulk_objects.clear()
         # Now add them to the known objects
+        return num_objects
 
     def _create_object_from_row(self, objtype, row, prefix='',
                                 constraints=None, constraint_field='constraint_list',
@@ -443,7 +445,7 @@ class IONLoader(ImmediateProcess):
             raise iex.BadRequest("ID alias %s used twice" % alias)
         self.resource_ids[alias] = resid
         self.resource_objs[alias] = res_obj
-        log.debug("Added resource alias=%s to id=%s", alias, resid)
+        log.trace("Added resource alias=%s to id=%s", alias, resid)
 
     def _get_resource_obj(self, res_id):
         """Returns a resource object from one of the memory locations for given preload or internal ID"""
@@ -1350,7 +1352,9 @@ class IONLoader(ImmediateProcess):
                            'Subsite',
                            'PlatformSite',
                            'InstrumentSite',
+                           'InstrumentAgent',
                            'InstrumentDevice',
+                           'PlatformAgent',
                            'PlatformDevice',
                            ]
 
@@ -1359,15 +1363,14 @@ class IONLoader(ImmediateProcess):
             res_ids.extend(res_is_list)
             #log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
 
-        ds = DatastoreManager.get_datastore_instance("resources")
-        docs = ds.read_doc_mult(res_ids)
+        docs = self.resource_ds.read_doc_mult(res_ids)
 
         for doc in docs:
             doc['_deleted'] = True
 
         # TODO: Also delete associations
 
-        ds.create_doc_mult(docs, allow_ids=True)
+        self.resource_ds.create_doc_mult(docs, allow_ids=True)
         log.info("Deleted %s OOI resources and associations", len(docs))
 
 
