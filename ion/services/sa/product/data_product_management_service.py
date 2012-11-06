@@ -513,11 +513,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_product = extended_resource_handler.create_extended_resource_container(
-            OT.DataProductExtension,
-            data_product_id,
-            OT.DataProductComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            extended_resource_type=OT.DataProductExtension,
+            resource_id=data_product_id,
+            computed_resource_type=OT.DataProductComputedAttributes,
+            origin_resource_type=RT.DataProduct,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way
@@ -555,11 +556,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = IonObject(OT.ComputedIntValue)
         ret.value = 0
         try:
+            dataset_id = self._get_dataset_id(data_product_id)
+            size_in_bytes = self.clients.dataset_management.dataset_size(dataset_id, in_bytes=False)
             ret.status = ComputedValueAvailability.PROVIDED
-            raise NotFound #todo: ret.value = ???
+            ret.value = size_in_bytes
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+            ret.reason = "Dataset for this Data Product could not be located"
         except Exception as e:
             raise e
 
@@ -571,11 +574,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = IonObject(OT.ComputedIntValue)
         ret.value = 0
         try:
+            dataset_id = self._get_dataset_id(data_product_id)
+            size_in_bytes = self.clients.dataset_management.dataset_size(dataset_id, in_bytes=True)
             ret.status = ComputedValueAvailability.PROVIDED
-            raise NotFound #todo: ret.value = ???
+            ret.value = size_in_bytes
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+            ret.reason = "Dataset for this Data Product could not be located"
         except Exception as e:
             raise e
 

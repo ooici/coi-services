@@ -419,14 +419,14 @@ class TestResourceRegistry(IonIntegrationTestCase):
         att = Attachment(content=binary, attachment_type=AttachmentType.BLOB)
         aid1 = self.resource_registry_service.create_attachment(iid, att)
 
-        att1 = self.resource_registry_service.read_attachment(aid1)
+        att1 = self.resource_registry_service.read_attachment(aid1, include_content=True)
         self.assertEquals(binary, att1.content)
 
         import base64
         att = Attachment(content=base64.encodestring(binary), attachment_type=AttachmentType.ASCII)
         aid2 = self.resource_registry_service.create_attachment(iid, att)
 
-        att1 = self.resource_registry_service.read_attachment(aid2)
+        att1 = self.resource_registry_service.read_attachment(aid2, include_content=True)
         self.assertEquals(binary, base64.decodestring(att1.content))
 
         att_ids = self.resource_registry_service.find_attachments(iid, id_only=True)
@@ -438,8 +438,8 @@ class TestResourceRegistry(IonIntegrationTestCase):
         att_ids = self.resource_registry_service.find_attachments(iid, id_only=True, descending=True, limit=1)
         self.assertEquals(att_ids, [aid2])
 
-        atts = self.resource_registry_service.find_attachments(iid, id_only=False, limit=1)
-        self.assertEquals(atts[0].content, att1.content)
+        atts = self.resource_registry_service.find_attachments(iid, id_only=False, include_content=True, limit=1)
+        self.assertEquals(atts[0].content, binary)
 
         self.resource_registry_service.delete_attachment(aid1)
 

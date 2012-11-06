@@ -19,6 +19,11 @@ import logging
 from gevent import Greenlet, sleep
 
 
+# A small increment to the latest received timestamp for purposes of the next
+# request so we don't get that last sample repeated:
+_DELTA_TIME = 0.0001
+
+
 class OmsResourceMonitor(object):
     """
     Monitor for a specific attribute in a given platform.
@@ -91,13 +96,15 @@ class OmsResourceMonitor(object):
         """
         Retrieves the attribute value from the OMS.
         """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: retrieving attribute %r", self._platform_id, self._attr_id)
-
         attrNames = [self._attr_id]
-        from_time = self._last_ts if self._last_ts else 0
+        from_time = (self._last_ts + _DELTA_TIME) if self._last_ts else 0.0
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: retrieving attribute %r from_time %f",
+                      self._platform_id, self._attr_id, from_time)
 
         retval = self._oms.getPlatformAttributeValues(self._platform_id, attrNames, from_time)
+
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: getPlatformAttributeValues returned %s", self._platform_id, retval)
 
@@ -106,15 +113,18 @@ class OmsResourceMonitor(object):
             return
 
         retrieved_vals = retval[self._platform_id]
+
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: retrieved_vals = %s", self._platform_id, str(retrieved_vals))
+            log.debug("%r: retrieved attribute %r values from_time %f = %s",
+                      self._platform_id, self._attr_id, from_time, str(retrieved_vals))
+
         if self._attr_id in retrieved_vals:
             values = retrieved_vals[self._attr_id]
             if values:
                 self._values_retrieved(values)
 
             elif log.isEnabledFor(logging.DEBUG):
-                log.debug("%r: No values reported for attribute=%r from_time=%r",
+                log.debug("%r: No values reported for attribute=%r from_time=%f",
                     self._platform_id, self._attr_id, from_time)
         else:
             log.warn("%r: unexpected: response does not include requested attribute %r",

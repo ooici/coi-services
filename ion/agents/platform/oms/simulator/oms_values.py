@@ -36,8 +36,8 @@ def _create_simple_generator(gen_period):
         if from_time < _START_TIME:
             from_time = _START_TIME
 
+        # t: initial abscissa coordinate
         l_from_time = long(from_time - 2*gen_period)
-
         t = float((l_from_time / gen_period) * gen_period)
         while t < from_time:
             t += gen_period
@@ -74,11 +74,10 @@ def _create_sine_generator(sine_period, gen_period, min_val, max_val):
             from_time = _START_TIME
 
         # t: initial abscissa coordinate
-        l_from_time = long(from_time)
-        if l_from_time % gen_period == 0:
-            t = from_time
-        else:
-            t = float((1 + l_from_time / gen_period) * gen_period)
+        l_from_time = long(from_time - 2*gen_period)
+        t = float((l_from_time / gen_period) * gen_period)
+        while t < from_time:
+            t += gen_period
 
         range2 = (max_val - min_val) / 2
         values = []
@@ -127,6 +126,9 @@ def generate_values(platform_id, attr_id, from_time, to_time):
 
 
 if __name__ == "__main__":
+    # do not restrict the absolute from_time for this demo program:
+    _START_TIME = 0
+
     import sys
 
     cur_time = time.time()

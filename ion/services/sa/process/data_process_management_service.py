@@ -648,11 +648,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_data_process_definition = extended_resource_handler.create_extended_resource_container(
-            OT.DataProcessDefinitionExtension,
-            data_process_definition_id,
-            OT.DataProcessDefinitionComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            extended_resource_type=OT.DataProcessDefinitionExtension,
+            resource_id=data_process_definition_id,
+            computed_resource_type=OT.DataProcessDefinitionComputedAttributes,
+            origin_resource_type=RT.DataProcessDefinition,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way
@@ -673,11 +674,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_data_process = extended_resource_handler.create_extended_resource_container(
-            OT.DataProcessExtension,
-            data_process_id,
-            OT.DataProcessComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            extended_resource_type=OT.DataProcessExtension,
+            resource_id=data_process_id,
+            computed_resource_type=OT.DataProcessComputedAttributes,
+            origin_resource_type=RT.DataProcess,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way

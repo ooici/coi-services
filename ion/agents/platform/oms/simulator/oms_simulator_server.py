@@ -57,6 +57,10 @@ class OmsSimulatorServer(object):
             self._server.serve_forever()
 
     @property
+    def methods(self):
+        return self._server.system_listMethods()
+
+    @property
     def oms_simulator(self):
         return self._sim
 
@@ -105,6 +109,8 @@ if __name__ == "__main__":
 
     log.info("network.dump():\n   |%s" % sim.dump().replace('\n', '\n   |'))
     log.info("network.get_map() = %s\n" % sim.config.getPlatformMap())
+
+    log.info("Methods:\n\t%s", "\n\t".join(oss.methods))
 
     log.info("Listening on %s:%s", host, port)
     log.info("Enter ^D to exit")

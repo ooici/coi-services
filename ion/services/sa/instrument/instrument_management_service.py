@@ -1673,8 +1673,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.InstrumentDeviceExtension,
             instrument_device_id,
             OT.InstrumentDeviceComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            origin_resource_type=None,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way
@@ -1763,7 +1764,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval = IonObject(OT.ComputedIntValue)
 
         #call eventsdb to check  comms-related events from this device.
+        max = datetime.datetime.utcnow()
+        min = datetime.datetime.utcnow() - datetime.timedelta(seconds=15)
 
+        event_list = self.clients.user_notification.find_events(origin=device_id, type = 'PlatformEvent', min_datetime= min, max_datetime=max)
 
         retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
         return retval
@@ -1833,8 +1837,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.PlatformDeviceExtension,
             platform_device_id,
             OT.PlatformDeviceComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            origin_resource_type=None,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
         #TODO - see if there is a better way to do this in the extended resource frame work.

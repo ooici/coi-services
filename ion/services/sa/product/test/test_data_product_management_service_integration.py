@@ -224,7 +224,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #test extension
         extended_product = self.dpsc_cli.get_data_product_extension(dp_id)
         self.assertEqual(dp_id, extended_product._id)
-        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_product.computed.product_download_size_estimated.status)
         self.assertEqual(0, extended_product.computed.product_download_size_estimated.value)
 

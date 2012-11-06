@@ -31,7 +31,7 @@ class Logger(object):
         if not cls.log:
             import logging
             log = logging.getLogger('oms_simulator')
-            log.setLevel(logging.INFO)
+            log.setLevel(logging.DEBUG)
             handler = logging.StreamHandler()
             handler.setLevel(logging.DEBUG)
             format = '%(asctime)s %(levelname)-8s %(threadName)s %(name) -15s:%(lineno)d %(funcName)s %(message)s'
