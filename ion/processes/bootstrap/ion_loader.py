@@ -1121,30 +1121,38 @@ class IONLoader(ImmediateProcess):
 
     def _load_PlatformDevice(self, row):
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
-                                            "instrument_management", "create_platform_device")
+            "instrument_management", "create_platform_device",
+            support_bulk=True)
         ims_client = self._get_service_client("instrument_management")
+
         ass_id = row["platform_model_id"]
         if ass_id:
-            ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
+            if self.bulk:
+                model_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[self.COL_ID])
+                self._create_association(device_obj, PRED.hasModel, model_obj)
+            else:
+                ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
+
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
-    def _load_SensorDevice(self, row):
-        res_id = self._basic_resource_create(row, "SensorDevice", "sd/",
-            "instrument_management", "create_sensor_device")
-        ims_client = self._get_service_client("instrument_management")
-        ass_id = row["sensor_model_id"]
-        if ass_id:
-            ims_client.assign_sensor_model_to_sensor_device(self.resource_ids[ass_id], res_id)
-        ass_id = row["instrument_device_id"]
-        if ass_id:
-            ims_client.assign_sensor_device_to_instrument_device(res_id, self.resource_ids[ass_id])
-        self._resource_advance_lcs(row, res_id, "SensorDevice")
+    def _load_PlatformDevice_OOI(self):
+        ooi_objs = self.ooi_loader.get_type_assets("nodetype")
+
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            fakerow = {}
+            fakerow[self.COL_ID] = ooi_id
+            fakerow['pd/name'] = "%s (%s)" % (ooi_obj['name'], ooi_id)
+            fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
+
+            self._load_PlatformDevice(fakerow)
 
     def _load_InstrumentDevice(self, row):
         row['id/reference_urls'] = repr(self._get_typed_value(row['id/reference_urls'], targettype="simplelist"))
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
-            "instrument_management", "create_instrument_device", contacts=contacts)
+            "instrument_management", "create_instrument_device", contacts=contacts,
+            support_bulk=True)
 
 #        rr = self._get_service_client("resource_registry")
 #        attachment_ids = self._get_typed_value(row['attachment_ids'], targettype="simplelist")
@@ -1156,15 +1164,63 @@ class IONLoader(ImmediateProcess):
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
         if ass_id:
-            ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
+            if self.bulk:
+                model_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[self.COL_ID])
+                self._create_association(device_obj, PRED.hasModel, model_obj)
+            else:
+                ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
         ass_id = row["platform_device_id"]# if 'platform_device_id' in row else None
         if ass_id:
-            ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
+            if self.bulk:
+                parent_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[self.COL_ID])
+                self._create_association(parent_obj, PRED.hasDevice, device_obj)
+            else:
+                ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
+
         self._resource_advance_lcs(row, res_id, "InstrumentDevice")
+
+    def _load_InstrumentDevice_OOI(self):
+        ooi_objs = self.ooi_loader.get_type_assets("instrument")
+
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            fakerow = {}
+            fakerow[self.COL_ID] = ooi_id
+            fakerow['id/name'] = ooi_id
+            fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+            fakerow['instrument_model_ids'] = ooi_obj['instrument_model']
+
+            self._load_InstrumentDevice(fakerow)
+
+    def _load_SensorDevice(self, row):
+        res_id = self._basic_resource_create(row, "SensorDevice", "sd/",
+            "instrument_management", "create_sensor_device",
+            support_bulk=True)
+
+        ims_client = self._get_service_client("instrument_management")
+        ass_id = row["sensor_model_id"]
+        if ass_id:
+            if self.bulk:
+                model_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[self.COL_ID])
+                self._create_association(device_obj, PRED.hasModel, model_obj)
+            else:
+                ims_client.assign_sensor_model_to_sensor_device(self.resource_ids[ass_id], res_id)
+        ass_id = row["instrument_device_id"]
+        if ass_id:
+            if self.bulk:
+                parent_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[self.COL_ID])
+                self._create_association(parent_obj, PRED.hasDevice, device_obj)
+            else:
+                ims_client.assign_sensor_device_to_instrument_device(res_id, self.resource_ids[ass_id])
+        self._resource_advance_lcs(row, res_id, "SensorDevice")
 
     def _load_InstrumentAgent(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
-                                            "instrument_management", "create_instrument_agent")
+                                            "instrument_management", "create_instrument_agent",
+            support_bulk=True)
 
         svc_client = self._get_service_client("instrument_management")
 
@@ -1172,10 +1228,26 @@ class IONLoader(ImmediateProcess):
         if im_ids:
             im_ids = self._get_typed_value(im_ids, targettype="simplelist")
             for im_id in im_ids:
-                svc_client.assign_instrument_model_to_instrument_agent(self.resource_ids[im_id], res_id)
+                if self.bulk:
+                    model_obj = self._get_resource_obj(im_id)
+                    agent_obj = self._get_resource_obj(row[self.COL_ID])
+                    self._create_association(model_obj, PRED.hasAgentDefinition, agent_obj)
+                else:
+                    svc_client.assign_instrument_model_to_instrument_agent(self.resource_ids[im_id], res_id)
 
         self._resource_advance_lcs(row, res_id, "InstrumentAgent")
 
+    def _load_InstrumentAgent_OOI(self):
+        ooi_objs = self.ooi_loader.get_type_assets("instrument")
+
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            fakerow = {}
+            fakerow[self.COL_ID] = ooi_id
+            fakerow['ia/name'] = "Instrument Agent for " + ooi_id
+            fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+            fakerow['instrument_model_ids'] = ooi_obj['instrument_model']
+
+            self._load_InstrumentDevice(fakerow)
     def _load_InstrumentAgentInstance(self, row):
         ia_id = row["instrument_agent_id"]
         id_id = row["instrument_device_id"]
