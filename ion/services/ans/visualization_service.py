@@ -329,7 +329,7 @@ class VisualizationService(BaseVisualizationService):
 
         # Extract the retrieval related parameters. Definitely init all parameters first
         query = None
-        if visualization_parameters :
+        if visualization_parameters:
             query = {'parameters':[], 'start_time':0,'end_time':0, 'stride_time':1}
             # Error check and damage control. Definitely need time
             if 'parameters' in visualization_parameters:
@@ -493,14 +493,36 @@ class VisualizationService(BaseVisualizationService):
         # define line styles. Used for polygons
         kml_content += "<Style id=\"yellowLine\">\n<LineStyle>\n<color>ff61f2f2</color>\n<width>4</width>\n</LineStyle>\n</Style>"
 
-        # Enter all DP in to KML placemarks
+        dp_cluster = {}
+        # Several Dataproducts are basically coming from the same geo-location. Start clustering them
         for dp in dps:
-            _lat = _lon = 0.0
+            _lat_center = _lon_center = 0.0
             bounds = dp.geospatial_bounds
             if bounds == None:
                 continue
 
-            # approximate placemark position
+            # approximate placemark position in the middle of the geo spatial bounds
+            _lon_center = bounds.geospatial_longitude_limit_west + (bounds.geospatial_longitude_limit_east - bounds.geospatial_longitude_limit_west) / 2.0
+            _lat_center = bounds.geospatial_latitude_limit_south + (bounds.geospatial_latitude_limit_north - bounds.geospatial_latitude_limit_south) / 2.0
+
+            # generate a key from lon-lat info. Truncate floats to one digit after decimal to keep things sane
+            key = ("%.1f"%_lon_center) + "," + ("%.1f"%_lat_center)
+
+            # All co-located data products are put in a list
+            if not key in dp_cluster:
+                dp_cluster[key] = []
+            dp_cluster[key].append(dp)
+
+
+        # Enter all DP in to KML placemarks
+        for set_key in dp_cluster:
+            # create only one placemark per set but populate information from all entries within the set
+            _lat_center = _lon_center = 0.0
+            bounds = dp_cluster[set_key][0].geospatial_bounds
+            if bounds == None:
+                continue
+
+            # approximate placemark position in the middle of the geo spatial bounds
             _lon_center = bounds.geospatial_longitude_limit_west + (bounds.geospatial_longitude_limit_east - bounds.geospatial_longitude_limit_west) / 2.0
             _lat_center = bounds.geospatial_latitude_limit_south + (bounds.geospatial_latitude_limit_north - bounds.geospatial_latitude_limit_south) / 2.0
 
@@ -509,17 +531,27 @@ class VisualizationService(BaseVisualizationService):
 
             # name of placemark
             kml_content += "<name>"
-            kml_content += dp.ooi_short_name
+            kml_content += "Data Products at : " + str(_lon_center) + "," + str(_lat_center)
             kml_content += "</name>\n"
 
             # Description
-            kml_content += "<description>\n<![CDATA["
-            # insert HTML description here
-            html_description = "<h1>Data Product : " + dp.ooi_short_name + "</h1>\n"
-            html_description += "<a href=\"" + ui_server + "/DataProduct/face/" + str(dp._id) + "/\">More information.</a> "
+            kml_content += "<description>\n<![CDATA[\n"
+            # insert HTML here as a table containing info about the data products
+            html_description = "<table border='1' align='center'>\n"
+            html_description += "<tr> <td><b>Data Product</b></td> <td> <b>ID</b> </b> <td> <b>Preview</b> </td> </tr>\n"
+            for dp in dp_cluster[set_key]:
+                html_description += "<tr>"
+                html_description += "<td>" + dp.name + "</td>"
+                html_description += "<td><a href=\"" + ui_server + "/DataProduct/face/" + str(dp._id) + "/\">" + str(dp._id) + "</a> </td> "
+                html_description += "<td> </td>"
+
+                html_description += "</tr>"
+
+            # Close the table
+            html_description += "</table>"
 
             kml_content += html_description
-            kml_content += "]]>\n</description>\n"
+            kml_content += "\n]]>\n</description>\n"
 
             # Point information
             kml_content += "<Point>\n<coordinates>" + str(_lon_center) + "," + str(_lat_center) + "</coordinates>\n</Point>\n"
@@ -531,5 +563,4 @@ class VisualizationService(BaseVisualizationService):
         kml_content += "</Document>\n"
         kml_content += "</kml>\n"
 
-        print " >>>>>>>>>>>>>>>>>>>>>>>>>>  KML : ", kml_content
         return kml_content
