@@ -10,6 +10,7 @@ from pyon.ion.stream import StandaloneStreamPublisher
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.event.event import EventPublisher, EventSubscriber
 from nose.plugins.attrib import attr
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -17,6 +18,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.objects import ProcessDefinition
 import gevent, unittest, os
 import datetime, time
+import random, numpy
 from datetime import timedelta
 from interface.objects import StreamRoute
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
@@ -34,6 +36,18 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.pubsub_management = PubsubManagementServiceClient()
         self.ssclient = SchedulerServiceClient()
         self.event_publisher = EventPublisher()
+
+        self.xns = []
+        self.xps = []
+
+    def tearDown(self):
+
+        for xn in self.xns:
+            xni = self.container.ex_manager.create_xn_queue(xn)
+            xni.delete()
+        for xp in self.xps:
+            xpi = self.container.ex_manager.create_xp(xp)
+            xpi.delete()
 
     def now_utc(self):
         return time.mktime(datetime.datetime.utcnow().timetuple())
@@ -282,16 +296,31 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # Start a subscriber to listen for an alert event from the Stream Alert Transform
         #-------------------------------------------------------------------------------------
 
-        queue = gevent.queue.Queue()
+        queue_bad_data = gevent.queue.Queue()
+        queue_no_data = gevent.queue.Queue()
 
-        def event_received(message, headers):
-            queue.put(message)
+        def bad_data(message, headers):
+            log.debug("got a bad data event")
+            queue_bad_data.put(message)
 
-        event_subscriber = EventSubscriber( origin="DemoStreamAlertTransform",
+        def no_data(message, headers):
+            log.debug("got a no data event")
+            queue_no_data.put(message)
+
+        event_subscriber_bad_data = EventSubscriber( origin="DemoStreamAlertTransform",
             event_type="DeviceStatusEvent",
-            callback=event_received)
+            callback=bad_data)
 
-        event_subscriber.start()
+        event_subscriber_no_data = EventSubscriber( origin="DemoStreamAlertTransform",
+            event_type="DeviceCommsEvent",
+            callback=no_data)
+
+        event_subscriber_bad_data.start()
+        event_subscriber_no_data.start()
+
+        self.addCleanup(event_subscriber_bad_data.stop)
+        self.addCleanup(event_subscriber_no_data.stop)
+
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Stream Alert Transform... set up the event types to listen to
@@ -299,8 +328,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         config = {
             'process':{
                 'queue_name': 'a_queue',
-                'value': 10,
-                'event_type':'ResourceEvent'
+                'variable': 'input_voltage',
+                'time_variable': 'preferred_timestamp',
+                'valid_values': [-100, 100],
             }
         }
 
@@ -318,17 +348,23 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # Publish streams and make assertions about alerts
         #-------------------------------------------------------------------------------------
 
-        pdict_id, _ = self.dataset_management.read_parameter_dictionary_by_name(name= 'platform_eng_parsed', id_only=True)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(name= 'platform_eng_parsed', id_only=True)
 
         stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
         stream_id, stream_route = self.pubsub_management.create_stream( name='test_demo_alert',
                                                                         exchange_point='xp1',
                                                                         stream_definition_id=stream_def_id)
+        self.xps.append('xp1')
 
-        # publish a few granules
+        sub_1 = self.pubsub_management.create_subscription(name='sub_1', stream_ids=[stream_id], exchange_points=['xp1'], exchange_name='a_queue')
+        self.pubsub_management.activate_subscription(sub_1)
+
+        self.xns.append('sub_1')
+
+    # publish a few granules
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=3)
 
-        event = queue.get(timeout=10)
+        event = queue_bad_data.get(timeout=10)
         self.assertEquals(event.type_, "DeviceStatusEvent")
         self.assertEquals(event.origin, "DemoStreamAlertTransform")
 
@@ -337,26 +373,19 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.purge_queues(exchange_name)
 
 
+    def _publish_granules(self, stream_id=None, stream_route=None, number=None):
 
-    def _get_new_ctd_packet(self, stream_definition_id, length):
+        pub = StandaloneStreamPublisher(stream_id, stream_route)
 
-        rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
+        stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        stream_def_id = stream_def._id
 
-        for field in rdt:
-            rdt[field] = random.uniform(0.0,5.0)
+        log.debug("stream_id: %s, stream_def_id: %s, stream_route: %s" % (stream_id, stream_def_id, stream_route))
 
-        g = rdt.to_granule()
-
-        return g
-
-    def _publish_granules(self, stream_id, stream_route, number):
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
 
         for i in xrange(number):
-            pub = StandaloneStreamPublisher(stream_id, stream_route)
-
-            stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
-            stream_def_id = stream_def._id
-
-            rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-            rdt['input_voltage'] = random.uniform(0.0,5.0)
+            rdt['input_voltage'] = numpy.array([random.uniform(0.0,5.0)  for l in xrange(10)])
+            rdt['preferred_timestamp'] = numpy.array([random.uniform(0,1000)  for l in xrange(10)])
+            log.debug("publishing granule:: %s" % i)
             pub.publish(rdt.to_granule())

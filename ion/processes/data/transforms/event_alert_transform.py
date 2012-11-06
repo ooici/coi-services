@@ -6,8 +6,10 @@
 @author Swarbhanu Chatterjee
 '''
 from pyon.util.log import log
+from pyon.util.containers import DotDict
 from pyon.util.arg_check import validate_is_instance, validate_true
 from pyon.event.event import EventPublisher, EventSubscriber
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.core.process.transform import TransformEventListener, TransformStreamListener, TransformEventPublisher
 from interface.objects import DeviceStatusType
@@ -125,11 +127,28 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
 
     def on_start(self):
         super(DemoStreamAlertTransform,self).on_start()
-        self.value = self.CFG.get_safe('process.value', 0)
-        self.instrument_variable = self.CFG.get_safe('process.variable', 0)
-        self.valid_values = self.CFG.get_safe('process.valid_values', [-200,200])
-        validate_is_instance(self.valid_values, list)
 
+        #-------------------------------------------------------------------------------------
+        # Values that are passed in when the transform is launched
+        #-------------------------------------------------------------------------------------
+        self.value = self.CFG.get_safe('process.value', 0)
+        self.instrument_variable = self.CFG.get_safe('process.variable', 'input_voltage')
+        self.time_variable = self.CFG.get_safe('process.time_variable', 'preferred_timestamp')
+
+        valid_values = self.CFG.get_safe('process.valid_values', [-200,200])
+        validate_is_instance(valid_values, list)
+
+        #-------------------------------------------------------------------------------------
+        # Set up the config to use to pass info to the transform algorithm
+        #-------------------------------------------------------------------------------------
+        self.config = DotDict()
+        self.config.valid_values = valid_values
+        self.config.variable = self.instrument_variable
+        self.config.time_variable = self.instrument_variable
+
+        #-------------------------------------------------------------------------------------
+        # the list of granules that arrive in between two timer events
+        #-------------------------------------------------------------------------------------
         self.granules = []
 
     def _stringify_list(self, my_list = None):
@@ -145,21 +164,25 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         @param stream_id str
         '''
         log.debug('StreamAlertTransform got an incoming packet!')
-        bad_values = AlertTransformAlgorithm.execute(input=msg, params = self.valid_values)
+        bad_values, bad_value_times = AlertTransformAlgorithm.execute(input=msg, config = self.config)
 
+        # If there are any bad values, publish an alert event for each of them, with information about their time stamp
         if bad_values:
-            for bad_value in bad_values:
+            for bad_value, time_stamp in zip(bad_values, bad_value_times):
+                log.debug("came here to publish device status event")
                 self.publisher.publish(event_type= 'DeviceStatusEvent',
                             subtype=self.instrument_variable,
                             value= bad_value,
+                            time_stamp= time_stamp,
                             state= DeviceStatusType.OUT_OF_RANGE,
                             description= "Event to deliver the status of instrument.")
 
 
     def process_event(self, msg, headers):
-        '''
+        """
         When timer events come, if no granule has arrived since the last timer event, publish an alarm
-        '''
+        """
+        log.debug("got a timer event")
 
         if self.granules.empty():
             log.debug("No granule arrived since the last timer event. Publishing an alarm!!!")
@@ -180,21 +203,38 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         """
         Find if the input data has values, which are out of range
 
-        :param input:
-        :param context:
-        :param config:
-        :param params:
+        :param input granule:
+        :param context parameter context:
+        :param config DotDict:
+        :param params list:
         :param state:
-        :return:
+        :return bad_values, bad_value_times tuple of lists:
         """
+
         rdt = RecordDictionaryTool.load_from_granule(input)
 
-        bad_values = []
-        for key, value in rdt.iteritems():
-            if value < params[0] or value > params[1]:
-                bad_values.append(value)
+        # Retrieve the name used for the variable, the name used for timestamps and the range of valid values from the config
+        valid_values = config.get_safe('valid_values', [-100,100])
+        variable = config.get_safe('variable', 'input_voltage')
+        time_variable = config.get_safe('time_variable', 'preferred_timestamp')
 
-        return bad_values
+        # These variables will store the bad values and the timestamps of those values
+        bad_values = []
+        bad_value_times = []
+
+        # retrieve the values and the times from the record dictionary
+        values = rdt[variable][:]
+        times = rdt[time_variable][:]
+
+        # check which values fall out of range
+        while index < len(values):
+            value = values[index]
+            if value < valid_values[0] or value > valid_values[1]:
+                bad_values.append(value)
+                bad_value_times.append(times[index])
+
+        # return the list of bad values and their timestamps
+        return bad_values, bad_value_times
 
 
 
