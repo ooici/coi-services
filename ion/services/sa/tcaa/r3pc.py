@@ -44,7 +44,7 @@ class R3PCServer(object):
         """
         Initialize internal variables.
         """
-        self._context = zmq.Context(1)
+        self._context = None
         self._greenlet = None
         self._server = None
         self._callback = callback or self._default_callback
@@ -146,6 +146,8 @@ class R3PCServer(object):
         """
         Create and bind the server socket.
         """
+        log.debug('Constructing zmq context.')
+        self._context = zmq.Context(1)        
         log.debug('Constructing zmq rep server socket.')
         self._server = self._context.socket(zmq.REP)
         log.debug('Binding server socket to endpoint: %s', self._endpoint)
@@ -170,6 +172,10 @@ class R3PCServer(object):
             self._server.close()
             self._server = None
             self._close_callback()
+        if self._context:
+            log.debug('Terminating context.')
+            self._context.term()
+            self._context = None
     
     def stop(self):
         """
@@ -186,7 +192,8 @@ class R3PCServer(object):
         """
         Destroy 0MQ context.
         """
-        self._context.term()
+        #self._context.term()
+        #self._context.destroy()
         self._context = None
 
     def _default_callback(self, request):
@@ -209,7 +216,7 @@ class R3PCClient(object):
         """
         Initialize internal variables.
         """
-        self._context = zmq.Context(1)
+        self._context = None
         self._greenlet = None
         self._queue = []
         self._callback = callback or self._default_callback
@@ -323,6 +330,8 @@ class R3PCClient(object):
         """
         Create and connect client socket.
         """
+        log.debug('Constructing zmq context.')        
+        self._context = zmq.Context(1)
         log.debug('Constructing zmq req client.')
         self._client = self._context.socket(zmq.REQ)
         log.debug('Connecting client to endpoint %s.', self._endpoint)
@@ -340,6 +349,10 @@ class R3PCClient(object):
             self._client.close()
             self._client = None
             self._close_callback()
+        if self._context:
+            log.debug('Terminating context.')
+            self._context.term()
+            self._context = None
     
     def stop(self):
         """
@@ -364,7 +377,8 @@ class R3PCClient(object):
         Destroy 0MQ context.
         """
         log.debug('Terminating zmq context.')
-        self._context.term()
+        #self._context.term()
+        self._context.destroy()        
         self._conext = None
 
     def _default_callback(self, request):
