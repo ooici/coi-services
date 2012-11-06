@@ -13,14 +13,17 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from gevent import Greenlet, sleep
-
+import sys
+from time import sleep
 import time
 import httplib
 import yaml
 
 from ion.agents.platform.oms.simulator.logger import Logger
 log = Logger.get_logger()
+
+if not getattr(log, "trace", None):
+    setattr(log, "trace", log.debug)
 
 
 class EventInfo(object):
@@ -130,16 +133,25 @@ class EventNotifier(object):
             conn.close()
 
 
-class EventGenerator(Greenlet):
+class EventGenerator(object):
     """
     Simple helper to generate and trigger event notifications.
     """
 
     def __init__(self, notifier):
-        Greenlet.__init__(self)
         self._notifier = notifier
         self._keep_running = True
         self._index = 0  # in EventInfo.EVENT_TYPES
+
+        # self._runnable set depending on whether we're under pyon or not
+        if 'pyon' in sys.modules:
+            from gevent import Greenlet
+            self._runnable = Greenlet(self._run)
+            log.debug("!!!! EventGenerator: pyon detected: using Greenlet")
+        else:
+            from threading import Thread
+            self._runnable = Thread(target=self._run)
+            log.debug("!!!! EventGenerator: pyon not detected: using Thread")
 
     def generate_and_notify_event(self):
         if self._index >= len(EventInfo.EVENT_TYPES):
@@ -166,6 +178,9 @@ class EventGenerator(Greenlet):
 
         log.debug("notifying event_instance=%s", str(event_instance))
         self._notifier.notify(event_instance)
+
+    def start(self):
+        self._runnable.start()
 
     def _run(self):
         sleep(3)  # wait a bit before first event
@@ -209,11 +224,11 @@ if __name__ == "__main__":
         # run notifier
         notifier = EventNotifier()
         url = "http://%s:%s" % (host, port)
-        event_type = EventInfo.EVENT_TYPES.keys()[0]
-        notifier.add_listener(url, event_type)
-        print("registered listener to event_type=%r" % event_type)
+        for event_type in EventInfo.EVENT_TYPES.keys():
+            notifier.add_listener(url, event_type)
+            print("registered listener to event_type=%r" % event_type)
         generator = EventGenerator(notifier)
-        secs = 6
+        secs = 15
         print("generating events for %s seconds ..." % secs)
         generator.start()
         sleep(secs)
@@ -232,19 +247,12 @@ localhost:8000: listening for event notifications...
 TERMINAL 2:
 $ bin/python  ion/agents/platform/oms/simulator/oms_events.py notifier
 registered listener to event_type='44.78'
-generating events for 6 seconds ...
-generated event_instance={'platform_id': 'some platform_id (todo)', 'timestamp': 1348794478.977933, 'message': 'synthetic event', 'group': 'power', 'ref_id': '44.78'}
-generated event_instance={'platform_id': 'some platform_id (todo)', 'timestamp': 1348794479.983365, 'message': 'synthetic event', 'group': 'power', 'ref_id': '44.77'}
-generated event_instance={'platform_id': 'some platform_id (todo)', 'timestamp': 1348794480.983749, 'message': 'synthetic event', 'group': 'power', 'ref_id': '44.78'}
-generated event_instance={'platform_id': 'some platform_id (todo)', 'timestamp': 1348794481.989795, 'message': 'synthetic event', 'group': 'power', 'ref_id': '44.77'}
-generated event_instance={'platform_id': 'some platform_id (todo)', 'timestamp': 1348794482.990179, 'message': 'synthetic event', 'group': 'power', 'ref_id': '44.78'}
-generated event_instance={'platform_id': 'some platform_id (todo)', 'timestamp': 1348794483.996283, 'message': 'synthetic event', 'group': 'power', 'ref_id': '44.77'}
+registered listener to event_type='44.77'
+generating events for 15 seconds ...
 
 TERMINAL 1:
-listener got event_instance={'platform_id': 'some platform_id (todo)', 'timestamp': 1348794478.977933, 'message': 'synthetic event', 'group': 'power', 'ref_id': '44.78'}
-127.0.0.1 - - [2012-09-27 18:07:58] "POST / HTTP/1.1" 200 118 0.002234
-listener got event_instance={'platform_id': 'some platform_id (todo)', 'timestamp': 1348794480.983749, 'message': 'synthetic event', 'group': 'power', 'ref_id': '44.78'}
-127.0.0.1 - - [2012-09-27 18:08:00] "POST / HTTP/1.1" 200 118 0.002637
-listener got event_instance={'platform_id': 'some platform_id (todo)', 'timestamp': 1348794482.990179, 'message': 'synthetic event', 'group': 'power', 'ref_id': '44.78'}
-127.0.0.1 - - [2012-09-27 18:08:02] "POST / HTTP/1.1" 200 118 0.002571
+listener got event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'group': 'power', 'url': 'http://localhost:8000', 'timestamp': 1352221197.337092, 'message': 'low battery (synthetic event generated from simulator)', 'ref_id': '44.78'}
+127.0.0.1 - - [2012-11-06 08:59:57] "POST / HTTP/1.1" 200 118 0.002844
+listener got event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'group': 'power', 'url': 'http://localhost:8000', 'timestamp': 1352221204.549481, 'message': 'on battery (synthetic event generated from simulator)', 'ref_id': '44.77'}
+127.0.0.1 - - [2012-11-06 09:00:04] "POST / HTTP/1.1" 200 118 0.002282
 """

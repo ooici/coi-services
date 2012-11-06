@@ -40,11 +40,11 @@ from ion.services.sa.tcaa.r3pc import R3PCClient
 from ion.services.sa.tcaa.r3pc import R3PCTestBehavior
 
 
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_normal
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_delay_momentary
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_delay_long
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_server_restart
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_r3pc.py
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_normal
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_delay_momentary
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_delay_long
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_server_restart
 
 #@unittest.skip('Socket unavailable on buildbot.')
 @attr('INT', group='sa')

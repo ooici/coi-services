@@ -76,8 +76,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.create_attachment(resource_id=resource_id, attachment=attachment)
 
     @mask_couch_error
-    def read_attachment(self, attachment_id=''):
-        return self.resource_registry.read_attachment(attachment_id=attachment_id)
+    def read_attachment(self, attachment_id='', include_content=False):
+        return self.resource_registry.read_attachment(attachment_id=attachment_id, include_content=include_content)
 
     @mask_couch_error
     def delete_attachment(self, attachment_id=''):
@@ -176,10 +176,10 @@ class ResourceRegistryService(BaseResourceRegistryService):
         if resource_id.find('[') > -1:
             res_input = eval(resource_id)
             extended_resource_list = extended_resource_handler.create_extended_resource_container_list(resource_extension,
-                res_input, None, ext_associations, ext_exclude)
+                res_input, computed_resource_type=None, origin_resource_type=None, ext_associations=ext_associations, ext_exclude=ext_exclude)
             return extended_resource_list
 
         extended_resource = extended_resource_handler.create_extended_resource_container(resource_extension,
-            resource_id, None, ext_associations, ext_exclude)
+            resource_id, computed_resource_type=None,origin_resource_type=None, ext_associations=ext_associations, ext_exclude=ext_exclude)
 
         return extended_resource

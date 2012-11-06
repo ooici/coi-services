@@ -734,9 +734,6 @@ class UserNotificationService(BaseUserNotificationService):
         if not user:
             return None
 
-        if not isinstance(user, UserInfo):
-            log.warning("UserNotificationService.get_user_notifications() got resource id not of the type UserInfo!")
-
         if not user.name:
             raise BadRequest("Please assign a name to the resource. Example: resource.name = \'Irene\' for UNS to "
                              "be able to fetch the related notifications")

@@ -236,7 +236,7 @@ class IdentityManagementService(BaseIdentityManagementService):
             raise BadRequest("The user_id parameter is empty")
 
         extended_resource_handler = ExtendedResourceContainer(self)
-        extended_user = extended_resource_handler.create_extended_resource_container(OT.UserInfoExtension, user_info_id, focus_resource_type=RT.UserInfo)
+        extended_user = extended_resource_handler.create_extended_resource_container(OT.UserInfoExtension, user_info_id, origin_resource_type=RT.UserInfo)
 #
 #        #If the org_id is not provided then skip looking for Org related roles.
 #        if org_id:
