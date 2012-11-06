@@ -1748,6 +1748,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         retval.value = StatusType.STATUS_OK
+        retval.status = ComputedValueAvailability.PROVIDED
         return retval
 
     def get_communications_status_roll_up(self, device_id):
@@ -1764,12 +1765,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval = IonObject(OT.ComputedIntValue)
 
         #call eventsdb to check  comms-related events from this device.
-        max = datetime.datetime.utcnow()
-        min = datetime.datetime.utcnow() - datetime.timedelta(seconds=15)
-
-        event_list = self.clients.user_notification.find_events(origin=device_id, type = 'PlatformEvent', min_datetime= min, max_datetime=max)
+#        max = datetime.datetime.utcnow()
+#        min = datetime.datetime.utcnow() - datetime.timedelta(seconds=15)
+#
+#        event_list = self.clients.user_notification.find_events(origin=device_id, type = 'PlatformEvent', min_datetime= min, max_datetime=max)
 
         retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
+        retval.status = ComputedValueAvailability.PROVIDED
         return retval
 
     def get_data_status_roll_up(self, device_id):
@@ -1781,6 +1783,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #call eventsdb to check  data-related events from this device.
 
         retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
+        retval.status = ComputedValueAvailability.PROVIDED
         return retval
 
     def get_location_status_roll_up(self, device_id):
@@ -1792,6 +1795,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #call eventsdb to check  data-related events from this device.
 
         retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
+        retval.status = ComputedValueAvailability.PROVIDED
         return retval
 
     # apparently fulfilled by some base object now
