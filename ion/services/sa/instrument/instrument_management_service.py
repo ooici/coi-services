@@ -1673,8 +1673,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.InstrumentDeviceExtension,
             instrument_device_id,
             OT.InstrumentDeviceComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            origin_resource_type=None,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way
@@ -1836,8 +1837,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.PlatformDeviceExtension,
             platform_device_id,
             OT.PlatformDeviceComputedAttributes,
-            ext_associations,
-            ext_exclude)
+            origin_resource_type=None,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude)
 
         #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
         #TODO - see if there is a better way to do this in the extended resource frame work.

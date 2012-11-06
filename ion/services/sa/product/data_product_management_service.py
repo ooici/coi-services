@@ -516,7 +516,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             extended_resource_type=OT.DataProductExtension,
             resource_id=data_product_id,
             computed_resource_type=OT.DataProductComputedAttributes,
-            focus_resource_type=RT.DataProduct,
+            origin_resource_type=RT.DataProduct,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 

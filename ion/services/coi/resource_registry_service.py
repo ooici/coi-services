@@ -176,10 +176,10 @@ class ResourceRegistryService(BaseResourceRegistryService):
         if resource_id.find('[') > -1:
             res_input = eval(resource_id)
             extended_resource_list = extended_resource_handler.create_extended_resource_container_list(resource_extension,
-                res_input, None, ext_associations, ext_exclude)
+                res_input, computed_resource_type=None, origin_resource_type=None, ext_associations=ext_associations, ext_exclude=ext_exclude)
             return extended_resource_list
 
         extended_resource = extended_resource_handler.create_extended_resource_container(resource_extension,
-            resource_id, None, ext_associations, ext_exclude)
+            resource_id, computed_resource_type=None,origin_resource_type=None, ext_associations=ext_associations, ext_exclude=ext_exclude)
 
         return extended_resource

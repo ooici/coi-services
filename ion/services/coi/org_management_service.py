@@ -1062,7 +1062,7 @@ class OrgManagementService(BaseOrgManagementService):
             extended_resource_type=OT.MarineFacilityOrgExtension,
             resource_id=org_id,
             computed_resource_type=OT.MarineFacilityOrgComputedAttributes,
-            focus_resource_type=RT.Org,
+            origin_resource_type=RT.Org,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
