@@ -1,11 +1,33 @@
-from pyon.public import Container
-from pyon.ion.endpoint import ProcessRPCClient
+from pyon.public import Container, ImmediateProcess
 from interface.services.examples.bank.ibank_service import BankServiceProcessClient
 from pyon.util.context import LocalContextMixin
+from interface.services.icontainer_agent import ContainerAgentProcessClient
 
 class FakeProcess(LocalContextMixin):
     name = ''
     id = ''
+
+
+class BankClientProcess(ImmediateProcess):
+    """
+
+    """
+    def on_init(self):
+        pass
+
+    def on_start(self):
+
+        container_name = self.CFG.get("kill_container", None)
+
+        run_client(self.container, )
+
+        if container_name:
+            cc_client = ContainerAgentProcessClient(node=self.container.node, process=self, name=container_name)
+            cc_client.stop()
+
+
+    def on_quit(self):
+        pass
 
 def run_client(container, process=FakeProcess()):
     """
