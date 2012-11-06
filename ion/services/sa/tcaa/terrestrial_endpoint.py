@@ -210,7 +210,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         """
         listen_name = self.CFG.process.listen_name
         objs, ids = self.clients.resource_registry.find_resources(name=listen_name)
-        
+        """
         # If no persisted queue exists, create one.
         if len(objs) == 0:
             createtime = time.time()
@@ -240,7 +240,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         else:
             log.warning('%i > 1 remote command queues found for name=%s',
                         len(objs), listen_name)
-        
+        """
         
     def _update_queue_resource(self):
         """
@@ -250,7 +250,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         
         listen_name = self.CFG.process.listen_name        
         objs, ids = self.clients.resource_registry.find_resources(name=listen_name)
-        
+        """
         if len(objs) == 1:
             obj = objs[0]
             obj_id = ids[0]
@@ -265,7 +265,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         else:
             log.warning('%i != 1 persistent queues found for name=%s.',
                         len(objs), listen_name)
-        
+        """
         
     ######################################################################    
     # Commands.
