@@ -76,12 +76,12 @@ from ion.agents.instrument.test.test_instrument_agent import IA_CLS
 from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_queued_fake
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_process_online
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_remote_late
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_resource_commands
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_service_command_sequence
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_queued_fake
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_process_online
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_remote_late
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_resource_commands
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_service_command_sequence
 
 
 class FakeProcess(LocalContextMixin):

@@ -90,6 +90,19 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
     # Callbacks.
     ######################################################################    
 
+    """
+    An error that could occur if dictionary is missing the command_id.
+    test_repeated_clear_pop ... Traceback (most recent call last):
+      File "/opt/cache/gevent-0.13.7-py2.7-linux-x86_64.egg/gevent/greenlet.py", line 390, in run
+        result = self._run(*self.args, **self.kwargs)
+      File "/var/buildbot-runner/bbot/slaves/centoslca6_py27/coi_pycc/build/ion/services/sa/tcaa/r3pc.py", line 130, in server_loop
+        self._callback(request)
+      File "/var/buildbot-runner/bbot/slaves/centoslca6_py27/coi_pycc/build/ion/services/sa/tcaa/terrestrial_endpoint.py", line 120, in _req_callback
+        log.warning('Command: %s.', str(cmd))
+    UnboundLocalError: local variable 'cmd' referenced before assignment
+    <Greenlet at 0xfb93550: server_loop> failed with UnboundLocalError
+    """
+    
     def _req_callback(self, result):
         """
         Terrestrial server callback for result receipts.
@@ -116,9 +129,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
                                     origin=origin)
             log.debug('Published remote result: %s.', str(result))
         except KeyError:
-            log.warning('Error publishing remote result: %s.', str(_result))
-            log.warning('Command: %s.', str(cmd))
-            log.warning('Result: %s.', str(_result))
+            log.warning('Error publishing remote result: %s.', str(result))
             
     def _ack_callback(self, request):
         """
