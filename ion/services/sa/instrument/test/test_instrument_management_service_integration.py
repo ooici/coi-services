@@ -196,7 +196,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.communications_status_roll_up.status)
         self.assertEqual(StatusType.STATUS_OK,
-            extended_instrument.computed.communications_status_roll_up.value)
+            extended_instrument.computed.communications_status_roll_up.status)
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.data_status_roll_up.status)
         self.assertEqual(StatusType.STATUS_OK,
