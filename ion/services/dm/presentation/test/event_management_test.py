@@ -313,7 +313,7 @@ class EventManagementIntTest(IonIntegrationTestCase):
         updated_event_process_def = self.event_management.read_event_process_definition(procdef_id)
         self.assertEquals(updated_event_process_def.executable['class'], 'StreamAlertTransform')
         self.assertEquals(updated_event_process_def.arguments, ['arg3', 'arg4'])
-        self.assertEquals(updated_event_process_def.event_types, ['event_type_new'])
+        self.assertEquals(updated_event_process_def.definition.event_types, ['event_type_new'])
 
         # Delete
         self.event_management.delete_event_process_definition(procdef_id)

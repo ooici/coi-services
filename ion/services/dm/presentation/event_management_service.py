@@ -21,13 +21,8 @@ class EventManagementService(BaseEventManagementService):
     A service that provides users with an API for CRUD methods for events.
     """
 
-    def __init__(self, *args, **kwargs):
-        super(EventManagementService, self).__init__()
-
     def on_start(self):
         super(EventManagementService, self).on_start()
-        self.clients.process_dispatcher = ProcessDispatcherServiceClient()
-        self.clients.data_acquisition_management = DataAcquisitionManagementServiceClient
 
     def on_quit(self):
         """
@@ -241,23 +236,29 @@ class EventManagementService(BaseEventManagementService):
         config.process.publish_streams = output_streams
 
         # Create the process
-        #todo check this!
-        process_id = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id,
-                                                                    detail = event_process_detail
+        process_id = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id
                                                                     )
+
+        # Update the process
+        event_process = self.clients.resource_registry.read(process_id)
+        event_process.detail = event_process_detail
+        self.clients.resource_registry.update(event_process)
 
         # Schedule the process
         process_id = self.clients.process_dispatcher.schedule_process(  process_definition_id= process_definition_id,
                                                                         process_id=process_id,
                                                                         configuration=config)
 
-
+        #-------------------------------------------------------------------------
         # Associate the process with the process definition
+        #-------------------------------------------------------------------------
         self.clients.resource_registry.create_association(  subject=process_id,
                                                             predicate=PRED.hasProcessDefinition,
                                                             object=process_definition_id)
 
+        #-------------------------------------------------------------------------
         # Register the process as a data producer
+        #-------------------------------------------------------------------------
         self.clients.data_acquisition_management.register_event_process(process_id = process_id)
 
         return process_id
