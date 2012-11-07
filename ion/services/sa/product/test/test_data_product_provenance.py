@@ -31,7 +31,7 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sag')
 #@unittest.skip('not working')
 class TestDataProductProvenance(IonIntegrationTestCase):
 
@@ -540,8 +540,22 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         extended_product = self.dpmsclient.get_data_product_extension(ctd_l2_density_output_dp_id)
         self.assertEqual(ComputedValueAvailability.PROVIDED, extended_product.computed.provenance_product_list.status)
-        log.debug("TestDataProductProvenance: provenance_product_list  %s", str(extended_product.computed.provenance_product_list.value))
+        log.debug("TestDataProductProvenance: DataProduct provenance_product_list  %s", str(extended_product.computed.provenance_product_list))
+#        log.debug("TestDataProductProvenance: DataProduct data_processes  %s", str(extended_product.data_processes))
+#        log.debug("TestDataProductProvenance: DataProduct process_input_data_products  %s", str(extended_product.process_input_data_products))
         #log.debug("TestDataProductProvenance: provenance  %s", str(extended_product.computed.provenance.value))
+
+        #-------------------------------
+        # Retrieve the extended resource for this data process
+        #-------------------------------
+        extended_process_def = self.dataprocessclient.get_data_process_definition_extension(ctd_L0_all_dprocdef_id)
+        self.assertEqual(1, len(extended_process_def.data_processes) )
+        self.assertEqual(3, len(extended_process_def.output_stream_definitions) )
+        #self.assertEqual(3, len(extended_process_def.data_products) )
+#        log.debug("TestDataProductProvenance: DataProcess extended_process_def  %s", str(extended_process_def))
+#        log.debug("TestDataProductProvenance: DataProcess data_processes  %s", str(extended_process_def.data_processes))
+#        log.debug("TestDataProductProvenance: DataProcess data_products  %s", str(extended_process_def.data_products))
+
 
         #-------------------------------
         # Request the xml report
