@@ -55,7 +55,8 @@ class TestExchangeManagementService(PyonTestCase):
 
         # fixup for direct RR access
         self.container.resource_registry.create.return_value = (sentinel.id, sentinel.rev)
-        self.container.resource_registry.find_subjects.return_value = (sentinel.id, [])
+        self.container.resource_registry.find_subjects.return_value = ([sentinel.id], [])
+        self.container.resource_registry.find_objects.return_value = ([sentinel.id], [])
 
     def test_create_exchange_space(self):
         self.mock_create.return_value = ['111', 1]
