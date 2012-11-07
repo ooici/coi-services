@@ -151,12 +151,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         # Check that valid_values is a list
         validate_is_instance(self.valid_values, list)
 
-
-
-    def _stringify_list(self, my_list = None):
-        validate_true(len(my_list) == 2, "List should have only 2 values to specify lower and upper limits")
-        return "%s %s" % (my_list[0], my_list[1])
-
     def recv_packet(self, msg, stream_route, stream_id):
         '''
         The callback method. For situations like bad or no data, publish an alert event.
