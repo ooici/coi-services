@@ -174,11 +174,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
 
-        #check data_product_set
-        self.assertEqual(ComputedValueAvailability.PROVIDED,
-                         extended_instrument.computed.data_product_set.status)
-        self.assertTrue( 'Parsed_Canonical' in extended_instrument.computed.data_product_set.value)
-
         #check data_product_parameters_set
         self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_instrument.computed.data_product_parameters_set.status)
