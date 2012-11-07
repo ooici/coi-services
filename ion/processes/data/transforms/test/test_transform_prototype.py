@@ -20,7 +20,7 @@ import gevent, unittest, os
 import datetime, time
 import random, numpy
 from datetime import timedelta
-from interface.objects import StreamRoute
+from interface.objects import StreamRoute, DeviceStatusType, DeviceCommsType
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 @attr('INT', group='dm')
@@ -61,12 +61,14 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.interval_timer_interval = interval_timer_interval
 
         start_time = self.now_utc()
-        self.interval_timer_end_time = start_time + 5
+        self.interval_timer_end_time = start_time + 2 * interval_timer_interval + 1
 
         # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
-        sid = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval,
+        sid = self.ssclient.create_interval_timer(start_time="now" ,
+            interval=self.interval_timer_interval,
             end_time=self.interval_timer_end_time,
-            event_origin="Interval Timer", event_subtype="")
+            event_origin="Interval Timer",
+            event_subtype="")
 
         self.interval_timer_sent_time = datetime.datetime.utcnow()
 
@@ -80,10 +82,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             except:
                 log.warn("Couldn't cancel")
 
-
         self.addCleanup(cleanup_timer, self.ssclient, sid)
-
-        log.debug("Got the id here!! %s" % sid)
 
         return sid
 
@@ -293,6 +292,12 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #todo later on we are going to use complex algorithms to make this prototype powerful
 
         #-------------------------------------------------------------------------------------
+        # Set up the scheduler for an interval timer with an end time
+        #-------------------------------------------------------------------------------------
+        id = self._create_interval_timer_with_end_time(interval_timer_interval=2)
+        self.assertIsNotNone(id)
+
+        #-------------------------------------------------------------------------------------
         # Start a subscriber to listen for an alert event from the Stream Alert Transform
         #-------------------------------------------------------------------------------------
 
@@ -300,7 +305,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         queue_no_data = gevent.queue.Queue()
 
         def bad_data(message, headers):
-            log.debug("got a bad data event")
+            log.debug("got bad data: %s" % message)
             queue_bad_data.put(message)
 
         def no_data(message, headers):
@@ -308,10 +313,12 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             queue_no_data.put(message)
 
         event_subscriber_bad_data = EventSubscriber( origin="DemoStreamAlertTransform",
+            sub_type = 'input_voltage',
             event_type="DeviceStatusEvent",
             callback=bad_data)
 
         event_subscriber_no_data = EventSubscriber( origin="DemoStreamAlertTransform",
+            sub_type = 'input_voltage',
             event_type="DeviceCommsEvent",
             callback=no_data)
 
@@ -321,16 +328,17 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.addCleanup(event_subscriber_bad_data.stop)
         self.addCleanup(event_subscriber_no_data.stop)
 
-
         #-------------------------------------------------------------------------------------
         # The configuration for the Stream Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
+        self.valid_values = [-100, 100]
+
         config = {
             'process':{
                 'queue_name': 'a_queue',
                 'variable': 'input_voltage',
                 'time_variable': 'preferred_timestamp',
-                'valid_values': [-100, 100],
+                'valid_values': self.valid_values,
             }
         }
 
@@ -354,47 +362,59 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         stream_id, stream_route = self.pubsub_management.create_stream( name='test_demo_alert',
                                                                         exchange_point='exch_point_1',
                                                                         stream_definition_id=stream_def_id)
-        self.exchange_points.append('exch_point_1')
-
-        log.debug("here the stream_def_id: %s, the stream_id::: %s" % (stream_def_id, stream_id))
 
         sub_1 = self.pubsub_management.create_subscription(name='sub_1', stream_ids=[stream_id], exchange_points=['exch_point_1'], exchange_name='a_queue')
         self.pubsub_management.activate_subscription(sub_1)
-
         self.exchange_names.append('sub_1')
+        self.exchange_points.append('exch_point_1')
 
-        # publish a few granules
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1)
+        #-------------------------------------------------------------------------------------
+        # publish a *GOOD* granules
+        #-------------------------------------------------------------------------------------
+        self.length = 2
+        val = numpy.array([random.uniform(0,50)  for l in xrange(self.length)])
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, length=self.length)
 
-        event = queue_bad_data.get(timeout=10)
-        self.assertEquals(event.type_, "DeviceStatusEvent")
-        self.assertEquals(event.origin, "DemoStreamAlertTransform")
+        self.assertTrue(queue_bad_data.empty())
 
-        #todo try the different good/bad/good scenarios and assert on the type/subtype of the published events by DemoStreamAlertTransform
+        #-------------------------------------------------------------------------------------
+        # publish a few *BAD* granules
+        #-------------------------------------------------------------------------------------
+        self.length = 2
+        val = numpy.array([random.uniform(110,200)  for l in xrange(self.length)])
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=2, values=val, length=self.length)
 
-#        self.purge_queues(exchange_name)
+        for i in xrange(self.length):
+            event = queue_bad_data.get(timeout=10)
+            log.debug("asserting this event #%s: %s" % (i,event))
+            self.assertEquals(event.type_, "DeviceStatusEvent")
+            self.assertEquals(event.origin, "DemoStreamAlertTransform")
+            self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+            self.assertEquals(event.valid_values, self.valid_values)
+            self.assertEquals(event.sub_type, 'input_voltage')
+            self.assertIsNotNone(event.value)
+            self.assertIsNotNone(event.time_stamp)
 
+        # Make sure that only the bad values generated the alert events. Queue should be empty now
+        self.assertTrue(queue_bad_data.empty())
 
-    def _publish_granules(self, stream_id=None, stream_route=None, number=None):
+        # Dont publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
+#        event = queue_no_data.get(timeout=10)
+#        self.assertEquals(event.type_, "DeviceCommsEvent")
+#        self.assertEquals(event.origin, "DemoStreamAlertTransform")
+#        self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
+#        self.assertEquals(event.sub_type, 'input_voltage')
+
+    def _publish_granules(self, stream_id=None, stream_route=None, values = None,number=None, length=None):
 
         pub = StandaloneStreamPublisher(stream_id, stream_route)
 
         stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
         stream_def_id = stream_def._id
-
-        log.debug("now, this side below, the stream_def_id: %s, the stream_id::: %s" % (stream_def_id, stream_id))
-
-
-        log.debug("stream_id: %s, stream_def_id: %s, stream_route: %s" % (stream_id, stream_def_id, stream_route))
-
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
 
         for i in xrange(number):
-            rdt['input_voltage'] = numpy.array([random.uniform(110,200)  for l in xrange(2)])
-            rdt['preferred_timestamp'] = numpy.array([random.uniform(0,1000)  for l in xrange(2)])
-            log.debug("publishing granule:: %s" % i)
+            rdt['input_voltage'] = values
+            rdt['preferred_timestamp'] = numpy.array([random.uniform(0,1000)  for l in xrange(length)])
             g = rdt.to_granule()
-            log.debug("granule::: g = %s" % g)
-            log.debug("published here. g.param_dictionary: %s" % g.param_dictionary)
-
             pub.publish(g)

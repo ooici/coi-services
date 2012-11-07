@@ -203,6 +203,8 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                     origin=event.origin,
                     event_type = event.type_)
 
+                log.debug("published a bad data event: %s" % bad_value)
+
     def process_event(self, msg, headers):
         """
         When timer events come, if no granule has arrived since the last timer event, publish an alarm
