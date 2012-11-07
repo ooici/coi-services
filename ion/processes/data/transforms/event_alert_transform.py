@@ -12,7 +12,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.core.process.transform import TransformEventListener, TransformStreamListener, TransformEventPublisher
-from interface.objects import DeviceStatusType, DeviceStatusEvent, DeviceCommsEvent
+from interface.objects import DeviceStatusType, DeviceStatusEvent, DeviceCommsEvent, DeviceCommsType
 import gevent
 from gevent import queue
 
@@ -62,6 +62,8 @@ class EventAlertTransform(TransformEventListener):
         The callback method.
         If the events satisfy the criteria, publish an alert event.
         '''
+
+        
 
         if self.instrument_event_queue.empty():
             log.debug("no event received from the instrument. Publishing an alarm event!")
@@ -125,6 +127,13 @@ class StreamAlertTransform(TransformStreamListener, TransformEventPublisher):
 
 class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, TransformEventPublisher):
 
+    def __init__(self):
+        super(DemoStreamAlertTransform,self).__init__()
+
+        # the queue of granules that arrive in between two timer events
+        self.granules = gevent.queue.Queue()
+        self.instrument_variable_name = None
+
     def on_start(self):
         super(DemoStreamAlertTransform,self).on_start()
 
@@ -138,10 +147,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         # Check that valid_values is a list
         validate_is_instance(self.valid_values, list)
 
-        #-------------------------------------------------------------------------------------
-        # the list of granules that arrive in between two timer events
-        #-------------------------------------------------------------------------------------
-        self.granules = []
+
 
     def _stringify_list(self, my_list = None):
         validate_true(len(my_list) == 2, "List should have only 2 values to specify lower and upper limits")
@@ -170,14 +176,9 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         #-------------------------------------------------------------------------------------
         # Store the granule received
         #-------------------------------------------------------------------------------------
-        self.granules.append(msg)
+        self.granules.put(msg)
 
-        log.debug("granules received::::  ")
-        i =0
-        for granule in self.granules:
-            i += 1
-            log.debug("granule # %s received and stored:::: %s" % (i, granule))
-
+        log.debug("num of granules received:::: %s " % self.granules.qsize())
 
         #-------------------------------------------------------------------------------------
         # Check for good and bad values in the granule
@@ -211,7 +212,11 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         """
         log.debug("got a timer event")
 
-        if self.granules.empty():
+        log.debug("the number of granules that are stored::: %s" % self.granules.qsize())
+
+        if self.granules.qsize() == 0:
+
+            log.debug("Granules have not arrived. Publishing an alarm event")
             # Create the event object
             event = DeviceCommsEvent( origin = 'DemoStreamAlertTransform',
                                     sub_type = self.instrument_variable_name,
@@ -221,10 +226,10 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
             self.publisher._publish_event( event_msg = event,
                                         origin=event.origin,
                                         event_type = event.type_)
-            log.debug("Granules have not arrived. Publishing an alarm event")
+            log.debug("event published~~~")
         else:
             log.debug("Granules have arrived since the last timer event.")
-            self.granules.clear()
+            self.granules.queue.clear()
 
 
 class AlertTransformAlgorithm(SimpleGranuleTransformFunction):

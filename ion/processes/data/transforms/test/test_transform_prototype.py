@@ -52,25 +52,22 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
     def now_utc(self):
         return time.mktime(datetime.datetime.utcnow().timetuple())
 
-    def _create_interval_timer_with_end_time(self,interval_timer_interval= None ):
+    def _create_interval_timer_with_end_time(self,timer_interval= None ):
         '''
         A convenience method to set up an interval timer with an end time
         '''
-        self.interval_timer_count = 0
-        self.interval_timer_received_time = 0
-        self.interval_timer_interval = interval_timer_interval
+        self.timer_received_time = 0
+        self.timer_interval = timer_interval
 
         start_time = self.now_utc()
-        self.interval_timer_end_time = start_time + 2 * interval_timer_interval + 1
+        self.interval_timer_end_time = start_time + 2 * timer_interval + 1
 
         # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
         sid = self.ssclient.create_interval_timer(start_time="now" ,
-            interval=self.interval_timer_interval,
+            interval=self.timer_interval,
             end_time=self.interval_timer_end_time,
             event_origin="Interval Timer",
             event_subtype="")
-
-        self.interval_timer_sent_time = datetime.datetime.utcnow()
 
         def cleanup_timer(scheduler, schedule_id):
             """
@@ -97,7 +94,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Set up the scheduler for an interval timer with an end time
         #-------------------------------------------------------------------------------------
-        id = self._create_interval_timer_with_end_time(interval_timer_interval=2)
+        id = self._create_interval_timer_with_end_time(timer_interval=2)
         self.assertIsNotNone(id)
 
         #-------------------------------------------------------------------------------------
@@ -294,7 +291,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Set up the scheduler for an interval timer with an end time
         #-------------------------------------------------------------------------------------
-        id = self._create_interval_timer_with_end_time(interval_timer_interval=2)
+        id = self._create_interval_timer_with_end_time(timer_interval=6)
         self.assertIsNotNone(id)
 
         #-------------------------------------------------------------------------------------
@@ -309,16 +306,14 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             queue_bad_data.put(message)
 
         def no_data(message, headers):
-            log.debug("got a no data event")
+            log.debug("got a no data event::: %s" % message)
             queue_no_data.put(message)
 
         event_subscriber_bad_data = EventSubscriber( origin="DemoStreamAlertTransform",
-            sub_type = 'input_voltage',
             event_type="DeviceStatusEvent",
             callback=bad_data)
 
         event_subscriber_no_data = EventSubscriber( origin="DemoStreamAlertTransform",
-            sub_type = 'input_voltage',
             event_type="DeviceCommsEvent",
             callback=no_data)
 
@@ -381,10 +376,13 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # publish a few *BAD* granules
         #-------------------------------------------------------------------------------------
         self.length = 2
+        self.number = 2
         val = numpy.array([random.uniform(110,200)  for l in xrange(self.length)])
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=2, values=val, length=self.length)
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val, length=self.length)
 
-        for i in xrange(self.length):
+        log.debug("size of the queue of bad data::: %s" % queue_bad_data.qsize())
+
+        for i in xrange(self.length * self.number):
             event = queue_bad_data.get(timeout=10)
             log.debug("asserting this event #%s: %s" % (i,event))
             self.assertEquals(event.type_, "DeviceStatusEvent")
@@ -395,15 +393,20 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             self.assertIsNotNone(event.value)
             self.assertIsNotNone(event.time_stamp)
 
+        log.debug("size of the queue after extraction::: %s" % queue_bad_data.qsize())
+
         # Make sure that only the bad values generated the alert events. Queue should be empty now
-        self.assertTrue(queue_bad_data.empty())
+        self.assertEquals(queue_bad_data.qsize(), 0)
 
         # Dont publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
-#        event = queue_no_data.get(timeout=10)
-#        self.assertEquals(event.type_, "DeviceCommsEvent")
-#        self.assertEquals(event.origin, "DemoStreamAlertTransform")
-#        self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
-#        self.assertEquals(event.sub_type, 'input_voltage')
+        event = queue_no_data.get(timeout=20)
+
+        log.debug("got the event for no data here::: %s" % event)
+
+        self.assertEquals(event.type_, "DeviceCommsEvent")
+        self.assertEquals(event.origin, "DemoStreamAlertTransform")
+        self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
+        self.assertEquals(event.sub_type, 'input_voltage')
 
     def _publish_granules(self, stream_id=None, stream_route=None, values = None,number=None, length=None):
 
