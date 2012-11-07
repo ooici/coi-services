@@ -12,7 +12,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.core.process.transform import TransformEventListener, TransformStreamListener, TransformEventPublisher
-from interface.objects import DeviceStatusType
+from interface.objects import DeviceStatusType, DeviceStatusEvent, DeviceCommsEvent
 import gevent
 from gevent import queue
 
@@ -131,11 +131,11 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         #-------------------------------------------------------------------------------------
         # Values that are passed in when the transform is launched
         #-------------------------------------------------------------------------------------
-        self.value = self.CFG.get_safe('process.value', 0)
-        self.instrument_variable = self.CFG.get_safe('process.variable', 'input_voltage')
-        self.time_variable = self.CFG.get_safe('process.time_variable', 'preferred_timestamp')
-
+        self.instrument_variable_name = self.CFG.get_safe('process.variable_name', 'input_voltage')
+        self.time_field_name = self.CFG.get_safe('process.time_field_name', 'preferred_timestamp')
         self.valid_values = self.CFG.get_safe('process.valid_values', [-200,200])
+
+        # Check that valid_values is a list
         validate_is_instance(self.valid_values, list)
 
         #-------------------------------------------------------------------------------------
@@ -144,7 +144,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.granules = []
 
     def _stringify_list(self, my_list = None):
-        validate_true(len(my_list) == 2, "List has more than just the 2 variables to specify lower and upper limits")
+        validate_true(len(my_list) == 2, "List should have only 2 values to specify lower and upper limits")
         return "%s %s" % (my_list[0], my_list[1])
 
     def recv_packet(self, msg, stream_route, stream_id):
@@ -161,24 +161,47 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         #-------------------------------------------------------------------------------------
         config = DotDict()
         config.valid_values = self.valid_values
-        config.variable = self.instrument_variable
-        config.time_variable = self.instrument_variable
+        config.variable_name = self.instrument_variable_name
+        config.time_field_name = self.instrument_variable_name
 
         log.debug("config:: %s" % config)
         log.debug('StreamAlertTransform got an incoming packet! :%s' % msg)
+
+        #-------------------------------------------------------------------------------------
+        # Store the granule received
+        #-------------------------------------------------------------------------------------
+        self.granules.append(msg)
+
+        log.debug("granules received::::  ")
+        i =0
+        for granule in self.granules:
+            i += 1
+            log.debug("granule # %s received and stored:::: %s" % (i, granule))
+
+
+        #-------------------------------------------------------------------------------------
+        # Check for good and bad values in the granule
+        #-------------------------------------------------------------------------------------
         bad_values, bad_value_times = AlertTransformAlgorithm.execute(msg, config = config)
 
+        #-------------------------------------------------------------------------------------
         # If there are any bad values, publish an alert event for each of them, with information about their time stamp
+        #-------------------------------------------------------------------------------------
         if bad_values:
             for bad_value, time_stamp in zip(bad_values, bad_value_times):
-                log.debug("came here to publish device status event")
-                self.publisher.publish(event_type= 'DeviceStatusEvent',
-                            subtype=self.instrument_variable,
-                            value= bad_value,
-                            time_stamp= time_stamp,
-                            state= DeviceStatusType.OUT_OF_RANGE,
-                            description= "Event to deliver the status of instrument.")
+                # Create the event object
+                event = DeviceStatusEvent(  origin = 'DemoStreamAlertTransform',
+                                            sub_type = self.instrument_variable_name,
+                                            value = bad_value,
+                                            time_stamp = time_stamp,
+                                            valid_values = self.valid_values,
+                                            state = DeviceStatusType.OUT_OF_RANGE,
+                                            description = "Event to deliver the status of instrument.")
 
+                # Publish the event
+                self.publisher._publish_event( event_msg = event,
+                    origin=event.origin,
+                    event_type = event.type_)
 
     def process_event(self, msg, headers):
         """
@@ -187,11 +210,16 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         log.debug("got a timer event")
 
         if self.granules.empty():
-            log.debug("No granule arrived since the last timer event. Publishing an alarm!!!")
-            self.publisher.publish(event_type='DeviceCommsEvent',
-                        subtype=self.instrument_variable,
-                        state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
-                        description='Event to deliver the communications status of a device')
+            # Create the event object
+            event = DeviceCommsEvent( origin = 'DemoStreamAlertTransform',
+                                    sub_type = self.instrument_variable_name,
+                                    state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
+                                    description = "Event to deliver the communications status of the instrument.")
+            # Publish the event
+            self.publisher._publish_event( event_msg = event,
+                                        origin=event.origin,
+                                        event_type = event.type_)
+            log.debug("Granules have not arrived. Publishing an alarm event")
         else:
             log.debug("Granules have arrived since the last timer event.")
             self.granules.clear()
@@ -218,32 +246,26 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
         rdt = RecordDictionaryTool.load_from_granule(input)
 
-        log.debug("got the rdt: %s" % rdt)
-
-        # Retrieve the name used for the variable, the name used for timestamps and the range of valid values from the config
+        # Retrieve the name used for the variable_name, the name used for timestamps and the range of valid values from the config
         valid_values = config.get_safe('valid_values', [-100,100])
-        variable = config.get_safe('variable', 'input_voltage')
-        time_variable = config.get_safe('time_variable', 'preferred_timestamp')
+        variable_name = config.get_safe('variable_name', 'input_voltage')
+        time_field_name = config.get_safe('time_field_name', 'preferred_timestamp')
 
-        log.debug("got valid_values: %s" % valid_values)
-
-        # These variables will store the bad values and the timestamps of those values
+        # These variable_names will store the bad values and the timestamps of those values
         bad_values = []
         bad_value_times = []
 
         # retrieve the values and the times from the record dictionary
-        values = rdt[variable][:]
-        times = rdt[time_variable][:]
+        values = rdt[variable_name][:]
+        times = rdt[time_field_name][:]
 
         log.debug("got values from the granule: %s" % values)
         log.debug("got times from the granule: %s" % times)
 
-    # check which values fall out of range
-        while index < len(values):
-            value = values[index]
-            if value < valid_values[0] or value > valid_values[1]:
-                bad_values.append(value)
-                bad_value_times.append(times[index])
+        for val, t in zip(values, times):
+            if val < valid_values[0] or val > valid_values[1]:
+                bad_values.append(val)
+                bad_value_times.append(t)
 
         log.debug("got bad_values: %s" % bad_values)
         log.debug("got bad_value_times: %s" % bad_value_times)

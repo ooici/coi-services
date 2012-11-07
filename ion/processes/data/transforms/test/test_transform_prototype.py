@@ -257,11 +257,11 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.assertEquals(event.type_, "DeviceEvent")
         self.assertEquals(event.origin, "StreamAlertTransform")
 
-        self.purge_queues(exchange_name)
+#        self.purge_queues(exchange_name)
 
-    def purge_queues(self, exchange_name):
-        xn = self.container.ex_manager.create_xn_queue(exchange_name)
-        xn.purge()
+#    def purge_queues(self, exchange_name):
+#        xn = self.container.ex_manager.create_xn_queue(exchange_name)
+#        xn.purge()
 
     @staticmethod
     def create_process(name= '', module = '', class_name = '', configuration = None):
@@ -352,19 +352,19 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         stream_def_id = self.pubsub_management.create_stream_definition('demo_stream', parameter_dictionary_id=pdict_id)
         stream_id, stream_route = self.pubsub_management.create_stream( name='test_demo_alert',
-                                                                        exchange_point='xp1',
+                                                                        exchange_point='exch_point_1',
                                                                         stream_definition_id=stream_def_id)
-        self.exchange_points.append('xp1')
+        self.exchange_points.append('exch_point_1')
 
         log.debug("here the stream_def_id: %s, the stream_id::: %s" % (stream_def_id, stream_id))
 
-        sub_1 = self.pubsub_management.create_subscription(name='sub_1', stream_ids=[stream_id], exchange_points=['xp1'], exchange_name='a_queue')
+        sub_1 = self.pubsub_management.create_subscription(name='sub_1', stream_ids=[stream_id], exchange_points=['exch_point_1'], exchange_name='a_queue')
         self.pubsub_management.activate_subscription(sub_1)
 
         self.exchange_names.append('sub_1')
 
-    # publish a few granules
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=3)
+        # publish a few granules
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1)
 
         event = queue_bad_data.get(timeout=10)
         self.assertEquals(event.type_, "DeviceStatusEvent")
@@ -372,7 +372,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         #todo try the different good/bad/good scenarios and assert on the type/subtype of the published events by DemoStreamAlertTransform
 
-        self.purge_queues(exchange_name)
+#        self.purge_queues(exchange_name)
 
 
     def _publish_granules(self, stream_id=None, stream_route=None, number=None):
@@ -390,7 +390,11 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
 
         for i in xrange(number):
-            rdt['input_voltage'] = numpy.array([random.uniform(0.0,5.0)  for l in xrange(10)])
-            rdt['preferred_timestamp'] = numpy.array([random.uniform(0,1000)  for l in xrange(10)])
+            rdt['input_voltage'] = numpy.array([random.uniform(110,200)  for l in xrange(2)])
+            rdt['preferred_timestamp'] = numpy.array([random.uniform(0,1000)  for l in xrange(2)])
             log.debug("publishing granule:: %s" % i)
-            pub.publish(rdt.to_granule())
+            g = rdt.to_granule()
+            log.debug("granule::: g = %s" % g)
+            log.debug("published here. g.param_dictionary: %s" % g.param_dictionary)
+
+            pub.publish(g)
