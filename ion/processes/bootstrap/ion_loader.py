@@ -54,6 +54,7 @@ from pyon.ion.identifier import create_unique_resource_id, create_unique_associa
 from pyon.ion.resource import get_restype_lcsm
 from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED
 from pyon.util.containers import get_ion_ts, named_any
+from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -86,6 +87,7 @@ DEFAULT_CATEGORIES = [
     'CoordinateSystem',
     'ParameterDefs',
     'ParameterDictionary',
+    'SensorModel',
     'PlatformModel',
     'InstrumentModel',
     'Observatory',
@@ -95,18 +97,18 @@ DEFAULT_CATEGORIES = [
     'StreamDefinition',
     'PlatformDevice',
     'InstrumentDevice',
-    'SensorModel',
     'SensorDevice',
     'InstrumentAgent',
     'InstrumentAgentInstance',
     'DataProcessDefinition',
-    #'DataProduct',
-    #'DataProcess',
-    #'DataProductLink',
+    'DataProduct',
+    'DataProcess',
+    'DataProductLink',
     'Attachment',
-    #'WorkflowDefinition',
-    #'Workflow',
-    'Deployment', ]
+    'WorkflowDefinition',
+    'Workflow',
+    'Deployment',
+    ]
 
 class IONLoader(ImmediateProcess):
     COL_SCENARIO = "Scenario"
@@ -116,7 +118,6 @@ class IONLoader(ImmediateProcess):
     COL_ORGS = "org_ids"
 
     ID_ORG_ION = "ORG_ION"
-
 
     def on_start(self):
         # Main operation to perform
@@ -205,38 +206,6 @@ class IONLoader(ImmediateProcess):
         log.info("Loading scenario %s from path: %s", scenario, self.path)
         if self.bulk:
             log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
-
-        # The preload spreadsheets (tabs) in the order they should be loaded
-        categories = ['Constraint',
-                      'Contact',
-                      'User',
-                      'Org',
-                      'UserRole',
-                      'CoordinateSystem',
-                      'ParameterDefs',
-                      'ParameterDictionary',
-                      'PlatformModel',
-                      'InstrumentModel',
-                      'Observatory',
-                      'Subsite',
-                      'PlatformSite',
-                      'InstrumentSite',
-                      'StreamDefinition',
-                      'PlatformDevice',
-                      'InstrumentDevice',
-                      'SensorModel',
-                      'SensorDevice',
-                      'InstrumentAgent',
-                      'InstrumentAgentInstance',
-                      'DataProcessDefinition',
-                      'DataProduct',
-                      'DataProcess',
-                      'DataProductLink',
-                      'Attachment',
-                      'WorkflowDefinition',
-                      'Workflow',
-                      'Deployment',
-                      ]
 
         # Fetch the spreadsheet directly from a URL (from a GoogleDocs published spreadsheet)
         if self.path.startswith('http'):
@@ -765,9 +734,10 @@ class IONLoader(ImmediateProcess):
         if role_name != "ORG_MEMBER":
             svc_client.grant_role(org_id, user_id, role_name)
 
-    def _load_PlatformModel(self, row):
-        res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
-            "instrument_management", "create_platform_model",
+    def _load_SensorModel(self, row):
+        row['sm/reference_urls'] = repr(self._get_typed_value(row['sm/reference_urls'], targettype="simplelist"))
+        self._basic_resource_create(row, "SensorModel", "sm/",
+            "instrument_management", "create_sensor_model",
             support_bulk=True)
 
     def _get_org_ids(self, ooi_rd_list):
@@ -784,6 +754,11 @@ class IONLoader(ImmediateProcess):
                 marine_ios.add("MF_EA")
         return ",".join(marine_ios)
 
+    def _load_PlatformModel(self, row):
+        res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
+            "instrument_management", "create_platform_model",
+            support_bulk=True)
+
     def _load_PlatformModel_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("nodetype")
 
@@ -795,12 +770,6 @@ class IONLoader(ImmediateProcess):
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
 
             self._load_PlatformModel(fakerow)
-
-    def _load_SensorModel(self, row):
-        row['sm/reference_urls'] = repr(self._get_typed_value(row['sm/reference_urls'], targettype="simplelist"))
-        self._basic_resource_create(row, "SensorModel", "sm/",
-            "instrument_management", "create_sensor_model",
-            support_bulk=True)
 
     def _load_InstrumentModel(self, row):
         row['im/reference_urls'] = repr(self._get_typed_value(row['im/reference_urls'], targettype="simplelist"))
@@ -1141,9 +1110,10 @@ class IONLoader(ImmediateProcess):
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
+            fakerow[self.COL_ID] = ooi_id + "_PD"
             fakerow['pd/name'] = "%s (%s)" % (ooi_obj['name'], ooi_id)
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
+            fakerow['platform_model_id'] = ooi_id
 
             self._load_PlatformDevice(fakerow)
 
@@ -1186,10 +1156,14 @@ class IONLoader(ImmediateProcess):
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
+            fakerow[self.COL_ID] = ooi_id + "_ID"
             fakerow['id/name'] = ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
-            fakerow['instrument_model_ids'] = ooi_obj['instrument_model']
+            ooi_rd = OOIReferenceDesignator(ooi_id)
+            fakerow['instrument_model_id'] = ooi_rd.subseries_rd
+            fakerow['platform_device_id'] = ooi_rd.node_type + "_PD"
+            fakerow['id/reference_urls'] = ''
+            fakerow['contact_ids'] = ''
 
             self._load_InstrumentDevice(fakerow)
 
@@ -1219,7 +1193,7 @@ class IONLoader(ImmediateProcess):
 
     def _load_InstrumentAgent(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
-                                            "instrument_management", "create_instrument_agent",
+            "instrument_management", "create_instrument_agent",
             support_bulk=True)
 
         svc_client = self._get_service_client("instrument_management")
@@ -1242,12 +1216,14 @@ class IONLoader(ImmediateProcess):
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
+            fakerow[self.COL_ID] = ooi_id + "_IA"
             fakerow['ia/name'] = "Instrument Agent for " + ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
-            fakerow['instrument_model_ids'] = ooi_obj['instrument_model']
+            ooi_rd = OOIReferenceDesignator(ooi_id)
+            fakerow['instrument_model_ids'] = ooi_rd.subseries_rd
 
-            self._load_InstrumentDevice(fakerow)
+            self._load_InstrumentAgent(fakerow)
+
     def _load_InstrumentAgentInstance(self, row):
         ia_id = row["instrument_agent_id"]
         id_id = row["instrument_device_id"]
