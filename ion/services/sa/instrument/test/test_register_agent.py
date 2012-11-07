@@ -160,13 +160,19 @@ class TestIMSRegisterAgent(PyonTestCase):
         self.IMS.register_instrument_agent(inst_agent_id, BASE64_EGG, BASE64_ZIPFILE)
         self.RR.execute_lifecycle_transition.assert_called_once_with(inst_agent_id, LCE.INTEGRATE)
 
-        scp_dest = "my_user@my_host:/my/remote/wwwroot/my/path/seabird_sbe37smb_ooicore-0.1-py2.7.egg"
-        self.mock_dict["subprocess"].Popen.assert_called_once_with(["scp", "-v", "-o", "PasswordAuthentication=no",
-                                                                    "-o", 'StrictHostKeyChecking=no',
-                                                                    'my_tempfile_name',
-                                                                    scp_dest],
-                                                                   stdout=self.mock_dict["subprocess"].PIPE,
-                                                                   stderr=self.mock_dict["subprocess"].PIPE)
+        remote_cred = "my_user@my_host"
+        remote_path = "/my/remote/wwwroot/my/path/seabird_sbe37smb_ooicore-0.1-py2.7.egg"
+        scp_dest = "%s:%s" % (remote_cred, remote_path)
+        self.mock_dict["subprocess"].Popen.assert_called_any(["scp", "-v", "-o", "PasswordAuthentication=no",
+                                                              "-o", 'StrictHostKeyChecking=no',
+                                                              'my_tempfile_name',
+                                                              scp_dest],
+                                                               stdout=self.mock_dict["subprocess"].PIPE,
+                                                               stderr=self.mock_dict["subprocess"].PIPE)
+
+        self.mock_dict["subprocess"].Popen.assert_called_any(["ssh", remote_cred, "chmod", "664", remote_path],
+                                                               stdout=self.mock_dict["subprocess"].PIPE,
+                                                               stderr=self.mock_dict["subprocess"].PIPE)
 
         self.assertEqual(4, self.RR.create_attachment.call_count)
 
