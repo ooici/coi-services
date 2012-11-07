@@ -490,8 +490,18 @@ class PlatformAgent(ResourceAgent):
         # separate values and timestamps:
         vals, timestamps = zip(*param_value)
 
-        rdt[param_name]            = numpy.array(vals)
-        rdt['preferred_timestamp'] = numpy.array(timestamps)
+        # Set values in rdt:
+        rdt[param_name] = numpy.array(vals)
+
+        # Set timestamp info in rdt:
+        if param_dict.temporal_parameter_name is not None:
+            temp_param_name = param_dict.temporal_parameter_name
+            rdt[temp_param_name]       = numpy.array(timestamps)
+            rdt['preferred_timestamp'] = numpy.array([temp_param_name] * len(timestamps))
+        else:
+            log.warn("%r: Not including timestamp info in granule: "
+                     "temporal_parameter_name not defined in parameter dictionary",
+                     self._platform_id)
 
         log.info("%r: PUBLISHING VALUE ARRAY: %s (%d) = %s (last_ts=%s)",
                  self._platform_id, param_name, len(vals), str(vals), timestamps[-1])
@@ -546,6 +556,9 @@ class PlatformAgent(ResourceAgent):
         """
         Old mechanism, before using _agent_streamconfig_map
         """
+        #
+        # TODO Clean up (remove) this old mechanism.
+        #
         stream_name = driver_event._attr_id
         if not stream_name in self._data_streams:
             log.warn('%r: got attribute value event for unconfigured stream %r',
