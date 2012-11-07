@@ -99,6 +99,33 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         return data_producer_id
 
+    def register_event_process(self, process_id=''):
+        """
+        Register an existing data process as data producer
+        """
+
+        # retrieve the data_process object
+        process_obj = self.clients.resource_registry.read(process_id)
+        if process_obj is None:
+            raise NotFound("Process %s does not exist" % process_id)
+
+        #find the data process definition
+        process_def_objs, _ = self.clients.resource_registry.find_objects(subject=process_id,  predicate=PRED.hasProcessDefinition, object_type=RT.ProcessDefinition, id_only=False)
+        if not process_def_objs:
+            raise NotFound("Process Definition for Process %s does not exist" % process_id)
+
+        #create a DataProcessProducerContext to hold the state of the this producer
+        producer_context_obj = IonObject(OT.DataProcessProducerContext,  configuration=process_obj.process_configuration)
+
+        #create data producer resource and associate to this process_id
+        data_producer_obj = IonObject(RT.DataProducer,name=process_obj.name, description="primary producer resource for this process",
+            producer_context=producer_context_obj, is_primary=True)
+        data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
+
+        # Create association
+        self.clients.resource_registry.create_association(process_id, PRED.hasDataProducer, data_producer_id)
+
+        return data_producer_id
 
     def unregister_process(self, data_process_id=''):
         """
@@ -119,6 +146,24 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             self.clients.resource_registry.delete(producer)
 
         return
+
+    def unregister_event_process(self, process_id=''):
+        """
+        Remove the associated Process and disc
+
+        """
+        # Verify that  id is valid
+        input_process_obj = self.clients.resource_registry.read(process_id)
+
+        # List all resource ids that are objects for this data_source and has the hasDataProducer link
+        producers, producer_assns = self.clients.resource_registry.find_objects(subject=process_id, predicate=PRED.hasDataProducer, id_only=True)
+        for producer, producer_assn in zip(producers, producer_assns):
+            log.debug("DataAcquisitionManagementService:unregister_process  delete association %s", str(producer_assn))
+            self.clients.resource_registry.delete_association(producer_assn)
+            log.debug("DataAcquisitionManagementService:unregister_process  delete producer %s", str(producer))
+
+            log.debug("DAMS:unregister_process delete producer: %s ", str(producer) )
+            self.clients.resource_registry.delete(producer)
 
     def register_instrument(self, instrument_id=''):
         """
