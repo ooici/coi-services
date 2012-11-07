@@ -1673,7 +1673,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.InstrumentDeviceExtension,
             instrument_device_id,
             OT.InstrumentDeviceComputedAttributes,
-            origin_resource_type=None,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
@@ -1841,7 +1840,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.PlatformDeviceExtension,
             platform_device_id,
             OT.PlatformDeviceComputedAttributes,
-            origin_resource_type=None,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
