@@ -1858,14 +1858,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #todo: class for constants?
 
         #todo: does framework validate id?
-
+        retval = IonObject(OT.ComputedIntValue)
 
         #recursive function to determine the aggregate status by visiting all relevant nodes
         def get_status_helper(acc, device_id, device_type):
             if "todo: early exit criteria" == acc:
                 return acc
 
-            retval = IonObject(OT.ComputedIntValue)
 
             if RT.InstrumentDevice == device_type:
                 stat_p = self.get_power_status_roll_up(device_id)
@@ -1910,29 +1909,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #        return ret
         return "0 days, 0 hours, 0 minutes"
 
-
-    def get_data_product_set(self, resource_id=''):
-        # return the set of data product with the processing_level_code as the key to identify
-        ret = IonObject(OT.ComputedDictValue)
-        log.debug("get_data_product_set: resource_id is %s ", str(resource_id))
-        if not resource_id:
-            raise BadRequest("The resource_id parameter is empty")
-
-        #retrieve the output products
-        data_product_ids, _ = self.clients.resource_registry.find_objects(resource_id,
-                                                                          PRED.hasOutputProduct,
-                                                                          RT.DataProduct,
-                                                                          True)
-        log.debug("get_data_product_set: data_product_ids is %s ", str(data_product_ids))
-        if not data_product_ids:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-        else:
-            for data_product_id in data_product_ids:
-                data_product_obj = self.clients.resource_registry.read(data_product_id)
-                log.debug("get_data_product_set: data_product_obj.processing_level_code is %s ", str(data_product_obj.processing_level_code))
-                ret.value[data_product_obj.processing_level_code] = data_product_id
-            ret.status = ComputedValueAvailability.PROVIDED
-        return ret
 
 
     def get_data_product_parameters_set(self, resource_id=''):

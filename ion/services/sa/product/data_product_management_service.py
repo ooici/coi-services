@@ -527,6 +527,15 @@ class DataProductManagementService(BaseDataProductManagementService):
                 if hasattr(att, 'content'):
                     delattr(att, 'content')
 
+        #extract the list of upstream data products from the provenance results
+        dp_list = []
+        for key, value in extended_product.computed.provenance.value.iteritems():
+            for producer_id, dataprodlist in value['inputs'].iteritems():
+                for dataprod in dataprodlist:
+                    dp_list.append( self.clients.resource_registry.read(dataprod) )
+        extended_product.provenance_product_list = set(dp_list)  #remove dups in list
+
+
         return extended_product
 
 
@@ -653,28 +662,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return ret
 
-    def get_provenance_product_list(self, data_product_id=''):
-        # Provides an audit trail for modifications to the original data
-
-        #todo - call get_data_product_provenance when it is completed
-        ret = IonObject(OT.ComputedListValue)
-
-        provenance_results = self.get_data_product_provenance(data_product_id)
-
-        if not provenance_results:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.value = []
-            ret.reason = "Error in DataProuctMgmtService:get_data_product_provenance"
-        else:
-            results = []
-            ret.status = ComputedValueAvailability.PROVIDED
-            for key, value in provenance_results.iteritems():
-                for producer_id, dataprodlist in value['inputs'].iteritems():
-                    for dataprod in dataprodlist:
-                        results.append( self.clients.resource_registry.read(dataprod) )
-            ret.value = set(results)  #remove dups in list
-
-        return ret
 
     def get_number_active_subscriptions(self, data_product_id=''):
         # The number of current subscriptions to the data
