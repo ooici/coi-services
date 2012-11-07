@@ -11,10 +11,13 @@
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
 
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master assets=res/preload/r2_ioc/ooi_assets scenario=R2_DEMO loadooi=True
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True assets=res/preload/r2_ioc/ooi_assets
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadui=True
 
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=parseooi assets=res/preload/r2_ioc/ooi_assets
+
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=deleteooi
 
     ui_path= override location to get UI preload files (default is path + '/ui_assets')
     assets= override location to get OOI asset file (default is path + '/ooi_assets')
@@ -49,8 +52,9 @@ from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.identifier import create_unique_resource_id, create_unique_association_id
 from pyon.ion.resource import get_restype_lcsm
-from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED
+from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT
 from pyon.util.containers import get_ion_ts, named_any
+from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -68,7 +72,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidERDN0RoLWZfdEVyVzRraE05ZDVjeGc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE1PRmNLOGNodC1IcEI4Rm1xTEM0N1E&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -83,6 +87,7 @@ DEFAULT_CATEGORIES = [
     'CoordinateSystem',
     'ParameterDefs',
     'ParameterDictionary',
+    'SensorModel',
     'PlatformModel',
     'InstrumentModel',
     'Observatory',
@@ -92,7 +97,6 @@ DEFAULT_CATEGORIES = [
     'StreamDefinition',
     'PlatformDevice',
     'InstrumentDevice',
-    'SensorModel',
     'SensorDevice',
     'InstrumentAgent',
     'InstrumentAgentInstance',
@@ -103,7 +107,8 @@ DEFAULT_CATEGORIES = [
     'Attachment',
     'WorkflowDefinition',
     'Workflow',
-    'Deployment', ]
+    'Deployment',
+    ]
 
 class IONLoader(ImmediateProcess):
     COL_SCENARIO = "Scenario"
@@ -113,7 +118,6 @@ class IONLoader(ImmediateProcess):
     COL_ORGS = "org_ids"
 
     ID_ORG_ION = "ORG_ION"
-
 
     def on_start(self):
         # Main operation to perform
@@ -136,11 +140,12 @@ class IONLoader(ImmediateProcess):
         self.loadui = self.CFG.get("loadui", False)      # Import UI asset data
         self.exportui = self.CFG.get("exportui", False)  # Save UI JSON file
         self.update = self.CFG.get("update", False)      # Support update to existing resources
-        self.bulk = self.CFG.get("bulk", True)           # Use bulk insert where available
+        self.bulk = self.CFG.get("bulk", False)           # Use bulk insert where available
 
         # External loader tools
         self.ui_loader = UILoader(self)
         self.ooi_loader = OOILoader(self, asset_path=self.asset_path)
+        self.resource_ds = DatastoreManager.get_datastore_instance("resources")
 
         # Initialize variables used during subsequent load
         self.obj_classes = {}     # Cache of class for object types
@@ -202,38 +207,6 @@ class IONLoader(ImmediateProcess):
         if self.bulk:
             log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
 
-        # The preload spreadsheets (tabs) in the order they should be loaded
-        categories = ['Constraint',
-                      'Contact',
-                      'User',
-                      'Org',
-                      'UserRole',
-                      'CoordinateSystem',
-                      'ParameterDefs',
-                      'ParameterDictionary',
-                      'PlatformModel',
-                      'InstrumentModel',
-                      'Observatory',
-                      'Subsite',
-                      'PlatformSite',
-                      'InstrumentSite',
-                      'StreamDefinition',
-                      'PlatformDevice',
-                      'InstrumentDevice',
-                      'SensorModel',
-                      'SensorDevice',
-                      'InstrumentAgent',
-                      'InstrumentAgentInstance',
-                      'DataProcessDefinition',
-                      'DataProduct',
-                      'DataProcess',
-                      'DataProductLink',
-                      'Attachment',
-                      'WorkflowDefinition',
-                      'Workflow',
-                      'Deployment',
-                      ]
-
         # Fetch the spreadsheet directly from a URL (from a GoogleDocs published spreadsheet)
         if self.path.startswith('http'):
             preload_doc_str = requests.get(self.path).content
@@ -244,7 +217,7 @@ class IONLoader(ImmediateProcess):
             self.csv_files = None
 
         for category in self.categories:
-            row_do, row_skip = 0, 0
+            row_do, row_skip, num_bulk = 0, 0, 0
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
             # First load all OOI assets for this category
@@ -257,7 +230,7 @@ class IONLoader(ImmediateProcess):
             # Now load entries from preload spreadsheet top to bottom where scenario matches
             catfunc = getattr(self, "_load_%s" % category)
             filename = "%s/%s.csv" % (self.path, category)
-            log.info("Loading category %s", category)
+            log.debug("Loading category %s", category)
             try:
                 csvfile = None
                 if self.csv_files is not None:
@@ -281,7 +254,7 @@ class IONLoader(ImmediateProcess):
                     catfunc(row)
 
                 if self.bulk:
-                    self._finalize_bulk()
+                    num_bulk = self._finalize_bulk(category)
             except IOError, ioe:
                 log.warn("Resource category file %s error: %s" % (filename, str(ioe)), exc_info=True)
             finally:
@@ -289,7 +262,7 @@ class IONLoader(ImmediateProcess):
                     csvfile.close()
                     csvfile = None
 
-            log.info("Loaded category %s: %d rows imported, %d rows skipped" % (category, row_do, row_skip))
+            log.info("Loaded category %s: %d resources from scenario rows, %s bulk, %d rows skipped" % (category, row_do, num_bulk, row_skip))
 
     def _load_system_ids(self):
         """Read some system objects for later reference"""
@@ -323,16 +296,16 @@ class IONLoader(ImmediateProcess):
         res_obj_mapping = dict(zip(res_preload_ids, res_objs))
         self.resource_objs.update(res_obj_mapping)
 
-    def _finalize_bulk(self):
-        ds = DatastoreManager.get_datastore_instance("resources")
-        res = ds.create_mult(self.bulk_objects.values(), allow_ids=True)
-        log.info("Bulk stored %s resource objects/associations into resource registry" % (len(res)))
+    def _finalize_bulk(self, category):
+        res = self.resource_ds.create_mult(self.bulk_objects.values(), allow_ids=True)
+        log.debug("Bulk stored %d resource objects/associations into resource registry", len(res))
+        num_objects = len([1 for obj in self.bulk_objects.values() if obj._get_type() != "Association"])
         self.bulk_objects.clear()
-        # Now add them to the known objects
+        return num_objects
 
     def _create_object_from_row(self, objtype, row, prefix='',
                                 constraints=None, constraint_field='constraint_list',
-                                contacts=None, contact_field='contact_ids'):
+                                contacts=None, contact_field='contacts'):
         """
         Construct an IONObject of a determined type from given row dict with attributes.
         Convert all attributes according to their schema target type. Supports nested objects.
@@ -440,7 +413,7 @@ class IONLoader(ImmediateProcess):
             raise iex.BadRequest("ID alias %s used twice" % alias)
         self.resource_ids[alias] = resid
         self.resource_objs[alias] = res_obj
-        log.debug("Added resource alias=%s to id=%s", alias, resid)
+        log.trace("Added resource alias=%s to id=%s", alias, resid)
 
     def _get_resource_obj(self, res_id):
         """Returns a resource object from one of the memory locations for given preload or internal ID"""
@@ -486,9 +459,7 @@ class IONLoader(ImmediateProcess):
 
         headers = self._get_op_headers(row)
         if self.bulk and support_bulk:
-            res_id = create_unique_resource_id()
-            res_obj._id = res_id
-            self.bulk_objects[res_id] = res_obj
+            res_id = self._create_bulk_resource(res_obj)
             self._resource_assign_owner(headers, res_obj)
         else:
             svc_client = self._get_service_client(svcname)
@@ -497,6 +468,13 @@ class IONLoader(ImmediateProcess):
                 res_obj._id = res_id
         self._register_id(row[self.COL_ID], res_id, res_obj)
         self._resource_assign_org(row, res_id)
+        return res_id
+
+    def _create_bulk_resource(self, res_obj):
+        if not hasattr(res_obj, "_id"):
+            res_obj._id = create_unique_resource_id()
+        res_id = res_obj._id
+        self.bulk_objects[res_id] = res_obj
         return res_id
 
     def _resource_advance_lcs(self, row, res_id, restype=None):
@@ -760,9 +738,10 @@ class IONLoader(ImmediateProcess):
         if role_name != "ORG_MEMBER":
             svc_client.grant_role(org_id, user_id, role_name)
 
-    def _load_PlatformModel(self, row):
-        res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
-            "instrument_management", "create_platform_model",
+    def _load_SensorModel(self, row):
+        row['sm/reference_urls'] = repr(self._get_typed_value(row['sm/reference_urls'], targettype="simplelist"))
+        self._basic_resource_create(row, "SensorModel", "sm/",
+            "instrument_management", "create_sensor_model",
             support_bulk=True)
 
     def _get_org_ids(self, ooi_rd_list):
@@ -779,6 +758,11 @@ class IONLoader(ImmediateProcess):
                 marine_ios.add("MF_EA")
         return ",".join(marine_ios)
 
+    def _load_PlatformModel(self, row):
+        res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
+            "instrument_management", "create_platform_model",
+            support_bulk=True)
+
     def _load_PlatformModel_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("nodetype")
 
@@ -790,12 +774,6 @@ class IONLoader(ImmediateProcess):
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
 
             self._load_PlatformModel(fakerow)
-
-    def _load_SensorModel(self, row):
-        row['sm/reference_urls'] = repr(self._get_typed_value(row['sm/reference_urls'], targettype="simplelist"))
-        self._basic_resource_create(row, "SensorModel", "sm/",
-            "instrument_management", "create_sensor_model",
-            support_bulk=True)
 
     def _load_InstrumentModel(self, row):
         row['im/reference_urls'] = repr(self._get_typed_value(row['im/reference_urls'], targettype="simplelist"))
@@ -1116,32 +1094,50 @@ class IONLoader(ImmediateProcess):
 
     def _load_PlatformDevice(self, row):
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
-                                            "instrument_management", "create_platform_device")
+            "instrument_management", "create_platform_device",
+            support_bulk=True)
         ims_client = self._get_service_client("instrument_management")
+
         ass_id = row["platform_model_id"]
         if ass_id:
-            ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
+            if self.bulk:
+                model_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[self.COL_ID])
+                self._create_association(device_obj, PRED.hasModel, model_obj)
+            else:
+                ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
+
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
-    def _load_SensorDevice(self, row):
-        res_id = self._basic_resource_create(row, "SensorDevice", "sd/",
-            "instrument_management", "create_sensor_device")
-        ims_client = self._get_service_client("instrument_management")
-        ass_id = row["sensor_model_id"]
-        if ass_id:
-            ims_client.assign_sensor_model_to_sensor_device(self.resource_ids[ass_id], res_id)
-        ass_id = row["instrument_device_id"]
-        if ass_id:
-            ims_client.assign_sensor_device_to_instrument_device(res_id, self.resource_ids[ass_id])
-        self._resource_advance_lcs(row, res_id, "SensorDevice")
+    def _load_PlatformDevice_OOI(self):
+        ooi_objs = self.ooi_loader.get_type_assets("nodetype")
+
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            fakerow = {}
+            fakerow[self.COL_ID] = ooi_id + "_PD"
+            fakerow['pd/name'] = "%s (%s)" % (ooi_obj['name'], ooi_id)
+            fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
+            fakerow['platform_model_id'] = ooi_id
+
+            self._load_PlatformDevice(fakerow)
 
     def _load_InstrumentDevice(self, row):
         row['id/reference_urls'] = repr(self._get_typed_value(row['id/reference_urls'], targettype="simplelist"))
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
-            "instrument_management", "create_instrument_device", contacts=contacts)
+            "instrument_management", "create_instrument_device", contacts=contacts,
+            support_bulk=True)
 
-#        rr = self._get_service_client("resource_registry")
+        if self.bulk:
+            # Create DataProducer and association
+            id_obj = self._get_resource_obj(row[self.COL_ID])
+            data_producer_obj = IonObject(RT.DataProducer, name=id_obj.name,
+                description="Primary DataProducer for InstrumentDevice %s" % id_obj.name,
+                producer_context=IonObject(OT.InstrumentProducerContext), is_primary=True)
+            dp_id = self._create_bulk_resource(data_producer_obj)
+            self._create_association(id_obj, PRED.hasDataProducer, data_producer_obj)
+
+        #        rr = self._get_service_client("resource_registry")
 #        attachment_ids = self._get_typed_value(row['attachment_ids'], targettype="simplelist")
 #        if attachment_ids:
 #            log.trace('adding attachments to instrument device %s: %r', res_id, attachment_ids)
@@ -1151,15 +1147,74 @@ class IONLoader(ImmediateProcess):
         ims_client = self._get_service_client("instrument_management")
         ass_id = row["instrument_model_id"]
         if ass_id:
-            ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
+            if self.bulk:
+                model_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[self.COL_ID])
+                self._create_association(device_obj, PRED.hasModel, model_obj)
+            else:
+                ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
         ass_id = row["platform_device_id"]# if 'platform_device_id' in row else None
         if ass_id:
-            ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
+            if self.bulk:
+                parent_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[self.COL_ID])
+                self._create_association(parent_obj, PRED.hasDevice, device_obj)
+            else:
+                ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
+
         self._resource_advance_lcs(row, res_id, "InstrumentDevice")
+
+    def _load_InstrumentDevice_OOI(self):
+        ooi_objs = self.ooi_loader.get_type_assets("instrument")
+
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            fakerow = {}
+            fakerow[self.COL_ID] = ooi_id + "_ID"
+            fakerow['id/name'] = ooi_id
+            fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+            ooi_rd = OOIReferenceDesignator(ooi_id)
+            fakerow['instrument_model_id'] = ooi_rd.subseries_rd
+            fakerow['platform_device_id'] = ooi_rd.node_type + "_PD"
+            fakerow['id/reference_urls'] = ''
+            fakerow['contact_ids'] = ''
+
+            self._load_InstrumentDevice(fakerow)
+
+    def _load_SensorDevice(self, row):
+        res_id = self._basic_resource_create(row, "SensorDevice", "sd/",
+            "instrument_management", "create_sensor_device",
+            support_bulk=True)
+
+        ims_client = self._get_service_client("instrument_management")
+        ass_id = row["sensor_model_id"]
+        if ass_id:
+            if self.bulk:
+                model_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[self.COL_ID])
+                self._create_association(device_obj, PRED.hasModel, model_obj)
+            else:
+                ims_client.assign_sensor_model_to_sensor_device(self.resource_ids[ass_id], res_id)
+        ass_id = row["instrument_device_id"]
+        if ass_id:
+            if self.bulk:
+                parent_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[self.COL_ID])
+                self._create_association(parent_obj, PRED.hasDevice, device_obj)
+            else:
+                ims_client.assign_sensor_device_to_instrument_device(res_id, self.resource_ids[ass_id])
+        self._resource_advance_lcs(row, res_id, "SensorDevice")
 
     def _load_InstrumentAgent(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
-                                            "instrument_management", "create_instrument_agent")
+            "instrument_management", "create_instrument_agent",
+            support_bulk=True)
+
+        if self.bulk:
+            # Create DataProducer and association
+            ia_obj = self._get_resource_obj(row[self.COL_ID])
+            proc_def_obj = IonObject(RT.ProcessDefinition)
+            pd_id = self._create_bulk_resource(proc_def_obj)
+            self._create_association(ia_obj, PRED.hasProcessDefinition, proc_def_obj)
 
         svc_client = self._get_service_client("instrument_management")
 
@@ -1167,9 +1222,27 @@ class IONLoader(ImmediateProcess):
         if im_ids:
             im_ids = self._get_typed_value(im_ids, targettype="simplelist")
             for im_id in im_ids:
-                svc_client.assign_instrument_model_to_instrument_agent(self.resource_ids[im_id], res_id)
+                if self.bulk:
+                    model_obj = self._get_resource_obj(im_id)
+                    agent_obj = self._get_resource_obj(row[self.COL_ID])
+                    self._create_association(model_obj, PRED.hasAgentDefinition, agent_obj)
+                else:
+                    svc_client.assign_instrument_model_to_instrument_agent(self.resource_ids[im_id], res_id)
 
         self._resource_advance_lcs(row, res_id, "InstrumentAgent")
+
+    def _load_InstrumentAgent_OOI(self):
+        ooi_objs = self.ooi_loader.get_type_assets("instrument")
+
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            fakerow = {}
+            fakerow[self.COL_ID] = ooi_id + "_IA"
+            fakerow['ia/name'] = "Instrument Agent for " + ooi_id
+            fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+            ooi_rd = OOIReferenceDesignator(ooi_id)
+            fakerow['instrument_model_ids'] = ooi_rd.subseries_rd
+
+            self._load_InstrumentAgent(fakerow)
 
     def _load_InstrumentAgentInstance(self, row):
         ia_id = row["instrument_agent_id"]
@@ -1201,11 +1274,15 @@ class IONLoader(ImmediateProcess):
     def _load_DataProduct(self, row):
         tdom, sdom = time_series_domain()
 
-        res_obj = self._create_object_from_row("DataProduct", row, "dp/")
+        contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
+        res_obj = self._create_object_from_row("DataProduct", row, "dp/", contacts=contacts, contact_field='contacts')
 
         constraint_id = row['geo_constraint_id']
         if constraint_id:
             res_obj.geospatial_bounds = self.constraint_defs[constraint_id]
+        gcrs_id = row['coordinate_system_id']
+        if gcrs_id:
+            res_obj.geospatial_coordinate_reference_system = self.resource_ids[gcrs_id]
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
         # HACK: cannot parse CSV value directly when field defined as "list"
@@ -1308,11 +1385,17 @@ class IONLoader(ImmediateProcess):
 
     # Workflow load functions - Added by Raj Singh
     def _load_Workflow(self,row):
-        workflow_obj = self._create_object_from_row("WorkflowDefinition", row, "wf/")
+        workflow_obj = self._create_object_from_row("Workflow", row, "wf/")
         workflow_client = self._get_service_client("workflow_management")
         workflow_def_id = self.resource_ids[row["wfd_id"]]
+        in_dp_id = self.resource_ids[row["in_dp_id"]]
+        configuration = row['configuration']
+        if configuration:
+            configuration = self._get_typed_value(configuration, targettype="dict")
+
         #Create and start the workflow
-        workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_def_id, self.resource_ids[row["in_dp_id"]], timeout=30)
+        workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_definition_id=workflow_def_id,
+            input_data_product_id=in_dp_id, configuration=configuration, timeout=30)
 
     def _load_Deployment(self,row):
         constraints = self._get_constraints(row, type='Deployment')
@@ -1343,7 +1426,9 @@ class IONLoader(ImmediateProcess):
                            'Subsite',
                            'PlatformSite',
                            'InstrumentSite',
+                           'InstrumentAgent',
                            'InstrumentDevice',
+                           'PlatformAgent',
                            'PlatformDevice',
                            ]
 
@@ -1352,15 +1437,14 @@ class IONLoader(ImmediateProcess):
             res_ids.extend(res_is_list)
             #log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
 
-        ds = DatastoreManager.get_datastore_instance("resources")
-        docs = ds.read_doc_mult(res_ids)
+        docs = self.resource_ds.read_doc_mult(res_ids)
 
         for doc in docs:
             doc['_deleted'] = True
 
         # TODO: Also delete associations
 
-        ds.create_doc_mult(docs, allow_ids=True)
+        self.resource_ds.create_doc_mult(docs, allow_ids=True)
         log.info("Deleted %s OOI resources and associations", len(docs))
 
 

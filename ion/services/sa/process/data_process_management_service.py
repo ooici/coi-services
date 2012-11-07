@@ -651,7 +651,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             extended_resource_type=OT.DataProcessDefinitionExtension,
             resource_id=data_process_definition_id,
             computed_resource_type=OT.DataProcessDefinitionComputedAttributes,
-            origin_resource_type=RT.DataProcessDefinition,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
@@ -677,7 +676,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             extended_resource_type=OT.DataProcessExtension,
             resource_id=data_process_id,
             computed_resource_type=OT.DataProcessComputedAttributes,
-            origin_resource_type=RT.DataProcess,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 

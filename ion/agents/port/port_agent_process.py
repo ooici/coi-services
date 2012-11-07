@@ -415,6 +415,9 @@ class UnixPortAgentProcess(PortAgentProcess):
         command_line.append("-p")
         command_line.append("%s" % (self._command_port));
 
+        command_line.append("-s")
+        command_line.append("%s" % (self._command_port));
+
         command_line.append("-c")
         command_line.append(self._tmp_config.name);
 

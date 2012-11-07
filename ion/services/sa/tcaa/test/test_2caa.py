@@ -76,12 +76,12 @@ from ion.agents.instrument.test.test_instrument_agent import IA_CLS
 from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_queued_fake
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_process_online
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_remote_late
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_resource_commands
-# bin/nosetests -s -v ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_service_command_sequence
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_queued_fake
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_process_online
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_remote_late
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_resource_commands
+# bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA.test_service_command_sequence
 
 
 class FakeProcess(LocalContextMixin):
@@ -475,6 +475,62 @@ class Test2CAA(IonIntegrationTestCase):
 
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
+
+    # The following error occurs when queue persistence is enabled.
+    # Need to verify correct solution to enable persistent queues.
+    """
+    2012-11-06 14:27:13,517 INFO     pyon.container.procs ProcManager.terminate_process: org_management -> pid=Edwards-MacBook-Pro_local_8975.8
+    Traceback (most recent call last):
+      File "/Users/edward/Documents/Dev/code/coi-services/eggs/gevent-0.13.7-py2.7-macosx-10.5-intel.egg/gevent/greenlet.py", line 390, in run
+        result = self._run(*self.args, **self.kwargs)
+      File "/Users/edward/Documents/Dev/code/coi-services/ion/services/sa/tcaa/remote_endpoint.py", line 97, in command_loop
+        self._callback(cmd_result)
+      File "/Users/edward/Documents/Dev/code/coi-services/ion/services/sa/tcaa/remote_endpoint.py", line 284, in _result_complete
+        self._client.enqueue(result)
+    AttributeError: 'NoneType' object has no attribute 'enqueue'
+    <Greenlet at 0x1059ca9b0: command_loop> failed with AttributeError
+    
+    2012-11-06 14:27:13,586 INFO     pyon.container.procs ProcManager.terminate_process: exchange_management -> pid=Edwards-MacBook-Pro_local_8975.7
+    2012-11-06 14:27:13,665 INFO     pyon.container.procs ProcManager.terminate_process: policy_management -> pid=Edwards-MacBook-Pro_local_8975.6
+    2012-11-06 14:27:13,739 INFO     pyon.container.procs ProcManager.terminate_process: identity_management -> pid=Edwards-MacBook-Pro_local_8975.5
+    2012-11-06 14:27:13,807 INFO     pyon.container.procs ProcManager.terminate_process: directory -> pid=Edwards-MacBook-Pro_local_8975.4
+    2012-11-06 14:27:13,874 INFO     pyon.container.procs ProcManager.terminate_process: resource_registry -> pid=Edwards-MacBook-Pro_local_8975.3
+    2012-11-06 14:27:13,941 INFO     pyon.container.procs ProcManager.terminate_process: event_persister -> pid=Edwards-MacBook-Pro_local_8975.1
+    2012-11-06 14:27:13,945 INFO     pyon.event.event EventSubscriber stopped. Event pattern=#
+    2012-11-06 14:27:14,124 INFO     pyon.datastore.couchdb.couchdb_standalone Connecting to CouchDB server: http://localhost:5984
+    2012-11-06 14:27:14,399 INFO     pyon.datastore.couchdb.couchdb_standalone Closing connection to CouchDB
+    
+    ======================================================================
+    ERROR: test_process_online
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "/Users/edward/Documents/Dev/code/coi-services/eggs/mock-0.8.0-py2.7.egg/mock.py", line 1605, in _inner
+        return f(*args, **kw)
+      File "/Users/edward/Documents/Dev/code/coi-services/ion/services/sa/tcaa/test/test_2caa.py", line 492, in test_process_online
+        cmd = self.te_client.enqueue_command(cmd)
+      File "/Users/edward/Documents/Dev/code/coi-services/interface/services/sa/iterrestrial_endpoint.py", line 188, in enqueue_command
+        return self.request(IonObject('terrestrial_endpoint_enqueue_command_in', **{'command': command or None,'link': link}), op='enqueue_command', headers=headers, timeout=timeout)
+      File "/Users/edward/Documents/Dev/code/coi-services/extern/pyon/pyon/net/endpoint.py", line 1012, in request
+        return RequestResponseClient.request(self, msg, headers=headers, timeout=timeout)
+      File "/Users/edward/Documents/Dev/code/coi-services/extern/pyon/pyon/net/endpoint.py", line 822, in request
+        retval, headers = e.send(msg, headers=headers, timeout=timeout)
+      File "/Users/edward/Documents/Dev/code/coi-services/extern/pyon/pyon/ion/conversation.py", line 310, in send
+        result_data, result_headers = c.send(self.conv_type.server_role, msg, headers, **kwargs)
+      File "/Users/edward/Documents/Dev/code/coi-services/extern/pyon/pyon/ion/conversation.py", line 126, in send
+        return self._invite_and_send(to_role, msg, headers, **kwargs)
+      File "/Users/edward/Documents/Dev/code/coi-services/extern/pyon/pyon/ion/conversation.py", line 145, in _invite_and_send
+        return self._send(to_role, to_role_name, msg, header, **kwargs)
+      File "/Users/edward/Documents/Dev/code/coi-services/extern/pyon/pyon/ion/conversation.py", line 169, in _send
+        return self._end_point_unit._message_send(msg, headers, **kwargs)
+      File "/Users/edward/Documents/Dev/code/coi-services/extern/pyon/pyon/ion/conversation.py", line 289, in _message_send
+        return ProcessRPCRequestEndpointUnit.send(self, msg, headers,  **kwargs)
+      File "/Users/edward/Documents/Dev/code/coi-services/extern/pyon/pyon/net/endpoint.py", line 134, in send
+        return self._send(_msg, _header, **kwargs)
+      File "/Users/edward/Documents/Dev/code/coi-services/extern/pyon/pyon/net/endpoint.py", line 880, in _send
+        raise ex
+    Conflict: 409 - Object not based on most current version
+    
+    """
 
     def test_process_online(self):
         """

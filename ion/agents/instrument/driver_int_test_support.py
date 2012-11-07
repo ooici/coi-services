@@ -16,6 +16,7 @@ import os
 import logging
 from ion.agents.port.logger_process import EthernetDeviceLogger
 from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.agents.port.exceptions import PortAgentLaunchException
 
 mi_logger = logging.getLogger('mi_logger')
 

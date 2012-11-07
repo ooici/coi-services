@@ -575,7 +575,7 @@ def get_attachment(attachment_id):
     try:
         # Create client to interface with the viz service
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-        attachment = rr_client.read_attachment(attachment_id)
+        attachment = rr_client.read_attachment(attachment_id, include_content=True)
 
         return app.response_class(attachment.content,mimetype=attachment.content_type)
 

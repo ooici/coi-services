@@ -102,7 +102,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         if not isinstance(msg, Granule):
             log.error('Ingestion received a message that is not a granule. %s' % msg)
             return
-        log.info('Received incoming granule from route: %s and stream_id: %s', stream_route, stream_id)
+        log.trace('Received incoming granule from route: %s and stream_id: %s', stream_route, stream_id)
         granule = msg
         self.add_granule(stream_id, granule)
         self.persist_meta(stream_id, granule)
@@ -161,9 +161,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
         for k,v in rdt.iteritems():
             if k == 'image_obj':
-                log.info( '%s:', k)
+                log.trace( '%s:', k)
             else:
-                log.info( '%s: %s', k, v)
+                log.trace( '%s: %s', k, v)
 
             slice_ = slice(start_index, None)
             coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
@@ -182,9 +182,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             self.db.create_doc(dataset_granule)
             return
         except ResourceNotFound as e:
-            log.error('The datastore was removed while ingesting.')
+            log.error('The datastore was removed while ingesting (retrying)')
             self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
-        log.error('Trying to ingest once more')
 
         #--------------------------------------------------------------------------------
         # The first call to create_doc attached an _id to the dictionary which causes an

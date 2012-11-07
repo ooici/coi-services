@@ -842,4 +842,3 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
         
-        

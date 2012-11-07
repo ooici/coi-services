@@ -200,7 +200,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("%s instrument agent instances found for instrument %s, not 1" % (n, instrument_device_id))
         instrument_agent_instance_obj = self.instrument_agent_instance.read_one(inst_agent_inst_objs[0]._id)
 
-        attachment = self.clients.resource_registry.read_attachment(attachment_id)
+        attachment = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
 
         if not KeywordFlag.CONFIG_SNAPSHOT in attachment.keywords:
             raise BadRequest("Attachment '%s' does not seem to be a config snapshot" % attachment_id)
@@ -1673,7 +1673,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.InstrumentDeviceExtension,
             instrument_device_id,
             OT.InstrumentDeviceComputedAttributes,
-            origin_resource_type=None,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
@@ -1748,6 +1747,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         retval.value = StatusType.STATUS_OK
+        retval.status = ComputedValueAvailability.PROVIDED
         return retval
 
     def get_communications_status_roll_up(self, device_id):
@@ -1764,12 +1764,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval = IonObject(OT.ComputedIntValue)
 
         #call eventsdb to check  comms-related events from this device.
-        max = datetime.datetime.utcnow()
-        min = datetime.datetime.utcnow() - datetime.timedelta(seconds=15)
-
-        event_list = self.clients.user_notification.find_events(origin=device_id, type = 'PlatformEvent', min_datetime= min, max_datetime=max)
+#        max = datetime.datetime.utcnow()
+#        min = datetime.datetime.utcnow() - datetime.timedelta(seconds=15)
+#
+#        event_list = self.clients.user_notification.find_events(origin=device_id, type = 'PlatformEvent', min_datetime= min, max_datetime=max)
 
         retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
+        retval.status = ComputedValueAvailability.PROVIDED
         return retval
 
     def get_data_status_roll_up(self, device_id):
@@ -1781,6 +1782,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #call eventsdb to check  data-related events from this device.
 
         retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
+        retval.status = ComputedValueAvailability.PROVIDED
         return retval
 
     def get_location_status_roll_up(self, device_id):
@@ -1792,6 +1794,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #call eventsdb to check  data-related events from this device.
 
         retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
+        retval.status = ComputedValueAvailability.PROVIDED
         return retval
 
     # apparently fulfilled by some base object now
@@ -1837,7 +1840,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.PlatformDeviceExtension,
             platform_device_id,
             OT.PlatformDeviceComputedAttributes,
-            origin_resource_type=None,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
@@ -1856,14 +1858,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #todo: class for constants?
 
         #todo: does framework validate id?
-
+        retval = IonObject(OT.ComputedIntValue)
 
         #recursive function to determine the aggregate status by visiting all relevant nodes
         def get_status_helper(acc, device_id, device_type):
             if "todo: early exit criteria" == acc:
                 return acc
 
-            retval = IonObject(OT.ComputedIntValue)
 
             if RT.InstrumentDevice == device_type:
                 stat_p = self.get_power_status_roll_up(device_id)
@@ -1908,29 +1909,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #        return ret
         return "0 days, 0 hours, 0 minutes"
 
-
-    def get_data_product_set(self, resource_id=''):
-        # return the set of data product with the processing_level_code as the key to identify
-        ret = IonObject(OT.ComputedDictValue)
-        log.debug("get_data_product_set: resource_id is %s ", str(resource_id))
-        if not resource_id:
-            raise BadRequest("The resource_id parameter is empty")
-
-        #retrieve the output products
-        data_product_ids, _ = self.clients.resource_registry.find_objects(resource_id,
-                                                                          PRED.hasOutputProduct,
-                                                                          RT.DataProduct,
-                                                                          True)
-        log.debug("get_data_product_set: data_product_ids is %s ", str(data_product_ids))
-        if not data_product_ids:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-        else:
-            for data_product_id in data_product_ids:
-                data_product_obj = self.clients.resource_registry.read(data_product_id)
-                log.debug("get_data_product_set: data_product_obj.processing_level_code is %s ", str(data_product_obj.processing_level_code))
-                ret.value[data_product_obj.processing_level_code] = data_product_id
-            ret.status = ComputedValueAvailability.PROVIDED
-        return ret
 
 
     def get_data_product_parameters_set(self, resource_id=''):

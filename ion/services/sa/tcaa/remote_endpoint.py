@@ -281,7 +281,9 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
     def _result_complete(self, result):
         """
         """
-        self._client.enqueue(result)
+        if self._client:
+            self._client.enqueue(result)
+        log.warning('Received a result but no client available to transmit.')
 
     ######################################################################    
     # Commands.
