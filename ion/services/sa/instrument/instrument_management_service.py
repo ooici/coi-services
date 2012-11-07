@@ -200,7 +200,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("%s instrument agent instances found for instrument %s, not 1" % (n, instrument_device_id))
         instrument_agent_instance_obj = self.instrument_agent_instance.read_one(inst_agent_inst_objs[0]._id)
 
-        attachment = self.clients.resource_registry.read_attachment(attachment_id)
+        attachment = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
 
         if not KeywordFlag.CONFIG_SNAPSHOT in attachment.keywords:
             raise BadRequest("Attachment '%s' does not seem to be a config snapshot" % attachment_id)
