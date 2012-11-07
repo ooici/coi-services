@@ -31,7 +31,7 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='sag')
+@attr('INT', group='sa')
 #@unittest.skip('not working')
 class TestDataProductProvenance(IonIntegrationTestCase):
 
