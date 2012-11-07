@@ -289,12 +289,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #todo later on we are going to use complex algorithms to make this prototype powerful
 
         #-------------------------------------------------------------------------------------
-        # Set up the scheduler for an interval timer with an end time
-        #-------------------------------------------------------------------------------------
-        id = self._create_interval_timer_with_end_time(timer_interval=6)
-        self.assertIsNotNone(id)
-
-        #-------------------------------------------------------------------------------------
         # Start a subscriber to listen for an alert event from the Stream Alert Transform
         #-------------------------------------------------------------------------------------
 
@@ -303,7 +297,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         def bad_data(message, headers):
             log.debug("got bad data: %s" % message)
-            queue_bad_data.put(message)
+            if message.type_ == "DeviceStatusEvent":
+                queue_bad_data.put(message)
 
         def no_data(message, headers):
             log.debug("got a no data event::: %s" % message)
@@ -362,6 +357,12 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.pubsub_management.activate_subscription(sub_1)
         self.exchange_names.append('sub_1')
         self.exchange_points.append('exch_point_1')
+
+        #-------------------------------------------------------------------------------------
+        # Set up the scheduler for an interval timer with an end time
+        #-------------------------------------------------------------------------------------
+        id = self._create_interval_timer_with_end_time(timer_interval=5)
+        self.assertIsNotNone(id)
 
         #-------------------------------------------------------------------------------------
         # publish a *GOOD* granules

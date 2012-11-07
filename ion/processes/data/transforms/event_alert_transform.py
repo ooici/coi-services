@@ -132,6 +132,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         # the queue of granules that arrive in between two timer events
         self.granules = gevent.queue.Queue()
         self.instrument_variable_name = None
+        self.timer_origin = None
 
     def on_start(self):
         super(DemoStreamAlertTransform,self).on_start()
@@ -142,6 +143,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.instrument_variable_name = self.CFG.get_safe('process.variable_name', 'input_voltage')
         self.time_field_name = self.CFG.get_safe('process.time_field_name', 'preferred_timestamp')
         self.valid_values = self.CFG.get_safe('process.valid_values', [-200,200])
+        self.timer_origin = self.CFG.get_safe('process.timer_origin', 'Interval Timer')
 
         # Check that valid_values is a list
         validate_is_instance(self.valid_values, list)
@@ -213,22 +215,24 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
 
         log.debug("the number of granules that are stored::: %s" % self.granules.qsize())
 
-        if self.granules.qsize() == 0:
+        log.debug("message here!! %s" % msg)
 
-            log.debug("Granules have not arrived. Publishing an alarm event")
-            # Create the event object
-            event = DeviceCommsEvent( origin = 'DemoStreamAlertTransform',
-                                    sub_type = self.instrument_variable_name,
-                                    state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
-                                    description = "Event to deliver the communications status of the instrument.")
-            # Publish the event
-            self.publisher._publish_event( event_msg = event,
-                                        origin=event.origin,
-                                        event_type = event.type_)
-            log.debug("event published~~~")
-        else:
-            log.debug("Granules have arrived since the last timer event.")
-            self.granules.queue.clear()
+        if msg.origin == self.timer_origin:
+            if self.granules.qsize() == 0:
+                log.debug("Granules have not arrived. Publishing an alarm event")
+                # Create the event object
+                event = DeviceCommsEvent( origin = 'DemoStreamAlertTransform',
+                                        sub_type = self.instrument_variable_name,
+                                        state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
+                                        description = "Event to deliver the communications status of the instrument.")
+                # Publish the event
+                self.publisher._publish_event( event_msg = event,
+                                            origin=event.origin,
+                                            event_type = event.type_)
+                log.debug("event published~~~")
+            else:
+                log.debug("Granules have arrived since the last timer event.")
+                self.granules.queue.clear()
 
 
 class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
