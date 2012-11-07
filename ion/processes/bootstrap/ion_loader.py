@@ -140,7 +140,7 @@ class IONLoader(ImmediateProcess):
         self.loadui = self.CFG.get("loadui", False)      # Import UI asset data
         self.exportui = self.CFG.get("exportui", False)  # Save UI JSON file
         self.update = self.CFG.get("update", False)      # Support update to existing resources
-        self.bulk = self.CFG.get("bulk", True)           # Use bulk insert where available
+        self.bulk = self.CFG.get("bulk", False)           # Use bulk insert where available
 
         # External loader tools
         self.ui_loader = UILoader(self)
