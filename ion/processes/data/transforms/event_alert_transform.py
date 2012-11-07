@@ -63,14 +63,13 @@ class EventAlertTransform(TransformEventListener):
         If the events satisfy the criteria, publish an alert event.
         '''
 
-        
-
-        if self.instrument_event_queue.empty():
-            log.debug("no event received from the instrument. Publishing an alarm event!")
-            self.publish()
-        else:
-            log.debug("Events were received from the instrument in between timer events. Instrument working normally.")
-            self.instrument_event_queue.queue.clear()
+        if msg.origin == self.timer_origin:
+            if self.instrument_event_queue.empty():
+                log.debug("no event received from the instrument. Publishing an alarm event!")
+                self.publish()
+            else:
+                log.debug("Events were received from the instrument in between timer events. Instrument working normally.")
+                self.instrument_event_queue.queue.clear()
 
 
     def publish(self):
