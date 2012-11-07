@@ -134,6 +134,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.instrument_variable_name = None
         self.timer_origin = None
         self.timer_interval = None
+        self.count = 0
 
     def on_start(self):
         super(DemoStreamAlertTransform,self).on_start()
@@ -165,6 +166,8 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         @param stream_id str
         '''
 
+        log.debug("DemoStreamAlertTransform received a packet!")
+
         #-------------------------------------------------------------------------------------
         # Set up the config to use to pass info to the transform algorithm
         #-------------------------------------------------------------------------------------
@@ -173,15 +176,10 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         config.variable_name = self.instrument_variable_name
         config.time_field_name = self.instrument_variable_name
 
-        log.debug("config:: %s" % config)
-        log.debug('StreamAlertTransform got an incoming packet! :%s' % msg)
-
         #-------------------------------------------------------------------------------------
         # Store the granule received
         #-------------------------------------------------------------------------------------
         self.granules.put(msg)
-
-        log.debug("num of granules received:::: %s " % self.granules.qsize())
 
         #-------------------------------------------------------------------------------------
         # Check for good and bad values in the granule
@@ -211,7 +209,12 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         """
         When timer events come, if no granule has arrived since the last timer event, publish an alarm
         """
+        self.count += 1
+
+        log.warning("Got a timer event::: count: %s" % self.count )
+
         if msg.origin == self.timer_origin:
+
             if self.granules.qsize() == 0:
                 # Create the event object
                 event = DeviceCommsEvent( origin = 'DemoStreamAlertTransform',
@@ -225,7 +228,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                                                 event_type = event.type_)
             else:
                 self.granules.queue.clear()
-
 
 class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
@@ -243,9 +245,6 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         @return bad_values, bad_value_times tuple of lists
         """
 
-        log.debug("came here!!!!  %s" % input)
-        log.debug("type of input::: %s" % type(input))
-
         rdt = RecordDictionaryTool.load_from_granule(input)
 
         # Retrieve the name used for the variable_name, the name used for timestamps and the range of valid values from the config
@@ -261,16 +260,10 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         values = rdt[variable_name][:]
         times = rdt[time_field_name][:]
 
-        log.debug("got values from the granule: %s" % values)
-        log.debug("got times from the granule: %s" % times)
-
         for val, t in zip(values, times):
             if val < valid_values[0] or val > valid_values[1]:
                 bad_values.append(val)
                 bad_value_times.append(t)
-
-        log.debug("got bad_values: %s" % bad_values)
-        log.debug("got bad_value_times: %s" % bad_value_times)
 
         # return the list of bad values and their timestamps
         return bad_values, bad_value_times

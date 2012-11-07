@@ -52,7 +52,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
     def now_utc(self):
         return time.mktime(datetime.datetime.utcnow().timetuple())
 
-    def _create_interval_timer_with_end_time(self,timer_interval= None ):
+    def _create_interval_timer_with_end_time(self,timer_interval= None, end_time = None ):
         '''
         A convenience method to set up an interval timer with an end time
         '''
@@ -60,12 +60,15 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.timer_interval = timer_interval
 
         start_time = self.now_utc()
-        self.interval_timer_end_time = start_time + 2 * timer_interval + 1
+        if not end_time:
+            end_time = start_time + 2 * timer_interval + 1
+
+        log.debug("got the end time here!! %s" % end_time)
 
         # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
         sid = self.ssclient.create_interval_timer(start_time="now" ,
             interval=self.timer_interval,
-            end_time=self.interval_timer_end_time,
+            end_time=end_time,
             event_origin="Interval Timer",
             event_subtype="")
 
@@ -296,12 +299,10 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         queue_no_data = gevent.queue.Queue()
 
         def bad_data(message, headers):
-            log.debug("got bad data: %s" % message)
             if message.type_ == "DeviceStatusEvent":
                 queue_bad_data.put(message)
 
         def no_data(message, headers):
-            log.debug("got a no data event::: %s" % message)
             queue_no_data.put(message)
 
         event_subscriber_bad_data = EventSubscriber( origin="DemoStreamAlertTransform",
@@ -363,11 +364,11 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Set up the scheduler for an interval timer with an end time
         #-------------------------------------------------------------------------------------
-        id = self._create_interval_timer_with_end_time(timer_interval=self.timer_interval)
+        id = self._create_interval_timer_with_end_time(timer_interval=self.timer_interval, end_time=-1)
         self.assertIsNotNone(id)
 
         #-------------------------------------------------------------------------------------
-        # publish a *GOOD* granules
+        # publish a *GOOD* granule
         #-------------------------------------------------------------------------------------
         self.length = 2
         val = numpy.array([random.uniform(0,50)  for l in xrange(self.length)])
@@ -383,11 +384,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         val = numpy.array([random.uniform(110,200)  for l in xrange(self.length)])
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val, length=self.length)
 
-        log.debug("size of the queue of bad data::: %s" % queue_bad_data.qsize())
-
         for i in xrange(self.length * self.number):
             event = queue_bad_data.get(timeout=10)
-            log.debug("asserting this event #%s: %s" % (i,event))
             self.assertEquals(event.type_, "DeviceStatusEvent")
             self.assertEquals(event.origin, "DemoStreamAlertTransform")
             self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
@@ -396,15 +394,39 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             self.assertIsNotNone(event.value)
             self.assertIsNotNone(event.time_stamp)
 
-        log.debug("size of the queue after extraction::: %s" % queue_bad_data.qsize())
-
-        # Make sure that only the bad values generated the alert events. Queue should be empty now
+        # To ensure that only the bad values generated the alert events. Queue should be empty now
         self.assertEquals(queue_bad_data.qsize(), 0)
 
-        # Dont publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
-        event = queue_no_data.get(timeout=20)
+        #-------------------------------------------------------------------------------------
+        # Do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
+        #-------------------------------------------------------------------------------------
+        event = queue_no_data.get(timeout=15)
 
-        log.debug("got the event for no data here::: %s" % event)
+        self.assertEquals(event.type_, "DeviceCommsEvent")
+        self.assertEquals(event.origin, "DemoStreamAlertTransform")
+        self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
+        self.assertEquals(event.sub_type, 'input_voltage')
+
+        #-------------------------------------------------------------------------------------
+        # Empty the queues and repeat tests
+        #-------------------------------------------------------------------------------------
+        queue_bad_data.queue.clear()
+        queue_no_data.queue.clear()
+
+        #-------------------------------------------------------------------------------------
+        # publish a *GOOD* granule again
+        #-------------------------------------------------------------------------------------
+        self.length = 2
+        val = numpy.array([random.uniform(0,50)  for l in xrange(self.length)])
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, length=self.length)
+
+        self.assertTrue(queue_bad_data.empty())
+
+        #-------------------------------------------------------------------------------------
+        # Again do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
+        #-------------------------------------------------------------------------------------
+
+        event = queue_no_data.get(timeout=20)
 
         self.assertEquals(event.type_, "DeviceCommsEvent")
         self.assertEquals(event.origin, "DemoStreamAlertTransform")
