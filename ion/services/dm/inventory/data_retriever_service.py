@@ -28,6 +28,7 @@ class DataRetrieverService(BaseDataRetrieverService):
           start_time: 0    The beginning timestamp
           end_time:   N    The ending timestamp
           parameters: []   The list of parameters which match the coverages parameters
+          tdoa: slice()    The slice for the desired indices to be replayed
         '''
 
         if not dataset_id:
@@ -124,8 +125,12 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay_instance.end_time      = query.get('end_time', None)
         replay_instance.stride_time   = query.get('stride_time', None)
         replay_instance.parameters    = query.get('parameters',None)
+        replay_instance.tdoa          = query.get('tdoa',None)
         replay_instance.stream_def_id = delivery_format
         replay_instance.container     = self.container
+
+        if replay_instance.tdoa is not None:
+            validate_is_instance(replay_instance.tdoa, slice)
 
         retrieve_data = replay_instance.execute_retrieve()
 

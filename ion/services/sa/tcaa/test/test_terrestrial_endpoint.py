@@ -763,7 +763,7 @@ class TestTerrestrialEndpoint(IonIntegrationTestCase):
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
 
-    #@unittest.skip('Wait for verification of resource registry use.')
+    @unittest.skip('Wait for verification of resource registry use.')
     def test_persistent_queue(self):
         """
         test_persistent_queue

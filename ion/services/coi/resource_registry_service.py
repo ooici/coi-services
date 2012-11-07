@@ -170,7 +170,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
         if not resource_extension:
             raise BadRequest("The extended_resource parameter not set")
 
-        extended_resource_handler = ExtendedResourceContainer(self, self)
+        extended_resource_handler = ExtendedResourceContainer(self, self.resource_registry)
 
         #Handle differently if the resource_id parameter is a list of ids
         if resource_id.find('[') > -1:
@@ -180,6 +180,6 @@ class ResourceRegistryService(BaseResourceRegistryService):
             return extended_resource_list
 
         extended_resource = extended_resource_handler.create_extended_resource_container(resource_extension,
-            resource_id, computed_resource_type=None,origin_resource_type=None, ext_associations=ext_associations, ext_exclude=ext_exclude)
+            resource_id, computed_resource_type=None, ext_associations=ext_associations, ext_exclude=ext_exclude)
 
         return extended_resource

@@ -67,7 +67,14 @@ class TestR3PCSocket(IonIntegrationTestCase):
             request = 'I am request number %i!' % (i+1)
             id = uuid.uuid4()
             self._requests.append((id, request))
-            
+        #self.addCleanup(self.cleanup)
+    
+    def cleanup(self):
+        """
+        """
+        log.debug('Finalizing test.')
+        gevent.sleep(3)
+     
     def consume_ack(self, request):
         """
         """

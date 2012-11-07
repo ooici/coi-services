@@ -38,7 +38,7 @@ class TestResourceRegistryAttachments(IonIntegrationTestCase):
                                                           attachment_type=AttachmentType.BLOB))
         
         #load
-        attachment = self.RR.read_attachment(att_id)
+        attachment = self.RR.read_attachment(att_id, include_content=True)
         self.assertEqual("test.txt", attachment.name)
         self.assertEqual("text/plain", attachment.content_type)
         self.assertIn("test1", attachment.keywords)

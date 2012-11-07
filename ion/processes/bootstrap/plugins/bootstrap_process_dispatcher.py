@@ -32,8 +32,8 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
             return
 
         registration_module = config.get_safe('bootstrap.processes.registration.module', 'ion.processes.data.registration.registration_process')
-        print registration_module
         registration_class  = config.get_safe('bootstrap.processes.registration.class', 'RegistrationProcess')
+        use_pydap = config.get_safe('bootstrap.use_pydap', False)
 
 
         process_definition = ProcessDefinition(
@@ -42,11 +42,13 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         process_definition.executable['module'] = registration_module
         process_definition.executable['class']  = registration_class
 
+
         proc_def_id = self.pds_client.create_process_definition(process_definition=process_definition)
 
-#        process_res_id = self.pds_client.create_process(process_definition_id=proc_def_id)
-#
-#        self.pds_client.schedule_process(process_definition_id=proc_def_id, process_id=process_res_id)
+        if use_pydap:
+
+            process_res_id = self.pds_client.create_process(process_definition_id=proc_def_id)
+            self.pds_client.schedule_process(process_definition_id=proc_def_id, process_id=process_res_id)
 
     def ingestion_worker(self, process, config):
         # ingestion

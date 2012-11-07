@@ -1292,7 +1292,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             extended_resource_type=OT.SiteExtension,
             resource_id=site_id,
             computed_resource_type=OT.SiteComputedAttributes,
-            origin_resource_type=None,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 

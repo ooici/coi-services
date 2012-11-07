@@ -174,11 +174,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
 
-        #check data_product_set
-        self.assertEqual(ComputedValueAvailability.PROVIDED,
-                         extended_instrument.computed.data_product_set.status)
-        self.assertTrue( 'Parsed_Canonical' in extended_instrument.computed.data_product_set.value)
-
         #check data_product_parameters_set
         self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_instrument.computed.data_product_parameters_set.status)
@@ -191,17 +186,15 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                          extended_instrument.computed.firmware_version.status)
         self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
                          extended_instrument.computed.operational_state.status)
-        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_instrument.computed.power_status_roll_up.status)
-        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_instrument.computed.communications_status_roll_up.status)
-        self.assertEqual(StatusType.STATUS_OK,
-            extended_instrument.computed.communications_status_roll_up.status)
-        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
+        self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_instrument.computed.data_status_roll_up.status)
         self.assertEqual(StatusType.STATUS_OK,
-            extended_instrument.computed.data_status_roll_up.value)
-        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
+                        extended_instrument.computed.data_status_roll_up.value)
+        self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_instrument.computed.location_status_roll_up.status)
 
 #        self.assertEqual(ComputedValueAvailability.PROVIDED,
@@ -402,7 +395,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         # take snapshot of config
         snap_id = self.IMS.agent_state_checkpoint(instDevice_id, "xyzzy snapshot")
-        snap_obj = self.RR.read_attachment(snap_id)
+        snap_obj = self.RR.read_attachment(snap_id, include_content=True)
         print "Saved config:"
         print snap_obj.content
 

@@ -244,6 +244,12 @@ class RegisterModuleUploader(object):
 
         scp_out, scp_err = scp_proc.communicate()
 
+        log.info("using ssh to remotely 'chmod 644' the file")
+        ssh_proc = self.subprocess.Popen(["ssh", ("%s@%s" % (self.dest_user, self.dest_host)),
+                                          "chmod", "664", ("%s/%s" % (self.dest_path, self.dest_file))])
+
+        ssh_out, ssh_err = ssh_proc.communicate()
+
         # clean up
         log.debug("removing tempfile at '%s'", tempfilename)
         self.os.unlink(tempfilename)
@@ -252,6 +258,11 @@ class RegisterModuleUploader(object):
         if 0 != scp_proc.returncode:
             return False, ("Secure copy to %s:%s failed.  (STDOUT: %s) (STDERR: %s)"
                            % (self.dest_host, self.dest_path, scp_out, scp_err))
+
+        # check ssh status
+        if 0 != ssh_proc.returncode:
+            return False, ("Remote chmod on %s/%s failed.  (STDOUT: %s) (STDERR: %s)"
+                           % (self.dest_path, self.dest_file, scp_out, scp_err))
 
         self.did_upload = True
         return True, ""
