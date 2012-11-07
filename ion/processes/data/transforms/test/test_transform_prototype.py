@@ -136,7 +136,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                                             callback=event_received)
 
         event_subscriber.start()
-        self.addCleanUp(event_subscriber.stop)
+        self.addCleanup(event_subscriber.stop)
 
         # publish event twice
 
@@ -210,7 +210,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             callback=event_received)
 
         event_subscriber.start()
-        self.addCleanUp(event_subscriber.stop)
+        self.addCleanup(event_subscriber.stop)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Stream Alert Transform... set up the event types to listen to
@@ -283,15 +283,13 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         return pid
 
     def test_demo_stream_granules_processing(self):
-        #--------------------------------------------------------------------------------
-        #Test that streams are processed by the transforms according to a provided algorithm
-        #--------------------------------------------------------------------------------
+        """
+        Test that the Demo Stream Alert Transform is functioning. The transform coordinates with the scheduler.
+        It is configured to listen to a source that publishes granules. It publishes a DeviceStatusEvent if it
+        receives a granule with bad data or if no granule has arrived between two timer events.
 
-        #todo: In this simple implementation, we are checking if the stream has the word, PUBLISH,
-        #todo(contd) and if the word VALUE=<number> exists and that number is less than something
-
-        #todo later on we are going to use complex algorithms to make this prototype powerful
-
+        The transform is configured at launch using a config dictionary.
+        """
         #-------------------------------------------------------------------------------------
         # Start a subscriber to listen for an alert event from the Stream Alert Transform
         #-------------------------------------------------------------------------------------
@@ -325,14 +323,16 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         self.valid_values = [-100, 100]
         self.timer_interval = 5
+        self.queue_name = 'a_queue'
 
         config = {
             'process':{
                 'timer_interval': self.timer_interval,
-                'queue_name': 'a_queue',
-                'variable': 'input_voltage',
-                'time_variable': 'preferred_timestamp',
+                'queue_name': self.queue_name,
+                'variable_name': 'input_voltage',
+                'time_field_name': 'preferred_timestamp',
                 'valid_values': self.valid_values,
+                'timer_origin': 'Interval Timer'
             }
         }
 
@@ -357,7 +357,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                                                                         exchange_point='exch_point_1',
                                                                         stream_definition_id=stream_def_id)
 
-        sub_1 = self.pubsub_management.create_subscription(name='sub_1', stream_ids=[stream_id], exchange_points=['exch_point_1'], exchange_name='a_queue')
+        sub_1 = self.pubsub_management.create_subscription(name='sub_1', stream_ids=[stream_id], exchange_points=['exch_point_1'], exchange_name=self.queue_name)
         self.pubsub_management.activate_subscription(sub_1)
         self.exchange_names.append('sub_1')
         self.exchange_points.append('exch_point_1')
