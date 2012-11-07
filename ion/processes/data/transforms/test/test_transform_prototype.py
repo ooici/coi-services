@@ -286,7 +286,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         """
         Test that the Demo Stream Alert Transform is functioning. The transform coordinates with the scheduler.
         It is configured to listen to a source that publishes granules. It publishes a DeviceStatusEvent if it
-        receives a granule with bad data or if no granule has arrived between two timer events.
+        receives a granule with bad data or a DeviceCommsEvent if no granule has arrived between two timer events.
 
         The transform is configured at launch using a config dictionary.
         """
