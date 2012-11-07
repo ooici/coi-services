@@ -322,9 +322,11 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # The configuration for the Stream Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         self.valid_values = [-100, 100]
+        self.timer_interval = 5
 
         config = {
             'process':{
+                'timer_interval': self.timer_interval,
                 'queue_name': 'a_queue',
                 'variable': 'input_voltage',
                 'time_variable': 'preferred_timestamp',
@@ -361,7 +363,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Set up the scheduler for an interval timer with an end time
         #-------------------------------------------------------------------------------------
-        id = self._create_interval_timer_with_end_time(timer_interval=5)
+        id = self._create_interval_timer_with_end_time(timer_interval=self.timer_interval)
         self.assertIsNotNone(id)
 
         #-------------------------------------------------------------------------------------
