@@ -67,6 +67,11 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 # the test does not take too long.
 BASE_PLATFORM_ID = 'Node1D'
 
+DVR_CONFIG = {
+    'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
+    'dvr_cls': 'OmsPlatformDriver',
+    'oms_uri': 'embsimulator'
+}
 
 # TIMEOUT: timeout for each execute_agent call.
 TIMEOUT = 90
@@ -464,6 +469,17 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # Launch Base Platform AgentInstance, connect to the resource agent client
         #-------------------------------
 
+        # note: ID value for 'platform_id' should be consistent with IDs in topology:
+        PLATFORM_CONFIG = {
+            'platform_id':             base_platform_id,
+            'platform_topology':       self.topology,
+
+            'agent_device_map':        self.agent_device_map,
+            'agent_streamconfig_map':  self.agent_streamconfig_map,
+
+            'driver_config':           DVR_CONFIG,
+        }
+
         agent_instance_id = base_platform_objs['agent_instance_id']
         pid = self.imsclient.start_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
         log.debug("start_platform_agent_instance returned pid=%s", pid)
@@ -481,24 +497,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # Start a resource agent client to talk with the instrument agent.
         self._pa_client = ResourceAgentClient('paclient', name=agent_instance_obj.agent_process_id,  process=FakeProcess())
         log.debug(" test_oms_create_and_launch:: got pa client %s", str(self._pa_client))
-
-        DVR_CONFIG = {
-            'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
-            'dvr_cls': 'OmsPlatformDriver',
-            'oms_uri': 'embsimulator'
-        }
-
-        # note: ID value for 'platform_id' should be consistent with IDs in topology:
-        PLATFORM_CONFIG = {
-            'platform_id':             base_platform_id,
-            'platform_topology':       self.topology,
-
-            'agent_device_map':        self.agent_device_map,
-            'agent_streamconfig_map':  self.agent_streamconfig_map,
-
-            'driver_config':           DVR_CONFIG,
-            'container_name':          self.container.name,
-        }
 
         log.debug("Base PLATFORM_CONFIG =\n%s", PLATFORM_CONFIG)
 

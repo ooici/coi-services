@@ -85,7 +85,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.PLATFORM_CONFIG = {
             'platform_id': self.PLATFORM_ID,
             'driver_config': DVR_CONFIG,
-            'container_name': self.container.name
         }
 
         # Start data suscribers, add stop to cleanup.
@@ -101,7 +100,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._agent_config = {
             'agent'         : {'resource_id': PA_RESOURCE_ID},
             'stream_config' : self._stream_config,
-            'test_mode' : True
+            'test_mode' : True,
+
+            'platform_config': self.PLATFORM_CONFIG
         }
 
         log.debug("launching with agent_config=%s",  str(self._agent_config))

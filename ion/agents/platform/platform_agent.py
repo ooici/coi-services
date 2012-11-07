@@ -195,7 +195,7 @@ class PlatformAgent(ResourceAgent):
             log.error(msg)
             raise PlatformException(msg)
 
-        for k in ['platform_id', 'driver_config', 'container_name']:
+        for k in ['platform_id', 'driver_config']:
             if not k in self._plat_config:
                 msg = "'%s' key not given in plat_config=%s" % (k, self._plat_config)
                 log.error(msg)
@@ -209,8 +209,6 @@ class PlatformAgent(ResourceAgent):
                     self._platform_id, k, driver_config)
                 log.error(msg)
                 raise PlatformException(msg)
-
-        self._container_name = self._plat_config['container_name']
 
         if 'platform_topology' in self._plat_config:
             self._topology = self._plat_config['platform_topology']
@@ -759,7 +757,6 @@ class PlatformAgent(ResourceAgent):
             'agent_streamconfig_map': self._agent_streamconfig_map,
             'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],
-            'container_name': self._container_name,
         }
 
         kwargs = dict(plat_config=platform_config)
