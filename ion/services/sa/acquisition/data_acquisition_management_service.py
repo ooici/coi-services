@@ -38,8 +38,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         producer_context_obj = IonObject(OT.ExtDatasetProducerContext)
 
         #create data producer resource and associate to this external_dataset_id
-        data_producer_obj = IonObject(RT.DataProducer,name=data_set_obj.name, description="primary producer resource for this data set",
-                                      producer_context=producer_context_obj, is_primary=True)
+        data_producer_obj = IonObject(RT.DataProducer,name=data_set_obj.name,
+            description="Primary DataProducer for ExternalDataSet %s" % data_set_obj.name,
+            producer_context=producer_context_obj, is_primary=True)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
 
         # Create association
@@ -57,7 +58,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         external_data_set_obj = self.clients.resource_registry.read(external_dataset_id)
 
         # List all resource ids that are objects for this data_source and has the hasDataProducer link
-        producers, producer_assns = self.clients.resource_registry.find_objects(subject=external_dataset_id, predicate=PRED.hasDataProducer, id_only=True)
+        producers, producer_assns = self.clients.resource_registry.find_objects(
+            subject=external_dataset_id, predicate=PRED.hasDataProducer, id_only=True)
         for producer, producer_assn in zip(producers, producer_assns):
             log.debug("DataAcquisitionManagementService:unregister_external_data_set  delete association %s", str(producer_assn))
             self.clients.resource_registry.delete_association(producer_assn)
@@ -78,7 +80,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("Data Process %s does not exist" % data_process_id)
 
         #find the data process definition
-        data_process_def_objs, _ = self.clients.resource_registry.find_objects(subject=data_process_id,  predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition, id_only=False)
+        data_process_def_objs, _ = self.clients.resource_registry.find_objects(
+            subject=data_process_id,  predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition, id_only=False)
         if not data_process_def_objs:
             raise NotFound("Data Process Definition for Data Process %s does not exist" % data_process_id)
 
@@ -86,8 +89,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         producer_context_obj = IonObject(OT.DataProcessProducerContext,  configuration=data_process_obj.configuration, parameters=data_process_def_objs[0].parameters)
 
         #create data producer resource and associate to this data_process_id
-        data_producer_obj = IonObject(RT.DataProducer,name=data_process_obj.name, description="primary producer resource for this process",
-                                      producer_context=producer_context_obj, is_primary=True)
+        data_producer_obj = IonObject(RT.DataProducer,name=data_process_obj.name,
+            description="Primary DataProducer for DataProcess %s" % data_process_obj.name,
+            producer_context=producer_context_obj, is_primary=True)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
 
         # Create association
@@ -127,8 +131,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         producer_context_obj = IonObject(OT.InstrumentProducerContext)
 
         #create data producer resource and associate to this instrument_id
-        data_producer_obj = IonObject(RT.DataProducer,name=instrument_obj.name, description="primary producer resource for this instrument",
-                                      producer_context=producer_context_obj, is_primary=True)
+        data_producer_obj = IonObject(RT.DataProducer, name=instrument_obj.name,
+            description="Primary DataProducer for InstrumentDevice %s" % instrument_obj.name,
+            producer_context=producer_context_obj, is_primary=True)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
         log.debug("register_instrument  data_producer_id %s" % data_producer_id)
 

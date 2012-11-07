@@ -1062,52 +1062,38 @@ class OrgManagementService(BaseOrgManagementService):
             extended_resource_type=OT.MarineFacilityOrgExtension,
             resource_id=org_id,
             computed_resource_type=OT.MarineFacilityOrgComputedAttributes,
-            origin_resource_type=RT.Org,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
-        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
-        #TODO - see if there is a better way to do this in the extended resource frame work.
-        if hasattr(extended_org, 'attachments'):
-            for att in extended_org.attachments:
-                if hasattr(att, 'content'):
-                    delattr(att, 'content')
+
+
+        #compute the non deployed devices
+        if hasattr(extended_org, 'instruments') and hasattr(extended_org, 'instruments_deployed') and hasattr(extended_org, 'instruments_not_deployed'):
+            #clean up the list of deployed instrument
+            dply_inst = []
+            for instrument_deployed in extended_org.instruments_deployed:
+                if hasattr(instrument_deployed, 'type_') and instrument_deployed.type_ == 'InstrumentDevice':
+                    dply_inst.append(instrument_deployed)
+            extended_org.instruments_deployed = dply_inst
+
+            #compute the list of non-deployed instruments
+            for org_instrument in extended_org.instruments:
+                if not extended_org.instruments_deployed.count(org_instrument):
+                    extended_org.instruments_not_deployed.append(org_instrument)
+
+        if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed') and hasattr(extended_org, 'platforms_not_deployed'):
+            #clean up the list of deployed platforms
+            dply_pltfrms = []
+            for platform_deployed in extended_org.platforms_deployed:
+                if hasattr(platform_deployed, 'type_') and platform_deployed.type_ == 'PlatformDevice':
+                    dply_pltfrms.append(platform_deployed)
+            extended_org.platforms_deployed = dply_pltfrms
+
+            #compute the list of non-deployed platforms
+            for org_platform in extended_org.platforms:
+                if not extended_org.platforms_deployed.count(org_platform):
+                    extended_org.platforms_not_deployed.append(org_platform)
 
         return extended_org
 
-    def get_instruments_not_deployed(self, org_id='', ext_associations=None, ext_exclude=None):
-    #Returns a list of instrument devices that owned by this Org but not currently deployed to a Site
 
-        ret = IonObject(OT.ComputedListValue)
-        retlist = []
-#        instrument_device_ids, _ =  self.clients.resource_registry.find_objects(subject=org_id ,predicate=PRED.hasResource, object_type=RT.InstrumentDevices, id_only=True)
-#        for instrument_device_id in instrument_device_ids:
-#            site_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Site ,predicate=PRED.hasDevice, object=instrument_device_id, id_only=True)
-#            if not site_ids:
-#                #this device is not currently deployed, add it to the list
-#                retlist.append( self.clients.resource_registry.read(instrument_device_id) )
-
-        ret.value = retlist
-        ret.status = ComputedValueAvailability.PROVIDED
-        ret.reason = ""
-
-        return ret
-
-
-    def get_platforms_not_deployed(self, org_id='', ext_associations=None, ext_exclude=None):
-    #Returns a list of instrument devices that owned by this Org but not currently deployed to a Site
-
-        ret = IonObject(OT.ComputedListValue)
-        retlist = []
-#        platform_device_ids, _ =  self.clients.resource_registry.find_objects(subject=org_id ,predicate=PRED.hasResource, object_type=RT.PlatformDevices, id_only=True)
-#        for platform_device_id in platform_device_ids:
-#            site_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Site ,predicate=PRED.hasDevice, object=platform_device_id, id_only=True)
-#            if not site_ids:
-#                #this device is not currently deployed, add it to the list
-#                retlist.append( self.clients.resource_registry.read(platform_device_id) )
-
-        ret.value = retlist
-        ret.status = ComputedValueAvailability.PROVIDED
-        ret.reason = ""
-
-        return ret

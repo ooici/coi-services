@@ -400,7 +400,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         # take snapshot of config
         snap_id = self.IMS.agent_state_checkpoint(instDevice_id, "xyzzy snapshot")
-        snap_obj = self.RR.read_attachment(snap_id)
+        snap_obj = self.RR.read_attachment(snap_id, include_content=True)
         print "Saved config:"
         print snap_obj.content
 

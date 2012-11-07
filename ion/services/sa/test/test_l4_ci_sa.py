@@ -88,7 +88,7 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
 
         attachments, _ = self.RR.find_objects(instrument_device_id, PRED.hasAttachment, RT.Attachment, True)
         self.assertEqual(len(attachments), 1)
-        a = self.RR.read_attachment(attachments[0])
+        a = self.RR.read_attachment(attachments[0], include_content=True)
 
         self.assertEqual("blah", a.name)
         self.assertEqual("text/plain", a.content_type)
