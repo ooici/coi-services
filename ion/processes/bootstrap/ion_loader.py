@@ -1312,11 +1312,17 @@ class IONLoader(ImmediateProcess):
 
     # Workflow load functions - Added by Raj Singh
     def _load_Workflow(self,row):
-        workflow_obj = self._create_object_from_row("WorkflowDefinition", row, "wf/")
+        workflow_obj = self._create_object_from_row("Workflow", row, "wf/")
         workflow_client = self._get_service_client("workflow_management")
         workflow_def_id = self.resource_ids[row["wfd_id"]]
+        in_dp_id = self.resource_ids[row["in_dp_id"]]
+        configuration = row['configuration']
+        if configuration:
+            configuration = self._get_typed_value(configuration, targettype="dict")
+
         #Create and start the workflow
-        workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_def_id, self.resource_ids[row["in_dp_id"]], timeout=30)
+        workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_definition_id=workflow_def_id,
+            input_data_product_id=in_dp_id, configuration=configuration, timeout=30)
 
     def _load_Deployment(self,row):
         constraints = self._get_constraints(row, type='Deployment')
