@@ -136,7 +136,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                                             callback=event_received)
 
         event_subscriber.start()
-
+        self.addCleanUp(event_subscriber.stop)
 
         # publish event twice
 
@@ -210,6 +210,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             callback=event_received)
 
         event_subscriber.start()
+        self.addCleanUp(event_subscriber.stop)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Stream Alert Transform... set up the event types to listen to
