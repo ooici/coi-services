@@ -52,7 +52,7 @@ from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.identifier import create_unique_resource_id, create_unique_association_id
 from pyon.ion.resource import get_restype_lcsm
-from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED
+from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT
 from pyon.util.containers import get_ion_ts, named_any
 from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
@@ -140,7 +140,7 @@ class IONLoader(ImmediateProcess):
         self.loadui = self.CFG.get("loadui", False)      # Import UI asset data
         self.exportui = self.CFG.get("exportui", False)  # Save UI JSON file
         self.update = self.CFG.get("update", False)      # Support update to existing resources
-        self.bulk = self.CFG.get("bulk", True)           # Use bulk insert where available
+        self.bulk = self.CFG.get("bulk", False)           # Use bulk insert where available
 
         # External loader tools
         self.ui_loader = UILoader(self)
@@ -301,7 +301,6 @@ class IONLoader(ImmediateProcess):
         log.debug("Bulk stored %d resource objects/associations into resource registry", len(res))
         num_objects = len([1 for obj in self.bulk_objects.values() if obj._get_type() != "Association"])
         self.bulk_objects.clear()
-        # Now add them to the known objects
         return num_objects
 
     def _create_object_from_row(self, objtype, row, prefix='',
@@ -460,9 +459,7 @@ class IONLoader(ImmediateProcess):
 
         headers = self._get_op_headers(row)
         if self.bulk and support_bulk:
-            res_id = create_unique_resource_id()
-            res_obj._id = res_id
-            self.bulk_objects[res_id] = res_obj
+            res_id = self._create_bulk_resource(res_obj)
             self._resource_assign_owner(headers, res_obj)
         else:
             svc_client = self._get_service_client(svcname)
@@ -471,6 +468,13 @@ class IONLoader(ImmediateProcess):
                 res_obj._id = res_id
         self._register_id(row[self.COL_ID], res_id, res_obj)
         self._resource_assign_org(row, res_id)
+        return res_id
+
+    def _create_bulk_resource(self, res_obj):
+        if not hasattr(res_obj, "_id"):
+            res_obj._id = create_unique_resource_id()
+        res_id = res_obj._id
+        self.bulk_objects[res_id] = res_obj
         return res_id
 
     def _resource_advance_lcs(self, row, res_id, restype=None):
@@ -1124,7 +1128,16 @@ class IONLoader(ImmediateProcess):
             "instrument_management", "create_instrument_device", contacts=contacts,
             support_bulk=True)
 
-#        rr = self._get_service_client("resource_registry")
+        if self.bulk:
+            # Create DataProducer and association
+            id_obj = self._get_resource_obj(row[self.COL_ID])
+            data_producer_obj = IonObject(RT.DataProducer, name=id_obj.name,
+                description="Primary DataProducer for InstrumentDevice %s" % id_obj.name,
+                producer_context=IonObject(OT.InstrumentProducerContext), is_primary=True)
+            dp_id = self._create_bulk_resource(data_producer_obj)
+            self._create_association(id_obj, PRED.hasDataProducer, data_producer_obj)
+
+        #        rr = self._get_service_client("resource_registry")
 #        attachment_ids = self._get_typed_value(row['attachment_ids'], targettype="simplelist")
 #        if attachment_ids:
 #            log.trace('adding attachments to instrument device %s: %r', res_id, attachment_ids)
@@ -1195,6 +1208,13 @@ class IONLoader(ImmediateProcess):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
             "instrument_management", "create_instrument_agent",
             support_bulk=True)
+
+        if self.bulk:
+            # Create DataProducer and association
+            ia_obj = self._get_resource_obj(row[self.COL_ID])
+            proc_def_obj = IonObject(RT.ProcessDefinition)
+            pd_id = self._create_bulk_resource(proc_def_obj)
+            self._create_association(ia_obj, PRED.hasProcessDefinition, proc_def_obj)
 
         svc_client = self._get_service_client("instrument_management")
 

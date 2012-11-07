@@ -239,7 +239,7 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
 
         for a_id in attachments:
 
-            a = self.RR.read_attachment(a_id)
+            a = self.RR.read_attachment(a_id, include_content=True)
 
             parts = string.split(a.name, ".")
 
