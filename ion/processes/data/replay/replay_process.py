@@ -141,7 +141,13 @@ class ReplayProcess(BaseReplayProcess):
 
         for field in fields:
             log.info( 'Slice is %s' , slice_)
-            rdt[field] = coverage.get_parameter_values(field, tdoa=slice_)
+            n = coverage.get_parameter_values(field,tdoa=slice_)
+            if n is None:
+                rdt[field] = [n]
+            elif isinstance(n,np.ndarray):
+                rdt[field] = n
+            else:
+                rdt[field] = [n]
         return rdt
 
     def execute_retrieve(self):
