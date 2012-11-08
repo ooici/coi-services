@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-'''
+"""
 @author Bill Bollenbacher
 @author Swarbhanu Chatterjee
 @author David Stuebe
 @file ion/services/dm/presentation/user_notification_service.py
 @description Implementation of the UserNotificationService
-'''
+"""
 
 from pyon.core.exception import BadRequest, IonException
 from pyon.public import RT, PRED, get_sys_name, Container, CFG, OT, IonObject
@@ -128,24 +128,24 @@ class EventProcessor(object):
 
 
 class EmailEventProcessor(EventProcessor):
-    '''
+    """
     Contains email related info.
-    '''
+    """
 
     def __init__(self, smtp_client):
-        '''
+        """
         Contain information about the smtp_client being used for that user
-        '''
+        """
         super(EmailEventProcessor, self).__init__()
         self.smtp_client = smtp_client
         self.notification_subscriptions = []
 
     def add_notification_for_user(self, notification_request, user_id):
-        '''
+        """
         Add a notification to the user's list of subscribed notifications
         @param notification_request NotificationRequest
         @param user_id str
-        '''
+        """
 
         #---------------------------------------------------------------------------------------------------
         # Make a callback function that is right for the user
@@ -188,14 +188,14 @@ class EmailEventProcessor(EventProcessor):
         return user
 
     def put_notification_in_user_object(self, user, notification_request):
-        '''
+        """
         Add the notification into the user info object.
 
         @param user UserInfo
         @param notification_request NotificationRequest
 
         @retval user UserInfo
-        '''
+        """
 
         user_variables_has_notifications = False
 
@@ -213,11 +213,11 @@ class EmailEventProcessor(EventProcessor):
 
 
     def update_user_info_dictionary(self, user, notification_subscription):
-        '''
+        """
         Update the user info and reverse user info dictionaries.
         @param user UserInfo object
         @param notification_subscription NotificationSubscription object
-        '''
+        """
 
         if self.user_info.has_key(user.name):
             # the user is already known by the EventProcessor
@@ -261,10 +261,10 @@ class EmailEventProcessor(EventProcessor):
             notif_sub.deactivate()
 
     def stop_notification_subscriber(self, notification_request):
-        '''
+        """
         Stops the listener of the notification subscriber object
         @param notification_request NotificationRequest
-        '''
+        """
 
         super(EmailEventProcessor, self).stop_notification_subscriber(notification_request)
 
@@ -340,19 +340,19 @@ class UserNotificationService(BaseUserNotificationService):
         super(UserNotificationService, self).on_quit()
 
     def __now(self):
-        '''
+        """
         This method defines what the UNS uses as its "current" time
-        '''
+        """
         return datetime.utcnow()
 
     def set_process_batch_key(self, process_batch_key = ''):
-        '''
+        """
         This method allows an operator to set the process_batch_key, a string.
         Once this method is used by the operator, the UNS will start listening for timer events
         published by the scheduler with origin = process_batch_key.
 
         @param process_batch_key str
-        '''
+        """
 
         def process(event_msg, headers):
             assert event_msg.origin == process_batch_key
@@ -364,9 +364,9 @@ class UserNotificationService(BaseUserNotificationService):
             self.start_time = self.end_time
 
         # the subscriber for the batch processing
-        '''
+        """
         To trigger the batch notification, have the scheduler create a timer with event_origin = process_batch_key
-        '''
+        """
         self.batch_processing_subscriber = EventSubscriber(
             event_type="ResourceEvent",
             origin=process_batch_key,
@@ -547,11 +547,11 @@ class UserNotificationService(BaseUserNotificationService):
             notification_id = notification_id)
 
     def delete_notification_from_user_info(self, notification_id):
-        '''
+        """
         Helper method to delete the notification from the user_info dictionary
 
         @param notification_id str
-        '''
+        """
 
         user_ids, assocs = self.clients.resource_registry.find_subjects(object=notification_id, predicate=PRED.hasNotification, id_only=True)
 
@@ -687,11 +687,11 @@ class UserNotificationService(BaseUserNotificationService):
         return events
 
     def publish_event(self, event=None):
-        '''
+        """
         Publish a general event at a certain time using the UNS
 
         @param event Event
-        '''
+        """
 
         self.event_publisher._publish_event( event_msg = event,
             origin=event.origin,
@@ -699,14 +699,14 @@ class UserNotificationService(BaseUserNotificationService):
         log.info("The publish_event() method of UNS was used to publish an event.")
 
     def get_recent_events(self, resource_id='', limit = 100):
-        '''
+        """
         Get recent events
 
         @param resource_id str
         @param limit int
 
         @retval events list of Event objects
-        '''
+        """
 
         now = self.makeEpochTime(datetime.utcnow())
         events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=False)
@@ -721,13 +721,13 @@ class UserNotificationService(BaseUserNotificationService):
         return ret
 
     def get_user_notifications(self, user_id=''):
-        '''
+        """
         Get the notification request objects that are subscribed to by the user
 
         @param user_id str
 
         @retval notifications list of NotificationRequest objects
-        '''
+        """
 
         user = self.clients.resource_registry.read(user_id)
 
@@ -752,13 +752,13 @@ class UserNotificationService(BaseUserNotificationService):
             return None
 
     def create_worker(self, number_of_workers=1):
-        '''
+        """
         Creates notification workers
 
         @param number_of_workers int
         @retval pids list
 
-        '''
+        """
 
         pids = []
 
@@ -812,7 +812,7 @@ class UserNotificationService(BaseUserNotificationService):
 
 
     def process_batch(self, start_time = 0, end_time = 0):
-        '''
+        """
         This method is launched when an process_batch event is received. The user info dictionary maintained
         by the User Notification Service is used to query the event repository for all events for a particular
         user that have occurred in a provided time interval, and then an email is sent to the user containing
@@ -820,7 +820,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         @param start_time int
         @param end_time int
-        '''
+        """
 
         if end_time <= start_time:
             return
@@ -871,12 +871,12 @@ class UserNotificationService(BaseUserNotificationService):
                 self.format_and_send_email(events_for_message, user_name)
 
     def format_and_send_email(self, events_for_message, user_name):
-        '''
+        """
         Format the message for a particular user containing information about the events he is to be notified about
 
         @param events_for_message list
         @param user_name str
-        '''
+        """
 
         message = str(events_for_message)
         log.debug("The user, %s, will get the following events in his batch notification email: %s" % (user_name, message))
@@ -916,14 +916,14 @@ class UserNotificationService(BaseUserNotificationService):
             smtp_client=self.smtp_client )
 
     def send_batch_email(self, msg_body, msg_subject, msg_recipient, smtp_client):
-        '''
+        """
         Send the email
 
         @param msg_body str
         @param msg_subject str
         @param msg_recipient str
         @param smtp_client object
-        '''
+        """
 
         msg = MIMEText(msg_body)
         msg['Subject'] = msg_subject
@@ -937,13 +937,13 @@ class UserNotificationService(BaseUserNotificationService):
         smtp_client.sendmail(smtp_sender, msg_recipient, msg.as_string())
 
     def update_user_info_object(self, user_id, new_notification, old_notification):
-        '''
+        """
         Update the UserInfo object. If the passed in parameter, od_notification, is None, it does not need to remove the old notification
 
         @param user_id str
         @param new_notification NotificationRequest
         @param old_notification NotificationRequest
-        '''
+        """
 
         #------------------------------------------------------------------------------------
         # read the user
@@ -1018,3 +1018,95 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
+    def get_subscriptions_for_data_product(self, data_product_id='', include_retired=False):
+        """
+        This method is used to get the subscriptions to a data product. The method will return a list of NotificationRequest
+        objects for whom the origin is set to this data product. This way all the users who were interested in listening to
+        events with origin equal to this data product, will be known and all their subscriptions will be known.
+
+        @param data_product_id
+        @param include_retired
+        @return notification_requests []
+        """
+
+        notification_requests = []
+
+        #------------------------------------------------------------------------------------
+        # Get the users who have created notifications with the data product id as origin
+        #------------------------------------------------------------------------------------
+        dict =  self.event_processor.reverse_user_info['event_origin'][data_product_id]
+        user_names = set(dict.itervalues())
+
+        #------------------------------------------------------------------------------------
+        # Find the notification request objects with origin as data_product_id
+        #------------------------------------------------------------------------------------
+        if include_retired: # include both past and active notifications
+            for user_name in user_names:
+                notific = self.event_processor.user_info[user_name]['notifications']
+                notification_requests.append()
+        else: # include only the active notifications
+            for user_name in user_names:
+                for notific in self.event_processor.user_info[user_name]['notifications']:
+                    if not notific.temporal_bounds.end_datetime:
+                        notification_requests.append(notific)
+
+        number_of_subscriptions = len(notification_requests)
+
+        return number_of_subscriptions, notification_requests
+
+    def get_active_subscriptions_for_data_product(self, data_product_id=''):
+        """
+        This method is used to get the active subscriptions to a data product. The method will return a list of NotificationRequest
+        objects for whom the origin is set to this data product.
+
+        @param data_product_id str
+        @return number_of_subscriptions, active_notifications int, []
+        """
+        active_notifications = []
+
+        #------------------------------------------------------------------------------------
+        # Get the users who have created notifications with the data product id as origin
+        #------------------------------------------------------------------------------------
+        dict =  self.event_processor.reverse_user_info['event_origin'][data_product_id]
+        user_names = set(dict.itervalues())
+
+        #------------------------------------------------------------------------------------
+        # Get the notifications we want
+        #------------------------------------------------------------------------------------
+        for user_name in user_names:
+            for notific in self.event_processor.user_info[user_name]['notifications']:
+                if not notific.temporal_bounds.end_datetime: # this means that the notification is not retired
+                    active_notifications.append(notific)
+
+        number_of_subscriptions = len(active_notifications)
+
+        return number_of_subscriptions, active_notifications
+
+    def get_past_subscriptions_for_data_product(self, data_product_id=''):
+        """
+        This method is used to get the past subscriptions to a data product. The method will return a list of retired
+        NotificationRequest objects for whom the origin is set to this data product.
+
+        @param data_product_id
+        @return number_of_subscriptions, past_notifications int, []
+        """
+
+        past_notifications = []
+
+        #------------------------------------------------------------------------------------
+        # Get the users who have created notifications with the data product id as origin
+        #------------------------------------------------------------------------------------
+        dict =  self.event_processor.reverse_user_info['event_origin'][data_product_id]
+        user_names = set(dict.itervalues())
+
+        #------------------------------------------------------------------------------------
+        # Get the notifications we want
+        #------------------------------------------------------------------------------------
+        for user_name in user_names:
+            for notific in self.event_processor.user_info[user_name]['notifications']:
+                if notific.temporal_bounds.end_datetime:
+                    past_notifications.append(notific)
+
+        number_of_subscriptions = len(past_notifications)
+
+        return number_of_subscriptions, past_notifications
