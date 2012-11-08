@@ -1511,10 +1511,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
     def test_get_subscriptions(self):
         '''
-        Test that the get
+        Test that the get_subscriptions, get_active_subscriptions and get_past_active_subscriptions
+        methods are working correctly
         '''
 
         #--------------------------------------------------------------------------------------
         # create user with email address in RR
         #--------------------------------------------------------------------------------------
 
+        pass
