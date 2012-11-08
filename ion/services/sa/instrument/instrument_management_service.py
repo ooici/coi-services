@@ -69,7 +69,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         IonObject("Resource")
 
         self.override_clients(self.clients)
-        self._pagent = None
         self.extended_resource_handler = ExtendedResourceContainer(self)
 
         self.init_module_uploader()
@@ -573,20 +572,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
-        self._port_config = {
-            'device_addr': CFG.device.sbe37.host,
-            'device_port': CFG.device.sbe37.port,
-            'process_type': PortAgentProcessType.UNIX,
+        _port_agent_config = instrument_agent_instance_obj.port_agent_config
+        if type([]) == type(_port_agent_config["process_type"]):
+            log.error("instrument_agent_instance_obj.port_agent_config['process_type'] expected '%s', got '%s'",
+                      PortAgentProcessType.UNIX, _port_agent_config["process_type"])
+            _port_agent_config["process_type"] = PortAgentProcessType.UNIX
 
-            'binary_path':  CFG.device.sbe37.port_agent_binary,
-            'command_port': CFG.device.sbe37.port_agent_cmd_port,
-            'data_port': CFG.device.sbe37.port_agent_data_port,
-            'log_level': 5,
-        }
-
-        self._pagent = PortAgentProcess.launch_process(self._port_config,  test_mode = True)
-        pid = self._pagent.get_pid()
-        port = self._pagent.get_data_port()
+        #todo: ask bill if this blocks
+        _pagent = PortAgentProcess.launch_process(_port_agent_config,  test_mode = True)
+        pid = _pagent.get_pid()
+        port = _pagent.get_data_port()
 
         # Configure driver to use port agent port number.
         instrument_agent_instance_obj.driver_config['comms_config'] = {
@@ -623,7 +618,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise e
 
         try:
-            process = PortAgentProcess.get_process(self._port_config, test_mode=True)
+            _port_agent_config = instrument_agent_instance_obj.port_agent_config
+            if type([]) == type(_port_agent_config["process_type"]):
+                log.error("instrument_agent_instance_obj.port_agent_config['process_type'] expected '%s', got '%s'",
+                                PortAgentProcessType.UNIX, _port_agent_config["process_type"])
+                _port_agent_config["process_type"] = PortAgentProcessType.UNIX
+            process = PortAgentProcess.get_process(_port_agent_config, test_mode=True)
             process.stop()
         except NotFound:
             pass
@@ -1855,16 +1855,37 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_aggregated_status(self, platform_device_id):
         # The status roll-up that summarizes the entire status of the device
         # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
-        #todo: class for constants?
 
-        #todo: does framework validate id?
-        retval = IonObject(OT.ComputedIntValue)
+        # intelligently merge statuses with current value
+        def consolidate(statuses, currentstatus = None):
+            if currentstatus:
+                statuses.append(currentstatus)
+
+            # any critical means all critical
+            if StatusType.STATUS_CRITICAL in statuses:
+                return StatusType.STATUS_CRITICAL
+
+            # any warning means all warning
+            if StatusType.STATUS_WARNING in statuses:
+                return StatusType.STATUS_WARNING
+
+            # any unknown is fine unless some are ok -- then it's a warning
+            if StatusType.STATUS_OK in statuses:
+                if StatusType.STATUS_UNKNOWN in statuses:
+                    return StatusType.STATUS_WARNING
+                else:
+                    return StatusType.STATUS_OK
+
+            # 0 results are OK, 0 or more are unknown
+            return StatusType.STATUS_UNKNOWN
+
 
         #recursive function to determine the aggregate status by visiting all relevant nodes
-        def get_status_helper(acc, device_id, device_type):
-            if "todo: early exit criteria" == acc:
-                return acc
+        def get_status_helper(device_id, device_type):
 
+            acc = IonObject(OT.ComputedIntValue)
+            acc.status = ComputedValueAvailability.NOTAVAILABLE
+            acc.value = None
 
             if RT.InstrumentDevice == device_type:
                 stat_p = self.get_power_status_roll_up(device_id)
@@ -1873,6 +1894,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 stat_c = self.get_communications_status_roll_up(device_id)
 
                 #todo: return acc based on instrument status?
+
+                acc.status = ComputedValueAvailability.PROVIDED
+                acc.value = consolidate([stat_p, stat_d, stat_l, stat_c], acc.value)
+                return acc
 
             elif RT.PlatformDevice == device_type:
                 #todo: how to get platform status?
@@ -1883,20 +1908,40 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
                 #todo: return acc based on platform status?
 
+
+                acc.value = consolidate([], acc.value) #todo: fill in list argument with stat_*
+                acc.status = ComputedValueAvailability.PROVIDED
+
+                # regardless of sub-components, if status is anything but OK then we're done
+                if StatusType.STATUS_OK != acc.value:
+                    return acc
+
+                # if any sub-types are not OK, the result is a warning
                 instrument_resources = self.platform_device.find_stemming_instrument_device(device_id)
                 for instrument_resource in instrument_resources:
-                    acc = get_status_helper(acc, instrument_resource._id, type(instrument_resource).__name__)
+                    inst_stat = get_status_helper(instrument_resource._id, type(instrument_resource).__name__)
+                    if StatusType.STATUS_OK != inst_stat:
+                        acc.value = StatusType.STATUS_WARNING
+                        return acc
 
                 platform_resources = self.platform_device.find_stemming_platform_device(device_id)
                 for platform_resource in platform_resources:
-                    acc = get_status_helper(acc, platform_resource._id, type(platform_resource).__name__)
+                    plat_stat = get_status_helper(platform_resource._id, type(platform_resource).__name__)
+                    if StatusType.STATUS_OK != plat_stat:
+                        acc.value = StatusType.STATUS_WARNING
+                        return acc
 
                 return acc
             else:
                 raise NotImplementedError("Completely avoidable error, got bad device_type: %s" % device_type)
 
-        retval = get_status_helper(None, platform_device_id, RT.PlatformDevice)
-        retval.value= StatusType.STATUS_OK  #default until transfrom is defined.
+
+
+        retval = get_status_helper(platform_device_id, RT.PlatformDevice)
+
+        #todo: default until transfrom is defined.
+        retval.status = ComputedValueAvailability.PROVIDED
+        retval.value = StatusType.STATUS_OK
 
         return retval
 

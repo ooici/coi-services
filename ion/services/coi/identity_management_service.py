@@ -11,6 +11,7 @@ from pyon.util.log import log
 from uuid import uuid4
 from datetime import datetime, timedelta
 import time
+import copy
 
 from interface.services.coi.iidentity_management_service import BaseIdentityManagementService
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
@@ -237,18 +238,24 @@ class IdentityManagementService(BaseIdentityManagementService):
 
         extended_resource_handler = ExtendedResourceContainer(self)
         extended_user = extended_resource_handler.create_extended_resource_container(OT.UserInfoExtension, user_info_id)
-#
-#        #If the org_id is not provided then skip looking for Org related roles.
-#        if org_id:
-#            #Did not setup a dependency to org_management service to avoid a potential circular bootstrap issue
-#            # since this method should never be called until the system is fully running
-#            try:
-#                org_client = OrgManagementServiceProcessClient(process=self)
-#                roles = org_client.find_org_roles_by_user(org_id, user_id)
-#                extended_user.roles = roles
-#            except Exception, e:
-#                #If this information is not available yet, them just move on and caller can retry later
-#                pass
+
+        #If the org_id is not provided then skip looking for Org related roles.
+        if extended_user:
+            #Did not setup a dependency to org_management service to avoid a potential circular bootstrap issue
+            # since this method should never be called until the system is fully running
+            try:
+                org_client = OrgManagementServiceProcessClient(process=self)
+                roles = org_client.find_all_roles_by_user(extended_user.actor_identity._id)
+                extended_user.roles = list()
+                for org_name in roles:
+                    for role in roles[org_name]:
+                        flattened_role = copy.copy(role.__dict__)
+                        del flattened_role['type_']  #Have to do this to appease the message validators for ION objects
+                        flattened_role['org_name'] = org_name  #Nothing like forcing a value into the dict to appease the UI code
+                        extended_user.roles.append(flattened_role)
+
+            except Exception, e:
+                raise NotFound('Could not retrieve UserRoles for User Info id: %s - %s' % (user_info_id, e.message))
 
         return extended_user
 

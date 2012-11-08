@@ -58,6 +58,7 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.agents.port.port_agent_process import PortAgentProcessType
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
@@ -72,7 +73,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE1PRmNLOGNodC1IcEI4Rm1xTEM0N1E&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidGsxQ01TSWVOS0pFRUNONFFJQmpHU3c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -96,6 +97,8 @@ DEFAULT_CATEGORIES = [
     'InstrumentSite',
     'StreamDefinition',
     'PlatformDevice',
+    'PlatformAgent',
+    'PlatformAgentInstance',
     'InstrumentDevice',
     'SensorDevice',
     'InstrumentAgent',
@@ -1245,12 +1248,55 @@ class IONLoader(ImmediateProcess):
             self._load_InstrumentAgent(fakerow)
 
     def _load_InstrumentAgentInstance(self, row):
-        ia_id = row["instrument_agent_id"]
-        id_id = row["instrument_device_id"]
-        res_id = self._basic_resource_create(row, "InstrumentAgentInstance", "iai/",
-                                            "instrument_management", "create_instrument_agent_instance",
-                                            instrument_agent_id=self.resource_ids[ia_id],
-                                            instrument_device_id=self.resource_ids[id_id])
+        # create basic object from simple fields
+        agent_instance = self._create_object_from_row("InstrumentAgentInstance", row, "iai/")
+
+        # add more complicated attributes
+        agent_instance.driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
+                                                           'port':  int(row['comms_server_port']) } }
+
+        agent_instance.port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
+                                             'device_port':   int(row['iai/comms_device_port']),
+                                             'process_type':  PortAgentProcessType.UNIX,
+                                             'binary_path':   "port_agent",
+                                             'command_port':  int(row['comms_server_cmd_port']),
+                                             'data_port':     int(row['comms_server_port']),
+                                             'log_level':     5,  }
+
+        # save
+        agent_id = self.resource_ids[row["instrument_agent_id"]]
+        device_id = self.resource_ids[row["instrument_device_id"]]
+        client = self._get_service_client("instrument_management")
+        client.create_instrument_agent_instance(agent_instance, instrument_agent_id=agent_id, instrument_device_id=device_id)
+
+    def _load_PlatformAgent(self, row):
+        res_id = self._basic_resource_create(row, "PlatformAgent", "pa/", "instrument_management", "create_platform_agent")
+
+        svc_client = self._get_service_client("instrument_management")
+
+        model_ids = row["platform_model_ids"]
+        if model_ids:
+            model_ids = self._get_typed_value(model_ids, targettype="simplelist")
+            for model_id in model_ids:
+                svc_client.assign_platform_model_to_platform_agent(self.resource_ids[model_id], res_id)
+        self._resource_advance_lcs(row, res_id, "InstrumentAgent")
+
+    def _load_PlatformAgentInstance(self, row):
+        # create object with simple field types -- name, description
+        agent_instance = self._create_object_from_row("PlatformAgentInstance", row, "pai/")
+
+        # get values for more complex fields
+        platform_agent_id = self.resource_ids[row['platform_agent_id']]
+        platform_device_id = self.resource_ids[row['platform_device_id']]
+        id = self._get_service_client("instrument_management").create_platform_agent_instance(agent_instance, platform_agent_id, platform_device_id)
+        self.resource_ids[row['ID']] = id
+
+    #       TODO:
+    #           lots of other parameters are necessary, but not part of the object.  somehow they must be saved for later actions.
+    #        driver_config = self._parse_dict(row['driver_config'])
+    #        agent_config = self._parse_dict(row['agent_config'])
+    #        stream_definition = self.resource_objs[row['stream_definition']]
+
 
     def _load_DataProcessDefinition(self, row):
         res_id = self._basic_resource_create(row, "DataProcessDefinition", "dpd/",

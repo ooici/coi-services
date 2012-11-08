@@ -444,6 +444,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2coi.yml')
 
         self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
+        self.org_client = OrgManagementServiceClient(node=self.container.node)
 
     def test_actor_identity(self):
         actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})        
@@ -584,30 +585,26 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
     def test_get_extended_user_identity(self):
 
         actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})
-        user_id = self.identity_management_service.create_actor_identity(actor_identity_obj)
+        actor_id = self.identity_management_service.create_actor_identity(actor_identity_obj)
 
         user_credentials_obj = IonObject("UserCredentials", {"name": self.subject})
-        self.identity_management_service.register_user_credentials(user_id, user_credentials_obj)
+        self.identity_management_service.register_user_credentials(actor_id, user_credentials_obj)
 
         user_info_obj = IonObject("UserInfo", {"name": "Foo"})
-        user_info = self.identity_management_service.create_user_info(user_id, user_info_obj)
+        user_info_id = self.identity_management_service.create_user_info(actor_id, user_info_obj)
 
-        org_client = OrgManagementServiceClient(node=self.container.node)
-        ion_org = org_client.find_org()
+        ion_org = self.org_client.find_org()
+        self.org_client.grant_role(ion_org._id, actor_id, 'ORG_MANAGER')
 
-        extended_user = self.identity_management_service.get_user_info_extension(user_info)
+        extended_user = self.identity_management_service.get_user_info_extension(user_info_id)
         self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
-        self.assertEqual(len(extended_user.roles),0)
+        self.assertEqual(len(extended_user.roles),2)
 
-#        extended_user = self.identity_management_service.get_user_info_extension(user_id)
-#        self.assertEqual(actor_identity_obj.type_,extended_user.resource.type_)
-#        self.assertEqual(len(extended_user.roles),0)
+        self.identity_management_service.delete_user_info(user_info_id)
 
-        self.identity_management_service.delete_user_info(user_info)
+        self.identity_management_service.unregister_user_credentials(actor_id, self.subject)
 
-        self.identity_management_service.unregister_user_credentials(user_id, self.subject)
-
-        self.identity_management_service.delete_actor_identity(user_id)
+        self.identity_management_service.delete_actor_identity(actor_id)
 
 
 
