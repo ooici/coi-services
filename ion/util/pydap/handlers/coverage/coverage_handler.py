@@ -21,13 +21,9 @@ class Handler(BaseHandler):
 
         atts = {}
         atts['title'] = coverage.name
-        #atts['infoUrl'] = self.filepath
-        #atts['summary'] = coverage.name
-        #atts['institution'] = ''
         dataset = DatasetType(coverage.name) #, attributes=atts)
         fields, queries = environ['pydap.ce']
         queries = filter(bool, queries)  # fix for older version of pydap
-
 
         all_vars = coverage.list_parameters()
         t = []
@@ -37,15 +33,14 @@ class Handler(BaseHandler):
                 t.append(param)
         [all_vars.remove(i) for i in t]
 
-
-#        slices = [f[0][1] for f in fields if f[0][0] == sequence_type.name]
-#        if slices:
-#            slice_ = slices[0]
-#        else:
-#            slice_ = None
-#            # Check that all slices are equal.
-#        if [s for s in slices if s != slice_]:
-#            raise ConstraintExpressionError('Slices are not unique!')
+        time_context = coverage.get_parameter_context(coverage.temporal_parameter_name)
+        time_fill_value = time_context.fill_value
+        time_data = coverage.get_parameter_values(coverage.temporal_parameter_name)
+        fill_index = -1
+        try:
+            fill_index = numpy.where(time_data == time_fill_value)[0][0]
+        except IndexError:
+            pass
 
         # If no fields have been explicitly requested, of if the sequence
         # has been requested directly, return all variables.
@@ -60,11 +55,23 @@ class Handler(BaseHandler):
                 covname = urllib.unquote(name)
                 param = coverage.get_parameter(covname)
                 dims = (coverage.temporal_parameter_name,)
-                if len(param.shape) == 2:
-                    dims = (coverage.temporal_parameter_name, coverage.spatial_domain.shape.name)
+
+                #need to truncate slice here in case time has fill values
+                if len(slice_) == 0:
+                    slice_ = slice(0, fill_index, 1)
+                    
+                if len(slice_) == 1:
+                    slice_ = slice_[0]
+
+                    if fill_index > slice_.start:
+                        continue
+
+                    if fill_index > slice_.stop:
+                        slice_.stop = fill_index
+
                 if param.is_coordinate or target is not dataset:
                     data = coverage.get_parameter_values(covname, tdoa=slice_)
-                    atts = {'units': coverage.get_parameter_context(covname).uom }
+                    atts = {'units': coverage.get_parameter_context(covname).uom}
                     target[name] = BaseType(name=name, data=data, shape=data.shape,
                     type=numpy.dtype(param.context.param_type.value_encoding).char, dimensions=(covname,),
                     attributes=atts)
@@ -77,9 +84,8 @@ class Handler(BaseHandler):
                     if len(slice_) == 0:
                         data = coverage.get_parameter_values(name)
                     elif len(slice_) == 1:
-                        data = coverage.get_parameter_values(name, tdoa=slice_[0])
-                    elif len(slice_) == 2:
-                        data = coverage.get_parameter_values(name, tdoa=slice_[0], sdoa=slice_[1])
+                        data = coverage.get_parameter_values(name, tdoa=slice_)
+
                     atts = {'units': coverage.get_parameter_context(name).uom }
                     type_ = numpy.dtype(param.context.param_type.value_encoding).char
                     grid[name] = BaseType(name=name, data=data, shape=data.shape,
@@ -89,7 +95,6 @@ class Handler(BaseHandler):
                         data = numpy.arange(data.shape[dims.index(dim)])
                         grid[dim] = BaseType(name=dim, data=data, shape=data.shape,
                             type=data.dtype.char, attributes=atts)
-                    #slice_ = list(slice_) + [slice(None)] * (len(grid.array.shape) - len(slice_))
 
         dataset._set_id()
         dataset.close = coverage.close
