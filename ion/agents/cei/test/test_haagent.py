@@ -168,6 +168,13 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         # Ensure HA hasn't already failed
         assert status in ('PENDING', 'READY', 'STEADY')
 
+
+        # verifies L4-CI-CEI-RQ44
+        # Note: the HA agent is started in the setUp() method, with config
+        # pointing to the test "service". The initial config is set to preserve
+        # 0 service processes. With this reconfigure step below, we change that
+        # to launch 1.
+
         new_policy = {'preserve_n': 1}
         self.haa_client.reconfigure_policy(new_policy)
 
