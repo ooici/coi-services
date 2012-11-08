@@ -105,20 +105,20 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # The configuration for the Event Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         configuration = {
-                            'process':{
-                                'event_type': 'ResourceEvent',
-                                'timer_origin': 'Interval Timer',
-                                'instrument_origin': 'My_favorite_instrument'
-                            }
-                        }
+            'process':{
+                'event_type': 'ResourceEvent',
+                'timer_origin': 'Interval Timer',
+                'instrument_origin': 'My_favorite_instrument'
+            }
+        }
 
         #-------------------------------------------------------------------------------------
         # Create the process
         #-------------------------------------------------------------------------------------
         pid = TransformPrototypeIntTest.create_process(  name= 'event_alert_transform',
-                                    module='ion.processes.data.transforms.event_alert_transform',
-                                    class_name='EventAlertTransform',
-                                    configuration= configuration)
+            module='ion.processes.data.transforms.event_alert_transform',
+            class_name='EventAlertTransform',
+            configuration= configuration)
 
         self.assertIsNotNone(pid)
 
@@ -132,8 +132,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             queue.put(message)
 
         event_subscriber = EventSubscriber( origin="EventAlertTransform",
-                                            event_type="DeviceEvent",
-                                            callback=event_received)
+            event_type="DeviceEvent",
+            callback=event_received)
 
         event_subscriber.start()
         self.addCleanup(event_subscriber.stop)
@@ -142,10 +142,10 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         for i in xrange(5):
             self.event_publisher.publish_event(    event_type = 'ExampleDetectableEvent',
-                                                    origin = "My_favorite_instrument",
-                                                    voltage = 5,
-                                                    telemetry = 10,
-                                                    temperature = 20)
+                origin = "My_favorite_instrument",
+                voltage = 5,
+                telemetry = 10,
+                temperature = 20)
             gevent.sleep(0.1)
             self.assertTrue(queue.empty())
 
@@ -227,9 +227,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # Create the process
         #-------------------------------------------------------------------------------------
         pid = TransformPrototypeIntTest.create_process( name= 'transform_data_process',
-                                                        module='ion.processes.data.transforms.event_alert_transform',
-                                                        class_name='StreamAlertTransform',
-                                                        configuration= config)
+            module='ion.processes.data.transforms.event_alert_transform',
+            class_name='StreamAlertTransform',
+            configuration= config)
 
         self.assertIsNotNone(pid)
 
@@ -247,9 +247,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
-        message = "A dummy example message containing the word PUBLISH, and with VALUE = 5 . This message" + \
-                    " will trigger an alert event from the StreamAlertTransform because the value provided is " \
-                    "less than 10 that was passed in through the config."
+        message = "A dummy example message containing the word PUBLISH, and with VALUE = 5 . This message" +\
+                  " will trigger an alert event from the StreamAlertTransform because the value provided is "\
+                  "less than 10 that was passed in through the config."
 
         pub.publish(message)
 
@@ -257,11 +257,11 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.assertEquals(event.type_, "DeviceEvent")
         self.assertEquals(event.origin, "StreamAlertTransform")
 
-#        self.purge_queues(exchange_name)
+    #        self.purge_queues(exchange_name)
 
-#    def purge_queues(self, exchange_name):
-#        xn = self.container.ex_manager.create_xn_queue(exchange_name)
-#        xn.purge()
+    #    def purge_queues(self, exchange_name):
+    #        xn = self.container.ex_manager.create_xn_queue(exchange_name)
+    #        xn.purge()
 
     @staticmethod
     def create_process(name= '', module = '', class_name = '', configuration = None):
@@ -354,13 +354,19 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         stream_def_id = self.pubsub_management.create_stream_definition('demo_stream', parameter_dictionary_id=pdict_id)
         stream_id, stream_route = self.pubsub_management.create_stream( name='test_demo_alert',
-                                                                        exchange_point='exch_point_1',
-                                                                        stream_definition_id=stream_def_id)
+            exchange_point='exch_point_1',
+            stream_definition_id=stream_def_id)
 
         sub_1 = self.pubsub_management.create_subscription(name='sub_1', stream_ids=[stream_id], exchange_points=['exch_point_1'], exchange_name=self.queue_name)
         self.pubsub_management.activate_subscription(sub_1)
         self.exchange_names.append('sub_1')
         self.exchange_points.append('exch_point_1')
+
+        #-------------------------------------------------------------------------------------
+        # Set up the scheduler for an interval timer with an end time
+        #-------------------------------------------------------------------------------------
+        id = self._create_interval_timer_with_end_time(timer_interval=self.timer_interval, end_time=-1)
+        self.assertIsNotNone(id)
 
         #-------------------------------------------------------------------------------------
         # publish a *GOOD* granule

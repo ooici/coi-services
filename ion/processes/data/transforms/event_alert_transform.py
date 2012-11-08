@@ -13,15 +13,13 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.core.process.transform import TransformEventListener, TransformStreamListener, TransformEventPublisher
 from interface.objects import DeviceStatusType, DeviceStatusEvent, DeviceCommsEvent, DeviceCommsType
-from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 import gevent
 from gevent import queue
-import datetime, time
 
 class EventAlertTransform(TransformEventListener):
 
     def on_start(self):
-        log.debug('EventAlertTransform.on_start()')
+        log.warn('EventAlertTransform.on_start()')
         super(EventAlertTransform, self).on_start()
 
         #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -45,7 +43,7 @@ class EventAlertTransform(TransformEventListener):
             self.instrument_event_queue.put(message)
 
         self.instrument_event_subscriber = EventSubscriber(origin = self.instrument_origin,
-                                                        callback=instrument_event_received)
+            callback=instrument_event_received)
 
         self.instrument_event_subscriber.start()
 
@@ -80,8 +78,8 @@ class EventAlertTransform(TransformEventListener):
         # publish an alert event
         #-------------------------------------------------------------------------------------
         self.event_publisher.publish_event( event_type= "DeviceEvent",
-                                            origin="EventAlertTransform",
-                                            description= "An alert event being published.")
+            origin="EventAlertTransform",
+            description= "An alert event being published.")
 
 class StreamAlertTransform(TransformStreamListener, TransformEventPublisher):
 
@@ -106,7 +104,7 @@ class StreamAlertTransform(TransformStreamListener, TransformEventPublisher):
         Publish an alert event
         '''
         self.publisher.publish_event(origin="StreamAlertTransform",
-                                    description= "An alert event being published.")
+            description= "An alert event being published.")
 
     def _extract_parameters_from_stream(self, msg, field ):
 
@@ -120,7 +118,7 @@ class StreamAlertTransform(TransformStreamListener, TransformEventPublisher):
                     if tokens[i-1] == field:
                         return int(tokens[i+1].strip())
         except IndexError:
-            log.debug("Could not extract value from the message. Please check its format.")
+            log.warning("Could not extract value from the message. Please check its format.")
 
         return self.value
 
@@ -137,7 +135,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.timer_origin = None
         self.timer_interval = None
         self.count = 0
-        self.timer_cleanup = (None, None)
 
     def on_start(self):
         super(DemoStreamAlertTransform,self).on_start()
@@ -153,54 +150,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
 
         # Check that valid_values is a list
         validate_is_instance(self.valid_values, list)
-
-        # Start the timer
-        self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=self)
-        id = self._create_interval_timer_with_end_time(timer_interval=self.timer_interval, end_time=-1)
-
-    def on_quit(self):
-        super(DemoStreamAlertTransform,self).on_quit()
-
-        self.ssclient, sid = self.timer_cleanup
-        DemoStreamAlertTransform._cleanup_timer(self.ssclient, sid)
-
-    @staticmethod
-    def _cleanup_timer(scheduler, schedule_id):
-        """
-        Do a friendly cancel of the scheduled event.
-        If it fails, it's ok.
-        """
-        try:
-            scheduler.cancel_timer(schedule_id)
-        except:
-            log.debug("Couldn't cancel")
-
-    def now_utc(self):
-        return time.mktime(datetime.datetime.utcnow().timetuple())
-
-    def _create_interval_timer_with_end_time(self,timer_interval= None, end_time = None ):
-        '''
-        A convenience method to set up an interval timer with an end time
-        '''
-        self.timer_received_time = 0
-        self.timer_interval = timer_interval
-
-        start_time = self.now_utc()
-        if not end_time:
-            end_time = start_time + 2 * timer_interval + 1
-
-        log.debug("got the end time here!! %s" % end_time)
-
-        # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
-        sid = self.ssclient.create_interval_timer(start_time="now" ,
-            interval=self.timer_interval,
-            end_time=end_time,
-            event_origin="Interval Timer",
-            event_subtype="")
-
-        self.timer_cleanup =  (self.ssclient, sid)
-
-        return sid
 
     def recv_packet(self, msg, stream_route, stream_id):
         '''
@@ -238,17 +187,17 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
             for bad_value, time_stamp in zip(bad_values, bad_value_times):
                 # Create the event object
                 event = DeviceStatusEvent(  origin = 'DemoStreamAlertTransform',
-                                            sub_type = self.instrument_variable_name,
-                                            value = bad_value,
-                                            time_stamp = time_stamp,
-                                            valid_values = self.valid_values,
-                                            state = DeviceStatusType.OUT_OF_RANGE,
-                                            description = "Event to deliver the status of instrument.")
+                    sub_type = self.instrument_variable_name,
+                    value = bad_value,
+                    time_stamp = time_stamp,
+                    valid_values = self.valid_values,
+                    state = DeviceStatusType.OUT_OF_RANGE,
+                    description = "Event to deliver the status of instrument.")
 
                 # Publish the event
                 self.publisher._publish_event(  event_msg = event,
-                                                origin=event.origin,
-                                                event_type = event.type_)
+                    origin=event.origin,
+                    event_type = event.type_)
 
     def process_event(self, msg, headers):
         """
@@ -256,21 +205,21 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         """
         self.count += 1
 
-        log.debug("Got a timer event::: count: %s" % self.count )
+        log.warning("Got a timer event::: count: %s" % self.count )
 
         if msg.origin == self.timer_origin:
 
             if self.granules.qsize() == 0:
                 # Create the event object
                 event = DeviceCommsEvent( origin = 'DemoStreamAlertTransform',
-                                        sub_type = self.instrument_variable_name,
-                                        state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
-                                        lapse_interval_seconds=self.timer_interval,
-                                        description = "Event to deliver the communications status of the instrument.")
+                    sub_type = self.instrument_variable_name,
+                    state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
+                    lapse_interval_seconds=self.timer_interval,
+                    description = "Event to deliver the communications status of the instrument.")
                 # Publish the event
                 self.publisher._publish_event(  event_msg = event,
-                                                origin=event.origin,
-                                                event_type = event.type_)
+                    origin=event.origin,
+                    event_type = event.type_)
             else:
                 self.granules.queue.clear()
 
