@@ -14,7 +14,7 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
 from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L1_temperature_stream_definition, L1_conductivity_stream_definition, L2_practical_salinity_stream_definition, L2_density_stream_definition
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter, SBE37ProtocolEvent
 
 from pyon.public import log
 from nose.plugins.attrib import attr
@@ -40,12 +40,13 @@ from nose.plugins.attrib import attr
 import unittest
 from mock import patch
 import time
-
+import gevent
 
 from pyon.util.context import LocalContextMixin
 
 from interface.objects import ProcessStateEnum
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
+from ion.agents.port.port_agent_process import PortAgentProcessType
 
 # Used to validate param config retrieved from driver.
 PARAMS = {
@@ -97,7 +98,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='sa')
+@attr('HARDWARE', group='sax')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
     pdict_id = None
@@ -180,11 +181,24 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def _create_instrument_agent_instance(self, instAgent_id,instDevice_id):
 
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance",
-            comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
-        instAgentInstance_id = self.imsclient.create_instrument_agent_instance( instrument_agent_instance=instAgentInstance_obj,
-                                                                                instrument_agent_id=instAgent_id,
-                                                                                instrument_device_id=instDevice_id)
+
+        port_agent_config = {
+            'device_addr': 'sbe37-simulator.oceanobservatories.org',
+            'device_port': 4001,
+            'process_type': PortAgentProcessType.UNIX,
+            'binary_path': "port_agent",
+            'command_port': 4003,
+            'data_port': 4000,
+            'log_level': 5,
+            }
+
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
+            description="SBE37IMAgentInstance",
+            port_agent_config = port_agent_config)
+
+        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
+            instAgent_id,
+            instDevice_id)
 
         return instAgentInstance_id
 
@@ -628,13 +642,14 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
 
         #todo There is no ResourceAgentEvent attribute for go_streaming... so what should be the command for it?
-#        log.debug("test_activateInstrumentStream: calling go_streaming ")
-#        cmd = AgentCommand(command='go_streaming')
-#        reply = self._ia_client.execute_agent(cmd)
-#        cmd = AgentCommand(command='get_current_state')
-#        retval = self._ia_client.execute_agent(cmd)
-#        state = retval.result
-#        log.debug("test_activateInstrumentStream: return from go_streaming state: %s", str(state))
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+
+        gevent.sleep(15)
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+
 
 
         #todo There is no ResourceAgentEvent attribute for go_observatory... so what should be the command for it?
