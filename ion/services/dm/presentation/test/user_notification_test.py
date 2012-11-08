@@ -483,23 +483,23 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification_request_2 = self.rrc.read(notification_id_2)
 
         # check user_info dictionary
-        self.assertEquals(proc1.event_processor.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
-        self.assertEquals(proc1.event_processor.user_info['user_1']['notifications'], [notification_request_correct])
+        self.assertEquals(proc1.event_processor.user_info[user_id_1]['user_contact'].email, 'user_1@gmail.com' )
+        self.assertEquals(proc1.event_processor.user_info[user_id_1]['notifications'], [notification_request_correct])
 
-        self.assertEquals(proc1.event_processor.user_info['user_2']['user_contact'].email, 'user_2@gmail.com' )
-        self.assertEquals(proc1.event_processor.user_info['user_2']['notifications'], [notification_request_2])
+        self.assertEquals(proc1.event_processor.user_info[user_id_2]['user_contact'].email, 'user_2@gmail.com' )
+        self.assertEquals(proc1.event_processor.user_info[user_id_2]['notifications'], [notification_request_2])
 
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_1'], ['user_1'])
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_2'], ['user_2'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_1'], [user_id_1])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_2'], [user_id_2])
 
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['ResourceLifecycleEvent'], ['user_1'])
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['DetectionEvent'], ['user_2'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['ResourceLifecycleEvent'], [user_id_1])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['DetectionEvent'], [user_id_2])
 
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_1'], ['user_1'])
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_2'], ['user_2'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_1'], [user_id_1])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_2'], [user_id_2])
 
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_2'], ['user_2'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_1'], [user_id_1])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_2'], [user_id_2])
 
         log.debug("The event processor received the notification topics after a create_notification() for two users")
         log.debug("Verified that the event processor correctly updated its user info dictionaries")
@@ -510,21 +510,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id_1)
 
         # Check in UNS ------------>
-        self.assertEquals(proc1.event_processor.user_info['user_1']['user_contact'].email, 'user_1@gmail.com' )
+        self.assertEquals(proc1.event_processor.user_info[user_id_1]['user_contact'].email, 'user_1@gmail.com' )
 
-        self.assertEquals(proc1.event_processor.user_info['user_1']['notifications'], [notification_request_correct, notification_request_2])
+        self.assertEquals(proc1.event_processor.user_info[user_id_1]['notifications'], [notification_request_correct, notification_request_2])
 
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_1'], ['user_1'])
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_2'], ['user_2', 'user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin']['instrument_1'], [user_id_1])
+        self.assertEquals(set(proc1.event_processor.reverse_user_info['event_origin']['instrument_2']), set([user_id_2, user_id_1]))
 
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['ResourceLifecycleEvent'], ['user_1'])
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['DetectionEvent'], ['user_2', 'user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_type']['ResourceLifecycleEvent'], [user_id_1])
+        self.assertEquals(set(proc1.event_processor.reverse_user_info['event_type']['DetectionEvent']), set([user_id_2, user_id_1]))
 
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_1'], ['user_1'])
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_2'], ['user_2', 'user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_subtype']['subtype_1'], [user_id_1])
+        self.assertEquals(set(proc1.event_processor.reverse_user_info['event_subtype']['subtype_2']), set([user_id_2, user_id_1]))
 
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_1'], ['user_1'])
-        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_2'], ['user_2', 'user_1'])
+        self.assertEquals(proc1.event_processor.reverse_user_info['event_origin_type']['type_1'], [user_id_1])
+        self.assertEquals(set(proc1.event_processor.reverse_user_info['event_origin_type']['type_2']), set([user_id_2, user_id_1]))
 
         log.debug("The event processor received the notification topics after another create_notification() for the first user")
         log.debug("Verified that the event processor correctly updated its user info dictionaries")
@@ -543,11 +543,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification_request_correct = self.rrc.read(notification_id_1)
 
         # check that the updated notification is in the user info dictionary
-        self.assertTrue(notification_request_correct in proc1.event_processor.user_info['user_1']['notifications'] )
+        self.assertTrue(notification_request_correct in proc1.event_processor.user_info[user_id_1]['notifications'] )
 
         # check that the notifications in the user info dictionary got updated
         update_worked = False
-        for notification in proc1.event_processor.user_info['user_1']['notifications']:
+        for notification in proc1.event_processor.user_info[user_id_1]['notifications']:
             if notification.origin == "newly_changed_instrument":
                 update_worked = True
                 break
@@ -555,7 +555,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertTrue(update_worked)
 
         # reverse_user_info
-        self.assertTrue('user_1' in proc1.event_processor.reverse_user_info['event_origin']["newly_changed_instrument"])
+        self.assertTrue(user_id_1 in proc1.event_processor.reverse_user_info['event_origin']["newly_changed_instrument"])
 
         log.debug("Verified that the event processor correctly updated its user info dictionaries after an update_notification()")
 
@@ -565,18 +565,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.unsc.delete_notification(notification_id_2)
 
-        # Check for UNS ------->
-
-    #        # check that the notification is not there anymore in the resource registry
-    #        with self.assertRaises(NotFound):
-    #            notification = self.rrc.read(notification_id_2)
-
-    #        # check that the user_info dictionary for the user is not holding the notification anymore
-    #        self.assertFalse(notification_request_2 in proc1.event_processor.user_info['user_1']['notifications'])
-    #
-    #        log.debug("Verified that the event processor correctly updated its user info dictionaries after an delete_notification()")
-    #
-    #        log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -655,13 +643,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # read back the registered notification request objects
         notification_request_correct = self.rrc.read(notification_id_1)
 
-        self.assertEquals(reloaded_user_info['new_user']['notifications'], [notification_request_correct] )
-        self.assertEquals(reloaded_user_info['new_user']['user_contact'].email, 'new_user@gmail.com')
+        self.assertEquals(reloaded_user_info[user_id]['notifications'], [notification_request_correct] )
+        self.assertEquals(reloaded_user_info[user_id]['user_contact'].email, 'new_user@gmail.com')
 
-        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], ['new_user'] )
-        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_1'], ['new_user'] )
-        self.assertEquals(reloaded_reverse_user_info['event_type']['ResourceLifecycleEvent'], ['new_user'] )
-        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], [user_id] )
+        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_1'], [user_id] )
+        self.assertEquals(reloaded_reverse_user_info['event_type']['ResourceLifecycleEvent'], [user_id] )
+        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], [user_id] )
 
         log.debug("Verified that the notification worker correctly updated its user info dictionaries after a create_notification()")
 
@@ -680,19 +668,19 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification_request_2 = self.rrc.read(notification_id_2)
 
 
-        self.assertEquals(reloaded_user_info['new_user']['notifications'], [notification_request_correct, notification_request_2] )
+        self.assertEquals(reloaded_user_info[user_id]['notifications'], [notification_request_correct, notification_request_2] )
 
-        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], ['new_user'] )
-        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_2'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], [user_id] )
+        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_2'], [user_id] )
 
-        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_1'], ['new_user'] )
-        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_2'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_1'], [user_id] )
+        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_2'], [user_id] )
 
-        self.assertEquals(reloaded_reverse_user_info['event_type']['ResourceLifecycleEvent'], ['new_user'] )
-        self.assertEquals(reloaded_reverse_user_info['event_type']['DetectionEvent'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_type']['ResourceLifecycleEvent'], [user_id] )
+        self.assertEquals(reloaded_reverse_user_info['event_type']['DetectionEvent'], [user_id] )
 
-        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], ['new_user'] )
-        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_2'], ['new_user'] )
+        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], [user_id] )
+        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_2'], [user_id] )
 
         log.debug("Verified that the notification worker correctly updated its user info dictionaries after another create_notification()")
 
@@ -1612,7 +1600,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertEquals(notific.origin, data_product_id)
             self.assertNotEquals(notific.temporal_bounds.end_datetime, '')
 
-        #--------------------------------------------------------------------------------------
+        log.debug("Verified that the event processor correctly updated its user info dictionaries after an delete_notification()")
+        log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
+
+
+    #--------------------------------------------------------------------------------------
         # Use UNS to get the all subscriptions --- including retired
         #--------------------------------------------------------------------------------------
         result_notifications, _ = self.unsc.get_subscriptions(resource_id=data_product_id, include_retired=True)
