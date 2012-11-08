@@ -57,9 +57,9 @@ class Handler(BaseHandler):
                 dims = (coverage.temporal_parameter_name,)
 
                 #need to truncate slice here in case time has fill values
-                if len(slice_) == 0:
+                if len(slice_) == 0 and fill_index >= 0:
                     slice_ = slice(0, fill_index, 1)
-                    
+
                 if len(slice_) == 1:
                     slice_ = slice_[0]
 
