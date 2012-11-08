@@ -31,7 +31,7 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sax')
 #@unittest.skip('not working')
 class TestDataProductProvenance(IonIntegrationTestCase):
 
@@ -566,7 +566,8 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 #        log.debug("TestDataProductProvenance: DataProcess data_products  %s", str(extended_process_def.data_products))
         self.assertEqual(1, len(extended_process_def.data_processes) )
         self.assertEqual(3, len(extended_process_def.output_stream_definitions) )
-        #self.assertEqual(3, len(extended_process_def.data_products) )
+        self.assertEqual(1, len(extended_process_def.data_products) ) #one list because of one data process
+        self.assertEqual(3, len(extended_process_def.data_products[0]) ) #inside that inner list are the three output data products
 
         #-------------------------------
         # Request the xml report
