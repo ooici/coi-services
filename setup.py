@@ -38,7 +38,7 @@ setup(  name = 'coi-services',
             'coverage-model',
             'marine-integrations',
             'pyon',
-            'Flask==0.8',
+            'Flask==0.9',
             'python-dateutil==1.5',
             'WebTest==1.4.0',
             'requests==0.13.5',
@@ -51,4 +51,8 @@ setup(  name = 'coi-services',
             'snakefood==1.4',
             'xlrd==0.8.0',
         ],
+        entry_points = """
+            [pydap.handler]
+            coverage = ion.util.pydap.handlers.coverage:Handler
+        """,
      )
