@@ -147,6 +147,17 @@ class PlatformAgent(ResourceAgent):
 
         log.info("PlatformAgent constructor complete.")
 
+    def on_init(self):
+        super(PlatformAgent, self).on_init()
+        log.debug("on_init self.CFG = %s", str(self.CFG))
+        # TODO what follows in part of the change regarding the full
+        # configuration of the platform at this point as opposed to in the
+        # INITIALIZE command. More strict check here pending while we
+        # complete this change.
+        self._plat_config = self.CFG.get("platform_config", None)
+        if self._plat_config:
+            log.info("self._plat_config set on_init: %s", str(self._plat_config))
+
     def on_start(self):
         super(PlatformAgent, self).on_start()
         log.info('platform agent is running')
@@ -195,7 +206,7 @@ class PlatformAgent(ResourceAgent):
             log.error(msg)
             raise PlatformException(msg)
 
-        for k in ['platform_id', 'driver_config', 'container_name']:
+        for k in ['platform_id', 'driver_config']:
             if not k in self._plat_config:
                 msg = "'%s' key not given in plat_config=%s" % (k, self._plat_config)
                 log.error(msg)
@@ -209,8 +220,6 @@ class PlatformAgent(ResourceAgent):
                     self._platform_id, k, driver_config)
                 log.error(msg)
                 raise PlatformException(msg)
-
-        self._container_name = self._plat_config['container_name']
 
         if 'platform_topology' in self._plat_config:
             self._topology = self._plat_config['platform_topology']
@@ -310,9 +319,12 @@ class PlatformAgent(ResourceAgent):
         config variable.
         """
 
-        stream_info = self.CFG.stream_config
-        log.debug("%r: stream_info = %s",
-            self._platform_id, stream_info)
+        stream_info = self.CFG.get('stream_config', None)
+        if stream_info is None:
+            log.debug("%r: No stream_config given in CFG", self._platform_id)
+            return
+
+        log.debug("%r: stream_info = %s", self._platform_id, stream_info)
 
         for (stream_name, stream_config) in stream_info.iteritems():
 
@@ -490,8 +502,18 @@ class PlatformAgent(ResourceAgent):
         # separate values and timestamps:
         vals, timestamps = zip(*param_value)
 
-        rdt[param_name]            = numpy.array(vals)
-        rdt['preferred_timestamp'] = numpy.array(timestamps)
+        # Set values in rdt:
+        rdt[param_name] = numpy.array(vals)
+
+        # Set timestamp info in rdt:
+        if param_dict.temporal_parameter_name is not None:
+            temp_param_name = param_dict.temporal_parameter_name
+            rdt[temp_param_name]       = numpy.array(timestamps)
+            rdt['preferred_timestamp'] = numpy.array([temp_param_name] * len(timestamps))
+        else:
+            log.warn("%r: Not including timestamp info in granule: "
+                     "temporal_parameter_name not defined in parameter dictionary",
+                     self._platform_id)
 
         log.info("%r: PUBLISHING VALUE ARRAY: %s (%d) = %s (last_ts=%s)",
                  self._platform_id, param_name, len(vals), str(vals), timestamps[-1])
@@ -546,6 +568,9 @@ class PlatformAgent(ResourceAgent):
         """
         Old mechanism, before using _agent_streamconfig_map
         """
+        #
+        # TODO Clean up (remove) this old mechanism.
+        #
         stream_name = driver_event._attr_id
         if not stream_name in self._data_streams:
             log.warn('%r: got attribute value event for unconfigured stream %r',
@@ -658,10 +683,23 @@ class PlatformAgent(ResourceAgent):
 
         @param subplatform_id Platform ID
         """
+
+        # platform configuration:
+        platform_config = {
+            'platform_id': subplatform_id,
+            'platform_topology' : self._topology,
+            'agent_device_map' : self._agent_device_map,
+            'agent_streamconfig_map': self._agent_streamconfig_map,
+            'parent_platform_id' : self._platform_id,
+            'driver_config': self._plat_config['driver_config'],
+        }
+
         agent_config = {
             'agent':            {'resource_id': subplatform_id},
-            'stream_config':    self.CFG.stream_config,
-            'test_mode':        True
+            'stream_config':    self.CFG.get('stream_config', None),
+
+            # TODO pass platform config here
+            'platform_config':  platform_config,
         }
 
         log.debug("%r: launching sub-platform agent %r",
@@ -746,7 +784,6 @@ class PlatformAgent(ResourceAgent):
             'agent_streamconfig_map': self._agent_streamconfig_map,
             'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],
-            'container_name': self._container_name,
         }
 
         kwargs = dict(plat_config=platform_config)
@@ -841,7 +878,18 @@ class PlatformAgent(ResourceAgent):
     ##############################################################
 
     def _initialize(self, *args, **kwargs):
-        self._plat_config = kwargs.get('plat_config', None)
+
+        # TODO remove the following if block, which is there while
+        # we transition the configuration to on_init using self.CFG and not
+        # any more via parameter to this operation:
+        if not self._plat_config:
+            self._plat_config = kwargs.get('plat_config', None)
+            log.info("_initialize: self._plat_config set from initialize's plat_config param: %s",
+                     self._plat_config)
+        else:
+            log.info("_initialize: self._plat_config already set: %s", self._plat_config)
+        ################################### end of block to be removed
+
         self._do_initialize()
 
         # done with the initialization for this particular agent; and now

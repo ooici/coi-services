@@ -721,7 +721,8 @@ class DataProductManagementService(BaseDataProductManagementService):
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
                 ret.reason = "No dataset associated with this data product"
             else:
-                replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
+                replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1)
+                #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
                 ret.value =  {k : rdt[k].tolist() for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
@@ -738,21 +739,22 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
         ret = IonObject(OT.ComputedDictValue)
         ret.value = {}
-        try:
-            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
-            if not dataset_ids:
-                ret.status = ComputedValueAvailability.NOTAVAILABLE
-                ret.reason = "No dataset associated with this data product"
-            else:
-                replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0])
-                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                ret.value =  {k : rdt[k].tolist() for k,v in rdt.iteritems()}
-                ret.status = ComputedValueAvailability.PROVIDED
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
-        except Exception as e:
-            raise e
+        ret.status = ComputedValueAvailability.NOTAVAILABLE
+#        try:
+#            dataset_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+#            if not dataset_ids:
+#                ret.status = ComputedValueAvailability.NOTAVAILABLE
+#                ret.reason = "No dataset associated with this data product"
+#            else:
+#                replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0])
+#                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+#                ret.value =  {k : rdt[k].tolist() for k,v in rdt.iteritems()}
+#                ret.status = ComputedValueAvailability.PROVIDED
+#        except NotFound:
+#            ret.status = ComputedValueAvailability.NOTAVAILABLE
+#            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+#        except Exception as e:
+#            raise e
 
         return ret
 

@@ -145,15 +145,13 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             'device_port': 4001,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
-            'command_port': 4002,
-            'data_port': 4003,
+            'command_port': 4003,
+            'data_port': 4000,
             'log_level': 5,
         }
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
-                                          comms_device_address='sbe37-simulator.oceanobservatories.org',
-                                          comms_device_port=4001,
                                           port_agent_config = port_agent_config)
 
 
@@ -349,14 +347,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         """
 
-#        #--------------------------------------------------------------------------------
-#        # Get the extended data product to see if it contains the granules
-#        #--------------------------------------------------------------------------------
-#        extended_product = self.dpclient.get_data_product_extension(data_product_id1)
-#        self.assertEqual(data_product_id1, extended_product._id)
-#        log.debug( "test_activateInstrumentSample: extended_product.computed.last_granule.value %s", str(extended_product.computed.last_granule.value) )
-#        log.debug( "test_activateInstrumentSample: extended_product.computed.recent_granules.value %s", str(extended_product.computed.recent_granules.value) )
-#        log.debug("test_activateInstrumentSample: extended_product.computed.provenance_product_list.value %s", str(extended_product.computed.provenance_product_list.value) )
+        #--------------------------------------------------------------------------------
+        # Get the extended data product to see if it contains the granules
+        #--------------------------------------------------------------------------------
+        extended_product = self.dpclient.get_data_product_extension(data_product_id1)
+        self.assertEqual(data_product_id1, extended_product._id)
+        self.assertEqual( extended_product.computed.last_granule.value['quality_flag'], ['ok'] )
+        #log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
+
 
 
 

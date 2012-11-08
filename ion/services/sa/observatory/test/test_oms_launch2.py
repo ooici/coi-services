@@ -67,6 +67,11 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 # the test does not take too long.
 BASE_PLATFORM_ID = 'Node1D'
 
+DVR_CONFIG = {
+    'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
+    'dvr_cls': 'OmsPlatformDriver',
+    'oms_uri': 'embsimulator'
+}
 
 # TIMEOUT: timeout for each execute_agent call.
 TIMEOUT = 90
@@ -253,12 +258,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         self.imsclient.assign_platform_model_to_platform_agent(self.platformModel_id, agent_id)
 
-        agent_instance_obj = IonObject(RT.PlatformAgentInstance,
-                                name='%s_PlatformAgentInstance' % platform_id,
-                                description="%s_PlatformAgentInstance" % platform_id)
-
-        agent_instance_id = self.imsclient.create_platform_agent_instance(
-                            agent_instance_obj, agent_id, device_id)
+#        agent_instance_obj = IonObject(RT.PlatformAgentInstance,
+#                                name='%s_PlatformAgentInstance' % platform_id,
+#                                description="%s_PlatformAgentInstance" % platform_id)
+#
+#        agent_instance_id = self.imsclient.create_platform_agent_instance(
+#                            agent_instance_obj, agent_id, device_id)
 
         plat_objs = {
             'platform_id':        platform_id,
@@ -268,8 +273,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
             'device_id':          device_id,
             'agent__obj':         agent__obj,
             'agent_id':           agent_id,
-            'agent_instance_obj': agent_instance_obj,
-            'agent_instance_id':  agent_instance_id,
+#            'agent_instance_obj': agent_instance_obj,
+#            'agent_instance_id':  agent_instance_id,
             'children':           []
         }
 
@@ -279,7 +284,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         stream_config = self._create_stream_config(plat_objs)
         self.agent_streamconfig_map[platform_id] = stream_config
-        self._start_data_subscriber(agent_instance_id, stream_config)
+#        self._start_data_subscriber(agent_instance_id, stream_config)
 
         return plat_objs
 
@@ -364,6 +369,48 @@ class TestOmsLaunch(IonIntegrationTestCase):
                          'parameter_dictionary':platform_eng_dictionary.dump()}
 
         return stream_config
+
+    def _set_platform_agent_instances(self):
+        """
+        Once most of the objs/defs associated with all platforms are in
+        place, this method creates and associates the PlatformAgentInstance
+        elements.
+        """
+
+        self.platform_configs = {}
+        for platform_id, plat_objs in self.all_platforms.iteritems():
+
+            PLATFORM_CONFIG = self.platform_configs[platform_id] = {
+                'platform_id':             platform_id,
+                'platform_topology':       self.topology,
+
+#                'agent_device_map':        self.agent_device_map,
+                'agent_streamconfig_map':  self.agent_streamconfig_map,
+
+                'driver_config':           DVR_CONFIG,
+            }
+
+            agent_config = {
+                'platform_config': PLATFORM_CONFIG,
+            }
+
+            agent_instance_obj = IonObject(RT.PlatformAgentInstance,
+                                    name='%s_PlatformAgentInstance' % platform_id,
+                                    description="%s_PlatformAgentInstance" % platform_id,
+                                    agent_config=agent_config)
+
+            agent_id = plat_objs['agent_id']
+            device_id = plat_objs['device_id']
+            agent_instance_id = self.imsclient.create_platform_agent_instance(
+                                agent_instance_obj, agent_id, device_id)
+
+            plat_objs['agent_instance_obj'] = agent_instance_obj
+            plat_objs['agent_instance_id']  = agent_instance_id
+
+
+            stream_config = self.agent_streamconfig_map[platform_id]
+            self._start_data_subscriber(agent_instance_id, stream_config)
+
 
     def _start_data_subscriber(self, stream_name, stream_config):
         """
@@ -456,6 +503,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # to create corresponding ION objects and configuration dictionaries:
         base_platform_objs = self._traverse(base_platform_id)
 
+        # now that most of the topology information is there, add the
+        # PlatformAgentInstance elements
+        self._set_platform_agent_instances()
+
+        base_platform_config = self.platform_configs[base_platform_id]
+
         log.info("base_platform_id = %r", base_platform_id)
         log.info("topology = %s", str(self.topology))
 
@@ -482,33 +535,16 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self._pa_client = ResourceAgentClient('paclient', name=agent_instance_obj.agent_process_id,  process=FakeProcess())
         log.debug(" test_oms_create_and_launch:: got pa client %s", str(self._pa_client))
 
-        DVR_CONFIG = {
-            'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
-            'dvr_cls': 'OmsPlatformDriver',
-            'oms_uri': 'embsimulator'
-        }
-
-        # note: ID value for 'platform_id' should be consistent with IDs in topology:
-        PLATFORM_CONFIG = {
-            'platform_id':             base_platform_id,
-            'platform_topology':       self.topology,
-
-            'agent_device_map':        self.agent_device_map,
-            'agent_streamconfig_map':  self.agent_streamconfig_map,
-
-            'driver_config':           DVR_CONFIG,
-            'container_name':          self.container.name,
-        }
-
-        log.debug("Base PLATFORM_CONFIG =\n%s", PLATFORM_CONFIG)
+        log.debug("base_platform_config =\n%s", base_platform_config)
 
         # ping_agent can be issued before INITIALIZE
         retval = self._pa_client.ping_agent(timeout=TIMEOUT)
         log.debug( 'Base Platform ping_agent = %s', str(retval) )
 
         # issue INITIALIZE command to the base platform, which will launch the
-        # creation of the whole platform hierarchy rooted at PLATFORM_CONFIG['platform_id']
-        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=PLATFORM_CONFIG))
+        # creation of the whole platform hierarchy rooted at base_platform_config['platform_id']
+#        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=base_platform_config))
+        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'Base Platform INITIALIZE = %s', str(retval) )
 

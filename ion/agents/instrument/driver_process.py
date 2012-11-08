@@ -31,7 +31,7 @@ class DriverProcessType(BaseEnum):
     """
     Base states for driver launcher types.
     """
-    PYTHON_MODULE = 'ZMQPyClassDriverLauncher',
+    PYTHON_MODULE = 'ZMQPyClassDriverLauncher'
     EGG = 'ZMQEggDriverLauncherG'
 
 

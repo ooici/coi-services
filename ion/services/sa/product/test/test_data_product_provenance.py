@@ -21,7 +21,7 @@ from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
 
 from interface.objects import LastUpdate, ComputedValueAvailability
-
+from ion.agents.port.port_agent_process import PortAgentProcessType
 from ion.services.dm.utility.granule_utils import time_series_domain
 import base64
 
@@ -31,7 +31,7 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sax')
 #@unittest.skip('not working')
 class TestDataProductProvenance(IonIntegrationTestCase):
 
@@ -162,8 +162,19 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # Create the agent instance
         #-------------------------------
 
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance",
-                                          comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
+        port_agent_config = {
+            'device_addr': 'sbe37-simulator.oceanobservatories.org',
+            'device_port': 4001,
+            'process_type': PortAgentProcessType.UNIX,
+            'binary_path': "port_agent",
+            'command_port': 4003,
+            'data_port': 4000,
+            'log_level': 5,
+            }
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
+            description="SBE37IMAgentInstance",
+            port_agent_config = port_agent_config)
+
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
 
@@ -282,6 +293,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         ctd_l0_conductivity_output_dp_id = self.dpmsclient.create_data_product(ctd_l0_conductivity_output_dp_obj,
                                                                                 outgoing_stream_l0_conductivity_id)
+
         self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
 
 
@@ -426,7 +438,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
-
         contents = "this is the lookup table  contents, replace with a file..."
         att = IonObject(RT.Attachment, name='deviceLookupTable', content=base64.encodestring(contents), keywords=['DataProcessInput'], attachment_type=AttachmentType.ASCII)
         deviceAttachment = self.rrclient.create_attachment(ctd_l0_all_data_process_id, att)
@@ -549,13 +560,14 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # Retrieve the extended resource for this data process
         #-------------------------------
         extended_process_def = self.dataprocessclient.get_data_process_definition_extension(ctd_L0_all_dprocdef_id)
-        self.assertEqual(1, len(extended_process_def.data_processes) )
-        self.assertEqual(3, len(extended_process_def.output_stream_definitions) )
-        #self.assertEqual(3, len(extended_process_def.data_products) )
+
 #        log.debug("TestDataProductProvenance: DataProcess extended_process_def  %s", str(extended_process_def))
 #        log.debug("TestDataProductProvenance: DataProcess data_processes  %s", str(extended_process_def.data_processes))
 #        log.debug("TestDataProductProvenance: DataProcess data_products  %s", str(extended_process_def.data_products))
-
+        self.assertEqual(1, len(extended_process_def.data_processes) )
+        self.assertEqual(3, len(extended_process_def.output_stream_definitions) )
+        self.assertEqual(1, len(extended_process_def.data_products) ) #one list because of one data process
+        self.assertEqual(3, len(extended_process_def.data_products[0]) ) #inside that inner list are the three output data products
 
         #-------------------------------
         # Request the xml report

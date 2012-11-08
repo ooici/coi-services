@@ -6,6 +6,8 @@ from xml.dom.minidom import parse, parseString
 from pyon.ion.process import StandaloneProcess
 from coverage_model.coverage import SimplexCoverage
 from pyon.util.file_sys import FileSystem
+from pyon.util.log import log
+import numpy as np
 import base64
 import StringIO
 from zipfile import ZipFile
@@ -53,8 +55,11 @@ class RegistrationProcess(StandaloneProcess):
 
 
     def register_dap_dataset(self, coverage_path):
-        self.   add_dataset_to_xml(coverage_path=coverage_path)
-        self.create_symlink(coverage_path, self.pydap_data_path)
+        try:
+            self.   add_dataset_to_xml(coverage_path=coverage_path)
+            self.create_symlink(coverage_path, self.pydap_data_path)
+        except:
+            log.error('Failed to register dataset for coverage path %s' % coverage_path)
 
     def create_symlink(self, coverage_path, pydap_path):
         paths = os.path.split(coverage_path)
@@ -84,6 +89,9 @@ class RegistrationProcess(StandaloneProcess):
 
         datasets = {}
         for key in cov.list_parameters():
+            pc = cov.get_parameter_context(key)
+            if np.dtype(pc.param_type.value_encoding).char == 'O':
+                continue
             param = cov.get_parameter(key)
             dims = (cov.temporal_parameter_name,)
             if len(param.shape) == 2:

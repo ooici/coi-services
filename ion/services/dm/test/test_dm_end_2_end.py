@@ -342,6 +342,17 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.data_retriever.cancel_replay_agent(self.replay_id)
 
 
+        #--------------------------------------------------------------------------------
+        # Test the slicing capabilities
+        #--------------------------------------------------------------------------------
+
+        granule = self.data_retriever.retrieve(dataset_id=dataset_id, query={'tdoa':slice(0,5)})
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        b = rdt['time'] == np.arange(5)
+        self.assertTrue(b.all() if not isinstance(b,bool) else b)
+
+
+
     def test_retrieve_and_transform(self):
 
         # Stream definition for the CTD data

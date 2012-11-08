@@ -82,6 +82,7 @@ class ReplayProcess(BaseReplayProcess):
         self.stride_time     = self.CFG.get_safe('process.query.stride_time', None)
         self.parameters      = self.CFG.get_safe('process.query.parameters',None)
         self.publish_limit   = self.CFG.get_safe('process.query.publish_limit', 10)
+        self.tdoa            = self.CFG.get_safe('process.query.tdoa',None)
         self.stream_id       = self.CFG.get_safe('process.publish_streams.output', '')
         self.stream_def      = pubsub.read_stream_definition(stream_id=self.stream_id)
         self.stream_def_id   = self.stream_def._id
@@ -108,6 +109,7 @@ class ReplayProcess(BaseReplayProcess):
             validate_is_instance(stride_time, Number, 'stride_time must be a number for striding.')
             ugly_range = np.arange(start_time, end_time, stride_time)
             idx_values = [cls.get_relative_time(coverage,i) for i in ugly_range]
+            idx_values = list(set(idx_values)) # Removing duplicates
             slice_ = [idx_values]
 
         elif not (start_time is None and end_time is None):
@@ -139,7 +141,13 @@ class ReplayProcess(BaseReplayProcess):
 
         for field in fields:
             log.info( 'Slice is %s' , slice_)
-            rdt[field] = coverage.get_parameter_values(field, tdoa=slice_)
+            n = coverage.get_parameter_values(field,tdoa=slice_)
+            if n is None:
+                rdt[field] = [n]
+            elif isinstance(n,np.ndarray):
+                rdt[field] = n
+            else:
+                rdt[field] = [n]
         return rdt
 
     def execute_retrieve(self):
@@ -149,7 +157,7 @@ class ReplayProcess(BaseReplayProcess):
         '''
         try: 
             coverage = DatasetManagementService._get_coverage(self.dataset_id)
-            rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters)
+            rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters,tdoa=self.tdoa)
             coverage.close(timeout=5)
         except Exception as e:
             import traceback

@@ -444,9 +444,16 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
 
         #test the extended resource
-        extended_org = self.org_management_service.get_org_extension(org_id)
-        log.debug("test_observatory_org_extended: extended_org:  %s ", str(extended_org))
+        extended_org = self.org_management_service.get_marine_facility_extension(org_id)
+        #log.debug("test_observatory_org_extended: extended_org:  %s ", str(extended_org))
         self.assertEqual(1, len(extended_org.instruments_deployed) )
         self.assertEqual(1, len(extended_org.platforms_not_deployed) )
         self.assertEqual(0, len(extended_org.platform_models) )
+
+
+        #test the extended resource of the ION org
+        ion_org_id = self.org_management_service.find_org()
+        extended_org = self.org_management_service.get_marine_facility_extension(ion_org_id._id)
+        #log.debug("test_observatory_org_extended: extended_ION_org:  %s ", str(extended_org))
+        self.assertEqual(0, len(extended_org.members))
 
