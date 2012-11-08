@@ -147,6 +147,17 @@ class PlatformAgent(ResourceAgent):
 
         log.info("PlatformAgent constructor complete.")
 
+    def on_init(self):
+        super(PlatformAgent, self).on_init()
+        log.debug("on_init self.CFG = %s", str(self.CFG))
+        # TODO what follows in part of the change regarding the full
+        # configuration of the platform at this point as opposed to in the
+        # INITIALIZE command. More strict check here pending while we
+        # complete this change.
+        self._plat_config = self.CFG.get("platform_config", None)
+        if self._plat_config:
+            log.info("self._plat_config set on_init: %s", str(self._plat_config))
+
     def on_start(self):
         super(PlatformAgent, self).on_start()
         log.info('platform agent is running')
@@ -672,7 +683,8 @@ class PlatformAgent(ResourceAgent):
         agent_config = {
             'agent':            {'resource_id': subplatform_id},
             'stream_config':    self.CFG.stream_config,
-            'test_mode':        True
+
+            # TODO pass platform config here
         }
 
         log.debug("%r: launching sub-platform agent %r",
@@ -851,7 +863,18 @@ class PlatformAgent(ResourceAgent):
     ##############################################################
 
     def _initialize(self, *args, **kwargs):
-        self._plat_config = kwargs.get('plat_config', None)
+
+        # TODO remove the following if block, which is there while
+        # we transition the configuration to on_init using self.CFG and not
+        # any more via parameter to this operation:
+        if not self._plat_config:
+            self._plat_config = kwargs.get('plat_config', None)
+            log.info("_initialize: self._plat_config set from initialize's plat_config param: %s",
+                     self._plat_config)
+        else:
+            log.info("_initialize: self._plat_config already set: %s", self._plat_config)
+        ################################### end of block to be removed
+
         self._do_initialize()
 
         # done with the initialization for this particular agent; and now

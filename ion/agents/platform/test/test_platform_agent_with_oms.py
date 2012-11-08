@@ -100,8 +100,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._agent_config = {
             'agent'         : {'resource_id': PA_RESOURCE_ID},
             'stream_config' : self._stream_config,
-            'test_mode' : True,
 
+            # pass platform config here
             'platform_config': self.PLATFORM_CONFIG
         }
 
@@ -342,9 +342,10 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             self._verify_invalid_attribute_id(attrName, attr_values)
 
     def _initialize(self):
-        kwargs = dict(plat_config=self.PLATFORM_CONFIG)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
-        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
+#        kwargs = dict(plat_config=self.PLATFORM_CONFIG)
+#        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.INACTIVE)
 
