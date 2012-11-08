@@ -902,6 +902,25 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
 
+
+        # request unknown engine, with NEVER queuing mode. The request
+        # should be rejected.
+        # verifies L4-CI-CEI-RQ52
+
+        process_target = ProcessTarget(execution_engine_id="not-a-real-ee")
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.NEVER
+        process_schedule.target = process_target
+
+        rejected_pid = self.pd_cli.create_process(self.process_definition_id)
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=rejected_pid)
+
+        self.waiter.await_state_event(rejected_pid, ProcessStateEnum.REJECTED)
+
+        # now add a node and eeagent for engine2. original process should leave
+        # queue and start running
         node2_id = uuid.uuid4().hex
         self._send_node_state("engine2", node2_id)
         self._start_eeagent(node2_id)
@@ -947,13 +966,15 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
 
     def test_code_download(self):
-
-        url = "file://%s" % os.path.join(os.path.dirname(__file__), 'test_process_dispatcher.py')
+        # create a process definition that has no URL; only module and class.
         process_definition_no_url = ProcessDefinition(name='test_process_nodownload')
         process_definition_no_url.executable = {'module': 'ion.my.test.process',
                 'class': 'TestProcess'}
         process_definition_id_no_url = self.pd_cli.create_process_definition(process_definition_no_url)
 
+        # create another that has a URL of the python file (this very file)
+        # verifies L4-CI-CEI-RQ114
+        url = "file://%s" % os.path.join(os.path.dirname(__file__), 'test_process_dispatcher.py')
         process_definition = ProcessDefinition(name='test_process_download')
         process_definition.executable = {'module': 'ion.my.test.process',
                 'class': 'TestProcess', 'url': url}
