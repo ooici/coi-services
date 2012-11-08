@@ -23,6 +23,18 @@ class TestResourceRegistry(IonIntegrationTestCase):
         # Now create client to bank service
         self.resource_registry_service = ResourceRegistryServiceClient(node=self.container.node)
 
+    def test_tuple_in_dict(self):
+        # create a resource with a tuple saved in a dict
+        transform_obj = IonObject(RT.Transform)
+        transform_obj.configuration = {}
+        transform_obj.configuration["tuple"] = ('STRING',)
+        transform_id, _ = self.resource_registry_service.create(transform_obj)
+
+        # read the resource back
+        returned_transform_obj = self.resource_registry_service.read(transform_id)
+
+        self.assertEqual(transform_obj.configuration["tuple"], returned_transform_obj.configuration["tuple"])
+
     #@unittest.skip('this test just for debugging setup')
     def test_crud(self):
         # Some quick registry tests
