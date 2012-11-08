@@ -1098,9 +1098,10 @@ class OrgManagementService(BaseOrgManagementService):
             dply_inst = []
             for instrument_deployed in extended_org.instruments_deployed:
                 # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between a site and a device so get the only element from inside this list
-                instrument_deployed = instrument_deployed[0]
-                if hasattr(instrument_deployed, 'type_') and instrument_deployed.type_ == 'InstrumentDevice':
-                    dply_inst.append(instrument_deployed)
+                if len(instrument_deployed):
+                    instrument_deployed = instrument_deployed[0]
+                    if hasattr(instrument_deployed, 'type_') and instrument_deployed.type_ == 'InstrumentDevice':
+                        dply_inst.append(instrument_deployed)
             extended_org.instruments_deployed = dply_inst
 
             #compute the list of non-deployed instruments
