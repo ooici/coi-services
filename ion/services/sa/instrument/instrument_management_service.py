@@ -573,11 +573,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
         _port_agent_config = instrument_agent_instance_obj.port_agent_config
-        if type([]) == type(_port_agent_config["process_type"]):
-            log.error("instrument_agent_instance_obj.port_agent_config['process_type'] expected '%s', got '%s'",
-                      PortAgentProcessType.UNIX, _port_agent_config["process_type"])
-            _port_agent_config["process_type"] = PortAgentProcessType.UNIX
-
+       
         #todo: ask bill if this blocks
         _pagent = PortAgentProcess.launch_process(_port_agent_config,  test_mode = True)
         pid = _pagent.get_pid()
@@ -619,10 +615,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         try:
             _port_agent_config = instrument_agent_instance_obj.port_agent_config
-            if type([]) == type(_port_agent_config["process_type"]):
-                log.error("instrument_agent_instance_obj.port_agent_config['process_type'] expected '%s', got '%s'",
-                                PortAgentProcessType.UNIX, _port_agent_config["process_type"])
-                _port_agent_config["process_type"] = PortAgentProcessType.UNIX
+
             process = PortAgentProcess.get_process(_port_agent_config, test_mode=True)
             process.stop()
         except NotFound:
@@ -1055,21 +1048,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
 
-        #todo: get the streams and create the stream config
-        stream_config = {}
-
-
-        # Create driver config.
-        platform_agent_instance_obj.driver_config = {
-
-        }
-
-        # Create agent config.
-        agent_config = {
-            'agent'         : {'resource_id': platform_device_id},
-            'stream_config' : stream_config,
-            'test_mode' : True
-        }
+        # complement agent_config with resource_id
+        agent_config = platform_agent_instance_obj.agent_config
+        if 'agent' not in agent_config:
+            agent_config['agent'] = {'resource_id': platform_device_id}
+        elif 'resource_id' not in agent_config['agent']:
+            agent_config['agent']['resource_id'] = platform_device_id
 
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
                                                                schedule=None,

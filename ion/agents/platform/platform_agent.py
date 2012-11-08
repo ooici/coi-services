@@ -319,9 +319,12 @@ class PlatformAgent(ResourceAgent):
         config variable.
         """
 
-        stream_info = self.CFG.stream_config
-        log.debug("%r: stream_info = %s",
-            self._platform_id, stream_info)
+        stream_info = self.CFG.get('stream_config', None)
+        if stream_info is None:
+            log.debug("%r: No stream_config given in CFG", self._platform_id)
+            return
+
+        log.debug("%r: stream_info = %s", self._platform_id, stream_info)
 
         for (stream_name, stream_config) in stream_info.iteritems():
 
@@ -680,11 +683,23 @@ class PlatformAgent(ResourceAgent):
 
         @param subplatform_id Platform ID
         """
+
+        # platform configuration:
+        platform_config = {
+            'platform_id': subplatform_id,
+            'platform_topology' : self._topology,
+            'agent_device_map' : self._agent_device_map,
+            'agent_streamconfig_map': self._agent_streamconfig_map,
+            'parent_platform_id' : self._platform_id,
+            'driver_config': self._plat_config['driver_config'],
+        }
+
         agent_config = {
             'agent':            {'resource_id': subplatform_id},
-            'stream_config':    self.CFG.stream_config,
+            'stream_config':    self.CFG.get('stream_config', None),
 
             # TODO pass platform config here
+            'platform_config':  platform_config,
         }
 
         log.debug("%r: launching sub-platform agent %r",
