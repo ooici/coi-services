@@ -80,11 +80,7 @@ class Handler(BaseHandler):
                     target = target[name]
                 else:  # return grid
                     grid = target[name] = GridType(name=name)
-                    data = None
-                    if len(slice_) == 0:
-                        data = coverage.get_parameter_values(name)
-                    elif len(slice_) == 1:
-                        data = coverage.get_parameter_values(name, tdoa=slice_)
+                    data = coverage.get_parameter_values(name, tdoa=slice_)
 
                     atts = {'units': coverage.get_parameter_context(name).uom }
                     type_ = numpy.dtype(param.context.param_type.value_encoding).char
