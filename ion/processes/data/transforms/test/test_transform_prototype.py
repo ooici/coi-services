@@ -363,12 +363,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.exchange_points.append('exch_point_1')
 
         #-------------------------------------------------------------------------------------
-        # Set up the scheduler for an interval timer with an end time
-        #-------------------------------------------------------------------------------------
-        id = self._create_interval_timer_with_end_time(timer_interval=self.timer_interval, end_time=-1)
-        self.assertIsNotNone(id)
-
-        #-------------------------------------------------------------------------------------
         # publish a *GOOD* granule
         #-------------------------------------------------------------------------------------
         self.length = 2
