@@ -1065,10 +1065,32 @@ class OrgManagementService(BaseOrgManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
+        log.debug("get_marine_facility_extension: extended_org 1:  %s ", str(extended_org))
+
         # set org members from the ION org
         ion_org = self.find_org()
         if org_id == ion_org._id:
-            extended_org.members = self.find_enrolled_users(org_id)
+
+            #workaround for direct rr access
+            if hasattr(self.container, 'has_capability') and self.container.has_capability('RESOURCE_REGISTRY'):
+                self._rr = self.container.resource_registry
+            else:
+                self._rr = self.clients.resource_registry
+            log.debug("get_marine_facility_extension: self._rr:  %s ", str(self._rr))
+
+            actors_list = self.find_enrolled_users(org_id)
+            log.debug("get_marine_facility_extension: actors_list:  %s ", str(actors_list))
+            for actor in actors_list:
+                log.debug("get_marine_facility_extension: actor:  %s ", str(actor))
+                user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
+                if user_info_objs:
+                    log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
+                    extended_org.members.append( user_info_objs[0] )
+        else:
+            if extended_org.members:
+                extended_org.members = extended_org.members[0]
+
+        log.debug("get_marine_facility_extension: extended_org 2:  %s ", str(extended_org))
 
         #compute the non deployed devices
         if hasattr(extended_org, 'instruments') and hasattr(extended_org, 'instruments_deployed') and hasattr(extended_org, 'instruments_not_deployed'):

@@ -454,5 +454,6 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         #test the extended resource of the ION org
         ion_org_id = self.org_management_service.find_org()
         extended_org = self.org_management_service.get_marine_facility_extension(ion_org_id._id)
-        self.assertTrue( len(extended_org.members) > 0)
+        #log.debug("test_observatory_org_extended: extended_ION_org:  %s ", str(extended_org))
+        self.assertEqual(0, len(extended_org.members))
 
