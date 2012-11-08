@@ -1018,13 +1018,13 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
-    def get_subscriptions_for_data_product(self, data_product_id='', include_retired=False):
+    def get_subscriptions(self, resource_id='', include_retired=False):
         """
         This method is used to get the subscriptions to a data product. The method will return a list of NotificationRequest
         objects for whom the origin is set to this data product. This way all the users who were interested in listening to
         events with origin equal to this data product, will be known and all their subscriptions will be known.
 
-        @param data_product_id
+        @param resource_id
         @param include_retired
         @return notification_requests []
         """
@@ -1034,11 +1034,11 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
         # Get the users who have created notifications with the data product id as origin
         #------------------------------------------------------------------------------------
-        dict =  self.event_processor.reverse_user_info['event_origin'][data_product_id]
+        dict =  self.event_processor.reverse_user_info['event_origin'][resource_id]
         user_names = set(dict.itervalues())
 
         #------------------------------------------------------------------------------------
-        # Find the notification request objects with origin as data_product_id
+        # Find the notification request objects with origin as resource_id
         #------------------------------------------------------------------------------------
         if include_retired: # include both past and active notifications
             for user_name in user_names:
@@ -1054,12 +1054,12 @@ class UserNotificationService(BaseUserNotificationService):
 
         return number_of_subscriptions, notification_requests
 
-    def get_active_subscriptions_for_data_product(self, data_product_id=''):
+    def get_active_subscriptions(self, resource_id=''):
         """
         This method is used to get the active subscriptions to a data product. The method will return a list of NotificationRequest
         objects for whom the origin is set to this data product.
 
-        @param data_product_id str
+        @param resource_id str
         @return number_of_subscriptions, active_notifications int, []
         """
         active_notifications = []
@@ -1067,7 +1067,7 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
         # Get the users who have created notifications with the data product id as origin
         #------------------------------------------------------------------------------------
-        dict =  self.event_processor.reverse_user_info['event_origin'][data_product_id]
+        dict =  self.event_processor.reverse_user_info['event_origin'][resource_id]
         user_names = set(dict.itervalues())
 
         #------------------------------------------------------------------------------------
@@ -1082,12 +1082,12 @@ class UserNotificationService(BaseUserNotificationService):
 
         return number_of_subscriptions, active_notifications
 
-    def get_past_subscriptions_for_data_product(self, data_product_id=''):
+    def get_past_subscriptions(self, resource_id=''):
         """
         This method is used to get the past subscriptions to a data product. The method will return a list of retired
         NotificationRequest objects for whom the origin is set to this data product.
 
-        @param data_product_id
+        @param resource_id
         @return number_of_subscriptions, past_notifications int, []
         """
 
@@ -1096,7 +1096,7 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
         # Get the users who have created notifications with the data product id as origin
         #------------------------------------------------------------------------------------
-        dict =  self.event_processor.reverse_user_info['event_origin'][data_product_id]
+        dict =  self.event_processor.reverse_user_info['event_origin'][resource_id]
         user_names = set(dict.itervalues())
 
         #------------------------------------------------------------------------------------

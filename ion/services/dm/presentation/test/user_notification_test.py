@@ -1508,3 +1508,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         success = self.event_poll(poller, 10)
         self.assertTrue(success)
+
+    def test_get_subscriptions(self):
+        '''
+        Test that the get
+        '''
+
+        #--------------------------------------------------------------------------------------
+        # create user with email address in RR
+        #--------------------------------------------------------------------------------------
+
