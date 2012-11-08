@@ -520,6 +520,7 @@ class UserNotificationService(BaseUserNotificationService):
         # Stop the event subscriber for the notification
         #-------------------------------------------------------------------------------------------------------------------
         notification_request = self.clients.resource_registry.read(notification_id)
+        old_notification = notification_request
 
         self.event_processor.stop_notification_subscriber(notification_request=notification_request)
 
@@ -530,11 +531,22 @@ class UserNotificationService(BaseUserNotificationService):
         #        self.delete_notification_from_user_info(notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
-        # update the resource registry
+        # Update the resource registry
         #-------------------------------------------------------------------------------------------------------------------
 
         notification_request.temporal_bounds.end_datetime = self.makeEpochTime(self.__now())
+
+        log.debug("notification request::: %s" % notification_request)
+        log.debug("notification request.temporal_bounds.end_datetime::: %s" % notification_request.temporal_bounds.end_datetime)
+
         self.clients.resource_registry.update(notification_request)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Update the user info dictionaries
+        #-------------------------------------------------------------------------------------------------------------------
+
+#        for user_name in self.event_processor.user_info.iterkeys():
+#            self.update_user_info_dictionary(user, notification_request, old_notification)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -1034,29 +1046,26 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
         # Get the users who have created notifications with the data product id as origin
         #------------------------------------------------------------------------------------
-        dict =  self.event_processor.reverse_user_info['event_origin'][resource_id]
-        user_names = set(dict.itervalues())
+        user_names = set(self.event_processor.reverse_user_info['event_origin'][resource_id])
 
         #------------------------------------------------------------------------------------
         # Find the notification request objects with origin as resource_id
         #------------------------------------------------------------------------------------
-        if include_retired: # include both past and active notifications
-            for user_name in user_names:
-                notific = self.event_processor.user_info[user_name]['notifications']
-                notification_requests.append()
-        else: # include only the active notifications
-            for user_name in user_names:
-                for notific in self.event_processor.user_info[user_name]['notifications']:
-                    if not notific.temporal_bounds.end_datetime:
+        for user_name in user_names:
+            for notific in self.event_processor.user_info[user_name]['notifications']:
+                if include_retired: # include both past and active notifications
+                    notification_requests.append(notific)
+                else: # include only the active notifications
+                    if notific.temporal_bounds.end_datetime == '':
                         notification_requests.append(notific)
 
         number_of_subscriptions = len(notification_requests)
 
-        return number_of_subscriptions, notification_requests
+        return notification_requests, number_of_subscriptions
 
     def get_active_subscriptions(self, resource_id=''):
         """
-        This method is used to get the active subscriptions to a data product. The method will return a list of NotificationRequest
+        This method is used to getfnotification_requests.append the active subscriptions to a data product. The method will return a list of NotificationRequest
         objects for whom the origin is set to this data product.
 
         @param resource_id str
@@ -1067,20 +1076,19 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
         # Get the users who have created notifications with the data product id as origin
         #------------------------------------------------------------------------------------
-        dict =  self.event_processor.reverse_user_info['event_origin'][resource_id]
-        user_names = set(dict.itervalues())
+        user_names = set(self.event_processor.reverse_user_info['event_origin'][resource_id])
 
         #------------------------------------------------------------------------------------
         # Get the notifications we want
         #------------------------------------------------------------------------------------
         for user_name in user_names:
             for notific in self.event_processor.user_info[user_name]['notifications']:
-                if not notific.temporal_bounds.end_datetime: # this means that the notification is not retired
+                if notific.temporal_bounds.end_datetime == '': # this means that the notification is not retired
                     active_notifications.append(notific)
 
         number_of_subscriptions = len(active_notifications)
 
-        return number_of_subscriptions, active_notifications
+        return active_notifications, number_of_subscriptions
 
     def get_past_subscriptions(self, resource_id=''):
         """
@@ -1096,17 +1104,16 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
         # Get the users who have created notifications with the data product id as origin
         #------------------------------------------------------------------------------------
-        dict =  self.event_processor.reverse_user_info['event_origin'][resource_id]
-        user_names = set(dict.itervalues())
+        user_names = set(self.event_processor.reverse_user_info['event_origin'][resource_id])
 
         #------------------------------------------------------------------------------------
         # Get the notifications we want
         #------------------------------------------------------------------------------------
         for user_name in user_names:
             for notific in self.event_processor.user_info[user_name]['notifications']:
-                if notific.temporal_bounds.end_datetime:
+                if notific.temporal_bounds.end_datetime != '': # this means that the notification is retired
                     past_notifications.append(notific)
 
         number_of_subscriptions = len(past_notifications)
 
-        return number_of_subscriptions, past_notifications
+        return past_notifications, number_of_subscriptions

@@ -15,9 +15,10 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from interface.objects import UserInfo, DeliveryConfig, ComputedListValue, ComputedValueAvailability
 from interface.objects import DeviceEvent
@@ -1536,8 +1537,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         data_product_management = DataProductManagementServiceClient()
         dataset_management = DatasetManagementServiceClient()
+        pubsub = PubsubManagementServiceClient()
+        
         pdict_id = dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        streamdef_id = pubsub_cli.create_stream_definition(name="test_subscriptions", parameter_dictionary_id=pdict_id)
+        streamdef_id = pubsub.create_stream_definition(name="test_subscriptions", parameter_dictionary_id=pdict_id)
 
         tdom, sdom = time_series_domain()
         tdom, sdom = tdom.dump(), sdom.dump()
@@ -1560,7 +1563,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_type='ResourceLifecycleEvent')
 
         notification_past = NotificationRequest(   name = "notification_2",
-            origin="instrument_2",
+            origin=data_product_id,
             origin_type="type_2",
             event_type='DetectionEvent')
 
@@ -1569,18 +1572,50 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         active_notification_ids = []
         past_notification_ids = []
+
         for user_id in user_ids:
             notification_id_active =  self.unsc.create_notification(notification=notification_active, user_id=user_id)
-            notification_id_past =  self.unsc.create_notification(notification=notification_past, user_id=user_id)
-            
             active_notification_ids.append(notification_id_active)
+
+            notification_id_past =  self.unsc.create_notification(notification=notification_past, user_id=user_id)
             past_notification_ids.append(notification_id_past)
 
         # Retire some notifications
         for notific_id in past_notification_ids:
             self.unsc.delete_notification(notification_id=notific_id)
 
+        all_notification_ids = active_notification_ids + past_notification_ids
 
+        #--------------------------------------------------------------------------------------
+        # Use UNS to get the subscriptions
+        #--------------------------------------------------------------------------------------
+        result_notifications, _ = self.unsc.get_subscriptions(resource_id=data_product_id, include_retired=False)
+        result_active_notifications, _ = self.unsc.get_active_subscriptions(resource_id=data_product_id)
+        result_past_notifications, _ = self.unsc.get_past_subscriptions(resource_id=data_product_id)
 
+        log.debug("result_notifications::: %s" % result_notifications)
+        log.debug("result_active_notifications::: %s" % result_active_notifications)
+        log.debug("result_past_notifications::: %s" % result_past_notifications)
 
-            
+#        self.assertEquals(len(result_notifications), 5)
+#        self.assertEquals(len(result_active_notifications), 5)
+#        self.assertEquals(len(result_past_notifications), 5)
+
+        for notific in result_notifications:
+            self.assertEquals(notific.origin, data_product_id)
+
+        for notific in result_active_notifications:
+            self.assertEquals(notific.origin, data_product_id)
+            self.assertEquals(notific.temporal_bounds.end_datetime, '')
+
+        for notific in result_past_notifications:
+            self.assertEquals(notific.origin, data_product_id)
+            self.assertNotEquals(notific.temporal_bounds.end_datetime, '')
+
+        #--------------------------------------------------------------------------------------
+        # Use UNS to get the all subscriptions --- including retired
+        #--------------------------------------------------------------------------------------
+        result_notifications, _ = self.unsc.get_subscriptions(resource_id=data_product_id, include_retired=True)
+
+        for notific in result_notifications:
+            self.assertEquals(notific.origin, data_product_id)
