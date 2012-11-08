@@ -58,6 +58,7 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.agents.port.port_agent_process import PortAgentProcessType
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
@@ -72,7 +73,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDVjM3VZS284Mlo5YWF6XzZuSnVVRkE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidGsxQ01TSWVOS0pFRUNONFFJQmpHU3c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1247,12 +1248,26 @@ class IONLoader(ImmediateProcess):
             self._load_InstrumentAgent(fakerow)
 
     def _load_InstrumentAgentInstance(self, row):
-        ia_id = row["instrument_agent_id"]
-        id_id = row["instrument_device_id"]
-        res_id = self._basic_resource_create(row, "InstrumentAgentInstance", "iai/",
-                                            "instrument_management", "create_instrument_agent_instance",
-                                            instrument_agent_id=self.resource_ids[ia_id],
-                                            instrument_device_id=self.resource_ids[id_id])
+        # create basic object from simple fields
+        agent_instance = self._create_object_from_row("InstrumentAgentInstance", row, "iai/")
+
+        # add more complicated attributes
+        agent_instance.driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
+                                                           'port':  int(row['comms_server_port']) } }
+
+        agent_instance.port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
+                                             'device_port':   int(row['iai/comms_device_port']),
+                                             'process_type':  PortAgentProcessType.UNIX,
+                                             'binary_path':   "port_agent",
+                                             'command_port':  int(row['comms_server_cmd_port']),
+                                             'data_port':     int(row['comms_server_port']),
+                                             'log_level':     5,  }
+
+        # save
+        agent_id = self.resource_ids[row["instrument_agent_id"]]
+        device_id = self.resource_ids[row["instrument_device_id"]]
+        client = self._get_service_client("instrument_management")
+        client.create_instrument_agent_instance(agent_instance, instrument_agent_id=agent_id, instrument_device_id=device_id)
 
     def _load_PlatformAgent(self, row):
         res_id = self._basic_resource_create(row, "PlatformAgent", "pa/", "instrument_management", "create_platform_agent")

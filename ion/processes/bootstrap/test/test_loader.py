@@ -92,7 +92,6 @@ class TestLoader(IonIntegrationTestCase):
         res,_ = self.container.resource_registry.find_resources(RT.PlatformAgent, id_only=False)
         self.assertTrue(len(res)>0)
 
-
         # check for platform agents
         res,_ = self.container.resource_registry.find_resources(RT.PlatformAgentInstance, id_only=False)
         self.assertTrue(len(res)>0)
