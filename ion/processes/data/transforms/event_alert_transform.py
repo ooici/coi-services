@@ -214,7 +214,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                 event = DeviceCommsEvent( origin = 'DemoStreamAlertTransform',
                                         sub_type = self.instrument_variable_name,
                                         state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
-                                        lapse_interval="%s seconds" % self.timer_interval,
+                                        lapse_interval_seconds=self.timer_interval,
                                         description = "Event to deliver the communications status of the instrument.")
                 # Publish the event
                 self.publisher._publish_event(  event_msg = event,
