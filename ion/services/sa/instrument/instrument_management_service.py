@@ -573,11 +573,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
         _port_agent_config = instrument_agent_instance_obj.port_agent_config
-        if type([]) == type(_port_agent_config["process_type"]):
-            log.error("instrument_agent_instance_obj.port_agent_config['process_type'] expected '%s', got '%s'",
-                      PortAgentProcessType.UNIX, _port_agent_config["process_type"])
-            _port_agent_config["process_type"] = PortAgentProcessType.UNIX
-
+       
         #todo: ask bill if this blocks
         _pagent = PortAgentProcess.launch_process(_port_agent_config,  test_mode = True)
         pid = _pagent.get_pid()
@@ -619,10 +615,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         try:
             _port_agent_config = instrument_agent_instance_obj.port_agent_config
-            if type([]) == type(_port_agent_config["process_type"]):
-                log.error("instrument_agent_instance_obj.port_agent_config['process_type'] expected '%s', got '%s'",
-                                PortAgentProcessType.UNIX, _port_agent_config["process_type"])
-                _port_agent_config["process_type"] = PortAgentProcessType.UNIX
+
             process = PortAgentProcess.get_process(_port_agent_config, test_mode=True)
             process.stop()
         except NotFound:
