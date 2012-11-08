@@ -1065,7 +1065,10 @@ class OrgManagementService(BaseOrgManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
-
+        # set org members from the ION org
+        ion_org = self.find_org()
+        if org_id == ion_org._id:
+            extended_org.members = self.find_enrolled_users(org_id)
 
         #compute the non deployed devices
         if hasattr(extended_org, 'instruments') and hasattr(extended_org, 'instruments_deployed') and hasattr(extended_org, 'instruments_not_deployed'):
