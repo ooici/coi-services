@@ -1055,21 +1055,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
 
-        #todo: get the streams and create the stream config
-        stream_config = {}
-
-
-        # Create driver config.
-        platform_agent_instance_obj.driver_config = {
-
-        }
-
-        # Create agent config.
-        agent_config = {
-            'agent'         : {'resource_id': platform_device_id},
-            'stream_config' : stream_config,
-            'test_mode' : True
-        }
+        # complement agent_config with resource_id
+        agent_config = platform_agent_instance_obj.agent_config
+        if 'agent' not in agent_config:
+            agent_config['agent'] = {'resource_id': platform_device_id}
+        elif 'resource_id' not in agent_config['agent']:
+            agent_config['agent']['resource_id'] = platform_device_id
 
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
                                                                schedule=None,

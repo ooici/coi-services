@@ -1042,7 +1042,7 @@ class OrgManagementService(BaseOrgManagementService):
     #-----------------------------------------------
     #  COMPUTED RESOURCES
     #-----------------------------------------------
-    def get_org_extension(self, org_id='', ext_associations=None, ext_exclude=None):
+    def get_marine_facility_extension(self, org_id='', ext_associations=None, ext_exclude=None):
         """Returns an MarineFacilityOrgExtension object containing additional related information
 
         @param org_id    str
@@ -1072,19 +1072,23 @@ class OrgManagementService(BaseOrgManagementService):
             #clean up the list of deployed instrument
             dply_inst = []
             for instrument_deployed in extended_org.instruments_deployed:
+                # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between a site and a device so get the only element from inside this list
+                instrument_deployed = instrument_deployed[0]
                 if hasattr(instrument_deployed, 'type_') and instrument_deployed.type_ == 'InstrumentDevice':
                     dply_inst.append(instrument_deployed)
             extended_org.instruments_deployed = dply_inst
 
             #compute the list of non-deployed instruments
             for org_instrument in extended_org.instruments:
-                if not extended_org.instruments_deployed.count(org_instrument):
+                if not org_instrument in extended_org.instruments_deployed:
                     extended_org.instruments_not_deployed.append(org_instrument)
 
         if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed') and hasattr(extended_org, 'platforms_not_deployed'):
             #clean up the list of deployed platforms
             dply_pltfrms = []
             for platform_deployed in extended_org.platforms_deployed:
+                # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between a site and a device so get the only element from inside this list
+                platform_deployed = platform_deployed[0]
                 if hasattr(platform_deployed, 'type_') and platform_deployed.type_ == 'PlatformDevice':
                     dply_pltfrms.append(platform_deployed)
             extended_org.platforms_deployed = dply_pltfrms
