@@ -145,15 +145,13 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             'device_port': 4001,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
-            'command_port': 4002,
-            'data_port': 4003,
+            'command_port': 4003,
+            'data_port': 4000,
             'log_level': 5,
         }
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
-                                          comms_device_address='sbe37-simulator.oceanobservatories.org',
-                                          comms_device_port=4001,
                                           port_agent_config = port_agent_config)
 
 

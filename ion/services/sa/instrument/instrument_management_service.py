@@ -69,7 +69,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         IonObject("Resource")
 
         self.override_clients(self.clients)
-        self._pagent = None
         self.extended_resource_handler = ExtendedResourceContainer(self)
 
         self.init_module_uploader()
@@ -573,20 +572,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
-        self._port_config = {
-            'device_addr': CFG.device.sbe37.host,
-            'device_port': CFG.device.sbe37.port,
-            'process_type': PortAgentProcessType.UNIX,
+        _port_agent_config = instrument_agent_instance_obj.port_agent_config
+        if type([]) == type(_port_agent_config["process_type"]):
+            log.error("instrument_agent_instance_obj.port_agent_config['process_type'] expected '%s', got '%s'",
+                      PortAgentProcessType.UNIX, _port_agent_config["process_type"])
+            _port_agent_config["process_type"] = PortAgentProcessType.UNIX
 
-            'binary_path':  CFG.device.sbe37.port_agent_binary,
-            'command_port': CFG.device.sbe37.port_agent_cmd_port,
-            'data_port': CFG.device.sbe37.port_agent_data_port,
-            'log_level': 5,
-        }
-
-        self._pagent = PortAgentProcess.launch_process(self._port_config,  test_mode = True)
-        pid = self._pagent.get_pid()
-        port = self._pagent.get_data_port()
+        #todo: ask bill if this blocks
+        _pagent = PortAgentProcess.launch_process(_port_agent_config,  test_mode = True)
+        pid = _pagent.get_pid()
+        port = _pagent.get_data_port()
 
         # Configure driver to use port agent port number.
         instrument_agent_instance_obj.driver_config['comms_config'] = {
@@ -623,7 +618,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise e
 
         try:
-            process = PortAgentProcess.get_process(self._port_config, test_mode=True)
+            _port_agent_config = instrument_agent_instance_obj.port_agent_config
+            if type([]) == type(_port_agent_config["process_type"]):
+                log.error("instrument_agent_instance_obj.port_agent_config['process_type'] expected '%s', got '%s'",
+                                PortAgentProcessType.UNIX, _port_agent_config["process_type"])
+                _port_agent_config["process_type"] = PortAgentProcessType.UNIX
+            process = PortAgentProcess.get_process(_port_agent_config, test_mode=True)
             process.stop()
         except NotFound:
             pass
