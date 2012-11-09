@@ -27,7 +27,6 @@ class RegistrationProcess(StandaloneProcess):
         base = '/'.join(self.datasets_xml_path.split('/')[:-1])
         real_path = FileSystem.get_extended_url(base)
         self.datasets_xml_path = os.path.join(real_path, filename)
-        print self.datasets_xml_path
         self.setup_filesystem(real_path)
 
 
