@@ -2,6 +2,7 @@ import re
 import os
 import numpy
 import urllib
+from pyon.util.log import log
 
 from coverage_model.coverage import SimplexCoverage
 from pydap.model import DatasetType,BaseType, GridType, StructureType
@@ -54,7 +55,6 @@ class Handler(BaseHandler):
                 name, slice_ = var.pop(0)
                 covname = urllib.unquote(name)
                 param = coverage.get_parameter(covname)
-                dims = (coverage.temporal_parameter_name,)
 
                 #need to truncate slice here in case time has fill values
                 if len(slice_) == 0 and fill_index >= 0:
@@ -70,31 +70,35 @@ class Handler(BaseHandler):
                         slice_.stop = fill_index
 
                 if param.is_coordinate or target is not dataset:
-                    data = coverage.get_parameter_values(covname, tdoa=slice_)
-                    atts = {'units': coverage.get_parameter_context(covname).uom}
-                    target[name] = BaseType(name=name, data=data, shape=data.shape,
-                    type=numpy.dtype(param.context.param_type.value_encoding).char, dimensions=(covname,),
-                    attributes=atts)
+                    target[name] = get_var(coverage,name,slice_)
                 elif var:
-                    target.setdefault(name, StructureType(name=name))
+                    target.setdefault(name, StructureType(name=name, attributes={'units':coverage.get_parameter_context(name).uom}))
                     target = target[name]
                 else:  # return grid
                     grid = target[name] = GridType(name=name)
-                    data = coverage.get_parameter_values(name, tdoa=slice_)
+                    grid[name] = get_var(coverage,name, slice_)
 
-                    atts = {'units': coverage.get_parameter_context(name).uom }
-                    type_ = numpy.dtype(param.context.param_type.value_encoding).char
-                    grid[name] = BaseType(name=name, data=data, shape=data.shape,
-                        type=type_, dimensions=dims, attributes=atts)
-                    for dim in dims:
-                        atts = {'units': coverage.get_parameter_context(dim).uom }
-                        data = numpy.arange(data.shape[dims.index(dim)])
-                        grid[dim] = BaseType(name=dim, data=data, shape=data.shape,
-                            type=data.dtype.char, attributes=atts)
-
+                    dim = coverage.temporal_parameter_name 
+                    grid[dim] = get_var(coverage,dim,slice_)
         dataset._set_id()
         dataset.close = coverage.close
         return dataset
+
+def get_var(coverage,name,slice_):
+    data = coverage.get_parameter_values(name,tdoa=slice_)
+    attrs = {'units': coverage.get_parameter_context(name).uom}
+    dims = (coverage.temporal_parameter_name,)
+    
+    
+    log.debug( 'name=%s', name)
+    log.debug( 'data=%s', data)
+    log.debug( 'shape=%s' , data.shape)
+    log.debug( 'type=%s', data.dtype.char)
+    log.debug( 'dims=%s', dims)
+    log.debug( 'attrs=%s', attrs)
+    return BaseType(name=name, data=data, shape=data.shape, type=data.dtype.char, dimensions=dims, attributes=attrs)
+
+
 
 if __name__ == '__main__':
     import sys
