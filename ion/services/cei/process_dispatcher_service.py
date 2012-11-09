@@ -750,12 +750,24 @@ class AnyEEAgentClient(object):
     def __init__(self, process):
         self.process = process
 
+        # it's ok to cache these clients indefinitely. Longer term we may need
+        # to prune this cache if we are dealing with many eeagents that come and
+        # go.
+        self.cache = {}
+
     def _get_client_for_eeagent(self, resource_id, attempts=60):
+
+        cached = self.cache.get(resource_id)
+        if cached:
+            return cached
+
         exception = None
         for i in range(0, attempts):
             try:
                 resource_client = SimpleResourceAgentClient(resource_id, process=self.process)
-                return ExecutionEngineAgentClient(resource_client)
+                client = ExecutionEngineAgentClient(resource_client)
+                self.cache[resource_id] = client
+                return client
             except (NotFound, ResourceNotFound, ServerError), e:
                 # This exception catches a race condition, where:
                 # 1. EEagent spawns and starts heartbeater
