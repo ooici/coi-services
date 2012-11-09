@@ -669,9 +669,6 @@ class PDLocalBackend(object):
 
 # map from internal PD states to external ProcessStateEnum values
 
-# some states are known and ignored
-_PD_IGNORED_STATE = object()        # @TODO: remove?
-
 _PD_PROCESS_STATE_MAP = {
     "300-WAITING": ProcessStateEnum.WAITING,
     "400-PENDING": ProcessStateEnum.PENDING,
@@ -710,8 +707,6 @@ class Notifier(object):
         if not ion_process_state:
             log.debug("Received unknown process state from Process Dispatcher." +
                       " process=%s state=%s", process_id, state)
-            return
-        if ion_process_state is _PD_IGNORED_STATE:
             return
 
         log.debug("Emitting event for process state. process=%s state=%s", process_id, ion_process_state)
@@ -1079,8 +1074,6 @@ class PDBridgeBackend(object):
             log.debug("Received unknown process state from Process Dispatcher." +
                       " process=%s state=%s", process_id, state)
             return
-        if ion_process_state is _PD_IGNORED_STATE:
-            return
 
         log.debug("Sending process state event: %s -> %s", process_id, ion_process_state)
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
@@ -1176,8 +1169,6 @@ def _ion_process_from_core(core_process):
     if not ion_process_state:
         log.debug("Process has unknown state: process=%s state=%s",
             process_id, state)
-    if ion_process_state is _PD_IGNORED_STATE:
-        ion_process_state = None
 
     process = Process(process_id=process_id,
         process_state=ion_process_state,
