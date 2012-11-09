@@ -1124,6 +1124,14 @@ class OrgManagementService(BaseOrgManagementService):
                 if not extended_org.platforms_deployed.count(org_platform):
                     extended_org.platforms_not_deployed.append(org_platform)
 
+
+        #set counter attributes
+        extended_org.number_of_data_products = len(extended_org.data_products)
+        extended_org.number_of_platforms = len(extended_org.platforms)
+        extended_org.number_of_platforms_deployed = len(extended_org.platforms_deployed)
+        extended_org.number_of_instruments = len(extended_org.instruments)
+        extended_org.number_of_instruments_deployed = len(extended_org.instruments_deployed)
+
         return extended_org
 
 
