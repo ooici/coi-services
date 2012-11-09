@@ -4,6 +4,7 @@ __license__ = 'Apache 2.0'
 
 import socket
 import time
+from time import gmtime, strftime
 import datetime
 import string
 import sys
@@ -91,14 +92,16 @@ class sbe37(asyncore.dispatcher_with_send):
         print str(request) + str(client_address) + " Do I ever get called by anything?"
 
     def get_current_time_startlater(self):
-        current_time = datetime.datetime.strptime(self.date + " " + self.time, "%m%d%y %H%M%S") + datetime.timedelta( seconds=( int(time.time()) - self.time_set_at) )
+        #current_time = datetime.datetime.strptime(self.date + " " + self.time, "%m%d%y %H%M%S") + datetime.timedelta( seconds=( int(time.time()) - self.time_set_at) )
         format = "%d %b %Y, %H:%M:%S"
-        return current_time.strftime(format)
+        return strftime(format, gmtime())
+        #return current_time.strftime(format)
 
     def get_current_time_startnow(self):
-        current_time = datetime.datetime.strptime(self.date + " " + self.time, "%m%d%y %H%M%S") + datetime.timedelta( seconds=( int(time.time()) - self.time_set_at) )
+        #current_time = datetime.datetime.strptime(self.date + " " + self.time, "%m%d%y %H%M%S") + datetime.timedelta( seconds=( int(time.time()) - self.time_set_at) )
         format = "%m-%d-%Y, %H:%M:%S"
-        return current_time.strftime(format)
+        return strftime(format, gmtime())
+        #return current_time.strftime(format)
 
 
 
@@ -159,6 +162,8 @@ class sbe37(asyncore.dispatcher_with_send):
 
     def handle_read(self):
         while True:
+            self.date = strftime("%m%d%y", gmtime())
+            self.time = strftime("%H%M%S", gmtime())
             time.sleep(0.01)
             start_time = datetime.datetime.strptime(self.start_mmddyy + " " + self.start_time, "%m%d%y %H%M%S")
             current_time = datetime.datetime.strptime(self.date + " " + self.time, "%m%d%y %H%M%S") + \
@@ -224,7 +229,7 @@ class sbe37(asyncore.dispatcher_with_send):
                         self.send_data("***BAUD ERROR MESSAGE***", 'BAUD ERROR MESSAGE')
 
                 elif command_args[0] == 'ds':
-                    self.send_data("SBE37-SMP V 2.6 SERIAL NO. 2165   " + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + '  ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'DS line 1')
+                    self.send_data("SBE37-SMP V 2.6 SERIAL NO. 2165   " + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + '  ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'DS line 1')
 
 
                     if self.logging:
@@ -464,29 +469,25 @@ class sbe37(asyncore.dispatcher_with_send):
                     handled = False
 
                 elif command_args[0] == 'ts':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0)) + ', ' + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
 
                 elif command_args[0] == 'tsr':
                     self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(random.uniform(200000, 500000), random.uniform(2000, 3000), random.uniform(-200, -300)), 'tsr line 1')
 
                 elif command_args[0] == 'tss':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'tss line 1') 
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0)) + ', ' + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
 
                 elif command_args[0] == 'tsson':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'tsson line 1')
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0)) + ', ' + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
 
                 elif command_args[0] == 'slt':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'slt line 1')
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0)) + ', ' + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
 
                 elif command_args[0] == 'sltr':
                     self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(random.uniform(200000, 500000), random.uniform(2000, 3000), random.uniform(-200, -300)), 'sltr line 1')
 
                 elif command_args[0] == 'sl':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-                    #self.send_data('{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(15, 25), random.uniform(0.001, 0.01), random.uniform(0.2, 0.9), random.uniform(0.01, 0.02), random.uniform(1000, 2000)) + ', ' + self.date[0:2] + ' ' + self.months[int(self.date[2:4])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'sl line 1') 
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0)) + ', ' + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
 
                 elif command_args[0] == 'syncmode':
                     if command_args[1] == 'y':
