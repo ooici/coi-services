@@ -7,6 +7,8 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from pyon.util.containers import get_safe
 
 import numpy as np
+import ntplib
+from datetime import datetime
 
 import StringIO
 import time
@@ -24,6 +26,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 try:
     from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
     from matplotlib.figure import Figure
+    from matplotlib import dates
+    from matplotlib.font_manager import FontProperties
 except:
     import sys
     print >> sys.stderr, "Cannot import matplotlib"
@@ -41,7 +45,7 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
 
     def on_start(self):
 
-        print ">>>>>>>>>>>>>>>>>>>>>> MPL CFG = ", self.CFG
+        #print ">>>>>>>>>>>>>>>>>>>>>> MPL CFG = ", self.CFG
 
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
         self.ssclient = SchedulerServiceProcessClient(process=self)
@@ -97,11 +101,12 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
             return None
 
         # retrieve data for the specified time interval
-        end_time = time.time() # Now
+        end_time = ntplib.system_to_ntp_time(time.time()) # Now
         start_time = end_time - self._str_to_secs(self.CFG.get_safe('graph_time_period'))
-        print ">>>>>>>>>>>>>>>>>>  START TIME = ", start_time , "  ENDTIME = ", end_time
-        retrieved_granule = self.data_retriever_client.retrieve(ds_ids[0],{'start_time':start_time,'end_time':end_time})
+        #retrieved_granule = self.data_retriever_client.retrieve(ds_ids[0],{'start_time':start_time,'end_time':end_time})
+        retrieved_granule = self.data_retriever_client.retrieve(ds_ids[0])
 
+        visualization_parameters = None
         # send the granule through the Algorithm code to get the matplotlib graphs
         mpl_pdict_id = self.ds_client.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
         mpl_stream_def = self.pubsub_client.create_stream_definition('mpl', parameter_dictionary_id=mpl_pdict_id)
@@ -109,8 +114,6 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
 
         if mpl_data_granule == None:
             return None
-
-        print " >>>>>>>>>>>>>>>>>>> MPL DATA GRANULE = ", mpl_data_granule
 
         return
 
@@ -156,6 +159,11 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
     def execute(input=None, context=None, config=None, params=None, state=None):
         log.debug('Matplotlib transform: Received Viz Data Packet')
         stream_definition_id = params
+        mpl_allowed_numerical_types = ['int32', 'int64', 'uint32', 'uint64', 'float32', 'float64']
+
+        if stream_definition_id == None:
+            log.error("Matplotlib transform: Need a output stream definition to process graphs")
+            return None
 
         # parse the incoming data
         rdt = RecordDictionaryTool.load_from_granule(input)
@@ -177,6 +185,10 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
 
         for field in fields:
             if field == 'time':
+                continue
+
+            # only consider fields which are supposed to be numbers.
+            if (rdt[field] != None) and (rdt[field].dtype not in mpl_allowed_numerical_types):
                 continue
 
             vardict[field] = get_safe(rdt, field)
@@ -244,6 +256,7 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
                     break
 
         xAxisFloatData = graph_data[xAxisVar]
+        #xAxisFloatData = [dates.date2num(datetime.fromtimestamp(ntplib.ntp_to_system_time(t))) for t in graph_data[xAxisVar]]
         idx = 0
         for varName in yAxisVars:
             yAxisFloatData = graph_data[varName]
@@ -262,11 +275,20 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
 
         fileName = yAxisLabel + '_vs_' + xAxisVar + '.png'
 
+        # Choose a small font for the legend
+        legend_font_prop = FontProperties()
+        legend_font_prop.set_size('small')
         ax.set_xlabel(xAxisVar)
         ax.set_ylabel(yAxisLabel)
         ax.set_title(yAxisLabel + ' vs ' + xAxisVar)
         ax.set_autoscale_on(False)
-        ax.legend(loc='upper left')
+        ax.legend(loc='upper left', ncol=3, fancybox=True, shadow=True, prop=legend_font_prop)
+
+        # Date formatting
+        # matplotlib date format object
+        #hfmt = dates.DateFormatter('%m/%d %H:%M')
+        #ax.xaxis.set_major_locator(dates.MinuteLocator())
+        #ax.xaxis.set_major_formatter(hfmt)
 
         # Save the figure to the in memory file
         canvas.print_figure(imgInMem, format="png")

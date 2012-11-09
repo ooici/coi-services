@@ -16,13 +16,12 @@ from pyon.public import IonObject, RT, log, PRED
 from pyon.util.containers import create_unique_identifier, get_safe
 from pyon.core.exception import Inconsistent, BadRequest, NotFound
 from datetime import datetime
+import ntplib
 
 import simplejson
 import math
 import gevent
 import base64
-import string
-import random
 from gevent.greenlet import Greenlet
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
@@ -127,9 +126,7 @@ class VisualizationService(BaseVisualizationService):
             if isinstance(message_data,Granule):
 
                 rdt = RecordDictionaryTool.load_from_granule(message_data)
-
                 gdt_components = get_safe(rdt, 'google_dt_components')
-
 
                 # IF this granule does not contain google dt, skip
                 if gdt_components is None:
@@ -161,7 +158,11 @@ class VisualizationService(BaseVisualizationService):
                             continue
 
                         varTuple = []
-                        varTuple.append(datetime.fromtimestamp(tempTuple[0]))
+
+                        # Adjust the ntp time stamp from instruments to standard date tine
+                        #varTuple.append(datetime.fromtimestamp(tempTuple[0]))
+                        varTuple.append(datetime.fromtimestamp(ntplib.ntp_to_system_time(tempTuple[0])))
+
                         for idx in range(1,len(tempTuple)):
                             # some silly numpy format won't go away so need to cast numbers to floats
                             if(gdt_description[idx][1] == 'number'):
