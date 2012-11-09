@@ -1020,16 +1020,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def force_delete_platform_agent_instance(self, platform_agent_instance_id=''):
         self.platform_agent_instance.force_delete_one(platform_agent_instance_id)
 
-    def _get_child_platforms(self, platform_device_id):
-        """ recursively trace hasDevice relationships, return list of all PlatformDevice objects
-            TODO: how to get platform ID from platform device?
-        """
-        children = [] # find by hasDevice relationship
-        out = children[:]
-        for obj in children:
-            descendents = self._get_child_platforms(obj._id)
-            out[0:] = descendents
-        return out
+#    def _get_child_platforms(self, platform_device_id):
+#        """ recursively trace hasDevice relationships, return list of all PlatformDevice objects
+#            TODO: how to get platform ID from platform device?
+#        """
+#        children = [] # find by hasDevice relationship
+#        out = children[:]
+#        for obj in children:
+#            descendents = self._get_child_platforms(obj._id)
+#            out[0:] = descendents
+#        return out
 
     def start_platform_agent_instance(self, platform_agent_instance_id=''):
         """
@@ -1046,7 +1046,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #retrieve the associated platform device
         platform_device_objs, _  = self.clients.resource_registry.find_subjects(subject_type=RT.PlatformDevice, predicate=PRED.hasAgentInstance, object=platform_agent_instance_id, id_only=False )
         if 1 != len(platform_device_objs):
-            raise BadRequest("Expected 1 PlatformDevice attached to  PlatformAgentInstance '%s', got %d" %
             raise BadRequest("Expected 1 PlatformDevice attached to  PlatformAgentInstance '%s', got %d" %
                              (str(platform_agent_instance_id), len(platform_device_objs)))
         platform_device_id = platform_device_objs[0]._id
