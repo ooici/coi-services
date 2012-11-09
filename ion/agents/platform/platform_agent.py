@@ -161,7 +161,7 @@ class PlatformAgent(ResourceAgent):
         # complete this change.
         self._plat_config = self.CFG.get("platform_config", None)
         if self._plat_config:
-            log.info("self._plat_config set on_init: %s", str(self._plat_config))
+            log.debug("self._plat_config set on_init: %s", str(self._plat_config))
 
     def on_start(self):
         super(PlatformAgent, self).on_start()
@@ -239,7 +239,7 @@ class PlatformAgent(ResourceAgent):
 #                # deserialize it
 #                adm = dict((k, self.deserializer.deserialize(v)) for k,v in adm.iteritems())
 
-            log.info("agent_device_map = %s", str(adm))
+            log.debug("agent_device_map = %s", str(adm))
 
             self._agent_device_map = adm
 
