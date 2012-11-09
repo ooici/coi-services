@@ -309,6 +309,8 @@ class UserNotificationService(BaseUserNotificationService):
         self.event_types = CFG.event.types
         self.event_table = {}
 
+        self.notifs = set()
+
         #---------------------------------------------------------------------------------------------------
         # Get the clients
         #---------------------------------------------------------------------------------------------------
@@ -392,18 +394,22 @@ class UserNotificationService(BaseUserNotificationService):
         if not user_id:
             raise BadRequest("User id not provided.")
 
+        log.debug("user_id::: %s" % user_id)
+        log.debug("self.event_processor.user_info:: %s" % self.event_processor.user_info)
+
         #---------------------------------------------------------------------------------------------------
         # Persist Notification object as a resource if it has already not been persisted
         #---------------------------------------------------------------------------------------------------
 
         # find all notifications in the system
-        notifs, _ = self.clients.resource_registry.find_resources(restype = RT.NotificationRequest)
 
-        # if the notification has already been registered, simply use the old id
-        if notification in notifs:
-            log.warning("Notification object has already been created in resource registry before for another user. No new id to be generated.")
+        log.debug("notifications::: %s" % notification)
+
+        if notification in self.notifs:
+            log.debug("Notification object has already been created in resource registry before for another user. No new id to be generated.")
             notification_id = notification._id
         else:
+
             # since the notification has not been registered yet, register it and get the id
             notification.temporal_bounds = TemporalBounds()
             notification.temporal_bounds.start_datetime = self.makeEpochTime(self.__now())
@@ -411,11 +417,15 @@ class UserNotificationService(BaseUserNotificationService):
 
             notification_id, _ = self.clients.resource_registry.create(notification)
 
-        #-------------------------------------------------------------------------------------------------------------------
-        # read the registered notification request object because this has an _id and is more useful
-        #-------------------------------------------------------------------------------------------------------------------
+            #-------------------------------------------------------------------------------------------------------------------
+            # read the registered notification request object because this has an _id and is more useful
+            #-------------------------------------------------------------------------------------------------------------------
 
-        notification = self.clients.resource_registry.read(notification_id)
+            notification = self.clients.resource_registry.read(notification_id)
+
+            self.notifs.add(notification)
+
+            log.debug("self.notifs::: %s" % self.notifs)
 
         #-----------------------------------------------------------------------------------------------------------
         # Create an event processor for user. This sets up callbacks etc.

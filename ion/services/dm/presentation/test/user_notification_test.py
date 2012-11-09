@@ -1560,15 +1560,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Create notifications using UNS.
         #--------------------------------------------------------------------------------------
-        active_notification_ids = []
-        past_notification_ids = []
+        active_notification_ids = set()
+        past_notification_ids = set()
 
         for user_id in user_ids:
             notification_id_active =  self.unsc.create_notification(notification=notification_active, user_id=user_id)
-            active_notification_ids.append(notification_id_active)
+            active_notification_ids.add(notification_id_active)
 
             notification_id_past =  self.unsc.create_notification(notification=notification_past, user_id=user_id)
-            past_notification_ids.append(notification_id_past)
+            past_notification_ids.add(notification_id_past)
+
+        log.debug("len(active_notification_ids)::: %s" % len(active_notification_ids))
+        log.debug("len(past_notification_ids)::: %s" % len(past_notification_ids))
 
         # Retire some notifications
         for notific_id in past_notification_ids:
