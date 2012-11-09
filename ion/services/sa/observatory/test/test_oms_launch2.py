@@ -222,14 +222,18 @@ class TestOmsLaunch(IonIntegrationTestCase):
                 object=site_id)
 
         # prepare platform attributes and ports:
-        monitor_attributes = self._prepare_platform_attributes(platform_id)
-        ports =              self._prepare_platform_ports(platform_id)
+        monitor_attribute_objs, monitor_attribute_dicts = self._prepare_platform_attributes(platform_id)
+
+        port_objs, port_dicts = self._prepare_platform_ports(platform_id)
 
         device__obj = IonObject(RT.PlatformDevice,
                         name='%s_PlatformDevice' % platform_id,
                         description='%s_PlatformDevice platform device' % platform_id,
-                        ports=ports,
-                        platform_monitor_attributes = monitor_attributes)
+                        ports=port_objs,
+                        platform_monitor_attributes = monitor_attribute_objs)
+
+        device__dict = dict(ports=port_dicts,
+                            platform_monitor_attributes=monitor_attribute_dicts)
 
         device_id = self.imsclient.create_platform_device(device__obj)
 
@@ -280,7 +284,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         log.info("plat_objs for platform_id %r = %s", platform_id, str(plat_objs))
 
-        self.agent_device_map[platform_id] = device__obj
+        self.agent_device_map[platform_id] = device__dict
+#        self.agent_device_map[platform_id] = device__obj
 
         stream_config = self._create_stream_config(plat_objs)
         self.agent_streamconfig_map[platform_id] = stream_config
@@ -297,7 +302,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.assertTrue(platform_id in result)
         ret_infos = result[platform_id]
 
-        monitor_attributes = []
+        monitor_attribute_objs = []
+        monitor_attribute_dicts = []
         for attrName, attrDfn in ret_infos.iteritems():
             log.debug("platform_id=%r: preparing attribute=%r", platform_id, attrName)
 
@@ -309,9 +315,14 @@ class TestOmsLaunch(IonIntegrationTestCase):
                                       monitor_rate=monitor_rate,
                                       units=units)
 
-            monitor_attributes.append(plat_attr_obj)
+            plat_attr_dict = dict(id=attrName,
+                                  monitor_rate=monitor_rate,
+                                  units=units)
 
-        return monitor_attributes
+            monitor_attribute_objs.append(plat_attr_obj)
+            monitor_attribute_dicts.append(plat_attr_dict)
+
+        return monitor_attribute_objs, monitor_attribute_dicts
 
     def _prepare_platform_ports(self, platform_id):
         """
@@ -322,17 +333,24 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.assertTrue(platform_id in result)
         port_dict = result[platform_id]
 
-        ports = []
+        port_objs = []
+        port_dicts = []
         for port_id, port in port_dict.iteritems():
             log.debug("platform_id=%r: preparing port=%r", platform_id, port_id)
             ip_address = port['comms']['ip']
+
             plat_port_obj = IonObject(OT.PlatformPort,
                                       port_id=port_id,
                                       ip_address=ip_address)
 
-            ports.append(plat_port_obj)
+            plat_port_dict = dict(port_id=port_id,
+                                  ip_address=ip_address)
 
-        return ports
+            port_objs.append(plat_port_obj)
+
+            port_dicts.append(plat_port_dict)
+
+        return port_objs, port_dicts
 
     def _create_stream_config(self, plat_objs):
 
@@ -377,6 +395,22 @@ class TestOmsLaunch(IonIntegrationTestCase):
         elements.
         """
 
+        admap = self.agent_device_map
+
+        #############################################################
+        # Note, if using PlatformDevice objects in self.agent_device_map, the
+        # following is an attempt to serialize it and then pass it in the
+        # platform config dict below. However, although the output seems
+        # properly serialized), the following error is generated:
+        #   BadRequest: 400 - bad configuration: <interface.objects.PlatformDevice object at 0x115504b50> is not JSON serializable
+        # So, I'm commenting out this attempt for the moment.
+        # Instead self.agent_device_map is created in terms of dictionaries.
+#        from pyon.core.object import ion_serializer
+#        admap = ion_serializer.serialize(admap)
+        #############################################################
+
+        log.info("agent_device_map = %s", str(admap))
+
         self.platform_configs = {}
         for platform_id, plat_objs in self.all_platforms.iteritems():
 
@@ -384,7 +418,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
                 'platform_id':             platform_id,
                 'platform_topology':       self.topology,
 
-#                'agent_device_map':        self.agent_device_map,
+                'agent_device_map':        admap,
                 'agent_streamconfig_map':  self.agent_streamconfig_map,
 
                 'driver_config':           DVR_CONFIG,
