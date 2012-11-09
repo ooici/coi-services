@@ -1114,9 +1114,10 @@ class OrgManagementService(BaseOrgManagementService):
             dply_pltfrms = []
             for platform_deployed in extended_org.platforms_deployed:
                 # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between a site and a device so get the only element from inside this list
-                platform_deployed = platform_deployed[0]
-                if hasattr(platform_deployed, 'type_') and platform_deployed.type_ == 'PlatformDevice':
-                    dply_pltfrms.append(platform_deployed)
+                if len(platform_deployed):
+                    platform_deployed = platform_deployed[0]
+                    if hasattr(platform_deployed, 'type_') and platform_deployed.type_ == 'PlatformDevice':
+                        dply_pltfrms.append(platform_deployed)
             extended_org.platforms_deployed = dply_pltfrms
 
             #compute the list of non-deployed platforms
