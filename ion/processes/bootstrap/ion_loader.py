@@ -1096,8 +1096,9 @@ class IONLoader(ImmediateProcess):
 
 
     def _load_PlatformDevice(self, row):
+        contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
-            "instrument_management", "create_platform_device",
+            "instrument_management", "create_platform_device", contacts=contacts,
             support_bulk=True)
         ims_client = self._get_service_client("instrument_management")
 

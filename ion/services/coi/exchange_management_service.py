@@ -335,7 +335,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         exchange_broker = self.container.resource_registry.read(exchange_broker_id)
         if not exchange_broker:
             raise NotFound("Exchange Broker %s does not exist" % exchange_broker_id)
-        self.container.resource_registry.delete(exchange_broker)
+        self.container.resource_registry.delete(exchange_broker_id)
 
     def find_exchange_broker(self, filters=None):
         """Returns a list of exchange broker resources for the provided resource filter.

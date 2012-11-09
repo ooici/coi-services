@@ -182,20 +182,35 @@ class OmsPlatformDriver(PlatformDriver):
         log.info("%r: for platform_id=%r device_obj=%s",
                     self._platform_id, platform_id, device_obj)
 
-        attrs = device_obj.platform_monitor_attributes
-        ports = device_obj.ports
+        if isinstance(device_obj, dict):
+            attrs = device_obj['platform_monitor_attributes']
+            for attr_obj in attrs:
+                attr = Attr(attr_obj['id'], {
+                    'name': attr_obj['id'],
+                    'monitorCycleSeconds': attr_obj['monitor_rate'],
+                    'units': attr_obj['units'],
+                    })
+                nnode.add_attribute(attr)
 
-        for attr_obj in attrs:
-            attr = Attr(attr_obj.id, {
-                'name': attr_obj.name,
-                'monitorCycleSeconds': attr_obj.monitor_rate,
-                'units': attr_obj.units,
-                })
-            nnode.add_attribute(attr)
+            ports = device_obj['ports']
+            for port_obj in ports:
+                port = Port(port_obj['port_id'], port_obj['ip_address'])
+                nnode.add_port(port)
+        else:
+            # using ION objects.
+            attrs = device_obj.platform_monitor_attributes
+            for attr_obj in attrs:
+                attr = Attr(attr_obj.id, {
+                    'name': attr_obj.name,
+                    'monitorCycleSeconds': attr_obj.monitor_rate,
+                    'units': attr_obj.units,
+                    })
+                nnode.add_attribute(attr)
 
-        for port_obj in ports:
-            port = Port(port_obj.port_id, port_obj.ip_address)
-            nnode.add_port(port)
+            ports = device_obj.ports
+            for port_obj in ports:
+                port = Port(port_obj.port_id, port_obj.ip_address)
+                nnode.add_port(port)
 
     def _build_network_definition_using_oms(self):
         """

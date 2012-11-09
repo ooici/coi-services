@@ -1098,9 +1098,10 @@ class OrgManagementService(BaseOrgManagementService):
             dply_inst = []
             for instrument_deployed in extended_org.instruments_deployed:
                 # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between a site and a device so get the only element from inside this list
-                instrument_deployed = instrument_deployed[0]
-                if hasattr(instrument_deployed, 'type_') and instrument_deployed.type_ == 'InstrumentDevice':
-                    dply_inst.append(instrument_deployed)
+                if len(instrument_deployed):
+                    instrument_deployed = instrument_deployed[0]
+                    if hasattr(instrument_deployed, 'type_') and instrument_deployed.type_ == 'InstrumentDevice':
+                        dply_inst.append(instrument_deployed)
             extended_org.instruments_deployed = dply_inst
 
             #compute the list of non-deployed instruments
@@ -1113,15 +1114,24 @@ class OrgManagementService(BaseOrgManagementService):
             dply_pltfrms = []
             for platform_deployed in extended_org.platforms_deployed:
                 # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between a site and a device so get the only element from inside this list
-                platform_deployed = platform_deployed[0]
-                if hasattr(platform_deployed, 'type_') and platform_deployed.type_ == 'PlatformDevice':
-                    dply_pltfrms.append(platform_deployed)
+                if len(platform_deployed):
+                    platform_deployed = platform_deployed[0]
+                    if hasattr(platform_deployed, 'type_') and platform_deployed.type_ == 'PlatformDevice':
+                        dply_pltfrms.append(platform_deployed)
             extended_org.platforms_deployed = dply_pltfrms
 
             #compute the list of non-deployed platforms
             for org_platform in extended_org.platforms:
                 if not extended_org.platforms_deployed.count(org_platform):
                     extended_org.platforms_not_deployed.append(org_platform)
+
+
+        #set counter attributes
+        extended_org.number_of_data_products = len(extended_org.data_products)
+        extended_org.number_of_platforms = len(extended_org.platforms)
+        extended_org.number_of_platforms_deployed = len(extended_org.platforms_deployed)
+        extended_org.number_of_instruments = len(extended_org.instruments)
+        extended_org.number_of_instruments_deployed = len(extended_org.instruments_deployed)
 
         return extended_org
 

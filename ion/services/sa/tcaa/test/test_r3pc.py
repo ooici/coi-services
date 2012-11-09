@@ -183,7 +183,6 @@ class TestR3PCSocket(IonIntegrationTestCase):
         self.assertDictEqual(self._req_sent, self._req_recv)
         self.assertDictEqual(self._req_sent, self._ack_recv)
 
-    @unittest.skip('Fails on buildbot/CentOS.')
     def test_server_restart(self):
         """
         """        
@@ -201,8 +200,8 @@ class TestR3PCSocket(IonIntegrationTestCase):
 
         self.enqueue_all()
 
-        self._req_recv_evt.get(timeout=15)
-        self._ack_recv_evt.get(timeout=15)
+        self._req_recv_evt.get(timeout=25)
+        self._ack_recv_evt.get(timeout=25)
 
         self._client.stop()
         self._server.stop()
