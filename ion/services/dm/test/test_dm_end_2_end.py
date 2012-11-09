@@ -428,6 +428,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
 
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+                print rdt['time']
 
                 comp = rdt['time'] == np.arange(10) + 10
                 if not isinstance(comp,bool):

@@ -157,6 +157,8 @@ class ReplayProcess(BaseReplayProcess):
         '''
         try: 
             coverage = DatasetManagementService._get_coverage(self.dataset_id)
+            if coverage.num_timesteps == 0:
+                raise BadRequest('Reading from an empty coverage')
             rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters,tdoa=self.tdoa)
             coverage.close(timeout=5)
         except Exception as e:
@@ -228,7 +230,8 @@ class ReplayProcess(BaseReplayProcess):
         ts = float(doc.get('ts_create',0))
 
         coverage = DatasetManagementService._get_coverage(dataset_id)
-        rdt = cls._coverage_to_granule(coverage,start_time=ts, end_time=None)
+
+        rdt = cls._coverage_to_granule(coverage,tdoa=slice(cls.get_relative_time(coverage,ts),None))
         coverage.close(timeout=5)
         return rdt.to_granule()
 

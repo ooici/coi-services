@@ -29,6 +29,7 @@ import time
 from uuid import uuid4
 import random
 import math
+import ntplib
 
 from prototype.sci_data.stream_defs import ctd_stream_packet, SBE37_CDM_stream_definition, ctd_stream_definition
 from prototype.sci_data.constructor_apis import PointSupplementConstructor
@@ -67,7 +68,7 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
             p = numpy.array( [sine_ampl * 4 * math.sin(math.radians(sine_curr_deg + 60))] )
 
             lat = lon = numpy.array([0.0])
-            tvar = numpy.array([time.time()])
+            tvar = numpy.array([ntplib.system_to_ntp_time(time.time())])
 
             parameter_dictionary = self._create_parameter()
             #parameter_dictionary = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')

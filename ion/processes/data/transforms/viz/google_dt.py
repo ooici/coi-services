@@ -91,6 +91,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         rdt = RecordDictionaryTool.load_from_granule(input)
         data_description = []
 
+        if stream_definition_id == None:
+            log.error("GoogleDT transform: Need a output stream definition to process graphs")
+            return None
+
         # if time was null or misisng, do not process
         if 'time' not in rdt: return None
         if rdt['time'] is None:

@@ -21,7 +21,7 @@ import numpy
 
 
 class ScienceGranuleIngestionWorker(TransformStreamListener):
-    CACHE_LIMIT=100
+    CACHE_LIMIT=5
 
     def __init__(self, *args,**kwargs):
         super(ScienceGranuleIngestionWorker, self).__init__(*args, **kwargs)
