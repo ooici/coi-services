@@ -557,11 +557,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         log.debug("Verified that the event processor correctly updated its user info dictionaries after an update_notification()")
 
-        #--------------------------------------------------------------------------------------
-        # Delete notification and check that the user_info and reverse_user_info in UNS got reloaded
-        #--------------------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------------------------------------------------------
+        # Delete notification and check. Whether the user_info and reverse_user_info in UNS got reloaded is done in test_get_subscriptions()
+        #--------------------------------------------------------------------------------------------------------------------------------------
 
         self.unsc.delete_notification(notification_id_2)
+
+        notific = self.rrc.read(notification_id_2)
+        # This checks that the notification has been retired.
+        self.assertNotEquals(notific.temporal_bounds.end_datetime, '')
 
 
     @attr('LOCOINT')
@@ -1058,11 +1062,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.delete_notification(notification_id1)
         self.unsc.delete_notification(notification_id2)
 
-    #        # check that the notifications are not there
-    #        with self.assertRaises(NotFound):
-    #            notific1 = self.unsc.read_notification(notification_id1)
-    #        with self.assertRaises(NotFound):
-    #            notific2 = self.unsc.read_notification(notification_id2)
+        notific_1 = self.rrc.read(notification_id1)
+        notific_2 = self.rrc.read(notification_id2)
+        # This checks that the notifications have been retired.
+        self.assertNotEquals(notific_1.temporal_bounds.end_datetime, '')
+        self.assertNotEquals(notific_2.temporal_bounds.end_datetime, '')
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
