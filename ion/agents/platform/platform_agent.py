@@ -23,6 +23,9 @@ from pyon.agent.agent import ResourceAgentClient
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
 
+from pyon.core.bootstrap import get_obj_registry
+from pyon.core.object import IonObjectDeserializer
+
 from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException
@@ -135,6 +138,8 @@ class PlatformAgent(ResourceAgent):
         # {subplatform_id: (ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
 
+        self.deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
+
         self._launcher = LauncherFactory.createLauncher(standalone=standalone)
         log.debug("launcher created: %s", str(type(self._launcher)))
 
@@ -225,7 +230,18 @@ class PlatformAgent(ResourceAgent):
             self._topology = self._plat_config['platform_topology']
 
         if 'agent_device_map' in self._plat_config:
-            self._agent_device_map = self._plat_config['agent_device_map']
+            adm = self._plat_config['agent_device_map']
+
+            #########################################################
+            # attempt to us serialize/deserialize commented out for the moment.
+            # TODO decide on appropriate mechanism.
+#            if adm is not None:
+#                # deserialize it
+#                adm = dict((k, self.deserializer.deserialize(v)) for k,v in adm.iteritems())
+
+            log.info("agent_device_map = %s", str(adm))
+
+            self._agent_device_map = adm
 
         if 'agent_streamconfig_map' in self._plat_config:
             self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']

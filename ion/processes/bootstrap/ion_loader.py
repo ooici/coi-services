@@ -1096,8 +1096,9 @@ class IONLoader(ImmediateProcess):
 
 
     def _load_PlatformDevice(self, row):
+        contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
-            "instrument_management", "create_platform_device",
+            "instrument_management", "create_platform_device", contacts=contacts,
             support_bulk=True)
         ims_client = self._get_service_client("instrument_management")
 
@@ -1435,9 +1436,12 @@ class IONLoader(ImmediateProcess):
         workflow_client = self._get_service_client("workflow_management")
         workflow_def_id = self.resource_ids[row["wfd_id"]]
         in_dp_id = self.resource_ids[row["in_dp_id"]]
+
+        # prepare the config dict
         configuration = row['configuration']
         if configuration:
             configuration = self._get_typed_value(configuration, targettype="dict")
+            configuration["in_dp_id"] = in_dp_id
 
         #Create and start the workflow
         workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_definition_id=workflow_def_id,
