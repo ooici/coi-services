@@ -223,6 +223,16 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         @retval process_definition_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
+        # validate executable
+        executable = process_definition.executable
+        if not executable:
+            raise BadRequest("invalid process executable")
+
+        module = executable.get('module')
+        cls = executable.get('class')
+
+        if not (module and cls):
+            raise BadRequest("process executable must have module and class")
         return self.backend.create_definition(process_definition, process_definition_id)
 
     def read_process_definition(self, process_definition_id=''):
@@ -399,6 +409,7 @@ class PDDashiHandler(object):
 
     def create_definition(self, definition_id, definition_type, executable,
                           name=None, description=None):
+
         definition = ProcessDefinition(name=name, description=description,
                 definition_type=definition_type, executable=executable)
         return self.backend.create_definition(definition, definition_id)
@@ -914,6 +925,7 @@ class PDNativeBackend(object):
         @type definition: ProcessDefinition
         """
         definition_id = definition_id or uuid.uuid4().hex
+
         self.core.create_definition(definition_id, definition.definition_type,
             definition.executable, name=definition.name,
             description=definition.description)
