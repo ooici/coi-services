@@ -709,7 +709,7 @@ class UserNotificationService(BaseUserNotificationService):
         '''
 
         now = self.makeEpochTime(datetime.utcnow())
-        events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=False)
+        events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=True)
 
         ret = IonObject(OT.ComputedListValue)
         if events:
