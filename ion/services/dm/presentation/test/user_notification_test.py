@@ -83,8 +83,6 @@ class UserNotificationTest(PyonTestCase):
         self.user_notification.event_publisher = EventPublisher()
         self.user_notification.event_processor = EmailEventProcessor('an_smtp_client')
 
-
-    #    @unittest.skip('Bad test - figure out how to patch out the greenlet start...')
     def test_create_notification(self):
         '''
         Test creating a notification
