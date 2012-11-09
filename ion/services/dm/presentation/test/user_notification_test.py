@@ -197,7 +197,7 @@ class UserNotificationTest(PyonTestCase):
 
         self.mock_rr_client.update.assert_called_once_with(notification_request)
         self.user_notification.update_user_info_object.assert_called_once_with(user_id, notification, notification)
-        self.user_notification.update_user_info_dictionary.assert_called_once_with('user', notification, notification)
+        self.user_notification.update_user_info_dictionary.assert_called_once_with('user_id_1', notification, notification)
 
 
     def test_delete_user_notification(self):
