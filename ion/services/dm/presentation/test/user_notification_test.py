@@ -1574,42 +1574,32 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         for notific_id in past_notification_ids:
             self.unsc.delete_notification(notification_id=notific_id)
 
-        all_notification_ids = active_notification_ids + past_notification_ids
-
         #--------------------------------------------------------------------------------------
         # Use UNS to get the subscriptions
         #--------------------------------------------------------------------------------------
-        result_notifications, _ = self.unsc.get_subscriptions(resource_id=data_product_id, include_retired=False)
-        result_active_notifications, _ = self.unsc.get_active_subscriptions(resource_id=data_product_id)
-        result_past_notifications, _ = self.unsc.get_past_subscriptions(resource_id=data_product_id)
+        result_notifications= self.unsc.get_subscriptions(resource_id=data_product_id, include_nonactive=False)
 
         log.debug("result_notifications::: %s" % result_notifications)
-        log.debug("result_active_notifications::: %s" % result_active_notifications)
-        log.debug("result_past_notifications::: %s" % result_past_notifications)
+        log.debug("number of result_notifications::: %s" % len(result_notifications))
 
-#        self.assertEquals(len(result_notifications), 5)
-#        self.assertEquals(len(result_active_notifications), 5)
-#        self.assertEquals(len(result_past_notifications), 5)
+#        self.assertEquals(len(result_notifications), 2)
 
         for notific in result_notifications:
             self.assertEquals(notific.origin, data_product_id)
-
-        for notific in result_active_notifications:
-            self.assertEquals(notific.origin, data_product_id)
             self.assertEquals(notific.temporal_bounds.end_datetime, '')
-
-        for notific in result_past_notifications:
-            self.assertEquals(notific.origin, data_product_id)
-            self.assertNotEquals(notific.temporal_bounds.end_datetime, '')
 
         log.debug("Verified that the event processor correctly updated its user info dictionaries after an delete_notification()")
         log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
 
 
-    #--------------------------------------------------------------------------------------
+        #--------------------------------------------------------------------------------------
         # Use UNS to get the all subscriptions --- including retired
         #--------------------------------------------------------------------------------------
-        result_notifications, _ = self.unsc.get_subscriptions(resource_id=data_product_id, include_retired=True)
+        result_notifications = self.unsc.get_subscriptions(resource_id=data_product_id, include_nonactive=True)
 
         for notific in result_notifications:
             self.assertEquals(notific.origin, data_product_id)
+
+#        self.assertEquals(len(result_notifications), 4)
+
+        log.debug("All subscriptions, number::: %s" % len(result_notifications))

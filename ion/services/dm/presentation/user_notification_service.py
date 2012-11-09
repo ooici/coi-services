@@ -29,7 +29,7 @@ import elasticpy as ep
 from datetime import datetime
 
 from ion.services.dm.presentation.sms_providers import sms_providers
-from interface.objects import ProcessDefinition, UserInfo, TemporalBounds
+from interface.objects import ProcessDefinition, UserInfo, TemporalBounds, NotificationRequest
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
 from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
@@ -1015,90 +1015,126 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
-    def get_subscriptions(self, resource_id='', include_retired=False):
+    def get_subscriptions(self, resource_id='', include_nonactive=False):
         """
         This method is used to get the subscriptions to a data product. The method will return a list of NotificationRequest
         objects for whom the origin is set to this data product. This way all the users who were interested in listening to
         events with origin equal to this data product, will be known and all their subscriptions will be known.
 
         @param resource_id
-        @param include_retired
+        @param include_nonactive
         @return notification_requests []
+
         """
 
-        notification_requests = []
+        notifications_all = set()
+        notifications_active = set()
 
-        #------------------------------------------------------------------------------------
-        # Get the users who have created notifications with the data product id as origin
-        #------------------------------------------------------------------------------------
-        user_ids = set(self.event_processor.reverse_user_info['event_origin'][resource_id])
+        search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
+        ret_vals = self.discovery.parse(search_origin)
+        log.debug("ret_vals::: %s" % ret_vals)
 
-        #------------------------------------------------------------------------------------
-        # Find the notification request objects with origin as resource_id
-        #------------------------------------------------------------------------------------
-        for user_id in user_ids:
-            for notific in self.event_processor.user_info[user_id]['notifications']:
-                if include_retired: # include both past and active notifications
-                    notification_requests.append(notific)
-                else: # include only the active notifications
-                    if notific.temporal_bounds.end_datetime == '':
-                        notification_requests.append(notific)
+        for item in ret_vals:
+            if item['_type'] == 'NotificationRequest':
+                notif = self.clients.resource_registry.read(item['_id'])
+                if include_nonactive:
+                    # Add active or retired notification
+                    notifications_all.add(notif)
+                elif notif.temporal_bounds.end_datetime == '':
+                    # Add the active notification
+                    notifications_active.add(notif)
 
-        number_of_subscriptions = len(notification_requests)
+        if include_nonactive:
+            log.debug("found all notifications: num: %s " % len(notifications_all))
+            return list(notifications_all)
+        else:
+            log.debug("found ACTIVE notifications: num: %s " % len(notifications_active))
+            return list(notifications_active)
 
-        return notification_requests, number_of_subscriptions
 
-    def get_active_subscriptions(self, resource_id=''):
-        """
-        This method is used to getfnotification_requests.append the active subscriptions to a data product. The method will return a list of NotificationRequest
-        objects for whom the origin is set to this data product.
 
-        @param resource_id str
-        @return number_of_subscriptions, active_notifications int, []
-        """
-        active_notifications = []
-
-        #------------------------------------------------------------------------------------
-        # Get the users who have created notifications with the data product id as origin
-        #------------------------------------------------------------------------------------
-        user_ids = set(self.event_processor.reverse_user_info['event_origin'][resource_id])
-
-        #------------------------------------------------------------------------------------
-        # Get the notifications we want
-        #------------------------------------------------------------------------------------
-        for user_id in user_ids:
-            for notific in self.event_processor.user_info[user_id]['notifications']:
-                if notific.temporal_bounds.end_datetime == '': # this means that the notification is not retired
-                    active_notifications.append(notific)
-
-        number_of_subscriptions = len(active_notifications)
-
-        return active_notifications, number_of_subscriptions
-
-    def get_past_subscriptions(self, resource_id=''):
-        """
-        This method is used to get the past subscriptions to a data product. The method will return a list of retired
-        NotificationRequest objects for whom the origin is set to this data product.
-
-        @param resource_id
-        @return number_of_subscriptions, past_notifications int, []
-        """
-
-        past_notifications = []
-
-        #------------------------------------------------------------------------------------
-        # Get the users who have created notifications with the data product id as origin
-        #------------------------------------------------------------------------------------
-        user_ids = set(self.event_processor.reverse_user_info['event_origin'][resource_id])
-
-        #------------------------------------------------------------------------------------
-        # Get the notifications we want
-        #------------------------------------------------------------------------------------
-        for user_id in user_ids:
-            for notific in self.event_processor.user_info[user_id]['notifications']:
-                if notific.temporal_bounds.end_datetime != '': # this means that the notification is retired
-                    past_notifications.append(notific)
-
-        number_of_subscriptions = len(past_notifications)
-
-        return past_notifications, number_of_subscriptions
+#        notification_request_all = set()
+#        notification_request_active = set()
+#
+#        #------------------------------------------------------------------------------------
+#        # Get the users who have created notifications with the data product id as origin
+#        #------------------------------------------------------------------------------------
+#        user_ids = set(self.event_processor.reverse_user_info['event_origin'][resource_id])
+#        log.debug("user_ids::: %s" % user_ids)
+#
+#        #------------------------------------------------------------------------------------
+#        # Find the notification request objects with origin as resource_id
+#        #------------------------------------------------------------------------------------
+#        for user_id in user_ids:
+#
+#            notification_subscriptions = self.event_processor.user_info[user_id]['notification_subscriptions'].itervalues()
+#
+#            for notific_sub in notification_subscriptions:
+#
+#                notific = notific_sub._res_obj
+#
+#                if include_nonactive:
+#                    # include both past and active notifications
+#                    UserNotificationService.add_only_unique_notifications(notification_set=notification_request_all,
+#                                                                            notification=notific)
+#                    log.debug("the notification end_time ALL::: %s" % notific.temporal_bounds.end_datetime)
+#                else:
+#                    # include only the active notifications
+#                    if notific.temporal_bounds.end_datetime == '':
+#                        UserNotificationService.add_only_unique_notifications(notification_set=notification_request_active,
+#                                                                                notification=notific)
+#                        log.debug("the notification end_time ACTIVE::: %s" % notific.temporal_bounds.end_datetime)
+#
+#        #------------------------------------------------------------------------------------
+#        # Now return the list of notifications for the two options
+#        #------------------------------------------------------------------------------------
+#
+#        if include_nonactive:
+#            log.debug("number of all notification requests::: %s" % len(notification_request_all))
+#            return list(notification_request_all)
+#        else:
+#            log.debug("number of ACTIVE notification requests::: %s" % len(notification_request_active))
+#            return list(notification_request_active)
+#
+#    @staticmethod
+#    def add_only_unique_notifications(notification_set = None, notification = None):
+#
+#        if not isinstance(notification, NotificationRequest):
+#            raise BadRequest("The notification provided should be a NotificationRequest object")
+#
+#        unique = True
+#
+#        # Go through the notifications and if from comparing we see that they are different, then
+#        for notif in notification_set:
+#            unique = UserNotificationService.not_equal(notif, notification)
+#            if not unique:
+#                break
+#
+#        if unique:
+#            notification_set.add(notification)
+#
+#        return notification_set
+#
+#    @staticmethod
+#    def not_equal(notif_1 = None, notif_2 = None):
+#
+#        log.debug("Comparing two notifications:")
+#
+#
+#        if notif_1.name != notif_2.name or\
+#           notif_1.origin != notif_2.origin or\
+#           notif_1.origin_type != notif_2.origin_type or\
+#           notif_1.event_type != notif_2.event_type:
+#
+#            log.debug("notif_1 :::: %s" % notif_1)
+#            log.debug("notif_2 :::: %s" % notif_2)
+#            log.debug("They are DIFFERENT")
+#            return True # notifications are different
+#        else:
+#
+#            log.debug("notif_1 :::: %s" % notif_1)
+#            log.debug("notif_2 :::: %s" % notif_2)
+#            log.debug("They are SAME")
+#
+#            return False # notifications are the same
+#
