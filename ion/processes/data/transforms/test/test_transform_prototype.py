@@ -10,13 +10,17 @@ from pyon.ion.stream import StandaloneStreamPublisher
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.event.event import EventPublisher, EventSubscriber
 from nose.plugins.attrib import attr
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.objects import ProcessDefinition
 import gevent, unittest, os
 import datetime, time
+import random, numpy
 from datetime import timedelta
-from interface.objects import StreamRoute
+from interface.objects import StreamRoute, DeviceStatusType, DeviceCommsType
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 @attr('INT', group='dm')
@@ -28,29 +32,45 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.rrc = ResourceRegistryServiceClient()
+        self.dataset_management = DatasetManagementServiceClient()
+        self.pubsub_management = PubsubManagementServiceClient()
         self.ssclient = SchedulerServiceClient()
         self.event_publisher = EventPublisher()
+
+        self.exchange_names = []
+        self.exchange_points = []
+
+    def tearDown(self):
+
+        for xn in self.exchange_names:
+            xni = self.container.ex_manager.create_xn_queue(xn)
+            xni.delete()
+        for xp in self.exchange_points:
+            xpi = self.container.ex_manager.create_xp(xp)
+            xpi.delete()
 
     def now_utc(self):
         return time.mktime(datetime.datetime.utcnow().timetuple())
 
-    def _create_interval_timer_with_end_time(self,interval_timer_interval= None ):
+    def _create_interval_timer_with_end_time(self,timer_interval= None, end_time = None ):
         '''
         A convenience method to set up an interval timer with an end time
         '''
-        self.interval_timer_count = 0
-        self.interval_timer_received_time = 0
-        self.interval_timer_interval = interval_timer_interval
+        self.timer_received_time = 0
+        self.timer_interval = timer_interval
 
         start_time = self.now_utc()
-        self.interval_timer_end_time = start_time + 5
+        if not end_time:
+            end_time = start_time + 2 * timer_interval + 1
+
+        log.debug("got the end time here!! %s" % end_time)
 
         # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
-        sid = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval,
-            end_time=self.interval_timer_end_time,
-            event_origin="Interval Timer", event_subtype="")
-
-        self.interval_timer_sent_time = datetime.datetime.utcnow()
+        sid = self.ssclient.create_interval_timer(start_time="now" ,
+            interval=self.timer_interval,
+            end_time=end_time,
+            event_origin="Interval Timer",
+            event_subtype="")
 
         def cleanup_timer(scheduler, schedule_id):
             """
@@ -62,10 +82,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             except:
                 log.warn("Couldn't cancel")
 
-
         self.addCleanup(cleanup_timer, self.ssclient, sid)
-
-        log.debug("Got the id here!! %s" % sid)
 
         return sid
 
@@ -80,7 +97,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Set up the scheduler for an interval timer with an end time
         #-------------------------------------------------------------------------------------
-        id = self._create_interval_timer_with_end_time(interval_timer_interval=2)
+        id = self._create_interval_timer_with_end_time(timer_interval=2)
         self.assertIsNotNone(id)
 
         #-------------------------------------------------------------------------------------
@@ -88,20 +105,20 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # The configuration for the Event Alert Transform... set up the event types to listen to
         #-------------------------------------------------------------------------------------
         configuration = {
-                            'process':{
-                                'event_type': 'ResourceEvent',
-                                'timer_origin': 'Interval Timer',
-                                'instrument_origin': 'My_favorite_instrument'
-                            }
-                        }
+            'process':{
+                'event_type': 'ResourceEvent',
+                'timer_origin': 'Interval Timer',
+                'instrument_origin': 'My_favorite_instrument'
+            }
+        }
 
         #-------------------------------------------------------------------------------------
         # Create the process
         #-------------------------------------------------------------------------------------
         pid = TransformPrototypeIntTest.create_process(  name= 'event_alert_transform',
-                                    module='ion.processes.data.transforms.event_alert_transform',
-                                    class_name='EventAlertTransform',
-                                    configuration= configuration)
+            module='ion.processes.data.transforms.event_alert_transform',
+            class_name='EventAlertTransform',
+            configuration= configuration)
 
         self.assertIsNotNone(pid)
 
@@ -115,20 +132,20 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             queue.put(message)
 
         event_subscriber = EventSubscriber( origin="EventAlertTransform",
-                                            event_type="DeviceEvent",
-                                            callback=event_received)
+            event_type="DeviceEvent",
+            callback=event_received)
 
         event_subscriber.start()
-
+        self.addCleanup(event_subscriber.stop)
 
         # publish event twice
 
         for i in xrange(5):
             self.event_publisher.publish_event(    event_type = 'ExampleDetectableEvent',
-                                                    origin = "My_favorite_instrument",
-                                                    voltage = 5,
-                                                    telemetry = 10,
-                                                    temperature = 20)
+                origin = "My_favorite_instrument",
+                voltage = 5,
+                telemetry = 10,
+                temperature = 20)
             gevent.sleep(0.1)
             self.assertTrue(queue.empty())
 
@@ -193,6 +210,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             callback=event_received)
 
         event_subscriber.start()
+        self.addCleanup(event_subscriber.stop)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Stream Alert Transform... set up the event types to listen to
@@ -209,9 +227,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # Create the process
         #-------------------------------------------------------------------------------------
         pid = TransformPrototypeIntTest.create_process( name= 'transform_data_process',
-                                                        module='ion.processes.data.transforms.event_alert_transform',
-                                                        class_name='StreamAlertTransform',
-                                                        configuration= config)
+            module='ion.processes.data.transforms.event_alert_transform',
+            class_name='StreamAlertTransform',
+            configuration= config)
 
         self.assertIsNotNone(pid)
 
@@ -229,9 +247,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
-        message = "A dummy example message containing the word PUBLISH, and with VALUE = 5 . This message" + \
-                    " will trigger an alert event from the StreamAlertTransform because the value provided is " \
-                    "less than 10 that was passed in through the config."
+        message = "A dummy example message containing the word PUBLISH, and with VALUE = 5 . This message" +\
+                  " will trigger an alert event from the StreamAlertTransform because the value provided is "\
+                  "less than 10 that was passed in through the config."
 
         pub.publish(message)
 
@@ -239,11 +257,11 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.assertEquals(event.type_, "DeviceEvent")
         self.assertEquals(event.origin, "StreamAlertTransform")
 
-        self.purge_queues(exchange_name)
+    #        self.purge_queues(exchange_name)
 
-    def purge_queues(self, exchange_name):
-        xn = self.container.ex_manager.create_xn_queue(exchange_name)
-        xn.purge()
+    #    def purge_queues(self, exchange_name):
+    #        xn = self.container.ex_manager.create_xn_queue(exchange_name)
+    #        xn.purge()
 
     @staticmethod
     def create_process(name= '', module = '', class_name = '', configuration = None):
@@ -263,3 +281,163 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         pid = process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=configuration)
 
         return pid
+
+    def test_demo_stream_granules_processing(self):
+        """
+        Test that the Demo Stream Alert Transform is functioning. The transform coordinates with the scheduler.
+        It is configured to listen to a source that publishes granules. It publishes a DeviceStatusEvent if it
+        receives a granule with bad data or a DeviceCommsEvent if no granule has arrived between two timer events.
+
+        The transform is configured at launch using a config dictionary.
+        """
+        #-------------------------------------------------------------------------------------
+        # Start a subscriber to listen for an alert event from the Stream Alert Transform
+        #-------------------------------------------------------------------------------------
+
+        queue_bad_data = gevent.queue.Queue()
+        queue_no_data = gevent.queue.Queue()
+
+        def bad_data(message, headers):
+            if message.type_ == "DeviceStatusEvent":
+                queue_bad_data.put(message)
+
+        def no_data(message, headers):
+            queue_no_data.put(message)
+
+        event_subscriber_bad_data = EventSubscriber( origin="DemoStreamAlertTransform",
+            event_type="DeviceStatusEvent",
+            callback=bad_data)
+
+        event_subscriber_no_data = EventSubscriber( origin="DemoStreamAlertTransform",
+            event_type="DeviceCommsEvent",
+            callback=no_data)
+
+        event_subscriber_bad_data.start()
+        event_subscriber_no_data.start()
+
+        self.addCleanup(event_subscriber_bad_data.stop)
+        self.addCleanup(event_subscriber_no_data.stop)
+
+        #-------------------------------------------------------------------------------------
+        # The configuration for the Stream Alert Transform... set up the event types to listen to
+        #-------------------------------------------------------------------------------------
+        self.valid_values = [-100, 100]
+        self.timer_interval = 5
+        self.queue_name = 'a_queue'
+
+        config = {
+            'process':{
+                'timer_interval': self.timer_interval,
+                'queue_name': self.queue_name,
+                'variable_name': 'input_voltage',
+                'time_field_name': 'preferred_timestamp',
+                'valid_values': self.valid_values,
+                'timer_origin': 'Interval Timer'
+            }
+        }
+
+        #-------------------------------------------------------------------------------------
+        # Create the process
+        #-------------------------------------------------------------------------------------
+        pid = TransformPrototypeIntTest.create_process( name= 'DemoStreamAlertTransform',
+            module='ion.processes.data.transforms.event_alert_transform',
+            class_name='DemoStreamAlertTransform',
+            configuration= config)
+
+        self.assertIsNotNone(pid)
+
+        #-------------------------------------------------------------------------------------
+        # Publish streams and make assertions about alerts
+        #-------------------------------------------------------------------------------------
+
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(name= 'platform_eng_parsed', id_only=True)
+
+        stream_def_id = self.pubsub_management.create_stream_definition('demo_stream', parameter_dictionary_id=pdict_id)
+        stream_id, stream_route = self.pubsub_management.create_stream( name='test_demo_alert',
+            exchange_point='exch_point_1',
+            stream_definition_id=stream_def_id)
+
+        sub_1 = self.pubsub_management.create_subscription(name='sub_1', stream_ids=[stream_id], exchange_points=['exch_point_1'], exchange_name=self.queue_name)
+        self.pubsub_management.activate_subscription(sub_1)
+        self.exchange_names.append('sub_1')
+        self.exchange_points.append('exch_point_1')
+
+        #-------------------------------------------------------------------------------------
+        # publish a *GOOD* granule
+        #-------------------------------------------------------------------------------------
+        self.length = 2
+        val = numpy.array([random.uniform(0,50)  for l in xrange(self.length)])
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, length=self.length)
+
+        self.assertTrue(queue_bad_data.empty())
+
+        #-------------------------------------------------------------------------------------
+        # publish a few *BAD* granules
+        #-------------------------------------------------------------------------------------
+        self.length = 2
+        self.number = 2
+        val = numpy.array([random.uniform(110,200)  for l in xrange(self.length)])
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val, length=self.length)
+
+        for i in xrange(self.length * self.number):
+            event = queue_bad_data.get(timeout=10)
+            self.assertEquals(event.type_, "DeviceStatusEvent")
+            self.assertEquals(event.origin, "DemoStreamAlertTransform")
+            self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+            self.assertEquals(event.valid_values, self.valid_values)
+            self.assertEquals(event.sub_type, 'input_voltage')
+            self.assertIsNotNone(event.value)
+            self.assertIsNotNone(event.time_stamp)
+
+        # To ensure that only the bad values generated the alert events. Queue should be empty now
+        self.assertEquals(queue_bad_data.qsize(), 0)
+
+        #-------------------------------------------------------------------------------------
+        # Do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
+        #-------------------------------------------------------------------------------------
+        event = queue_no_data.get(timeout=15)
+
+        self.assertEquals(event.type_, "DeviceCommsEvent")
+        self.assertEquals(event.origin, "DemoStreamAlertTransform")
+        self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
+        self.assertEquals(event.sub_type, 'input_voltage')
+
+        #-------------------------------------------------------------------------------------
+        # Empty the queues and repeat tests
+        #-------------------------------------------------------------------------------------
+        queue_bad_data.queue.clear()
+        queue_no_data.queue.clear()
+
+        #-------------------------------------------------------------------------------------
+        # publish a *GOOD* granule again
+        #-------------------------------------------------------------------------------------
+        self.length = 2
+        val = numpy.array([random.uniform(0,50)  for l in xrange(self.length)])
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, length=self.length)
+
+        self.assertTrue(queue_bad_data.empty())
+
+        #-------------------------------------------------------------------------------------
+        # Again do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
+        #-------------------------------------------------------------------------------------
+
+        event = queue_no_data.get(timeout=20)
+
+        self.assertEquals(event.type_, "DeviceCommsEvent")
+        self.assertEquals(event.origin, "DemoStreamAlertTransform")
+        self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
+        self.assertEquals(event.sub_type, 'input_voltage')
+
+    def _publish_granules(self, stream_id=None, stream_route=None, values = None,number=None, length=None):
+
+        pub = StandaloneStreamPublisher(stream_id, stream_route)
+
+        stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        stream_def_id = stream_def._id
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+
+        for i in xrange(number):
+            rdt['input_voltage'] = values
+            rdt['preferred_timestamp'] = numpy.array([random.uniform(0,1000)  for l in xrange(length)])
+            g = rdt.to_granule()
+            pub.publish(g)
