@@ -524,12 +524,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.stop_notification_subscriber(notification_request=notification_request)
 
-        #        #-------------------------------------------------------------------------------------------------------------------
-        #        # delete the notification from the user_info and reverse_user_info dictionaries
-        #        #-------------------------------------------------------------------------------------------------------------------
-        #
-        #        self.delete_notification_from_user_info(notification_id)
-
         #-------------------------------------------------------------------------------------------------------------------
         # Update the resource registry
         #-------------------------------------------------------------------------------------------------------------------
@@ -545,8 +539,8 @@ class UserNotificationService(BaseUserNotificationService):
         # Update the user info dictionaries
         #-------------------------------------------------------------------------------------------------------------------
 
-#        for user_id in self.event_processor.user_info.iterkeys():
-#            self.update_user_info_dictionary(user_id, notification_request, old_notification)
+        for user_id in self.event_processor.user_info.iterkeys():
+            self.update_user_info_dictionary(user_id, notification_request, old_notification)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
