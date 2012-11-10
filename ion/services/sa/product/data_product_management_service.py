@@ -254,8 +254,13 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def is_persisted(self, data_product_id=''):
         # Is the data product currently persisted into a data set?
-        stream_id = self._get_stream_id(data_product_id)
-        return self.clients.ingestion_management.is_persisted(stream_id)
+        retval = False
+        if data_product_id:
+            stream_id = self._get_stream_id(data_product_id)
+            if stream_id:
+                retval =  self.clients.ingestion_management.is_persisted(stream_id)
+        else:
+            return retval
 
 
 
@@ -537,7 +542,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         extended_product.provenance_product_list = set(dp_list)  #remove dups in list
 
         #set the data_ingestion_datetime fromget_data_datetime
-        extended_product.data_ingestion_datetime =  extended_product.computed.data_datetime.value[1]
+        if extended_product.computed.data_datetime.status == ComputedValueAvailability.PROVIDED :
+            extended_product.data_ingestion_datetime =  extended_product.computed.data_datetime.value[1]
 
         return extended_product
 
@@ -546,13 +552,17 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Returns a temporal bounds object of the span of data product life span (may exist without getting a granule)
         ret = IonObject(OT.ComputedListValue)
         ret.value = []
+        ret.status = ComputedValueAvailability.NOTAVAILABLE
 
         try:
             dataset_id = self._get_dataset_id(data_product_id)
             bounds = self.clients.dataset_management.dataset_bounds(dataset_id)
-            timeStart = IonTime(bounds['time'][0]  -  IonTime.JAN_1970)
-            timeEnd = IonTime(bounds['time'][1]  -  IonTime.JAN_1970)
-            ret.value = [str(timeStart),str(timeEnd)]
+            if 'time' in bounds and len(bounds['time']) == 2 :
+                log.debug("get_data_datetime bounds['time']: %s"  % str(dataset_id))
+                timeStart = IonTime(bounds['time'][0]  -  IonTime.JAN_1970)
+                timeEnd = IonTime(bounds['time'][1]  -  IonTime.JAN_1970)
+                ret.value = [str(timeStart), str(timeEnd)]
+                ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "Dataset for this Data Product could not be located"
