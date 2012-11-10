@@ -48,16 +48,9 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from gevent.event import AsyncResult
 from gevent import sleep
 
-from nose.plugins.attrib import attr
-
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
-
-
-from gevent import sleep
-
-
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-
+from unittest import skip
 
 # The ID of the base platform for this test .
 # These Ids and names should correspond to corresponding entries in network.yml,
@@ -289,6 +282,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         stream_config = self._create_stream_config(plat_objs)
         self.agent_streamconfig_map[platform_id] = stream_config
+#        self.agent_streamconfig_map[platform_id] = None
 #        self._start_data_subscriber(agent_instance_id, stream_config)
 
         return plat_objs
@@ -414,7 +408,17 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.platform_configs = {}
         for platform_id, plat_objs in self.all_platforms.iteritems():
 
-            PLATFORM_CONFIG = self.platform_configs[platform_id] = {
+            PLATFORM_CONFIG  = {
+                'platform_id':             platform_id,
+                'platform_topology':       self.topology,
+
+                'agent_device_map':        admap,
+                'agent_streamconfig_map':  None, #self.agent_streamconfig_map,
+
+                'driver_config':           DVR_CONFIG,
+                }
+
+            self.platform_configs[platform_id] = {
                 'platform_id':             platform_id,
                 'platform_topology':       self.topology,
 
@@ -422,11 +426,18 @@ class TestOmsLaunch(IonIntegrationTestCase):
                 'agent_streamconfig_map':  self.agent_streamconfig_map,
 
                 'driver_config':           DVR_CONFIG,
-            }
+                }
 
             agent_config = {
                 'platform_config': PLATFORM_CONFIG,
             }
+
+            self.stream_id = self.agent_streamconfig_map[platform_id]['stream_id']
+
+#            import pprint
+#            print '============== platform id within unit test: %s ===========' % platform_id
+#            pprint.pprint(agent_config)
+            #agent_config['platform_config']['agent_streamconfig_map'] = None
 
             agent_instance_obj = IonObject(RT.PlatformAgentInstance,
                                     name='%s_PlatformAgentInstance' % platform_id,
@@ -459,7 +470,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         log.info('_start_data_subscriber stream_name=%r', stream_name)
 
-        stream_id = stream_config['stream_id']
+        stream_id = self.stream_id #stream_config['stream_id']
 
         # Create subscription for the stream
         exchange_name = '%s_queue' % stream_name
@@ -528,11 +539,15 @@ class TestOmsLaunch(IonIntegrationTestCase):
         finally:
             self._event_subscribers = []
 
-    def test_oms_create_and_launch(self):
+    @skip("IMS does't net implement topology")
+    def test_hierarchy(self):
+        self._create_launch_verify(BASE_PLATFORM_ID)
 
-        # pick a base platform:
-        base_platform_id = BASE_PLATFORM_ID
+    @attr('INT', group='sa')
+    def test_single_platform(self):
+        self._create_launch_verify('LJ01D')
 
+    def _create_launch_verify(self, base_platform_id):
         # and trigger the traversal of the branch rooted at that base platform
         # to create corresponding ION objects and configuration dictionaries:
         base_platform_objs = self._traverse(base_platform_id)

@@ -612,6 +612,10 @@ class UserNotificationService(BaseUserNotificationService):
                 descending = descending,
                 include_docs = True
             )
+        if descending:
+            t = opts['start_key']
+            opts['start_key'] = opts['end_key']
+            opts['end_key'] = t
 
         results = datastore.query_view('event/by_origintype',opts=opts)
 

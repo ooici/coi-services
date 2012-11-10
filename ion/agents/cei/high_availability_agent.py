@@ -172,8 +172,10 @@ class HighAvailabilityAgent(SimpleResourceAgent):
 
         try:
             service = self.container.resource_registry.read(self.service_id)
-            service.state = _core_hastate_to_service_state(self.core.status())
-            self.container.resource_registry.update(service)
+            new_service_state = _core_hastate_to_service_state(self.core.status())
+            if service.state != new_service_state:
+                service.state = new_service_state
+                self.container.resource_registry.update(service)
         except Exception:
             log.exception("Problem when updating Service state")
 

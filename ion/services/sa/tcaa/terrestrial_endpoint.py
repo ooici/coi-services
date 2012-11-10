@@ -30,6 +30,9 @@ from interface.services.sa.iterrestrial_endpoint import BaseTerrestrialEndpoint
 from interface.services.sa.iterrestrial_endpoint import TerrestrialEndpointProcessClient
 from ion.services.sa.tcaa.endpoint_mixin import EndpointMixin
 
+# http://localhost:5984/_utils/index.html
+# bin/pycc -fc
+
 class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
     """
     Terrestrial endpoint for two component agent architecture.
@@ -210,7 +213,7 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         """
         listen_name = self.CFG.process.listen_name
         objs, ids = self.clients.resource_registry.find_resources(name=listen_name)
-        """
+        
         # If no persisted queue exists, create one.
         if len(objs) == 0:
             createtime = time.time()
@@ -238,9 +241,9 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         
         # Error: multiple queues with same name.
         else:
-            log.warning('%i > 1 remote command queues found for name=%s',
+            log.error('%i > 1 remote command queues found for name=%s',
                         len(objs), listen_name)
-        """
+        
         
     def _update_queue_resource(self):
         """
@@ -248,24 +251,25 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
         queue.
         """
         
-        listen_name = self.CFG.process.listen_name        
-        objs, ids = self.clients.resource_registry.find_resources(name=listen_name)
-        """
-        if len(objs) == 1:
+        listen_name = self.CFG.process.listen_name
+        
+        while True:        
+            objs, ids = self.clients.resource_registry.find_resources(name=listen_name)
+            if len(objs) != 1:
+                log.error('Incorrect number of persistent queues for %s.',
+                          listen_name)
+                return
             obj = objs[0]
             obj_id = ids[0]
             obj.queue = copy.deepcopy(self._client._queue)
             obj.updated = time.time()
-            self.clients.resource_registry.update(obj)
-            log.debug('Updated queue for name=%s: len=%i updated=%f.',
-                  listen_name, len(obj.queue), obj.updated)
-            #log.debug(str(obj))
-            #log.debug(str(obj_id))
-        
-        else:
-            log.warning('%i != 1 persistent queues found for name=%s.',
-                        len(objs), listen_name)
-        """
+            try:
+                self.clients.resource_registry.update(obj)
+                log.debug('Updated queue for name=%s: len=%i updated=%f.',
+                      listen_name, len(obj.queue), obj.updated)
+                break
+            except Conflict:
+                log.debug('Conflict with queue resource version, rereading.')
         
     ######################################################################    
     # Commands.
