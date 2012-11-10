@@ -96,9 +96,16 @@ class UserNotificationTest(PyonTestCase):
         self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
         self.mock_rr_client.read.return_value = 'notification'
 
+        self.user_notification.notifications = {}
+
         self.user_notification.event_processor.add_notification_for_user = mocksignature(self.user_notification.event_processor.add_notification_for_user)
 
         self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
+
+        self.user_notification._notification_in_notifications = mocksignature(self.user_notification._notification_in_notifications)
+        self.user_notification._notification_in_notifications.return_value = None
+
+        self.mock_rr_client.create_association = mocksignature(self.mock_rr_client.create_association)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Create a notification object
