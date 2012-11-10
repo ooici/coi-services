@@ -250,14 +250,15 @@ network:
             - platform_id: LJ01D
               platform_types: []
               attrs:
-              - attr_id: LJ01D_attr_1
-                type: int
-                units: xyz
-                min_val: -2
-                max_val: 10
+              - attr_id: input_voltage
+                type: float
+                units: Volts
+                min_val: -500
+                max_val: 500
+                precision: 1
                 read_write: read
                 group: power
-                monitorCycleSeconds: 5
+                monitorCycleSeconds: 2
               - attr_id: LJ01D_attr_2
                 type: int
                 units: xyz

@@ -23,6 +23,9 @@ from pyon.agent.agent import ResourceAgentClient
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
 
+from pyon.core.bootstrap import get_obj_registry
+from pyon.core.object import IonObjectDeserializer
+
 from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException
@@ -135,6 +138,8 @@ class PlatformAgent(ResourceAgent):
         # {subplatform_id: (ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
 
+        self.deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
+
         self._launcher = LauncherFactory.createLauncher(standalone=standalone)
         log.debug("launcher created: %s", str(type(self._launcher)))
 
@@ -156,7 +161,7 @@ class PlatformAgent(ResourceAgent):
         # complete this change.
         self._plat_config = self.CFG.get("platform_config", None)
         if self._plat_config:
-            log.info("self._plat_config set on_init: %s", str(self._plat_config))
+            log.debug("self._plat_config set on_init: %s", str(self._plat_config))
 
     def on_start(self):
         super(PlatformAgent, self).on_start()
@@ -225,7 +230,18 @@ class PlatformAgent(ResourceAgent):
             self._topology = self._plat_config['platform_topology']
 
         if 'agent_device_map' in self._plat_config:
-            self._agent_device_map = self._plat_config['agent_device_map']
+            adm = self._plat_config['agent_device_map']
+
+            #########################################################
+            # attempt to us serialize/deserialize commented out for the moment.
+            # TODO decide on appropriate mechanism.
+#            if adm is not None:
+#                # deserialize it
+#                adm = dict((k, self.deserializer.deserialize(v)) for k,v in adm.iteritems())
+
+            log.debug("agent_device_map = %s", str(adm))
+
+            self._agent_device_map = adm
 
         if 'agent_streamconfig_map' in self._plat_config:
             self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']
@@ -319,9 +335,12 @@ class PlatformAgent(ResourceAgent):
         config variable.
         """
 
-        stream_info = self.CFG.stream_config
-        log.debug("%r: stream_info = %s",
-            self._platform_id, stream_info)
+        stream_info = self.CFG.get('stream_config', None)
+        if stream_info is None:
+            log.debug("%r: No stream_config given in CFG", self._platform_id)
+            return
+
+        log.debug("%r: stream_info = %s", self._platform_id, stream_info)
 
         for (stream_name, stream_config) in stream_info.iteritems():
 
@@ -680,11 +699,23 @@ class PlatformAgent(ResourceAgent):
 
         @param subplatform_id Platform ID
         """
+
+        # platform configuration:
+        platform_config = {
+            'platform_id': subplatform_id,
+            'platform_topology' : self._topology,
+            'agent_device_map' : self._agent_device_map,
+            'agent_streamconfig_map': self._agent_streamconfig_map,
+            'parent_platform_id' : self._platform_id,
+            'driver_config': self._plat_config['driver_config'],
+        }
+
         agent_config = {
             'agent':            {'resource_id': subplatform_id},
-            'stream_config':    self.CFG.stream_config,
+            'stream_config':    self.CFG.get('stream_config', None),
 
             # TODO pass platform config here
+            'platform_config':  platform_config,
         }
 
         log.debug("%r: launching sub-platform agent %r",

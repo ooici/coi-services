@@ -60,14 +60,14 @@ class PortAgentProcessType(BaseEnum):
     """
     Defines the process types for the port agent.  i.e. C++ or Python
     """
-    PYTHON = 'PYTHON',
-    UNIX = 'UNIX',
+    PYTHON = 'PYTHON'
+    UNIX = 'UNIX'
 
 class PortAgentType(BaseEnum):
     """
     What type of port agent are we running?  ethernet, serial, digi etc...
     """
-    ETHERNET = 'ethernet',
+    ETHERNET = 'ethernet'
 
 
 class PortAgentProcess(object):

@@ -627,6 +627,10 @@ class UserNotificationService(BaseUserNotificationService):
                 descending = descending,
                 include_docs = True
             )
+        if descending:
+            t = opts['start_key']
+            opts['start_key'] = opts['end_key']
+            opts['end_key'] = t
 
         results = datastore.query_view('event/by_origintype',opts=opts)
 
@@ -724,7 +728,7 @@ class UserNotificationService(BaseUserNotificationService):
         """
 
         now = self.makeEpochTime(datetime.utcnow())
-        events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=False)
+        events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=True)
 
         ret = IonObject(OT.ComputedListValue)
         if events:

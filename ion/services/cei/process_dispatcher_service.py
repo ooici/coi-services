@@ -223,6 +223,16 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         @retval process_definition_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
+        # validate executable
+        executable = process_definition.executable
+        if not executable:
+            raise BadRequest("invalid process executable")
+
+        module = executable.get('module')
+        cls = executable.get('class')
+
+        if not (module and cls):
+            raise BadRequest("process executable must have module and class")
         return self.backend.create_definition(process_definition, process_definition_id)
 
     def read_process_definition(self, process_definition_id=''):
@@ -399,6 +409,7 @@ class PDDashiHandler(object):
 
     def create_definition(self, definition_id, definition_type, executable,
                           name=None, description=None):
+
         definition = ProcessDefinition(name=name, description=description,
                 definition_type=definition_type, executable=executable)
         return self.backend.create_definition(definition, definition_id)
@@ -658,9 +669,6 @@ class PDLocalBackend(object):
 
 # map from internal PD states to external ProcessStateEnum values
 
-# some states are known and ignored
-_PD_IGNORED_STATE = object()        # @TODO: remove?
-
 _PD_PROCESS_STATE_MAP = {
     "300-WAITING": ProcessStateEnum.WAITING,
     "400-PENDING": ProcessStateEnum.PENDING,
@@ -699,8 +707,6 @@ class Notifier(object):
         if not ion_process_state:
             log.debug("Received unknown process state from Process Dispatcher." +
                       " process=%s state=%s", process_id, state)
-            return
-        if ion_process_state is _PD_IGNORED_STATE:
             return
 
         log.debug("Emitting event for process state. process=%s state=%s", process_id, ion_process_state)
@@ -744,12 +750,24 @@ class AnyEEAgentClient(object):
     def __init__(self, process):
         self.process = process
 
+        # it's ok to cache these clients indefinitely. Longer term we may need
+        # to prune this cache if we are dealing with many eeagents that come and
+        # go.
+        self.cache = {}
+
     def _get_client_for_eeagent(self, resource_id, attempts=60):
+
+        cached = self.cache.get(resource_id)
+        if cached:
+            return cached
+
         exception = None
         for i in range(0, attempts):
             try:
                 resource_client = SimpleResourceAgentClient(resource_id, process=self.process)
-                return ExecutionEngineAgentClient(resource_client)
+                client = ExecutionEngineAgentClient(resource_client)
+                self.cache[resource_id] = client
+                return client
             except (NotFound, ResourceNotFound, ServerError), e:
                 # This exception catches a race condition, where:
                 # 1. EEagent spawns and starts heartbeater
@@ -914,6 +932,7 @@ class PDNativeBackend(object):
         @type definition: ProcessDefinition
         """
         definition_id = definition_id or uuid.uuid4().hex
+
         self.core.create_definition(definition_id, definition.definition_type,
             definition.executable, name=definition.name,
             description=definition.description)
@@ -1067,8 +1086,6 @@ class PDBridgeBackend(object):
             log.debug("Received unknown process state from Process Dispatcher." +
                       " process=%s state=%s", process_id, state)
             return
-        if ion_process_state is _PD_IGNORED_STATE:
-            return
 
         log.debug("Sending process state event: %s -> %s", process_id, ion_process_state)
         self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
@@ -1164,8 +1181,6 @@ def _ion_process_from_core(core_process):
     if not ion_process_state:
         log.debug("Process has unknown state: process=%s state=%s",
             process_id, state)
-    if ion_process_state is _PD_IGNORED_STATE:
-        ion_process_state = None
 
     process = Process(process_id=process_id,
         process_state=ion_process_state,

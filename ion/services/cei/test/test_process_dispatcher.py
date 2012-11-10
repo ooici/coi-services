@@ -20,6 +20,7 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget,\
     ProcessStateEnum, ProcessQueueingMode, ProcessRestartMode, ProcessDefinitionType
 from interface.services.icontainer_agent import ContainerAgentClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
     PDLocalBackend, PDNativeBackend, PDBridgeBackend, get_dashi, get_pd_dashi_name,\
@@ -661,6 +662,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2cei.yml')
 
+        self.rr_cli  = ResourceRegistryServiceClient()
         self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         self.process_definition = ProcessDefinition(name='test_process')
@@ -691,6 +693,12 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.assertEqual(proc.process_id, pid)
         self.assertEqual(proc.process_configuration, {})
         self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
+
+        # make sure process is readable directly from RR (mirrored)
+        # verifies L4-CI-CEI-RQ63
+        # verifies L4-CI-CEI-RQ64
+        proc = self.rr_cli.read(pid)
+        self.assertEqual(proc.process_id, pid)
 
         # now try communicating with the process to make sure it is really running
         test_client = TestClient()
@@ -774,6 +782,15 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
                 process_schedule, configuration={"bad": o})
         self.assertTrue(ar.exception.message.startswith("bad configuration"))
 
+    def test_create_invalid_definition(self):
+        # create process definition missing module and class
+        # verifies L4-CI-CEI-RQ137
+        executable = dict(url="http://somewhere.com/something.py")
+        definition = ProcessDefinition(name="test_process", executable=executable)
+        with self.assertRaises(BadRequest) as ar:
+            self.pd_cli.create_process_definition(definition)
+
+
 pd_config = {
     'processdispatcher': {
         'backend': "native",
@@ -836,6 +853,8 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
                                "ion.services.cei.process_dispatcher_service",
                                "ProcessDispatcherService"))
         self.container.start_app(app, config=pd_config)
+
+        self.rr_cli = self.container.resource_registry
 
         self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
@@ -902,6 +921,25 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
 
+
+        # request unknown engine, with NEVER queuing mode. The request
+        # should be rejected.
+        # verifies L4-CI-CEI-RQ52
+
+        process_target = ProcessTarget(execution_engine_id="not-a-real-ee")
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.NEVER
+        process_schedule.target = process_target
+
+        rejected_pid = self.pd_cli.create_process(self.process_definition_id)
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=rejected_pid)
+
+        self.waiter.await_state_event(rejected_pid, ProcessStateEnum.REJECTED)
+
+        # now add a node and eeagent for engine2. original process should leave
+        # queue and start running
         node2_id = uuid.uuid4().hex
         self._send_node_state("engine2", node2_id)
         self._start_eeagent(node2_id)
@@ -945,15 +983,77 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self.pd_cli.cancel_process(pid3)
         self.waiter.await_state_event(pid3, ProcessStateEnum.TERMINATED)
 
+    def test_node_exclusive(self):
+
+        # the node_exclusive constraint is used to ensure multiple processes
+        # of the same "kind" each get a VM exclusive of each other. Other
+        # processes may run on these VMs, just not processes with the same
+        # node_exclusive tag. Since we cannot directly query the contents
+        # of each node in this test, we prove the capability by scheduling
+        # processes one by one and checking their state.
+
+        # verifies L4-CI-CEI-RQ121
+        # verifies L4-CI-CEI-RQ57
+
+        # first off, setUp() created a single node and eeagent.
+        # We schedule two processes with the same "abc" node_exclusive
+        # tag. Since there is only one node, the first process should run
+        # and the second should be queued.
+
+        process_target = ProcessTarget(execution_engine_id="engine1")
+        process_target.node_exclusive = "abc"
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        process_schedule.target = process_target
+
+        pid1 = self.pd_cli.create_process(self.process_definition_id)
+        self.waiter.start()
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid1)
+
+        self.waiter.await_state_event(pid1, ProcessStateEnum.RUNNING)
+
+        pid2 = self.pd_cli.create_process(self.process_definition_id)
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid2)
+        self.waiter.await_state_event(pid2, ProcessStateEnum.WAITING)
+
+        # now demonstrate that the node itself is not full by launching
+        # a third process without a node_exclusive tag -- it should start
+        # immediately
+
+        process_target.node_exclusive = None
+        pid3 = self.pd_cli.create_process(self.process_definition_id)
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid3)
+        self.waiter.await_state_event(pid3, ProcessStateEnum.RUNNING)
+
+        # finally, add a second node to the engine. pid2 should be started
+        # since there is an exclusive "abc" node free.
+        node2_id = uuid.uuid4().hex
+        self._send_node_state("engine1", node2_id)
+        self._start_eeagent(node2_id)
+        self.waiter.await_state_event(pid2, ProcessStateEnum.RUNNING)
+
+        # kill the processes for good
+        self.pd_cli.cancel_process(pid1)
+        self.waiter.await_state_event(pid1, ProcessStateEnum.TERMINATED)
+        self.pd_cli.cancel_process(pid2)
+        self.waiter.await_state_event(pid2, ProcessStateEnum.TERMINATED)
+        self.pd_cli.cancel_process(pid3)
+        self.waiter.await_state_event(pid3, ProcessStateEnum.TERMINATED)
 
     def test_code_download(self):
-
-        url = "file://%s" % os.path.join(os.path.dirname(__file__), 'test_process_dispatcher.py')
+        # create a process definition that has no URL; only module and class.
         process_definition_no_url = ProcessDefinition(name='test_process_nodownload')
         process_definition_no_url.executable = {'module': 'ion.my.test.process',
                 'class': 'TestProcess'}
         process_definition_id_no_url = self.pd_cli.create_process_definition(process_definition_no_url)
 
+        # create another that has a URL of the python file (this very file)
+        # verifies L4-CI-CEI-RQ114
+        url = "file://%s" % os.path.join(os.path.dirname(__file__), 'test_process_dispatcher.py')
         process_definition = ProcessDefinition(name='test_process_download')
         process_definition.executable = {'module': 'ion.my.test.process',
                 'class': 'TestProcess', 'url': url}

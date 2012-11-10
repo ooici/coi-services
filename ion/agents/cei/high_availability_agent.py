@@ -6,7 +6,8 @@ from pyon.public import log, get_sys_name
 from pyon.core.exception import BadRequest
 
 from interface.objects import AgentCommand, ProcessDefinition, ProcessSchedule,\
-        ProcessStateEnum, ProcessQueueingMode, ProcessTarget, ProcessRestartMode, Service
+        ProcessStateEnum, ProcessQueueingMode, ProcessTarget, ProcessRestartMode,\
+        Service, ServiceStateEnum
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.agents.cei.util import looping_call
 from ion.services.cei.process_dispatcher_service import _core_process_definition_from_ion, \
@@ -83,7 +84,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
                 pd_client_kwargs={'container': self.container,
                     'service_id': self.service_id})
 
-        self.policy_thread = looping_call(self.policy_interval, self.core.apply_policy)
+        self.policy_thread = looping_call(self.policy_interval, self._apply_policy)
 
         dashi_messaging = self.CFG.get_safe("highavailability.dashi_messaging", False)
         if dashi_messaging:
@@ -164,6 +165,19 @@ class HighAvailabilityAgent(SimpleResourceAgent):
             return
 
         self.container.resource_registry.delete(self.service_id, del_associations=True)
+
+    def _apply_policy(self):
+
+        self.core.apply_policy()
+
+        try:
+            service = self.container.resource_registry.read(self.service_id)
+            new_service_state = _core_hastate_to_service_state(self.core.status())
+            if service.state != new_service_state:
+                service.state = new_service_state
+                self.container.resource_registry.update(service)
+        except Exception:
+            log.exception("Problem when updating Service state")
 
     def rcmd_reconfigure_policy(self, new_policy):
         """Service operation: Change the parameters of the policy used for service
@@ -359,3 +373,6 @@ class ProcessDispatcherSimpleAPIClient(object):
                     }
             dict_procs.append(dict_proc)
         return dict_procs
+
+def _core_hastate_to_service_state(core):
+    return ServiceStateEnum._value_map.get(core)

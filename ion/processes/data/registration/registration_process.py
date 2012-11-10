@@ -6,6 +6,7 @@ from xml.dom.minidom import parse, parseString
 from pyon.ion.process import StandaloneProcess
 from coverage_model.coverage import SimplexCoverage
 from pyon.util.file_sys import FileSystem
+from pyon.util.log import log
 import numpy as np
 import base64
 import StringIO
@@ -20,28 +21,14 @@ class RegistrationProcess(StandaloneProcess):
         self.pydap_url  = 'http://%s:%s/' % (self.pydap_host, self.pydap_port)
         self.pydap_data_path = self.CFG.get_safe('server.pydap.data_path', 'RESOURCE:ext/pydap')
         self.datasets_xml_path = self.CFG.get_safe('server.pydap.datasets_xml_path', "RESOURCE:ext/datasets.xml")
+        self.pydap_data_path = FileSystem.get_extended_url(self.pydap_data_path) + '/'
 
-        if ':' in self.pydap_data_path:
-            s = self.pydap_data_path.split(':')
-            base = FileSystem.FS_DIRECTORY[s[0]]
-            path = os.path.join(base, s[1])
-            try:
-                os.makedirs(path)
-            except OSError:
-                pass
-            self.pydap_data_path = path + '/'
+        filename = self.datasets_xml_path.split('/')[-1]
+        base = '/'.join(self.datasets_xml_path.split('/')[:-1])
+        real_path = FileSystem.get_extended_url(base)
+        self.datasets_xml_path = os.path.join(real_path, filename)
+        self.setup_filesystem(real_path)
 
-        if ':' in self.datasets_xml_path:
-            s = self.datasets_xml_path.split(':')
-            base = FileSystem.FS_DIRECTORY[s[0]]
-            path = os.path.join(base,s[1])
-            try:
-                os.makedirs(os.path.dirname(path))
-            except OSError:
-                pass
-            self.datasets_xml_path = path
-
-            self.setup_filesystem(os.path.dirname(path))
 
     def setup_filesystem(self, path):
         zip_str = base64.decodestring(datasets_xml_zip)
@@ -54,8 +41,11 @@ class RegistrationProcess(StandaloneProcess):
 
 
     def register_dap_dataset(self, coverage_path):
-        self.   add_dataset_to_xml(coverage_path=coverage_path)
-        self.create_symlink(coverage_path, self.pydap_data_path)
+        try:
+            self.   add_dataset_to_xml(coverage_path=coverage_path)
+            self.create_symlink(coverage_path, self.pydap_data_path)
+        except:
+            log.error('Failed to register dataset for coverage path %s' % coverage_path)
 
     def create_symlink(self, coverage_path, pydap_path):
         paths = os.path.split(coverage_path)

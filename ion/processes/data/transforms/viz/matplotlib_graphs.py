@@ -1,25 +1,33 @@
 
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from pyon.core.exception import BadRequest
-from pyon.public import log
+from pyon.public import log, PRED, RT
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
 
 import numpy as np
+import ntplib
+from datetime import datetime
 
 import StringIO
+import time
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from ion.core.process.transform import TransformDataProcess, TransformEventListener
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from pyon.event.event import EventSubscriber
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceProcessClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
 # Matplotlib related imports
 # Need try/catch because of weird import error
 try:
     from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
     from matplotlib.figure import Figure
+    from matplotlib import dates
+    from matplotlib.font_manager import FontProperties
 except:
     import sys
     print >> sys.stderr, "Cannot import matplotlib"
@@ -37,9 +45,14 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
 
     def on_start(self):
 
+        #print ">>>>>>>>>>>>>>>>>>>>>> MPL CFG = ", self.CFG
+
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
-        self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=self)
-        self.rrclient = ResourceRegistryServiceProcessClient(node=self.container.node, process=self)
+        self.ssclient = SchedulerServiceProcessClient(process=self)
+        self.rrclient = ResourceRegistryServiceProcessClient(process=self)
+        self.data_retriever_client = DataRetrieverServiceProcessClient(process=self)
+        self.ds_client = DatasetManagementServiceProcessClient(process=self)
+        self.pubsub_client = PubsubManagementServiceProcessClient(process = self)
 
         self.stream_info  = self.CFG.get_safe('process.publish_streams',{})
         self.stream_names = self.stream_info.keys()
@@ -51,13 +64,13 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
         graph_time_periods= self.CFG.get_safe('graph_time_periods')
 
         # If this is meant to be an event driven process, schedule an event to be generated every few minutes/hours
-        event_timer_interval = self.CFG.get_safe('event_timer_interval')
+        event_timer_interval = self.CFG.get_safe('graph_update_interval')
         if event_timer_interval:
             event_origin = "Interval_Timer_Matplotlib"
             sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
             sub.start()
 
-            self.interval_timer_id = self.ssclient.create_interval_timer(start_time="now" , interval=event_timer_interval,
+            self.interval_timer_id = self.ssclient.create_interval_timer(start_time="now" , interval=self._str_to_secs(event_timer_interval),
                 event_origin=event_origin, event_subtype="")
 
         super(VizTransformMatplotlibGraphs,self).on_start()
@@ -80,9 +93,56 @@ class VizTransformMatplotlibGraphs(TransformDataProcess, TransformEventListener)
 
     def interval_timer_callback(self, *args, **kwargs):
         #Find out the input data product to this process
+        in_dp_id = self.CFG.get_safe('in_dp_id')
 
-        # retrieve data for every case of the output graph
+        # get the dataset_id associated with the data_product. Need it to do the data retrieval
+        ds_ids,_ = self.rrclient.find_objects(in_dp_id, PRED.hasDataset, RT.DataSet, True)
+        if ds_ids is None or not ds_ids:
+            return None
+
+        # retrieve data for the specified time interval
+        end_time = ntplib.system_to_ntp_time(time.time()) # Now
+        start_time = end_time - self._str_to_secs(self.CFG.get_safe('graph_time_period'))
+        #retrieved_granule = self.data_retriever_client.retrieve(ds_ids[0],{'start_time':start_time,'end_time':end_time})
+        retrieved_granule = self.data_retriever_client.retrieve(ds_ids[0])
+
+        visualization_parameters = None
+        # send the granule through the Algorithm code to get the matplotlib graphs
+        mpl_pdict_id = self.ds_client.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
+        mpl_stream_def = self.pubsub_client.create_stream_definition('mpl', parameter_dictionary_id=mpl_pdict_id)
+        mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=visualization_parameters, params=mpl_stream_def)
+
+        if mpl_data_granule == None:
+            return None
+
         return
+
+    def _str_to_secs(self, time_period):
+        # this method converts commonly used time periods to its actual seconds counterpart
+        #separate alpha and numeric parts of the time period
+        time_n = time_period.lower().rstrip('abcdefghijklmnopqrstuvwxyz ')
+        time_a = time_period.lower().lstrip('0123456789 ')
+
+        # determine if user specified, secs, mins, hours, days, weeks, months, years
+        factor = None
+        if time_a == 'sec' or time_a == "secs" or time_a == 'second' or time_a == "seconds":
+            factor = 1
+        if time_a == "min" or time_a == "mins" or time_a == "minute" or time_a == "minutes":
+            factor = 60
+        if time_a == "hr" or time_a == "hrs" or time_a == "hour" or time_a == "hours":
+            factor = 60 * 60
+        if time_a == "day" or time_a == "days":
+            factor = 60 * 60 * 24
+        if time_a == "wk" or time_a == "wks" or time_a == "week" or time_a == "weeks":
+            factor = 60 * 60 * 24 * 7
+        if time_a == "mon" or time_a == "mons" or time_a == "month" or time_a == "months":
+            factor = 60 * 60 * 24 * 30
+        if time_a == "yr" or time_a == "yrs" or time_a == "year" or time_a == "years":
+            factor = 60 * 60 * 24 * 365
+
+        time_period_secs = float(time_n) * factor
+        return time_period_secs
+
 
     def on_quit(self):
 
@@ -99,12 +159,17 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
     def execute(input=None, context=None, config=None, params=None, state=None):
         log.debug('Matplotlib transform: Received Viz Data Packet')
         stream_definition_id = params
+        mpl_allowed_numerical_types = ['int32', 'int64', 'uint32', 'uint64', 'float32', 'float64']
+
+        if stream_definition_id == None:
+            log.error("Matplotlib transform: Need a output stream definition to process graphs")
+            return None
 
         # parse the incoming data
         rdt = RecordDictionaryTool.load_from_granule(input)
 
         # build a list of fields/variables that need to be plotted. Use the list provided by the UI
-        # since the retrieved granule might have extra fields. Why ? Ans : Bugs, baby, bugs !
+        # since the retrieved granule might have extra fields.
         fields = []
         if config:
             if config['parameters']:
@@ -120,6 +185,10 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
 
         for field in fields:
             if field == 'time':
+                continue
+
+            # only consider fields which are supposed to be numbers.
+            if (rdt[field] != None) and (rdt[field].dtype not in mpl_allowed_numerical_types):
                 continue
 
             vardict[field] = get_safe(rdt, field)
@@ -187,6 +256,7 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
                     break
 
         xAxisFloatData = graph_data[xAxisVar]
+        #xAxisFloatData = [dates.date2num(datetime.fromtimestamp(ntplib.ntp_to_system_time(t))) for t in graph_data[xAxisVar]]
         idx = 0
         for varName in yAxisVars:
             yAxisFloatData = graph_data[varName]
@@ -205,11 +275,20 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
 
         fileName = yAxisLabel + '_vs_' + xAxisVar + '.png'
 
+        # Choose a small font for the legend
+        legend_font_prop = FontProperties()
+        legend_font_prop.set_size('small')
         ax.set_xlabel(xAxisVar)
         ax.set_ylabel(yAxisLabel)
         ax.set_title(yAxisLabel + ' vs ' + xAxisVar)
         ax.set_autoscale_on(False)
-        ax.legend(loc='upper left')
+        ax.legend(loc='upper left', ncol=3, fancybox=True, shadow=True, prop=legend_font_prop)
+
+        # Date formatting
+        # matplotlib date format object
+        #hfmt = dates.DateFormatter('%m/%d %H:%M')
+        #ax.xaxis.set_major_locator(dates.MinuteLocator())
+        #ax.xaxis.set_major_formatter(hfmt)
 
         # Save the figure to the in memory file
         canvas.print_figure(imgInMem, format="png")

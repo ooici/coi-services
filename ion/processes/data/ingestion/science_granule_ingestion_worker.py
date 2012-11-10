@@ -10,7 +10,7 @@ from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.util.containers import get_ion_ts, get_safe
-from pyon.public import log, RT, PRED
+from pyon.public import log, RT, PRED, CFG
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from interface.objects import Granule
 from couchdb import ResourceNotFound
@@ -21,7 +21,7 @@ import numpy
 
 
 class ScienceGranuleIngestionWorker(TransformStreamListener):
-    CACHE_LIMIT=100
+    CACHE_LIMIT=CFG.get_safe('container.ingestion_cache',5)
 
     def __init__(self, *args,**kwargs):
         super(ScienceGranuleIngestionWorker, self).__init__(*args, **kwargs)

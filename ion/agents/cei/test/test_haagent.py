@@ -26,7 +26,7 @@ from ion.services.cei.test import ProcessStateWaiter, get_dashi_uri_from_cfg
 
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessStateEnum, ProcessDefinition
+from interface.objects import ProcessStateEnum, ProcessDefinition, ServiceStateEnum
 
 
 class FakeProcess(LocalContextMixin):
@@ -168,6 +168,13 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         # Ensure HA hasn't already failed
         assert status in ('PENDING', 'READY', 'STEADY')
 
+
+        # verifies L4-CI-CEI-RQ44
+        # Note: the HA agent is started in the setUp() method, with config
+        # pointing to the test "service". The initial config is set to preserve
+        # 0 service processes. With this reconfigure step below, we change that
+        # to launch 1.
+
         new_policy = {'preserve_n': 1}
         self.haa_client.reconfigure_policy(new_policy)
 
@@ -187,6 +194,12 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                 gevent.sleep(1)
         else:
             assert False, "HA Service took too long to get to state STEADY"
+
+        # Ensure Service object has the correct state
+        result = self.haa_client.dump().result
+        service_id = result.get('service_id')
+        service = self.container.resource_registry.read(service_id)
+        self.assertEqual(service.state, ServiceStateEnum.STEADY)
 
         # verifies L4-CI-CEI-RQ122 and L4-CI-CEI-RQ124
 

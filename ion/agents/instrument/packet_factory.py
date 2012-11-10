@@ -27,8 +27,8 @@ class PacketFactoryType(BaseEnum):
     """
     What type of packets is the driver sending us?
     """
-    R2LCAFormat = 'R2_LCA_FORMAT',
-    CommonSampleFormat = 'COMMON_SAMPLE_FORMAT',
+    R2LCAFormat = 'R2_LCA_FORMAT'
+    CommonSampleFormat = 'COMMON_SAMPLE_FORMAT'
 
 
 class PacketFactory(object):
