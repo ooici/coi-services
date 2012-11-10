@@ -241,7 +241,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         configuration = configuration or DotDict()
 
-        validate_is_not_none( out_data_products, "No output data products passed in")
+        #validate_is_not_none( out_data_products, "No output data products passed in")
 
         #---------------------------------------------------------------------------------------
         # Read the data process definition
