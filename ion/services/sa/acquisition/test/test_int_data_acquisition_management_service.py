@@ -27,7 +27,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sax')
 #@unittest.skip('not working')
 class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
@@ -278,7 +278,9 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             print 'Creating new external data agent '
             datasetagent_obj = IonObject(RT.ExternalDatasetAgent,
                                name='ExternalDatasetAgent1',
-                               description='external data agent ')
+                               description='external data agent ',
+                                handler_module = 'module_name',
+                                handler_class = 'class_name')
             try:
                 datasetagent_id = self.client.create_external_dataset_agent(datasetagent_obj)
             except BadRequest as ex:
