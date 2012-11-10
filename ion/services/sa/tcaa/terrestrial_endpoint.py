@@ -30,6 +30,9 @@ from interface.services.sa.iterrestrial_endpoint import BaseTerrestrialEndpoint
 from interface.services.sa.iterrestrial_endpoint import TerrestrialEndpointProcessClient
 from ion.services.sa.tcaa.endpoint_mixin import EndpointMixin
 
+# http://localhost:5984/_utils/index.html
+# bin/pycc -fc
+
 class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
     """
     Terrestrial endpoint for two component agent architecture.
@@ -258,8 +261,6 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
                 return
             obj = objs[0]
             obj_id = ids[0]
-            print str(obj)
-            print str(obj_id)
             obj.queue = copy.deepcopy(self._client._queue)
             obj.updated = time.time()
             try:
