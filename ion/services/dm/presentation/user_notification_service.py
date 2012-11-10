@@ -308,6 +308,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_types = CFG.event.types
         self.event_table = {}
+        self.notifications = {}
 
         self.notifs = set()
 
@@ -401,13 +402,13 @@ class UserNotificationService(BaseUserNotificationService):
         # Persist Notification object as a resource if it has already not been persisted
         #---------------------------------------------------------------------------------------------------
 
-        # find all notifications in the system
+        # if the notification has already been registered, simply use the old id
 
-        log.debug("notifications::: %s" % notification)
+        id = self._notification_in_notifications(notification, self.notifications)
 
-        if notification in self.notifs:
-            log.debug("Notification object has already been created in resource registry before for another user. No new id to be generated.")
-            notification_id = notification._id
+        if id:
+            log.debug("Notification object has already been created in resource registry before. No new id to be generated.")
+            notification_id = id
         else:
 
             # since the notification has not been registered yet, register it and get the id
@@ -416,16 +417,16 @@ class UserNotificationService(BaseUserNotificationService):
             notification.temporal_bounds.end_datetime = ''
 
             notification_id, _ = self.clients.resource_registry.create(notification)
+            self.notifications[notification_id] = notification
 
-            #-------------------------------------------------------------------------------------------------------------------
-            # read the registered notification request object because this has an _id and is more useful
-            #-------------------------------------------------------------------------------------------------------------------
+            # Link the user and the notification with a hasNotification association
+            self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
 
-            notification = self.clients.resource_registry.read(notification_id)
+        #-------------------------------------------------------------------------------------------------------------------
+        # read the registered notification request object because this has an _id and is more useful
+        #-------------------------------------------------------------------------------------------------------------------
 
-            self.notifs.add(notification)
-
-            log.debug("self.notifs::: %s" % self.notifs)
+        notification = self.clients.resource_registry.read(notification_id)
 
         #-----------------------------------------------------------------------------------------------------------
         # Create an event processor for user. This sets up callbacks etc.
@@ -433,12 +434,6 @@ class UserNotificationService(BaseUserNotificationService):
         #-----------------------------------------------------------------------------------------------------------
 
         user = self.event_processor.add_notification_for_user(notification_request=notification, user_id=user_id)
-
-        #-------------------------------------------------------------------------------------------------------------------
-        # Link the user and the notification with a hasNotification association
-        #-------------------------------------------------------------------------------------------------------------------
-
-        self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -1041,114 +1036,53 @@ class UserNotificationService(BaseUserNotificationService):
 
         """
 
-        notifications_all = set()
-        notifications_active = set()
-
-        search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
-        ret_vals = self.discovery.parse(search_origin)
-        log.debug("ret_vals::: %s" % ret_vals)
-
-        for item in ret_vals:
-            if item['_type'] == 'NotificationRequest':
-                notif = self.clients.resource_registry.read(item['_id'])
-                if include_nonactive:
-                    # Add active or retired notification
-                    notifications_all.add(notif)
-                elif notif.temporal_bounds.end_datetime == '':
-                    # Add the active notification
-                    notifications_active.add(notif)
 
         if include_nonactive:
-            log.debug("found all notifications: num: %s " % len(notifications_all))
-            return list(notifications_all)
+            notifications_all = []
+            for notif in self.notifications.values():
+                if notif.origin==resource_id:
+                    notifications_all.append(notif)
+            return notifications_all
         else:
-            log.debug("found ACTIVE notifications: num: %s " % len(notifications_active))
-            return list(notifications_active)
+            notifications_active = []
+
+            for notif in self.notifications.values():
+                if notif.temporal_bounds.end_datetime == '' and notif.origin==resource_id:
+                    # Add the active notification
+                    notifications_active.append(notif)
+
+            return notifications_active
 
 
-
-#        notification_request_all = set()
-#        notification_request_active = set()
 #
-#        #------------------------------------------------------------------------------------
-#        # Get the users who have created notifications with the data product id as origin
-#        #------------------------------------------------------------------------------------
-#        user_ids = set(self.event_processor.reverse_user_info['event_origin'][resource_id])
-#        log.debug("user_ids::: %s" % user_ids)
+#        search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
+#        ret_vals = self.discovery.parse(search_origin)
+#        log.debug("ret_vals::: %s" % ret_vals)
 #
-#        #------------------------------------------------------------------------------------
-#        # Find the notification request objects with origin as resource_id
-#        #------------------------------------------------------------------------------------
-#        for user_id in user_ids:
-#
-#            notification_subscriptions = self.event_processor.user_info[user_id]['notification_subscriptions'].itervalues()
-#
-#            for notific_sub in notification_subscriptions:
-#
-#                notific = notific_sub._res_obj
-#
+#        for item in ret_vals:
+#            if item['_type'] == 'NotificationRequest':
+#                notif = self.clients.resource_registry.read(item['_id'])
 #                if include_nonactive:
-#                    # include both past and active notifications
-#                    UserNotificationService.add_only_unique_notifications(notification_set=notification_request_all,
-#                                                                            notification=notific)
-#                    log.debug("the notification end_time ALL::: %s" % notific.temporal_bounds.end_datetime)
-#                else:
-#                    # include only the active notifications
-#                    if notific.temporal_bounds.end_datetime == '':
-#                        UserNotificationService.add_only_unique_notifications(notification_set=notification_request_active,
-#                                                                                notification=notific)
-#                        log.debug("the notification end_time ACTIVE::: %s" % notific.temporal_bounds.end_datetime)
-#
-#        #------------------------------------------------------------------------------------
-#        # Now return the list of notifications for the two options
-#        #------------------------------------------------------------------------------------
+#                    # Add active or retired notification
+#                    notifications_all.add(notif)
+#                elif notif.temporal_bounds.end_datetime == '':
+#                    # Add the active notification
+#                    notifications_active.add(notif)
 #
 #        if include_nonactive:
-#            log.debug("number of all notification requests::: %s" % len(notification_request_all))
-#            return list(notification_request_all)
+#            log.debug("found all notifications: num: %s " % len(notifications_all))
+#            return list(notifications_all)
 #        else:
-#            log.debug("number of ACTIVE notification requests::: %s" % len(notification_request_active))
-#            return list(notification_request_active)
-#
-#    @staticmethod
-#    def add_only_unique_notifications(notification_set = None, notification = None):
-#
-#        if not isinstance(notification, NotificationRequest):
-#            raise BadRequest("The notification provided should be a NotificationRequest object")
-#
-#        unique = True
-#
-#        # Go through the notifications and if from comparing we see that they are different, then
-#        for notif in notification_set:
-#            unique = UserNotificationService.not_equal(notif, notification)
-#            if not unique:
-#                break
-#
-#        if unique:
-#            notification_set.add(notification)
-#
-#        return notification_set
-#
-#    @staticmethod
-#    def not_equal(notif_1 = None, notif_2 = None):
-#
-#        log.debug("Comparing two notifications:")
-#
-#
-#        if notif_1.name != notif_2.name or\
-#           notif_1.origin != notif_2.origin or\
-#           notif_1.origin_type != notif_2.origin_type or\
-#           notif_1.event_type != notif_2.event_type:
-#
-#            log.debug("notif_1 :::: %s" % notif_1)
-#            log.debug("notif_2 :::: %s" % notif_2)
-#            log.debug("They are DIFFERENT")
-#            return True # notifications are different
-#        else:
-#
-#            log.debug("notif_1 :::: %s" % notif_1)
-#            log.debug("notif_2 :::: %s" % notif_2)
-#            log.debug("They are SAME")
-#
-#            return False # notifications are the same
-#
+#            log.debug("found ACTIVE notifications: num: %s " % len(notifications_active))
+#            return list(notifications_active)
+
+
+    def _notification_in_notifications(self, notification = None, notifications = None):
+
+        for id, notif in notifications.iteritems():
+            if notif.name == notification.name and \
+            notif.origin == notification.origin and \
+            notif.origin_type == notification.origin_type and \
+            notif.event_type == notification.event_type:
+                return id
+        return None

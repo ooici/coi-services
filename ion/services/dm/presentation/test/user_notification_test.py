@@ -98,9 +98,16 @@ class UserNotificationTest(PyonTestCase):
         self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
         self.mock_rr_client.read.return_value = 'notification'
 
+        self.user_notification.notifications = {}
+
         self.user_notification.event_processor.add_notification_for_user = mocksignature(self.user_notification.event_processor.add_notification_for_user)
 
         self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
+
+        self.user_notification._notification_in_notifications = mocksignature(self.user_notification._notification_in_notifications)
+        self.user_notification._notification_in_notifications.return_value = None
+
+        self.mock_rr_client.create_association = mocksignature(self.mock_rr_client.create_association)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Create a notification object
@@ -890,8 +897,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
                 procs.append(proc)
 
-        log.debug("Got the list of processes: %s" % procs)
-
         #--------------------------------------------------------------------------------------
         # Make notification request objects -- Remember to put names
         #--------------------------------------------------------------------------------------
@@ -994,7 +999,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Make notification request objects -- Remember to put names
         #--------------------------------------------------------------------------------------
 
-        notification_request_correct = NotificationRequest(   name = "notification_1",
+        notification_request_1 = NotificationRequest(   name = "notification_1",
             origin="instrument_1",
             origin_type="type_1",
             event_type='ResourceLifecycleEvent')
@@ -1009,7 +1014,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create notifications using UNS.
         #--------------------------------------------------------------------------------------
 
-        notification_id1 =  self.unsc.create_notification(notification=notification_request_correct, user_id=user_id)
+        notification_id1 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
         notification_id2 =  self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         #--------------------------------------------------------------------------------------
@@ -1019,9 +1024,28 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         n1 = self.unsc.read_notification(notification_id1)
         n2 = self.unsc.read_notification(notification_id2)
 
-        self.assertEquals(n1.event_type, notification_request_correct.event_type)
-        self.assertEquals(n1.origin, notification_request_correct.origin)
-        self.assertEquals(n1.origin_type, notification_request_correct.origin_type)
+        self.assertEquals(n1.event_type, notification_request_1.event_type)
+        self.assertEquals(n1.origin, notification_request_1.origin)
+        self.assertEquals(n1.origin_type, notification_request_1.origin_type)
+
+        #--------------------------------------------------------------------------------------
+        # Create the same notification request again using UNS. Check that no duplicate notification request is made
+        #--------------------------------------------------------------------------------------
+
+        notification_again_id =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+        notification_again = self.rrc.read(notification_again_id)
+
+        self.assertEquals(notification_again.event_type, notification_request_1.event_type)
+        self.assertEquals(notification_again.origin, notification_request_1.origin)
+        self.assertEquals(notification_again.origin_type, notification_request_1.origin_type)
+
+        # assert that the old id is unchanged
+        self.assertEquals(notification_again_id, notification_id1)
+
+        proc = self.container.proc_manager.procs_by_name['user_notification']
+
+        self.assertEquals(len(proc.notifications.values()), 2)
+
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -1505,8 +1529,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
     def test_get_subscriptions(self):
         '''
-        Test that the get_subscriptions, get_active_subscriptions and get_past_active_subscriptions
-        methods are working correctly
+        Test that the get_subscriptions works correctly
         '''
 
         #--------------------------------------------------------------------------------------
@@ -1585,7 +1608,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         log.debug("result_notifications::: %s" % result_notifications)
         log.debug("number of result_notifications::: %s" % len(result_notifications))
 
-#        self.assertEquals(len(result_notifications), 2)
+        self.assertEquals(len(result_notifications), 2)
 
         for notific in result_notifications:
             self.assertEquals(notific.origin, data_product_id)
@@ -1603,6 +1626,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         for notific in result_notifications:
             self.assertEquals(notific.origin, data_product_id)
 
-#        self.assertEquals(len(result_notifications), 4)
+        self.assertEquals(len(result_notifications), 2)
 
         log.debug("All subscriptions, number::: %s" % len(result_notifications))
