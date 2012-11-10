@@ -63,6 +63,7 @@ from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
 from ion.util.parameter_loader import ParameterPlugin
+from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 
 from interface import objects
 import logging
@@ -73,7 +74,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidGsxQ01TSWVOS0pFRUNONFFJQmpHU3c&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidFJtSFh0dnVsMjBXMjd0TmFtVWtma1E&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -103,9 +104,11 @@ DEFAULT_CATEGORIES = [
     'SensorDevice',
     'InstrumentAgent',
     'InstrumentAgentInstance',
-    'DataProcessDefinition',
     'DataProduct',
+    'DataProcessDefinition',
     'DataProcess',
+    'EventProcessDefinition',
+    'EventProcess',
     'DataProductLink',
     'Attachment',
     'WorkflowDefinition',
@@ -143,7 +146,7 @@ class IONLoader(ImmediateProcess):
         self.loadui = self.CFG.get("loadui", False)      # Import UI asset data
         self.exportui = self.CFG.get("exportui", False)  # Save UI JSON file
         self.update = self.CFG.get("update", False)      # Support update to existing resources
-        self.bulk = self.CFG.get("bulk", False)           # Use bulk insert where available
+        self.bulk = self.CFG.get("bulk", True)           # Use bulk insert where available
 
         # External loader tools
         self.ui_loader = UILoader(self)
@@ -180,9 +183,8 @@ class IONLoader(ImmediateProcess):
             # Load existing resources by preload ID
             self._prepare_incremental()
 
-            items = scenarios.split(',')
-            for scenario in items:
-                self.load_ion(scenario)
+            scenarios = scenarios.split(',')
+            self.load_ion(scenarios)
 
         elif op == "parseooi":
             self.ooi_loader.extract_ooi_assets()
@@ -199,14 +201,14 @@ class IONLoader(ImmediateProcess):
     def on_quit(self):
         pass
 
-    def load_ion(self, scenario):
+    def load_ion(self, scenarios):
         """
         Loads resources for one scenario, by parsing input spreadsheets for all resource categories
         in defined order, executing service calls for all entries in the scenario.
         Can load the spreadsheets from http or file location.
         Optionally imports OOI assets at the beginning of each category.
         """
-        log.info("Loading scenario %s from path: %s", scenario, self.path)
+        log.info("Loading scenario from path: %s", self.path)
         if self.bulk:
             log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
 
@@ -247,14 +249,17 @@ class IONLoader(ImmediateProcess):
 
                 for row in reader:
                     # Check if scenario applies
-                    rowsc = row[self.COL_SCENARIO]
-                    if not scenario == rowsc:
+                    if row[self.COL_SCENARIO] not in scenarios:
                         row_skip += 1
                         continue
                     row_do += 1
 
                     log.debug('handling %s row: %r', category, row)
-                    catfunc(row)
+                    try:
+                        catfunc(row)
+                    except:
+                        log.error('error loading %s row: %r', category, row, exc_info=True)
+                        raise
 
                 if self.bulk:
                     num_bulk = self._finalize_bulk(category)
@@ -603,15 +608,22 @@ class IONLoader(ImmediateProcess):
 
         self.contact_defs[id] = contact
 
+    def _parse_dict(self, text):
+        """ parse a SIMPLE dictionary of unquoted string keys and values
+        """
+        out = { }
+        pairs = text.split(',')
+        for pair in pairs:
+            fields = pair.split(':')
+            key = fields[0].strip()
+            value = fields[1].strip()
+            out[key] = value
+        return out
+
     def _parse_phones(self, text):
         if ':' in text:
-            pairs = text.split(',')
             out = []
-            for pair in pairs:
-                # pair is a string like: " office: 212-555-1212"
-                fields = pair.split(':')
-                number = fields[1].strip()
-                type = fields[0].strip()
+            for type,number in self._parse_dict(text).iteritems():
                 out.append(IonObject("Phone", phone_number=number, phone_type=type))
             return out
         elif text:
@@ -1286,9 +1298,30 @@ class IONLoader(ImmediateProcess):
         # create object with simple field types -- name, description
         agent_instance = self._create_object_from_row("PlatformAgentInstance", row, "pai/")
 
-        # get values for more complex fields
+        # construct values for more complex fields
+        platform_id = row['platform_id']
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
         platform_device_id = self.resource_ids[row['platform_device_id']]
+        platform_agent = self.resource_objs[row['platform_agent_id']]
+
+        driver_config = self._parse_dict(row['driver_config'])
+        driver_config['dvr_cls'] = platform_agent.driver_class
+        driver_config['dvr_mod'] = platform_agent.driver_module
+
+        #TODO: allow child platforms
+        platform_topology = { platform_id: [] }
+
+        #
+        device_dict = self._HACK_get_device_dict(platform_id)
+
+        admap = { platform_id: device_dict }
+        platform_config = { 'platform_id':             platform_id,
+                            'platform_topology':       platform_topology,
+                            'agent_device_map':        admap,
+                            'agent_streamconfig_map':  None,  # can we just omit?
+                            'driver_config':           driver_config }
+        agent_instance.agent_config = { 'platform_config': platform_config }
+
         id = self._get_service_client("instrument_management").create_platform_agent_instance(agent_instance, platform_agent_id, platform_device_id)
         self.resource_ids[row['ID']] = id
 
@@ -1297,6 +1330,31 @@ class IONLoader(ImmediateProcess):
     #        driver_config = self._parse_dict(row['driver_config'])
     #        agent_config = self._parse_dict(row['agent_config'])
     #        stream_definition = self.resource_objs[row['stream_definition']]
+
+    def _HACK_get_device_dict(self, platform_id):
+        """ TODO: remove from preload and the initial object def.  instead query OmsClient from IMS when the platform agent is started
+            TODO: set a property in the agent instance to identify which OmsClient to use (need to support platforms from different Orgs)
+
+            query the simulated OmsClient for information about the platform
+        """
+
+        simulator = OmsClientFactory.create_instance()
+
+        # get network information (from: test_oms_launch2._prepare_platform_ports)
+        port_dicts = []
+        platform_port_info = simulator.getPlatformPorts(platform_id)
+        for port_id, port in platform_port_info[platform_id].iteritems():
+            port_dicts.append(dict(port_id=port_id, ip_address=port['comms']['ip']))
+
+        # get attribute information (from: test_oms_launch2._prepare_platform_attributes)
+        attribute_dicts = []
+        platform_attribute_info = simulator.getPlatformAttributes(platform_id)
+        for name, attribute in platform_attribute_info[platform_id].iteritems():
+            attribute_dicts.append(dict(id=name, monitor_rate=attribute['monitorCycleSeconds'], units=attribute['units']))
+
+        # package as needed by agent instance
+        return { 'ports': port_dicts,
+                 'platform_monitor_attributes': attribute_dicts }
 
 
     def _load_DataProcessDefinition(self, row):
@@ -1317,6 +1375,78 @@ class IONLoader(ImmediateProcess):
             output_strdef = self._get_typed_value(output_strdef, targettype="dict")
         for binding, strdef in output_strdef.iteritems():
             svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[strdef], res_id, binding)
+
+    def _load_DataProcess(self, row):
+        dpd_id = self.resource_ids[row["data_process_definition_id"]]
+        log.trace("_load_DataProcess  data_product_def %s", str(dpd_id))
+        in_data_product_id = self.resource_ids[row["in_data_product_id"]]
+        configuration = row["configuration"]
+        if configuration:
+            configuration = self._get_typed_value(configuration, targettype="dict")
+
+        out_data_products = row["out_data_products"]
+        if out_data_products:
+            out_data_products = self._get_typed_value(out_data_products, targettype="dict")
+            for name, dp_id in out_data_products.iteritems():
+                out_data_products[name] = self.resource_ids[dp_id]
+
+        svc_client = self._get_service_client("data_process_management")
+
+        headers = self._get_op_headers(row)
+        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
+        self._register_id(row[self.COL_ID], res_id)
+
+        self._resource_assign_org(row, res_id)
+
+        res_id = svc_client.activate_data_process(res_id)
+
+    def _load_EventProcessDefinition(self, row):
+#        process_dispatcher = ProcessDispatcherServiceClient()
+#
+#        procdef_id = process_dispatcher.create_process_definition(process_definition=producer_definition)
+#        pid = process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=configuration)
+#
+#        return pid
+
+        id = row['ID']
+        process_def = self._create_object_from_row("ProcessDefinition", row, "epd/")
+        process_def.executable = { 'module': row['module'], 'class': row['class'] }
+
+        process_dispatcher = self._get_service_client("process_dispatcher")
+        data_process_client = self._get_service_client("data_process_management")
+        dbid = process_dispatcher.create_process_definition(process_definition=process_def)
+        process_def._id = dbid
+        self.resource_ids[id] = dbid
+        self.resource_objs[id] = process_def
+
+#        input_strdef = row["input_stream_defs"]
+#        if input_strdef:
+#            input_strdef = self._get_typed_value(input_strdef, targettype="simplelist")
+#        log.trace("Assigning input StreamDefinition to DataProcessDefinition for %s" % input_strdef)
+#        for insd in input_strdef:
+#            data_process_client.assign_input_stream_definition_to_data_process_definition(self.resource_ids[insd], dbid)
+
+
+    def _load_EventProcess(self, row):
+        process_def_id = self.resource_ids[row["data_process_definition_id"]]
+        log.trace("_load_EventProcess  event_product_def %s", str(process_def_id))
+        in_data_product_id = self.resource_ids[row["in_data_product_id"]]
+        configuration = row["configuration"]
+        if configuration:
+            configuration = self._get_typed_value(configuration, targettype="dict")
+
+        svc_client = self._get_service_client("data_process_management")
+
+        headers = self._get_op_headers(row)
+        process_dispatcher = self._get_service_client("process_dispatcher")
+        process_dispatcher.schedule_process(process_definition_id=process_def_id, configuration=configuration)
+# TODO: IonObject types not available...
+#        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
+#        self._register_id(row[self.COL_ID], res_id)
+#        self._resource_assign_org(row, res_id)
+#        res_id = svc_client.activate_data_process(res_id)
+
+
 
     def _load_DataProduct(self, row):
         tdom, sdom = time_series_domain()
@@ -1345,30 +1475,6 @@ class IONLoader(ImmediateProcess):
             svc_client.activate_data_product_persistence(res_id)
         self._resource_advance_lcs(row, res_id, "DataProduct")
 
-    def _load_DataProcess(self, row):
-        dpd_id = self.resource_ids[row["data_process_definition_id"]]
-        log.trace("_load_DataProcess  data_product_def %s", str(dpd_id))
-        in_data_product_id = self.resource_ids[row["in_data_product_id"]]
-        configuration = row["configuration"]
-        if configuration:
-            configuration = self._get_typed_value(configuration, targettype="dict")
-
-        out_data_products = row["out_data_products"]
-        if out_data_products:
-            out_data_products = self._get_typed_value(out_data_products, targettype="dict")
-            for name, dp_id in out_data_products.iteritems():
-                out_data_products[name] = self.resource_ids[dp_id]
-
-        svc_client = self._get_service_client("data_process_management")
-
-        headers = self._get_op_headers(row)
-        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
-        self._register_id(row[self.COL_ID], res_id)
-
-        self._resource_assign_org(row, res_id)
-
-        res_id = svc_client.activate_data_process(res_id)
-
     def _load_DataProductLink(self, row):
         log.info("Loading DataProductLink")
 
@@ -1376,7 +1482,7 @@ class IONLoader(ImmediateProcess):
         res_id = self.resource_ids[row["input_resource_id"]]
         type = row['resource_type']
 
-        if type=='InstrumentDevice':
+        if type=='InstrumentDevice' or type=='PlatformDevice':
             svc_client = self._get_service_client("data_acquisition_management")
             svc_client.assign_data_product(res_id, dp_id)
         elif type=='InstrumentSite':

@@ -222,8 +222,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
         device__obj = IonObject(RT.PlatformDevice,
                         name='%s_PlatformDevice' % platform_id,
                         description='%s_PlatformDevice platform device' % platform_id,
-                        ports=port_objs,
-                        platform_monitor_attributes = monitor_attribute_objs)
+#                        ports=port_objs,
+#                        platform_monitor_attributes = monitor_attribute_objs
+        )
 
         device__dict = dict(ports=port_dicts,
                             platform_monitor_attributes=monitor_attribute_dicts)
