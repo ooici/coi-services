@@ -240,7 +240,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         self._validate_instrument_agent_instance(inst_agent_inst_objs[0])
 
-        epoch = time.mktime(datetime.datetime.now().timetuple())
+        epoch = time.mktime(datetime.now().timetuple())
         snapshot_name = name or "Running Config Snapshot %s.js" % epoch
 
         driver_config, agent_config = self._generate_instrument_agent_config(instrument_device_id)
