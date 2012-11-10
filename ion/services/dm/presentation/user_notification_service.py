@@ -308,6 +308,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_types = CFG.event.types
         self.event_table = {}
+        self.notifications = {}
 
         #---------------------------------------------------------------------------------------------------
         # Get the clients
@@ -396,13 +397,13 @@ class UserNotificationService(BaseUserNotificationService):
         # Persist Notification object as a resource if it has already not been persisted
         #---------------------------------------------------------------------------------------------------
 
-        # find all notifications in the system
-        notifs, _ = self.clients.resource_registry.find_resources(restype = RT.NotificationRequest)
-
         # if the notification has already been registered, simply use the old id
-        if notification in notifs:
-            log.warning("Notification object has already been created in resource registry before for another user. No new id to be generated.")
-            notification_id = notification._id
+
+        id = self._notification_in_notifications(notification, self.notifications)
+
+        if id:
+            log.debug("Notification object has already been created in resource registry before. No new id to be generated.")
+            notification_id = id
         else:
             # since the notification has not been registered yet, register it and get the id
             notification.temporal_bounds = TemporalBounds()
@@ -410,6 +411,10 @@ class UserNotificationService(BaseUserNotificationService):
             notification.temporal_bounds.end_datetime = ''
 
             notification_id, _ = self.clients.resource_registry.create(notification)
+            self.notifications[notification_id] = notification
+
+            # Link the user and the notification with a hasNotification association
+            self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
         # read the registered notification request object because this has an _id and is more useful
@@ -423,12 +428,6 @@ class UserNotificationService(BaseUserNotificationService):
         #-----------------------------------------------------------------------------------------------------------
 
         user = self.event_processor.add_notification_for_user(notification_request=notification, user_id=user_id)
-
-        #-------------------------------------------------------------------------------------------------------------------
-        # Link the user and the notification with a hasNotification association
-        #-------------------------------------------------------------------------------------------------------------------
-
-        self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -1022,3 +1021,12 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
+    def _notification_in_notifications(self, notification = None, notifications = None):
+
+        for id, notif in notifications.iteritems():
+            if notif.name == notification.name and \
+            notif.origin == notification.origin and \
+            notif.origin_type == notification.origin_type and \
+            notif.event_type == notification.event_type:
+                return id
+        return None

@@ -896,8 +896,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
                 procs.append(proc)
 
-        log.debug("Got the list of processes: %s" % procs)
-
         #--------------------------------------------------------------------------------------
         # Make notification request objects -- Remember to put names
         #--------------------------------------------------------------------------------------
@@ -1028,6 +1026,25 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(n1.event_type, notification_request_1.event_type)
         self.assertEquals(n1.origin, notification_request_1.origin)
         self.assertEquals(n1.origin_type, notification_request_1.origin_type)
+
+        #--------------------------------------------------------------------------------------
+        # Create the same notification request again using UNS. Check that no duplicate notification request is made
+        #--------------------------------------------------------------------------------------
+
+        notification_again_id =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+        notification_again = self.rrc.read(notification_again_id)
+
+        self.assertEquals(notification_again.event_type, notification_request_1.event_type)
+        self.assertEquals(notification_again.origin, notification_request_1.origin)
+        self.assertEquals(notification_again.origin_type, notification_request_1.origin_type)
+
+        # assert that the old id is unchanged
+        self.assertEquals(notification_again_id, notification_id1)
+
+        proc = self.container.proc_manager.procs_by_name['user_notification']
+
+        self.assertEquals(len(proc.notifications.values()), 2)
+
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
