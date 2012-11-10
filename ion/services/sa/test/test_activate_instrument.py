@@ -33,11 +33,11 @@ from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-from interface.objects import Granule, DeviceStatusType, DeviceCommsType
-
+from interface.objects import Granule, DeviceStatusType, DeviceCommsType,StatusType
+from datetime import datetime, timedelta
 from nose.plugins.attrib import attr
 from mock import patch
-import gevent
+import gevent, time
 
 class FakeProcess(LocalContextMixin):
     """
@@ -356,9 +356,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         extended_product = self.dpclient.get_data_product_extension(data_product_id1)
         self.assertEqual(data_product_id1, extended_product._id)
         self.assertEqual( extended_product.computed.last_granule.value['quality_flag'], ['ok'] )
+        self.assertEqual( 2, len(extended_product.computed.data_datetime.value) )
         log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
-
-
 
 
 
@@ -366,16 +365,18 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Get the extended instrument
         #--------------------------------------------------------------------------------
 
-        #put some events into the eventsdb to test
-#        self.event_publisher.publish_event(    event_type = 'DeviceStatusEvent',
-#                origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, value = 200 )
-#        self.event_publisher.publish_event(    event_type = 'DeviceCommsEvent',
-#                origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
-#
-#        extended_instrument = self.dpclient.get_data_product_extension(instDevice_id)
-#        log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
+        #put some events into the eventsdb to test - this should set the comms and data status to WARNING
+        t = self._makeEpochTime( datetime.utcnow() )
+        self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
+                origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, value = 200 )
+        self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
+                origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
-
+        extended_instrument = self.imsclient.get_instrument_device_extension(instDevice_id)
+        #log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
+        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
+        self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_WARNING)
+        self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_OK)
 
 
         #-------------------------------
@@ -385,3 +386,19 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
 
+
+
+    @staticmethod
+    def _makeEpochTime(date_time):
+        """
+        provides the seconds since epoch give a python datetime object.
+
+        @param date_time Python datetime object
+        @retval seconds_since_epoch int
+        """
+        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
+        #'2009-07-04 18:30:47'
+        pattern = '%Y-%m-%d %H:%M:%S'
+        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
+
+        return seconds_since_epoch
