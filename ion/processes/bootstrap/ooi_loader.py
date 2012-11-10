@@ -5,11 +5,12 @@
 __author__ = 'Michael Meisinger'
 
 import csv
+import os.path
 import re
 
 from pyon.public import log, iex
 from ion.core.ooiref import OOIReferenceDesignator
-
+from ion.util.xlsparser import XLSParser
 
 class OOILoader(object):
     def __init__(self, process, container=None, asset_path=None):
@@ -29,7 +30,9 @@ class OOILoader(object):
 
         log.info("Parsing OOI assets from path=%s", self.asset_path)
 
-        categories = [ # Core concept attributes
+        categories = [ # Mapping spreadsheet early
+                       'NodeTypes',
+                       # Core concept attributes
                        'AttributeReportArrays',
                        'AttributeReportClass',
                        'AttributeReportDataProducts',
@@ -46,13 +49,31 @@ class OOILoader(object):
                        'InstrumentCatalogFull',
                        'DataQCLookupTables',
                        'DataProductSpreadsheet',
-                       'AllSensorTypeCounts']
+                       'AllSensorTypeCounts',
+                       # Tabs from the mapping spreadsheet
+                       'Arrays',
+                       'Sites',
+                       'Nodes',
+                       'Platforms',
+                       'NodeTypes',
+                       'PlatformAgentTypes'
+                     ]
 
         # Holds the object representations of parsed OOI assets by type
         self.ooi_objects = {}
         # Holds a list of attribute names of OOI assets by type
         self.ooi_obj_attrs = {}
         self.warnings = []
+        self.csv_files = None
+
+        # Load OOIResourceMappings.xlsx
+        mapping_file = self.asset_path + "/OOIResourceMappings.xlsx"
+        if os.path.exists(mapping_file):
+            with open(mapping_file, "rb") as f:
+                preload_doc_str = f.read()
+                log.debug("Loaded %s mapping file, size=%s", mapping_file, len(preload_doc_str))
+                xls_parser = XLSParser()
+                self.csv_files = xls_parser.extract_csvs(preload_doc_str)
 
         for category in categories:
             row_do, row_skip = 0, 0
@@ -61,24 +82,32 @@ class OOILoader(object):
             filename = "%s/%s.csv" % (self.asset_path, category)
             log.debug("Loading category %s from file %s", category, filename)
             try:
-                with open(filename, "rb") as csvfile:
+                if category in self.csv_files:
+                    csv_doc = self.csv_files[category]
+                    # This is a hack to be able to read from string
+                    csv_doc = csv_doc.splitlines()
+                    reader = csv.DictReader(csv_doc, delimiter=',')
+                    filename = mapping_file + ":" + category
+                else:
+                    csvfile = open(filename, "rb")
                     for i in xrange(9):
                         # Skip the first rows, because they are garbage
                         csvfile.readline()
                     reader = csv.DictReader(csvfile, delimiter=',')
-                    for row in reader:
-                        row_do += 1
-                        catfunc(row)
+
+                for row in reader:
+                    row_do += 1
+                    catfunc(row)
             except IOError as ioe:
                 log.warn("OOI asset file %s error: %s" % (filename, str(ioe)))
 
             log.debug("Loaded assets %s: %d rows read" % (category, row_do))
 
-        # Do some validation checking
-        self._perform_ooi_checks()
-
         # Post processing
         self._post_process()
+
+        # Do some validation checking
+        self._perform_ooi_checks()
 
         if self.warnings:
             log.warn("WARNINGS:\n%s", "\n".join(["%s: %s" % (a, b) for a, b in self.warnings]))
@@ -92,7 +121,7 @@ class OOILoader(object):
     def get_type_assets(self, objtype):
         return self.ooi_objects.get(objtype, None)
 
-    def _add_object_attribute(self, objtype, objid, key, value, value_is_list=False, list_dup_ok=False, mapping=None, **kwargs):
+    def _add_object_attribute(self, objtype, objid, key, value, value_is_list=False, list_dup_ok=False, change_ok=False, mapping=None, **kwargs):
         """
         Add a single attribute to an identified object of given type. Create object/type on first occurrence.
         The kwargs are static attributes"""
@@ -118,7 +147,7 @@ class OOILoader(object):
                         obj_entry[key].append(value)
                 else:
                     obj_entry[key] = [value]
-            elif key in obj_entry:
+            elif key in obj_entry and not change_ok:
                 msg = "duplicate_attr: %s.%s has duplicate attribute '%s' def: (old=%s, new=%s)" % (objtype, objid, key, obj_entry[key], value)
                 self.warnings.append((objid, msg))
             else:
@@ -126,7 +155,7 @@ class OOILoader(object):
             ot_obj_attrs.add(key)
         for okey, oval in kwargs.iteritems():
             okey = okey if mapping is None else mapping.get(okey, okey)
-            if okey in obj_entry and obj_entry[okey] != oval:
+            if okey in obj_entry and obj_entry[okey] != oval and not change_ok:
                 msg = "different_static_attr: %s.%s has different attribute '%s' value: (old=%s, new=%s)" % (objtype, objid, okey, obj_entry[okey], oval)
                 self.warnings.append((objid, msg))
             else:
@@ -188,6 +217,8 @@ class OOILoader(object):
             msg = "invalid_rd: %s is not a node designator" % (ooi_rd.rd)
             self.warnings.append((ooi_rd.rd, msg))
             return
+        # TODO: Create a default name by structure (subsite name + node type name)
+        nodetypes = self.get_type_assets('nodetype')
         self._add_object_attribute('node',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
             mapping={},
@@ -229,16 +260,14 @@ class OOILoader(object):
             return
         self._add_object_attribute('site',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
-            mapping={'Site_Name':'name'},
-            Site_Name=row['Site_Name'])
+            name=row['Site_Name'])
 
     def _parse_AttributeReportSubseries(self, row):
         key = row['Class'] + row['Series'] + row['Subseries']
         self._add_object_attribute('subseries',
             key, row['Attribute'], row['AttributeValue'],
-            mapping={'Subseries_Name':'name',
-                     'Description':'description'},
-            Subseries=row['Subseries'], Subseries_Name=row['Subseries_Name'], Class=row['Class'])
+            mapping={'Description':'description'},
+            Subseries=row['Subseries'], name=row['Subseries_Name'], Class=row['Class'])
 
     def _parse_AttributeReportSubsites(self, row):
         ooi_rd = OOIReferenceDesignator(row['Subsite'])
@@ -248,8 +277,7 @@ class OOILoader(object):
             return
         self._add_object_attribute('subsite',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
-            mapping={'Subsite_Name':'name'},
-            Subsite_Name=row['Subsite_Name'])
+            name=row['Subsite_Name'])
 
     def _parse_InstrumentCatalogFull(self, row):
         # This adds the subseries to current sensors and make/model.
@@ -269,9 +297,9 @@ class OOILoader(object):
         # Build up the node type here
         ntype_txt = row['Textbox11']
         ntype_id = ntype_txt[:2]
-        ntype_name = ntype_txt[3:-1].strip('()')
-        self._add_object_attribute('nodetype',
-            ntype_id, None, None, name=ntype_name)
+        #ntype_name = ntype_txt[3:-1].strip('()')
+        #self._add_object_attribute('nodetype',
+        #    ntype_id, None, None, name=ntype_name)
 
         # Determine on which arrays the nodetype is used
         self._add_object_attribute('nodetype',
@@ -317,6 +345,63 @@ class OOILoader(object):
         # Adds family to instrument class
         self._add_object_attribute('class',
             row['Class'], 'family', row['Family'])
+
+    def _parse_Arrays(self, row):
+        ooi_rd = row['Reference ID']
+        name=row['Name']
+        self._add_object_attribute('array',
+            ooi_rd, 'name', name, change_ok=True)
+
+    def _parse_Sites(self, row):
+        ooi_rd = row['Reference ID']
+        name = "%s (%s)" % (row['Name'], ooi_rd[4:8])
+        self._add_object_attribute('subsite',
+            ooi_rd, 'name', name, change_ok=True)
+
+    def _parse_Nodes(self, row):
+        ooi_rd = row['Reference ID']
+        node_entry = dict(
+            parent_id=row['Parent Reference ID'],
+            platform_id=row['Platform Reference ID'],
+            platform_config_type=row['Platform Configuration Type'],
+            platform_agent_type=row['Platform Agent Type'],
+            is_platform=row['Platform Reference ID'] == ooi_rd,
+        )
+        self._add_object_attribute('node',
+            ooi_rd, None, None, **node_entry)
+
+    def _parse_Platforms(self, row):
+        ooi_rd = row['Reference ID']
+        node_entry = dict(
+            name=row['Name'],
+            has_nodes=row['Marine Reference ID'] == row['Site Reference ID'],
+            deployment_date=row['Deployment Date'],
+            controller_type=row['Controller Type'],
+            power_configuration=row['Power Configuration'],
+            terrestrial_link=row['Terrestial Link'],
+        )
+        self._add_object_attribute('node',
+            ooi_rd, None, None, change_ok=True, **node_entry)
+
+    def _parse_NodeTypes(self, row):
+        code = row['Code']
+        name = row['Name']
+        self._add_object_attribute('nodetype',
+            code, None, None, name=name)
+
+    def _parse_PlatformAgentTypes(self, row):
+        #
+        code = row['Code']
+        entry = dict(
+            name=row['Name'],
+            rt_control_path=row['RT Control Path'],
+            rt_data_path=row['RT Data Path'],
+            rt_data_acquisition=row['RT Data Acquisition'],
+            full_data_acquisition=row['Full Data Acquisition'],
+            ci_interface_location=row['Marine-CI Interface Location'],
+        )
+        self._add_object_attribute('platformagent',
+            code, None, None, **entry)
 
     def _perform_ooi_checks(self):
         # Perform some consistency checking on imported objects
@@ -369,7 +454,20 @@ class OOILoader(object):
         log.debug("_checkooi_ref_exists: Different references=%s (of total=%s) vs target objects=%s" % (len(refattrset), total_ref, len(ottarg_objects)))
 
     def _post_process(self):
-        pass
+        nodes = self.get_type_assets('node')
+        nodetypes = self.get_type_assets('nodetype')
+        subsites = self.get_type_assets('subsite')
+
+        # Make sure all node types have a name
+        for code, obj in nodetypes.iteritems():
+            if not obj.get('name', None):
+                obj['name'] = "(" + code + ")"
+
+        # Make sure all nodes have a name
+        for ooi_rd, obj in nodes.iteritems():
+            if not obj.get('name', None):
+                name = subsites[ooi_rd[:8]]['name'] + " - " + nodetypes[ooi_rd[9:11]]['name']
+                obj['name'] = name
 
     def get_marine_io(self, ooi_rd_str):
         ooi_rd = OOIReferenceDesignator(ooi_rd_str)
