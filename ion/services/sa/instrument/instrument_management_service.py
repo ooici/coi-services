@@ -1720,6 +1720,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 if hasattr(att, 'content'):
                     delattr(att, 'content')
 
+        #clean up InstAgent list as it sometimes includes the device
+        ia = []
+        for agent in extended_instrument.instrument_agent:
+            if agent.type_ == 'InstrumentAgent':
+                ia.append(agent)
+        extended_instrument.instrument_agent = ia
+
         return extended_instrument
 
 
