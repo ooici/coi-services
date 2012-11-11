@@ -14,13 +14,16 @@ and the relationships between them
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.util.containers import DotDict
+from pyon.util.containers import DotDict, create_unique_identifier
+from pyon.agent.agent import ResourceAgentState
 
 from ooi.logging import log
 from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
 from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
+from datetime import date, datetime, timedelta
+import time
 
 #for logical/physical associations, it makes sense to search from MFMS
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
@@ -32,14 +35,13 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.objects import OrgTypeEnum, ComputedValueAvailability
 
-from pyon.util.containers import create_unique_identifier
 
 import constraint
 
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
 DATA_OPERATOR_ROLE        = 'DATA_OPERATOR'
-
+AGENT_STATUS_EVENT_DELTA_DAYS = 5
 
 
 class ObservatoryManagementService(BaseObservatoryManagementService):
@@ -1302,6 +1304,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 if hasattr(att, 'content'):
                     delattr(att, 'content')
 
+        #get status of Site instruments
+        extended_site.instruments_operational, extended_site.instruments_not_operational = self._get_instrument_states(extended_site.instrument_devices)
+
         return extended_site
 
 
@@ -1331,3 +1336,50 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def get_number_platforms_deployed(self, observatory_id):
         return "0"
 
+    def _get_instrument_states(self, instrument_device_obj_list=None):
+
+        op = []
+        non_op = []
+        if instrument_device_obj_list is None:
+            instrument_device_list = []
+
+        #call eventsdb to check  data-related events from this device.
+        now = self._makeEpochTime(datetime.utcnow())
+        query_interval = self._makeEpochTime( datetime.utcnow() - timedelta( days=AGENT_STATUS_EVENT_DELTA_DAYS ) )
+
+
+        for device_obj in instrument_device_obj_list:
+            # first check the instrument lifecycle state
+            if not ( device_obj.lcstate in [LCS.DEPLOYED_AVAILABLE, LCS.INTEGRATED_DISCOVERABLE] ):
+                non_op.append(device_obj)
+
+            else:
+                # we dont have a find_events that takes a list yet so loop thru the instruments and get recent events for each.
+                events = self.clients.user_notification.find_events(origin=device_obj._id, type= 'ResourceAgentStateEvent', max_datetime = now, min_datetime = query_interval, limit=1)
+                # the most recent event is first so assume that is the current state
+                if not events:
+                    non_op.append(device_obj)
+                else:
+                    current_instrument_state = events[0].state
+                    if current_instrument_state in [ResourceAgentState.STREAMING, ResourceAgentState.CALIBRATE, ResourceAgentState.BUSY, ResourceAgentState.DIRECT_ACCESS]:
+                        op.append(device_obj)
+                    else:
+                        op.append(device_obj)
+
+        return op, non_op
+
+
+    @staticmethod
+    def _makeEpochTime(date_time):
+        """
+        provides the seconds since epoch give a python datetime object.
+
+        @param date_time Python datetime object
+        @retval seconds_since_epoch int
+        """
+        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
+        #'2009-07-04 18:30:47'
+        pattern = '%Y-%m-%d %H:%M:%S'
+        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
+
+        return seconds_since_epoch

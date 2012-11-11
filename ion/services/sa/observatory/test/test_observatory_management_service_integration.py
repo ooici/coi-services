@@ -3,20 +3,22 @@
 from pyon.public import Container, log, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.event.event import EventPublisher
+from pyon.util.context import LocalContextMixin
+from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
+from pyon.public import RT, PRED
+from pyon.agent.agent import ResourceAgentState
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 
-from pyon.util.context import LocalContextMixin
-from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
-from pyon.public import RT, PRED
-#from mock import Mock, patch
-from pyon.util.unit_test import PyonTestCase
+
 from nose.plugins.attrib import attr
-import unittest
+import unittest, time
 from ooi.logging import log
+from datetime import date, datetime, timedelta
 
 from ion.services.sa.test.helpers import any_old
 
@@ -44,6 +46,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.org_management_service = OrgManagementServiceClient(node=self.container.node)
         self.instrument_management_service =  InstrumentManagementServiceClient(node=self.container.node)
         #print 'TestObservatoryManagementServiceIntegration: started services'
+
+        self.event_publisher = EventPublisher()
 
 #    @unittest.skip('this exists only for debugging the launch process')
 #    def test_just_the_setup(self):
@@ -442,7 +446,9 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         instDevice2_id = self.instrument_management_service.create_instrument_device(instrument_device=instDevice2_obj)
         self.OMS.assign_resource_to_observatory_org(resource_id=instDevice2_id, org_id=org_id)
 
-
+        #--------------------------------------------------------------------------------
+        # Get the extended Org
+        #--------------------------------------------------------------------------------
         #test the extended resource
         extended_org = self.org_management_service.get_marine_facility_extension(org_id)
         #log.debug("test_observatory_org_extended: extended_org:  %s ", str(extended_org))
@@ -459,3 +465,32 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(0, len(extended_org.members))
         self.assertEqual(0, extended_org.number_of_platforms)
 
+        #--------------------------------------------------------------------------------
+        # Get the extended Site
+        #--------------------------------------------------------------------------------
+
+        #create device state events to use for op /non-op filtering in extended
+        t = self._makeEpochTime( datetime.utcnow() )
+        self.event_publisher.publish_event(  ts_created= t,  event_type = 'ResourceAgentStateEvent',
+            origin = instDevice1_id, state=ResourceAgentState.STREAMING  )
+
+        self.event_publisher.publish_event( ts_created= t,   event_type = 'ResourceAgentStateEvent',
+            origin = instDevice2_id, state=ResourceAgentState.INACTIVE )
+        extended_site =  self.OMS.get_site_extension(inst_site_id)
+
+        log.debug("test_observatory_org_extended: extended_site:  %s ", str(extended_site))
+
+    @staticmethod
+    def _makeEpochTime(date_time):
+        """
+        provides the seconds since epoch give a python datetime object.
+
+        @param date_time Python datetime object
+        @retval seconds_since_epoch int
+        """
+        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
+        #'2009-07-04 18:30:47'
+        pattern = '%Y-%m-%d %H:%M:%S'
+        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
+
+        return seconds_since_epoch
