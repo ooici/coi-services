@@ -1910,7 +1910,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     # intelligently merge statuses with current value
-    def _consolidate(statuses):
+    def _consolidate(self, statuses):
 
         # any critical means all critical
         if StatusType.STATUS_CRITICAL in statuses:
