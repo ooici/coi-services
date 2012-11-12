@@ -12,11 +12,11 @@ from interface.objects import DataProduct, DataProductVersion
 from interface.objects import ComputedValueAvailability
 
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import RT, OT, PRED, LCS
+from pyon.public import RT, OT, PRED, LCS, CFG
 from pyon.util.ion_time import IonTime
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false
-
+import string
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -567,7 +567,8 @@ class DataProductManagementService(BaseDataProductManagementService):
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "Dataset for this Data Product could not be located"
         except Exception as e:
-            raise e
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "Could not calculate time range for this data product"
 
         return ret
 
@@ -663,10 +664,14 @@ class DataProductManagementService(BaseDataProductManagementService):
         # The unique pointer to this set of data
         ret = IonObject(OT.ComputedStringValue)
         ret.value  = ""
-        ret.status = ComputedValueAvailability.NOTAVAILABLE
-        ret.reason = "FIXME."
 
+        erddap_host = CFG.get_safe('server.erddap.host','localhost')
+        errdap_port = CFG.get_safe('server.erddap.port','8080')
+        dataset_id = self._get_dataset_id(data_product_id)
+        ret.value  = string.join( ["http://", erddap_host, ":", errdap_port,"/erddap/griddap/", dataset_id, "_0.html"],'')
 
+        ret.status = ComputedValueAvailability.PROVIDED
+        log.debug("get_data_url: data_url: %s", ret.value)
         return ret
 
     def get_provenance(self, data_product_id=''):
@@ -747,7 +752,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                 replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1)
                 #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                ret.value =  {k : rdt[k].tolist() for k,v in rdt.iteritems()}
+                ret.value =  {k : str(k) + ': ' + str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE

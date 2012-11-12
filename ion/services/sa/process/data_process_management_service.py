@@ -241,7 +241,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         configuration = configuration or DotDict()
 
-        validate_is_not_none( out_data_products, "No output data products passed in")
+        #validate_is_not_none( out_data_products, "No output data products passed in")
 
         #---------------------------------------------------------------------------------------
         # Read the data process definition
@@ -661,6 +661,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             for att in extended_data_process_definition.attachments:
                 if hasattr(att, 'content'):
                     delattr(att, 'content')
+
+        # replace list of lists with single list
+        replacement_data_products = []
+        for inner_list in extended_data_process_definition.data_products:
+            if inner_list:
+                for actual_data_product in inner_list:
+                    if actual_data_product:
+                        replacement_data_products.append(actual_data_product)
+        extended_data_process_definition.data_products = replacement_data_products
 
         return extended_data_process_definition
 

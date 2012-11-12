@@ -257,6 +257,15 @@ class IdentityManagementService(BaseIdentityManagementService):
             except Exception, e:
                 raise NotFound('Could not retrieve UserRoles for User Info id: %s - %s' % (user_info_id, e.message))
 
+        # replace list of lists with single list
+        replacement_owned_resources = []
+        for inner_list in extended_user.owned_resources:
+            if inner_list:
+                for actual_data_product in inner_list:
+                    if actual_data_product:
+                        replacement_owned_resources.append(actual_data_product)
+        extended_user.owned_resources = replacement_owned_resources
+
         return extended_user
 
     def delete_user_credential_association(self, user_credential_id, actor_identity_id):
