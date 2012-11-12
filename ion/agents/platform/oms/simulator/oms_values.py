@@ -97,18 +97,25 @@ def _create_sine_generator(sine_period, gen_period, min_val, max_val):
 
 _default_generator = _create_simple_generator(gen_period=5)
 
-_generators = {
-    ('Node1A', 'input_voltage'): _create_sine_generator(
+# for simplicity, use the same parameterized sine generator for
+# all "input_voltage" regardless of the platform:
+_input_voltage_generator = _create_sine_generator(
                                         sine_period=30,
                                         gen_period=5,
                                         min_val=-500,
-                                        max_val=+500),
+                                        max_val=+500)
 
-    ('Node1D', 'input_voltage'): _create_sine_generator(
-                                        sine_period=20,
-                                        gen_period=2,
-                                        min_val=50,
-                                        max_val=100),
+# concrete generators per platform/attribute:
+_plat_attr_generators = {
+    # we used to have a couple here, but now none for the moment.
+
+    # An example would be:
+#    ('LJ01D', 'input_voltage'): _create_sine_generator(
+#                                        sine_period=30,
+#                                        gen_period=5,
+#                                        min_val=-500,
+#                                        max_val=+500),
+
 }
 
 
@@ -121,11 +128,15 @@ def generate_values(platform_id, attr_id, from_time, to_time):
     @param from_time    lower limit (inclusive) of desired time range
     @param to_time      upper limit (exclusive) of desired time range
     """
-    gen = _generators.get((platform_id, attr_id), _default_generator)
+    if 'input_voltage' == attr_id:
+        gen = _input_voltage_generator
+    else:
+        gen = _plat_attr_generators.get((platform_id, attr_id), _default_generator)
+
     return gen(from_time, to_time)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # do not restrict the absolute from_time for this demo program:
     _START_TIME = 0
 
