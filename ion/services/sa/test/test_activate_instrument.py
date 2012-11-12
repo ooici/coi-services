@@ -350,15 +350,17 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         """
 
+
         #--------------------------------------------------------------------------------
         # Get the extended data product to see if it contains the granules
         #--------------------------------------------------------------------------------
         extended_product = self.dpclient.get_data_product_extension(data_product_id1)
         self.assertEqual(data_product_id1, extended_product._id)
-        self.assertEqual( extended_product.computed.last_granule.value['quality_flag'], 'quality_flag: ok' )
+        #log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
+        #log.debug( "test_activateInstrumentSample: extended_product computed %s", str(extended_product.computed) )
+        #log.debug( "test_activateInstrumentSample: extended_product last_granule %s", str(extended_product.computed.last_granule.value) )
+        self.assertEqual( extended_product.computed.last_granule.value['quality_flag'], 'ok' )
         self.assertEqual( 2, len(extended_product.computed.data_datetime.value) )
-        log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
-
 
 
         #--------------------------------------------------------------------------------

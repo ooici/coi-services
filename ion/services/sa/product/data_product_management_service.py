@@ -541,9 +541,24 @@ class DataProductManagementService(BaseDataProductManagementService):
                     dp_list.append( self.clients.resource_registry.read(dataprod) )
         extended_product.provenance_product_list = set(dp_list)  #remove dups in list
 
-        #set the data_ingestion_datetime fromget_data_datetime
+        #set the data_ingestion_datetime from get_data_datetime
         if extended_product.computed.data_datetime.status == ComputedValueAvailability.PROVIDED :
             extended_product.data_ingestion_datetime =  extended_product.computed.data_datetime.value[1]
+
+        # divide up the active and past user subscriptions
+        active = []
+        nonactive = []
+        for notification_obj in extended_product.computed.active_user_subscriptions.value:
+            if notification_obj.lcstate == LCS.RETIRED:
+                nonactive.append(notification_obj)
+            else:
+                active.append(notification_obj)
+
+        extended_product.computed.active_user_subscriptions.value = active
+        extended_product.computed.past_user_subscriptions.value = nonactive
+        extended_product.computed.past_user_subscriptions.status = ComputedValueAvailability.PROVIDED
+        extended_product.computed.number_active_subscriptions.value = len(active)
+        extended_product.computed.number_active_subscriptions.status = ComputedValueAvailability.PROVIDED
 
         return extended_product
 
@@ -713,30 +728,30 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = IonObject(OT.ComputedListValue)
         ret.value = []
         try:
+            ret.value = self.clients.user_notification.get_subscriptions(resource_id=data_product_id, include_nonactive=True)
             ret.status = ComputedValueAvailability.PROVIDED
-            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+            ret.reason = "Product subscription infromation not provided by UserNotificationService"
         except Exception as e:
             raise e
 
         return ret
 
-    def get_past_user_subscriptions(self, data_product_id=''):
-        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
-        ret = IonObject(OT.ComputedListValue)
-        ret.value = []
-        try:
-            ret.status = ComputedValueAvailability.PROVIDED
-            raise NotFound #todo: ret.value = ???
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
-        except Exception as e:
-            raise e
-
-        return ret
+#    def get_past_user_subscriptions(self, data_product_id=''):
+#        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
+#        ret = IonObject(OT.ComputedListValue)
+#        ret.value = []
+#        try:
+#            ret.status = ComputedValueAvailability.PROVIDED
+#            raise NotFound #todo: ret.value = ???
+#        except NotFound:
+#            ret.status = ComputedValueAvailability.NOTAVAILABLE
+#            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+#        except Exception as e:
+#            raise e
+#
+#        return ret
 
 
     def get_last_granule(self, data_product_id=''):
@@ -752,7 +767,8 @@ class DataProductManagementService(BaseDataProductManagementService):
                 replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1)
                 #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                ret.value =  {k : str(k) + ': ' + str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
+                #ret.value =  {k : str(k) + ': ' + str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
+                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
