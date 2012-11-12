@@ -1092,8 +1092,9 @@ class OrgManagementService(BaseOrgManagementService):
 
         log.debug("get_marine_facility_extension: extended_org 2:  %s ", str(extended_org))
 
+        instruments_not_deployed = []
         #compute the non deployed devices
-        if hasattr(extended_org, 'instruments') and hasattr(extended_org, 'instruments_deployed') and hasattr(extended_org, 'instruments_not_deployed'):
+        if hasattr(extended_org, 'instruments') and hasattr(extended_org, 'instruments_deployed') :
             #clean up the list of deployed instrument
             dply_inst = []
             for instrument_deployed in extended_org.instruments_deployed:
@@ -1107,9 +1108,11 @@ class OrgManagementService(BaseOrgManagementService):
             #compute the list of non-deployed instruments
             for org_instrument in extended_org.instruments:
                 if not org_instrument in extended_org.instruments_deployed:
-                    extended_org.instruments_not_deployed.append(org_instrument)
+                    instruments_not_deployed.append(org_instrument)
 
-        if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed') and hasattr(extended_org, 'platforms_not_deployed'):
+
+        platforms_not_deployed = []
+        if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed'):
             #clean up the list of deployed platforms
             dply_pltfrms = []
             for platform_deployed in extended_org.platforms_deployed:
@@ -1123,7 +1126,7 @@ class OrgManagementService(BaseOrgManagementService):
             #compute the list of non-deployed platforms
             for org_platform in extended_org.platforms:
                 if not extended_org.platforms_deployed.count(org_platform):
-                    extended_org.platforms_not_deployed.append(org_platform)
+                    platforms_not_deployed.append(org_platform)
 
 
         #set counter attributes
@@ -1132,6 +1135,13 @@ class OrgManagementService(BaseOrgManagementService):
         extended_org.number_of_platforms_deployed = len(extended_org.platforms_deployed)
         extended_org.number_of_instruments = len(extended_org.instruments)
         extended_org.number_of_instruments_deployed = len(extended_org.instruments_deployed)
+
+        #flatten data products list
+        out_list = []
+        for prod_list in extended_org.data_products:
+            for prod in prod_list:
+                out_list.append(prod)
+        extended_org.data_products = out_list
 
         return extended_org
 
