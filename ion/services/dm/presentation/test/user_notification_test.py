@@ -178,6 +178,11 @@ class UserNotificationTest(PyonTestCase):
         self.user_notification.update_user_info_dictionary = mocksignature(self.user_notification.update_user_info_dictionary)
         self.user_notification.update_user_info_dictionary.return_value = ''
 
+        self.user_notification.notifications = []
+
+        self.user_notification._update_notification_in_notifications_dict = mocksignature(self.user_notification._update_notification_in_notifications_dict)
+        self.user_notification.update_user_info_dictionary.return_value = ''
+
         self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
 
         #-------------------------------------------------------------------------------------------------------------------
@@ -1603,14 +1608,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Use UNS to get the subscriptions
         #--------------------------------------------------------------------------------------
-        result_notifications= self.unsc.get_subscriptions(resource_id=data_product_id, include_nonactive=False)
+        res_notifs= self.unsc.get_subscriptions(resource_id=data_product_id, include_nonactive=False)
 
-        log.debug("result_notifications::: %s" % result_notifications)
-        log.debug("number of result_notifications::: %s" % len(result_notifications))
+        log.debug("res_notifs::: %s" % res_notifs)
+        log.debug("number of res_notifs::: %s" % len(res_notifs))
 
-        self.assertEquals(len(result_notifications), 2)
+        self.assertEquals(len(res_notifs), 1)
 
-        for notific in result_notifications:
+        for notific in res_notifs:
             self.assertEquals(notific.origin, data_product_id)
             self.assertEquals(notific.temporal_bounds.end_datetime, '')
 
@@ -1621,11 +1626,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Use UNS to get the all subscriptions --- including retired
         #--------------------------------------------------------------------------------------
-        result_notifications = self.unsc.get_subscriptions(resource_id=data_product_id, include_nonactive=True)
+        res_notifs = self.unsc.get_subscriptions(resource_id=data_product_id, include_nonactive=True)
 
-        for notific in result_notifications:
+        for notific in res_notifs:
             self.assertEquals(notific.origin, data_product_id)
 
-        self.assertEquals(len(result_notifications), 2)
+        self.assertEquals(len(res_notifs), 2)
 
-        log.debug("All subscriptions, number::: %s" % len(result_notifications))
+        log.debug("All subscriptions, number::: %s" % len(res_notifs))

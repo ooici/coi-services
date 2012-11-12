@@ -466,7 +466,15 @@ class UserNotificationService(BaseUserNotificationService):
         old_notification = self.clients.resource_registry.read(notification._id)
 
         #-------------------------------------------------------------------------------------------------------------------
-        # Update the notification
+        # Update the notification in the notifications dict
+        #-------------------------------------------------------------------------------------------------------------------
+
+
+        self._update_notification_in_notifications_dict(new_notification=notification,
+                                                        old_notification=old_notification,
+                                                        notifications=self.notifications)
+        #-------------------------------------------------------------------------------------------------------------------
+        # Update the notification in the registry
         #-------------------------------------------------------------------------------------------------------------------
 
         self.clients.resource_registry.update(notification)
@@ -1037,44 +1045,50 @@ class UserNotificationService(BaseUserNotificationService):
         """
 
 
-        if include_nonactive:
-            notifications_all = []
-            for notif in self.notifications.values():
-                if notif.origin==resource_id:
-                    notifications_all.append(notif)
-            return notifications_all
-        else:
-            notifications_active = []
-
-            for notif in self.notifications.values():
-                if notif.temporal_bounds.end_datetime == '' and notif.origin==resource_id:
-                    # Add the active notification
-                    notifications_active.append(notif)
-
-            return notifications_active
-
-
-#
-#        search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
-#        ret_vals = self.discovery.parse(search_origin)
-#        log.debug("ret_vals::: %s" % ret_vals)
-#
-#        for item in ret_vals:
-#            if item['_type'] == 'NotificationRequest':
-#                notif = self.clients.resource_registry.read(item['_id'])
-#                if include_nonactive:
-#                    # Add active or retired notification
-#                    notifications_all.add(notif)
-#                elif notif.temporal_bounds.end_datetime == '':
-#                    # Add the active notification
-#                    notifications_active.add(notif)
-#
 #        if include_nonactive:
-#            log.debug("found all notifications: num: %s " % len(notifications_all))
-#            return list(notifications_all)
+#            notifications_all = []
+#            for notif in self.notifications.values():
+#                if notif.origin==resource_id:
+#                    notifications_all.append(notif)
+#            return notifications_all
 #        else:
-#            log.debug("found ACTIVE notifications: num: %s " % len(notifications_active))
-#            return list(notifications_active)
+#            notifications_active = []
+#
+#            for notif in self.notifications.values():
+#                if notif.temporal_bounds.end_datetime == '' and notif.origin==resource_id:
+#                    # Add the active notification
+#                    notifications_active.append(notif)
+#
+#            return notifications_active
+
+
+
+        search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
+        ret_vals = self.discovery.parse(search_origin)
+        log.debug("ret_vals::: %s" % ret_vals)
+
+        notifications_all = set()
+        notifications_active = set()
+
+        for item in ret_vals:
+
+            if item['_type'] == 'NotificationRequest':
+                notif = self.clients.resource_registry.read(item['_id'])
+
+                if include_nonactive:
+                    # Add active or retired notification
+                    notifications_all.add(notif)
+
+                elif notif.temporal_bounds.end_datetime == '':
+                    # Add the active notification
+                    notifications_active.add(notif)
+
+        if include_nonactive:
+            log.debug("found all notifications: num: %s " % len(notifications_all))
+            return list(notifications_all)
+        else:
+            log.debug("found ACTIVE notifications: num: %s " % len(notifications_active))
+            return list(notifications_active)
 
 
     def _notification_in_notifications(self, notification = None, notifications = None):
@@ -1086,3 +1100,15 @@ class UserNotificationService(BaseUserNotificationService):
             notif.event_type == notification.event_type:
                 return id
         return None
+
+    def _update_notification_in_notifications_dict(self, new_notification = None, old_notification = None, notifications = None ):
+
+        for id, notif in notifications.iteritems():
+            if notif.name == old_notification.name and\
+               notif.origin == old_notification.origin and\
+               notif.origin_type == old_notification.origin_type and\
+               notif.event_type == old_notification.event_type:
+                notifications.pop(id)
+                notifications[id] = new_notification
+                break
+
