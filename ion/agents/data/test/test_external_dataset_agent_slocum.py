@@ -11,6 +11,7 @@
 from pyon.public import log, IonObject
 from pyon.ion.resource import PRED, RT
 #from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -31,7 +32,7 @@ from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 import numpy
 
-@attr('INT_LONG', group='eoi')
+@attr('INT_LONG', group='now')
 class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.slocum_data_handler',
@@ -46,12 +47,13 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         # TODO: some or all of this (or some variation) should move to DAMS'
 
         # Build the test resources for the dataset
+        dms_cli = DatasetManagementServiceClient()
         dams_cli = DataAcquisitionManagementServiceClient()
         dpms_cli = DataProductManagementServiceClient()
         rr_cli = ResourceRegistryServiceClient()
         pubsub_cli = PubsubManagementServiceClient()
 
-        eda = ExternalDatasetAgent()
+        eda = ExternalDatasetAgent(handler_module=self.DVR_CONFIG['dvr_mod'], handler_class=self.DVR_CONFIG['dvr_cls'])
         eda_id = dams_cli.create_external_dataset_agent(eda)
 
         eda_inst = ExternalDatasetAgentInstance()
@@ -141,7 +143,7 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
 
         # Create DataSourceModel
         dsrc_model = DataSourceModel(name='slocum_model')
-        dsrc_model.model = 'SLOCUM'
+#        dsrc_model.model = 'SLOCUM'
         dsrc_model.data_handler_module = 'N/A'
         dsrc_model.data_handler_class = 'N/A'
 
@@ -162,8 +164,15 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         #        dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
 
         #create temp streamdef so the data product can create the stream
-        pdict = self._create_parameter_dictionary()
-        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp", parameter_dictionary=pdict.dump())
+        pc_list=[]
+        for pc_k, pc in self._create_parameter_dictionary().iteritems():
+            pc_list.append(dms_cli.create_parameter_context(pc_k, pc[1].dump()))
+
+        pdict_id = dms_cli.create_parameter_dictionary('slocum_param_dict', pc_list)
+
+        streamdef_id = pubsub_cli.create_stream_definition(name="slocum_stream_def", description="stream def for slocum testing", parameter_dictionary_id=pdict_id)
+
+#        dpms_cli.create_data_product()
 
         # Generate the data product and associate it to the ExternalDataset
 
@@ -178,16 +187,6 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-
-        parameter_dictionary = parameter_dictionary.dump()
-
-        dprod = IonObject(RT.DataProduct,
-            name='usgs_parsed_product',
-            description='parsed usgs product',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
         dprod = IonObject(RT.DataProduct,
             name='slocum_parsed_product',
             description='parsed slocum product',
@@ -196,7 +195,7 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
 
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,
                                                     stream_definition_id=streamdef_id,
-                                                    parameter_dictionary=parameter_dictionary)
+                                                    parameter_dictionary=pdict_id)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
 
