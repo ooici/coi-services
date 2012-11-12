@@ -21,10 +21,7 @@ from interface.objects import ComputedValueAvailability
 
 import string
 import time
-import gevent
-from gevent.timeout import Timeout
 from email.mime.text import MIMEText
-from gevent import Greenlet
 import elasticpy as ep
 from datetime import datetime
 
@@ -306,11 +303,7 @@ class UserNotificationService(BaseUserNotificationService):
         # load event originators, types, and table
         #---------------------------------------------------------------------------------------------------
 
-        self.event_types = CFG.event.types
-        self.event_table = {}
         self.notifications = {}
-
-        self.notifs = set()
 
         #---------------------------------------------------------------------------------------------------
         # Get the clients
@@ -394,9 +387,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         if not user_id:
             raise BadRequest("User id not provided.")
-
-        log.debug("user_id::: %s" % user_id)
-        log.debug("self.event_processor.user_info:: %s" % self.event_processor.user_info)
 
         #---------------------------------------------------------------------------------------------------
         # Persist Notification object as a resource if it has already not been persisted
@@ -542,9 +532,6 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
 
         notification_request.temporal_bounds.end_datetime = self.makeEpochTime(self.__now())
-
-        log.debug("notification request::: %s" % notification_request)
-        log.debug("notification request.temporal_bounds.end_datetime::: %s" % notification_request.temporal_bounds.end_datetime)
 
         self.clients.resource_registry.update(notification_request)
 
@@ -1044,28 +1031,9 @@ class UserNotificationService(BaseUserNotificationService):
 
         """
 
-
-#        if include_nonactive:
-#            notifications_all = []
-#            for notif in self.notifications.values():
-#                if notif.origin==resource_id:
-#                    notifications_all.append(notif)
-#            return notifications_all
-#        else:
-#            notifications_active = []
-#
-#            for notif in self.notifications.values():
-#                if notif.temporal_bounds.end_datetime == '' and notif.origin==resource_id:
-#                    # Add the active notification
-#                    notifications_active.append(notif)
-#
-#            return notifications_active
-
-
-
         search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
         ret_vals = self.discovery.parse(search_origin)
-        log.debug("ret_vals::: %s" % ret_vals)
+        log.debug("Returned results: %s" % ret_vals)
 
         notifications_all = set()
         notifications_active = set()
@@ -1084,10 +1052,8 @@ class UserNotificationService(BaseUserNotificationService):
                     notifications_active.add(notif)
 
         if include_nonactive:
-            log.debug("found all notifications: num: %s " % len(notifications_all))
             return list(notifications_all)
         else:
-            log.debug("found ACTIVE notifications: num: %s " % len(notifications_active))
             return list(notifications_active)
 
 

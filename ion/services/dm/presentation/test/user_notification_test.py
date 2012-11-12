@@ -579,6 +579,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # This checks that the notification has been retired.
         self.assertNotEquals(notific.temporal_bounds.end_datetime, '')
 
+        log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -1616,10 +1617,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             past_notification_ids.add(notification_id_past_1)
             past_notification_ids.add(notification_id_past_2)
 
-        log.debug("len(active_notification_ids)::: %s" % len(active_notification_ids))
-        log.debug("len(past_notification_ids)::: %s" % len(past_notification_ids))
+        log.debug("Number of active notification ids: %s" % len(active_notification_ids))
+        log.debug("Number of past notification ids: %s" % len(past_notification_ids))
 
-        # Retire some notifications
+        # Retire the retired-to-be notifications
         for notific_id in past_notification_ids:
             self.unsc.delete_notification(notification_id=notific_id)
 
@@ -1628,17 +1629,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         res_notifs= self.unsc.get_subscriptions(resource_id=data_product_id, include_nonactive=False)
 
-        log.debug("res_notifs::: %s" % res_notifs)
-        log.debug("number of res_notifs::: %s" % len(res_notifs))
+        log.debug("Result for subscriptions: %s" % res_notifs)
+        log.debug("Number of subscriptions returned: %s" % len(res_notifs))
 
         self.assertEquals(len(res_notifs), 2)
 
         for notific in res_notifs:
             self.assertEquals(notific.origin, data_product_id)
             self.assertEquals(notific.temporal_bounds.end_datetime, '')
-
-        log.debug("Verified that the event processor correctly updated its user info dictionaries after an delete_notification()")
-        log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
 
 
         #--------------------------------------------------------------------------------------
@@ -1651,4 +1649,4 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(len(res_notifs), 4)
 
-        log.debug("All subscriptions, number::: %s" % len(res_notifs))
+        log.debug("Number of subscriptions including retired notifications: %s" % len(res_notifs))
