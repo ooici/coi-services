@@ -333,8 +333,6 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         if port is None:
             port = 8008
-        self.old_cwd = os.getcwd()
-        os.chdir(directory_to_serve)
         Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
         Handler.log_message = log_message
 
@@ -354,7 +352,6 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
     def _stop_webserver(self):
         if self._webserver is not None:
             self._web_glet.kill()
-            os.chdir(self.old_cwd)
 
     def _enable_code_download(self, whitelist=None):
 
@@ -526,7 +523,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         run_type = "pyon"
         proc_name = 'test_transform'
         module = "ion.my.module"
-        module_uri = "http://localhost:%s/module_to_download.py" % http_port
+        module_uri = "http://localhost:%s/ion/agents/cei/test/downloads/module_to_download.py" % http_port
         cls = 'TestDownloadProcess'
         parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
         response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
@@ -592,7 +589,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         run_type = "pyon"
         proc_name = 'test_transform'
         module = "ion.my.module"
-        module_uri = "http://localhost:%s/module_to_download.py" % http_port
+        module_uri = "http://localhost:%s/ion/agents/cei/test/downloads/module_to_download.py" % http_port
         cls = 'TestDownloadProcess'
         parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
 
@@ -622,7 +619,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         run_type = "pyon"
         proc_name = 'test_transformx'
         module = "ion.agents.cei.test.test_eeagent"
-        module_uri = "http://localhost:%s/module_to_download.py" % http_port
+        module_uri = "http://localhost:%s/ion/agents/cei/test/downloads/module_to_download.py" % http_port
         cls = 'TestProcess'
         parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
 
@@ -640,7 +637,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         run_type = "pyon"
         proc_name = 'test_transformx'
         module = "ion.agents.cei.test.test_eeagent"
-        module_uri = "http://localhost:%s/module_to_download.py" % http_port
+        module_uri = "http://localhost:%s/ion/agents/cei/test/downloads/module_to_download.py" % http_port
         cls = 'TestProcessNotReal'
         parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
 
