@@ -31,7 +31,7 @@ class FakeProcess(LocalContextMixin):
 
 
 
-@attr('INT', group='sax')
+@attr('INT', group='sa')
 #@unittest.skip('not working')
 class TestDataProductProvenance(IonIntegrationTestCase):
 
@@ -550,11 +550,12 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # Retrieve the extended resource for this data product
         #-------------------------------
         extended_product = self.dpmsclient.get_data_product_extension(ctd_l2_density_output_dp_id)
-        #self.assertEqual(ComputedValueAvailability.PROVIDED, extended_product.provenance_product_list.status)
-        log.debug("TestDataProductProvenance: DataProduct provenance_product_list  %s", str(extended_product.provenance_product_list))
+        self.assertEqual(1, len(extended_product.data_processes) )
+        self.assertEqual(3, len(extended_product.process_input_data_products[0]) )
+#        log.debug("TestDataProductProvenance: DataProduct provenance_product_list  %s", str(extended_product.provenance_product_list))
 #        log.debug("TestDataProductProvenance: DataProduct data_processes  %s", str(extended_product.data_processes))
 #        log.debug("TestDataProductProvenance: DataProduct process_input_data_products  %s", str(extended_product.process_input_data_products))
-        #log.debug("TestDataProductProvenance: provenance  %s", str(extended_product.computed.provenance.value))
+#        log.debug("TestDataProductProvenance: provenance  %s", str(extended_product.computed.provenance.value))
 
         #-------------------------------
         # Retrieve the extended resource for this data process
@@ -566,8 +567,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 #        log.debug("TestDataProductProvenance: DataProcess data_products  %s", str(extended_process_def.data_products))
         self.assertEqual(1, len(extended_process_def.data_processes) )
         self.assertEqual(3, len(extended_process_def.output_stream_definitions) )
-        self.assertEqual(1, len(extended_process_def.data_products) ) #one list because of one data process
-        self.assertEqual(3, len(extended_process_def.data_products[0]) ) #inside that inner list are the three output data products
+        self.assertEqual(3, len(extended_process_def.data_products) ) #one list because of one data process
 
         #-------------------------------
         # Request the xml report
