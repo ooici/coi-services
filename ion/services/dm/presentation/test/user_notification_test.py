@@ -1575,14 +1575,24 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Make notification request objects -- Remember to put names
         #--------------------------------------------------------------------------------------
 
-        notification_active = NotificationRequest(   name = "notification_1",
+        notification_active_1 = NotificationRequest(   name = "notification_1",
             origin=data_product_id,
             origin_type="type_1",
             event_type='ResourceLifecycleEvent')
 
-        notification_past = NotificationRequest(   name = "notification_2",
+        notification_active_2 = NotificationRequest(   name = "notification_2",
             origin=data_product_id,
             origin_type="type_2",
+            event_type='ResourceLifecycleEvent')
+
+        notification_past_1 = NotificationRequest(   name = "notification_3_to_be_retired",
+            origin=data_product_id,
+            origin_type="type_3",
+            event_type='DetectionEvent')
+
+        notification_past_2 = NotificationRequest(   name = "notification_4_to_be_retired",
+            origin=data_product_id,
+            origin_type="type_4",
             event_type='DetectionEvent')
 
         #--------------------------------------------------------------------------------------
@@ -1592,11 +1602,19 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         past_notification_ids = set()
 
         for user_id in user_ids:
-            notification_id_active =  self.unsc.create_notification(notification=notification_active, user_id=user_id)
-            active_notification_ids.add(notification_id_active)
+            notification_id_active_1 =  self.unsc.create_notification(notification=notification_active_1, user_id=user_id)
+            notification_id_active_2 =  self.unsc.create_notification(notification=notification_active_2, user_id=user_id)
 
-            notification_id_past =  self.unsc.create_notification(notification=notification_past, user_id=user_id)
-            past_notification_ids.add(notification_id_past)
+            # Store the ids for the active notifications in a set
+            active_notification_ids.add(notification_id_active_1)
+            active_notification_ids.add(notification_id_active_2)
+
+            notification_id_past_1 =  self.unsc.create_notification(notification=notification_past_1, user_id=user_id)
+            notification_id_past_2 =  self.unsc.create_notification(notification=notification_past_2, user_id=user_id)
+
+            # Store the ids for the retired-to-be notifications in a set
+            past_notification_ids.add(notification_id_past_1)
+            past_notification_ids.add(notification_id_past_2)
 
         log.debug("len(active_notification_ids)::: %s" % len(active_notification_ids))
         log.debug("len(past_notification_ids)::: %s" % len(past_notification_ids))
@@ -1613,7 +1631,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         log.debug("res_notifs::: %s" % res_notifs)
         log.debug("number of res_notifs::: %s" % len(res_notifs))
 
-        self.assertEquals(len(res_notifs), 1)
+        self.assertEquals(len(res_notifs), 2)
 
         for notific in res_notifs:
             self.assertEquals(notific.origin, data_product_id)
@@ -1631,6 +1649,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         for notific in res_notifs:
             self.assertEquals(notific.origin, data_product_id)
 
-        self.assertEquals(len(res_notifs), 2)
+        self.assertEquals(len(res_notifs), 4)
 
         log.debug("All subscriptions, number::: %s" % len(res_notifs))
