@@ -1533,6 +1533,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         success = self.event_poll(poller, 10)
         self.assertTrue(success)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_get_subscriptions(self):
         '''
         Test that the get_subscriptions works correctly
