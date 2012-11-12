@@ -683,7 +683,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         erddap_host = CFG.get_safe('server.erddap.host','localhost')
         errdap_port = CFG.get_safe('server.erddap.port','8080')
         dataset_id = self._get_dataset_id(data_product_id)
-        ret.value  = string.join( ["http://", erddap_host, ":", errdap_port,"/erddap/griddap/", dataset_id, "_0.html"],'')
+        ret.value  = string.join( ["http://", erddap_host, ":", str(errdap_port),"/erddap/griddap/", str(dataset_id), "_0.html"],'')
 
         ret.status = ComputedValueAvailability.PROVIDED
         log.debug("get_data_url: data_url: %s", ret.value)
