@@ -1286,7 +1286,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #register the platform as a data producer
         self.DAMS.register_instrument(platform_device_id)
 
-        return id
+        return platform_device_id
 
 
     def update_platform_device(self, platform_device=None):

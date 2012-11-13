@@ -86,7 +86,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sak')
 class TestOmsLaunch(IonIntegrationTestCase):
 
     def setUp(self):
@@ -546,7 +546,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
     def test_hierarchy(self):
         self._create_launch_verify(BASE_PLATFORM_ID)
 
-    @attr('INT', group='sa')
+    @attr('INT', group='sak')
     def test_single_platform(self):
         self._create_launch_verify('LJ01D')
 
@@ -579,7 +579,19 @@ class TestOmsLaunch(IonIntegrationTestCase):
         platform_streamdef_id = self.pubsubcli.create_stream_definition(name='platform_eng_parsed', parameter_dictionary_id=self.pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(platform_streamdef_id, self.platform_dprocdef_id, binding='output' )
 
-        platform_data_process_id = self.dataprocessclient.create_data_process(self.platform_dprocdef_id, [self.data_product_id], None)
+        config = {
+            'process':{
+                'timer_interval': 5,
+                'queue_name': 'a_queue',
+                'variable_name': 'input_voltage',
+                'time_field_name': 'preferred_timestamp',
+                'valid_values': [-100, 100],
+                'timer_origin': 'Interval Timer'
+            }
+        }
+
+
+        platform_data_process_id = self.dataprocessclient.create_data_process(self.platform_dprocdef_id, [self.data_product_id], {}, config)
         self.dataprocessclient.activate_data_process(platform_data_process_id)
 
 
