@@ -271,6 +271,8 @@ class IONLoader(ImmediateProcess):
 
                 if self.bulk:
                     num_bulk = self._finalize_bulk(category)
+                    self.container.resource_registry.rr_store._update_views()
+
             except IOError, ioe:
                 log.warn("Resource category file %s error: %s" % (filename, str(ioe)), exc_info=True)
             finally:
