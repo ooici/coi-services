@@ -436,7 +436,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Again do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
         #-------------------------------------------------------------------------------------
-        now = self.makeEpochTime(datetime.utcnow())
+        now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
         events_in_db = self.user_notification.find_events(origin='instrument_1',limit=100, max_datetime=now, descending=True)
 
         log.debug("events::: %s" % events_in_db)
