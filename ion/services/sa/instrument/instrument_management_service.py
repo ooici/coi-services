@@ -17,6 +17,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 from pyon.ion.resource import ExtendedResourceContainer
 from ooi.logging import log
 from pyon.util.ion_time import IonTime
+from pyon.util.containers import DotDict, get_ion_ts
 from interface.objects import  DeviceStatusType, DeviceCommsType
 #from pyon.core.object import ion_serializer
 from ion.services.sa.instrument.flag import KeywordFlag
@@ -1807,12 +1808,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval.status = ComputedValueAvailability.PROVIDED
 
         #call eventsdb to check  data-related events from this device.
-        log.debug("get_power_status_roll_up: device_id  %s", str(device_id))
-# Use Unix vs NTP for now. resource times are unix
-#        now = time.time() + IonTime.JAN_1970
-#        query_interval = ( time.time() - timedelta( seconds=15 ) ) + IonTime.JAN_1970
-        now = IonTime()
-        query_interval = ( time.time() - 15  )
+
+        # Use Unix vs NTP for now. resource times are unix
+        #        now = time.time() + IonTime.JAN_1970
+        #        query_interval = ( time.time() - timedelta( seconds=15 ) ) + IonTime.JAN_1970
+        now = str(int(time.time() * 1000))
+        query_interval = str(int(time.time() - 10 )*1000)
+        # find_events compares timestamps are STRINGS!!!
         events = self.clients.user_notification.find_events(origin=device_id, type= 'DeviceStatusEvent', max_datetime = now, min_datetime = query_interval)
 
         for event  in events:
@@ -1832,9 +1834,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval.status = ComputedValueAvailability.PROVIDED
 
         #call eventsdb to check  data-related events from this device.
-        now = IonTime()
-        query_interval = ( time.time() - 15  )
-
+        now = str(int(time.time() * 1000))
+        query_interval = str(int(time.time() - 10 )*1000)
+        # find_events compares timestamps are STRINGS!!!
         events = self.clients.user_notification.find_events(origin=device_id, type= 'DeviceCommsEvent', max_datetime = now, min_datetime = query_interval)
 
         for event  in events:
