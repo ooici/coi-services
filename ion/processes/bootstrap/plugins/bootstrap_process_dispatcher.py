@@ -22,8 +22,22 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         self.replay_defs(process,config)
         self.notification_worker(process,config)
         self.registration_worker(process,config)
+        self.pydap_server(process,config)
 
-        
+    def pydap_server(self, process, config):
+        pydap_module = config.get_safe('bootstrap.processes.pydap.module', 'ion.processes.data.externalization.lightweight_pydap')
+        pydap_class  = config.get_safe('bootstrap.processes.pydap.class', 'LightweightPyDAP')
+
+        use_pydap = config.get_safe('bootstrap.use_pydap', False)
+
+        process_definition = ProcessDefinition(
+                name = 'pydap_server',
+                description = 'Lightweight WSGI Server for PyDAP')
+        process_definition.executable['module'] = pydap_module
+        process_definition.executable['class'] = pydap_class
+
+        self._create_and_launch(process_definition,use_pydap)
+
 
 
     def registration_worker(self, process, config):
@@ -38,14 +52,17 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
 
         process_definition = ProcessDefinition(
                 name='registration_worker',
-                description='For registering datasets with ErDAP')
+                description='For registering datasets with ERDDAP')
         process_definition.executable['module'] = registration_module
         process_definition.executable['class']  = registration_class
 
 
+        self._create_and_launch(process_definition, use_pydap)
+
+    def _create_and_launch(self, process_definition, conditional=True):
         proc_def_id = self.pds_client.create_process_definition(process_definition=process_definition)
 
-        if use_pydap:
+        if conditional:
 
             process_res_id = self.pds_client.create_process(process_definition_id=proc_def_id)
             self.pds_client.schedule_process(process_definition_id=proc_def_id, process_id=process_res_id)
