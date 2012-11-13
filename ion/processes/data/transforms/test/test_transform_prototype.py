@@ -304,11 +304,11 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         def no_data(message, headers):
             queue_no_data.put(message)
 
-        event_subscriber_bad_data = EventSubscriber( origin="DemoStreamAlertTransform",
+        event_subscriber_bad_data = EventSubscriber( origin="instrument_1",
             event_type="DeviceStatusEvent",
             callback=bad_data)
 
-        event_subscriber_no_data = EventSubscriber( origin="DemoStreamAlertTransform",
+        event_subscriber_no_data = EventSubscriber( origin="instrument_1",
             event_type="DeviceCommsEvent",
             callback=no_data)
 
@@ -382,7 +382,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         for i in xrange(self.length * self.number):
             event = queue_bad_data.get(timeout=10)
             self.assertEquals(event.type_, "DeviceStatusEvent")
-            self.assertEquals(event.origin, "DemoStreamAlertTransform")
+            self.assertEquals(event.origin, "instrument_1")
             self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
             self.assertEquals(event.valid_values, self.valid_values)
             self.assertEquals(event.sub_type, 'input_voltage')
@@ -398,7 +398,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         event = queue_no_data.get(timeout=15)
 
         self.assertEquals(event.type_, "DeviceCommsEvent")
-        self.assertEquals(event.origin, "DemoStreamAlertTransform")
+        self.assertEquals(event.origin, "instrument_1")
         self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
         self.assertEquals(event.sub_type, 'input_voltage')
 
@@ -424,7 +424,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         event = queue_no_data.get(timeout=20)
 
         self.assertEquals(event.type_, "DeviceCommsEvent")
-        self.assertEquals(event.origin, "DemoStreamAlertTransform")
+        self.assertEquals(event.origin, "instrument_1")
         self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
         self.assertEquals(event.sub_type, 'input_voltage')
 
@@ -440,4 +440,5 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             rdt['input_voltage'] = values
             rdt['preferred_timestamp'] = numpy.array([random.uniform(0,1000)  for l in xrange(length)])
             g = rdt.to_granule()
+            g.data_producer_id = 'instrument_1'
             pub.publish(g)
