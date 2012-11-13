@@ -619,8 +619,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         driver_config = instrument_agent_instance_obj.driver_config
         comms_config = driver_config.get('comms_config')
         if(comms_config):
-            log.warn("No comms_config specified, using '%s'" % host)
             host = comms_config.get('addr')
+        else:
+            log.warn("No comms_config specified, using '%s'" % host)
 
         # Configure driver to use port agent port number.
         instrument_agent_instance_obj.driver_config['comms_config'] = {
