@@ -614,12 +614,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # Hack to get ready for DEMO.  Further though needs to be put int
         # how we pass this config info around.
+        host = 'localhost'
+
         driver_config = instrument_agent_instance_obj.driver_config
         comms_config = driver_config.get('comms_config')
+        if(comms_config):
+            log.warn("No comms_config specified, using '%s'" % host)
+            host = comms_config.get('addr')
 
         # Configure driver to use port agent port number.
         instrument_agent_instance_obj.driver_config['comms_config'] = {
-            'addr' : comms_config.get('addr'),
+            'addr' : host,
             'port' : port
         }
         instrument_agent_instance_obj.driver_config['pagent_pid'] = pid
