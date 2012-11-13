@@ -6,7 +6,7 @@
 @author Swarbhanu Chatterjee
 '''
 from pyon.util.log import log
-from pyon.util.containers import DotDict
+from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.arg_check import validate_is_instance, validate_true
 from pyon.event.event import EventPublisher, EventSubscriber
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -242,6 +242,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                     origin_type='PlatformDevice',
                     sub_type = self.instrument_variable_name,
                     value = bad_value,
+                    ts_created=get_ion_ts(),
                     time_stamp = time_stamp,
                     valid_values = self.valid_values,
                     state = DeviceStatusType.OUT_OF_RANGE,
@@ -269,6 +270,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                 event = DeviceCommsEvent( origin = self.origin,
                     origin_type='PlatformDevice',
                     sub_type = self.instrument_variable_name,
+                    ts_created=get_ion_ts(),
                     state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
                     lapse_interval_seconds=self.timer_interval,
                     description = "Event to deliver the communications status of the instrument.")
