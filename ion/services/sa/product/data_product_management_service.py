@@ -560,6 +560,15 @@ class DataProductManagementService(BaseDataProductManagementService):
         extended_product.computed.number_active_subscriptions.value = len(active)
         extended_product.computed.number_active_subscriptions.status = ComputedValueAvailability.PROVIDED
 
+        # replace list of lists with single list
+        replacement_data_products = []
+        for inner_list in extended_product.process_input_data_products:
+            if inner_list:
+                for actual_data_product in inner_list:
+                    if actual_data_product:
+                        replacement_data_products.append(actual_data_product)
+        extended_product.process_input_data_products = replacement_data_products
+
         return extended_product
 
 
