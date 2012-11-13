@@ -239,6 +239,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
             for bad_value, time_stamp in zip(bad_values, bad_value_times):
                 # Create the event object
                 event = DeviceStatusEvent(  origin = self.origin,
+                    origin_type='PlatformDevice',
                     sub_type = self.instrument_variable_name,
                     value = bad_value,
                     time_stamp = time_stamp,
@@ -266,6 +267,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
             if self.granules.qsize() == 0:
                 # Create the event object
                 event = DeviceCommsEvent( origin = self.origin,
+                    origin_type='PlatformDevice',
                     sub_type = self.instrument_variable_name,
                     state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
                     lapse_interval_seconds=self.timer_interval,
@@ -304,7 +306,7 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         # Retrieve the name used for the variable_name, the name used for timestamps and the range of valid values from the config
         valid_values = config.get_safe('valid_values', [-100,100])
         variable_name = config.get_safe('variable_name', 'input_voltage')
-        time_field_name = config.get_safe('time_field_name', 'preferred_timestamp')
+        preferred_time = config.get_safe('time_field_name', 'preferred_timestamp')
 
         # These variable_names will store the bad values and the timestamps of those values
         bad_values = []
@@ -312,15 +314,19 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
         # retrieve the values and the times from the record dictionary
         values = rdt[variable_name][:]
-        times = rdt[time_field_name][:]
+
+        time_names = rdt[preferred_time][:]
 
         log.debug("Values unravelled: %s" % values)
-        log.debug("Times unravelled: %s" % times)
+        log.debug("Time names unravelled: %s" % time_names)
 
-        for val, t in zip(values, times):
+        indexes = [l for l in xrange(len(time_names))]
+
+        for val, index in zip(values, indexes):
             if val < valid_values[0] or val > valid_values[1]:
                 bad_values.append(val)
-                bad_value_times.append(t)
+                arr = rdt[time_names[index]]
+                bad_value_times.append(arr[index])
 
         log.debug("Returning a bad_values: %s, bad_value_times: %s and the origin: %s" % (bad_values, bad_value_times, origin))
 

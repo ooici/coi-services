@@ -401,6 +401,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         self.assertEquals(event.type_, "DeviceCommsEvent")
         self.assertEquals(event.origin, "instrument_1")
+        self.assertEquals(event.origin_type, "PlatformDevice")
         self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
         self.assertEquals(event.sub_type, 'input_voltage')
 
@@ -426,6 +427,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         self.assertEquals(event.type_, "DeviceCommsEvent")
         self.assertEquals(event.origin, "instrument_1")
+        self.assertEquals(event.origin_type, "PlatformDevice")
         self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
         self.assertEquals(event.sub_type, 'input_voltage')
 
@@ -439,7 +441,12 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         for i in xrange(number):
             rdt['input_voltage'] = values
-            rdt['preferred_timestamp'] = times
+            rdt['preferred_timestamp'] = ['time' for l in xrange(len(times))]
+            rdt['time'] = times
+
             g = rdt.to_granule()
             g.data_producer_id = 'instrument_1'
+
+            log.debug("granule published by instrument:: %s" % g)
+
             pub.publish(g)
