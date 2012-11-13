@@ -86,7 +86,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sak')
+@attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
     def setUp(self):
@@ -546,7 +546,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
     def test_hierarchy(self):
         self._create_launch_verify(BASE_PLATFORM_ID)
 
-    @attr('INT', group='sak')
+    @attr('INT', group='sa')
     def test_single_platform(self):
         self._create_launch_verify('LJ01D')
 
