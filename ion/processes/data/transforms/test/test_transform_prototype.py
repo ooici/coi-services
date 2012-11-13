@@ -447,8 +447,16 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         for event in events_in_db:
             if event.type_ == 'DeviceStatusEvent':
                 bad_data_events.append(event)
+                self.assertEquals(event.origin, "instrument_1")
+                self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+                self.assertEquals(event.valid_values, self.valid_values)
+                self.assertEquals(event.sub_type, 'input_voltage')
             elif event.type_ == 'DeviceCommsEvent':
                 no_data_events.append(event)
+                self.assertEquals(event.origin, "instrument_1")
+                self.assertEquals(event.origin_type, "PlatformDevice")
+                self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
+                self.assertEquals(event.sub_type, 'input_voltage')
 
         self.assertTrue(len(bad_data_events) > 0)
         self.assertTrue(len(no_data_events) > 0)
