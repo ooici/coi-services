@@ -59,6 +59,7 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
 
     def _get_attribute_values(self):
         attrNames = self.ATTR_NAMES
+        # TODO use NTP
         from_time = time.time()
         attr_values = self._plat_driver.get_attribute_values(attrNames, from_time)
         log.info("attr_values = %s" % str(attr_values))

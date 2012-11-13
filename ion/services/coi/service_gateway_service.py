@@ -326,6 +326,8 @@ def gateway_json_response(response_data):
     return json_response({'data':{ GATEWAY_RESPONSE: response_data} } )
 
 def build_error_response(e):
+    # show full stack trace
+    log.exception('exception in service gateway call')
 
     exc_type, exc_obj, exc_tb = sys.exc_info()
     result = {

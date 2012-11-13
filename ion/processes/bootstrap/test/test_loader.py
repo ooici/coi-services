@@ -19,7 +19,7 @@ class TestLoader(IonIntegrationTestCase):
         self.ingestion_management = IngestionManagementServiceClient()
 
     def test_lca_load(self):
-        config = dict(op="load", scenario="R2_DEMO", attachments="res/preload/r2_ioc/attachments")
+        config = dict(op="load", scenario="BASE,R2_DEMO", attachments="res/preload/r2_ioc/attachments")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
         # make sure contact entries were created correctly

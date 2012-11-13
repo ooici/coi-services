@@ -217,12 +217,27 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.read_dataset(dataset_id) # Validates proper dataset
         parameters = parameters or None
         coverage = self._get_coverage(dataset_id)
+        if not coverage.num_timesteps:
+            if isinstance(parameters,list):
+                return {i:(coverage.get_parameter_context(i).fill_value,coverage.get_parameter_context(i).fill_value) for i in parameters}
+            elif not parameters: 
+                return {i:(coverage.get_parameter_context(i).fill_value,coverage.get_parameter_context(i).fill_value) for i in coverage.list_parameters()}
+            else:
+                return (coverage.get_parameter_context(parameters).fill_value, coverage.get_parameter_context(parameters).fill_value)
         return coverage.get_data_bounds(parameters)
 
     def dataset_bounds_by_axis(self, dataset_id='', axis=None):
         self.read_dataset(dataset_id) # Validates proper dataset
         axis = axis or None
         coverage = self._get_coverage(dataset_id)
+        if not coverage.num_timesteps:
+            temporal = coverage.temporal_parameter_name
+            if isinstance(axis,list):
+                return {temporal:(coverage.get_parameter_context(temporal).fill_value, coverage.get_parameter_context(temporal).fill_value)}
+            elif not axis:
+                return {temporal:(coverage.get_parameter_context(temporal).fill_value, coverage.get_parameter_context(temporal).fill_value)}
+            else:
+                return (coverage.get_parameter_context(temporal).fill_value, coverage.get_parameter_context(temporal).fill_value)
         return coverage.get_data_bounds_by_axis(axis)
 
     def dataset_extents(self, dataset_id='', parameters=None):

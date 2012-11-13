@@ -12,10 +12,11 @@ from interface.objects import DataProduct, DataProductVersion
 from interface.objects import ComputedValueAvailability
 
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import RT, OT, PRED, LCS
+from pyon.public import RT, OT, PRED, LCS, CFG
+from pyon.util.ion_time import IonTime
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false
-
+import string
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -253,8 +254,13 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def is_persisted(self, data_product_id=''):
         # Is the data product currently persisted into a data set?
-        stream_id = self._get_stream_id(data_product_id)
-        return self.clients.ingestion_management.is_persisted(stream_id)
+        retval = False
+        if data_product_id:
+            stream_id = self._get_stream_id(data_product_id)
+            if stream_id:
+                retval =  self.clients.ingestion_management.is_persisted(stream_id)
+        else:
+            return retval
 
 
 
@@ -535,28 +541,70 @@ class DataProductManagementService(BaseDataProductManagementService):
                     dp_list.append( self.clients.resource_registry.read(dataprod) )
         extended_product.provenance_product_list = set(dp_list)  #remove dups in list
 
+        #set the data_ingestion_datetime from get_data_datetime
+        if extended_product.computed.data_datetime.status == ComputedValueAvailability.PROVIDED :
+            extended_product.data_ingestion_datetime =  extended_product.computed.data_datetime.value[1]
+
+        # divide up the active and past user subscriptions
+        active = []
+        nonactive = []
+        for notification_obj in extended_product.computed.active_user_subscriptions.value:
+            if notification_obj.lcstate == LCS.RETIRED:
+                nonactive.append(notification_obj)
+            else:
+                active.append(notification_obj)
+
+        extended_product.computed.active_user_subscriptions.value = active
+        extended_product.computed.past_user_subscriptions.value = nonactive
+        extended_product.computed.past_user_subscriptions.status = ComputedValueAvailability.PROVIDED
+        extended_product.computed.number_active_subscriptions.value = len(active)
+        extended_product.computed.number_active_subscriptions.status = ComputedValueAvailability.PROVIDED
+
+        # replace list of lists with single list
+        replacement_data_products = []
+        for inner_list in extended_product.process_input_data_products:
+            if inner_list:
+                for actual_data_product in inner_list:
+                    if actual_data_product:
+                        replacement_data_products.append(actual_data_product)
+        extended_product.process_input_data_products = replacement_data_products
 
         return extended_product
 
 
     def get_data_datetime(self, data_product_id=''):
         # Returns a temporal bounds object of the span of data product life span (may exist without getting a granule)
-        ret = IonObject(OT.ComputedStringValue)
-        ret.value = ""
+        ret = IonObject(OT.ComputedListValue)
+        ret.value = []
         ret.status = ComputedValueAvailability.NOTAVAILABLE
-        ret.reason = "FIXME. also, should datetime be stored as a string?"
+
+        try:
+            dataset_id = self._get_dataset_id(data_product_id)
+            bounds = self.clients.dataset_management.dataset_bounds(dataset_id)
+            if 'time' in bounds and len(bounds['time']) == 2 :
+                log.debug("get_data_datetime bounds['time']: %s"  % str(dataset_id))
+                timeStart = IonTime(bounds['time'][0]  -  IonTime.JAN_1970)
+                timeEnd = IonTime(bounds['time'][1]  -  IonTime.JAN_1970)
+                ret.value = [str(timeStart), str(timeEnd)]
+                ret.status = ComputedValueAvailability.PROVIDED
+        except NotFound:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "Dataset for this Data Product could not be located"
+        except Exception as e:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "Could not calculate time range for this data product"
 
         return ret
 
 
-    def get_data_ingestion_datetime(self, data_product_id=''):
-        # Returns a temporal bounds object of the earliest/most recent values ingested into in the data product
-        ret = IonObject(OT.ComputedStringValue)
-        ret.value = ""
-        ret.status = ComputedValueAvailability.NOTAVAILABLE
-        ret.reason = "FIXME. also, should datetime be stored as a string?"
-
-        return ret
+#    def get_data_ingestion_datetime(self, data_product_id=''):
+#        # Returns a temporal bounds object of the earliest/most recent values ingested into in the data product
+#        ret = IonObject(OT.ComputedStringValue)
+#        ret.value = ""
+#        ret.status = ComputedValueAvailability.NOTAVAILABLE
+#        ret.reason = "FIXME. also, should datetime be stored as a string?"
+#
+#        return ret
 
 
     def get_product_download_size_estimated(self, data_product_id=''):
@@ -640,10 +688,14 @@ class DataProductManagementService(BaseDataProductManagementService):
         # The unique pointer to this set of data
         ret = IonObject(OT.ComputedStringValue)
         ret.value  = ""
-        ret.status = ComputedValueAvailability.NOTAVAILABLE
-        ret.reason = "FIXME."
 
+        erddap_host = CFG.get_safe('server.erddap.host','localhost')
+        errdap_port = CFG.get_safe('server.erddap.port','8080')
+        dataset_id = self._get_dataset_id(data_product_id)
+        ret.value  = string.join( ["http://", erddap_host, ":", str(errdap_port),"/erddap/griddap/", str(dataset_id), "_0.html"],'')
 
+        ret.status = ComputedValueAvailability.PROVIDED
+        log.debug("get_data_url: data_url: %s", ret.value)
         return ret
 
     def get_provenance(self, data_product_id=''):
@@ -685,30 +737,30 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = IonObject(OT.ComputedListValue)
         ret.value = []
         try:
+            ret.value = self.clients.user_notification.get_subscriptions(resource_id=data_product_id, include_nonactive=True)
             ret.status = ComputedValueAvailability.PROVIDED
-            raise NotFound #todo: ret.value = ???
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+            ret.reason = "Product subscription infromation not provided by UserNotificationService"
         except Exception as e:
             raise e
 
         return ret
 
-    def get_past_user_subscriptions(self, data_product_id=''):
-        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
-        ret = IonObject(OT.ComputedListValue)
-        ret.value = []
-        try:
-            ret.status = ComputedValueAvailability.PROVIDED
-            raise NotFound #todo: ret.value = ???
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
-        except Exception as e:
-            raise e
-
-        return ret
+#    def get_past_user_subscriptions(self, data_product_id=''):
+#        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
+#        ret = IonObject(OT.ComputedListValue)
+#        ret.value = []
+#        try:
+#            ret.status = ComputedValueAvailability.PROVIDED
+#            raise NotFound #todo: ret.value = ???
+#        except NotFound:
+#            ret.status = ComputedValueAvailability.NOTAVAILABLE
+#            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
+#        except Exception as e:
+#            raise e
+#
+#        return ret
 
 
     def get_last_granule(self, data_product_id=''):
@@ -724,7 +776,8 @@ class DataProductManagementService(BaseDataProductManagementService):
                 replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1)
                 #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                ret.value =  {k : rdt[k].tolist() for k,v in rdt.iteritems()}
+                #ret.value =  {k : str(k) + ': ' + str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
+                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE

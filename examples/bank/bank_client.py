@@ -4,8 +4,8 @@ from pyon.util.context import LocalContextMixin
 from interface.services.icontainer_agent import ContainerAgentProcessClient
 
 class FakeProcess(LocalContextMixin):
-    name = ''
-    id = ''
+    name = 'bank_client'
+    id = 'bank_client'
 
 
 class BankClientProcess(ImmediateProcess):

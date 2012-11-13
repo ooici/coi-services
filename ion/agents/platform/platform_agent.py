@@ -161,7 +161,7 @@ class PlatformAgent(ResourceAgent):
         # complete this change.
         self._plat_config = self.CFG.get("platform_config", None)
         if self._plat_config:
-            log.info("self._plat_config set on_init: %s", str(self._plat_config))
+            log.debug("self._plat_config set on_init: %s", str(self._plat_config))
 
     def on_start(self):
         super(PlatformAgent, self).on_start()
@@ -239,7 +239,7 @@ class PlatformAgent(ResourceAgent):
 #                # deserialize it
 #                adm = dict((k, self.deserializer.deserialize(v)) for k,v in adm.iteritems())
 
-            log.info("agent_device_map = %s", str(adm))
+            log.debug("agent_device_map = %s", str(adm))
 
             self._agent_device_map = adm
 
@@ -510,10 +510,13 @@ class PlatformAgent(ResourceAgent):
                      self._platform_id, param_name, stream_name)
             return
 
-        # Note that at the moment, notification from the driver has the form
+        # Note that notification from the driver has the form
         # of a non-empty list of pairs (val, ts)
         assert isinstance(param_value, list)
         assert isinstance(param_value[0], tuple)
+
+        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d samples) = %s",
+                 self._platform_id, param_name, len(param_value), str(param_value))
 
         # separate values and timestamps:
         vals, timestamps = zip(*param_value)
@@ -530,10 +533,6 @@ class PlatformAgent(ResourceAgent):
             log.warn("%r: Not including timestamp info in granule: "
                      "temporal_parameter_name not defined in parameter dictionary",
                      self._platform_id)
-
-        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d) = %s (last_ts=%s)",
-                 self._platform_id, param_name, len(vals), str(vals), timestamps[-1])
-
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
@@ -1138,8 +1137,8 @@ class PlatformAgent(ResourceAgent):
             self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         params = kwargs.get('params', None)
-        if params is None:
-            raise BadRequest('start_event_dispatch missing params argument.')
+#        if params is None:
+#            raise BadRequest('start_event_dispatch missing params argument.')
 
         try:
             result = self._plat_driver.start_event_dispatch(params)

@@ -4,6 +4,7 @@
 
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master scenario=R2_DEMO
+    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc/R2PreloadedResources.xlsx scenario=R2_DEMO
 
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls" scenario=R2_DEMO
     bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
@@ -43,9 +44,7 @@ import csv
 import numpy as np
 import re
 import requests
-import StringIO
 import time
-import xlrd
 
 from pyon.core.bootstrap import get_service_registry
 from pyon.core.exception import NotFound
@@ -59,10 +58,14 @@ from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.util.parameter_loader import ParameterPlugin
+from ion.util.xlsparser import XLSParser
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
 from ion.util.parameter_loader import ParameterPlugin
+from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
+
 
 from interface import objects
 import logging
@@ -73,7 +76,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidGsxQ01TSWVOS0pFRUNONFFJQmpHU3c&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidFBVcTVTSzFRVHJBX0Nqa2VqNlRMSHc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -103,9 +106,11 @@ DEFAULT_CATEGORIES = [
     'SensorDevice',
     'InstrumentAgent',
     'InstrumentAgentInstance',
-    'DataProcessDefinition',
     'DataProduct',
+    'DataProcessDefinition',
     'DataProcess',
+    'EventProcessDefinition',
+    'EventProcess',
     'DataProductLink',
     'Attachment',
     'WorkflowDefinition',
@@ -180,9 +185,8 @@ class IONLoader(ImmediateProcess):
             # Load existing resources by preload ID
             self._prepare_incremental()
 
-            items = scenarios.split(',')
-            for scenario in items:
-                self.load_ion(scenario)
+            scenarios = scenarios.split(',')
+            self.load_ion(scenarios)
 
         elif op == "parseooi":
             self.ooi_loader.extract_ooi_assets()
@@ -199,14 +203,14 @@ class IONLoader(ImmediateProcess):
     def on_quit(self):
         pass
 
-    def load_ion(self, scenario):
+    def load_ion(self, scenarios):
         """
         Loads resources for one scenario, by parsing input spreadsheets for all resource categories
         in defined order, executing service calls for all entries in the scenario.
         Can load the spreadsheets from http or file location.
         Optionally imports OOI assets at the beginning of each category.
         """
-        log.info("Loading scenario %s from path: %s", scenario, self.path)
+        log.info("Loading scenario from path: %s", self.path)
         if self.bulk:
             log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
 
@@ -216,6 +220,12 @@ class IONLoader(ImmediateProcess):
             log.debug("Fetched URL contents, size=%s", len(preload_doc_str))
             xls_parser = XLSParser()
             self.csv_files = xls_parser.extract_csvs(preload_doc_str)
+        elif self.path.endswith(".xlsx"):
+            with open(self.path, "rb") as f:
+                preload_doc_str = f.read()
+                log.debug("Loaded xlsx file, size=%s", len(preload_doc_str))
+                xls_parser = XLSParser()
+                self.csv_files = xls_parser.extract_csvs(preload_doc_str)
         else:
             self.csv_files = None
 
@@ -247,14 +257,17 @@ class IONLoader(ImmediateProcess):
 
                 for row in reader:
                     # Check if scenario applies
-                    rowsc = row[self.COL_SCENARIO]
-                    if not scenario == rowsc:
+                    if row[self.COL_SCENARIO] not in scenarios:
                         row_skip += 1
                         continue
                     row_do += 1
 
                     log.debug('handling %s row: %r', category, row)
-                    catfunc(row)
+                    try:
+                        catfunc(row)
+                    except:
+                        log.error('error loading %s row: %r', category, row, exc_info=True)
+                        raise
 
                 if self.bulk:
                     num_bulk = self._finalize_bulk(category)
@@ -603,15 +616,22 @@ class IONLoader(ImmediateProcess):
 
         self.contact_defs[id] = contact
 
+    def _parse_dict(self, text):
+        """ parse a SIMPLE dictionary of unquoted string keys and values
+        """
+        out = { }
+        pairs = text.split(',')
+        for pair in pairs:
+            fields = pair.split(':')
+            key = fields[0].strip()
+            value = fields[1].strip()
+            out[key] = value
+        return out
+
     def _parse_phones(self, text):
         if ':' in text:
-            pairs = text.split(',')
             out = []
-            for pair in pairs:
-                # pair is a string like: " office: 212-555-1212"
-                fields = pair.split(':')
-                number = fields[1].strip()
-                type = fields[0].strip()
+            for type,number in self._parse_dict(text).iteritems():
                 out.append(IonObject("Phone", phone_number=number, phone_type=type))
             return out
         elif text:
@@ -771,9 +791,9 @@ class IONLoader(ImmediateProcess):
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
-            fakerow['pm/name'] = "%s (%s)" % (ooi_obj['name'], ooi_id)
-            fakerow['pm/alt_ids'] = "['OOI:" + ooi_id + "']"
+            fakerow[self.COL_ID] = ooi_id + "_PM"
+            fakerow['pm/name'] = ooi_obj['name']
+            fakerow['pm/alt_ids'] = "['OOI:" + ooi_id + "_PM" + "']"
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
 
             self._load_PlatformModel(fakerow)
@@ -928,11 +948,10 @@ class IONLoader(ImmediateProcess):
     def _load_PlatformSite_OOI(self):
         # TODO: Add assembly level PlatformSites (= entire moorings as in Subsite)
 
-        ooi_objs = self.ooi_loader.get_type_assets("node")
-        for ooi_id, ooi_obj in ooi_objs.iteritems():
+        def _load_platform(ooi_id, ooi_obj):
             constrow = {}
             const_id1 = ''
-            if ooi_obj['latitude'] or ooi_obj['longitude'] or ooi_obj['depth_subsite']:
+            if ooi_obj.get('latitude',None) or ooi_obj.get('longitude',None) or ooi_obj.get('depth_subsite',None):
                 const_id1 = ooi_id + "_const1"
                 constrow[self.COL_ID] = const_id1
                 constrow['type'] = 'geospatial'
@@ -947,15 +966,27 @@ class IONLoader(ImmediateProcess):
 
             fakerow = {}
             fakerow[self.COL_ID] = ooi_id
-            fakerow['ps/name'] = ooi_id
+            fakerow['ps/name'] = ooi_obj.get('name', ooi_id)
             fakerow['ps/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = ''
-            fakerow['parent_site_id'] = ooi_id[:8]
-            fakerow['platform_model_ids'] = ooi_id[9:11]
+            if ooi_obj.get('is_platform', False):
+                fakerow['parent_site_id'] = ooi_id[:8]
+            else:
+                fakerow['parent_site_id'] = ooi_obj.get('platform_id', '')
+            fakerow['platform_model_ids'] = ooi_id[9:11] + "_PM"
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
 
             self._load_PlatformSite(fakerow)
+
+        ooi_objs = self.ooi_loader.get_type_assets("node")
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            if ooi_obj.get('is_platform', False):
+                _load_platform(ooi_id, ooi_obj)
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            if not ooi_obj.get('is_platform', False):
+                _load_platform(ooi_id, ooi_obj)
+
 
     def _load_InstrumentSite(self, row):
         constraints = self._get_constraints(row, type='InstrumentSite')
@@ -1119,9 +1150,10 @@ class IONLoader(ImmediateProcess):
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
             fakerow[self.COL_ID] = ooi_id + "_PD"
-            fakerow['pd/name'] = "%s (%s)" % (ooi_obj['name'], ooi_id)
+            fakerow['pd/name'] = "%s (%s)" % (ooi_obj.get('name', ''), ooi_id)
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
-            fakerow['platform_model_id'] = ooi_id
+            fakerow['platform_model_id'] = ooi_id + "_PM"
+            fakerow['contact_ids'] = ''
 
             self._load_PlatformDevice(fakerow)
 
@@ -1286,9 +1318,30 @@ class IONLoader(ImmediateProcess):
         # create object with simple field types -- name, description
         agent_instance = self._create_object_from_row("PlatformAgentInstance", row, "pai/")
 
-        # get values for more complex fields
+        # construct values for more complex fields
+        platform_id = row['platform_id']
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
         platform_device_id = self.resource_ids[row['platform_device_id']]
+        platform_agent = self.resource_objs[row['platform_agent_id']]
+
+        driver_config = self._parse_dict(row['driver_config'])
+        driver_config['dvr_cls'] = platform_agent.driver_class
+        driver_config['dvr_mod'] = platform_agent.driver_module
+
+        #TODO: allow child platforms
+        platform_topology = { platform_id: [] }
+
+        #
+        device_dict = self._HACK_get_device_dict(platform_id)
+
+        admap = { platform_id: device_dict }
+        platform_config = { 'platform_id':             platform_id,
+                            'platform_topology':       platform_topology,
+                            'agent_device_map':        admap,
+                            'agent_streamconfig_map':  None,  # can we just omit?
+                            'driver_config':           driver_config }
+        agent_instance.agent_config = { 'platform_config': platform_config }
+
         id = self._get_service_client("instrument_management").create_platform_agent_instance(agent_instance, platform_agent_id, platform_device_id)
         self.resource_ids[row['ID']] = id
 
@@ -1297,6 +1350,31 @@ class IONLoader(ImmediateProcess):
     #        driver_config = self._parse_dict(row['driver_config'])
     #        agent_config = self._parse_dict(row['agent_config'])
     #        stream_definition = self.resource_objs[row['stream_definition']]
+
+    def _HACK_get_device_dict(self, platform_id):
+        """ TODO: remove from preload and the initial object def.  instead query OmsClient from IMS when the platform agent is started
+            TODO: set a property in the agent instance to identify which OmsClient to use (need to support platforms from different Orgs)
+
+            query the simulated OmsClient for information about the platform
+        """
+
+        simulator = OmsClientFactory.create_instance()
+
+        # get network information (from: test_oms_launch2._prepare_platform_ports)
+        port_dicts = []
+        platform_port_info = simulator.getPlatformPorts(platform_id)
+        for port_id, port in platform_port_info[platform_id].iteritems():
+            port_dicts.append(dict(port_id=port_id, ip_address=port['comms']['ip']))
+
+        # get attribute information (from: test_oms_launch2._prepare_platform_attributes)
+        attribute_dicts = []
+        platform_attribute_info = simulator.getPlatformAttributes(platform_id)
+        for name, attribute in platform_attribute_info[platform_id].iteritems():
+            attribute_dicts.append(dict(id=name, monitor_rate=attribute['monitorCycleSeconds'], units=attribute['units']))
+
+        # package as needed by agent instance
+        return { 'ports': port_dicts,
+                 'platform_monitor_attributes': attribute_dicts }
 
 
     def _load_DataProcessDefinition(self, row):
@@ -1317,6 +1395,78 @@ class IONLoader(ImmediateProcess):
             output_strdef = self._get_typed_value(output_strdef, targettype="dict")
         for binding, strdef in output_strdef.iteritems():
             svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[strdef], res_id, binding)
+
+    def _load_DataProcess(self, row):
+        dpd_id = self.resource_ids[row["data_process_definition_id"]]
+        log.trace("_load_DataProcess  data_product_def %s", str(dpd_id))
+        in_data_product_id = self.resource_ids[row["in_data_product_id"]]
+        configuration = row["configuration"]
+        if configuration:
+            configuration = self._get_typed_value(configuration, targettype="dict")
+
+        out_data_products = row["out_data_products"]
+        if out_data_products:
+            out_data_products = self._get_typed_value(out_data_products, targettype="dict")
+            for name, dp_id in out_data_products.iteritems():
+                out_data_products[name] = self.resource_ids[dp_id]
+
+        svc_client = self._get_service_client("data_process_management")
+
+        headers = self._get_op_headers(row)
+        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
+        self._register_id(row[self.COL_ID], res_id)
+
+        self._resource_assign_org(row, res_id)
+
+        res_id = svc_client.activate_data_process(res_id)
+
+    def _load_EventProcessDefinition(self, row):
+#        process_dispatcher = ProcessDispatcherServiceClient()
+#
+#        procdef_id = process_dispatcher.create_process_definition(process_definition=producer_definition)
+#        pid = process_dispatcher.schedule_process(process_definition_id= procdef_id, configuration=configuration)
+#
+#        return pid
+
+        id = row['ID']
+        process_def = self._create_object_from_row("ProcessDefinition", row, "epd/")
+        process_def.executable = { 'module': row['module'], 'class': row['class'] }
+
+        process_dispatcher = self._get_service_client("process_dispatcher")
+        data_process_client = self._get_service_client("data_process_management")
+        dbid = process_dispatcher.create_process_definition(process_definition=process_def)
+        process_def._id = dbid
+        self.resource_ids[id] = dbid
+        self.resource_objs[id] = process_def
+
+#        input_strdef = row["input_stream_defs"]
+#        if input_strdef:
+#            input_strdef = self._get_typed_value(input_strdef, targettype="simplelist")
+#        log.trace("Assigning input StreamDefinition to DataProcessDefinition for %s" % input_strdef)
+#        for insd in input_strdef:
+#            data_process_client.assign_input_stream_definition_to_data_process_definition(self.resource_ids[insd], dbid)
+
+
+    def _load_EventProcess(self, row):
+        process_def_id = self.resource_ids[row["data_process_definition_id"]]
+        log.trace("_load_EventProcess  event_product_def %s", str(process_def_id))
+        in_data_product_id = self.resource_ids[row["in_data_product_id"]]
+        configuration = row["configuration"]
+        if configuration:
+            configuration = self._get_typed_value(configuration, targettype="dict")
+
+        svc_client = self._get_service_client("data_process_management")
+
+        headers = self._get_op_headers(row)
+        process_dispatcher = self._get_service_client("process_dispatcher")
+        process_dispatcher.schedule_process(process_definition_id=process_def_id, configuration=configuration)
+# TODO: IonObject types not available...
+#        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
+#        self._register_id(row[self.COL_ID], res_id)
+#        self._resource_assign_org(row, res_id)
+#        res_id = svc_client.activate_data_process(res_id)
+
+
 
     def _load_DataProduct(self, row):
         tdom, sdom = time_series_domain()
@@ -1345,30 +1495,6 @@ class IONLoader(ImmediateProcess):
             svc_client.activate_data_product_persistence(res_id)
         self._resource_advance_lcs(row, res_id, "DataProduct")
 
-    def _load_DataProcess(self, row):
-        dpd_id = self.resource_ids[row["data_process_definition_id"]]
-        log.trace("_load_DataProcess  data_product_def %s", str(dpd_id))
-        in_data_product_id = self.resource_ids[row["in_data_product_id"]]
-        configuration = row["configuration"]
-        if configuration:
-            configuration = self._get_typed_value(configuration, targettype="dict")
-
-        out_data_products = row["out_data_products"]
-        if out_data_products:
-            out_data_products = self._get_typed_value(out_data_products, targettype="dict")
-            for name, dp_id in out_data_products.iteritems():
-                out_data_products[name] = self.resource_ids[dp_id]
-
-        svc_client = self._get_service_client("data_process_management")
-
-        headers = self._get_op_headers(row)
-        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
-        self._register_id(row[self.COL_ID], res_id)
-
-        self._resource_assign_org(row, res_id)
-
-        res_id = svc_client.activate_data_process(res_id)
-
     def _load_DataProductLink(self, row):
         log.info("Loading DataProductLink")
 
@@ -1376,7 +1502,7 @@ class IONLoader(ImmediateProcess):
         res_id = self.resource_ids[row["input_resource_id"]]
         type = row['resource_type']
 
-        if type=='InstrumentDevice':
+        if type=='InstrumentDevice' or type=='PlatformDevice':
             svc_client = self._get_service_client("data_acquisition_management")
             svc_client.assign_data_product(res_id, dp_id)
         elif type=='InstrumentSite':
@@ -1496,59 +1622,5 @@ class IONLoader(ImmediateProcess):
 
         self.resource_ds.create_doc_mult(docs, allow_ids=True)
         log.info("Deleted %s OOI resources and associations", len(docs))
-
-
-class XLSParser(object):
-    """Class that transforms an XLS file into a dict of csv files (str)"""
-
-    def extract_csvs(self, file_content):
-        sheets = self.extract_worksheets(file_content)
-        csv_docs = {}
-        for sheet_name, sheet in sheets.iteritems():
-            csv_doc = self.dumps_csv(sheet)
-            csv_docs[sheet_name] = csv_doc
-        return csv_docs
-
-    def extract_worksheets(self, file_content):
-        book = xlrd.open_workbook(file_contents=file_content)
-        sheets = {}
-        formatter = lambda(t,v): self.format_excelval(book,t,v,False)
-
-        for sheet_name in book.sheet_names():
-            raw_sheet = book.sheet_by_name(sheet_name)
-            data = []
-            for row in range(raw_sheet.nrows):
-                (types, values) = (raw_sheet.row_types(row), raw_sheet.row_values(row))
-                data.append(map(formatter, zip(types, values)))
-            sheets[sheet_name] = data
-        return sheets
-
-    def dumps_csv(self, sheet):
-        stream = StringIO.StringIO()
-        csvout = csv.writer(stream, delimiter=',', doublequote=False, escapechar='\\')
-        csvout.writerows( map(self.utf8ize, sheet) )
-        csv_doc = stream.getvalue()
-        stream.close()
-        return csv_doc
-
-    def tupledate_to_isodate(self, tupledate):
-        (y,m,d, hh,mm,ss) = tupledate
-        nonzero = lambda n: n!=0
-        date = "%04d-%02d-%02d"  % (y,m,d)    if filter(nonzero, (y,m,d))                else ''
-        time = "T%02d:%02d:%02d" % (hh,mm,ss) if filter(nonzero, (hh,mm,ss)) or not date else ''
-        return date+time
-
-    def format_excelval(self, book, type, value, wanttupledate):
-        if   type == 2: # TEXT
-            if value == int(value): value = int(value)
-        elif type == 3: # NUMBER
-            datetuple = xlrd.xldate_as_tuple(value, book.datemode)
-            value = datetuple if wanttupledate else self.tupledate_to_isodate(datetuple)
-        elif type == 5: # ERROR
-            value = xlrd.error_text_from_code[value]
-        return value
-
-    def utf8ize(self, l):
-        return [unicode(s).encode("utf-8") if hasattr(s,'encode') else s for s in l]
 
 
