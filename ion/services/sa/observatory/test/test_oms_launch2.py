@@ -24,6 +24,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 
 from pyon.ion.stream import StandaloneStreamSubscriber
 
@@ -85,7 +86,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('INT', group='sak')
 class TestOmsLaunch(IonIntegrationTestCase):
 
     def setUp(self):
@@ -100,6 +101,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.dpclient = DataProductManagementServiceClient(node=self.container.node)
         self.pubsubcli = PubsubManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
+        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.dataset_management = DatasetManagementServiceClient()
 
 
@@ -135,9 +137,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('platform_eng_parsed', id_only=True)
+        self.pdict_id = self.dataset_management.read_parameter_dictionary_by_name('platform_eng_parsed', id_only=True)
         self.platform_eng_stream_def_id = self.pubsubcli.create_stream_definition(
-            name='platform_eng', parameter_dictionary_id=pdict_id)
+            name='platform_eng', parameter_dictionary_id=self.pdict_id)
         self.dp_obj = IonObject(RT.DataProduct,
             name='platform_eng data',
             description='platform_eng test',
@@ -147,8 +149,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
     def _set_up_PlatformModel_obj(self):
         # Create PlatformModel
         platformModel_obj = IonObject(RT.PlatformModel,
-                                      name='RSNPlatformModel',
-                                      description="RSNPlatformModel")
+            name='RSNPlatformModel',
+            description="RSNPlatformModel")
         try:
             self.platformModel_id = self.imsclient.create_platform_model(platformModel_obj)
         except BadRequest as ex:
@@ -202,8 +204,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         """
 
         site__obj = IonObject(RT.PlatformSite,
-                            name='%s_PlatformSite' % platform_id,
-                            description='%s_PlatformSite platform site' % platform_id)
+            name='%s_PlatformSite' % platform_id,
+            description='%s_PlatformSite platform site' % platform_id)
 
         site_id = self.omsclient.create_platform_site(site__obj)
 
@@ -220,14 +222,14 @@ class TestOmsLaunch(IonIntegrationTestCase):
         port_objs, port_dicts = self._prepare_platform_ports(platform_id)
 
         device__obj = IonObject(RT.PlatformDevice,
-                        name='%s_PlatformDevice' % platform_id,
-                        description='%s_PlatformDevice platform device' % platform_id,
-#                        ports=port_objs,
-#                        platform_monitor_attributes = monitor_attribute_objs
+            name='%s_PlatformDevice' % platform_id,
+            description='%s_PlatformDevice platform device' % platform_id,
+            #                        ports=port_objs,
+            #                        platform_monitor_attributes = monitor_attribute_objs
         )
 
         device__dict = dict(ports=port_dicts,
-                            platform_monitor_attributes=monitor_attribute_dicts)
+            platform_monitor_attributes=monitor_attribute_dicts)
 
         device_id = self.imsclient.create_platform_device(device__obj)
 
@@ -244,8 +246,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
                 object=device_id)
 
         agent__obj = IonObject(RT.PlatformAgent,
-                            name='%s_PlatformAgent' % platform_id,
-                            description='%s_PlatformAgent platform agent' % platform_id)
+            name='%s_PlatformAgent' % platform_id,
+            description='%s_PlatformAgent platform agent' % platform_id)
 
         agent_id = self.imsclient.create_platform_agent(agent__obj)
 
@@ -256,12 +258,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         self.imsclient.assign_platform_model_to_platform_agent(self.platformModel_id, agent_id)
 
-#        agent_instance_obj = IonObject(RT.PlatformAgentInstance,
-#                                name='%s_PlatformAgentInstance' % platform_id,
-#                                description="%s_PlatformAgentInstance" % platform_id)
-#
-#        agent_instance_id = self.imsclient.create_platform_agent_instance(
-#                            agent_instance_obj, agent_id, device_id)
+        #        agent_instance_obj = IonObject(RT.PlatformAgentInstance,
+        #                                name='%s_PlatformAgentInstance' % platform_id,
+        #                                description="%s_PlatformAgentInstance" % platform_id)
+        #
+        #        agent_instance_id = self.imsclient.create_platform_agent_instance(
+        #                            agent_instance_obj, agent_id, device_id)
 
         plat_objs = {
             'platform_id':        platform_id,
@@ -271,20 +273,20 @@ class TestOmsLaunch(IonIntegrationTestCase):
             'device_id':          device_id,
             'agent__obj':         agent__obj,
             'agent_id':           agent_id,
-#            'agent_instance_obj': agent_instance_obj,
-#            'agent_instance_id':  agent_instance_id,
+            #            'agent_instance_obj': agent_instance_obj,
+            #            'agent_instance_id':  agent_instance_id,
             'children':           []
         }
 
         log.info("plat_objs for platform_id %r = %s", platform_id, str(plat_objs))
 
         self.agent_device_map[platform_id] = device__dict
-#        self.agent_device_map[platform_id] = device__obj
+        #        self.agent_device_map[platform_id] = device__obj
 
         stream_config = self._create_stream_config(plat_objs)
         self.agent_streamconfig_map[platform_id] = stream_config
-#        self.agent_streamconfig_map[platform_id] = None
-#        self._start_data_subscriber(agent_instance_id, stream_config)
+        #        self.agent_streamconfig_map[platform_id] = None
+        #        self._start_data_subscriber(agent_instance_id, stream_config)
 
         return plat_objs
 
@@ -306,13 +308,13 @@ class TestOmsLaunch(IonIntegrationTestCase):
             units =        attrDfn['units']
 
             plat_attr_obj = IonObject(OT.PlatformMonitorAttributes,
-                                      id=attrName,
-                                      monitor_rate=monitor_rate,
-                                      units=units)
+                id=attrName,
+                monitor_rate=monitor_rate,
+                units=units)
 
             plat_attr_dict = dict(id=attrName,
-                                  monitor_rate=monitor_rate,
-                                  units=units)
+                monitor_rate=monitor_rate,
+                units=units)
 
             monitor_attribute_objs.append(plat_attr_obj)
             monitor_attribute_dicts.append(plat_attr_dict)
@@ -335,11 +337,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
             ip_address = port['comms']['ip']
 
             plat_port_obj = IonObject(OT.PlatformPort,
-                                      port_id=port_id,
-                                      ip_address=ip_address)
+                port_id=port_id,
+                ip_address=ip_address)
 
             plat_port_dict = dict(port_id=port_id,
-                                  ip_address=ip_address)
+                ip_address=ip_address)
 
             port_objs.append(plat_port_obj)
 
@@ -355,10 +357,10 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         #create the log data product
         self.dp_obj.name = '%s platform_eng data' % platform_id
-        data_product_id = self.dpclient.create_data_product(data_product=self.dp_obj, stream_definition_id=self.platform_eng_stream_def_id)
-        self.damsclient.assign_data_product(input_resource_id=device_id, data_product_id=data_product_id)
+        self.data_product_id = self.dpclient.create_data_product(data_product=self.dp_obj, stream_definition_id=self.platform_eng_stream_def_id)
+        self.damsclient.assign_data_product(input_resource_id=device_id, data_product_id=self.data_product_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product
-        stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)
+        stream_ids, _ = self.rrclient.find_objects(self.data_product_id, PRED.hasStream, None, True)
 
         stream_config = self._build_stream_config(stream_ids[0])
         return stream_config
@@ -400,8 +402,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         #   BadRequest: 400 - bad configuration: <interface.objects.PlatformDevice object at 0x115504b50> is not JSON serializable
         # So, I'm commenting out this attempt for the moment.
         # Instead self.agent_device_map is created in terms of dictionaries.
-#        from pyon.core.object import ion_serializer
-#        admap = ion_serializer.serialize(admap)
+        #        from pyon.core.object import ion_serializer
+        #        admap = ion_serializer.serialize(admap)
         #############################################################
 
         log.info("agent_device_map = %s", str(admap))
@@ -431,24 +433,24 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
             agent_config = {
                 'platform_config': PLATFORM_CONFIG,
-            }
+                }
 
             self.stream_id = self.agent_streamconfig_map[platform_id]['stream_id']
 
-#            import pprint
-#            print '============== platform id within unit test: %s ===========' % platform_id
-#            pprint.pprint(agent_config)
+            #            import pprint
+            #            print '============== platform id within unit test: %s ===========' % platform_id
+            #            pprint.pprint(agent_config)
             #agent_config['platform_config']['agent_streamconfig_map'] = None
 
             agent_instance_obj = IonObject(RT.PlatformAgentInstance,
-                                    name='%s_PlatformAgentInstance' % platform_id,
-                                    description="%s_PlatformAgentInstance" % platform_id,
-                                    agent_config=agent_config)
+                name='%s_PlatformAgentInstance' % platform_id,
+                description="%s_PlatformAgentInstance" % platform_id,
+                agent_config=agent_config)
 
             agent_id = plat_objs['agent_id']
             device_id = plat_objs['device_id']
             agent_instance_id = self.imsclient.create_platform_agent_instance(
-                                agent_instance_obj, agent_id, device_id)
+                agent_instance_obj, agent_id, device_id)
 
             plat_objs['agent_instance_obj'] = agent_instance_obj
             plat_objs['agent_instance_id']  = agent_instance_id
@@ -514,12 +516,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
             self._async_event_result.set(evt)
 
         sub = EventSubscriber(event_type=event_type,
-                              sub_type=sub_type,
-                              callback=consume_event)
+            sub_type=sub_type,
+            callback=consume_event)
 
         sub.start()
         log.info("registered event subscriber for event_type=%r, sub_type=%r",
-                 event_type, sub_type)
+            event_type, sub_type)
 
         self._event_subscribers.append(sub)
         sub._ready_event.wait(timeout=EVENT_TIMEOUT)
@@ -544,7 +546,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
     def test_hierarchy(self):
         self._create_launch_verify(BASE_PLATFORM_ID)
 
-    @attr('INT', group='sa')
+    @attr('INT', group='sak')
     def test_single_platform(self):
         self._create_launch_verify('LJ01D')
 
@@ -563,6 +565,24 @@ class TestOmsLaunch(IonIntegrationTestCase):
         log.info("topology = %s", str(self.topology))
 
 
+        #-------------------------------------------------------------------------------------
+        # Create Data Process Definition and Data Process for the eng stream monitor process
+        #-------------------------------------------------------------------------------------
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+            name='DemoStreamAlertTransform',
+            description='For testing EventTriggeredTransform_B',
+            module='ion.processes.data.transforms.event_alert_transform',
+            class_name='DemoStreamAlertTransform')
+        self.platform_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
+
+        #THERE SHOULD BE NO STREAMDEF REQUIRED HERE.
+        platform_streamdef_id = self.pubsubcli.create_stream_definition(name='platform_eng_parsed', parameter_dictionary_id=self.pdict_id)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(platform_streamdef_id, self.platform_dprocdef_id, binding='output' )
+
+        platform_data_process_id = self.dataprocessclient.create_data_process(self.platform_dprocdef_id, [self.data_product_id], None)
+        self.dataprocessclient.activate_data_process(platform_data_process_id)
+
+
         #-------------------------------
         # Launch Base Platform AgentInstance, connect to the resource agent client
         #-------------------------------
@@ -574,8 +594,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         #wait for start
         instance_obj = self.imsclient.read_platform_agent_instance(agent_instance_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
-                                instance_obj.agent_process_id,
-                                ProcessStateEnum.RUNNING)
+            instance_obj.agent_process_id,
+            ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(90), "The platform agent instance did not spawn in 90 seconds")
 
         agent_instance_obj= self.imsclient.read_instrument_agent_instance(agent_instance_id)
@@ -593,7 +613,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         # issue INITIALIZE command to the base platform, which will launch the
         # creation of the whole platform hierarchy rooted at base_platform_config['platform_id']
-#        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=base_platform_config))
+        #        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=dict(plat_config=base_platform_config))
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'Base Platform INITIALIZE = %s', str(retval) )
@@ -622,7 +642,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.assertTrue(len(self._samples_received) >= 1)
 
         log.info("waiting a bit more for reception of more data samples...")
-        sleep(10)
+        sleep(15)
         log.info("Got data samples: %d", len(self._samples_received))
 
 

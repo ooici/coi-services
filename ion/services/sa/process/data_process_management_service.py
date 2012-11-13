@@ -294,37 +294,38 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #---------------------------------------------------------------------------------------
         # Register each output data product with DAMS to create DataProducer links
         #---------------------------------------------------------------------------------------
+
         output_stream_dict = {}
 
-        if out_data_products is None:
-            raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
+#        if out_data_products is None:
+#            raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
+        if out_data_products:
+            for binding, output_data_product_id in out_data_products.iteritems():
 
-        for binding, output_data_product_id in out_data_products.iteritems():
+                # check that the product is not already associated with a producer
+                producer_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+                if producer_ids:
+                    raise BadRequest("Data Product should not already be associated to a DataProducer %s hasDataProducer %s", str(data_process_id), str(producer_ids[0]))
 
-            # check that the product is not already associated with a producer
-            producer_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
-            if producer_ids:
-                raise BadRequest("Data Product should not already be associated to a DataProducer %s hasDataProducer %s", str(data_process_id), str(producer_ids[0]))
+                #Assign each output Data Product to this producer resource
+                output_data_product_obj = self.clients.resource_registry.read(output_data_product_id)
+                if not output_data_product_obj:
+                    raise NotFound("Output Data Product %s does not exist" % output_data_product_id)
 
-            #Assign each output Data Product to this producer resource
-            output_data_product_obj = self.clients.resource_registry.read(output_data_product_id)
-            if not output_data_product_obj:
-                raise NotFound("Output Data Product %s does not exist" % output_data_product_id)
+                # Associate with DataProcess: register as an output product for this process
+                log.debug("Link data process %s and output out data product: %s  (L4-CI-SA-RQ-260)", str(data_process_id), str(output_data_product_id))
+                self.clients.data_acquisition_management.assign_data_product(input_resource_id= data_process_id,data_product_id= output_data_product_id)
 
-            # Associate with DataProcess: register as an output product for this process
-            log.debug("Link data process %s and output out data product: %s  (L4-CI-SA-RQ-260)", str(data_process_id), str(output_data_product_id))
-            self.clients.data_acquisition_management.assign_data_product(input_resource_id= data_process_id,data_product_id= output_data_product_id)
+                # Retrieve the id of the OUTPUT stream from the out Data Product
+                stream_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasStream, RT.Stream, True)
 
-            # Retrieve the id of the OUTPUT stream from the out Data Product
-            stream_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasStream, RT.Stream, True)
+                if not stream_ids:
+                    raise NotFound("No Stream created for output Data Product " + str(output_data_product_id))
 
-            if not stream_ids:
-                raise NotFound("No Stream created for output Data Product " + str(output_data_product_id))
+                if len(stream_ids) != 1:
+                    raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
 
-            if len(stream_ids) != 1:
-                raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
-
-            output_stream_dict[binding] = stream_ids[0]
+                output_stream_dict[binding] = stream_ids[0]
 
         #------------------------------------------------------------------------------------------------------------------------------------------
         #Check for attached objects and put them into the configuration
