@@ -15,6 +15,7 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
 import numpy as np
+import ntplib
 
 from ion.core.process.transform import TransformDataProcess
 
@@ -119,7 +120,8 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             # Put time first if its not zero. Retrieval returns 0 secs for malformed entries
             if rdt['time'][i] == time_fill_value:
                 continue
-            varTuple.append(rdt['time'][i])
+            # convert timestamp from instrument to UNIX time stamp since thats what Google DT expects
+            varTuple.append(ntplib.ntp_to_system_time(rdt['time'][i]))
 
             for dd in data_description:
                 field = dd[0]

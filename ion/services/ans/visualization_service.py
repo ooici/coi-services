@@ -16,7 +16,6 @@ from pyon.public import IonObject, RT, log, PRED
 from pyon.util.containers import create_unique_identifier, get_safe
 from pyon.core.exception import Inconsistent, BadRequest, NotFound
 from datetime import datetime
-import ntplib
 
 import simplejson
 import math
@@ -161,7 +160,7 @@ class VisualizationService(BaseVisualizationService):
 
                         # Adjust the ntp time stamp from instruments to standard date tine
                         #varTuple.append(datetime.fromtimestamp(tempTuple[0]))
-                        varTuple.append(datetime.fromtimestamp(ntplib.ntp_to_system_time(tempTuple[0])))
+                        varTuple.append(datetime.fromtimestamp(tempTuple[0]))
 
                         for idx in range(1,len(tempTuple)):
                             # some silly numpy format won't go away so need to cast numbers to floats
@@ -336,7 +335,7 @@ class VisualizationService(BaseVisualizationService):
             if 'parameters' in visualization_parameters:
                 if not 'time' in visualization_parameters['parameters']:
                     visualization_parameters['parameters'].append('time')
-                print ">>>>>>>>>>>>>>>>>>>>  VIS PARAMS :", visualization_parameters['parameters']
+
                 query['parameters'] = visualization_parameters['parameters']
 
             if 'stride_time' in visualization_parameters:
