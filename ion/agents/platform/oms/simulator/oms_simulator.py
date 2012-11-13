@@ -191,6 +191,7 @@ class OmsSimulator(OmsClient):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
+        # TODO use NTP from here aligning with generate_values accordingly
         to_time = time.time()
         attrs = self._idp[platform_id].attrs
         vals = {}
@@ -211,6 +212,7 @@ class OmsSimulator(OmsClient):
 
         assert isinstance(input_attrs, list)
 
+        # TODO review use of NTP
         timestamp = time.time()
         attrs = self._idp[platform_id].attrs
         vals = {}

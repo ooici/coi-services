@@ -603,8 +603,8 @@ class UserNotificationService(BaseUserNotificationService):
         # Passing a null or negative for the limit to query view through opts results in a ServerError so we cannot do that.
         if limit > -1:
             opts = dict(
-                start_key = [origin, type or 0, min_datetime or 0],
-                end_key   = [origin, type or {}, max_datetime or {}],
+                startkey = [origin, type or 0, min_datetime or 0],
+                endkey   = [origin, type or {}, max_datetime or {}],
                 descending = descending,
                 limit = limit,
                 include_docs = True
@@ -612,15 +612,15 @@ class UserNotificationService(BaseUserNotificationService):
 
         else:
             opts = dict(
-                start_key = [origin, type or 0, min_datetime or 0],
-                end_key   = [origin, type or {}, max_datetime or {}],
+                startkey = [origin, type or 0, min_datetime or 0],
+                endkey   = [origin, type or {}, max_datetime or {}],
                 descending = descending,
                 include_docs = True
             )
         if descending:
-            t = opts['start_key']
-            opts['start_key'] = opts['end_key']
-            opts['end_key'] = t
+            t = opts['startkey']
+            opts['startkey'] = opts['endkey']
+            opts['endkey'] = t
 
         results = datastore.query_view('event/by_origintype',opts=opts)
 

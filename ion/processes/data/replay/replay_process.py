@@ -211,8 +211,8 @@ class ReplayProcess(BaseReplayProcess):
         datastore = cc.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
 
         opts = dict(
-            start_key = [dataset_id, {}],
-            end_key   = [dataset_id, 0], 
+            startkey = [dataset_id, {}],
+            endkey   = [dataset_id, 0], 
             descending = True,
             limit = 1,
             include_docs = True

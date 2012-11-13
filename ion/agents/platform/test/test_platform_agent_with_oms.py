@@ -304,6 +304,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def _get_resource(self):
         attrNames = self.ATTR_NAMES
+        # TODO use NTP
         kwargs = dict(attr_names=attrNames, from_time=time.time())
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
