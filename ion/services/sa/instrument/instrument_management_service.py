@@ -1800,16 +1800,28 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def get_power_status_roll_up(self, device_id):
         # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
-        #todo: listen for events/streams from instrument agent -- there will be alarms
+
 
         retval = IonObject(OT.ComputedIntValue)
-
-        #call eventsdb to check  power-related events from this device.
-
-
         retval.value = StatusType.STATUS_OK
         retval.status = ComputedValueAvailability.PROVIDED
+
+        #call eventsdb to check  data-related events from this device.
+        log.debug("get_power_status_roll_up: device_id  %s", str(device_id))
+# Use Unix vs NTP for now. resource times are unix
+#        now = time.time() + IonTime.JAN_1970
+#        query_interval = ( time.time() - timedelta( seconds=15 ) ) + IonTime.JAN_1970
+        now = IonTime()
+        query_interval = ( time.time() - 15  )
+        events = self.clients.user_notification.find_events(origin=device_id, type= 'DeviceStatusEvent', max_datetime = now, min_datetime = query_interval)
+
+        for event  in events:
+            log.debug("get_power_status_roll_up: event  %s", str(event))
+            if event.state == DeviceStatusType.OUT_OF_RANGE:
+                retval.value = StatusType.STATUS_WARNING
+
         return retval
+
 
     def get_communications_status_roll_up(self, device_id):
         # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
@@ -1820,8 +1832,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         retval.status = ComputedValueAvailability.PROVIDED
 
         #call eventsdb to check  data-related events from this device.
-        now = self._makeEpochTime(datetime.utcnow())
-        query_interval = self._makeEpochTime( datetime.utcnow() - timedelta( seconds=15 ) )
+        now = IonTime()
+        query_interval = ( time.time() - 15  )
 
         events = self.clients.user_notification.find_events(origin=device_id, type= 'DeviceCommsEvent', max_datetime = now, min_datetime = query_interval)
 
@@ -1837,18 +1849,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #todo: listen for events/streams from instrument agent -- there will be alarms
 
         retval = IonObject(OT.ComputedIntValue)
-        retval.value = StatusType.STATUS_OK
-        retval.status = ComputedValueAvailability.PROVIDED
 
         #call eventsdb to check  data-related events from this device.
-        now = self._makeEpochTime(datetime.utcnow())
-        query_interval = self._makeEpochTime( datetime.utcnow() - timedelta( seconds=15 ) )
-        events = self.clients.user_notification.find_events(origin=device_id, type= 'DeviceStatusEvent', max_datetime = now, min_datetime = query_interval)
 
-        for event  in events:
-            if event.state == DeviceStatusType.OUT_OF_RANGE:
-                retval.value = StatusType.STATUS_WARNING
 
+        retval.value = StatusType.STATUS_OK
+        retval.status = ComputedValueAvailability.PROVIDED
         return retval
 
     def get_location_status_roll_up(self, device_id):
@@ -1919,10 +1925,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         #compute aggregated_status from other status readings.
-        extended_platform.aggregated_status = self._consolidate([extended_platform.computed.power_status_roll_up,
-                           extended_platform.computed.communications_status_roll_up,
-                           extended_platform.computed.data_status_roll_up,
-                           extended_platform.computed.location_status_roll_up])
+        extended_platform.aggregated_status = self._consolidate([extended_platform.computed.power_status_roll_up.value,
+                           extended_platform.computed.communications_status_roll_up.value,
+                           extended_platform.computed.data_status_roll_up.value,
+                           extended_platform.computed.location_status_roll_up.value])
 
         return extended_platform
 
@@ -2101,17 +2107,3 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return ret
 
 
-    @staticmethod
-    def _makeEpochTime(date_time):
-        """
-        provides the seconds since epoch give a python datetime object.
-
-        @param date_time Python datetime object
-        @retval seconds_since_epoch int
-        """
-        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
-        #'2009-07-04 18:30:47'
-        pattern = '%Y-%m-%d %H:%M:%S'
-        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
-
-        return seconds_since_epoch
