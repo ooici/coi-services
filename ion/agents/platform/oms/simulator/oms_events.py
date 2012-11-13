@@ -16,6 +16,7 @@ __license__ = 'Apache 2.0'
 import sys
 from time import sleep
 import time
+import ntplib
 import httplib
 import yaml
 
@@ -61,7 +62,7 @@ class EventNotifier(object):
         url_dict = self._listeners[event_type]
 
         if not url in url_dict:
-            url_dict[url] = time.time()
+            url_dict[url] = ntplib.system_to_ntp_time(time.time())
             log.trace("added listener=%s for event_type=%s", url, event_type)
 
         return url_dict[url]
@@ -73,7 +74,7 @@ class EventNotifier(object):
 
         unreg_time = 0
         if url in url_dict:
-            unreg_time = time.time()
+            unreg_time = ntplib.system_to_ntp_time(time.time())
             del url_dict[url]
             log.trace("removed listener=%s for event_type=%s", url, event_type)
 
@@ -167,7 +168,7 @@ class EventGenerator(object):
         platform_id = "TODO_some_platform_id_of_type_%s" % event_type['platform_type']
         message = "%s (synthetic event generated from simulator)" % event_type['name']
         group = event_type['group']
-        timestamp = time.time()
+        timestamp = ntplib.system_to_ntp_time(time.time())
         event_instance = {
             'ref_id':       ref_id,
             'message':      message,
@@ -198,7 +199,7 @@ class EventGenerator(object):
         self._keep_running = False
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     #
     # first, call this demo program with command line argument 'listener',
     # then, on a second terminal, with argument 'notifier'

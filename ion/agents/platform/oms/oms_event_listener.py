@@ -16,6 +16,7 @@ from pyon.public import log
 from ion.agents.platform.platform_driver import ExternalEventDriverEvent
 
 import time
+import ntplib
 from gevent.pywsgi import WSGIServer
 import yaml
 
@@ -133,7 +134,7 @@ class OmsEventListener(object):
 
         # note the ts for the event is the time of reception -- the
         # event_instance has its own timestamp
-        ts = time.time()
+        ts = ntplib.system_to_ntp_time(time.time())
 
         driver_event = ExternalEventDriverEvent(ts, event_type, event_instance)
         self._notify_driver_event(driver_event)

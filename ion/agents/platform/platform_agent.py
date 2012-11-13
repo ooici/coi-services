@@ -510,10 +510,13 @@ class PlatformAgent(ResourceAgent):
                      self._platform_id, param_name, stream_name)
             return
 
-        # Note that at the moment, notification from the driver has the form
+        # Note that notification from the driver has the form
         # of a non-empty list of pairs (val, ts)
         assert isinstance(param_value, list)
         assert isinstance(param_value[0], tuple)
+
+        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d samples) = %s",
+                 self._platform_id, param_name, len(param_value), str(param_value))
 
         # separate values and timestamps:
         vals, timestamps = zip(*param_value)
@@ -530,10 +533,6 @@ class PlatformAgent(ResourceAgent):
             log.warn("%r: Not including timestamp info in granule: "
                      "temporal_parameter_name not defined in parameter dictionary",
                      self._platform_id)
-
-        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d) = %s (last_ts=%s)",
-                 self._platform_id, param_name, len(vals), str(vals), timestamps[-1])
-
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:

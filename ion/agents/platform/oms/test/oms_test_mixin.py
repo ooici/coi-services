@@ -99,6 +99,7 @@ class OmsTestMixin(HelperTestMixin):
     def test_ah_getPlatformAttributeValues(self):
         platform_id = self.PLATFORM_ID
         attrNames = self.ATTR_NAMES
+        # TODO use NTP
         from_time = time.time() - 50  # a 50-sec time window
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         log.info("getPlatformAttributeValues = %s" % retval)
@@ -110,6 +111,7 @@ class OmsTestMixin(HelperTestMixin):
     def test_ah_getPlatformAttributeValues_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID
         attrNames = self.ATTR_NAMES
+        # TODO use NTP
         from_time = time.time() - 50  # a 50-sec time window
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         log.info("getPlatformAttributeValues = %s" % retval)
@@ -118,6 +120,7 @@ class OmsTestMixin(HelperTestMixin):
     def test_ah_getPlatformAttributeValues_invalid_attributes(self):
         platform_id = self.PLATFORM_ID
         attrNames = BOGUS_ATTR_NAMES
+        # TODO use NTP
         from_time = time.time() - 50  # a 50-sec time window
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         log.info("getPlatformAttributeValues = %s" % retval)
