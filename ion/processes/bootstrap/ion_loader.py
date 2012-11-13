@@ -323,10 +323,12 @@ class IONLoader(ImmediateProcess):
 
     def _create_object_from_row(self, objtype, row, prefix='',
                                 constraints=None, constraint_field='constraint_list',
-                                contacts=None, contact_field='contacts'):
+                                contacts=None, contact_field='contacts',
+                                existing_obj=None):
         """
         Construct an IONObject of a determined type from given row dict with attributes.
         Convert all attributes according to their schema target type. Supports nested objects.
+        Supports edit of objects of same type.
         """
         log.trace("Create object type=%s, prefix=%s", objtype, prefix)
         schema = self._get_object_class(objtype)._schema
@@ -365,14 +367,30 @@ class IONLoader(ImmediateProcess):
             obj_fields[constraint_field] = constraints
         if contacts:
             obj_fields[contact_field] = contacts
-        if row[self.COL_ID] and 'alt_ids' in schema:
-            if 'alt_ids' in obj_fields:
-                obj_fields['alt_ids'].append("PRE:"+row[self.COL_ID])
-            else:
-                obj_fields['alt_ids'] = ["PRE:"+row[self.COL_ID]]
 
-        log.trace("Create object type %s from field names %s", objtype, obj_fields.keys())
-        obj = IonObject(objtype, **obj_fields)
+        if existing_obj:
+            # Edit attributes
+            if existing_obj._get_type() != objtype:
+                raise iex.Inconsistent("Cannot edit resource. Type mismatch old=%s, new=%s" % (existing_obj._get_type(), objtype))
+            # TODO: Don't edit empty nested attributes
+            for attr in list(obj_fields.keys()):
+                if not obj_fields[attr]:
+                    del obj_fields[attr]
+            for attr in ('alt_ids','_id','_rev','type_'):
+                if attr in obj_fields:
+                    del obj_fields[attr]
+            existing_obj.__dict__.update(obj_fields)
+            log.trace("Update object type %s using field names %s", objtype, obj_fields.keys())
+            obj = existing_obj
+        else:
+            if row[self.COL_ID] and 'alt_ids' in schema:
+                if 'alt_ids' in obj_fields:
+                    obj_fields['alt_ids'].append("PRE:"+row[self.COL_ID])
+                else:
+                    obj_fields['alt_ids'] = ["PRE:"+row[self.COL_ID]]
+
+            log.trace("Create object type %s from field names %s", objtype, obj_fields.keys())
+            obj = IonObject(objtype, **obj_fields)
         return obj
 
     def _get_object_class(self, objtype):
@@ -468,24 +486,39 @@ class IONLoader(ImmediateProcess):
         - store newly created resource id and obj for future reference
         - (optional) support bulk create/update
         """
+        res_id_alias = row[self.COL_ID]
+        existing_obj = None
+        if res_id_alias in self.resource_ids:
+            # TODO: Catch case when ID used twice
+            existing_obj = self.resource_objs[res_id_alias]
+
         res_obj = self._create_object_from_row(restype, row, prefix,
                                                constraints=constraints, constraint_field=constraint_field,
-                                               contacts=contacts, contact_field=contact_field)
+                                               contacts=contacts, contact_field=contact_field,
+                                               existing_obj=existing_obj)
         if set_attributes:
             for attr, attr_val in set_attributes.iteritems():
                 setattr(res_obj, attr, attr_val)
 
-        headers = self._get_op_headers(row)
-        if self.bulk and support_bulk:
-            res_id = self._create_bulk_resource(res_obj)
-            self._resource_assign_owner(headers, res_obj)
+        if existing_obj:
+            res_id = self.resource_ids[res_id_alias]
+            if self.bulk and support_bulk:
+                self.bulk_objects[res_id] = res_obj
+            else:
+                # TODO: Use the appropriate service call here
+                self.container.resource_registry.update(res_obj)
         else:
-            svc_client = self._get_service_client(svcname)
-            res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
-            if res_id:
-                res_obj._id = res_id
-        self._register_id(row[self.COL_ID], res_id, res_obj)
-        self._resource_assign_org(row, res_id)
+            headers = self._get_op_headers(row)
+            if self.bulk and support_bulk:
+                res_id = self._create_bulk_resource(res_obj)
+                self._resource_assign_owner(headers, res_obj)
+            else:
+                svc_client = self._get_service_client(svcname)
+                res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
+                if res_id:
+                    res_obj._id = res_id
+            self._register_id(res_id_alias, res_id, res_obj)
+            self._resource_assign_org(row, res_id)
         return res_id
 
     def _create_bulk_resource(self, res_obj):
