@@ -414,6 +414,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Spawn Configuration and Parameters
         # ------------------------------------------------------------------------------------
 
+        if 'process' not in configuration:
+            configuration['process'] = {}
         configuration['process']['queue_name'] = queue_name
         configuration['process']['publish_streams'] = out_streams
 
