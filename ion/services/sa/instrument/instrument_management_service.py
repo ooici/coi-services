@@ -1269,7 +1269,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.platform_device.create_one(platform_device)
+        id = self.platform_device.create_one(platform_device)
+        self.DAMS.register_instrument(id)
+        return id
+
 
     def update_platform_device(self, platform_device=None):
         """
