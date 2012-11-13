@@ -29,6 +29,7 @@ from pyon.event.event import EventPublisher
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.util.ion_time import IonTime
+from pyon.util.containers import  get_ion_ts
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
@@ -369,7 +370,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         #put some events into the eventsdb to test - this should set the comms and data status to WARNING
 
-        t = IonTime()
+        t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
                 origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, value = 200 )
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',

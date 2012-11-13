@@ -1,7 +1,7 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 
-from pyon.util.containers import DotDict
+from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.util.ion_time import IonTime
@@ -493,7 +493,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         #create device state events to use for op /non-op filtering in extended
-        t = IonTime()
+        t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'ResourceAgentStateEvent',
             origin = instDevice1_id, state=ResourceAgentState.STREAMING  )
 

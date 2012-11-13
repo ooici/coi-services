@@ -551,7 +551,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         extended_product = self.dpmsclient.get_data_product_extension(ctd_l2_density_output_dp_id)
         self.assertEqual(1, len(extended_product.data_processes) )
-        self.assertEqual(3, len(extended_product.process_input_data_products[0]) )
+        self.assertEqual(3, len(extended_product.process_input_data_products) )
 #        log.debug("TestDataProductProvenance: DataProduct provenance_product_list  %s", str(extended_product.provenance_product_list))
 #        log.debug("TestDataProductProvenance: DataProduct data_processes  %s", str(extended_product.data_processes))
 #        log.debug("TestDataProductProvenance: DataProduct process_input_data_products  %s", str(extended_product.process_input_data_products))

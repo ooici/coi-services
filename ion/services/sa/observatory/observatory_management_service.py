@@ -15,7 +15,6 @@ from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.containers import DotDict, create_unique_identifier
-from pyon.util.ion_time import IonTime
 from pyon.agent.agent import ResourceAgentState
 
 from ooi.logging import log
@@ -1345,8 +1344,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             instrument_device_list = []
 
         #call eventsdb to check  data-related events from this device. Use UNix vs NTP tiem for now, as resource timestaps are in Unix, data is in NTP
-        now = IonTime()
-        query_interval = ( time.time() - timedelta( days=AGENT_STATUS_EVENT_DELTA_DAYS ) )
+
+        now = str(int(time.time() * 1000))
+        query_interval = str(int(time.time() - (AGENT_STATUS_EVENT_DELTA_DAYS * 86400) )  *1000)
 
         for device_obj in instrument_device_obj_list:
             # first check the instrument lifecycle state
