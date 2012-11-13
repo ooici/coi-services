@@ -1138,8 +1138,8 @@ class PlatformAgent(ResourceAgent):
             self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         params = kwargs.get('params', None)
-        if params is None:
-            raise BadRequest('start_event_dispatch missing params argument.')
+#        if params is None:
+#            raise BadRequest('start_event_dispatch missing params argument.')
 
         try:
             result = self._plat_driver.start_event_dispatch(params)

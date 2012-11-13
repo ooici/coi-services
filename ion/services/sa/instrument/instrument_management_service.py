@@ -607,13 +607,25 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         _port_agent_config = instrument_agent_instance_obj.port_agent_config
        
         #todo: ask bill if this blocks
+        # It blocks until the port agent starts up or a timeout
         _pagent = PortAgentProcess.launch_process(_port_agent_config,  test_mode = True)
         pid = _pagent.get_pid()
         port = _pagent.get_data_port()
 
+        # Hack to get ready for DEMO.  Further though needs to be put int
+        # how we pass this config info around.
+        host = 'localhost'
+
+        driver_config = instrument_agent_instance_obj.driver_config
+        comms_config = driver_config.get('comms_config')
+        if(comms_config):
+            host = comms_config.get('addr')
+        else:
+            log.warn("No comms_config specified, using '%s'" % host)
+
         # Configure driver to use port agent port number.
         instrument_agent_instance_obj.driver_config['comms_config'] = {
-            'addr' : 'localhost', #TODO: should this be FQDN?
+            'addr' : host,
             'port' : port
         }
         instrument_agent_instance_obj.driver_config['pagent_pid'] = pid
@@ -1269,11 +1281,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
+
         platform_device_id = self.platform_device.create_one(platform_device)
         #register the platform as a data producer
         self.DAMS.register_instrument(platform_device_id)
 
-        return platform_device_id
+        return id
+
 
     def update_platform_device(self, platform_device=None):
         """
