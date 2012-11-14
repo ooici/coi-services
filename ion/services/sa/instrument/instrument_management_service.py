@@ -1837,11 +1837,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #call eventsdb to check  data-related events from this device.
         now = str(int(time.time() * 1000))
-        query_interval = str(int(time.time() - 10 )*1000)
+        query_interval = str(int(time.time() - 3 )*1000)
         # find_events compares timestamps are STRINGS!!!
         events = self.clients.user_notification.find_events(origin=device_id, type= 'DeviceCommsEvent', max_datetime = now, min_datetime = query_interval)
 
         for event  in events:
+            log.debug("get_communications_status_roll_up: event  %s", str(event))
             if event.state == DeviceCommsType.DATA_DELIVERY_INTERRUPTION:
                 retval.value = StatusType.STATUS_WARNING
 
