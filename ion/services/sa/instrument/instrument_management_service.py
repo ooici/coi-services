@@ -1813,8 +1813,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #        now = time.time() + IonTime.JAN_1970
         #        query_interval = ( time.time() - timedelta( seconds=15 ) ) + IonTime.JAN_1970
         now = str(int(time.time() * 1000))
-        query_interval = str(int(time.time() - 10 )*1000)
+        query_interval = str(int(time.time() - 3 )*1000)
         # find_events compares timestamps are STRINGS!!!
+        log.debug("get_power_status_roll_up: now  %s", str(now))
+
         events = self.clients.user_notification.find_events(origin=device_id, type= 'DeviceStatusEvent', max_datetime = now, min_datetime = query_interval)
 
         for event  in events:
