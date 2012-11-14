@@ -271,6 +271,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                     origin_type='PlatformDevice',
                     sub_type = self.instrument_variable_name,
                     ts_created=get_ion_ts(),
+                    time_stamp =int(time.time()),
                     state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
                     lapse_interval_seconds=self.timer_interval,
                     description = "Event to deliver the communications status of the instrument.")
