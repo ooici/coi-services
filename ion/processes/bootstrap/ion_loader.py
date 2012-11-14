@@ -271,7 +271,9 @@ class IONLoader(ImmediateProcess):
 
                 if self.bulk:
                     num_bulk = self._finalize_bulk(category)
-                    self.container.resource_registry.rr_store._update_views()
+                    # Update resource and associations views
+                    self.container.resource_registry.find_resources(restype="X", id_only=True)
+                    self.container.resource_registry.find_associations(predicate="X", id_only=True)
 
             except IOError, ioe:
                 log.warn("Resource category file %s error: %s" % (filename, str(ioe)), exc_info=True)
@@ -1163,8 +1165,17 @@ class IONLoader(ImmediateProcess):
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
             "instrument_management", "create_platform_device", contacts=contacts,
             support_bulk=True)
-        ims_client = self._get_service_client("instrument_management")
 
+        if self.bulk:
+            # Create DataProducer and association
+            pd_obj = self._get_resource_obj(row[self.COL_ID])
+            data_producer_obj = IonObject(RT.DataProducer, name=pd_obj.name,
+                description="Primary DataProducer for PlatformDevice %s" % pd_obj.name,
+                producer_context=IonObject(OT.InstrumentProducerContext), is_primary=True)
+            dp_id = self._create_bulk_resource(data_producer_obj)
+            self._create_association(pd_obj, PRED.hasDataProducer, data_producer_obj)
+
+        ims_client = self._get_service_client("instrument_management")
         ass_id = row["platform_model_id"]
         if ass_id:
             if self.bulk:
