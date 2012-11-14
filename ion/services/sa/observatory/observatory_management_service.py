@@ -22,7 +22,7 @@ from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
 from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 import time
 
 #for logical/physical associations, it makes sense to search from MFMS
@@ -1343,10 +1343,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if instrument_device_obj_list is None:
             instrument_device_list = []
 
-        #call eventsdb to check  data-related events from this device.
-        now = self._makeEpochTime(datetime.utcnow())
-        query_interval = self._makeEpochTime( datetime.utcnow() - timedelta( days=AGENT_STATUS_EVENT_DELTA_DAYS ) )
+        #call eventsdb to check  data-related events from this device. Use UNix vs NTP tiem for now, as resource timestaps are in Unix, data is in NTP
 
+        now = str(int(time.time() * 1000))
+        query_interval = str(int(time.time() - (AGENT_STATUS_EVENT_DELTA_DAYS * 86400) )  *1000)
 
         for device_obj in instrument_device_obj_list:
             # first check the instrument lifecycle state
@@ -1368,18 +1368,3 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return op, non_op
 
-
-    @staticmethod
-    def _makeEpochTime(date_time):
-        """
-        provides the seconds since epoch give a python datetime object.
-
-        @param date_time Python datetime object
-        @retval seconds_since_epoch int
-        """
-        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
-        #'2009-07-04 18:30:47'
-        pattern = '%Y-%m-%d %H:%M:%S'
-        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
-
-        return seconds_since_epoch
