@@ -96,17 +96,28 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             log.error("GoogleDT transform: Need a output stream definition to process graphs")
             return None
 
-        # if time was null or misisng, do not process
+        fields = []
+        if config and config['parameters']:
+            fields = config['parameters']
+        else:
+            fields = rdt.fields
+
+        # if time was null or missing, do not process
         if 'time' not in rdt: return None
         if rdt['time'] is None:
             return None
 
-        time_fill_value = 0 # should be derived from the granule's param dict.
-
+        time_fill_value = 0.0 # should be derived from the granule's param dict.
         data_description.append(('time','number','time'))
-        for field in rdt.fields:
+
+        for field in fields:
             if field == 'time':
                 continue
+
+            # If a config block was passed, consider only the params listed in it
+            if config and config['parameters']:
+                if not field in config['parameters']:
+                    continue
 
             # only consider fields which are supposed to be numbers.
             if (rdt[field] != None) and (rdt[field].dtype not in gdt_allowed_numerical_types):
