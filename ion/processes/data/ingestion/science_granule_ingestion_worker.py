@@ -103,6 +103,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             log.error('Ingestion received a message that is not a granule. %s' % msg)
             return
         log.trace('Received incoming granule from route: %s and stream_id: %s', stream_route, stream_id)
+        log.trace('Granule contents: %s', msg.__dict__)
         granule = msg
         self.add_granule(stream_id, granule)
         self.persist_meta(stream_id, granule)
@@ -152,7 +153,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         # Actual persistence
         #-------------------------------------------------------------------------------- 
+        log.trace('Loaded coverage for %s' , dataset_id)
+
         rdt = RecordDictionaryTool.load_from_granule(granule)
+        log.trace('%s', {i:rdt[i] for i in rdt.fields})
         elements = len(rdt)
         if not elements:
             return

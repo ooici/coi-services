@@ -76,7 +76,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidFBVcTVTSzFRVHJBX0Nqa2VqNlRMSHc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AmwBF-VypBiFdENWcnJZaXVwR2hzaGtfYlJtc2xaY2c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -271,6 +271,10 @@ class IONLoader(ImmediateProcess):
 
                 if self.bulk:
                     num_bulk = self._finalize_bulk(category)
+                    # Update resource and associations views
+                    self.container.resource_registry.find_resources(restype="X", id_only=True)
+                    self.container.resource_registry.find_associations(predicate="X", id_only=True)
+
             except IOError, ioe:
                 log.warn("Resource category file %s error: %s" % (filename, str(ioe)), exc_info=True)
             finally:
@@ -282,12 +286,11 @@ class IONLoader(ImmediateProcess):
 
     def _load_system_ids(self):
         """Read some system objects for later reference"""
-        if not self.debug:
-            org_objs,_ = self.container.resource_registry.find_resources(name="ION", restype=RT.Org, id_only=False)
-            if not org_objs:
-                raise iex.BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
-            ion_org_id = org_objs[0]._id
-            self._register_id(self.ID_ORG_ION, ion_org_id, org_objs[0])
+        org_objs,_ = self.container.resource_registry.find_resources(name="ION", restype=RT.Org, id_only=False)
+        if not org_objs:
+            raise iex.BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
+        ion_org_id = org_objs[0]._id
+        self._register_id(self.ID_ORG_ION, ion_org_id, org_objs[0])
 
     def _prepare_incremental(self):
         """
@@ -321,10 +324,12 @@ class IONLoader(ImmediateProcess):
 
     def _create_object_from_row(self, objtype, row, prefix='',
                                 constraints=None, constraint_field='constraint_list',
-                                contacts=None, contact_field='contacts'):
+                                contacts=None, contact_field='contacts',
+                                existing_obj=None):
         """
         Construct an IONObject of a determined type from given row dict with attributes.
         Convert all attributes according to their schema target type. Supports nested objects.
+        Supports edit of objects of same type.
         """
         log.trace("Create object type=%s, prefix=%s", objtype, prefix)
         schema = self._get_object_class(objtype)._schema
@@ -363,14 +368,30 @@ class IONLoader(ImmediateProcess):
             obj_fields[constraint_field] = constraints
         if contacts:
             obj_fields[contact_field] = contacts
-        if row[self.COL_ID] and 'alt_ids' in schema:
-            if 'alt_ids' in obj_fields:
-                obj_fields['alt_ids'].append("PRE:"+row[self.COL_ID])
-            else:
-                obj_fields['alt_ids'] = ["PRE:"+row[self.COL_ID]]
 
-        log.trace("Create object type %s from field names %s", objtype, obj_fields.keys())
-        obj = IonObject(objtype, **obj_fields)
+        if existing_obj:
+            # Edit attributes
+            if existing_obj._get_type() != objtype:
+                raise iex.Inconsistent("Cannot edit resource. Type mismatch old=%s, new=%s" % (existing_obj._get_type(), objtype))
+            # TODO: Don't edit empty nested attributes
+            for attr in list(obj_fields.keys()):
+                if not obj_fields[attr]:
+                    del obj_fields[attr]
+            for attr in ('alt_ids','_id','_rev','type_'):
+                if attr in obj_fields:
+                    del obj_fields[attr]
+            existing_obj.__dict__.update(obj_fields)
+            log.trace("Update object type %s using field names %s", objtype, obj_fields.keys())
+            obj = existing_obj
+        else:
+            if row[self.COL_ID] and 'alt_ids' in schema:
+                if 'alt_ids' in obj_fields:
+                    obj_fields['alt_ids'].append("PRE:"+row[self.COL_ID])
+                else:
+                    obj_fields['alt_ids'] = ["PRE:"+row[self.COL_ID]]
+
+            log.trace("Create object type %s from field names %s", objtype, obj_fields.keys())
+            obj = IonObject(objtype, **obj_fields)
         return obj
 
     def _get_object_class(self, objtype):
@@ -444,6 +465,15 @@ class IONLoader(ImmediateProcess):
                 return self.resource_objs[alias_ids[0]]
         return None
 
+    def _get_alt_id(self, res_obj, prefix):
+        alt_ids = getattr(res_obj, 'alt_ids', [])
+        for alt_id in alt_ids:
+            if alt_id.startswith(prefix+":"):
+                alt_id_str = alt_id[len(prefix)+1:]
+                #print "**** _get_alt_id", alt_id_str
+                return alt_id_str
+        print "**** _get_alt_id NONE", alt_ids
+
     def _get_op_headers(self, row):
         headers = {}
         owner_id = row.get(self.COL_OWNER, None)
@@ -466,31 +496,48 @@ class IONLoader(ImmediateProcess):
         - store newly created resource id and obj for future reference
         - (optional) support bulk create/update
         """
+        res_id_alias = row[self.COL_ID]
+        existing_obj = None
+        if res_id_alias in self.resource_ids:
+            # TODO: Catch case when ID used twice
+            existing_obj = self.resource_objs[res_id_alias]
+
         res_obj = self._create_object_from_row(restype, row, prefix,
                                                constraints=constraints, constraint_field=constraint_field,
-                                               contacts=contacts, contact_field=contact_field)
+                                               contacts=contacts, contact_field=contact_field,
+                                               existing_obj=existing_obj)
         if set_attributes:
             for attr, attr_val in set_attributes.iteritems():
                 setattr(res_obj, attr, attr_val)
 
-        headers = self._get_op_headers(row)
-        if self.bulk and support_bulk:
-            res_id = self._create_bulk_resource(res_obj)
-            self._resource_assign_owner(headers, res_obj)
+        if existing_obj:
+            res_id = self.resource_ids[res_id_alias]
+            if self.bulk and support_bulk:
+                self.bulk_objects[res_id] = res_obj
+            else:
+                # TODO: Use the appropriate service call here
+                self.container.resource_registry.update(res_obj)
         else:
-            svc_client = self._get_service_client(svcname)
-            res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
-            if res_id:
-                res_obj._id = res_id
-        self._register_id(row[self.COL_ID], res_id, res_obj)
-        self._resource_assign_org(row, res_id)
+            headers = self._get_op_headers(row)
+            if self.bulk and support_bulk:
+                res_id = self._create_bulk_resource(res_obj, res_id_alias)
+                self._resource_assign_owner(headers, res_obj)
+            else:
+                svc_client = self._get_service_client(svcname)
+                res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
+                if res_id:
+                    res_obj._id = res_id
+                self._register_id(res_id_alias, res_id, res_obj)
+            self._resource_assign_org(row, res_id)
         return res_id
 
-    def _create_bulk_resource(self, res_obj):
+    def _create_bulk_resource(self, res_obj, res_alias=None):
         if not hasattr(res_obj, "_id"):
             res_obj._id = create_unique_resource_id()
         res_id = res_obj._id
         self.bulk_objects[res_id] = res_obj
+        if res_alias:
+            self._register_id(res_alias, res_id, res_obj)
         return res_id
 
     def _resource_advance_lcs(self, row, res_id, restype=None):
@@ -745,8 +792,6 @@ class IONLoader(ImmediateProcess):
     def _load_UserRole(self, row):
         org_id = row["org_id"]
         if org_id:
-            if org_id == self.ID_ORG_ION and self.debug:
-                return
             org_id = self.resource_ids[org_id]
 
         user_id = self.resource_ids[row["user_id"]]
@@ -912,7 +957,6 @@ class IONLoader(ImmediateProcess):
 
             self._load_Subsite(fakerow)
 
-
     def _load_PlatformSite(self, row):
         constraints = self._get_constraints(row, type='PlatformSite')
         coordinate_name = row['coordinate_system']
@@ -946,7 +990,6 @@ class IONLoader(ImmediateProcess):
                     svc_client.assign_platform_model_to_platform_site(self.resource_ids[pm_id], res_id)
 
     def _load_PlatformSite_OOI(self):
-        # TODO: Add assembly level PlatformSites (= entire moorings as in Subsite)
 
         def _load_platform(ooi_id, ooi_obj):
             constrow = {}
@@ -980,13 +1023,14 @@ class IONLoader(ImmediateProcess):
             self._load_PlatformSite(fakerow)
 
         ooi_objs = self.ooi_loader.get_type_assets("node")
+        # Pass 1: platform nodes
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             if ooi_obj.get('is_platform', False):
                 _load_platform(ooi_id, ooi_obj)
+        # Pass 2: child nodes
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             if not ooi_obj.get('is_platform', False):
                 _load_platform(ooi_id, ooi_obj)
-
 
     def _load_InstrumentSite(self, row):
         constraints = self._get_constraints(row, type='InstrumentSite')
@@ -1107,7 +1151,7 @@ class IONLoader(ImmediateProcess):
                 context.axis = AxisTypeEnum.LON
         for key in additional_attrs.iterkeys():
             if key in row and row[key]:
-                setattr(context,additional_attrs[key],row[key])
+                setattr(context, additional_attrs[key], row[key])
 
         dataset_management = self._get_service_client('dataset_management')
         context_id = dataset_management.create_parameter_context(name=row['Name'], parameter_context=context.dump())
@@ -1125,14 +1169,23 @@ class IONLoader(ImmediateProcess):
         except NotFound as e:
             log.error('Missing parameter context %s', e.message)
 
-
     def _load_PlatformDevice(self, row):
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
             "instrument_management", "create_platform_device", contacts=contacts,
             support_bulk=True)
-        ims_client = self._get_service_client("instrument_management")
 
+        if self.bulk:
+            # Create DataProducer and association
+            pd_obj = self._get_resource_obj(row[self.COL_ID])
+            pd_alias = self._get_alt_id(pd_obj, "PRE")
+            data_producer_obj = IonObject(RT.DataProducer, name=pd_obj.name,
+                description="Primary DataProducer for PlatformDevice %s" % pd_obj.name,
+                producer_context=IonObject(OT.InstrumentProducerContext), is_primary=True)
+            dp_id = self._create_bulk_resource(data_producer_obj, pd_alias+"_DPPR")
+            self._create_association(pd_obj, PRED.hasDataProducer, data_producer_obj)
+
+        ims_client = self._get_service_client("instrument_management")
         ass_id = row["platform_model_id"]
         if ass_id:
             if self.bulk:
@@ -1167,10 +1220,11 @@ class IONLoader(ImmediateProcess):
         if self.bulk:
             # Create DataProducer and association
             id_obj = self._get_resource_obj(row[self.COL_ID])
+            id_alias = self._get_alt_id(id_obj, "PRE")
             data_producer_obj = IonObject(RT.DataProducer, name=id_obj.name,
                 description="Primary DataProducer for InstrumentDevice %s" % id_obj.name,
                 producer_context=IonObject(OT.InstrumentProducerContext), is_primary=True)
-            dp_id = self._create_bulk_resource(data_producer_obj)
+            dp_id = self._create_bulk_resource(data_producer_obj, id_alias+"_DPPR")
             self._create_association(id_obj, PRED.hasDataProducer, data_producer_obj)
 
         #        rr = self._get_service_client("resource_registry")
@@ -1314,6 +1368,18 @@ class IONLoader(ImmediateProcess):
                 svc_client.assign_platform_model_to_platform_agent(self.resource_ids[model_id], res_id)
         self._resource_advance_lcs(row, res_id, "InstrumentAgent")
 
+    def _load_PlatformAgent_OOI(self):
+        ooi_objs = self.ooi_loader.get_type_assets("nodetype")
+
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            fakerow = {}
+            fakerow[self.COL_ID] = ooi_id + "_PA"
+            fakerow['pa/name'] = "Platform Agent for " + ooi_id
+            fakerow['org_ids'] = ''
+            fakerow['platform_model_ids'] = ooi_id + "_PM"
+
+            self._load_PlatformAgent(fakerow)
+
     def _load_PlatformAgentInstance(self, row):
         # create object with simple field types -- name, description
         agent_instance = self._create_object_from_row("PlatformAgentInstance", row, "pai/")
@@ -1428,7 +1494,7 @@ class IONLoader(ImmediateProcess):
 #
 #        return pid
 
-        id = row['ID']
+        id = row[self.COL_ID]
         process_def = self._create_object_from_row("ProcessDefinition", row, "epd/")
         process_def.executable = { 'module': row['module'], 'class': row['class'] }
 
@@ -1445,7 +1511,6 @@ class IONLoader(ImmediateProcess):
 #        log.trace("Assigning input StreamDefinition to DataProcessDefinition for %s" % input_strdef)
 #        for insd in input_strdef:
 #            data_process_client.assign_input_stream_definition_to_data_process_definition(self.resource_ids[insd], dbid)
-
 
     def _load_EventProcess(self, row):
         process_def_id = self.resource_ids[row["data_process_definition_id"]]
@@ -1466,9 +1531,7 @@ class IONLoader(ImmediateProcess):
 #        self._resource_assign_org(row, res_id)
 #        res_id = svc_client.activate_data_process(res_id)
 
-
-
-    def _load_DataProduct(self, row):
+    def _load_DataProduct(self, row, do_bulk=False):
         tdom, sdom = time_series_domain()
 
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
@@ -1486,27 +1549,95 @@ class IONLoader(ImmediateProcess):
         # need to evaluate as simplelist instead and add to object explicitly
         res_obj.available_formats = self._get_typed_value(row['available_formats'], targettype="simplelist")
 
-        svc_client = self._get_service_client("data_product_management")
-        stream_definition_id = self.resource_ids[row["stream_def_id"]]
-        res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id)
-        self._register_id(row[self.COL_ID], res_id, res_obj)
+        headers = self._get_op_headers(row)
 
-        if not self.debug and row['persist_data']=='1':
-            svc_client.activate_data_product_persistence(res_id)
+        if self.bulk and do_bulk:
+            # This is a non-functional, diminished version of a DataProduct, just to show up in lists
+            res_id = self._create_bulk_resource(res_obj, row[self.COL_ID])
+            self._resource_assign_owner(headers, res_obj)
+            # Create and associate Stream
+            # Create and associate DataSet
+        else:
+            svc_client = self._get_service_client("data_product_management")
+            stream_definition_id = self.resource_ids[row["stream_def_id"]]
+            res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id, headers=headers)
+            self._register_id(row[self.COL_ID], res_id, res_obj)
+
+            if not self.debug and row['persist_data']=='1':
+                svc_client.activate_data_product_persistence(res_id)
         self._resource_advance_lcs(row, res_id, "DataProduct")
 
-    def _load_DataProductLink(self, row):
-        log.info("Loading DataProductLink")
+    def _load_DataProduct_OOI(self):
+        ooi_objs = self.ooi_loader.get_type_assets("instrument")
 
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            data_product_list = ooi_obj.get('data_product_list', [])
+            for dp_id in data_product_list:
+                # (1) Device Data Product
+                fakerow = {}
+                fakerow[self.COL_ID] = ooi_id + "_" + dp_id + "_DPID"
+                fakerow['dp/name'] = "Data Product for device " + ooi_id + "_" + dp_id
+                fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+                fakerow['contact_ids'] = ''
+                fakerow['geo_constraint_id'] = ''
+                fakerow['coordinate_system_id'] = ''
+                fakerow['available_formats'] = ''
+                fakerow['stream_def_id'] = ''
+                self._load_DataProduct(fakerow, do_bulk=self.bulk)
+
+                # (2) Site Data Product
+                fakerow = {}
+                fakerow[self.COL_ID] = ooi_id + "_" + dp_id + "_DPIS"
+                fakerow['dp/name'] = "Data Product for site " + ooi_id + "_" + dp_id
+                fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+                fakerow['contact_ids'] = ''
+                fakerow['geo_constraint_id'] = ''
+                fakerow['coordinate_system_id'] = ''
+                fakerow['available_formats'] = ''
+                fakerow['stream_def_id'] = ''
+                self._load_DataProduct(fakerow, do_bulk=self.bulk)
+
+    def _load_DataProductLink(self, row, do_bulk=False):
         dp_id = self.resource_ids[row["data_product_id"]]
         res_id = self.resource_ids[row["input_resource_id"]]
         type = row['resource_type']
 
         if type=='InstrumentDevice' or type=='PlatformDevice':
-            svc_client = self._get_service_client("data_acquisition_management")
-            svc_client.assign_data_product(res_id, dp_id)
+            if self.bulk and do_bulk:
+                id_obj = self._get_resource_obj(row["input_resource_id"])
+                dp_obj = self._get_resource_obj(row["data_product_id"])
+                parent_obj = self._get_resource_obj(row["input_resource_id"] + "_DPPR")
+
+                data_producer_obj = IonObject(RT.DataProducer, name=id_obj.name,
+                    description="Subordinate DataProducer for InstrumentDevice %s" % id_obj.name)
+                dp_id = self._create_bulk_resource(data_producer_obj)
+                self._create_association(id_obj, PRED.hasOutputProduct, dp_obj)
+                self._create_association(id_obj, PRED.hasDataProducer, data_producer_obj)
+                self._create_association(dp_obj, PRED.hasDataProducer, data_producer_obj)
+                self._create_association(data_producer_obj, PRED.hasParent, parent_obj)
+            else:
+                svc_client = self._get_service_client("data_acquisition_management")
+                svc_client.assign_data_product(res_id, dp_id)
         elif type=='InstrumentSite':
-            self._get_service_client('observatory_management').create_site_data_product(res_id, dp_id)
+            if self.bulk and do_bulk:
+                # Why create a site data product here???
+                pass
+            else:
+                svc_client = self._get_service_client('observatory_management')
+                svc_client.create_site_data_product(res_id, dp_id)
+
+    def _load_DataProductLink_OOI(self):
+        ooi_objs = self.ooi_loader.get_type_assets("instrument")
+
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            data_product_list = ooi_obj.get('data_product_list', [])
+            for dp_id in data_product_list:
+                fakerow = {}
+                fakerow['data_product_id'] = ooi_id + "_" + dp_id + "_DPID"
+                fakerow['input_resource_id'] = ooi_id + "_ID"
+                fakerow['resource_type'] = 'InstrumentDevice'
+
+                self._load_DataProductLink(fakerow, do_bulk=self.bulk)
 
     def _load_Attachment(self, row):
         log.info("Loading Attachment")
@@ -1606,6 +1737,7 @@ class IONLoader(ImmediateProcess):
                            'InstrumentDevice',
                            'PlatformAgent',
                            'PlatformDevice',
+                           'DataProduct'
                            ]
 
         for restype in ooi_asset_types:

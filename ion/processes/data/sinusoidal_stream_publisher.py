@@ -67,7 +67,9 @@ class SinusoidalCtdPublisher(SimpleCtdPublisher):
             t = numpy.array( [sine_ampl * 2 * math.sin(math.radians(sine_curr_deg + 45))] )
             p = numpy.array( [sine_ampl * 4 * math.sin(math.radians(sine_curr_deg + 60))] )
 
-            lat = lon = numpy.array([0.0])
+            lat = numpy.array([32.8])
+            lon = numpy.array([-119.6])
+            # convert time to ntp time. Standard notation in the system
             tvar = numpy.array([ntplib.system_to_ntp_time(time.time())])
 
             parameter_dictionary = self._create_parameter()

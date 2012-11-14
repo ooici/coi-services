@@ -171,8 +171,7 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
         # build a list of fields/variables that need to be plotted. Use the list provided by the UI
         # since the retrieved granule might have extra fields.
         fields = []
-        if config:
-            if config['parameters']:
+        if config and config['parameters']:
                 fields = config['parameters']
         else:
             fields = rdt.fields
@@ -237,7 +236,7 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
 
 
         # Do a error check for incorrect time values. Ignore all time == fill_values
-        time_fill_value = 0
+        time_fill_value = 0.0
         clean_data_flag = False
         while not clean_data_flag:
             clean_data_flag = True
