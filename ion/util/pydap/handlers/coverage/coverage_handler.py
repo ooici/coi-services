@@ -9,7 +9,6 @@ from stat import ST_MTIME
 from coverage_model.coverage import SimplexCoverage
 from pydap.model import DatasetType,BaseType, GridType, StructureType
 from pydap.handlers.lib import BaseHandler
-from traceback import print_exc
 import time
 
 class Handler(BaseHandler):
@@ -93,7 +92,7 @@ class Handler(BaseHandler):
                     try:
                         target[name] = get_var(coverage,name,slice_)
                     except:
-                        print_exc()
+                        log.exception('Problem reading coverage %s', coverage.name)
                         continue
 
                 elif var:
@@ -104,14 +103,14 @@ class Handler(BaseHandler):
                     try:
                         grid[name] = get_var(coverage,name, slice_)
                     except:
-                        print_exc()
+                        log.exception('Problem reading coverage %s', coverage.name)
                         continue
 
                     dim = coverage.temporal_parameter_name 
                     try:
                         grid[dim] = get_var(coverage,dim,slice_)
                     except:
-                        print_exc()
+                        log.exception('Problem reading coverage %s', coverage.name)
                         continue
         dataset._set_id()
         dataset.close = coverage.close
