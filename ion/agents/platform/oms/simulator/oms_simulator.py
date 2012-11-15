@@ -21,6 +21,7 @@ from ion.agents.platform.oms.simulator.oms_values import generate_values
 
 import yaml
 import time
+import ntplib
 
 from ion.agents.platform.oms.simulator.logger import Logger
 log = Logger.get_logger()
@@ -41,7 +42,7 @@ class OmsSimulator(OmsClient):
         self._next_value = 990000
 
         # registered event listeners: {url: [(event_type, reg_time), ...], ...},
-        # where reg_time is the time of (latest) registration.
+        # where reg_time is the NTP time of (latest) registration.
         # NOTE: for simplicity, we don't keep info about unregistered listeners
         self._reg_event_listeners = {}
 
@@ -191,8 +192,8 @@ class OmsSimulator(OmsClient):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        # TODO use NTP from here aligning with generate_values accordingly
-        to_time = time.time()
+        # complete time window until current time:
+        to_time = ntplib.system_to_ntp_time(time.time())
         attrs = self._idp[platform_id].attrs
         vals = {}
         for attrName in attrNames:
@@ -200,7 +201,7 @@ class OmsSimulator(OmsClient):
                 attr = attrs[attrName]
                 values = generate_values(platform_id, attr.attr_id, from_time, to_time)
                 vals[attrName] = values
-                # Note: [] if there are no values
+                # Note: values == [] if there are no values.
             else:
                 vals[attrName] = InvalidResponse.ATTRIBUTE_NAME_VALUE
 
@@ -212,8 +213,7 @@ class OmsSimulator(OmsClient):
 
         assert isinstance(input_attrs, list)
 
-        # TODO review use of NTP
-        timestamp = time.time()
+        timestamp = ntplib.system_to_ntp_time(time.time())
         attrs = self._idp[platform_id].attrs
         vals = {}
         for (attrName, attrValue) in input_attrs:
