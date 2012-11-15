@@ -3,10 +3,14 @@ import os
 import numpy
 import urllib
 from pyon.util.log import log
+from email.utils import formatdate
+from stat import ST_MTIME
 
 from coverage_model.coverage import SimplexCoverage
 from pydap.model import DatasetType,BaseType, GridType, StructureType
 from pydap.handlers.lib import BaseHandler
+from traceback import print_exc
+import time
 
 class Handler(BaseHandler):
 
@@ -19,6 +23,9 @@ class Handler(BaseHandler):
     def parse_constraints(self, environ):
         base = os.path.split(self.filepath)
         coverage = SimplexCoverage.load(base[0], base[1])
+
+        last_modified = formatdate(time.mktime(time.localtime(os.stat(self.filepath)[ST_MTIME])))
+        environ['pydap.headers'].append(('Last-modified', last_modified))
 
         atts = {}
         atts['title'] = coverage.name
@@ -56,12 +63,18 @@ class Handler(BaseHandler):
                 covname = urllib.unquote(name)
                 param = coverage.get_parameter(covname)
 
+                #print 'Incoming tuple ', slice_
+
+                slice_ = slice_[0] if slice_ else slice(None)
+                
+                #print 'formed slice ', slice_
+
+
                 #need to truncate slice here in case time has fill values
-                if len(slice_) == 0 and fill_index >= 0:
+                if slice_.start is None and slice_.stop is None and fill_index >=0:
                     slice_ = slice(0, fill_index, 1)
 
-                if len(slice_) == 1:
-                    slice_ = slice_[0]
+                if slice_.start and slice_.stop is None:
 
                     if fill_index > slice_.start:
                         continue
@@ -69,19 +82,40 @@ class Handler(BaseHandler):
                     if fill_index > slice_.stop:
                         slice_.stop = fill_index
 
+                if slice_.start is not None and slice_.start == slice_.stop:
+                    slice_ = slice(slice_.start, slice_.stop+1, slice_.step)
+                    #print 'crap'
+
+                #print slice_
+
+
                 if param.is_coordinate or target is not dataset:
-                    target[name] = get_var(coverage,name,slice_)
+                    try:
+                        target[name] = get_var(coverage,name,slice_)
+                    except:
+                        print_exc()
+                        continue
+
                 elif var:
                     target.setdefault(name, StructureType(name=name, attributes={'units':coverage.get_parameter_context(name).uom}))
                     target = target[name]
                 else:  # return grid
                     grid = target[name] = GridType(name=name)
-                    grid[name] = get_var(coverage,name, slice_)
+                    try:
+                        grid[name] = get_var(coverage,name, slice_)
+                    except:
+                        print_exc()
+                        continue
 
                     dim = coverage.temporal_parameter_name 
-                    grid[dim] = get_var(coverage,dim,slice_)
+                    try:
+                        grid[dim] = get_var(coverage,dim,slice_)
+                    except:
+                        print_exc()
+                        continue
         dataset._set_id()
         dataset.close = coverage.close
+        #print dataset.__dict__
         return dataset
 
 def get_var(coverage,name,slice_):
