@@ -88,12 +88,12 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         #--------------------------------------------------------------------------------
         # Simulate a HA ingestion worker by creating two of them
         #--------------------------------------------------------------------------------
-        config = DotDict()
-        config.process.datastore_name = ingestion_datastore
-        config.process.queue_name     = ingestion_queue
-
-        for i in xrange(ingestion_workers):
-            self.pds_client.schedule_process(process_definition_id=ingestion_procdef_id, configuration=config)
+#        config = DotDict()
+#        config.process.datastore_name = ingestion_datastore
+#        config.process.queue_name     = ingestion_queue
+#
+#        for i in xrange(ingestion_workers):
+#            self.pds_client.schedule_process(process_definition_id=ingestion_procdef_id, configuration=config)
 
 
     def notification_worker(self, process, config):

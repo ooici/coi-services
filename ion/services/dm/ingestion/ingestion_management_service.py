@@ -11,6 +11,9 @@ from interface.services.dm.iingestion_management_service import BaseIngestionMan
 from interface.objects import IngestionConfiguration, IngestionQueue
 from pyon.core.exception import BadRequest
 from pyon.util.log import log
+from pyon.util.containers import DotDict
+
+
 class IngestionManagementService(BaseIngestionManagementService):
 
     def create_ingestion_configuration(self,name='', exchange_point_id='', queues=None):
@@ -76,7 +79,8 @@ class IngestionManagementService(BaseIngestionManagementService):
         #--------------------------------------------------------------------------------
         for queue in ingestion_config.queues:
             # Make the subscription from the stream to this queue
-            subscription_id = self.clients.pubsub_management.create_subscription(name=queue.name, stream_ids=[stream_id], exchange_name=queue.name)
+            queue_name = queue.name + '_' + dataset_id
+            subscription_id = self.clients.pubsub_management.create_subscription(name=queue_name, stream_ids=[stream_id], exchange_name=queue_name)
             self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)
             
             # Associate the subscription with the ingestion config which ensures no dangling resources
@@ -86,10 +90,28 @@ class IngestionManagementService(BaseIngestionManagementService):
                 object=subscription_id
             )
             self._existing_dataset(stream_id, dataset_id)
+            self.launch_worker(queue_name)
 
             return True
 
         return False
+
+    def launch_worker(self, queue_name):
+        config = DotDict()
+        config.process.datastore_name = config.get_safe('bootstrap.processes.ingestion.datastore_name', 'datasets')
+        config.process.queue_name = queue_name
+
+        process_definition_id, _  = self.clients.resource_registry.find_resources(restype=RT.ProcessDefinition, name='ingestion_worker_process', id_only=True)
+        validate_true(len(process_definition_id), 'No process definition for ingestion workers could be found')
+        process_definition_id = process_definition_id[0]
+
+        process_id = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id)
+
+
+        self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, process_id=process_id, configuration=config)
+
+
+
 
 
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
