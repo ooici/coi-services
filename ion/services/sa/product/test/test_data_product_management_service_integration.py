@@ -319,6 +319,13 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         self.dpsc_cli.activate_data_product_persistence(dp_id)
 
+        # Check that the streams associated with the data product are persisted with
+        stream_ids, _ =  self.rrclient.find_objects(dp_id,PRED.hasStream,RT.Stream,True)
+        for stream_id in stream_ids:
+            self.assertTrue(self.ingestclient.is_persisted(stream_id))
+
+        log.debug("Satisfies L4-CI-SA-RQ-308: 'Data product management shall persist data product metadata'")
+
         #------------------------------------------------------------------------------------------------
         # test suspend data product persistence
         #------------------------------------------------------------------------------------------------
