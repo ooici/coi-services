@@ -28,7 +28,8 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         pydap_module = config.get_safe('bootstrap.processes.pydap.module', 'ion.processes.data.externalization.lightweight_pydap')
         pydap_class  = config.get_safe('bootstrap.processes.pydap.class', 'LightweightPyDAP')
 
-        use_pydap = config.get_safe('bootstrap.use_pydap', False)
+        use_pydap = config.get_safe('bootstrap.launch_pydap', False)
+
 
         process_definition = ProcessDefinition(
                 name = 'pydap_server',
