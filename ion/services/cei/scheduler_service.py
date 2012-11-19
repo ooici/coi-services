@@ -27,6 +27,7 @@ class SchedulerService(BaseSchedulerService):
         log.debug("SchedulerService:__notify: - " + task.event_origin + " - Time: " + str(self.__now()) + " - ID: " + id + " -Index:" + str(index))
         pub = EventPublisher(event_type="ResourceEvent")
         pub.publish_event(origin=task.event_origin)
+        pub.close()
 
     def __now(self):
         return datetime.utcnow()
