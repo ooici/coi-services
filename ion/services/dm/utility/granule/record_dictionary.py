@@ -91,13 +91,14 @@ class RecordDictionaryTool(object):
             instance._shp = (g.domain[0],)
         
         for k,v in g.record_dictionary.iteritems():
+            key = instance._pdict.key_from_ord(k)
             if v is not None:
-                ptype = instance._pdict.get_context(k).param_type
+                ptype = instance._pdict.get_context(key).param_type
                 paramval = get_value_class(ptype, domain_set = instance.domain)
                 paramval[:] = v
                 paramval.storage._storage.flags.writeable = False
 
-                instance._rd[k] = paramval
+                instance._rd[key] = paramval
         
         return instance
 
@@ -107,9 +108,9 @@ class RecordDictionaryTool(object):
         
         for key,val in self._rd.iteritems():
             if val is not None:
-                granule.record_dictionary[key] = val._storage._storage
+                granule.record_dictionary[self._pdict.ord_from_key(key)] = val._storage._storage
             else:
-                granule.record_dictionary[key] = None
+                granule.record_dictionary[self._pdict.ord_from_key(key)] = None
         
         granule.param_dictionary = self._stream_def or self._pdict.dump()
         granule.locator = self._locator
