@@ -310,8 +310,15 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def move_subscription(self, subscription_id='', exchange_name=''):
 
-        self.read_subscription(subscription_id)
+        subscription_obj = self.read_subscription(subscription_id)
         self.container.ex_manager.create_xn_queue(exchange_name)
+        was_active = self.subscription_is_active(subscription_id)
+        if was_active:
+            self.deactivate_subscription(subscription_id)
+        
+        subscription_obj = self.read_subscription(subscription_id)
+        subscription_obj.exchange_name = exchange_name
+        self.clients.resource_registry.update(subscription_obj)
 
         xn_ids, _ = self.clients.resource_registry.find_resources(restype=RT.ExchangeName, name=exchange_name, id_only=True)
         if not xn_ids:
@@ -322,6 +329,8 @@ class PubsubManagementService(BasePubsubManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
         self._associate_subscription_with_xn(subscription_id, xn_ids[0])
+        if was_active:
+            self.activate_subscription(subscription_id)
 
 
 

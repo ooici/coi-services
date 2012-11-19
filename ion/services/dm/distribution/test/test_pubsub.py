@@ -22,6 +22,8 @@ from gevent.event import Event
 from gevent.queue import Queue, Empty
 from nose.plugins.attrib import attr
 
+import gevent
+
 @attr('UNIT',group='dm')
 class PubsubManagementUnitTest(PyonTestCase):
     pass
@@ -133,7 +135,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.pubsub_management.delete_stream(stream_id)
         self.pubsub_management.delete_stream_definition(stream_def_id)
 
-    def test_move_subscription(self):
+    def test_move_before_activate(self):
         stream_id, route = self.pubsub_management.create_stream(name='test_stream', exchange_point='test_xp')
 
         #--------------------------------------------------------------------------------
@@ -157,6 +159,46 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.pubsub_management.delete_subscription(subscription_id)
         self.pubsub_management.delete_stream(stream_id)
 
+    def test_move_activated_subscription(self):
+
+        stream_id, route = self.pubsub_management.create_stream(name='test_stream', exchange_point='test_xp')
+        #--------------------------------------------------------------------------------
+        # Test moving after activate
+        #--------------------------------------------------------------------------------
+
+        subscription_id = self.pubsub_management.create_subscription('first_queue', stream_ids=[stream_id])
+        self.pubsub_management.activate_subscription(subscription_id)
+
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='first_queue', id_only=True)
+        subjects, _ = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        self.assertEquals(xn_ids[0], subjects[0])
+
+        self.verified = Event()
+
+        def verify(m,r,s):
+            self.assertEquals(m,'verified')
+            self.verified.set()
+
+        subscriber = StandaloneStreamSubscriber('second_queue', verify)
+        subscriber.start()
+
+        self.pubsub_management.move_subscription(subscription_id, exchange_name='second_queue')
+
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='second_queue', id_only=True)
+        subjects, _ = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+
+        self.assertEquals(len(subjects),1)
+        self.assertEquals(subjects[0], xn_ids[0])
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        publisher.publish('verified')
+
+        self.assertTrue(self.verified.wait(2))
+
+        self.pubsub_management.deactivate_subscription(subscription_id)
+
+        self.pubsub_management.delete_subscription(subscription_id)
+        self.pubsub_management.delete_stream(stream_id)
         
 
     def test_topic_crud(self):
