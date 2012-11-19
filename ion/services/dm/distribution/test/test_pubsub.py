@@ -199,6 +199,22 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
         self.pubsub_management.delete_subscription(subscription_id)
         self.pubsub_management.delete_stream(stream_id)
+
+    def test_queue_cleanup(self):
+        stream_id, route = self.pubsub_management.create_stream('test_stream','xp1')
+        xn_objs, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='queue1')
+        for xn_obj in xn_objs:
+            xn = self.container.ex_manager.create_xn_queue(xn_obj.name)
+            xn.delete()
+        subscription_id = self.pubsub_management.create_subscription('queue1',stream_ids=[stream_id])
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='queue1')
+        self.assertEquals(len(xn_ids),1)
+
+        self.pubsub_management.delete_subscription(subscription_id)
+
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='queue1')
+        self.assertEquals(len(xn_ids),0)
+
         
 
     def test_topic_crud(self):
