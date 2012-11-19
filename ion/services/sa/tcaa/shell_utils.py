@@ -143,7 +143,7 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-class PlatformCommander(freq, platform_id, logfile):
+class PlatformCommander():
     """
     """
     def __init__(self, delay, xs_name, resource_id, logfile):
