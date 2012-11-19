@@ -62,9 +62,12 @@ class ServiceCommandQueue(object):
                 
                 if self._id == 'fake_id':
                     log.debug('Processing fake command.')
-                    worktime = random.uniform(.1,3)
-                    gevent.sleep(worktime)
-                    result = 'fake_result'
+                    worktime = cmd.kwargs.get('worktime', None)
+                    if worktime:
+                        worktime = random.uniform(0,worktime)
+                        gevent.sleep(worktime)
+                    payload = cmd.kwargs.get('payload', None)
+                    result = payload or 'fake_result'
                 else:
                     cmdstr = cmd.command
                     args = cmd.args

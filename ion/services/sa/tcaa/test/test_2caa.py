@@ -436,7 +436,7 @@ class Test2CAA(IonIntegrationTestCase):
                              resource_id='fake_id',
                              command=cmdstr,
                              args=['arg1', 23],
-                             kwargs={'kwargs1':'someval'})
+                             kwargs={'worktime':3})
         return cmd
         
     ###################################################################
