@@ -11,6 +11,8 @@ from pyon.util.log import log
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
 from pyon.datastore.datastore import DataStore
+from pyon.ion.stream import StandaloneStreamSubscriber
+from pyon.ion.exchange import ExchangeNameQueue
 
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -26,6 +28,7 @@ from interface.services.sa.idata_product_management_service import  DataProductM
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
 from interface.objects import LastUpdate, ComputedValueAvailability
+from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 
 from nose.plugins.attrib import attr
 from interface.objects import ProcessDefinition
@@ -78,6 +81,9 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         process_definition_id = self.process_dispatcher.create_process_definition(process_definition=ingestion_worker_definition)
         self.process_definitions['ingestion_worker'] = process_definition_id
 
+        self.queue_buffer         = []
+        self.pids = []
+        self.purge_queues()
 
         #------------------------------------------------------------------------------------------------
         # First launch the ingestors
@@ -89,6 +95,23 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         config.process.queue_name = self.exchange_space
 
         self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
+
+    def purge_queues(self):
+        xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
+        xn.purge()
+
+    def tearDown(self):
+        self.purge_queues()
+        for pid in self.pids:
+            self.container.proc_manager.terminate_process(pid)
+        IngestionManagementIntTest.clean_subscriptions()
+        for queue in self.queue_buffer:
+            if isinstance(queue, ExchangeNameQueue):
+                queue.delete()
+            elif isinstance(queue, str):
+                xn = self.container.ex_manager.create_xn_queue(queue)
+                xn.delete()
+
 
     def get_datastore(self, dataset_id):
         dataset = self.dataset_management.read_dataset(dataset_id)
@@ -269,6 +292,14 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
     # Shut down container
     #container.stop()
 
+    def validate_granule_subscription(self, msg, route, stream_id):
+        if msg == {}:
+            return
+        rdt = RecordDictionaryTool.load_from_granule(msg)
+        log.info('%s', rdt.pretty_print())
+        self.assertIsInstance(msg,Granule,'Message is improperly formatted. (%s)' % type(msg))
+
+        # Check that the replayed message has the right content
 
     def test_activate_suspend_data_product(self):
 
@@ -327,11 +358,24 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         for stream_id in stream_ids:
             self.assertTrue(self.ingestclient.is_persisted(stream_id))
 
+        #--------------------------------------------------------------------------------
         # Replay the persisted data set attached to the data product
+        #--------------------------------------------------------------------------------
         replay_stream, replay_route = self.pubsubcli.create_stream('replay', 'xp1', stream_definition_id=ctd_stream_def_id)
 
+        # Create the listening endpoint for the the retriever to talk to
+        exchange_space_name  = 'test_granules'
+        exchange_point_name  = 'science_data'
+        xp = self.container.ex_manager.create_xp(exchange_point_name)
+        subscriber = StandaloneStreamSubscriber(exchange_space_name, self.validate_granule_subscription)
+        self.queue_buffer.append(exchange_space_name)
+        subscriber.start()
+        subscriber.xn.bind(replay_route.routing_key, xp)
+
+        # Define and start the replay
         self.replay_id, process_id = self.data_retriever.define_replay(dataset_id=dataset_ids[0], stream_id=replay_stream)
         self.data_retriever.start_replay_agent(self.replay_id)
+        self.pids.append(process_id)
 
         log.debug("Satisfies L4-CI-SA-RQ-308: 'Data product management shall persist data product metadata'")
 
