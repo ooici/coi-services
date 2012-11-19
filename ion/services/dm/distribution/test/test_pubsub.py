@@ -7,7 +7,7 @@
 '''
 from pyon.core.exception import NotFound
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
-from pyon.public import PRED
+from pyon.public import PRED, RT
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -112,6 +112,12 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         subs, assocs = self.resource_registry.find_objects(subject=subscription_id,predicate=PRED.hasStream,id_only=True)
         self.assertEquals(subs,[stream_id])
 
+        res, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='test_queue', id_only=True)
+        self.assertEquals(len(res),1)
+
+        subs, assocs = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        self.assertEquals(subs[0], res[0])
+
         subscription = self.pubsub_management.read_subscription(subscription_id)
         self.assertEquals(subscription.exchange_name, 'test_queue')
 
@@ -119,6 +125,10 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         
         subs, assocs = self.resource_registry.find_objects(subject=subscription_id,predicate=PRED.hasStream,id_only=True)
         self.assertFalse(len(subs))
+
+        subs, assocs = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        self.assertFalse(len(subs))
+
 
         self.pubsub_management.delete_stream(stream_id)
         self.pubsub_management.delete_stream_definition(stream_def_id)
