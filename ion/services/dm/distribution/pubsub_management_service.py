@@ -308,6 +308,23 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.delete(subscription_id)
         return True
 
+    def move_subscription(self, subscription_id='', exchange_name=''):
+
+        self.read_subscription(subscription_id)
+        self.container.ex_manager.create_xn_queue(exchange_name)
+
+        xn_ids, _ = self.clients.resource_registry.find_resources(restype=RT.ExchangeName, name=exchange_name, id_only=True)
+        if not xn_ids:
+            return
+
+        _, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+        self._associate_subscription_with_xn(subscription_id, xn_ids[0])
+
+
+
     #--------------------------------------------------------------------------------
 
     def create_topic(self, name='', exchange_point='', parent_topic_id='', description=''):

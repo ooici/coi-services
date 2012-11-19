@@ -133,6 +133,32 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.pubsub_management.delete_stream(stream_id)
         self.pubsub_management.delete_stream_definition(stream_def_id)
 
+    def test_move_subscription(self):
+        stream_id, route = self.pubsub_management.create_stream(name='test_stream', exchange_point='test_xp')
+
+        #--------------------------------------------------------------------------------
+        # Test moving before activate
+        #--------------------------------------------------------------------------------
+
+        subscription_id = self.pubsub_management.create_subscription('first_queue', stream_ids=[stream_id])
+
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='first_queue', id_only=True)
+        subjects, _ = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        self.assertEquals(xn_ids[0], subjects[0])
+
+        self.pubsub_management.move_subscription(subscription_id, exchange_name='second_queue')
+
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='second_queue', id_only=True)
+        subjects, _ = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+
+        self.assertEquals(len(subjects),1)
+        self.assertEquals(subjects[0], xn_ids[0])
+
+        self.pubsub_management.delete_subscription(subscription_id)
+        self.pubsub_management.delete_stream(stream_id)
+
+        
+
     def test_topic_crud(self):
 
         topic_id = self.pubsub_management.create_topic(name='test_topic', exchange_point='test_xp')
