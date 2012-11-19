@@ -23,6 +23,8 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+
 from interface.objects import LastUpdate, ComputedValueAvailability
 
 from nose.plugins.attrib import attr
@@ -57,6 +59,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.process_dispatcher   = ProcessDispatcherServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
         self.unsc = UserNotificationServiceClient()
+        self.data_retriever = DataRetrieverServiceClient()
 
         #------------------------------------------
         # Create the environment
@@ -323,6 +326,12 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         stream_ids, _ =  self.rrclient.find_objects(dp_id,PRED.hasStream,RT.Stream,True)
         for stream_id in stream_ids:
             self.assertTrue(self.ingestclient.is_persisted(stream_id))
+
+        # Replay the persisted data set attached to the data product
+        replay_stream, replay_route = self.pubsubcli.create_stream('replay', 'xp1', stream_definition_id=ctd_stream_def_id)
+
+        self.replay_id, process_id = self.data_retriever.define_replay(dataset_id=dataset_ids[0], stream_id=replay_stream)
+        self.data_retriever.start_replay_agent(self.replay_id)
 
         log.debug("Satisfies L4-CI-SA-RQ-308: 'Data product management shall persist data product metadata'")
 
