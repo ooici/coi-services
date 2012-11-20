@@ -189,10 +189,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
                                             stream_definition_id=ctd_stream_def_id)
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
-
-        log.debug('new dp_id = %s' % dp_id)
-        log.debug("test_createDataProduct: Data product info from registry %s (L4-CI-SA-RQ-308)", str(dp_obj))
-
+        self.assertIsNotNone(dp_obj)
 
         #------------------------------------------------------------------------------------------------
         # test creating a new data product with  a stream definition
@@ -255,16 +252,11 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # now 'delete' the data product
         log.debug("deleting data product: %s" % dp_id)
         self.dpsc_cli.delete_data_product(dp_id)
-
         self.dpsc_cli.force_delete_data_product(dp_id)
 
         # now try to get the deleted dp object
-        try:
+        with self.assertRaises(NotFound):
             dp_obj = self.dpsc_cli.read_data_product(dp_id)
-        except NotFound as ex:
-            pass
-        else:
-            self.fail("force deleted data product was found during read")
 
         # Get the events corresponding to the data product
         ret = self.unsc.get_recent_events(resource_id=dp_id)
@@ -273,18 +265,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         for event in events:
             log.debug("event time: %s" % event.ts_created)
 
-
-        # now try to get the deleted dp object
-
-        #todo: the RR should perhaps not return retired data products
-    #            dp_obj = self.dpsc_cli.read_data_product(dp_id)
-
-    # now try to delete the already deleted dp object
-    #        log.debug( "deleting non-existing data product")
-    #            self.dpsc_cli.delete_data_product(dp_id)
-
-    # Shut down container
-    #container.stop()
+#        self.assertTrue(len(events) > 0)
 
     def test_activate_suspend_data_product(self):
 
@@ -322,9 +303,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             stream_definition_id=ctd_stream_def_id)
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
-
-        log.debug('new dp_id = %s' % dp_id)
-        log.debug("test_createDataProduct: Data product info from registry %s (L4-CI-SA-RQ-308)", str(dp_obj))
+        self.assertIsNotNone(dp_obj)
 
         dataset_ids, _ = self.rrclient.find_objects(subject=dp_id, predicate=PRED.hasDataset, id_only=True)
         if not dataset_ids:
@@ -363,9 +342,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         self.dpsc_cli.force_delete_data_product(dp_id)
         # now try to get the deleted dp object
-        try:
+
+        with self.assertRaises(NotFound):
             dp_obj = self.rrclient.read(dp_id)
-        except NotFound as ex:
-            pass
-        else:
-            self.fail("force_deleted data product was found during read")
