@@ -302,11 +302,48 @@ class PubsubManagementService(BasePubsubManagementService):
     def delete_subscription(self, subscription_id=''):
         if self.subscription_is_active(subscription_id):
             raise BadRequest('Clients can not delete an active subscription.')
+        print 'deleting'
 
+        xn_objs, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=False)
+        if len(xn_objs) > 1:
+            log.warning('Subscription %s was attached to multiple queues')
         self._deassociate_subscription(subscription_id)
+
+        for xn_obj in xn_objs:
+            subscriptions, assocs = self.clients.resource_registry.find_objects(subject=xn_obj, predicate=PRED.hasSubscription, id_only=True)
+            print subscriptions
+            if not subscriptions:
+                self.clients.exchange_management.undeclare_exchange_name(xn_obj._id)
+
 
         self.clients.resource_registry.delete(subscription_id)
         return True
+
+    def move_subscription(self, subscription_id='', exchange_name=''):
+
+        subscription_obj = self.read_subscription(subscription_id)
+        self.container.ex_manager.create_xn_queue(exchange_name)
+        was_active = self.subscription_is_active(subscription_id)
+        if was_active:
+            self.deactivate_subscription(subscription_id)
+        
+        subscription_obj = self.read_subscription(subscription_id)
+        subscription_obj.exchange_name = exchange_name
+        self.clients.resource_registry.update(subscription_obj)
+
+        xn_ids, _ = self.clients.resource_registry.find_resources(restype=RT.ExchangeName, name=exchange_name, id_only=True)
+        if not xn_ids:
+            return
+
+        _, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+        self._associate_subscription_with_xn(subscription_id, xn_ids[0])
+        if was_active:
+            self.activate_subscription(subscription_id)
+
+
 
     #--------------------------------------------------------------------------------
 
