@@ -270,7 +270,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         subscription = self.read_subscription(subscription_id)
 
-        streams, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, subject_type=RT.Stream, predicate=PRED.hasSubscription,id_only=False)
+        streams, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, object_type=RT.Stream, predicate=PRED.hasStream,id_only=False)
         topic_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasTopic, id_only=True)
 
         topic_topology = set()
