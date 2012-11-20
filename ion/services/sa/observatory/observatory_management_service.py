@@ -1095,7 +1095,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             children = {}
             assocs1 = self.RR.find_associations(predicate=PRED.hasSite, id_only=False)
             for assoc in assocs1:
-                log.debug("_get_all_relations, %s '%s' %s %s '%s'", assoc.st, assoc.s, assoc.p, assoc.ot, assoc.o)
+                log.trace("_get_all_relations, %s '%s' %s %s '%s'", assoc.st, assoc.s, assoc.p, assoc.ot, assoc.o)
 
                 if assoc.o in parents:
                     log.warn("%s '%s' has multiple parents claiming it via %s association", assoc.ot, assoc.o, assoc.p)
@@ -1110,32 +1110,32 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         parents, children = _get_all_relations()
 
         retval_ids = {}
-        log.debug("retval_ids starts as %s", str(retval_ids))
+        log.trace("retval_ids starts as %s", str(retval_ids))
         for t in output_resource_type_list:
-            log.debug("adding retval_ids entry for %s", t)
+            log.trace("adding retval_ids entry for %s", t)
             retval_ids[t] = []
-        log.debug("retval_ids continues as %s", str(retval_ids))
+        log.trace("retval_ids continues as %s", str(retval_ids))
 
-        log.debug("Find related frames %s to %s", output_resource_type_list, input_resource_id)
+        log.trace("Find related frames %s to %s", output_resource_type_list, input_resource_id)
         # take dict, list, and lookup table, return dict of type => ids
         def _branch_out(acc1, itemlist, lookup):
             assert type({}) == type(acc1)
             assert type([]) == type(itemlist)
             assert type({}) == type(lookup)
-            log.debug("branch_out acc1 is %s", str(acc1))
+            log.trace("branch_out acc1 is %s", str(acc1))
 
             # take dict and itemlist, return dict of type => ids
             def helper(acc2, items):
                 assert type({}) == type(acc2)
                 assert type([]) == type(items)
-                log.debug("helper acc2 is %s, items=%s", str(acc2), str(items))
+                log.trace("helper acc2 is %s, items=%s", str(acc2), str(items))
 
                 if 0 == len(items):
                     return acc2
 
                 # take dict and resource id, return dict of type => ids
                 def work(acc3, resource_id):
-                    log.debug("work acc3 is %s, evaluating '%s'", str(acc3), resource_id)
+                    log.trace("work acc3 is %s, evaluating '%s'", str(acc3), resource_id)
                     if resource_id not in lookup:
                         #log.debug("lookup fail")
                         return acc3
@@ -1143,14 +1143,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     matches = lookup[resource_id]
                     next_list = []
                     for (rt, r_id) in matches:
-                        log.debug("match = (%s, '%s')", rt, r_id)
+                        log.trace("match = (%s, '%s')", rt, r_id)
                         if rt in acc3:
                             acc3[rt].append(r_id)
                         else:
-                            log.debug("ignoring %s '%s'", rt, r_id)
+                            log.trace("ignoring %s '%s'", rt, r_id)
                         next_list.append(r_id)
 
-                    log.debug("next_list = %s", str(next_list))
+                    log.trace("next_list = %s", str(next_list))
 
                     return helper(acc3, next_list)
 
@@ -1160,9 +1160,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
         in_list = [input_resource_id]
-        log.debug("branching down to children with acc = %s", str(retval_ids))
+        log.trace("branching down to children with acc = %s", str(retval_ids))
         low_branch = _branch_out(retval_ids, in_list, children)
-        log.debug("branching up to parents with acc = %s", str(low_branch))
+        log.trace("branching up to parents with acc = %s", str(low_branch))
         retval_ids = _branch_out(low_branch, in_list, parents)
 
         log.debug("converting retrieved ids to objects")
