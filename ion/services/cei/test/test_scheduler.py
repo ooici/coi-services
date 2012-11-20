@@ -77,6 +77,9 @@ class TestSchedulerService(IonIntegrationTestCase):
         # Wait until two events are published
         gevent.sleep((self.interval_timer_interval * 2) + 1)
 
+        time_diff = (datetime.datetime.utcnow() - self.interval_timer_sent_time).seconds
+        timer_counts =  math.floor(time_diff/self.interval_timer_interval)
+
         #Cancle the timer
         ss = self.ssclient.cancel_timer(id)
 
@@ -87,13 +90,12 @@ class TestSchedulerService(IonIntegrationTestCase):
         with self.assertRaises(BadRequest):
             self.ssclient.cancel_timer(id)
 
-
         # Validate the timer is removed from resource regsitry
         with self.assertRaises(NotFound):
             self.rrclient.read(id)
 
-        # Validate only 2 events are published
-        self.assertEqual(self.interval_timer_count, 2)
+        # Validate the number of timer counts
+        self.assertEqual(self.interval_timer_count, timer_counts, "Invalid number of timeouts generated. Number of timeout: %d Expected timeout: %d Timer id: %s " %(self.interval_timer_count, timer_counts, id))
 
     def test_system_restart(self):
         # create the interval timer resource
@@ -126,8 +128,11 @@ class TestSchedulerService(IonIntegrationTestCase):
 
         # Wait until 1 event is published
         gevent.sleep((self.interval_timer_interval) + 1)
-        # Validate 1 event is published
-        self.assertEqual(self.interval_timer_count, 1)
+        time_diff = (datetime.datetime.utcnow() - self.interval_timer_sent_time).seconds
+        timer_counts =  math.floor(time_diff/self.interval_timer_interval)
+
+        # Validate the number of events generated
+        self.assertEqual(self.interval_timer_count, timer_counts, "Invalid number of timeouts generated. Number of timeout: %d Expected timeout: %d Timer id: %s " %(self.interval_timer_count, timer_counts, id))
 
         self.ssclient.on_system_restart()
 
@@ -136,10 +141,13 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.assertEqual(ss.entry.event_origin, event_origin)
 
         # Wait until another event is published
+        start_time = datetime.datetime.utcnow()
         gevent.sleep((self.interval_timer_interval * 2) + 1)
+        time_diff = (datetime.datetime.utcnow() - start_time).seconds
+        timer_counts =  math.floor(time_diff/self.interval_timer_interval)
 
-        # Validate 1 event is published
-        self.assertGreater(self.interval_timer_count, 2)
+        # Validate the number of events generated
+        self.assertGreater(self.interval_timer_count, timer_counts)
 
         #Cancle the timer
         ss = self.ssclient.cancel_timer(id)
@@ -186,8 +194,8 @@ class TestSchedulerService(IonIntegrationTestCase):
         # Wait until all events are published
         gevent.sleep((self.interval_timer_end_time - start_time) + self.interval_timer_interval + 1)
 
-        # Validate only 2 events are published
-        self.assertEqual(self.interval_timer_count, 2)
+        # Validate the number of events generated
+        self.assertEqual(self.interval_timer_count, 2, "Invalid number of timeouts generated. Number of event: %d Expected: 2 Timer id: %s " %(self.interval_timer_count, id))
 
         # Validate the timer was canceled after the end_time is expired
         with self.assertRaises(BadRequest):
@@ -229,7 +237,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         gevent.sleep(3)
 
         # Validate the event is not generated
-        self.assertEqual(self.single_timer_count, 0)
+        self.assertEqual(self.single_timer_count, 0, "Invalid number of timeouts generated. Number of timeout: %d Expected timeout: 0 Timer id: %s " %(self.single_timer_count, id))
 
 
     def single_timer_call_back (self, *args, **kwargs):
@@ -256,13 +264,16 @@ class TestSchedulerService(IonIntegrationTestCase):
         # Wait for 4 events to be published
         gevent.sleep((self.interval_timer_interval * 4) + 1)
         self.ssclient.cancel_timer(id)
+        time_diff = (datetime.datetime.utcnow() - self.interval_timer_sent_time).seconds
+        timer_counts =  math.floor(time_diff/self.interval_timer_interval)
+
 
         # Validate the timer id is invalid once it has been canceled
         with self.assertRaises(BadRequest):
             self.ssclient.cancel_timer(id)
 
         # Validate events are not generated after canceling the timer
-        self.assertEqual(self.interval_timer_count, 4)
+        self.assertEqual(self.interval_timer_count, timer_counts, "Invalid number of timeouts generated. Number of timeout: %d Expected timeout: %d Timer id: %s " %(self.interval_timer_count, timer_counts, id))
 
     def test_timeoffday_timer(self):
         # test creating a new timer that is one-time-only
@@ -289,13 +300,16 @@ class TestSchedulerService(IonIntegrationTestCase):
         expires = time.mktime((datetime.datetime.utcnow() + timedelta(days=2)).timetuple())
         self.tod_sent_time = datetime.datetime.utcnow()
         id = self.ssclient.create_time_of_day_timer(times_of_day=times_of_day, expires=expires, event_origin=event_origin, event_subtype="")
+        self.interval_timer_sent_time = datetime.datetime.utcnow()
         self.assertEqual(type(id), str)
 
         # Wait until all events are generated
         gevent.sleep(9)
+        time_diff = (datetime.datetime.utcnow() - self.interval_timer_sent_time).seconds
+        timer_counts =  math.floor(time_diff/self.expire_sec_1) + math.floor(time_diff/self.expire_sec_2)
 
-        # After waiting for 15 seconds, validate only 2 events are generated.
-        self.assertTrue(self.tod_count == 2)
+        # After waiting, validate only 2 events are generated.
+        self.assertEqual(self.tod_count, 2, "Invalid number of timeouts generated. Number of timeout: %d Expected timeout: %d Timer id: %s " %(self.tod_count, timer_counts, id))
 
         # Cancel the timer
         self.ssclient.cancel_timer(id)
