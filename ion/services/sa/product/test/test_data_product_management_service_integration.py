@@ -80,8 +80,9 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         process_definition_id = self.process_dispatcher.create_process_definition(process_definition=ingestion_worker_definition)
         self.process_definitions['ingestion_worker'] = process_definition_id
 
-        self.queue_buffer         = []
         self.pids = []
+        self.exchange_points = []
+        self.exchange_names = []
 
         #------------------------------------------------------------------------------------------------
         # First launch the ingestors
@@ -92,20 +93,25 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         config.process.datastore_name = 'datasets'
         config.process.queue_name = self.exchange_space
 
-        self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
+        self.exchange_names.append(self.exchange_space)
+        self.exchange_points.append(self.exchange_point)
 
+        pid = self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
+        self.pids.append(pid)
 
-    def tearDown(self):
+        self.addCleanup(self.cleaning_up)
+
+    def cleaning_up(self):
         for pid in self.pids:
             self.container.proc_manager.terminate_process(pid)
         IngestionManagementIntTest.clean_subscriptions()
-        for queue in self.queue_buffer:
-            if isinstance(queue, ExchangeNameQueue):
-                queue.delete()
-            elif isinstance(queue, str):
-                xn = self.container.ex_manager.create_xn_queue(queue)
-                xn.delete()
 
+        for xn in self.exchange_names:
+            xni = self.container.ex_manager.create_xn_queue(xn)
+            xni.delete()
+        for xp in self.exchange_points:
+            xpi = self.container.ex_manager.create_xp(xp)
+            xpi.delete()
 
     def get_datastore(self, dataset_id):
         dataset = self.dataset_management.read_dataset(dataset_id)
