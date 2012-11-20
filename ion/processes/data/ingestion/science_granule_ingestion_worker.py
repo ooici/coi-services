@@ -48,8 +48,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 log.exception('Problems closing the coverage')
 
 
-
-
     def _new_dataset(self, stream_id):
         '''
         Adds a new dataset to the internal cache of the ingestion worker

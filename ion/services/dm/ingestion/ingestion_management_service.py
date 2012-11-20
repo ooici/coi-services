@@ -96,6 +96,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         return False
 
+
     def launch_worker(self, queue_name):
         config = DotDict()
         config.process.datastore_name = config.get_safe('bootstrap.processes.ingestion.datastore_name', 'datasets')
@@ -107,14 +108,22 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         process_id = self.clients.process_dispatcher.create_process(process_definition_id=process_definition_id)
 
+        xn_ids, _ = self.clients.resource_registry.find_resources(restype=RT.ExchangeName, name=queue_name, id_only=True)
+        for xn_id in xn_ids:
+            self.clients.resource_registry.create_association(xn_id, PRED.hasIngestionWorker, process_id)
 
         self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, process_id=process_id, configuration=config)
 
-
-
+    def kill_worker(self, subscription_id):
+        for xn_obj in self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=False)[0]:
+            for process in self.clients.resource_registry.find_objects(subject=xn_obj, predicate=PRED.hasIngestionWorker, id_only=False)[0]:
+                if process.process_id.startswith('ingestion_worker'):
+                    self.clients.process_dispatcher.cancel_process(process._id)
 
 
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
+
+
         subscriptions, assocs = self.clients.resource_registry.find_objects(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
 
         self.clients.pubsub_management.unpersist_stream(stream_id)
@@ -125,6 +134,8 @@ class IngestionManagementService(BaseIngestionManagementService):
             # Check if this subscription is the one with the stream_id
 
             if len(self.clients.resource_registry.find_associations(subject=subscription, object=stream_id))>0: # this subscription has this stream
+                self.kill_worker(subscription)
+
                 self.clients.pubsub_management.deactivate_subscription(subscription_id=subscription)
                 self.clients.resource_registry.delete_association(assoc)
                 self.clients.pubsub_management.delete_subscription(subscription)
