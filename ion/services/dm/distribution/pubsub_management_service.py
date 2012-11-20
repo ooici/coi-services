@@ -302,7 +302,6 @@ class PubsubManagementService(BasePubsubManagementService):
     def delete_subscription(self, subscription_id=''):
         if self.subscription_is_active(subscription_id):
             raise BadRequest('Clients can not delete an active subscription.')
-        print 'deleting'
 
         xn_objs, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=False)
         if len(xn_objs) > 1:
@@ -311,7 +310,6 @@ class PubsubManagementService(BasePubsubManagementService):
 
         for xn_obj in xn_objs:
             subscriptions, assocs = self.clients.resource_registry.find_objects(subject=xn_obj, predicate=PRED.hasSubscription, id_only=True)
-            print subscriptions
             if not subscriptions:
                 self.clients.exchange_management.undeclare_exchange_name(xn_obj._id)
 
