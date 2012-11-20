@@ -177,14 +177,14 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.interval_timer_count = 0
         self.interval_timer_sent_time = 0
         self.interval_timer_received_time = 0
-        self.interval_timer_interval = 2
+        self.interval_timer_interval = 3
 
         event_origin = "Interval Timer"
         sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
         sub.start()
 
         start_time = self.now_utc()
-        self.interval_timer_end_time = start_time + 5
+        self.interval_timer_end_time = start_time + 7
         id = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval,
             end_time=self.interval_timer_end_time,
             event_origin=event_origin, event_subtype="")
