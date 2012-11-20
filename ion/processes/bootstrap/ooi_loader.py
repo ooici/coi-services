@@ -283,16 +283,20 @@ class OOILoader(object):
         # This adds the subseries to current sensors and make/model.
         # Also used to infer node types and names
         refid = row['ReferenceDesignator']
+        subseries_id = row['SClass_PublicID']+row['SSeries_PublicID']+row['SSubseries_PublicID']
         entry = dict(
             instrument_class=row['SClass_PublicID'],
             instrument_series=row['SSeries_PublicID'],
             instrument_subseries=row['SSubseries_PublicID'],
-            instrument_model=row['SClass_PublicID']+row['SSeries_PublicID']+row['SSubseries_PublicID'],
+            instrument_model=subseries_id,
             makemodel=row['MMInstrument_PublicID'],
             ready_for_2013=row['Textbox16']
         )
         self._add_object_attribute('instrument',
             refid, None, None, **entry)
+
+        self._add_object_attribute('subseries',
+            subseries_id, 'makemodel', row['MMInstrument_PublicID'], value_is_list=True, list_dup_ok=True)
 
         # Build up the node type here
         ntype_txt = row['Textbox11']
