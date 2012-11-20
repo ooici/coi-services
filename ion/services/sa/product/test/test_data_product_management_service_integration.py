@@ -27,7 +27,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
-from interface.objects import LastUpdate, ComputedValueAvailability
+from interface.objects import LastUpdate, ComputedValueAvailability, Granule
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 
 from nose.plugins.attrib import attr
@@ -36,8 +36,7 @@ from interface.objects import ProcessDefinition
 from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
 from coverage_model.coverage import CRS, GridDomain, GridShape
 
-
-import unittest
+import unittest, gevent
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -83,7 +82,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         self.queue_buffer         = []
         self.pids = []
-        self.purge_queues()
 
         #------------------------------------------------------------------------------------------------
         # First launch the ingestors
@@ -96,12 +94,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
 
-    def purge_queues(self):
-        xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
-        xn.purge()
 
     def tearDown(self):
-        self.purge_queues()
         for pid in self.pids:
             self.container.proc_manager.terminate_process(pid)
         IngestionManagementIntTest.clean_subscriptions()
@@ -292,15 +286,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
     # Shut down container
     #container.stop()
 
-    def validate_granule_subscription(self, msg, route, stream_id):
-        if msg == {}:
-            return
-        rdt = RecordDictionaryTool.load_from_granule(msg)
-        log.info('%s', rdt.pretty_print())
-        self.assertIsInstance(msg,Granule,'Message is improperly formatted. (%s)' % type(msg))
-
-        # Check that the replayed message has the right content
-
     def test_activate_suspend_data_product(self):
 
         #------------------------------------------------------------------------------------------------
@@ -313,8 +298,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # test creating a new data product w/o a stream definition
         #------------------------------------------------------------------------------------------------
-        log.debug('test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)')
-
         # Construct temporal and spatial Coordinate Reference System objects
         tdom, sdom = time_series_domain()
 
@@ -359,36 +342,21 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             self.assertTrue(self.ingestclient.is_persisted(stream_id))
 
         #--------------------------------------------------------------------------------
-        # Replay the persisted data set attached to the data product
+        # Now get the data in one chunk using an RPC Call to start_retreive
         #--------------------------------------------------------------------------------
-        replay_stream, replay_route = self.pubsubcli.create_stream('replay', 'xp1', stream_definition_id=ctd_stream_def_id)
 
-        # Create the listening endpoint for the the retriever to talk to
-        exchange_space_name  = 'test_granules'
-        exchange_point_name  = 'science_data'
-        xp = self.container.ex_manager.create_xp(exchange_point_name)
-        subscriber = StandaloneStreamSubscriber(exchange_space_name, self.validate_granule_subscription)
-        self.queue_buffer.append(exchange_space_name)
-        subscriber.start()
-        subscriber.xn.bind(replay_route.routing_key, xp)
+        replay_data = self.data_retriever.retrieve(dataset_ids[0])
+        self.assertIsInstance(replay_data, Granule)
 
-        # Define and start the replay
-        self.replay_id, process_id = self.data_retriever.define_replay(dataset_id=dataset_ids[0], stream_id=replay_stream)
-        self.data_retriever.start_replay_agent(self.replay_id)
-        self.pids.append(process_id)
+        log.debug("replay data::: %s" % replay_data)
 
-        log.debug("Satisfies L4-CI-SA-RQ-308: 'Data product management shall persist data product metadata'")
+        #todo: if capability exists to persist metadata, an assertion should be placed here
+#        log.debug("Satisfies L4-CI-SA-RQ-308: 'Data product management shall persist data product metadata'")
 
         #------------------------------------------------------------------------------------------------
         # test suspend data product persistence
         #------------------------------------------------------------------------------------------------
         self.dpsc_cli.suspend_data_product_persistence(dp_id)
-
-#        pid = self.container.spawn_process(name='dummy_process_for_test',
-#            module='pyon.ion.process',
-#            cls='SimpleProcess',
-#            config={})
-#        dummy_process = self.container.proc_manager.procs[pid]
 
         self.dpsc_cli.force_delete_data_product(dp_id)
         # now try to get the deleted dp object
