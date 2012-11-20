@@ -544,6 +544,13 @@ class TestAssembly(IonIntegrationTestCase):
         self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.DEPLOY, LCS.DEPLOYED)
         self.generic_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEPLOY, LCS.DEPLOYED)
 
+
+        idev_lcs = self.client.RR.read(instrument_device_id).lcstate
+
+        log.info("L4-CI-SA-RQ-334 DEPLOY: Proposed change - Instrument activation shall support transition to " +
+                 "the active state for instruments - state is %s" % idev_lcs)
+
+
         #now along comes a new device
         log.info("Create instrument device 2")
         instrument_device_id2 = self.generic_fcruf_script(RT.InstrumentDevice,
@@ -581,8 +588,6 @@ class TestAssembly(IonIntegrationTestCase):
         assocs = self.client.RR.find_associations(instrument_site_id, PRED.hasDevice, instrument_device_id2, id_only=True)
         self.assertIsNotNone(assocs)
 
-        log.debug("L4-CI-SA-RQ-334 DEPLOY: Proposed change - Instrument activation shall support transition to the active state for instruments")
-
         log.debug("Transferring site subscriptions")
         c.OMS.transfer_site_subscription(instrument_site_id)
 
@@ -605,7 +610,7 @@ class TestAssembly(IonIntegrationTestCase):
         c.IMS.delete_instrument_agent(instrument_agent_id)
         instr_agent_obj_read = self.client.RR.read(instrument_agent_id)
         self.assertEquals(instr_agent_obj_read.lcstate,LCS.RETIRED)
-        log.debug("L4-CI-SA-RQ-382: Proposed change - Instrument activation shall manage the life cycle of Instrument Agents")
+        log.info("L4-CI-SA-RQ-382: Instrument activation shall manage the life cycle of Instrument Agents")
 
         c.IMS.delete_instrument_device(instrument_device_id)
         # Check whether the instrument device has been retired
