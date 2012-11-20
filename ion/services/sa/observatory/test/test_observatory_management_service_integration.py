@@ -77,12 +77,12 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.force_delete_instrument_site(resource_ids.instrument_siteb3_id)
         self.OMS.force_delete_instrument_site(resource_ids.instrument_site4_id)
 
-    @unittest.skip('targeting')
+    #@unittest.skip('targeting')
     def test_resources_associations(self):
         resources = self._make_associations()
         self.destroy(resources)
 
-    @unittest.skip('targeting')
+    #@unittest.skip('targeting')
     def test_find_related_frames_of_reference(self):
         # finding subordinates gives a dict of obj lists, convert objs to ids
         def idify(adict):
@@ -262,7 +262,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         
         return ret
 
-    @unittest.skip("targeting")
+    #@unittest.skip("targeting")
     def test_create_observatory(self):
         observatory_obj = IonObject(RT.Observatory,
                                         name='TestFacility',
@@ -271,7 +271,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.force_delete_observatory(observatory_id)
 
 
-    @unittest.skip("targeting")
+    #@unittest.skip("targeting")
     def test_find_observatory_org(self):
         org_obj = IonObject(RT.Org,
                             name='TestOrg',
