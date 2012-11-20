@@ -289,6 +289,7 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
         """
         """
         if self._client:
+            log.debug('Remote endpoint enqueuing result %s.', str(result))
             self._client.enqueue(result)
         log.warning('Received a result but no client available to transmit.')
 
