@@ -89,10 +89,11 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(dataset_id)
 
-    def register_dataset(self, dataset_id=''):
+    def register_dataset(self, dataset_id='', external_data_product_name=''):
         dataset_obj = self.read_dataset(dataset_id)
         dataset_obj.registered = True
         self.update_dataset(dataset=dataset_obj)
+        external_data_product_name = external_data_product_name or dataset_obj.name
 
         procs,_ = self.clients.resource_registry.find_resources(restype=RT.Process, id_only=True)
         pid = None
@@ -100,9 +101,10 @@ class DatasetManagementService(BaseDatasetManagementService):
             if 'registration_worker' in p:
                 pid = p
         if not pid: 
+            log.warning('No registration worker found')
             return
         rpc_cli = RPCClient(to_name=pid)
-        rpc_cli.request({'coverage_path':self._get_coverage_path(dataset_id)}, op='register_dap_dataset')
+        rpc_cli.request({'dataset_id':dataset_id, 'data_product_name':external_data_product_name}, op='register_dap_dataset')
 
 
 #--------
