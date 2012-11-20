@@ -152,6 +152,9 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def cleaning_up(self):
 
+        log.debug("Came here to clean up: exchange names for cleanup: %s" % self.exchange_names)
+        log.debug("Exchange points for cleanup: %s" % self.exchange_points)
+
         for xn in self.exchange_names:
             xni = self.container.ex_manager.create_xn_queue(xn)
             xni.delete()
