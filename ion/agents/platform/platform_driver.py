@@ -169,11 +169,11 @@ class PlatformDriver(object):
         Returns the values for specific attributes since a given time.
 
         @param attr_names [attrName, ...] desired attributes
-        @param from_time NTP v4 compliant string; time from which the values are requested
+        @param from_time NTP v4 time from which the values are requested
 
         @retval {attrName : [(attrValue, timestamp), ...], ...}
                 dict indexed by attribute name with list of (value, timestamp)
-                pairs. Timestamps are NTP v4 compliant strings
+                pairs. Timestamps are NTP v4.
         """
         raise NotImplemented()
 
@@ -187,8 +187,8 @@ class PlatformDriver(object):
         @retval {platform_id: {attrName : [(attrValue, timestamp), ...], ...}}
                 dict with a single entry for the requested platform ID and value
                 as a list of (value,timestamp) pairs for each attribute indicated
-                in the input. Returned timestamps are NTP v4 8-byte strings
-                indicating the time when the value was set.
+                in the input. Returned timestamps indicate the time when the
+                value was set (NTP)
         """
         raise NotImplemented()
 

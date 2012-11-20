@@ -18,6 +18,7 @@ from ion.agents.platform.oms.oms_platform_driver import OmsPlatformDriver
 from pyon.util.int_test import IonIntegrationTestCase
 
 import time
+import ntplib
 import os
 from nose.plugins.attrib import attr
 
@@ -59,8 +60,8 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
 
     def _get_attribute_values(self):
         attrNames = self.ATTR_NAMES
-        # TODO use NTP
-        from_time = time.time()
+        cur_time = ntplib.system_to_ntp_time(time.time())
+        from_time = cur_time - 50  # a 50-sec time window
         attr_values = self._plat_driver.get_attribute_values(attrNames, from_time)
         log.info("attr_values = %s" % str(attr_values))
         self.assertIsInstance(attr_values, dict)

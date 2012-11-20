@@ -3,7 +3,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, collections, ast, simplejson, json, sys, time, traceback
+import inspect, collections, ast, simplejson, json, sys, time, traceback, string
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
@@ -74,7 +74,8 @@ class ServiceGatewayService(BaseServiceGatewayService):
         self.server_hostname = self.CFG.get_safe('container.service_gateway.web_server.hostname', DEFAULT_WEB_SERVER_HOSTNAME)
         self.server_port = self.CFG.get_safe('container.service_gateway.web_server.port', DEFAULT_WEB_SERVER_PORT)
         self.web_server_enabled = self.CFG.get_safe('container.service_gateway.web_server.enabled', True)
-        self.logging = self.CFG.get_safe('container.service_gateway.web_server.log')
+        self.web_logging = self.CFG.get_safe('container.service_gateway.web_server.log')
+        self.log_errors = self.CFG.get_safe('container.service_gateway.log_errors', False)
 
         #Optional list of trusted originators can be specified in config.
         self.trusted_originators = self.CFG.get_safe('container.service_gateway.trusted_originators')
@@ -114,7 +115,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         if self.http_server is not None:
             self.stop_service()
 
-        self.http_server = WSGIServer((hostname, port), app, log=self.logging)
+        self.http_server = WSGIServer((hostname, port), app, log=self.web_logging)
         self.http_server.start()
 
         return True
@@ -317,7 +318,6 @@ def json_response(response_data):
 
 def gateway_json_response(response_data):
 
-
     if request.args.has_key(RETURN_FORMAT_PARAM):
         return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
         if return_format == RETURN_FORMAT_RAW_JSON:
@@ -326,14 +326,31 @@ def gateway_json_response(response_data):
     return json_response({'data':{ GATEWAY_RESPONSE: response_data} } )
 
 def build_error_response(e):
-    # show full stack trace
-    log.exception('exception in service gateway call')
 
-    exc_type, exc_obj, exc_tb = sys.exc_info()
+    if hasattr(e,'get_stacks'):
+        #Process potentially multiple stacks.
+        full_error = ''
+        for i in range(len(e.get_stacks())):
+            full_error += e.get_stacks()[i][0] + "\n"
+            if i == 0:
+                full_error += string.join(traceback.format_exception(*sys.exc_info()), '')
+            else:
+                for ln in e.get_stacks()[i][1]:
+                    full_error += str(ln)  + "\n"
+
+        exec_name = e.__class__.__name__
+    else:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        exec_name = exc_type.__name__
+        full_error = traceback.format_exception(*sys.exc_info())
+
+    if service_gateway_instance.log_errors:
+        log.error(full_error)
+
     result = {
-        GATEWAY_ERROR_EXCEPTION : exc_type.__name__,
+        GATEWAY_ERROR_EXCEPTION : exec_name,
         GATEWAY_ERROR_MESSAGE : str(e.message),
-        GATEWAY_ERROR_TRACE : traceback.format_exception(*sys.exc_info())
+        GATEWAY_ERROR_TRACE : full_error
     }
 
     if request.args.has_key(RETURN_FORMAT_PARAM):

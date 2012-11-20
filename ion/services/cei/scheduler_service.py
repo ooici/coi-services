@@ -22,12 +22,14 @@ class SchedulerService(BaseSchedulerService):
     def on_start(self):
         if CFG.get_safe("process.start_mode") == "RESTART":
             self.on_system_restart()
+        self.pub = EventPublisher(event_type="ResourceEvent")
+
+    def on_quit(self):
+        self.pub.close()
 
     def __notify(self, task, id, index):
         log.debug("SchedulerService:__notify: - " + task.event_origin + " - Time: " + str(self.__now()) + " - ID: " + id + " -Index:" + str(index))
-        pub = EventPublisher(event_type="ResourceEvent")
-        pub.publish_event(origin=task.event_origin)
-        pub.close()
+        self.pub.publish_event(origin=task.event_origin)
 
     def __now(self):
         return datetime.utcnow()
@@ -260,6 +262,7 @@ class SchedulerService(BaseSchedulerService):
             raise BadRequest
         if start_time == "now":
             start_time = self.__now_posix(self.__now())
+        log.debug("SchedulerService:create_interval_timer start_time: %s interval: %s end_time: %s event_origin: %s" %(start_time, interval, end_time, event_origin))
         interval_timer = IonObject("IntervalTimer", {"start_time": start_time, "interval": interval, "end_time": end_time,
                                                      "event_origin": event_origin, "event_subtype": event_subtype})
         se = IonObject(RT.SchedulerEntry, {"entry": interval_timer})
@@ -274,10 +277,11 @@ class SchedulerService(BaseSchedulerService):
             time_of_day['hour'] = int(time_of_day['hour'])
             time_of_day['minute'] = int(time_of_day['minute'])
             time_of_day['second'] = int(time_of_day['second'])
+            log.debug("SchedulerService:create_time_of_day_timer - hour: %d minute: %d second: %d expires: %d event_origin: %s" %(time_of_day['hour'] , time_of_day['minute'] , time_of_day['second'], time_of_day['second'], event_origin))
             if ((time_of_day['hour'] < 0 or time_of_day['hour'] > 23) or
                 (time_of_day['minute'] < 0 or time_of_day['minute'] > 59) or
                 (time_of_day['second'] < 0 or time_of_day['second'] > 61)):
-                log.error("SchedulerService.create_time_of_day_timer: TimeOfDayTimer is set to invalid value")
+                log.error("SchedulerService:create_time_of_day_timer: TimeOfDayTimer is set to invalid value")
                 raise BadRequest
 
         time_of_day_timer = IonObject("TimeOfDayTimer", {"times_of_day": times_of_day, "expires": expires,
