@@ -10,6 +10,7 @@ from coverage_model.coverage import SimplexCoverage
 from pydap.model import DatasetType,BaseType, GridType, StructureType
 from pydap.handlers.lib import BaseHandler
 import time
+import numpy as np
 
 class Handler(BaseHandler):
 
@@ -119,6 +120,8 @@ class Handler(BaseHandler):
 
 def get_var(coverage,name,slice_):
     data = coverage.get_parameter_values(name,tdoa=slice_)
+    if not isinstance(data, np.ndarray):
+        data = np.array([data])
     attrs = {'units': coverage.get_parameter_context(name).uom}
     dims = (coverage.temporal_parameter_name,)
     
