@@ -71,7 +71,7 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
 #        return
 
 
-    def test_instrument_device_attachments_l4_ci_sa_rq_161_235_336(self):
+    def test_instrument_device_attachments_l4_ci_sa_rq_161_235(self):
 
         instrum_device = IonObject(RT.Attachment,name="sample_instrument_device",description="blah blah")
 
@@ -95,9 +95,8 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
         self.assertIn("blah", a.keywords)
         self.assertEqual(a.content, "blah " * 3)
 
-        log.info("L4-CI-SA-RQ-161")
-        log.info("L4-CI-SA-RQ-235")
-        log.info("L4-CI-SA-RQ-336")
+        log.info("L4-CI-SA-RQ-161 - The instrument repository services shall associate the instrument repository contents with physical resource metadata")
+        log.info("L4-CI-SA-RQ-235 - The instrument repository services shall support the persistence of physical resource documentation")
 
 
     def test_instrument_device_metadata_notification_l4_ci_sa_rq_145_323(self):
