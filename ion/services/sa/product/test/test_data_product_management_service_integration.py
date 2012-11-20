@@ -348,10 +348,13 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         replay_data = self.data_retriever.retrieve(dataset_ids[0])
         self.assertIsInstance(replay_data, Granule)
 
-        log.debug("replay data::: %s" % replay_data)
+        log.debug("Satisfies L4-CI-SA-RQ-267: 'Data product management shall persist data products'")
 
-        #todo: if capability exists to persist metadata, an assertion should be placed here
-#        log.debug("Satisfies L4-CI-SA-RQ-308: 'Data product management shall persist data product metadata'")
+        data_product_object = self.rrclient.read(dp_id)
+        self.assertEquals(data_product_object.name,'DP1')
+        self.assertEquals(data_product_object.description,'some new dp')
+
+        log.debug("Towards L4-CI-SA-RQ-308: 'Data product management shall persist data product metadata'")
 
         #------------------------------------------------------------------------------------------------
         # test suspend data product persistence
