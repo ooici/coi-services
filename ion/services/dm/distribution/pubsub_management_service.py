@@ -203,11 +203,16 @@ class PubsubManagementService(BasePubsubManagementService):
         subscription.exchange_name   = exchange_name
 
         subscription_id, rev = self.clients.resource_registry.create(subscription)
+        self.container.ex_manager.create_xn_queue(exchange_name)
+        xn_ids, _ = self.clients.resource_registry.find_resources(restype=RT.ExchangeName, name=exchange_name, id_only=True)
+        if xn_ids:
+            xn_id = xn_ids[0]
+            self.clients.resource_registry.create_association(xn_id, PRED.hasSubscription, subscription_id)
 
         #---------------------------------
         # Associations
         #---------------------------------
-        
+
         for stream_id in stream_ids:
             self._associate_stream_with_subscription(stream_id, subscription_id)
         
@@ -398,6 +403,11 @@ class PubsubManagementService(BasePubsubManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
+        subjects, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+
     def _associate_stream_with_definition(self, stream_id,stream_definition_id):
         self.clients.resource_registry.create_association(subject=stream_id, predicate=PRED.hasStreamDefinition, object=stream_definition_id)
 
@@ -406,6 +416,9 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def _associate_stream_with_exchange_point(self, stream_id, exchange_point_id):
         self.clients.resource_registry.create_association(subject=exchange_point_id, predicate=PRED.hasStream, object=stream_id)
+
+    def _associate_subscription_with_xn(self, subscription_id, exchange_name_id):
+        self.clients.resource_registry.create_association(subject=exchange_name_id, predicate=PRED.hasSubscription, object=subscription_id)
 
     def _associate_topic_with_subscription(self, topic_id, subscription_id):
         self.clients.resource_registry.create_association(subject=subscription_id, predicate=PRED.hasTopic, object=topic_id)
