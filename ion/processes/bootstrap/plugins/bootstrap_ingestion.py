@@ -27,8 +27,6 @@ class BootstrapIngestion(BootstrapPlugin):
         for i in xrange(len(queues)):
             item = queues[i]
             queues[i] = IngestionQueue(name=item['name'], type=item['type'], datastore_name=item['datastore_name'])
-            xn = self.container.ex_manager.create_xn_queue(item['name'])
-            xn.purge()
 
         ing_ms_client.create_ingestion_configuration(name='standard ingestion config',
             exchange_point_id=exchange_point,
