@@ -240,7 +240,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                 dataset_id=dataset_id)
 
         # register the dataset for externalization
-        self.clients.dataset_management.register_dataset(dataset_id)
+        self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description)
 
 
         #--------------------------------------------------------------------------------
