@@ -67,7 +67,8 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.add_stream(dataset_id,stream_id)
 
 
-        self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
+        cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
+        cov.close()
 
         return dataset_id
 
