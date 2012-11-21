@@ -1110,7 +1110,6 @@ class OrgManagementService(BaseOrgManagementService):
                 if not org_instrument in extended_org.instruments_deployed:
                     instruments_not_deployed.append(org_instrument)
 
-
         platforms_not_deployed = []
         if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed'):
             #clean up the list of deployed platforms
@@ -1128,6 +1127,14 @@ class OrgManagementService(BaseOrgManagementService):
                 if not extended_org.platforms_deployed.count(org_platform):
                     platforms_not_deployed.append(org_platform)
 
+
+        ### NOTE: calculate actual aggregate status here.
+        ### this is just a placeholder so far to have some values for the UI
+        #
+        extended_org.computed.instrument_status = [1]*len(extended_org.instruments)
+        extended_org.computed.platform_status = [1]*len(extended_org.platforms)
+        #
+        ###
 
         #set counter attributes
         extended_org.number_of_data_products = len(extended_org.data_products)

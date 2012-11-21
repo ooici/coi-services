@@ -1928,6 +1928,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                     delattr(att, 'content')
 
 
+        ### NOTE: calculate actual aggregate status here.
+        ### this is just a placeholder so far to have some values for the UI
+        #
+        extended_platform.computed.instrument_status = [1]*len(extended_platform.instrument_devices)
+        extended_platform.computed.platform_status = [1]*len(extended_platform.platforms)
+        #
+        ###
 
         #compute aggregated_status from other status readings.
         extended_platform.aggregated_status = self._consolidate([extended_platform.computed.power_status_roll_up.value,
