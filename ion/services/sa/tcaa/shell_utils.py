@@ -1,11 +1,12 @@
 
 """
 bin/pycc -r res/deploy/r2deploy.yml
-import ion.services.sa.tcaa.shell_utils as utils
-spargs = {'type':'terrestrial'}
-spargs = utils.tcaa_args(**spargs)
-cc.spawn_process(**spargs)
-client = utils.tcaa_client(**spargs)
+import ion.services.sa.tcaa.shell_utils as u
+t_args = u.tcaa_args(cls='TerrestrialEndpoint')
+r_args = u.tcaa_args(cls='RemoteEndpoint')
+cc.spawn_process(**t_args)
+cc.spawn_process(**r_args)
+client = u.tcaa_client(**t_args)
 
 ls()
 Edwards-MacBook-Pro_local_3983.36: TerrestrialEndpoint(name=terrestrial_endpointremote1,id=Edwards-MacBook-Pro_local_3983.36,type=service)
@@ -27,6 +28,7 @@ import gevent
 import random
 import string
 import time
+import uuid
 
 TERRESTRIAL_PLATFORM_ID = 'abc123'
 REMOTE_PLATFORM_ID = 'abc123R'
@@ -122,6 +124,14 @@ def tcaa_config(xs_name, listen_name, platform_id, this_port, other_host, other_
     }
     return config 
 
+class FakeProcess(LocalContextMixin):
+    """
+    A fake process used because the test case is not an ion process.
+    """
+    name = ''
+    id=''
+    process_type = ''
+
 def make_fake_command(size):
     """
     Build a fake command for use in tests.
@@ -131,25 +141,19 @@ def make_fake_command(size):
     cmd = IonObject('RemoteCommand',
                          resource_id='fake_id',
                          command='fake_cmd',
-                         args=[random_str],
+                         command_id=str(uuid.uuid4()),
+                         args=[],
                          kwargs={'payload':random_str})
     return cmd
-
-class FakeProcess(LocalContextMixin):
-    """
-    A fake process used because the test case is not an ion process.
-    """
-    name = ''
-    id=''
-    process_type = ''
 
 class PlatformCommander():
     """
     """
-    def __init__(self, delay, xs_name, resource_id, logfile):
+    def __init__(self, delay, size, xs_name, resource_id, logfile):
         """
         """
         self._delay = delay
+        self._size = size
         self._xs_name = xs_name
         self._resource_id = resource_id
         self._logfile = logfile
@@ -160,7 +164,8 @@ class PlatformCommander():
         self._te_client = TerrestrialEndpointClient(
             process=FakeProcess(),
             to_name='terrestrial_endpoint'+self._xs_name)
-        
+        self._requests_sent = {}
+
     def start(self):
         """
         """
@@ -186,7 +191,9 @@ class PlatformCommander():
         """
         while True:
             gevent.sleep(self._delay)
-            # send command here.
+            cmd = make_fake_command(self._size)
+            self._requests_sent[cmd.command_id] = cmd
+            cmd = self._te_client.enqueue_command(cmd)
         
     def _start_subscribers(self):
         """
@@ -195,11 +202,34 @@ class PlatformCommander():
             event_type='PlatformEvent',
             callback=self._consume_event,
             origin=self._xs_name)
+        self._platform_sub.start()
         
         self._resource_sub = EventSubscriber(
             event_type='RemoteCommandResult',
             callback=self._consume_event,
             origin=self._resource_id)            
+        self._resource_sub.start()
+        
+    def _make_fake_command(self, size):
+        """
+        Build a fake command for use in tests.
+        """
+        random_str = ''.join([random.choice(string.ascii_lowercase) for x in xrange(size)])
+        cmdstr = 'fake_cmd'
+        cmd = IonObject('RemoteCommand',
+                             resource_id='fake_id',
+                             command='fake_cmd',
+                             args=[],
+                             kwargs={'payload':random_str})
+        return cmd
+        
+    def _consume_event(self,evt,*args,**kwargs):
+        """
+        """
+        print '### got result: %s' % str(evt)
+        print 'args: %s' % str(args)
+        #self._requests_sent.pop()
+        
         
 class PlatformTimer():
     """
