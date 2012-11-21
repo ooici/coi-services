@@ -57,7 +57,7 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.util.parameter_loader import ParameterPlugin
 from ion.util.xlsparser import XLSParser
 from coverage_model.parameter import ParameterContext
@@ -1345,6 +1345,8 @@ class IONLoader(ImmediateProcess):
         agent_instance.port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
                                              'device_port':   int(row['iai/comms_device_port']),
                                              'process_type':  PortAgentProcessType.UNIX,
+                                             'port_agent_addr': 'localhost',
+                                             'type': PortAgentType.ETHERNET,
                                              'binary_path':   "port_agent",
                                              'command_port':  int(row['comms_server_cmd_port']),
                                              'data_port':     int(row['comms_server_port']),

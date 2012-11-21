@@ -531,7 +531,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return driver_config, agent_config
 
-    def start_instrument_agent_instance(self, instrument_agent_instance_id='', start_port_agent=True):
+    def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
         Agent instance must first be created and associated with a instrument device
         Launch the instument agent instance and return the id
@@ -566,8 +566,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not process_def_obj:
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
-        if start_port_agent:
-            self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
+        self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
 
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 

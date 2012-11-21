@@ -46,7 +46,7 @@ from pyon.util.context import LocalContextMixin
 
 from interface.objects import ProcessStateEnum
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
 # Used to validate param config retrieved from driver.
 PARAMS = {
@@ -187,10 +187,13 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             'device_port': 4001,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
+            'port_agent_addr': 'localhost',
             'command_port': 4003,
             'data_port': 4000,
             'log_level': 5,
-            }
+            'type': PortAgentType.ETHERNET
+        }
+
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
             description="SBE37IMAgentInstance",

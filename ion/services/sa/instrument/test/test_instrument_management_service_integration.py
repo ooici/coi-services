@@ -3,7 +3,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.icontainer_agent import ContainerAgentClient
 
 #from pyon.ion.endpoint import ProcessRPCClient
-from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.datastore.datastore import DataStore
@@ -302,10 +302,13 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             'device_port': 4001,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
+            'port_agent_addr': 'localhost',
             'command_port': 4002,
             'data_port': 4003,
             'log_level': 5,
-            }
+            'type': PortAgentType.ETHERNET
+        }
+
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
