@@ -46,8 +46,7 @@ class RegistrationProcess(StandaloneProcess):
             self.add_dataset_to_xml(coverage_path=coverage_path, product_name=data_product_name)
             self.create_symlink(coverage_path, self.pydap_data_path)
         except:
-            from traceback import print_exc
-            print_exc()
+            log.exception('Problem registering dataset')
             log.error('Failed to register dataset for coverage path %s' % coverage_path)
 
     def create_symlink(self, coverage_path, pydap_path):
