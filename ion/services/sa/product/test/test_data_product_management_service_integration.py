@@ -172,7 +172,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # test creating a new data product w/o a stream definition
         #------------------------------------------------------------------------------------------------
-        log.debug('test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)')
 
         # Generic time-series data domain creation
         tdom, sdom = time_series_domain()
@@ -333,13 +332,19 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         replay_data = self.data_retriever.retrieve(dataset_ids[0])
         self.assertIsInstance(replay_data, Granule)
 
-        log.debug("Satisfies L4-CI-SA-RQ-267: 'Data product management shall persist data products'")
+        log.debug("The data retriever was able to replay the dataset that was attached to the data product "
+                  "we wanted to be persisted. Therefore the data product was indeed persisted with "
+                  "otherwise we could not have retrieved its dataset using the data retriever. Therefore "
+                  "this demonstration shows that L4-CI-SA-RQ-267 is satisfied: 'Data product management shall persist data products'")
 
         data_product_object = self.rrclient.read(dp_id)
         self.assertEquals(data_product_object.name,'DP1')
         self.assertEquals(data_product_object.description,'some new dp')
 
-        log.debug("Towards L4-CI-SA-RQ-308: 'Data product management shall persist data product metadata'")
+        log.debug("Towards L4-CI-SA-RQ-308: 'Data product management shall persist data product metadata'. "
+                  " Attributes in create for the data product obj, name= '%s', description='%s', match those of object from the "
+                  "resource registry, name='%s', desc='%s'" % (dp_obj.name, dp_obj.description,data_product_object.name,
+                                                           data_product_object.description))
 
         #------------------------------------------------------------------------------------------------
         # test suspend data product persistence
