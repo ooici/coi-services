@@ -1167,10 +1167,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         log.debug("converting retrieved ids to objects")
         retval = {}
+        all_res = self.RR.read_mult([res_id for rt, resource_ids in retval_ids.iteritems() for res_id in resource_ids])
+        res_by_id = dict(zip([res._id for res in all_res], all_res))
         for rt, resource_ids in retval_ids.iteritems():
             retval[rt] = []
             for resource_id in resource_ids:
-                retval[rt].append(self.RR.read(resource_id))
+                retval[rt].append(res_by_id[resource_id])
         return retval
 
 
