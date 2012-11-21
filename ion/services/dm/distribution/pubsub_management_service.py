@@ -429,6 +429,9 @@ class PubsubManagementService(BasePubsubManagementService):
         xps, assocs = self.clients.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream,subject_type=RT.ExchangePoint, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
+        subs, assocs = self.clients.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream, subject_type=RT.Subscription, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
         objects, assocs = self.clients.resource_registry.find_objects(subject=stream_id, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
