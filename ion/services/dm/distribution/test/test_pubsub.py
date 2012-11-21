@@ -215,6 +215,48 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='queue1')
         self.assertEquals(len(xn_ids),0)
 
+    def test_activation_and_deactivation(self):
+        stream_id, route = self.pubsub_management.create_stream('stream1','xp1')
+        subscription_id = self.pubsub_management.create_subscription('sub1', stream_ids=[stream_id])
+
+        self.check1 = Event()
+
+        def verifier(m,r,s):
+            self.check1.set()
+
+
+        subscriber = StandaloneStreamSubscriber('sub1',verifier)
+        subscriber.start()
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        publisher.publish('should not receive')
+
+        self.assertFalse(self.check1.wait(0.25))
+
+        self.pubsub_management.activate_subscription(subscription_id)
+
+        publisher.publish('should receive')
+        self.assertTrue(self.check1.wait(2))
+
+        self.check1.clear()
+        self.assertFalse(self.check1.is_set())
+
+        self.pubsub_management.deactivate_subscription(subscription_id)
+
+        publisher.publish('should not receive')
+        self.assertFalse(self.check1.wait(0.5))
+
+        self.pubsub_management.activate_subscription(subscription_id)
+
+        publisher.publish('should receive')
+        self.assertTrue(self.check1.wait(2))
+
+        subscriber.stop()
+
+        self.pubsub_management.deactivate_subscription(subscription_id)
+        self.pubsub_management.delete_subscription(subscription_id)
+        self.pubsub_management.delete_stream(stream_id)
+
         
 
     def test_topic_crud(self):
