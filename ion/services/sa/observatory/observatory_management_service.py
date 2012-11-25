@@ -1217,6 +1217,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #get status of Site instruments
         extended_site.instruments_operational, extended_site.instruments_not_operational = self._get_instrument_states(extended_site.instrument_devices)
 
+        ### NOTE: calculate actual aggregate status here.
+        ### this is just a placeholder so far to have some values for the UI
+        #
+        extended_site.computed.instrument_status = [1]*len(extended_site.instrument_devices)
+        extended_site.computed.platform_status = [1]*len(extended_site.platform_devices)
+        #
+        ###
+
         return extended_site
 
 
