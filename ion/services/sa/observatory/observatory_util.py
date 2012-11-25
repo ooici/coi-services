@@ -135,13 +135,14 @@ class ObservatoryUtil(object):
 
     def _get_status_events(self, device_list=None):
         min_ts = str(int(time.time() - 3) * 1000)
+        # Events come back as 3-tuples of (id, key, obj)
         pwr_events = self.container.event_repository.find_events(event_type=OT.DeviceStatusEvent, start_ts=min_ts, descending=True)
         comm_events = self.container.event_repository.find_events(event_type=OT.DeviceCommsEvent, start_ts=min_ts, descending=True)
         events = []
         events.extend(pwr_events)
         events.extend(comm_events)
         device_events = {}
-        for event in events:
+        for ev_id, ev_key, event in events:
             if device_list and event.origin not in device_list:
                 continue
             if event.origin not in device_events:
