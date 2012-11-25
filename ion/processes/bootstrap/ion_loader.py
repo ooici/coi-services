@@ -534,6 +534,11 @@ class IONLoader(ImmediateProcess):
     def _create_bulk_resource(self, res_obj, res_alias=None):
         if not hasattr(res_obj, "_id"):
             res_obj._id = create_unique_resource_id()
+        ts = get_ion_ts()
+        if hasattr(res_obj, "ts_created") and not res_obj.ts_created:
+            res_obj.ts_created = ts
+        if hasattr(res_obj, "ts_updated") and not res_obj.ts_updated:
+            res_obj.ts_updated = ts
         res_id = res_obj._id
         self.bulk_objects[res_id] = res_obj
         if res_alias:
