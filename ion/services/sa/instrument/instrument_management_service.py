@@ -1,38 +1,30 @@
 #!/usr/bin/env python
 
-"""
-@package  ion.services.sa.instrument.instrument_management_service
-@author   Maurice Manning
-@author   Ian Katz
-"""
+__author__ = 'Maurice Manning, Ian Katz, Michael Meisinger'
 
 
-#from pyon.public import Container
-import tempfile
-from pyon.agent.agent import ResourceAgentClient
-from pyon.public import LCE
-from pyon.public import RT, PRED, OT, CFG
-from pyon.core.bootstrap import IonObject
-from pyon.core.exception import Inconsistent,BadRequest, NotFound
-from pyon.ion.resource import ExtendedResourceContainer
-from ooi.logging import log
-from pyon.util.ion_time import IonTime
-from pyon.util.containers import DotDict, get_ion_ts
-from interface.objects import  DeviceStatusType, DeviceCommsType
-#from pyon.core.object import ion_serializer
-from ion.services.sa.instrument.flag import KeywordFlag
 import os
 import pwd
 import json
 from datetime import date, datetime, timedelta
 import time
+import tempfile
 
-from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, StatusType
+from ooi.logging import log
 
+from pyon.agent.agent import ResourceAgentClient
+from pyon.core.bootstrap import IonObject
+from pyon.core.exception import Inconsistent,BadRequest, NotFound
+from pyon.ion.resource import ExtendedResourceContainer
+from pyon.util.ion_time import IonTime
+from pyon.public import LCE
+from pyon.public import RT, PRED, OT, CFG
+
+from coverage_model.parameter import ParameterDictionary
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from coverage_model.parameter import ParameterDictionary
+from ion.services.sa.instrument.flag import KeywordFlag
 
 from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
 from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
@@ -47,6 +39,7 @@ from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
 
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
+from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
 from ion.util.module_uploader import RegisterModulePreparerEgg
 from ion.util.qa_doc_parser import QADocParser
@@ -57,20 +50,21 @@ from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.agents.port.port_agent_process import PortAgentProcess, PortAgentProcessType
 
+from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
-
 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
     """
     @brief Service to manage instrument, platform, and sensor resources, their relationships, and direct access
-
     """
     def on_init(self):
         #suppress a few "variable declared but not used" annoying pyflakes errors
         IonObject("Resource")
 
         self.override_clients(self.clients)
+        self.outil = ObservatoryUtil(self)
+
         self.extended_resource_handler = ExtendedResourceContainer(self)
 
         self.init_module_uploader()
@@ -126,7 +120,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def init_module_uploader(self):
         if self.CFG:
-            #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
+            # looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
             cfg_host        = self.CFG.get_safe("service.instrument_management.driver_release_host", None)
             cfg_remotepath  = self.CFG.get_safe("service.instrument_management.driver_release_directory", None)
             cfg_user        = self.CFG.get_safe("service.instrument_management.driver_release_user",
@@ -393,8 +387,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         Verify that an agent instance is valid for launch.
 
-        returns a dict of params necessary to start this instance
-
+        Returns a dict of params necessary to start this instance
         """
 
         #retrieve the associated instrument device
@@ -680,10 +673,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def find_instrument_agent_instances(self, filters=None):
         """
-
         """
         return self.instrument_agent_instance.find_some(filters)
-
 
 
 
@@ -1709,7 +1700,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def get_instrument_device_extension(self, instrument_device_id='', ext_associations=None, ext_exclude=None):
         """Returns an InstrumentDeviceExtension object containing additional related information
-
         @param instrument_device_id    str
         @param ext_associations    dict
         @param ext_exclude    list
@@ -1730,20 +1720,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
-        #Loop through any attachments and remove the actual content since we don't need
-        #   to send it to the front end this way
-        #TODO - see if there is a better way to do this in the extended resource frame work.
-        if hasattr(extended_instrument, 'attachments'):
-            for att in extended_instrument.attachments:
-                if hasattr(att, 'content'):
-                    delattr(att, 'content')
-
-        #clean up InstAgent list as it sometimes includes the device
+        # clean up InstAgent list as it sometimes includes the device
         ia = []
         for agent in extended_instrument.instrument_agent:
             if agent.type_ == 'InstrumentAgent':
                 ia.append(agent)
         extended_instrument.instrument_agent = ia
+
+        # Status computation
+        status_rollups = self.outil.get_status_roll_ups(instrument_device_id, RT.InstrumentDevice)
+
+        extended_instrument.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[instrument_device_id]["comms"])
+        extended_instrument.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[instrument_device_id]["power"])
+        extended_instrument.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[instrument_device_id]["data"])
+        extended_instrument.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[instrument_device_id]["loc"])
+        extended_instrument.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[instrument_device_id]["agg"])
 
         return extended_instrument
 
@@ -1798,97 +1789,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ret.value = "" #todo: use ia_client
         return ret
 
-    def get_power_status_roll_up(self, device_id):
-        # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
-
-
-        retval = IonObject(OT.ComputedIntValue)
-        retval.value = StatusType.STATUS_OK
-        retval.status = ComputedValueAvailability.PROVIDED
-
-        #call eventsdb to check  data-related events from this device.
-
-        # Use Unix vs NTP for now. resource times are unix
-        #        now = time.time() + IonTime.JAN_1970
-        #        query_interval = ( time.time() - timedelta( seconds=15 ) ) + IonTime.JAN_1970
-        now = str(int(time.time() * 1000))
-        query_interval = str(int(time.time() - 3 )*1000)
-        # find_events compares timestamps are STRINGS!!!
-        log.debug("get_power_status_roll_up: now  %s", str(now))
-
-        events = self.clients.user_notification.find_events(origin=device_id, type= 'DeviceStatusEvent', max_datetime = now, min_datetime = query_interval)
-
-        for event  in events:
-            log.debug("get_power_status_roll_up: event  %s", str(event))
-            if event.state == DeviceStatusType.OUT_OF_RANGE:
-                retval.value = StatusType.STATUS_WARNING
-
-        return retval
-
-
-    def get_communications_status_roll_up(self, device_id):
-        # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
-        #todo: listen for events/streams from instrument agent -- there will be alarms
-
-        retval = IonObject(OT.ComputedIntValue)
-        retval.value = StatusType.STATUS_OK
-        retval.status = ComputedValueAvailability.PROVIDED
-
-        #call eventsdb to check  data-related events from this device.
-        now = str(int(time.time() * 1000))
-        query_interval = str(int(time.time() - 3 )*1000)
-        # find_events compares timestamps are STRINGS!!!
-        events = self.clients.user_notification.find_events(origin=device_id, type= 'DeviceCommsEvent', max_datetime = now, min_datetime = query_interval)
-
-        for event  in events:
-            log.debug("get_communications_status_roll_up: event  %s", str(event))
-            if event.state == DeviceCommsType.DATA_DELIVERY_INTERRUPTION:
-                retval.value = StatusType.STATUS_WARNING
-
-        return retval
-
-
-    def get_data_status_roll_up(self, device_id):
-        # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
-        #todo: listen for events/streams from instrument agent -- there will be alarms
-
-        retval = IonObject(OT.ComputedIntValue)
-
-        #call eventsdb to check  data-related events from this device.
-
-
-        retval.value = StatusType.STATUS_OK
-        retval.status = ComputedValueAvailability.PROVIDED
-        return retval
-
-    def get_location_status_roll_up(self, device_id):
-        # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
-        #todo: listen for events/streams from instrument agent -- there will be alarms
-
-        retval = IonObject(OT.ComputedIntValue)
-
-        #call eventsdb to check  data-related events from this device.
-
-        retval.value = StatusType.STATUS_OK  #default until transfrom is defined.
-        retval.status = ComputedValueAvailability.PROVIDED
-        return retval
-
-    # apparently fulfilled by some base object now
-#    def get_recent_events(self, instrument_device_id):  #List of the 10 most recent events for this device
-#        ret = IonObject(OT.ComputedListValue)
-#        if True: raise BadRequest("not here not now")
-#        try:
-#            ret.status = ComputedValueAvailability.PROVIDED
-#            #todo: try to get the last however long of data to parse through
-#            ret.value = []
-#        except NotFound:
-#            ret.status = ComputedValueAvailability.NOTAVAILABLE
-#            ret.reason = "Could not retrieve device stream -- may not be configured et"
-#        except Exception as e:
-#            raise e
-#
-#        return ret
-
     def get_last_calibration_datetime(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
@@ -1897,8 +1797,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     # def get_uptime(self, device_id): - common to both instrument and platform, see below
-
-
 
 
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
@@ -1919,142 +1817,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
-        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
-        #TODO - see if there is a better way to do this in the extended resource frame work.
-        if hasattr(extended_platform, 'attachments'):
-            for att in extended_platform.attachments:
-                if hasattr(att, 'content'):
-                    delattr(att, 'content')
+        # Status computation
+        status_rollups = self.outil.get_status_roll_ups(platform_device_id, RT.PlatformDevice)
 
+        extended_platform.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_platform.instrument_devices]
+        extended_platform.computed.platform_status = [status_rollups(pdev._id,{}).get("agg",4) for pdev in extended_platform.platforms]
 
-        ### NOTE: calculate actual aggregate status here.
-        ### this is just a placeholder so far to have some values for the UI
-        #
-        extended_platform.computed.instrument_status = [1]*len(extended_platform.instrument_devices)
-        extended_platform.computed.platform_status = [1]*len(extended_platform.platforms)
-        #
-        ###
-
-        #compute aggregated_status from other status readings.
-        extended_platform.aggregated_status = self._consolidate([extended_platform.computed.power_status_roll_up.value,
-                           extended_platform.computed.communications_status_roll_up.value,
-                           extended_platform.computed.data_status_roll_up.value,
-                           extended_platform.computed.location_status_roll_up.value])
+        extended_platform.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["comms"])
+        extended_platform.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["power"])
+        extended_platform.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["data"])
+        extended_platform.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["loc"])
+        extended_platform.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["agg"])
 
         return extended_platform
-
-
-    # intelligently merge statuses with current value
-    def _consolidate(self, statuses):
-
-        # any critical means all critical
-        if StatusType.STATUS_CRITICAL in statuses:
-            return StatusType.STATUS_CRITICAL
-
-        # any warning means all warning
-        if StatusType.STATUS_WARNING in statuses:
-            return StatusType.STATUS_WARNING
-
-        # any unknown is fine unless some are ok -- then it's a warning
-        if StatusType.STATUS_OK in statuses:
-            if StatusType.STATUS_UNKNOWN in statuses:
-                return StatusType.STATUS_WARNING
-            else:
-                return StatusType.STATUS_OK
-
-        # 0 results are OK, 0 or more are unknown
-        return StatusType.STATUS_UNKNOWN
-
-
-#    def get_aggregated_status(self, platform_device_id):
-#        # The status roll-up that summarizes the entire status of the device
-#        # StatusType: STATUS_OK, STATUS_WARNING, STATUS_CRITICAL, STATUS_UNKNOWN
-#
-#        # intelligently merge statuses with current value
-#        def consolidate(statuses, currentstatus = None):
-#            if currentstatus:
-#                statuses.append(currentstatus)
-#
-#            # any critical means all critical
-#            if StatusType.STATUS_CRITICAL in statuses:
-#                return StatusType.STATUS_CRITICAL
-#
-#            # any warning means all warning
-#            if StatusType.STATUS_WARNING in statuses:
-#                return StatusType.STATUS_WARNING
-#
-#            # any unknown is fine unless some are ok -- then it's a warning
-#            if StatusType.STATUS_OK in statuses:
-#                if StatusType.STATUS_UNKNOWN in statuses:
-#                    return StatusType.STATUS_WARNING
-#                else:
-#                    return StatusType.STATUS_OK
-#
-#            # 0 results are OK, 0 or more are unknown
-#            return StatusType.STATUS_UNKNOWN
-#
-#
-#        #recursive function to determine the aggregate status by visiting all relevant nodes
-#        def get_status_helper(device_id, device_type):
-#
-#            acc = IonObject(OT.ComputedIntValue)
-#            acc.status = ComputedValueAvailability.NOTAVAILABLE
-#            acc.value = None
-#
-#            if RT.InstrumentDevice == device_type:
-#                stat_p = self.get_power_status_roll_up(device_id)
-#                stat_d = self.get_data_status_roll_up(device_id)
-#                stat_l = self.get_location_status_roll_up(device_id)
-#                stat_c = self.get_communications_status_roll_up(device_id)
-#
-#                #todo: return acc based on instrument status?
-#
-#                acc.status = ComputedValueAvailability.PROVIDED
-#                acc.value = consolidate([stat_p, stat_d, stat_l, stat_c], acc.value)
-#                return acc
-#
-#            elif RT.PlatformDevice == device_type:
-#
-#                #todo: how to get platform status?
-#                #stat_p = self.get_power_status_roll_up(device_id)
-#                #stat_d = self.get_data_status_roll_up(device_id)
-#                #stat_l = self.get_location_status_roll_up(device_id)
-#                #stat_c = self.get_communications_status_roll_up(device_id)
-#
-#                #todo: return acc based on platform status?
-#
-#
-#                acc.value = consolidate([], acc.value) #todo: fill in list argument with stat_*
-#                acc.status = ComputedValueAvailability.PROVIDED
-#
-#                # regardless of sub-components, if status is anything but OK then we're done
-#                if StatusType.STATUS_OK != acc.value:
-#                    return acc
-#
-#                # if any sub-types are not OK, the result is a warning
-#                instrument_resources = self.platform_device.find_stemming_instrument_device(device_id)
-#                for instrument_resource in instrument_resources:
-#                    inst_stat = get_status_helper(instrument_resource._id, type(instrument_resource).__name__)
-#                    if StatusType.STATUS_OK != inst_stat:
-#                        acc.value = StatusType.STATUS_WARNING
-#                        return acc
-#
-#                platform_resources = self.platform_device.find_stemming_platform_device(device_id)
-#                for platform_resource in platform_resources:
-#                    plat_stat = get_status_helper(platform_resource._id, type(platform_resource).__name__)
-#                    if StatusType.STATUS_OK != plat_stat:
-#                        acc.value = StatusType.STATUS_WARNING
-#                        return acc
-#
-#                return acc
-#            else:
-#                raise NotImplementedError("Completely avoidable error, got bad device_type: %s" % device_type)
-#
-#        retval = get_status_helper(platform_device_id, RT.PlatformDevice)
-#        retval.status = ComputedValueAvailability.PROVIDED
-#        retval.value = StatusType.STATUS_OK
-#
-#        return retval
 
     # The actual initiation of the deployment, calculated from when the deployment was activated
     def get_uptime(self, device_id):
@@ -2064,8 +1839,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #            ret.value = 45.5 #todo: use ia_client
 #        return ret
         return "0 days, 0 hours, 0 minutes"
-
-
 
     def get_data_product_parameters_set(self, resource_id=''):
         # return the set of data product with the processing_level_code as the key to identify
@@ -2116,5 +1889,3 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 ret.value[data_product_obj.processing_level_code] = context_dict
             ret.status = ComputedValueAvailability.PROVIDED
         return ret
-
-
