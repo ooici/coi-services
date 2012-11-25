@@ -454,6 +454,10 @@ def build_commands(resource_id, restype):
     elif restype == "DataProduct":
         fragments.append(build_command("Latest Ingest", "/cmd/last_granule?rid=%s" % resource_id))
 
+    if restype in ["Org", "Observatory", "Subsite", "PlatformSite", "InstrumentSite", "PlatformDevice", "InstrumentDevice"]:
+        fragments.append(build_command("Shows Subsites and Status", "/cmd/sites?rid=%s" % resource_id))
+
+
     fragments.append("</table>")
     return "".join(fragments)
 
@@ -655,6 +659,22 @@ def _process_cmd_undeploy_prim(resource_id, res_obj=None):
     ims_cl.undeploy_primary_instrument_device_from_logical_instrument(resource_id, li_id)
     return "OK"
 
+def _process_cmd_sites(resource_id, res_obj=None):
+    from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+    outil = ObservatoryUtil(container=Container.instance)
+    #child_sites, site_ancestors = outil.get_child_sites(resource_id)
+    statuses = outil.get_status_roll_ups(resource_id)
+    fragments = [
+        #"<h3>Child resources</h3>",
+        #"<p>%s</p>" % (pprint.pformat(child_sites)),
+        #"<h3>Child ancestors</h3>",
+        #"<p>%s</p>" % (pprint.pformat(site_ancestors)),
+        "<h3>Child resource status</h3>",
+        "<p>%s</p>" % (pprint.pformat(statuses)),
+        ]
+    content = "\n".join(fragments)
+    return content
+
 # ----------------------------------------------------------------------------------------
 
 @app.route('/edit/<resource_id>', methods=['GET','POST'])
@@ -771,51 +791,6 @@ def process_assoc_list():
         return flask.redirect("/")
     except Exception, e:
         return build_error_page(traceback.format_exc())
-
-# ----------------------------------------------------------------------------------------
-
-@app.route('/nested/<rid>', methods=['GET','POST'])
-def process_nested(rid):
-    try:
-        rid = str(rid)
-        res = find_subordinate_entity(rid, None)
-
-        fragments = [
-            build_standard_menu(),
-            "<h1>Child entities</h1>",
-            "<p>%s</p>" % (res),
-
-            ]
-        content = "\n".join(fragments)
-        return build_page(content)
-
-    except Exception, e:
-        return build_error_page(traceback.format_exc())
-
-
-def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=None):
-    if not child_resource_type_list:
-        child_resource_type_list = set(["InstrumentSite", "PlatformSite", "Subsite"])
-    matchlist = []
-    parents = _get_all_parents()
-    for rid in parents:
-        rt,pid = parents[rid]
-        if rt not in child_resource_type_list:
-            continue
-        while pid:
-            if pid == parent_resource_id:
-                matchlist.append(rid)
-                continue
-            _,pid = parents.get(pid, (None,None))
-
-    return matchlist
-
-def _get_all_parents():
-    parents = {}
-    assocs1 = Container.instance.resource_registry.find_associations(predicate=PRED.hasSite, id_only=False)
-    for assoc in assocs1:
-        parents[assoc.o] = (assoc.st, assoc.s)
-    return parents
 
 # ----------------------------------------------------------------------------------------
 

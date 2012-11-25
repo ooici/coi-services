@@ -1128,13 +1128,13 @@ class OrgManagementService(BaseOrgManagementService):
                     platforms_not_deployed.append(org_platform)
 
 
-        ### NOTE: calculate actual aggregate status here.
-        ### this is just a placeholder so far to have some values for the UI
-        #
-        extended_org.computed.instrument_status = [1]*len(extended_org.instruments)
-        extended_org.computed.platform_status = [1]*len(extended_org.platforms)
-        #
-        ###
+        # Status computation
+        from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+        outil = ObservatoryUtil(self)
+        status_rollups = outil.get_status_roll_ups(org_id, extended_org.resource._get_type())
+
+        extended_org.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_org.instruments]
+        extended_org.computed.platform_status = [status_rollups(pdev._id,{}).get("agg",4) for pdev in extended_org.platforms]
 
         #set counter attributes
         extended_org.number_of_data_products = len(extended_org.data_products)
