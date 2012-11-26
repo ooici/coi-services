@@ -188,7 +188,7 @@ class ObservatoryUtil(object):
                     device_info = site_devices.get(site_id, None)
                     if not device_info:
                         s_status = dict(power=StatusType.STATUS_UNKNOWN, comms=StatusType.STATUS_UNKNOWN,
-                            data=StatusType.STATUS_UNKNOWN, loc=StatusType.STATUS_UNKNOWN, all=StatusType.STATUS_UNKNOWN)
+                            data=StatusType.STATUS_UNKNOWN, loc=StatusType.STATUS_UNKNOWN, agg=StatusType.STATUS_UNKNOWN)
                     else:
                         device_id = device_info[1]
                         s_status = self._compute_status(device_id, device_events)
@@ -233,7 +233,7 @@ class ObservatoryUtil(object):
 
     def _compute_status(self, device_id, device_events):
         status = dict(power=StatusType.STATUS_UNKNOWN, comms=StatusType.STATUS_UNKNOWN,
-            data=StatusType.STATUS_UNKNOWN, loc=StatusType.STATUS_UNKNOWN, all=StatusType.STATUS_UNKNOWN)
+            data=StatusType.STATUS_UNKNOWN, loc=StatusType.STATUS_UNKNOWN)
         dev_events = device_events.get(device_id, [])
         for event in dev_events:
             event_type = event._get_type()
