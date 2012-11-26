@@ -148,7 +148,8 @@ class IONLoader(ImmediateProcess):
         self.loadui = self.CFG.get("loadui", False)      # Import UI asset data
         self.exportui = self.CFG.get("exportui", False)  # Save UI JSON file
         self.update = self.CFG.get("update", False)      # Support update to existing resources
-        self.bulk = self.CFG.get("bulk", False)           # Use bulk insert where available
+        self.bulk = self.CFG.get("bulk", False)          # Use bulk insert where available
+        self.ooifilter = self.CFG.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
 
         # External loader tools
         self.ui_loader = UILoader(self)
@@ -831,6 +832,19 @@ class IONLoader(ImmediateProcess):
                 marine_ios.add("MF_EA")
         return ",".join(marine_ios)
 
+    def _match_filter(self, rdlist):
+        """Returns true if at least one item in given list (or comma separated str) matches a filter in ooifilter"""
+        if not self.ooifilter:
+            return True
+        if not rdlist:
+            return False
+        if type(rdlist) is str:
+            rdlist = [val.strip() for val in rdlist.split(",")]
+        for item in rdlist:
+            if item in self.ooifilter:
+                return True
+        return False
+
     def _load_PlatformModel(self, row):
         res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
             "instrument_management", "create_platform_model",
@@ -845,6 +859,9 @@ class IONLoader(ImmediateProcess):
             fakerow['pm/name'] = ooi_obj['name']
             fakerow['pm/alt_ids'] = "['OOI:" + ooi_id + "_PM" + "']"
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
+
+            if not self._match_filter(ooi_obj.get('array_list', None)):
+                continue
 
             self._load_PlatformModel(fakerow)
 
@@ -876,6 +893,9 @@ class IONLoader(ImmediateProcess):
             fakerow['parsed_stream_def'] = ''
             fakerow['org_ids'] = self._get_org_ids(class_obj.get('array_list', None))
 
+            if not self._match_filter(class_obj.get('array_list', None)):
+                continue
+
             self._load_InstrumentModel(fakerow)
 
     def _load_Observatory(self, row):
@@ -898,6 +918,9 @@ class IONLoader(ImmediateProcess):
             fakerow['constraint_ids'] = ''
             fakerow['coordinate_system'] = ''
             fakerow['org_ids'] = self._get_org_ids([ooi_id])
+
+            if not self._match_filter(ooi_id):
+                continue
 
             self._load_Observatory(fakerow)
 
@@ -933,6 +956,9 @@ class IONLoader(ImmediateProcess):
             fakerow['parent_site_id'] = ooi_id[:2]
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
 
+            if not self._match_filter(ooi_id[:2]):
+                continue
+
             self._load_Subsite(fakerow)
 
         ooi_objs = self.ooi_loader.get_type_assets("subsite")
@@ -959,6 +985,9 @@ class IONLoader(ImmediateProcess):
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = ''
             fakerow['parent_site_id'] = ooi_id[:4]
+
+            if not self._match_filter(ooi_id[:2]):
+                continue
 
             self._load_Subsite(fakerow)
 
@@ -1024,6 +1053,9 @@ class IONLoader(ImmediateProcess):
                 fakerow['parent_site_id'] = ooi_obj.get('platform_id', '')
             fakerow['platform_model_ids'] = ooi_id[9:11] + "_PM"
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+
+            if not self._match_filter(ooi_id[:2]):
+                return
 
             self._load_PlatformSite(fakerow)
 
@@ -1098,6 +1130,9 @@ class IONLoader(ImmediateProcess):
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             fakerow['instrument_model_ids'] = ooi_obj['instrument_model']
             fakerow['parent_site_id'] = ooi_id[:14]
+
+            if not self._match_filter(ooi_id[:2]):
+                continue
 
             self._load_InstrumentSite(fakerow)
 
@@ -1213,6 +1248,9 @@ class IONLoader(ImmediateProcess):
             fakerow['platform_model_id'] = ooi_id + "_PM"
             fakerow['contact_ids'] = ''
 
+            if not self._match_filter(ooi_obj.get('array_list', None)):
+                continue
+
             self._load_PlatformDevice(fakerow)
 
     def _load_InstrumentDevice(self, row):
@@ -1272,6 +1310,9 @@ class IONLoader(ImmediateProcess):
             fakerow['platform_device_id'] = ooi_rd.node_type + "_PD"
             fakerow['id/reference_urls'] = ''
             fakerow['contact_ids'] = ''
+
+            if not self._match_filter(ooi_id[:2]):
+                continue
 
             self._load_InstrumentDevice(fakerow)
 
@@ -1337,6 +1378,9 @@ class IONLoader(ImmediateProcess):
             ooi_rd = OOIReferenceDesignator(ooi_id)
             fakerow['instrument_model_ids'] = ooi_rd.subseries_rd
 
+            if not self._match_filter(ooi_id[:2]):
+                continue
+
             self._load_InstrumentAgent(fakerow)
 
     def _load_InstrumentAgentInstance(self, row):
@@ -1382,8 +1426,11 @@ class IONLoader(ImmediateProcess):
             fakerow = {}
             fakerow[self.COL_ID] = ooi_id + "_PA"
             fakerow['pa/name'] = "Platform Agent for " + ooi_id
-            fakerow['org_ids'] = ''
             fakerow['platform_model_ids'] = ooi_id + "_PM"
+            fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
+
+            if not self._match_filter(ooi_obj.get('array_list', None)):
+                continue
 
             self._load_PlatformAgent(fakerow)
 
@@ -1590,6 +1637,9 @@ class IONLoader(ImmediateProcess):
                 fakerow['coordinate_system_id'] = ''
                 fakerow['available_formats'] = ''
                 fakerow['stream_def_id'] = ''
+
+                if not self._match_filter(ooi_id[:2]):
+                    continue
                 self._load_DataProduct(fakerow, do_bulk=self.bulk)
 
                 # (2) Site Data Product
@@ -1644,6 +1694,8 @@ class IONLoader(ImmediateProcess):
                 fakerow['input_resource_id'] = ooi_id + "_ID"
                 fakerow['resource_type'] = 'InstrumentDevice'
 
+                if not self._match_filter(ooi_id[:2]):
+                    continue
                 self._load_DataProductLink(fakerow, do_bulk=self.bulk)
 
     def _load_Attachment(self, row):

@@ -383,6 +383,10 @@ class OOILoader(object):
         self._add_object_attribute('node',
             ooi_rd, None, None, change_ok=True, **node_entry)
 
+        # Determine on which arrays the nodetype is used
+        self._add_object_attribute('nodetype',
+            ooi_rd[9:11], 'array_list', ooi_rd[:2], value_is_list=True, list_dup_ok=True)
+
     def _parse_NodeTypes(self, row):
         code = row['Code']
         name = row['Name']
