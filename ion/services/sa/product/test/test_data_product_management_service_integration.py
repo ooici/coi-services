@@ -11,6 +11,8 @@ from pyon.util.log import log
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
 from pyon.datastore.datastore import DataStore
+from pyon.ion.stream import StandaloneStreamSubscriber
+from pyon.ion.exchange import ExchangeNameQueue
 
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -23,7 +25,10 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
-from interface.objects import LastUpdate, ComputedValueAvailability
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+
+from interface.objects import LastUpdate, ComputedValueAvailability, Granule
+from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 
 from nose.plugins.attrib import attr
 from interface.objects import ProcessDefinition
@@ -31,8 +36,7 @@ from interface.objects import ProcessDefinition
 from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
 from coverage_model.coverage import CRS, GridDomain, GridShape
 
-
-import unittest
+import unittest, gevent
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -57,6 +61,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.process_dispatcher   = ProcessDispatcherServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
         self.unsc = UserNotificationServiceClient()
+        self.data_retriever = DataRetrieverServiceClient()
 
         #------------------------------------------
         # Create the environment
@@ -75,6 +80,9 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         process_definition_id = self.process_dispatcher.create_process_definition(process_definition=ingestion_worker_definition)
         self.process_definitions['ingestion_worker'] = process_definition_id
 
+        self.pids = []
+        self.exchange_points = []
+        self.exchange_names = []
 
         #------------------------------------------------------------------------------------------------
         # First launch the ingestors
@@ -85,7 +93,25 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         config.process.datastore_name = 'datasets'
         config.process.queue_name = self.exchange_space
 
-        self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
+        self.exchange_names.append(self.exchange_space)
+        self.exchange_points.append(self.exchange_point)
+
+        pid = self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
+        self.pids.append(pid)
+
+        self.addCleanup(self.cleaning_up)
+
+    def cleaning_up(self):
+        for pid in self.pids:
+            self.container.proc_manager.terminate_process(pid)
+        IngestionManagementIntTest.clean_subscriptions()
+
+        for xn in self.exchange_names:
+            xni = self.container.ex_manager.create_xn_queue(xn)
+            xni.delete()
+        for xp in self.exchange_points:
+            xpi = self.container.ex_manager.create_xp(xp)
+            xpi.delete()
 
     def get_datastore(self, dataset_id):
         dataset = self.dataset_management.read_dataset(dataset_id)
@@ -146,7 +172,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # test creating a new data product w/o a stream definition
         #------------------------------------------------------------------------------------------------
-        log.debug('test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)')
 
         # Generic time-series data domain creation
         tdom, sdom = time_series_domain()
@@ -169,10 +194,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
                                             stream_definition_id=ctd_stream_def_id)
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
-
-        log.debug('new dp_id = %s' % dp_id)
-        log.debug("test_createDataProduct: Data product info from registry %s (L4-CI-SA-RQ-308)", str(dp_obj))
-
+        self.assertIsNotNone(dp_obj)
 
         #------------------------------------------------------------------------------------------------
         # test creating a new data product with  a stream definition
@@ -235,16 +257,11 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # now 'delete' the data product
         log.debug("deleting data product: %s" % dp_id)
         self.dpsc_cli.delete_data_product(dp_id)
-
         self.dpsc_cli.force_delete_data_product(dp_id)
 
         # now try to get the deleted dp object
-        try:
+        with self.assertRaises(NotFound):
             dp_obj = self.dpsc_cli.read_data_product(dp_id)
-        except NotFound as ex:
-            pass
-        else:
-            self.fail("force deleted data product was found during read")
 
         # Get the events corresponding to the data product
         ret = self.unsc.get_recent_events(resource_id=dp_id)
@@ -253,19 +270,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         for event in events:
             log.debug("event time: %s" % event.ts_created)
 
-
-        # now try to get the deleted dp object
-
-        #todo: the RR should perhaps not return retired data products
-    #            dp_obj = self.dpsc_cli.read_data_product(dp_id)
-
-    # now try to delete the already deleted dp object
-    #        log.debug( "deleting non-existing data product")
-    #            self.dpsc_cli.delete_data_product(dp_id)
-
-    # Shut down container
-    #container.stop()
-
+#        self.assertTrue(len(events) > 0)
 
     def test_activate_suspend_data_product(self):
 
@@ -279,8 +284,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # test creating a new data product w/o a stream definition
         #------------------------------------------------------------------------------------------------
-        log.debug('test_createDataProduct: Creating new data product w/o a stream definition (L4-CI-SA-RQ-308)')
-
         # Construct temporal and spatial Coordinate Reference System objects
         tdom, sdom = time_series_domain()
 
@@ -305,9 +308,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             stream_definition_id=ctd_stream_def_id)
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
-
-        log.debug('new dp_id = %s' % dp_id)
-        log.debug("test_createDataProduct: Data product info from registry %s (L4-CI-SA-RQ-308)", str(dp_obj))
+        self.assertIsNotNone(dp_obj)
 
         dataset_ids, _ = self.rrclient.find_objects(subject=dp_id, predicate=PRED.hasDataset, id_only=True)
         if not dataset_ids:
@@ -319,22 +320,39 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         self.dpsc_cli.activate_data_product_persistence(dp_id)
 
+        # Check that the streams associated with the data product are persisted with
+        stream_ids, _ =  self.rrclient.find_objects(dp_id,PRED.hasStream,RT.Stream,True)
+        for stream_id in stream_ids:
+            self.assertTrue(self.ingestclient.is_persisted(stream_id))
+
+        #--------------------------------------------------------------------------------
+        # Now get the data in one chunk using an RPC Call to start_retreive
+        #--------------------------------------------------------------------------------
+
+        replay_data = self.data_retriever.retrieve(dataset_ids[0])
+        self.assertIsInstance(replay_data, Granule)
+
+        log.debug("The data retriever was able to replay the dataset that was attached to the data product "
+                  "we wanted to be persisted. Therefore the data product was indeed persisted with "
+                  "otherwise we could not have retrieved its dataset using the data retriever. Therefore "
+                  "this demonstration shows that L4-CI-SA-RQ-267 is satisfied: 'Data product management shall persist data products'")
+
+        data_product_object = self.rrclient.read(dp_id)
+        self.assertEquals(data_product_object.name,'DP1')
+        self.assertEquals(data_product_object.description,'some new dp')
+
+        log.debug("Towards L4-CI-SA-RQ-308: 'Data product management shall persist data product metadata'. "
+                  " Attributes in create for the data product obj, name= '%s', description='%s', match those of object from the "
+                  "resource registry, name='%s', desc='%s'" % (dp_obj.name, dp_obj.description,data_product_object.name,
+                                                           data_product_object.description))
+
         #------------------------------------------------------------------------------------------------
         # test suspend data product persistence
         #------------------------------------------------------------------------------------------------
         self.dpsc_cli.suspend_data_product_persistence(dp_id)
 
-#        pid = self.container.spawn_process(name='dummy_process_for_test',
-#            module='pyon.ion.process',
-#            cls='SimpleProcess',
-#            config={})
-#        dummy_process = self.container.proc_manager.procs[pid]
-
         self.dpsc_cli.force_delete_data_product(dp_id)
         # now try to get the deleted dp object
-        try:
+
+        with self.assertRaises(NotFound):
             dp_obj = self.rrclient.read(dp_id)
-        except NotFound as ex:
-            pass
-        else:
-            self.fail("force_deleted data product was found during read")
