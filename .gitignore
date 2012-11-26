@@ -44,3 +44,4 @@ coverage_results
 *.cdl
 *.cov
 tags
+*.DS_Store

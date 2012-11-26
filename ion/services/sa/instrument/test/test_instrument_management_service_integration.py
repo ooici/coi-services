@@ -3,7 +3,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.icontainer_agent import ContainerAgentClient
 
 #from pyon.ion.endpoint import ProcessRPCClient
-from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.datastore.datastore import DataStore
@@ -263,7 +263,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
 
 
-    def test_checkpoint_restore(self):
+    def test_resource_state_save_restore(self):
 
         # Create InstrumentModel
         instModel_obj = IonObject(RT.InstrumentModel,
@@ -302,10 +302,13 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             'device_port': 4001,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
+            'port_agent_addr': 'localhost',
             'command_port': 4002,
             'data_port': 4003,
             'log_level': 5,
-            }
+            'type': PortAgentType.ETHERNET
+        }
+
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
@@ -395,7 +398,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
 
         # take snapshot of config
-        snap_id = self.IMS.agent_state_checkpoint(instDevice_id, "xyzzy snapshot")
+        snap_id = self.IMS.save_resource_state(instDevice_id, "xyzzy snapshot")
         snap_obj = self.RR.read_attachment(snap_id, include_content=True)
         print "Saved config:"
         print snap_obj.content
@@ -405,7 +408,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.update(instance_obj)
 
         #restore config
-        self.IMS.agent_state_restore(instDevice_id, snap_id)
+        self.IMS.restore_resource_state(instDevice_id, snap_id)
         instance_obj = self.RR.read(instAgentInstance_id)
         self.assertNotEqual("BAD_DATA", instance_obj.driver_config["comms_config"])
 

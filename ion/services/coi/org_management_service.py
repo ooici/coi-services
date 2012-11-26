@@ -1110,7 +1110,6 @@ class OrgManagementService(BaseOrgManagementService):
                 if not org_instrument in extended_org.instruments_deployed:
                     instruments_not_deployed.append(org_instrument)
 
-
         platforms_not_deployed = []
         if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed'):
             #clean up the list of deployed platforms
@@ -1128,6 +1127,14 @@ class OrgManagementService(BaseOrgManagementService):
                 if not extended_org.platforms_deployed.count(org_platform):
                     platforms_not_deployed.append(org_platform)
 
+
+        # Status computation
+        from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+        outil = ObservatoryUtil(self)
+        status_rollups = outil.get_status_roll_ups(org_id, extended_org.resource._get_type())
+
+        extended_org.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_org.instruments]
+        extended_org.computed.platform_status = [status_rollups.get(pdev._id,{}).get("agg",4) for pdev in extended_org.platforms]
 
         #set counter attributes
         extended_org.number_of_data_products = len(extended_org.data_products)

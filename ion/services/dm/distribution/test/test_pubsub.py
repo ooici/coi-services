@@ -7,7 +7,7 @@
 '''
 from pyon.core.exception import NotFound
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
-from pyon.public import PRED
+from pyon.public import PRED, RT
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -21,6 +21,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from gevent.event import Event
 from gevent.queue import Queue, Empty
 from nose.plugins.attrib import attr
+
+import gevent
 
 @attr('UNIT',group='dm')
 class PubsubManagementUnitTest(PyonTestCase):
@@ -112,6 +114,12 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         subs, assocs = self.resource_registry.find_objects(subject=subscription_id,predicate=PRED.hasStream,id_only=True)
         self.assertEquals(subs,[stream_id])
 
+        res, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='test_queue', id_only=True)
+        self.assertEquals(len(res),1)
+
+        subs, assocs = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        self.assertEquals(subs[0], res[0])
+
         subscription = self.pubsub_management.read_subscription(subscription_id)
         self.assertEquals(subscription.exchange_name, 'test_queue')
 
@@ -120,8 +128,136 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         subs, assocs = self.resource_registry.find_objects(subject=subscription_id,predicate=PRED.hasStream,id_only=True)
         self.assertFalse(len(subs))
 
+        subs, assocs = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        self.assertFalse(len(subs))
+
+
         self.pubsub_management.delete_stream(stream_id)
         self.pubsub_management.delete_stream_definition(stream_def_id)
+
+    def test_move_before_activate(self):
+        stream_id, route = self.pubsub_management.create_stream(name='test_stream', exchange_point='test_xp')
+
+        #--------------------------------------------------------------------------------
+        # Test moving before activate
+        #--------------------------------------------------------------------------------
+
+        subscription_id = self.pubsub_management.create_subscription('first_queue', stream_ids=[stream_id])
+
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='first_queue', id_only=True)
+        subjects, _ = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        self.assertEquals(xn_ids[0], subjects[0])
+
+        self.pubsub_management.move_subscription(subscription_id, exchange_name='second_queue')
+
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='second_queue', id_only=True)
+        subjects, _ = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+
+        self.assertEquals(len(subjects),1)
+        self.assertEquals(subjects[0], xn_ids[0])
+
+        self.pubsub_management.delete_subscription(subscription_id)
+        self.pubsub_management.delete_stream(stream_id)
+
+    def test_move_activated_subscription(self):
+
+        stream_id, route = self.pubsub_management.create_stream(name='test_stream', exchange_point='test_xp')
+        #--------------------------------------------------------------------------------
+        # Test moving after activate
+        #--------------------------------------------------------------------------------
+
+        subscription_id = self.pubsub_management.create_subscription('first_queue', stream_ids=[stream_id])
+        self.pubsub_management.activate_subscription(subscription_id)
+
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='first_queue', id_only=True)
+        subjects, _ = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        self.assertEquals(xn_ids[0], subjects[0])
+
+        self.verified = Event()
+
+        def verify(m,r,s):
+            self.assertEquals(m,'verified')
+            self.verified.set()
+
+        subscriber = StandaloneStreamSubscriber('second_queue', verify)
+        subscriber.start()
+
+        self.pubsub_management.move_subscription(subscription_id, exchange_name='second_queue')
+
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='second_queue', id_only=True)
+        subjects, _ = self.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+
+        self.assertEquals(len(subjects),1)
+        self.assertEquals(subjects[0], xn_ids[0])
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        publisher.publish('verified')
+
+        self.assertTrue(self.verified.wait(2))
+
+        self.pubsub_management.deactivate_subscription(subscription_id)
+
+        self.pubsub_management.delete_subscription(subscription_id)
+        self.pubsub_management.delete_stream(stream_id)
+
+    def test_queue_cleanup(self):
+        stream_id, route = self.pubsub_management.create_stream('test_stream','xp1')
+        xn_objs, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='queue1')
+        for xn_obj in xn_objs:
+            xn = self.container.ex_manager.create_xn_queue(xn_obj.name)
+            xn.delete()
+        subscription_id = self.pubsub_management.create_subscription('queue1',stream_ids=[stream_id])
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='queue1')
+        self.assertEquals(len(xn_ids),1)
+
+        self.pubsub_management.delete_subscription(subscription_id)
+
+        xn_ids, _ = self.resource_registry.find_resources(restype=RT.ExchangeName, name='queue1')
+        self.assertEquals(len(xn_ids),0)
+
+    def test_activation_and_deactivation(self):
+        stream_id, route = self.pubsub_management.create_stream('stream1','xp1')
+        subscription_id = self.pubsub_management.create_subscription('sub1', stream_ids=[stream_id])
+
+        self.check1 = Event()
+
+        def verifier(m,r,s):
+            self.check1.set()
+
+
+        subscriber = StandaloneStreamSubscriber('sub1',verifier)
+        subscriber.start()
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        publisher.publish('should not receive')
+
+        self.assertFalse(self.check1.wait(0.25))
+
+        self.pubsub_management.activate_subscription(subscription_id)
+
+        publisher.publish('should receive')
+        self.assertTrue(self.check1.wait(2))
+
+        self.check1.clear()
+        self.assertFalse(self.check1.is_set())
+
+        self.pubsub_management.deactivate_subscription(subscription_id)
+
+        publisher.publish('should not receive')
+        self.assertFalse(self.check1.wait(0.5))
+
+        self.pubsub_management.activate_subscription(subscription_id)
+
+        publisher.publish('should receive')
+        self.assertTrue(self.check1.wait(2))
+
+        subscriber.stop()
+
+        self.pubsub_management.deactivate_subscription(subscription_id)
+        self.pubsub_management.delete_subscription(subscription_id)
+        self.pubsub_management.delete_stream(stream_id)
+
+        
 
     def test_topic_crud(self):
 

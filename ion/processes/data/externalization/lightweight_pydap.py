@@ -8,7 +8,7 @@ from gevent.wsgi import WSGIServer
 
 class LightweightPyDAP(SimpleProcess):
     def on_start(self):
-        super(LightweightPyDAP,self).on_start()
+        SimpleProcess.on_start(self)
         self.pydap_host = self.CFG.get_safe('server.pydap.host', 'localhost')
         self.pydap_port = self.CFG.get_safe('server.pydap.port', '8001')
 

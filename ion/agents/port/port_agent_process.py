@@ -55,6 +55,7 @@ UNIX_PROCESS = 'port_agent'
 DEFAULT_TIMEOUT = 60
 PROCESS_BASE_DIR = '/tmp'
 PID_FILE = "%s/port_agent_%d.pid"
+LOCALHOST = 'localhost'
 
 class PortAgentProcessType(BaseEnum):
     """
@@ -306,6 +307,7 @@ class UnixPortAgentProcess(PortAgentProcess):
     binary_path :: Path the the port agent executable
     command_port :: port number of the observatory command port to the port agent
     log_level :: how many -v options to add to the launch
+    port_agent_address :: If port agent address isn't localhost the process won't be launched
 
     Example:
 
@@ -314,6 +316,7 @@ class UnixPortAgentProcess(PortAgentProcess):
         device_port: 4001,
         
         binary_path: /bin/port_agent,
+        port_agent_addr: localhost
         command_port: 4000,
         data_port: 4002,
         log_level: 5,
@@ -343,9 +346,13 @@ class UnixPortAgentProcess(PortAgentProcess):
         self._device_port = config.get("device_port")
         self._binary_path = config.get("binary_path", "port_agent")
         self._command_port = config.get("command_port");
+        self._pa_addr = config.get("port_agent_addr");
         self._data_port = config.get("data_port");
         self._log_level = config.get("log_level");
         self._type = config.get("type", PortAgentType.ETHERNET)
+
+        if not self._pa_addr:
+            self._pa_addr = LOCALHOST
 
         if not self._device_addr:
             raise PortAgentMissingConfig("missing config: device_addr")
@@ -385,11 +392,28 @@ class UnixPortAgentProcess(PortAgentProcess):
         temp.flush()
         
         return temp;
-        
+
 
     def launch(self):
+        '''
+        @brief Launch a port agent process if it is supposed to run on the local host  Otherwise
+               do nothing.
+        @return the command port the port agent is listening on.
+        '''
+        if(self._pa_addr == LOCALHOST):
+            self._launch()
+        else:
+            self._pid = None
+            log.info("Port Agent Address: %s" % (self._pa_addr))
+            log.info("Not starting port agent")
+
+        return self._command_port
+
+
+    def _launch(self):
         """
-        @brief Launch the port agent process.
+        @brief Launch the port agent process. If the address isn't localhost
+        then we don't start anything
         @retval return the command port the process is listening on.
         """
         log.info("Startup Unix Port Agent")

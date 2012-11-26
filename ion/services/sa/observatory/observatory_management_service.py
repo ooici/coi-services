@@ -1,14 +1,10 @@
 #!/usr/bin/env python
 
-"""
-@package ion.services.sa.observatory Implementation of IObservatoryManagementService interface
-@file ion/services/sa/observatory/observatory_management_service.py
-@author
-@brief Observatory Management Service to keep track of observatories sites, logical platform sites, instrument sites,
-and the relationships between them
-"""
+"""Observatory Management Service to keep track of observatories sites, logical platform sites, instrument sites,
+and the relationships between them"""
 
-
+from datetime import timedelta
+import time
 
 
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
@@ -22,18 +18,16 @@ from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
 from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
-from datetime import timedelta
-import time
+from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
 #for logical/physical associations, it makes sense to search from MFMS
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.objects import OrgTypeEnum, ComputedValueAvailability
+from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue
 
 
 import constraint
@@ -52,6 +46,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         CFG, log, RT, PRED, LCS, LCE, NotFound, BadRequest, log  #suppress pyflakes errors about "unused import"
 
         self.override_clients(self.clients)
+        self.outil = ObservatoryUtil(self)
 
         self.HIERARCHY_DEPTH = {RT.InstrumentSite: 3,
                                 RT.PlatformSite: 2,
@@ -1078,12 +1073,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def find_org_by_observatory(self, observatory_id=''):
         """
-
         """
         orgs,_ = self.RR.find_subjects(RT.Org, PRED.hasResource, observatory_id, id_only=False)
         return orgs
-
-
 
     def find_related_frames_of_reference(self, input_resource_id='', output_resource_type_list=None):
 
@@ -1165,12 +1157,21 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         log.trace("branching up to parents with acc = %s", str(low_branch))
         retval_ids = _branch_out(low_branch, in_list, parents)
 
-        log.debug("converting retrieved ids to objects")
+        log.debug("converting retrieved ids to objects = %s" % retval_ids)
         retval = {}
-        for rt, resource_ids in retval_ids.iteritems():
-            retval[rt] = []
-            for resource_id in resource_ids:
-                retval[rt].append(self.RR.read(resource_id))
+
+        res_ids = [res_id for resource_ids in retval_ids.itervalues() for res_id in resource_ids]
+        if res_ids:
+            all_res = self.RR.read_mult(res_ids)
+
+            res_by_id = dict(zip([res._id for res in all_res], all_res))
+            for rt, resource_ids in retval_ids.iteritems():
+                retval[rt] = []
+                for resource_id in resource_ids:
+                    retval[rt].append(res_by_id[resource_id])
+        else:
+            retval = retval_ids
+
         return retval
 
 
@@ -1205,15 +1206,20 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
-        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
-        #TODO - see if there is a better way to do this in the extended resource frame work.
-        if hasattr(extended_site, 'attachments'):
-            for att in extended_site.attachments:
-                if hasattr(att, 'content'):
-                    delattr(att, 'content')
-
-        #get status of Site instruments
+        # Get status of Site instruments.
         extended_site.instruments_operational, extended_site.instruments_not_operational = self._get_instrument_states(extended_site.instrument_devices)
+
+        # Status computation
+        status_rollups = self.outil.get_status_roll_ups(site_id, extended_site.resource._get_type())
+
+        extended_site.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_site.instrument_devices]
+        extended_site.computed.platform_status = [status_rollups(pdev._id,{}).get("agg",4) for pdev in extended_site.platform_devices]
+
+        extended_site.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["comms"])
+        extended_site.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["power"])
+        extended_site.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["data"])
+        extended_site.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["loc"])
+        extended_site.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["agg"])
 
         return extended_site
 

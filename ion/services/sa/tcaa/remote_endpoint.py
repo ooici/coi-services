@@ -74,8 +74,12 @@ class ServiceCommandQueue(object):
                     kwargs = cmd.kwargs
                                         
                     try:
+                        log.debug('Remote endpoint attempting command: %s',
+                                  cmdstr)
                         func = getattr(self._client, cmdstr)
                         result = func(*args, **kwargs)
+                        log.debug('Remote endpoint command %s got result %s',
+                                  cmdstr, str(result))
 
                     except AttributeError, TypeError:
                         # The command does not exist.
@@ -285,6 +289,7 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
         """
         """
         if self._client:
+            log.debug('Remote endpoint enqueuing result %s.', str(result))
             self._client.enqueue(result)
         log.warning('Received a result but no client available to transmit.')
 

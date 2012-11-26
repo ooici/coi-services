@@ -26,7 +26,7 @@ from interface.objects import ProcessDefinition
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
@@ -251,10 +251,12 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             'device_port': 4001,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
+            'port_agent_addr': 'localhost',
             'command_port': 4002,
             'data_port': 4003,
             'log_level': 5,
-            }
+            'type': PortAgentType.ETHERNET
+        }
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1',
             description="SBE37IMAgentInstanceYear1",
@@ -338,15 +340,18 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         # Create InstrumentAgentInstance for NewInstrumentDevice to hold configuration information
         #-------------------------------
 
+
         port_agent_config = {
             'device_addr': 'sbe37-simulator.oceanobservatories.org',
             'device_port': 4004,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
+            'port_agent_addr': 'localhost',
             'command_port': 4005,
             'data_port': 4006,
             'log_level': 5,
-            }
+            'type': PortAgentType.ETHERNET
+        }
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2',
             description="SBE37IMAgentInstanceYear2",
