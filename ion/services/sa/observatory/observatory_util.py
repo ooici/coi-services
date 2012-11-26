@@ -232,8 +232,8 @@ class ObservatoryUtil(object):
             raise BadRequest("Unsupported resource type: %s", res_type)
 
     def _compute_status(self, device_id, device_events):
-        status = dict(power=StatusType.STATUS_UNKNOWN, comms=StatusType.STATUS_UNKNOWN,
-            data=StatusType.STATUS_UNKNOWN, loc=StatusType.STATUS_UNKNOWN)
+        status = dict(power=StatusType.STATUS_OK, comms=StatusType.STATUS_OK,
+            data=StatusType.STATUS_OK, loc=StatusType.STATUS_OK)
         dev_events = device_events.get(device_id, [])
         for event in dev_events:
             event_type = event._get_type()
