@@ -1157,14 +1157,21 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         log.trace("branching up to parents with acc = %s", str(low_branch))
         retval_ids = _branch_out(low_branch, in_list, parents)
 
-        log.debug("converting retrieved ids to objects")
+        log.debug("converting retrieved ids to objects = %s" % retval_ids)
         retval = {}
-        all_res = self.RR.read_mult([res_id for rt, resource_ids in retval_ids.iteritems() for res_id in resource_ids])
-        res_by_id = dict(zip([res._id for res in all_res], all_res))
-        for rt, resource_ids in retval_ids.iteritems():
-            retval[rt] = []
-            for resource_id in resource_ids:
-                retval[rt].append(res_by_id[resource_id])
+
+        res_ids = [res_id for resource_ids in retval_ids.itervalues() for res_id in resource_ids]
+        if res_ids:
+            all_res = self.RR.read_mult(res_ids)
+
+            res_by_id = dict(zip([res._id for res in all_res], all_res))
+            for rt, resource_ids in retval_ids.iteritems():
+                retval[rt] = []
+                for resource_id in resource_ids:
+                    retval[rt].append(res_by_id[resource_id])
+        else:
+            retval = retval_ids
+
         return retval
 
 
