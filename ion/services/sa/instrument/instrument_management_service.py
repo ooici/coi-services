@@ -184,10 +184,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def agent_state_restore(self, instrument_device_id='', attachment_id=''):
+    def restore_resource_state(self, instrument_device_id='', attachment_id=''):
         """
         restore a snapshot of an instrument agent instance config
         """
+
+        instrument_device_obj = self.RR.read(instrument_device_id)
+        resource_type = type(instrument_device_obj).__name__
+        if not RT.InstrumentDevice == resource_type:
+            raise BadRequest("Can only restore resource states for %s resources, got %s" %
+                             (RT.InstrumentDevice, resource_type))
+
         # get instrument_agent_instance_id
         inst_agent_inst_objs = self.instrument_device.find_stemming_agent_instance(instrument_device_id)
         n = len(inst_agent_inst_objs)
@@ -219,11 +226,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def agent_state_checkpoint(self, instrument_device_id='', name=''):
+    def save_resource_state(self, instrument_device_id='', name=''):
         """
         take a snapshot of the current instrument agent instance config for this instrument,
           and save it as an attachment
         """
+        instrument_device_obj = self.RR.read(instrument_device_id)
+        resource_type = type(instrument_device_obj).__name__
+        if not RT.InstrumentDevice == resource_type:
+            raise BadRequest("Can only save resource states for %s resources, got %s" %
+                             (RT.InstrumentDevice, resource_type))
 
         # get instrument_agent_instance_id
         inst_agent_inst_objs = self.instrument_device.find_stemming_agent_instance(instrument_device_id)

@@ -263,7 +263,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
 
 
-    def test_checkpoint_restore(self):
+    def test_resource_state_save_restore(self):
 
         # Create InstrumentModel
         instModel_obj = IonObject(RT.InstrumentModel,
@@ -398,7 +398,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
 
         # take snapshot of config
-        snap_id = self.IMS.agent_state_checkpoint(instDevice_id, "xyzzy snapshot")
+        snap_id = self.IMS.save_resource_state(instDevice_id, "xyzzy snapshot")
         snap_obj = self.RR.read_attachment(snap_id, include_content=True)
         print "Saved config:"
         print snap_obj.content
@@ -408,7 +408,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.update(instance_obj)
 
         #restore config
-        self.IMS.agent_state_restore(instDevice_id, snap_id)
+        self.IMS.restore_resource_state(instDevice_id, snap_id)
         instance_obj = self.RR.read(instAgentInstance_id)
         self.assertNotEqual("BAD_DATA", instance_obj.driver_config["comms_config"])
 
