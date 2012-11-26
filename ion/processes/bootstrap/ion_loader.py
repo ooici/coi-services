@@ -23,6 +23,8 @@
     ui_path= override location to get UI preload files (default is path + '/ui_assets')
     assets= override location to get OOI asset file (default is path + '/ooi_assets')
     attachments= override location to get file attachments (default is path)
+    ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
+    bulk= if True, uses RR bulk insert operations to load, not service calls
 
     TODO: constraints defined in multiple tables as list of IDs, but not used
     TODO: support attachments using HTTP URL
@@ -1661,9 +1663,12 @@ class IONLoader(ImmediateProcess):
                 # At this point, the constraint was already added with the InstrumentSite
                 const_id1 = ooi_id + "_const1"
 
+            if not self._match_filter(ooi_id[:2]):
+                continue
+
             # (1) Device Data Product - parsed
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_" + dp_id + "_DPIDP"
+            fakerow[self.COL_ID] = ooi_id + "_DPIDP"
             fakerow['dp/name'] = "Data Product parsed for device " + ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             fakerow['contact_ids'] = ''
@@ -1675,7 +1680,7 @@ class IONLoader(ImmediateProcess):
 
             # (2) Device Data Product - raw
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_" + dp_id + "_DPIDR"
+            fakerow[self.COL_ID] = ooi_id + "_DPIDR"
             fakerow['dp/name'] = "Data Product raw for device " + ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             fakerow['contact_ids'] = ''
@@ -1687,8 +1692,8 @@ class IONLoader(ImmediateProcess):
 
             # (3) Site Data Product - parsed
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_" + dp_id + "_DPIDR"
-            fakerow['dp/name'] = "Data Product raw for device " + ooi_id
+            fakerow[self.COL_ID] = ooi_id + "_DPISP"
+            fakerow['dp/name'] = "Data Product parsed for site " + ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             fakerow['contact_ids'] = ''
             fakerow['geo_constraint_id'] = const_id1
@@ -1710,10 +1715,7 @@ class IONLoader(ImmediateProcess):
                 fakerow['available_formats'] = ''
                 fakerow['stream_def_id'] = ''
 
-                if not self._match_filter(ooi_id[:2]):
-                    continue
                 self._load_DataProduct(fakerow, do_bulk=self.bulk)
-
 
 #Data Product Identifier
 #Data Product Name
@@ -1771,6 +1773,28 @@ class IONLoader(ImmediateProcess):
         ooi_objs = self.ooi_loader.get_type_assets("instrument")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
+            if not self._match_filter(ooi_id[:2]):
+                continue
+
+            fakerow = {}
+            fakerow['data_product_id'] = ooi_id + "_DPIDP"
+            fakerow['input_resource_id'] = ooi_id + "_ID"
+            fakerow['resource_type'] = 'InstrumentDevice'
+            self._load_DataProductLink(fakerow, do_bulk=self.bulk)
+
+            fakerow = {}
+            fakerow['data_product_id'] = ooi_id + "_DPIDR"
+            fakerow['input_resource_id'] = ooi_id + "_ID"
+            fakerow['resource_type'] = 'InstrumentDevice'
+            self._load_DataProductLink(fakerow, do_bulk=self.bulk)
+
+            # TODO: Step (3) from data product
+            #fakerow = {}
+            #fakerow['data_product_id'] = ooi_id + "_DPISP"
+            #fakerow['input_resource_id'] = ooi_id + "_ID"
+            #fakerow['resource_type'] = 'InstrumentDevice'
+            #self._load_DataProductLink(fakerow, do_bulk=self.bulk)
+
             data_product_list = ooi_obj.get('data_product_list', [])
             for dp_id in data_product_list:
                 fakerow = {}
@@ -1778,8 +1802,6 @@ class IONLoader(ImmediateProcess):
                 fakerow['input_resource_id'] = ooi_id + "_ID"
                 fakerow['resource_type'] = 'InstrumentDevice'
 
-                if not self._match_filter(ooi_id[:2]):
-                    continue
                 self._load_DataProductLink(fakerow, do_bulk=self.bulk)
 
     def _load_Attachment(self, row):
