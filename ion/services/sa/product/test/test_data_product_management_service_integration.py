@@ -103,7 +103,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
     def cleaning_up(self):
         for pid in self.pids:
-            self.container.proc_manager.terminate_process(pid)
+            try:
+                self.container.proc_manager.terminate_process(pid)
+            except:
+                log.debug("could not terminate the process id: %s" % pid)
         IngestionManagementIntTest.clean_subscriptions()
 
         for xn in self.exchange_names:
