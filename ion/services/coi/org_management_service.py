@@ -1137,7 +1137,6 @@ class OrgManagementService(BaseOrgManagementService):
         extended_org.computed.platform_status = [status_rollups.get(pdev._id,{}).get("agg",4) for pdev in extended_org.platforms]
 
         #set counter attributes
-        extended_org.number_of_data_products = len(extended_org.data_products)
         extended_org.number_of_platforms = len(extended_org.platforms)
         extended_org.number_of_platforms_deployed = len(extended_org.platforms_deployed)
         extended_org.number_of_instruments = len(extended_org.instruments)
@@ -1149,6 +1148,7 @@ class OrgManagementService(BaseOrgManagementService):
             for prod in prod_list:
                 out_list.append(prod)
         extended_org.data_products = out_list
+        extended_org.number_of_data_products = len(extended_org.data_products)
 
         return extended_org
 
