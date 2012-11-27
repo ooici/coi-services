@@ -593,13 +593,13 @@ class PDLocalBackend(object):
 
         else:
             self._add_process(process_id, configuration, None)
-            self._inner_spawn(process_id, definition, schedule, configuration)
+            self._inner_spawn(process_id, name, definition, schedule, configuration)
 
         return process_id
 
-    def _inner_spawn(self, process_id, definition, schedule, configuration):
+    def _inner_spawn(self, process_id, process_name, definition, schedule, configuration):
 
-        name = definition.name
+        name = process_name
         module = definition.executable['module']
         cls = definition.executable['class']
 
