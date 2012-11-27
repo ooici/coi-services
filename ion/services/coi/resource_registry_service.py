@@ -164,22 +164,4 @@ class ResourceRegistryService(BaseResourceRegistryService):
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified resource_id does not exist
         """
-        if not resource_id:
-            raise BadRequest("The resource_id parameter is empty")
-
-        if not resource_extension:
-            raise BadRequest("The extended_resource parameter not set")
-
-        extended_resource_handler = ExtendedResourceContainer(self, self.resource_registry)
-
-        #Handle differently if the resource_id parameter is a list of ids
-        if resource_id.find('[') > -1:
-            res_input = eval(resource_id)
-            extended_resource_list = extended_resource_handler.create_extended_resource_container_list(resource_extension,
-                res_input, computed_resource_type=None, origin_resource_type=None, ext_associations=ext_associations, ext_exclude=ext_exclude)
-            return extended_resource_list
-
-        extended_resource = extended_resource_handler.create_extended_resource_container(resource_extension,
-            resource_id, computed_resource_type=None, ext_associations=ext_associations, ext_exclude=ext_exclude)
-
-        return extended_resource
+        return self.resource_registry.get_resource_extension(resource_id, resource_extension, ext_associations, ext_exclude)
