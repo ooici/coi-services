@@ -1071,11 +1071,8 @@ class OrgManagementService(BaseOrgManagementService):
         ion_org = self.find_org()
         if org_id == ion_org._id:
 
-            #workaround for direct rr access
-            if hasattr(self.container, 'has_capability') and self.container.has_capability('RESOURCE_REGISTRY'):
-                self._rr = self.container.resource_registry
-            else:
-                self._rr = self.clients.resource_registry
+            # clients.resource_registry may return us the container's resource_registry instance
+            self._rr = self.clients.resource_registry
             log.debug("get_marine_facility_extension: self._rr:  %s ", str(self._rr))
 
             actors_list = self.find_enrolled_users(org_id)
