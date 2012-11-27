@@ -78,7 +78,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidG5Md2NEak82bkZMdnVTTzZXRlMzZHc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHdjdndOVkUyazZQaUNfYzBUSXJ3Rnc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1205,7 +1205,7 @@ class IONLoader(ImmediateProcess):
             'CDM Data Type':'cdm_data_type',
             'Variable Reports':'variable_reports',
             'References List':'references_list',
-            'Comment' : 'comment',
+            'Description': 'description',
             'Code Reports':'code_reports'
             }
         if row['Fill Value'] and row['Parameter Type'] not in ('array','row'):
@@ -1227,7 +1227,8 @@ class IONLoader(ImmediateProcess):
                 setattr(context, additional_attrs[key], row[key])
 
         dataset_management = self._get_service_client('dataset_management')
-        context_id = dataset_management.create_parameter_context(name=row['Name'], parameter_context=context.dump())
+        context_id = dataset_management.create_parameter_context(name=row['Name'], parameter_context=context.dump(),
+                                                                 description=row['Description'])
 
     def _load_ParameterDictionary(self, row):
         s = re.sub(r'\s+','',row['parameters'])
