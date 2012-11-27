@@ -21,7 +21,7 @@ class ObservatoryUtil(object):
     # -------------------------------------------------------------------------
     # Observatory site traversal
 
-    def get_child_sites(self, parent_site_id=None, org_id=None, exclude_types=None, include_parent=True, id_only=True):
+    def get_child_sites(self, parent_site_id=None, org_id=None, exclude_types=None, include_parents=True, id_only=True):
         """
         Returns all child sites for a given parent site_id or a given org_id.
         Return type is a tuple of two elements.
@@ -44,12 +44,15 @@ class ObservatoryUtil(object):
         matchlist = []
         ancestors = {}
         parents = self._get_site_parents()
+        for p_site in parent_site_list:
+            if org_id and p_site not in parents:
+                parents[p_site] = ('Observatory', org_id, 'Org')
         for rid, (st, psid, pt) in parents.iteritems():
             if st in exclude_types:
                 continue
             parent_stack = [rid, psid]
             while psid:
-                if psid in parent_site_list or (include_parent and rid in parent_site_list):
+                if psid in parent_site_list or (include_parents and rid in parent_site_list):
                     matchlist.append(rid)
                     par = parent_stack.pop()
                     while parent_stack:
@@ -63,11 +66,23 @@ class ObservatoryUtil(object):
                 else:
                     _,psid,_ = parents.get(psid, (None,None,None))
                     parent_stack.append(psid)
+        if include_parents:
+            for p_site in parent_site_list:
+                child_id = p_site
+                parent = parents.get(child_id, None)
+                while parent:
+                    st, psid, pt = parent
+                    matchlist.append(psid)
+                    ancestors[psid] = [child_id]
+                    child_id = psid
+                    parent = parents.get(child_id, None)
 
         if id_only:
             child_site_dict = dict(zip(matchlist, [None]*len(matchlist)))
         else:
-            all_res = self.container.resource_registry.read_mult(matchlist)
+            if org_id and include_parents:
+                matchlist.append(org_id)
+            all_res = self.container.resource_registry.read_mult(matchlist) if matchlist else []
             child_site_dict = dict(zip([res._id for res in all_res], all_res))
 
         return child_site_dict, ancestors
@@ -150,10 +165,26 @@ class ObservatoryUtil(object):
             device_events[event.origin].append(event)
         return device_events
 
+    def get_site_root(self, res_id, site_parents=None, ancestors=None):
+        if ancestors:
+            site_parents = {}
+            for site_id, ch_ids in ancestors.iteritems():
+                if ch_ids:
+                    for ch_id in ch_ids:
+                        site_parents[ch_id] = ('', site_id, '')
+
+        parent_id = res_id
+        parent = site_parents.get(parent_id, None)
+        while parent:
+            _,pid,_ = parent
+            parent_id = pid
+            parent = site_parents.get(parent_id, None)
+        return parent_id
+
     # -------------------------------------------------------------------------
     # Status roll up
 
-    def get_status_roll_ups(self, res_id, res_type=None):
+    def get_status_roll_ups(self, res_id, res_type=None, include_structure=False):
         """
         For given parent device/site/org res_id compute the status roll ups.
         The result is a dict of id with value dict of status values.
@@ -217,9 +248,9 @@ class ObservatoryUtil(object):
         # Do the status rollup work. Different modes dependent on type of resource (org, site, device)
         if res_type in [RT.Org, RT.Observatory, RT.Subsite, RT.PlatformSite, RT.InstrumentSite]:
             if res_type == RT.Org:
-                child_sites, site_ancestors = self.get_child_sites(org_id=res_id, id_only=True)
+                child_sites, site_ancestors = self.get_child_sites(org_id=res_id, id_only=not include_structure)
             else:
-                child_sites, site_ancestors = self.get_child_sites(parent_site_id=res_id, id_only=True)
+                child_sites, site_ancestors = self.get_child_sites(parent_site_id=res_id, id_only=not include_structure)
 
             site_devices = self.get_site_devices(child_sites.keys())
             device_events = self._get_status_events()
@@ -227,6 +258,11 @@ class ObservatoryUtil(object):
             status_rollup = {}
             for site_id in child_sites.keys():
                 get_site_status(site_id, status_rollup, site_ancestors)
+
+            # Stuff extra information into the result
+            if include_structure:
+                status_rollup['_system'] = dict(res_id=res_id, res_type=res_type,
+                    sites=child_sites, ancestors=site_ancestors, devices=site_devices)
 
             return status_rollup
 
@@ -238,6 +274,11 @@ class ObservatoryUtil(object):
             status_rollup = {}
             for device_id in child_devices.keys():
                 get_device_status(device_id, status_rollup, child_devices)
+
+            # Stuff extra information into the result
+            if include_structure:
+                status_rollup['_system'] = dict(res_id=res_id, res_type=res_type,
+                    ancestors=child_devices)
 
             return status_rollup
 

@@ -405,7 +405,7 @@ def build_commands(resource_id, restype):
     fragments.append(build_command("Change Lifecycle State", "/cmd/set_lcs?rid=%s" % resource_id, args))
 
 
-    if restype == "InstrumentAgentInstance":
+    if restype == "InstrumentAgentInstance" or restype == "PlatformAgentInstance":
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
         fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
 
@@ -437,16 +437,34 @@ def build_commands(resource_id, restype):
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
         fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
 
-        options = [('initialize','initialize'),
-            ('go_active','go_active'),
-            ('run','run'),
+        options = [('initialize','RESOURCE_AGENT_EVENT_INITIALIZE'),
+            ('go_active','RESOURCE_AGENT_EVENT_GO_ACTIVE'),
+            ('run','RESOURCE_AGENT_EVENT_RUN'),
             ('acquire_sample','acquire_sample'),
             ('go_streaming','go_streaming'),
             ('go_observatory','go_observatory'),
-            ('go_direct_access','go_direct_access'),
-            ('go_inactive','go_inactive'),
-            ('reset','reset'),
+            ('go_direct_access','RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS'),
+            ('go_inactive','RESOURCE_AGENT_EVENT_GO_INACTIVE'),
+            ('reset','RESOURCE_AGENT_EVENT_RESET'),
         ]
+
+        args = [('select','agentcmd',options)]
+        fragments.append(build_command("Agent Command", "/cmd/agent_execute?rid=%s" % resource_id, args))
+
+    elif restype == "PlatformDevice":
+        fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
+        fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
+
+        options = [('initialize','RESOURCE_AGENT_EVENT_INITIALIZE'),
+                   ('go_active','RESOURCE_AGENT_EVENT_GO_ACTIVE'),
+                   ('run','RESOURCE_AGENT_EVENT_RUN'),
+                   ('acquire_sample','acquire_sample'),
+                   ('go_streaming','go_streaming'),
+                   ('go_observatory','go_observatory'),
+                   ('go_direct_access','RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS'),
+                   ('go_inactive','RESOURCE_AGENT_EVENT_GO_INACTIVE'),
+                   ('reset','RESOURCE_AGENT_EVENT_RESET'),
+                   ]
         args = [('select','agentcmd',options)]
         fragments.append(build_command("Agent Command", "/cmd/agent_execute?rid=%s" % resource_id, args))
 
@@ -458,7 +476,7 @@ def build_commands(resource_id, restype):
         fragments.append(build_command("Latest Ingest", "/cmd/last_granule?rid=%s" % resource_id))
 
     if restype in ["Org", "Observatory", "Subsite", "PlatformSite", "InstrumentSite", "PlatformDevice", "InstrumentDevice"]:
-        fragments.append(build_command("Shows Subsites and Status", "/cmd/sites?rid=%s" % resource_id))
+        fragments.append(build_command("Show Sites and Status", "/cmd/sites?rid=%s" % resource_id))
 
 
     fragments.append("</table>")
@@ -575,27 +593,59 @@ def _process_cmd_execute_lcs(resource_id, res_obj=None):
     return "OK. New state: %s" % new_state
 
 def _process_cmd_start_agent(resource_id, res_obj=None):
+    agent_type = "instrument"
     if res_obj._get_type() == "InstrumentDevice":
         iai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance, id_only=True)
         if iai_ids:
             resource_id = iai_ids[0]
         else:
             return "InstrumentAgentInstance for InstrumentDevice %s not found" % resource_id
+    elif res_obj._get_type() == "PlatformDevice":
+        agent_type = "platform"
+        pai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.PlatformAgentInstance, id_only=True)
+        if pai_ids:
+            resource_id = pai_ids[0]
+        else:
+            return "PlatformAgentInstance for PlatformDevice %s not found" % resource_id
+    elif res_obj._get_type() == "PlatformAgentInstance":
+        agent_type = "platform"
+
     from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
     ims_cl = InstrumentManagementServiceClient()
-    ims_cl.start_instrument_agent_instance(resource_id)
+    if agent_type == "instrument":
+        ims_cl.start_instrument_agent_instance(resource_id)
+    elif agent_type == "platform":
+        ims_cl.start_platform_agent_instance(resource_id)
+    else:
+        return "Unknown agent type"
     return "OK"
 
 def _process_cmd_stop_agent(resource_id, res_obj=None):
+    agent_type = "instrument"
     if res_obj._get_type() == "InstrumentDevice":
         iai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance, id_only=True)
         if iai_ids:
             resource_id = iai_ids[0]
         else:
             return "InstrumentAgentInstance for InstrumentDevice %s not found" % resource_id
+    elif res_obj._get_type() == "PlatformDevice":
+        agent_type = "platform"
+        pai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.PlatformAgentInstance, id_only=True)
+        if pai_ids:
+            resource_id = pai_ids[0]
+        else:
+            return "PlatformAgentInstance for PlatformDevice %s not found" % resource_id
+    elif res_obj._get_type() == "PlatformAgentInstance":
+        agent_type = "platform"
+
     from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
     ims_cl = InstrumentManagementServiceClient()
-    ims_cl.stop_instrument_agent_instance(resource_id)
+    if agent_type == "instrument":
+        ims_cl.stop_instrument_agent_instance(resource_id)
+    elif agent_type == "platform":
+        ims_cl.stop_platform_agent_instance(resource_id)
+    else:
+        return "Unknown agent type"
     return "OK"
 
 def _process_cmd_start_process(resource_id, res_obj=None):
@@ -665,16 +715,62 @@ def _process_cmd_undeploy_prim(resource_id, res_obj=None):
 def _process_cmd_sites(resource_id, res_obj=None):
     from ion.services.sa.observatory.observatory_util import ObservatoryUtil
     outil = ObservatoryUtil(container=Container.instance)
-    #child_sites, site_ancestors = outil.get_child_sites(resource_id)
-    statuses = outil.get_status_roll_ups(resource_id)
+    statuses = outil.get_status_roll_ups(resource_id, include_structure=True)
     fragments = [
-        "<h3>Child resource status</h3>",
-        "%s" % (pprint.pformat(statuses)),
-        #"<h3>Child resources</h3>",
-        #"%s" % (pprint.pformat(child_sites)),
-        #"<h3>Child ancestors</h3>",
-        #"%s" % (pprint.pformat(site_ancestors)),
+        "</pre><h3>Org, Site and Device Status</h3>",
         ]
+
+    if '_system' in statuses:
+        extra = statuses['_system']
+        child_sites, ancestors, devices = extra.get('sites', {}), extra.get('ancestors', {}), extra.get('devices', {})
+        root_id = outil.get_site_root(resource_id, ancestors=ancestors) if ancestors else resource_id
+
+        fragments.append("<p><table>")
+        fragments.append("<tr><th>Resource</th><th>Type</th><th>AGG</th><th>PWR</th><th>COMM</th><th>DATA</th><th>LOC</th></tr>")
+        device_info = {}
+        if devices:
+            dev_id_list = [dev[1] for dev in devices.values() if dev is not None]
+            if dev_id_list:
+                dev_list = Container.instance.resource_registry.read_mult(dev_id_list)
+                device_info = dict(zip([res._id for res in dev_list], dev_list))
+        elif ancestors:
+            dev_id_list = [anc for anc_list in ancestors.values() if anc_list is not None for anc in anc_list]
+            dev_id_list.append(resource_id)
+            dev_list = Container.instance.resource_registry.read_mult(dev_id_list)
+            device_info = dict(zip([res._id for res in dev_list], dev_list))
+
+        def stat(status, stype):
+            stat = status.get(stype, 4)
+            stat_str = ['', "<span style='color:green'>OK</span>","<span style='color:orange'>WARN</span>","<span style='color:red'>ERROR</span>",'?']
+            return stat_str[stat]
+
+        def status_table(parent_id, level):
+            fragments.append("<tr>")
+            par_detail = child_sites.get(parent_id, None) or device_info.get(parent_id, None)
+            par_status = statuses.get(parent_id, {})
+            entryname = "&nbsp;"*level + build_link(par_detail.name if par_detail else parent_id, "/view/%s" % parent_id)
+            if parent_id == resource_id:
+                entryname = "<b>" + entryname + "</b>"
+            fragments.append("<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>" % (
+                entryname,
+                par_detail._get_type() if par_detail else "?",
+                stat(par_status, 'agg'), stat(par_status, 'power'), stat(par_status, 'comms'), stat(par_status, 'data'), stat(par_status, 'loc')))
+            fragments.append("</tr>")
+            device = devices.get(parent_id, None)
+            if device:
+                status_table(device[1], level+1)
+
+            ch_ids = ancestors.get(parent_id, None) or []
+            for ch_id in ch_ids:
+                status_table(ch_id, level+1)
+
+        status_table(root_id, 0)
+        fragments.append("</table></p>")
+
+    else:
+        fragments.append("<pre>%s</pre>" % (pprint.pformat(statuses))),
+
+    fragments.append("<pre>")
     content = "\n".join(fragments)
     return content
 
