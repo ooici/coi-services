@@ -69,7 +69,7 @@ class TestPolicyManagementService(PyonTestCase):
 
     def test_delete_conversation_type(self):
         self.mock_read.return_value = self.convo_type
-        self.mock_find_subjects.return_value = ([], [])
+        self.mock_find_objects.return_value = ([], [])
 
         self.convo_management_service.delete_conversation_type('123')
 
