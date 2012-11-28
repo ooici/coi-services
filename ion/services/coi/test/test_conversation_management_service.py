@@ -181,7 +181,7 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
 
 
     def test_conversation_type_crud(self):
-        convo_type_obj = IonObject('ConversationType', name='RPC', protocol_definition=self.rpc_scribble_protocol)
+        convo_type_obj = IonObject('ConversationType', name='RPC', definition=self.rpc_scribble_protocol)
         convo_type_id = self.convo_management_service.create_conversation_type(convo_type_obj)
         self.assertNotEqual(convo_type_id, None)
 
@@ -236,7 +236,7 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
 
     def test_conversation_type_role_binding(self):
 
-        convo_type_obj = IonObject('ConversationType', name='RPC', protocol_definition=self.rpc_scribble_protocol)
+        convo_type_obj = IonObject('ConversationType', name='RPC', definition=self.rpc_scribble_protocol)
         convo_type_id = self.convo_management_service.create_conversation_type(convo_type_obj)
         self.assertNotEqual(convo_type_id, None)
 
