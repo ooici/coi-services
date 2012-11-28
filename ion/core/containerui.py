@@ -766,6 +766,7 @@ def _process_cmd_sites(resource_id, res_obj=None):
 
         status_table(root_id, 0)
         fragments.append("</table></p>")
+        fragments.append("<pre>%s</pre>" % (pprint.pformat(statuses))),
 
     else:
         fragments.append("<pre>%s</pre>" % (pprint.pformat(statuses))),

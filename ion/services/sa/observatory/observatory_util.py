@@ -256,6 +256,7 @@ class ObservatoryUtil(object):
             device_events = self._get_status_events()
 
             status_rollup = {}
+            get_site_status(res_id, status_rollup, site_ancestors)
             for site_id in child_sites.keys():
                 get_site_status(site_id, status_rollup, site_ancestors)
 
@@ -272,6 +273,7 @@ class ObservatoryUtil(object):
             device_events = self._get_status_events()
 
             status_rollup = {}
+            get_device_status(res_id, status_rollup, child_devices)
             for device_id in child_devices.keys():
                 get_device_status(device_id, status_rollup, child_devices)
 
