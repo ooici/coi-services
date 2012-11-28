@@ -20,6 +20,7 @@ from ion.agents.platform.test.helper import HelperTestMixin
 from ion.agents.platform.oms.oms_client import InvalidResponse
 
 import time
+import ntplib
 from gevent.pywsgi import WSGIServer
 import yaml
 
@@ -99,8 +100,8 @@ class OmsTestMixin(HelperTestMixin):
     def test_ah_getPlatformAttributeValues(self):
         platform_id = self.PLATFORM_ID
         attrNames = self.ATTR_NAMES
-        # TODO use NTP
-        from_time = time.time() - 50  # a 50-sec time window
+        cur_time = ntplib.system_to_ntp_time(time.time())
+        from_time = cur_time - 50  # a 50-sec time window
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         log.info("getPlatformAttributeValues = %s" % retval)
         vals = self._verify_valid_platform_id(platform_id, retval)
@@ -111,8 +112,8 @@ class OmsTestMixin(HelperTestMixin):
     def test_ah_getPlatformAttributeValues_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID
         attrNames = self.ATTR_NAMES
-        # TODO use NTP
-        from_time = time.time() - 50  # a 50-sec time window
+        cur_time = ntplib.system_to_ntp_time(time.time())
+        from_time = cur_time - 50  # a 50-sec time window
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         log.info("getPlatformAttributeValues = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
@@ -120,8 +121,8 @@ class OmsTestMixin(HelperTestMixin):
     def test_ah_getPlatformAttributeValues_invalid_attributes(self):
         platform_id = self.PLATFORM_ID
         attrNames = BOGUS_ATTR_NAMES
-        # TODO use NTP
-        from_time = time.time() - 50  # a 50-sec time window
+        cur_time = ntplib.system_to_ntp_time(time.time())
+        from_time = cur_time - 50  # a 50-sec time window
         retval = self.oms.getPlatformAttributeValues(platform_id, attrNames, from_time)
         log.info("getPlatformAttributeValues = %s" % retval)
         vals = self._verify_valid_platform_id(platform_id, retval)

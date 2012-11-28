@@ -61,7 +61,7 @@ class ResourceLCSPolicy(object):
           find resource IDs of the predefined type that
           have the given association attached
         @param association_predicate one of the association types
-        @param some_object the object "owned" by the association type
+        @param some_object_id the object "owned" by the association type
         """
         assert(type("") == type(some_object_id))
         ret, _ = self.RR.find_subjects(subject_type,

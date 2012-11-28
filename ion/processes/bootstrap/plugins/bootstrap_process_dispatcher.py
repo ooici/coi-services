@@ -28,7 +28,8 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         pydap_module = config.get_safe('bootstrap.processes.pydap.module', 'ion.processes.data.externalization.lightweight_pydap')
         pydap_class  = config.get_safe('bootstrap.processes.pydap.class', 'LightweightPyDAP')
 
-        use_pydap = config.get_safe('bootstrap.use_pydap', False)
+        use_pydap = config.get_safe('bootstrap.launch_pydap', False)
+
 
         process_definition = ProcessDefinition(
                 name = 'pydap_server',
@@ -88,12 +89,12 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         #--------------------------------------------------------------------------------
         # Simulate a HA ingestion worker by creating two of them
         #--------------------------------------------------------------------------------
-        config = DotDict()
-        config.process.datastore_name = ingestion_datastore
-        config.process.queue_name     = ingestion_queue
-
-        for i in xrange(ingestion_workers):
-            self.pds_client.schedule_process(process_definition_id=ingestion_procdef_id, configuration=config)
+#        config = DotDict()
+#        config.process.datastore_name = ingestion_datastore
+#        config.process.queue_name     = ingestion_queue
+#
+#        for i in xrange(ingestion_workers):
+#            self.pds_client.schedule_process(process_definition_id=ingestion_procdef_id, configuration=config)
 
 
     def notification_worker(self, process, config):

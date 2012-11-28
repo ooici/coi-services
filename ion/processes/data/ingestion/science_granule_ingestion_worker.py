@@ -40,12 +40,13 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
 
     def on_quit(self): #pragma no cover
-        for stream, coverage in self._coverages.iteritems():
-            coverage.close(timeout=5)
-
-
-
         self.subscriber.stop()
+        for stream, coverage in self._coverages.iteritems():
+            try:
+                coverage.close(timeout=5)
+            except:
+                log.exception('Problems closing the coverage')
+
 
     def _new_dataset(self, stream_id):
         '''

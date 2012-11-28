@@ -36,7 +36,8 @@ class TestLoader(IonIntegrationTestCase):
         self.assertTrue(found, msg='Did not find Org "RSN" -- should have been preloaded')
 
         # check data product
-        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='CTDBP-1012-REC1 Raw', id_only=False)
+#        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='CTDBP-1012-REC1 Raw', id_only=False)
+        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='IOC Demo - CTDBP-1012-REC1 Raw', id_only=False)
         self.assertEquals(1, len(res))
         dp = res[0]
         formats = dp.available_formats

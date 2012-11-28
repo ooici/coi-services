@@ -62,17 +62,24 @@ class ServiceCommandQueue(object):
                 
                 if self._id == 'fake_id':
                     log.debug('Processing fake command.')
-                    worktime = random.uniform(.1,3)
-                    gevent.sleep(worktime)
-                    result = 'fake_result'
+                    worktime = cmd.kwargs.get('worktime', None)
+                    if worktime:
+                        worktime = random.uniform(0,worktime)
+                        gevent.sleep(worktime)
+                    payload = cmd.kwargs.get('payload', None)
+                    result = payload or 'fake_result'
                 else:
                     cmdstr = cmd.command
                     args = cmd.args
                     kwargs = cmd.kwargs
                                         
                     try:
+                        log.debug('Remote endpoint attempting command: %s',
+                                  cmdstr)
                         func = getattr(self._client, cmdstr)
                         result = func(*args, **kwargs)
+                        log.debug('Remote endpoint command %s got result %s',
+                                  cmdstr, str(result))
 
                     except AttributeError, TypeError:
                         # The command does not exist.
@@ -282,6 +289,7 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
         """
         """
         if self._client:
+            log.debug('Remote endpoint enqueuing result %s.', str(result))
             self._client.enqueue(result)
         log.warning('Received a result but no client available to transmit.')
 

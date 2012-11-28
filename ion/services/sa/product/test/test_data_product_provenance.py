@@ -21,7 +21,7 @@ from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
 
 from interface.objects import LastUpdate, ComputedValueAvailability
-from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.dm.utility.granule_utils import time_series_domain
 import base64
 
@@ -167,10 +167,14 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             'device_port': 4001,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
+            'port_agent_addr': 'localhost',
             'command_port': 4003,
             'data_port': 4000,
             'log_level': 5,
-            }
+            'type': PortAgentType.ETHERNET
+        }
+
+
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
             description="SBE37IMAgentInstance",
             port_agent_config = port_agent_config)
