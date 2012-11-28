@@ -1213,7 +1213,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         status_rollups = self.outil.get_status_roll_ups(site_id, extended_site.resource._get_type())
 
         extended_site.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_site.instrument_devices]
-        extended_site.computed.platform_status = [status_rollups(pdev._id,{}).get("agg",4) for pdev in extended_site.platform_devices]
+        extended_site.computed.platform_status = [status_rollups.get(pdev._id,{}).get("agg",4) for pdev in extended_site.platform_devices]
 
         extended_site.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["comms"])
         extended_site.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["power"])
