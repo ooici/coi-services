@@ -153,7 +153,7 @@ class IONLoader(ImmediateProcess):
         self.update = self.CFG.get("update", False)      # Support update to existing resources
         self.bulk = self.CFG.get("bulk", False)          # Use bulk insert where available
         self.ooifilter = self.CFG.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
-        self.ooiexclude = self.CFG.get("ooiexclude", None) # Don't import the listed categories
+        self.ooiexclude = self.CFG.get("ooiexclude", '') # Don't import the listed categories
         if self.ooiexclude:
             self.ooiexclude = self.ooiexclude.split(',')
 

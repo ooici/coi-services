@@ -354,10 +354,11 @@ def build_associations(resid):
 
     fragments.append("<h2>Associations</h2>")
     fragments.append("<div id='chart'></div>")
-    #----------- Build the visual using javascript --------------#
-    fragments.append("<script type='text/javascript' src='http://mbostock.github.com/d3/d3.v2.js'></script>   ")
-    fragments.append("<script type='text/javascript' src='/static/tree-interactive.js'></script>")
-    fragments.append("<script type='text/javascript'>build(\"%s\");</script>" % resid)
+    if CFG.get_safe('container.containerui.association_graph', True):
+        #----------- Build the visual using javascript --------------#
+        fragments.append("<script type='text/javascript' src='http://mbostock.github.com/d3/d3.v2.js'></script>   ")
+        fragments.append("<script type='text/javascript' src='/static/tree-interactive.js'></script>")
+        fragments.append("<script type='text/javascript'>build(\"%s\");</script>" % resid)
     #------------------------------------------------------------#
     fragments.append("<h3>FROM</h3>")
     fragments.append("<p><table>")

@@ -40,7 +40,6 @@ class ObservatoryUtil(object):
             parent_site_list = set([parent_site_id])
         else:
             raise BadRequest("Must provide either parent_site_id or org_id")
-
         matchlist = []
         ancestors = {}
         parents = self._get_site_parents()
@@ -73,7 +72,9 @@ class ObservatoryUtil(object):
                 while parent:
                     st, psid, pt = parent
                     matchlist.append(psid)
-                    ancestors[psid] = [child_id]
+                    if psid not in ancestors:
+                        ancestors[psid] = []
+                    ancestors[psid].append(child_id)
                     child_id = psid
                     parent = parents.get(child_id, None)
 
