@@ -520,8 +520,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Check in UNS ------------>
         self.assertEquals(proc1.user_info[user_id_1]['user_contact'].email, 'user_1@gmail.com' )
 
-        log.debug("Got the notifications in the user_info: %s" % proc1.user_info[user_id_1]['notifications'])
-
         notifications = proc1.user_info[user_id_1]['notifications']
         origins = []
         event_types = []
@@ -690,8 +688,24 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         notification_request_2 = self.rrc.read(notification_id_2)
 
+        #--------------------------------------------------------------------------------------------------------------------------
+        # Check that the two notifications created for the same user got properly reloaded in the user_info dictionaries of the workers
+        #--------------------------------------------------------------------------------------------------------------------------
+        notifications = reloaded_user_info[user_id]['notifications']
+        origins = []
+        event_types = []
+        for notific in notifications:
+            origins.append(notific.origin)
+            event_types.append(notific.event_type)
 
-        self.assertEquals(reloaded_user_info[user_id]['notifications'], [notification_request_correct, notification_request_2] )
+        shouldbe_origins = []
+        shouldbe_event_types = []
+        for notific in [notification_request_correct, notification_request_2]:
+            shouldbe_origins.append(notific.origin)
+            shouldbe_event_types.append(notific.event_type)
+
+        self.assertEquals(set(origins), set(shouldbe_origins))
+        self.assertEquals(set(event_types), set(shouldbe_event_types))
 
         self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], [user_id] )
         self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_2'], [user_id] )
