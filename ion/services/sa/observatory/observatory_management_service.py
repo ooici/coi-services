@@ -14,6 +14,7 @@ from pyon.util.containers import DotDict, create_unique_identifier
 from pyon.agent.agent import ResourceAgentState
 
 from ooi.logging import log
+import ooi.logging
 from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
 from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
@@ -1102,7 +1103,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         parents, children = _get_all_relations()
 
         retval_ids = {}
-        log.trace("retval_ids starts as %s", str(retval_ids))
+        if log.isEnabledFor(logging.TRACE): log.trace("retval_ids starts as %s", str(retval_ids))
         for t in output_resource_type_list:
             log.trace("adding retval_ids entry for %s", t)
             retval_ids[t] = []
@@ -1114,20 +1115,20 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             assert type({}) == type(acc1)
             assert type([]) == type(itemlist)
             assert type({}) == type(lookup)
-            log.trace("branch_out acc1 is %s", str(acc1))
+            if log.isEnabledFor(logging.TRACE): log.trace("branch_out acc1 is %s", str(acc1))
 
             # take dict and itemlist, return dict of type => ids
             def helper(acc2, items):
                 assert type({}) == type(acc2)
                 assert type([]) == type(items)
-                log.trace("helper acc2 is %s, items=%s", str(acc2), str(items))
+                if log.isEnabledFor(logging.TRACE): log.trace("helper acc2 is %s, items=%s", str(acc2), str(items))
 
                 if 0 == len(items):
                     return acc2
 
                 # take dict and resource id, return dict of type => ids
                 def work(acc3, resource_id):
-                    log.trace("work acc3 is %s, evaluating '%s'", str(acc3), resource_id)
+                    if log.isEnabledFor(logging.TRACE): log.trace("work acc3 is %s, evaluating '%s'", str(acc3), resource_id)
                     if resource_id not in lookup:
                         #log.debug("lookup fail")
                         return acc3
@@ -1142,7 +1143,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                             log.trace("ignoring %s '%s'", rt, r_id)
                         next_list.append(r_id)
 
-                    log.trace("next_list = %s", str(next_list))
+                    if log.isEnabledFor(logging.TRACE): log.trace("next_list = %s", str(next_list))
 
                     return helper(acc3, next_list)
 
