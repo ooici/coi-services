@@ -520,7 +520,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Check in UNS ------------>
         self.assertEquals(proc1.user_info[user_id_1]['user_contact'].email, 'user_1@gmail.com' )
 
-        self.assertEquals(proc1.user_info[user_id_1]['notifications'], [notification_request_correct, notification_request_2])
+        log.debug("Got the notifications in the user_info: %s" % proc1.user_info[user_id_1]['notifications'])
+
+        notifications = proc1.user_info[user_id_1]['notifications']
+        origins = []
+        event_types = []
+        for notific in notifications:
+            origins.append(notific.origin)
+            event_types.append(notific.event_type)
+
+        self.assertEquals(set(origins), set(['instrument_1', 'instrument_2']))
+        self.assertEquals(set(event_types), set(['ResourceLifecycleEvent', 'DetectionEvent']))
 
         self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_1'], [user_id_1])
         self.assertEquals(set(proc1.reverse_user_info['event_origin']['instrument_2']), set([user_id_2, user_id_1]))

@@ -824,6 +824,7 @@ class UserNotificationService(BaseUserNotificationService):
     def update_user_info_dictionary(self, user_id, new_notification, old_notification):
 
         notifications = []
+        user = self.clients.resource_registry.read(user_id)
 
         #------------------------------------------------------------------------------------
         # If there was a previous notification which is being updated, check the dictionaries and update there
@@ -835,18 +836,14 @@ class UserNotificationService(BaseUserNotificationService):
                 # remove from notifications list
                 self.user_info[user_id]['notifications'].remove(old_notification)
 
-                # update that old notification subscription
-                notification_subscription._res_obj = new_notification
-
-            # find the already existing notifications for the user
+        # find the already existing notifications for the user
+        if self.user_info.has_key(user_id):
             notifications = self.user_info[user_id]['notifications']
 
         #------------------------------------------------------------------------------------
         # update the user info - contact information, notifications
         #------------------------------------------------------------------------------------
         notifications.append(new_notification)
-
-        user = self.clients.resource_registry.read(user_id)
 
 #        self.user_info[user_id]['user_contact'] = user.contact
 #        self.user_info[user_id]['notifications'] = notifications
