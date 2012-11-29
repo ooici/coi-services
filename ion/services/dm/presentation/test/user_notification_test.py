@@ -81,7 +81,7 @@ class UserNotificationTest(PyonTestCase):
         self.user_notification.smtp_server = 'smtp_server'
         self.user_notification.smtp_client = 'smtp_client'
         self.user_notification.event_publisher = EventPublisher()
-        self.user_notification.event_processor = EmailEventProcessor('an_smtp_client')
+        self.user_notification.event_processor = EmailEventProcessor()
 
     def test_create_notification(self):
         '''

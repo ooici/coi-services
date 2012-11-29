@@ -12,7 +12,6 @@ from pyon.public import RT, PRED, get_sys_name, Container, CFG, OT, IonObject
 from pyon.util.async import spawn
 from pyon.util.log import log
 from pyon.util.containers import DotDict
-from pyon.datastore.datastore import DatastoreManager
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -54,22 +53,12 @@ list of event subscribers (only one for LCA) that listen for the events in the n
 
 class EmailEventProcessor(object):
     """
-    Contains email related info.
+    A class that helps to get user subscribed to notifications
     """
 
-    def __init__(self, smtp_client):
-        """
-        Contain information about the smtp_client being used for that user
-        """
-        #---------------------------------------------------------------------------------------------------
-        # Dictionaries that maintain information about users and their subscribed notifications
-        # The user_info dictionary is loaded from the User Info Base (stored in couchdb)
-        # The reverse_user_info is calculated from the user_info dictionary
-        #---------------------------------------------------------------------------------------------------
-
+    def __init__(self):
         # the resource registry
         self.rr = ResourceRegistryServiceClient()
-        self.smtp_client = smtp_client
 
     def add_notification_for_user(self, notification_request, user_id):
         """
@@ -142,13 +131,18 @@ class UserNotificationService(BaseUserNotificationService):
         # Create an event processor
         #---------------------------------------------------------------------------------------------------
 
-        self.event_processor = EmailEventProcessor(self.smtp_client)
+        self.event_processor = EmailEventProcessor()
 
         #---------------------------------------------------------------------------------------------------
         # load event originators, types, and table
         #---------------------------------------------------------------------------------------------------
 
         self.notifications = {}
+
+        #---------------------------------------------------------------------------------------------------
+        # Dictionaries that maintain information about users and their subscribed notifications
+        # The reverse_user_info is calculated from the user_info dictionary
+        #---------------------------------------------------------------------------------------------------
         self.user_info = {}
         self.reverse_user_info = {}
 
@@ -844,9 +838,6 @@ class UserNotificationService(BaseUserNotificationService):
         # update the user info - contact information, notifications
         #------------------------------------------------------------------------------------
         notifications.append(new_notification)
-
-#        self.user_info[user_id]['user_contact'] = user.contact
-#        self.user_info[user_id]['notifications'] = notifications
 
         self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications}
 
