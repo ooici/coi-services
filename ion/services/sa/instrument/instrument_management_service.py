@@ -1830,16 +1830,28 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_exclude=ext_exclude)
 
         # Status computation
-        status_rollups = self.outil.get_status_roll_ups(platform_device_id, RT.PlatformDevice)
+        extended_platform.computed.instrument_status = [4]*len(extended_platform.instrument_devices)
+        extended_platform.computed.platform_status = [4]*len(extended_platform.platforms)
 
-        extended_platform.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_platform.instrument_devices]
-        extended_platform.computed.platform_status = [status_rollups(pdev._id,{}).get("agg",4) for pdev in extended_platform.platforms]
+        extended_platform.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        extended_platform.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        extended_platform.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        extended_platform.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        extended_platform.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
 
-        extended_platform.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["comms"])
-        extended_platform.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["power"])
-        extended_platform.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["data"])
-        extended_platform.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["loc"])
-        extended_platform.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["agg"])
+        try:
+            status_rollups = self.outil.get_status_roll_ups(platform_device_id, RT.PlatformDevice)
+
+            extended_platform.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_platform.instrument_devices]
+            extended_platform.computed.platform_status = [status_rollups(pdev._id,{}).get("agg",4) for pdev in extended_platform.platforms]
+
+            extended_platform.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["comms"])
+            extended_platform.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["power"])
+            extended_platform.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["data"])
+            extended_platform.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["loc"])
+            extended_platform.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["agg"])
+        except Exception as ex:
+            log.exception("Computed attribute failed for %s" % platform_device_id)
 
         return extended_platform
 

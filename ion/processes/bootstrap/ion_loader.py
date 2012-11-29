@@ -24,6 +24,7 @@
     assets= override location to get OOI asset file (default is path + '/ooi_assets')
     attachments= override location to get file attachments (default is path)
     ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
+    ooiexclude= one or more categories to NOT import in the OOI import
     bulk= if True, uses RR bulk insert operations to load, not service calls
 
     TODO: constraints defined in multiple tables as list of IDs, but not used
@@ -152,6 +153,9 @@ class IONLoader(ImmediateProcess):
         self.update = self.CFG.get("update", False)      # Support update to existing resources
         self.bulk = self.CFG.get("bulk", False)          # Use bulk insert where available
         self.ooifilter = self.CFG.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
+        self.ooiexclude = self.CFG.get("ooiexclude", '') # Don't import the listed categories
+        if self.ooiexclude:
+            self.ooiexclude = self.ooiexclude.split(',')
 
         # External loader tools
         self.ui_loader = UILoader(self)
@@ -237,7 +241,7 @@ class IONLoader(ImmediateProcess):
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
             # First load all OOI assets for this category
-            if self.loadooi:
+            if self.loadooi and category not in self.ooiexclude:
                 catfunc_ooi = getattr(self, "_load_%s_OOI" % category, None)
                 if catfunc_ooi:
                     log.debug('Loading OOI assets for %s', category)

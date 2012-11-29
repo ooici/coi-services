@@ -15,8 +15,7 @@ import time
 
 from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.identifier import create_unique_resource_id
-from pyon.public import log, iex, IonObject, RT
-from pyon.util.containers import get_ion_ts
+from pyon.public import log, iex, IonObject, RT, BadRequest
 
 from interface import objects
 
@@ -113,6 +112,7 @@ class UILoader(object):
         self.ui_assocs = []
         self.warnings = []
         self.abort = False
+        self.counter = 0
 
         for fname, category in categories:
             row_do, row_skip = 0, 0
@@ -124,10 +124,11 @@ class UILoader(object):
                     filename = "%s/%s" % (path, fname)
                     log.info("Loading UI category %s from file %s" % (category, filename))
                     try:
-                        with open(filename, "rb") as csvfile:
+                        with open(filename, "rbU") as csvfile:
                             reader = csv.DictReader(csvfile, delimiter=',')
                             for row in reader:
                                 catfunc(row)
+                                self.counter += 1
                                 row_do += 1
                     except IOError, ioe:
                         log.warn("UI category file %s error: %s" % (filename, str(ioe)))
@@ -142,6 +143,7 @@ class UILoader(object):
                         reader = csv.DictReader(csvfile, delimiter=',')
                         for row in reader:
                             catfunc(row)
+                            self.counter += 1
                             row_do += 1
                     else:
                         log.warn("UI category %s has no file %s" % (category, fname))
@@ -355,6 +357,7 @@ class UILoader(object):
             if obj_attr == "uirefid":
                 refid = row_val
 
+        obj_fields['ordinal'] = self.counter
         obj = IonObject(objtype, **obj_fields)
         if not obj.name:
             obj.name = 'TBD'
@@ -618,6 +621,7 @@ class UILoader(object):
                     ogfx=obj.override_graphic_id,
                     olevel=obj.override_information_level,
                     pos=obj.position,
+                    pos1=obj.ordinal,
                     dpath=obj.data_path)
                 if obj.override_screen_label_id:
                     label = ui_objs.get(obj.override_screen_label_id, None)
@@ -700,7 +704,7 @@ class UILoader(object):
         # Pass 4: Sort of embeds and removal of unnecessary attributes (elements)
         for element in elements.values():
             if element['embed']:
-                element['embed'] = sorted(element['embed'], key=lambda obj: obj['pos'])
+                element['embed'] = sorted(element['embed'], key=lambda obj: [obj['pos'],obj['pos1']])
             else:
                 if strip:
                     # Strip unreferenced in embedding
