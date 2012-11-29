@@ -135,8 +135,6 @@ class DiscoveryService(BaseDiscoveryService):
         return True
 
     def delete_view(self, view_id=''):
-        if not isinstance(resource_ids, list):
-            resource_ids = list(resource_ids)
         _, assocs = self.clients.resource_registry.find_objects_mult(subjects=[view_id])
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc._id)
@@ -199,7 +197,7 @@ class DiscoveryService(BaseDiscoveryService):
         """
         
         def edges(resource_ids=[]):
-            if not isinstance(resource_ids, lits):
+            if not isinstance(resource_ids, list):
                 resource_ids = list(resource_ids)
             return self.clients.resource_registry.find_objects_mult(subjects=resource_ids,id_only=True)[0]
             
