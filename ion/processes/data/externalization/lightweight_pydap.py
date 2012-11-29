@@ -9,7 +9,10 @@ from gevent.wsgi import WSGIServer
 class LightweightPyDAP(SimpleProcess):
     def on_start(self):
         SimpleProcess.on_start(self)
-        self.pydap_host = self.CFG.get_safe('server.pydap.host', 'localhost')
+        # Binding to all interfaces instead of using server.pydap.host,
+        # which could be a VIP for the client and will not work on the
+        # server.
+        self.pydap_host = ""
         self.pydap_port = self.CFG.get_safe('server.pydap.port', '8001')
 
         self.pydap_data_path = self.CFG.get_safe('server.pydap.data_path', 'RESOURCE:ext/pydap')
