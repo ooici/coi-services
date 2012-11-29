@@ -130,7 +130,8 @@ class TerrestrialEndpoint(BaseTerrestrialEndpoint, EndpointMixin):
                                     event_type='RemoteCommandResult',
                                     command=cmd,
                                     origin=origin)
-            log.debug('Published remote result: %s.', str(result))
+            log.debug('Published remote result: %s to origin %s.', str(result),
+                      str(origin))
         except KeyError:
             log.warning('Error publishing remote result: %s.', str(result))
             

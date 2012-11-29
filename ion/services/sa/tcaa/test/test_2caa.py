@@ -404,17 +404,17 @@ class Test2CAA(IonIntegrationTestCase):
         if evt.type_ == 'PublicPlatformTelemetryEvent':
             self._telem_evts.append(evt)
             if self._no_telem_evts > 0 and self._no_telem_evts == len(self._telem_evts):
-                    self._done_telem_evt.set()
+                self._done_telem_evt.set()
                     
         elif evt.type_ == 'RemoteQueueModifiedEvent':
             self._queue_mod_evts.append(evt)
             if self._no_queue_mod_evts > 0 and self._no_queue_mod_evts == len(self._queue_mod_evts):
-                    self._done_queue_mod_evt.set()
+                self._done_queue_mod_evt.set()
             
         elif evt.type_ == 'RemoteCommandTransmittedEvent':
             self._cmd_tx_evts.append(evt)
             if self._no_cmd_tx_evts > 0 and self._no_cmd_tx_evts == len(self._cmd_tx_evts):
-                    self._done_cmd_tx_evt.set()
+                self._done_cmd_tx_evt.set()
         
         elif evt.type_ == 'RemoteCommandResult':
             cmd = evt.command
