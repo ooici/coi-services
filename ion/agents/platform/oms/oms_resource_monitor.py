@@ -153,9 +153,7 @@ class OmsResourceMonitor(object):
 
         # update _last_ts based on last element in values:
         _, ts = values[-1]
-        # TODO reported ts is NTP already but here still using system time,
-        # so convert back to system time for the moment:
-        self._last_ts = ts - 2208988800
+        self._last_ts = ts
 
         driver_event = AttributeValueDriverEvent(ts, self._platform_id,
                                               self._attr_id, values)

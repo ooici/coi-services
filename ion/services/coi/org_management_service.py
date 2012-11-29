@@ -1071,11 +1071,8 @@ class OrgManagementService(BaseOrgManagementService):
         ion_org = self.find_org()
         if org_id == ion_org._id:
 
-            #workaround for direct rr access
-            if hasattr(self.container, 'has_capability') and self.container.has_capability('RESOURCE_REGISTRY'):
-                self._rr = self.container.resource_registry
-            else:
-                self._rr = self.clients.resource_registry
+            # clients.resource_registry may return us the container's resource_registry instance
+            self._rr = self.clients.resource_registry
             log.debug("get_marine_facility_extension: self._rr:  %s ", str(self._rr))
 
             actors_list = self.find_enrolled_users(org_id)
@@ -1130,14 +1127,18 @@ class OrgManagementService(BaseOrgManagementService):
 
         # Status computation
         from ion.services.sa.observatory.observatory_util import ObservatoryUtil
-        outil = ObservatoryUtil(self)
-        status_rollups = outil.get_status_roll_ups(org_id, extended_org.resource._get_type())
 
-        extended_org.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_org.instruments]
-        extended_org.computed.platform_status = [status_rollups.get(pdev._id,{}).get("agg",4) for pdev in extended_org.platforms]
+        extended_org.computed.instrument_status = [4]*len(extended_org.instruments)
+        extended_org.computed.platform_status = [4]*len(extended_org.platforms)
+        try:
+            outil = ObservatoryUtil(self)
+            status_rollups = outil.get_status_roll_ups(org_id, extended_org.resource._get_type())
+            extended_org.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_org.instruments]
+            extended_org.computed.platform_status = [status_rollups.get(pdev._id,{}).get("agg",4) for pdev in extended_org.platforms]
+        except Exception as ex:
+            log.exception("Computed attribute failed for %s" % org_id)
 
         #set counter attributes
-        extended_org.number_of_data_products = len(extended_org.data_products)
         extended_org.number_of_platforms = len(extended_org.platforms)
         extended_org.number_of_platforms_deployed = len(extended_org.platforms_deployed)
         extended_org.number_of_instruments = len(extended_org.instruments)
@@ -1149,6 +1150,7 @@ class OrgManagementService(BaseOrgManagementService):
             for prod in prod_list:
                 out_list.append(prod)
         extended_org.data_products = out_list
+        extended_org.number_of_data_products = len(extended_org.data_products)
 
         return extended_org
 

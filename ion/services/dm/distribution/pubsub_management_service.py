@@ -504,6 +504,8 @@ class PubsubManagementService(BasePubsubManagementService):
     def _child_topics(self, topic_id):
 
         def edges(topic_ids=[]):
+            if not isinstance(topic_ids, list):
+                topic_ids = list(topic_ids)
             return self.clients.resource_registry.find_objects_mult(subjects=topic_ids, id_only=True)[0]
 
         visited_topics = deque([topic_id] + edges([topic_id]))

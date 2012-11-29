@@ -24,6 +24,7 @@
     assets= override location to get OOI asset file (default is path + '/ooi_assets')
     attachments= override location to get file attachments (default is path)
     ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
+    ooiexclude= one or more categories to NOT import in the OOI import
     bulk= if True, uses RR bulk insert operations to load, not service calls
 
     TODO: constraints defined in multiple tables as list of IDs, but not used
@@ -78,7 +79,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidG5Md2NEak82bkZMdnVTTzZXRlMzZHc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHdjdndOVkUyazZQaUNfYzBUSXJ3Rnc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -152,6 +153,9 @@ class IONLoader(ImmediateProcess):
         self.update = self.CFG.get("update", False)      # Support update to existing resources
         self.bulk = self.CFG.get("bulk", False)          # Use bulk insert where available
         self.ooifilter = self.CFG.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
+        self.ooiexclude = self.CFG.get("ooiexclude", '') # Don't import the listed categories
+        if self.ooiexclude:
+            self.ooiexclude = self.ooiexclude.split(',')
 
         # External loader tools
         self.ui_loader = UILoader(self)
@@ -237,7 +241,7 @@ class IONLoader(ImmediateProcess):
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
             # First load all OOI assets for this category
-            if self.loadooi:
+            if self.loadooi and category not in self.ooiexclude:
                 catfunc_ooi = getattr(self, "_load_%s_OOI" % category, None)
                 if catfunc_ooi:
                     log.debug('Loading OOI assets for %s', category)
@@ -1205,7 +1209,7 @@ class IONLoader(ImmediateProcess):
             'CDM Data Type':'cdm_data_type',
             'Variable Reports':'variable_reports',
             'References List':'references_list',
-            'Comment' : 'comment',
+            'Description': 'description',
             'Code Reports':'code_reports'
             }
         if row['Fill Value'] and row['Parameter Type'] not in ('array','row'):
@@ -1227,7 +1231,8 @@ class IONLoader(ImmediateProcess):
                 setattr(context, additional_attrs[key], row[key])
 
         dataset_management = self._get_service_client('dataset_management')
-        context_id = dataset_management.create_parameter_context(name=row['Name'], parameter_context=context.dump())
+        context_id = dataset_management.create_parameter_context(name=row['Name'], parameter_context=context.dump(),
+                                                                 description=row['Description'])
 
     def _load_ParameterDictionary(self, row):
         s = re.sub(r'\s+','',row['parameters'])

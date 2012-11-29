@@ -51,7 +51,6 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    Throws if specified data product id or its visualization product does not exist
         """
 
-
         query = None
         if visualization_parameters:
             if visualization_parameters.has_key('query'):
@@ -76,7 +75,7 @@ class VisualizationService(BaseVisualizationService):
         else:
             workflow_def_id = self._create_google_dt_workflow_def()
 
-        #Create and start the workflow
+        #Create and start the workflow. Take about 4 secs .. wtf
         workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_def_id, data_product_id, timeout=20)
 
         # detect the output data product of the workflow
@@ -543,7 +542,7 @@ class VisualizationService(BaseVisualizationService):
             for dp in dp_cluster[set_key]:
                 html_description += "<tr>"
                 html_description += "<td>" + dp.name + "</td>"
-                html_description += "<td><a href=\"" + ui_server + "/DataProduct/face/" + str(dp._id) + "/\">" + str(dp._id) + "</a> </td> "
+                html_description += "<td><a class=\"external\" href=\"" + ui_server + "/DataProduct/face/" + str(dp._id) + "/\">" + str(dp._id) + "</a> </td> "
                 html_description += "<td> </td>"
 
                 html_description += "</tr>"

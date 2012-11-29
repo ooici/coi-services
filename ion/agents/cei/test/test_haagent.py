@@ -2,6 +2,7 @@ import gevent
 import functools
 import BaseHTTPServer
 import socket
+import md5
 from BaseHTTPServer import HTTPServer
 from random import randint
 
@@ -412,7 +413,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
                         'metric': 'app_attributes:ml',
                         'sample_period': 600,
                         'sample_function': 'Average',
-                        'cooldown_period': 20,
+                        'cooldown_period': 5,
                         'scale_up_threshold': 2.0,
                         'scale_up_n_processes': 1,
                         'scale_down_threshold': 1.0,
@@ -506,7 +507,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         upids = self._get_managed_upids()
         response = ""
         for upid in upids:
-            response += "%s,ml=5\n"
+            response += "%s,ml=5\n" % md5.new(upid).hexdigest()
         self._set_response(response)
 
         self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
@@ -517,7 +518,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         upids = self._get_managed_upids()
         response = ""
         for upid in upids:
-            response += "%s,ml=1.5\n"
+            response += "%s,ml=1.5\n" % md5.new(upid).hexdigest()
         self._set_response(response)
 
         self.assertEqual(len(self.get_running_procs()), 2)
@@ -536,7 +537,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         upids = self._get_managed_upids()
         response = ""
         for upid in upids:
-            response += "%s,ml=0.5\n"
+            response += "%s,ml=0.5\n" % md5.new(upid).hexdigest()
         self._set_response(response)
 
         self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
