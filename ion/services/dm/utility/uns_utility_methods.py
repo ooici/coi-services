@@ -151,7 +151,7 @@ def send_email(message, msg_recipient, smtp_client):
     msg['Subject'] = msg_subject
     msg['From'] = msg_sender
     msg['To'] = msg_recipient
-    log.debug("UserEventProcessor.subscription_callback(): sending email to %s"\
+    log.debug("UNS sending email to %s"\
     %msg_recipient)
 
     smtp_sender = CFG.get_safe('server.smtp.sender')

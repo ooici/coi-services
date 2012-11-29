@@ -51,80 +51,8 @@ Each notification object will encapsulate the notification information and a
 list of event subscribers (only one for LCA) that listen for the events in the notification.
 """
 
-class NotificationSubscription(object):
-    """
-    Ties a notification's info to it's event subscriber
-    """
 
-    def  __init__(self, notification_request=None, callback=None):
-        self._res_obj = notification_request  # The Notification Request Resource Object
-        self.subscriber = EventSubscriber(  origin=notification_request.origin,
-            origin_type = notification_request.origin_type,
-            event_type=notification_request.event_type,
-            sub_type=notification_request.event_subtype,
-            callback=callback)
-        self.notification_subscription_id = None
-
-    def set_notification_id(self, id_=None):
-        """
-        Set the notification id of the notification object
-        @param notification id
-        """
-        self.notification_subscription_id = id_
-
-    def activate(self):
-        """
-        Start subscribing
-        """
-        self.subscriber.start()
-
-    def deactivate(self):
-        """
-        Stop subscribing
-        """
-        self.subscriber.stop()
-
-class EventProcessor(object):
-    """
-    The Event Processor is the object that knows all about the user's subscriptions. There will be one event
-    processor in the system.
-    """
-
-    def __init__(self):
-
-        #---------------------------------------------------------------------------------------------------
-        # Dictionaries that maintain information about users and their subscribed notifications
-        # The user_info dictionary is loaded from the User Info Base (stored in couchdb)
-        # The reverse_user_info is calculated from the user_info dictionary
-        #---------------------------------------------------------------------------------------------------
-
-        # user_info = {'user_id' : [list of notifications]}
-        self.user_info = {}
-        self.reverse_user_info = {}
-
-        # the resource registry
-        self.rr = ResourceRegistryServiceClient()
-
-    def stop_notification_subscriber(self, notification_request):
-        """
-        Stops the subscriber of a notification
-
-        @param notification_request NotificationRequest
-        """
-
-        for val in self.user_info.itervalues():
-            if notification_request in val['notifications']:
-                notification_subscription = val['notification_subscriptions'][notification_request._id]
-                notification_subscription.deactivate()
-                # once the subscription is deactivated, exit, so as not to try deactivating an already deactivated subscription
-                return
-
-    def __str__(self):
-        return str(self.__dict__)
-
-
-
-class EmailEventProcessor(EventProcessor):
+class EmailEventProcessor(object):
     """
     Contains email related info.
     """
@@ -133,9 +61,15 @@ class EmailEventProcessor(EventProcessor):
         """
         Contain information about the smtp_client being used for that user
         """
-        super(EmailEventProcessor, self).__init__()
+        #---------------------------------------------------------------------------------------------------
+        # Dictionaries that maintain information about users and their subscribed notifications
+        # The user_info dictionary is loaded from the User Info Base (stored in couchdb)
+        # The reverse_user_info is calculated from the user_info dictionary
+        #---------------------------------------------------------------------------------------------------
+
+        # the resource registry
+        self.rr = ResourceRegistryServiceClient()
         self.smtp_client = smtp_client
-        self.notification_subscriptions = []
 
     def add_notification_for_user(self, notification_request, user_id):
         """
@@ -144,42 +78,10 @@ class EmailEventProcessor(EventProcessor):
         @param user_id str
         """
 
-        #---------------------------------------------------------------------------------------------------
-        # Make a callback function that is right for the user
-        #---------------------------------------------------------------------------------------------------
-
-        def callback(message, headers):
-            """
-            This callback is given to all the event subscribers that this user wants notifications for.
-            If this callback gets called the user in this processor should get an email
-            """
-
-            # find the email address of the user
-            user = self.rr.read(user_id)
-            msg_recipient = user.contact.email
-
-            # send email to the user
-            send_email(message, msg_recipient, self.smtp_client)
-
         user = self.rr.read(user_id)
 
-        #---------------------------------------------------------------------------------------------------
         # Add the notification into the user info object
-        #---------------------------------------------------------------------------------------------------
-
         user = self.put_notification_in_user_object(user, notification_request)
-
-        #---------------------------------------------------------------------------------------------------
-        # Add a notification to the list of subscribed notifications for the user
-        #---------------------------------------------------------------------------------------------------
-
-        notification_subscription = self._add_callback_to_notification(notification_request, callback)
-
-        #---------------------------------------------------------------------------------------------------
-        # Update the user_info dictionary and also calculate the reverse user info dictionary
-        #---------------------------------------------------------------------------------------------------
-
-        self.update_user_info_dictionary(user, notification_subscription)
 
         # return the updated user object
         return user
@@ -207,63 +109,6 @@ class EmailEventProcessor(EventProcessor):
         self.rr.update(user)
 
         return user
-
-
-    def update_user_info_dictionary(self, user, notification_subscription):
-        """
-        Update the user info and reverse user info dictionaries.
-        @param user UserInfo object
-        @param notification_subscription NotificationSubscription object
-        """
-
-        if self.user_info.has_key(user._id):
-            # the user is already known by the EventProcessor
-            self.user_info[user._id]['notifications'].append(notification_subscription._res_obj)
-            self.user_info[user._id]['notification_subscriptions'][notification_subscription._res_obj._id] = notification_subscription
-        else:
-            # it is a new user
-            self.user_info[user._id] = {   'user_contact' : user.contact,
-                                            'notifications' : [notification_subscription._res_obj],
-                                            'notification_subscriptions' : { notification_subscription._res_obj._id :
-                                                                                 notification_subscription}}
-        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
-
-    def _add_callback_to_notification(self, notification_request=None, callback = None):
-        """
-        Adds a notification that this user then subscribes to.
-
-        @param notification_request
-        @retval notification object
-        """
-
-        #---------------------------------------------------------------------------------------------------
-        # create and save notification in notifications list
-        #---------------------------------------------------------------------------------------------------
-
-        notification_subscription = NotificationSubscription(notification_request, callback)
-        self.notification_subscriptions.append(notification_subscription)
-
-        #---------------------------------------------------------------------------------------------------
-        # start the event subscriber listening
-        #---------------------------------------------------------------------------------------------------
-
-        notification_subscription.activate()
-
-        log.debug("EventProcessor.add_notification(): added notification " + str(notification_request))
-
-        return notification_subscription
-
-    def cleanup(self):
-        for notif_sub in self.notification_subscriptions:
-            notif_sub.deactivate()
-
-    def stop_notification_subscriber(self, notification_request):
-        """
-        Stops the listener of the notification subscriber object
-        @param notification_request NotificationRequest
-        """
-
-        super(EmailEventProcessor, self).stop_notification_subscriber(notification_request)
 
 #----------------------------------------------------------------------------------------------------------------
 # Keep this note for the time when we need to also include sms delivery via email to sms providers
@@ -572,8 +417,6 @@ class UserNotificationService(BaseUserNotificationService):
                 if notification_id == notif._id:
                     # remove the notification
                     value['notifications'].remove(notif)
-                    # remove the notification_subscription
-                    self.event_processor.user_info[user_id]['notification_subscriptions'].pop(notification_id)
 
         self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
 
@@ -993,14 +836,8 @@ class UserNotificationService(BaseUserNotificationService):
             # update the notification subscription object
             #------------------------------------------------------------------------------------
 
-            # get the old notification_subscription
-            notification_subscription = self.event_processor.user_info[user_id]['notification_subscriptions'].pop(old_notification._id)
-
             # update that old notification subscription
             notification_subscription._res_obj = new_notification
-
-            # feed the updated notification subscription back into the user info dictionary
-            self.event_processor.user_info[user_id]['notification_subscriptions'][old_notification._id] = notification_subscription
 
         #------------------------------------------------------------------------------------
         # find the already existing notifications for the user
