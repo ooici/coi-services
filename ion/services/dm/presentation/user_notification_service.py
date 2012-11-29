@@ -177,9 +177,6 @@ class UserNotificationService(BaseUserNotificationService):
             except IonException as ex:
                 log.info("Ignoring exception while cancelling schedule id (%s): %s: %s", sid, ex.__class__.__name__, ex)
 
-        # Clean up the notification subscriptions' subscribers created in EmailEventProcessor object
-        self.event_processor.cleanup()
-
         super(UserNotificationService, self).on_quit()
 
     def __now(self):
