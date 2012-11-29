@@ -851,8 +851,10 @@ class UserNotificationService(BaseUserNotificationService):
 
         user = self.clients.resource_registry.read(user_id)
 
-        self.user_info[user_id]['user_contact'] = user.contact
-        self.user_info[user_id]['notifications'] = notifications
+#        self.user_info[user_id]['user_contact'] = user.contact
+#        self.user_info[user_id]['notifications'] = notifications
+
+        self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications}
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
