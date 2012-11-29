@@ -149,6 +149,8 @@ class UserNotificationService(BaseUserNotificationService):
         #---------------------------------------------------------------------------------------------------
 
         self.notifications = {}
+        self.user_info = {}
+        self.reverse_user_info = {}
 
         #---------------------------------------------------------------------------------------------------
         # Get the clients
@@ -270,6 +272,9 @@ class UserNotificationService(BaseUserNotificationService):
 
         user = self.event_processor.add_notification_for_user(notification_request=notification, user_id=user_id)
 
+        # Update the user info object with the notification
+        self.update_user_info_dictionary(user_id=user_id, new_notification=notification, old_notification=None)
+
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
@@ -370,8 +375,6 @@ class UserNotificationService(BaseUserNotificationService):
         notification_request = self.clients.resource_registry.read(notification_id)
         old_notification = notification_request
 
-        self.event_processor.stop_notification_subscriber(notification_request=notification_request)
-
         #-------------------------------------------------------------------------------------------------------------------
         # Update the resource registry
         #-------------------------------------------------------------------------------------------------------------------
@@ -384,7 +387,7 @@ class UserNotificationService(BaseUserNotificationService):
         # Update the user info dictionaries
         #-------------------------------------------------------------------------------------------------------------------
 
-        for user_id in self.event_processor.user_info.iterkeys():
+        for user_id in self.user_info.iterkeys():
             self.update_user_info_dictionary(user_id, notification_request, old_notification)
 
         #-------------------------------------------------------------------------------------------------------------------
@@ -411,14 +414,14 @@ class UserNotificationService(BaseUserNotificationService):
 
         for user_id in user_ids:
 
-            value = self.event_processor.user_info[user_id]
+            value = self.user_info[user_id]
 
             for notif in value['notifications']:
                 if notification_id == notif._id:
                     # remove the notification
                     value['notifications'].remove(notif)
 
-        self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
+        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
     def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit= -1, descending=False):
         """
@@ -581,8 +584,8 @@ class UserNotificationService(BaseUserNotificationService):
         @retval notifications list of NotificationRequest objects
         """
 
-        if self.event_processor.user_info.has_key(user_id):
-            notifications = self.event_processor.user_info[user_id]['notifications']
+        if self.user_info.has_key(user_id):
+            notifications = self.user_info[user_id]['notifications']
             ret = IonObject(OT.ComputedListValue)
 
             if notifications:
@@ -668,7 +671,7 @@ class UserNotificationService(BaseUserNotificationService):
         if end_time <= start_time:
             return
 
-        for user_id, value in self.event_processor.user_info.iteritems():
+        for user_id, value in self.user_info.iteritems():
 
             notifications = value['notifications']
 
@@ -755,7 +758,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.send_batch_email(  msg_body = msg_body,
             msg_subject = msg_subject,
-            msg_recipient=self.event_processor.user_info[user_id]['user_contact'].email,
+            msg_recipient=self.user_info[user_id]['user_contact'].email,
             smtp_client=self.smtp_client )
 
     def send_batch_email(self, msg_body, msg_subject, msg_recipient, smtp_client):
@@ -823,38 +826,35 @@ class UserNotificationService(BaseUserNotificationService):
 
     def update_user_info_dictionary(self, user_id, new_notification, old_notification):
 
-        #------------------------------------------------------------------------------------
-        # Remove the old notifications
-        #------------------------------------------------------------------------------------
-
-        if old_notification in self.event_processor.user_info[user_id]['notifications']:
-
-            # remove from notifications list
-            self.event_processor.user_info[user_id]['notifications'].remove(old_notification)
-
-            #------------------------------------------------------------------------------------
-            # update the notification subscription object
-            #------------------------------------------------------------------------------------
-
-            # update that old notification subscription
-            notification_subscription._res_obj = new_notification
+        notifications = []
 
         #------------------------------------------------------------------------------------
-        # find the already existing notifications for the user
+        # If there was a previous notification which is being updated, check the dictionaries and update there
         #------------------------------------------------------------------------------------
+        if old_notification:
+            # Remove the old notifications
+            if old_notification in self.user_info[user_id]['notifications']:
 
-        notifications = self.event_processor.user_info[user_id]['notifications']
-        notifications.append(new_notification)
+                # remove from notifications list
+                self.user_info[user_id]['notifications'].remove(old_notification)
+
+                # update that old notification subscription
+                notification_subscription._res_obj = new_notification
+
+            # find the already existing notifications for the user
+            notifications = self.user_info[user_id]['notifications']
 
         #------------------------------------------------------------------------------------
         # update the user info - contact information, notifications
         #------------------------------------------------------------------------------------
+        notifications.append(new_notification)
+
         user = self.clients.resource_registry.read(user_id)
 
-        self.event_processor.user_info[user_id]['user_contact'] = user.contact
-        self.event_processor.user_info[user_id]['notifications'] = notifications
+        self.user_info[user_id]['user_contact'] = user.contact
+        self.user_info[user_id]['notifications'] = notifications
 
-        self.event_processor.reverse_user_info = calculate_reverse_user_info(self.event_processor.user_info)
+        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
     def get_subscriptions(self, resource_id='', include_nonactive=False):
         """
