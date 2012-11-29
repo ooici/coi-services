@@ -174,32 +174,42 @@ class TestSchedulerService(IonIntegrationTestCase):
         # Validate no more events are published after end_time expires
         # Validate the timer was canceled after the end_time expires
 
-        self.interval_timer_count = 0
-        self.interval_timer_sent_time = 0
-        self.interval_timer_received_time = 0
-        self.interval_timer_interval = 2
+        self.interval_timer_count_2 = 0
+        self.interval_timer_sent_time_2 = 0
+        self.interval_timer_received_time_2 = 0
+        self.interval_timer_interval_2 = 3
 
-        event_origin = "Interval Timer"
-        sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
+        event_origin = "Interval_Timer_2"
+        sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback_with_end_time, origin=event_origin)
         sub.start()
 
         start_time = self.now_utc()
-        self.interval_timer_end_time = start_time + 5
-        id = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval,
-            end_time=self.interval_timer_end_time,
+        self.interval_timer_end_time_2 = start_time + 7
+        id = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval_2,
+            end_time=self.interval_timer_end_time_2,
             event_origin=event_origin, event_subtype="")
-        self.interval_timer_sent_time = datetime.datetime.utcnow()
+        self.interval_timer_sent_time_2 = datetime.datetime.utcnow()
         self.assertEqual(type(id), str)
 
         # Wait until all events are published
-        gevent.sleep((self.interval_timer_end_time - start_time) + self.interval_timer_interval + 1)
+        gevent.sleep((self.interval_timer_end_time_2 - start_time) + self.interval_timer_interval_2 + 1)
 
         # Validate the number of events generated
-        self.assertEqual(self.interval_timer_count, 2, "Invalid number of timeouts generated. Number of event: %d Expected: 2 Timer id: %s " %(self.interval_timer_count, id))
+        self.assertEqual(self.interval_timer_count_2, 2, "Invalid number of timeouts generated. Number of event: %d Expected: 2 Timer id: %s " %(self.interval_timer_count_2, id))
 
         # Validate the timer was canceled after the end_time is expired
         with self.assertRaises(BadRequest):
             self.ssclient.cancel_timer(id)
+
+
+    def interval_timer_callback_with_end_time(self, *args, **kwargs):
+        self.interval_timer_received_time_2 = datetime.datetime.utcnow()
+        self.interval_timer_count_2 += 1
+        time_diff = math.fabs( ((self.interval_timer_received_time_2 - self.interval_timer_sent_time_2).total_seconds())
+                               - (self.interval_timer_interval_2 * self.interval_timer_count_2) )
+        # Assert expire time is within +-10 seconds
+        self.assertTrue(time_diff <= 10)
+
 
     def interval_timer_callback(self, *args, **kwargs):
         self.interval_timer_received_time = datetime.datetime.utcnow()
