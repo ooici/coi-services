@@ -111,7 +111,7 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
 
         # name should be def name followed by a uuid
         name = call_kwargs['name']
-        self.assertEqual(name, proc_def['name'])
+        assert name.startswith(proc_def['name'])
         self.assertEqual(len(call_kwargs), 5)
         self.assertEqual(call_kwargs['module'], 'my_module')
         self.assertEqual(call_kwargs['cls'], 'class')
@@ -212,17 +212,20 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.mock_backend['read_definition'].return_value = ProcessDefinition()
 
         upid = 'myupid'
+        name = 'myname'
         definition_id = 'something'
         queueing_mode = 'RESTART_ONLY'
         restart_mode = 'ABNORMAL'
 
-        self.pd_dashi_handler.schedule_process(upid, definition_id, queueing_mode=queueing_mode, restart_mode=restart_mode)
+        self.pd_dashi_handler.schedule_process(upid, definition_id, queueing_mode=queueing_mode, restart_mode=restart_mode, name=name)
 
         self.assertEqual(self.mock_backend.spawn.call_count, 1)
         args, kwargs = self.mock_backend.spawn.call_args
         passed_schedule = args[2]
         assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
         assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
+        passed_name = args[4]
+        assert passed_name == name
 
     def test_schedule_by_name(self):
         pdef = ProcessDefinition()
@@ -641,6 +644,14 @@ class TestProcess(BaseService):
     def query(self):
         return self.response
 
+    def get_process_name(self, pid=None):
+        if pid is None:
+            return
+        proc = self.container.proc_manager.procs.get(pid)
+        if proc is None:
+            return
+        return proc._proc_name
+
 
 class TestClient(RPCClient):
     def __init__(self, to_name=None, node=None, **kwargs):
@@ -652,6 +663,9 @@ class TestClient(RPCClient):
 
     def query(self, headers=None, timeout=None):
         return self.request({}, op='query', headers=headers, timeout=timeout)
+
+    def get_process_name(self, pid=None, headers=None, timeout=None):
+        return self.request({'pid': pid}, op='get_process_name', headers=headers, timeout=timeout)
 
 
 
@@ -679,11 +693,12 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         process_schedule = ProcessSchedule()
         process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
 
+        proc_name = 'myreallygoodname'
         pid = self.pd_cli.create_process(self.process_definition_id)
         self.waiter.start(pid)
 
         pid2 = self.pd_cli.schedule_process(self.process_definition_id,
-            process_schedule, configuration={}, process_id=pid)
+            process_schedule, configuration={}, process_id=pid, name=proc_name)
         self.assertEqual(pid, pid2)
 
         # verifies L4-CI-CEI-RQ141 and L4-CI-CEI-RQ142
@@ -706,6 +721,10 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
             self.assertEqual(i + 1, test_client.count(timeout=10))
 
         # verifies L4-CI-CEI-RQ147
+
+        # check the process name was set in container
+        got_proc_name = test_client.get_process_name(pid=pid2)
+        self.assertEqual(proc_name, got_proc_name)
 
         # kill the process and start it again
         self.pd_cli.cancel_process(pid)

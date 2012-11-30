@@ -82,26 +82,29 @@ def process_index():
             "<p><ul>",
             "<li><a href='/restypes'><b>Browse Resource Registry and Resource Objects</b></a>",
             "<ul>",
-            "<li>Observatory: <a href='/list/Observatory'>Observatory</a>, <a href='/list/Subsite'>Subsite</a>, <a href='/list/Org'>Org</a>, <a href='/list/UserRole'>Role</a></li>",
+            "<li>Org: <a href='/list/Org'>Org</a>, <a href='/list/UserRole'>Role</a></li>",
             "<li>Users: <a href='/list/UserInfo'>User</a>, <a href='/list/ActorIdentity'>Identity</a>, <a href='/list/UserCredentials'>Credential Set</a></li>",
-            "<li>Platforms: <a href='/list/PlatformDevice'>Device</a>, <a href='/list/PlatformSite'>Site</a>, <a href='/list/PlatformModel'>Models</a>, <a href='/list/PlatformAgent'>Agent</a>, <a href='/list/PlatformAgentInstance'>Agent Instance</a></li>",
-            "<li>Instruments: <a href='/list/InstrumentDevice'>Device</a>, <a href='/list/InstrumentSite'>Site</a>, <a href='/list/InstrumentModel'>Models</a>, <a href='/list/InstrumentAgent'>Agent</a>, <a href='/list/InstrumentAgentInstance'>Agent Instance</a></li>",
-            "<li>Data: <a href='/list/DataProduct'>Data Product</a>, <a href='/list/DataSet'>DataSet</a>, <a href='/list/Stream'>Stream</a></li>",
+            "<li>Observatory: <a href='/list/Observatory'>Observatory</a>, <a href='/list/Subsite'>Subsite</a>, <a href='/list/PlatformSite'>PlatformSite</a>, <a href='/list/InstrumentSite'>InstrumentSite</a></li>",
+            "<li>Devices: <a href='/list/PlatformDevice'>PlatformDevice</a>, <a href='/list/InstrumentDevice'>InstrumentDevice</a>, <a href='/list/SensorDevice'>SensorDevice</a></li>",
+            "<li>Models: <a href='/list/PlatformModel'>PlatformModel</a>, <a href='/list/InstrumentModel'>InstrumentModel</a>, <a href='/list/SensorModel'>SensorModel</a></li>",
+            "<li>Agents: <a href='/list/PlatformAgent'>PlatformAgent</a>, <a href='/list/PlatformAgentInstance'>PlatformAgentInstance</a>, <a href='/list/InstrumentAgent'>InstrumentAgent</a>, <a href='/list/InstrumentAgentInstance'>InstrumentAgentInstance</a></li>",
+            "<li>Data: <a href='/list/DataProduct'>DataProduct</a>, <a href='/list/DataSet'>DataSet</a>, <a href='/list/Stream'>Stream</a></li>",
             "<li>Process: <a href='/list/DataProcessDefinition'>Data Process Definition</a>, <a href='/list/DataProcess'>DataProcess</a>, <a href='/list/ProcessDefinition'>Process Definition</a></li>",
             "</ul></li>",
-            "<li><a href='/dir'><b>Browse ION Directory</b></a></li>",
+            #"<li><a href='/dir'><b>Browse ION Directory</b></a></li>",
             "<li><a href='/events'><b>Browse Events</b></a></li>",
+            "<li><a href='http://localhost:3000'><b>ION Web UI (if running)</b></a></li>",
             "<li><a href='http://localhost:5984/_utils'><b>CouchDB Futon UI (if running)</b></a></li>",
             "<li><a href='http://localhost:55672/'><b>RabbitMQ Management UI (if running)</b></a></li>",
             "<li><a href='http://localhost:9001/'><b>Supervisord UI (if running)</b></a></li>",
             "</ul></p>",
-            "<h2>Container and System Properties</h2>",
+            "<h2>System and Container Properties</h2>",
             "<p><table>",
             "<tr><th>Property</th><th>Value</th></tr>",
-            "<tr><td>Container ID</td><td>%s</td></tr>" % Container.instance.id,
-            "<tr><td>Sys_name</td><td>%s</td></tr>" % get_sys_name(),
+            "<tr><td>system.name</td><td>%s</td></tr>" % get_sys_name(),
             "<tr><td>Broker</td><td>%s</td></tr>" % "%s:%s" % (CFG.server.amqp.host, CFG.server.amqp.port),
             "<tr><td>Datastore</td><td>%s</td></tr>" % "%s:%s" % (CFG.server.couchdb.host, CFG.server.couchdb.port),
+            "<tr><td>Container ID</td><td>%s</td></tr>" % Container.instance.id,
             "</table></p>",
 
             ]
@@ -351,10 +354,11 @@ def build_associations(resid):
 
     fragments.append("<h2>Associations</h2>")
     fragments.append("<div id='chart'></div>")
-    #----------- Build the visual using javascript --------------#
-    fragments.append("<script type='text/javascript' src='http://mbostock.github.com/d3/d3.v2.js'></script>   ")
-    fragments.append("<script type='text/javascript' src='/static/tree-interactive.js'></script>")
-    fragments.append("<script type='text/javascript'>build(\"%s\");</script>" % resid)
+    if CFG.get_safe('container.containerui.association_graph', True):
+        #----------- Build the visual using javascript --------------#
+        fragments.append("<script type='text/javascript' src='http://mbostock.github.com/d3/d3.v2.js'></script>   ")
+        fragments.append("<script type='text/javascript' src='/static/tree-interactive.js'></script>")
+        fragments.append("<script type='text/javascript'>build(\"%s\");</script>" % resid)
     #------------------------------------------------------------#
     fragments.append("<h3>FROM</h3>")
     fragments.append("<p><table>")
@@ -402,7 +406,7 @@ def build_commands(resource_id, restype):
     fragments.append(build_command("Change Lifecycle State", "/cmd/set_lcs?rid=%s" % resource_id, args))
 
 
-    if restype == "InstrumentAgentInstance":
+    if restype == "InstrumentAgentInstance" or restype == "PlatformAgentInstance":
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
         fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
 
@@ -434,16 +438,34 @@ def build_commands(resource_id, restype):
         fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
         fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
 
-        options = [('initialize','initialize'),
-            ('go_active','go_active'),
-            ('run','run'),
+        options = [('initialize','RESOURCE_AGENT_EVENT_INITIALIZE'),
+            ('go_active','RESOURCE_AGENT_EVENT_GO_ACTIVE'),
+            ('run','RESOURCE_AGENT_EVENT_RUN'),
             ('acquire_sample','acquire_sample'),
             ('go_streaming','go_streaming'),
             ('go_observatory','go_observatory'),
-            ('go_direct_access','go_direct_access'),
-            ('go_inactive','go_inactive'),
-            ('reset','reset'),
+            ('go_direct_access','RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS'),
+            ('go_inactive','RESOURCE_AGENT_EVENT_GO_INACTIVE'),
+            ('reset','RESOURCE_AGENT_EVENT_RESET'),
         ]
+
+        args = [('select','agentcmd',options)]
+        fragments.append(build_command("Agent Command", "/cmd/agent_execute?rid=%s" % resource_id, args))
+
+    elif restype == "PlatformDevice":
+        fragments.append(build_command("Start Agent", "/cmd/start_agent?rid=%s" % resource_id))
+        fragments.append(build_command("Stop Agent", "/cmd/stop_agent?rid=%s" % resource_id))
+
+        options = [('initialize','RESOURCE_AGENT_EVENT_INITIALIZE'),
+                   ('go_active','RESOURCE_AGENT_EVENT_GO_ACTIVE'),
+                   ('run','RESOURCE_AGENT_EVENT_RUN'),
+                   ('acquire_sample','acquire_sample'),
+                   ('go_streaming','go_streaming'),
+                   ('go_observatory','go_observatory'),
+                   ('go_direct_access','RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS'),
+                   ('go_inactive','RESOURCE_AGENT_EVENT_GO_INACTIVE'),
+                   ('reset','RESOURCE_AGENT_EVENT_RESET'),
+                   ]
         args = [('select','agentcmd',options)]
         fragments.append(build_command("Agent Command", "/cmd/agent_execute?rid=%s" % resource_id, args))
 
@@ -453,6 +475,10 @@ def build_commands(resource_id, restype):
 
     elif restype == "DataProduct":
         fragments.append(build_command("Latest Ingest", "/cmd/last_granule?rid=%s" % resource_id))
+
+    if restype in ["Org", "Observatory", "Subsite", "PlatformSite", "InstrumentSite", "PlatformDevice", "InstrumentDevice"]:
+        fragments.append(build_command("Show Sites and Status", "/cmd/sites?rid=%s" % resource_id))
+
 
     fragments.append("</table>")
     return "".join(fragments)
@@ -568,27 +594,59 @@ def _process_cmd_execute_lcs(resource_id, res_obj=None):
     return "OK. New state: %s" % new_state
 
 def _process_cmd_start_agent(resource_id, res_obj=None):
+    agent_type = "instrument"
     if res_obj._get_type() == "InstrumentDevice":
         iai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance, id_only=True)
         if iai_ids:
             resource_id = iai_ids[0]
         else:
             return "InstrumentAgentInstance for InstrumentDevice %s not found" % resource_id
+    elif res_obj._get_type() == "PlatformDevice":
+        agent_type = "platform"
+        pai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.PlatformAgentInstance, id_only=True)
+        if pai_ids:
+            resource_id = pai_ids[0]
+        else:
+            return "PlatformAgentInstance for PlatformDevice %s not found" % resource_id
+    elif res_obj._get_type() == "PlatformAgentInstance":
+        agent_type = "platform"
+
     from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
     ims_cl = InstrumentManagementServiceClient()
-    ims_cl.start_instrument_agent_instance(resource_id)
+    if agent_type == "instrument":
+        ims_cl.start_instrument_agent_instance(resource_id)
+    elif agent_type == "platform":
+        ims_cl.start_platform_agent_instance(resource_id)
+    else:
+        return "Unknown agent type"
     return "OK"
 
 def _process_cmd_stop_agent(resource_id, res_obj=None):
+    agent_type = "instrument"
     if res_obj._get_type() == "InstrumentDevice":
         iai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance, id_only=True)
         if iai_ids:
             resource_id = iai_ids[0]
         else:
             return "InstrumentAgentInstance for InstrumentDevice %s not found" % resource_id
+    elif res_obj._get_type() == "PlatformDevice":
+        agent_type = "platform"
+        pai_ids,_ = Container.instance.resource_registry.find_objects(resource_id, PRED.hasAgentInstance, RT.PlatformAgentInstance, id_only=True)
+        if pai_ids:
+            resource_id = pai_ids[0]
+        else:
+            return "PlatformAgentInstance for PlatformDevice %s not found" % resource_id
+    elif res_obj._get_type() == "PlatformAgentInstance":
+        agent_type = "platform"
+
     from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
     ims_cl = InstrumentManagementServiceClient()
-    ims_cl.stop_instrument_agent_instance(resource_id)
+    if agent_type == "instrument":
+        ims_cl.stop_instrument_agent_instance(resource_id)
+    elif agent_type == "platform":
+        ims_cl.stop_platform_agent_instance(resource_id)
+    else:
+        return "Unknown agent type"
     return "OK"
 
 def _process_cmd_start_process(resource_id, res_obj=None):
@@ -654,6 +712,69 @@ def _process_cmd_undeploy_prim(resource_id, res_obj=None):
     ims_cl = InstrumentManagementServiceClient()
     ims_cl.undeploy_primary_instrument_device_from_logical_instrument(resource_id, li_id)
     return "OK"
+
+def _process_cmd_sites(resource_id, res_obj=None):
+    from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+    outil = ObservatoryUtil(container=Container.instance)
+    statuses = outil.get_status_roll_ups(resource_id, include_structure=True)
+    fragments = [
+        "</pre><h3>Org, Site and Device Status</h3>",
+        ]
+
+    if '_system' in statuses:
+        extra = statuses['_system']
+        child_sites, ancestors, devices = extra.get('sites', {}), extra.get('ancestors', {}), extra.get('devices', {})
+        root_id = outil.get_site_root(resource_id, ancestors=ancestors) if ancestors else resource_id
+
+        fragments.append("<p><table>")
+        fragments.append("<tr><th>Resource</th><th>Type</th><th>AGG</th><th>PWR</th><th>COMM</th><th>DATA</th><th>LOC</th></tr>")
+        device_info = {}
+        if devices:
+            dev_id_list = [dev[1] for dev in devices.values() if dev is not None]
+            if dev_id_list:
+                dev_list = Container.instance.resource_registry.read_mult(dev_id_list)
+                device_info = dict(zip([res._id for res in dev_list], dev_list))
+        elif ancestors:
+            dev_id_list = [anc for anc_list in ancestors.values() if anc_list is not None for anc in anc_list]
+            dev_id_list.append(resource_id)
+            dev_list = Container.instance.resource_registry.read_mult(dev_id_list)
+            device_info = dict(zip([res._id for res in dev_list], dev_list))
+
+        def stat(status, stype):
+            stat = status.get(stype, 4)
+            stat_str = ['', "<span style='color:green'>OK</span>","<span style='color:orange'>WARN</span>","<span style='color:red'>ERROR</span>",'?']
+            return stat_str[stat]
+
+        def status_table(parent_id, level):
+            fragments.append("<tr>")
+            par_detail = child_sites.get(parent_id, None) or device_info.get(parent_id, None)
+            par_status = statuses.get(parent_id, {})
+            entryname = "&nbsp;"*level + build_link(par_detail.name if par_detail else parent_id, "/view/%s" % parent_id)
+            if parent_id == resource_id:
+                entryname = "<b>" + entryname + "</b>"
+            fragments.append("<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>" % (
+                entryname,
+                par_detail._get_type() if par_detail else "?",
+                stat(par_status, 'agg'), stat(par_status, 'power'), stat(par_status, 'comms'), stat(par_status, 'data'), stat(par_status, 'loc')))
+            fragments.append("</tr>")
+            device = devices.get(parent_id, None)
+            if device:
+                status_table(device[1], level+1)
+
+            ch_ids = ancestors.get(parent_id, None) or []
+            for ch_id in ch_ids:
+                status_table(ch_id, level+1)
+
+        status_table(root_id, 0)
+        fragments.append("</table></p>")
+        fragments.append("<pre>%s</pre>" % (pprint.pformat(statuses))),
+
+    else:
+        fragments.append("<pre>%s</pre>" % (pprint.pformat(statuses))),
+
+    fragments.append("<pre>")
+    content = "\n".join(fragments)
+    return content
 
 # ----------------------------------------------------------------------------------------
 
@@ -771,51 +892,6 @@ def process_assoc_list():
         return flask.redirect("/")
     except Exception, e:
         return build_error_page(traceback.format_exc())
-
-# ----------------------------------------------------------------------------------------
-
-@app.route('/nested/<rid>', methods=['GET','POST'])
-def process_nested(rid):
-    try:
-        rid = str(rid)
-        res = find_subordinate_entity(rid, None)
-
-        fragments = [
-            build_standard_menu(),
-            "<h1>Child entities</h1>",
-            "<p>%s</p>" % (res),
-
-            ]
-        content = "\n".join(fragments)
-        return build_page(content)
-
-    except Exception, e:
-        return build_error_page(traceback.format_exc())
-
-
-def find_subordinate_entity(self, parent_resource_id='', child_resource_type_list=None):
-    if not child_resource_type_list:
-        child_resource_type_list = set(["InstrumentSite", "PlatformSite", "Subsite"])
-    matchlist = []
-    parents = _get_all_parents()
-    for rid in parents:
-        rt,pid = parents[rid]
-        if rt not in child_resource_type_list:
-            continue
-        while pid:
-            if pid == parent_resource_id:
-                matchlist.append(rid)
-                continue
-            _,pid = parents.get(pid, (None,None))
-
-    return matchlist
-
-def _get_all_parents():
-    parents = {}
-    assocs1 = Container.instance.resource_registry.find_associations(predicate=PRED.hasSite, id_only=False)
-    for assoc in assocs1:
-        parents[assoc.o] = (assoc.st, assoc.s)
-    return parents
 
 # ----------------------------------------------------------------------------------------
 
