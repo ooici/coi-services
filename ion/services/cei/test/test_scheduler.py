@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 
-
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.event.event import EventSubscriber
-from pyon.core.bootstrap import CFG
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from nose.plugins.attrib import attr
-from ion.services.cei.scheduler_service import SchedulerService
 import gevent
 import datetime
 from datetime import timedelta
 import time
 import math
-import unittest
+from pyon.public import log
 
 class FakeProcess(LocalContextMixin):
     name = 'scheduler_test'
@@ -61,6 +58,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         event_origin = "Interval_Timer_233"
         sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
         sub.start()
+        self.addCleanup(sub.stop)
 
         start_time = self.now_utc()
         self.interval_timer_end_time = start_time + 10
@@ -97,6 +95,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         # Validate the number of timer counts
         self.assertEqual(self.interval_timer_count, timer_counts, "Invalid number of timeouts generated. Number of timeout: %d Expected timeout: %d Timer id: %s " %(self.interval_timer_count, timer_counts, id))
 
+
     def test_system_restart(self):
         # create the interval timer resource
         # create the event listener
@@ -113,6 +112,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         event_origin = "Interval_Timer_4444"
         sub = EventSubscriber(event_type="ResourceEvent", callback=self.on_restart_callback, origin=event_origin)
         sub.start()
+        self.addCleanup(sub.stop)
 
         start_time = self.now_utc()
         self.interval_timer_end_time = start_time + 20
@@ -165,6 +165,7 @@ class TestSchedulerService(IonIntegrationTestCase):
 
     def on_restart_callback(self, *args, **kwargs):
         self.interval_timer_count += 1
+        log.debug("test_scheduler: on_restart_callback: time: " + str(self.now_utc()) + " count: " + str(self.interval_timer_count))
 
     def test_create_interval_timer_with_end_time(self):
         # create the interval timer resource
@@ -174,32 +175,43 @@ class TestSchedulerService(IonIntegrationTestCase):
         # Validate no more events are published after end_time expires
         # Validate the timer was canceled after the end_time expires
 
-        self.interval_timer_count = 0
-        self.interval_timer_sent_time = 0
-        self.interval_timer_received_time = 0
-        self.interval_timer_interval = 2
+        self.interval_timer_count_2 = 0
+        self.interval_timer_sent_time_2 = 0
+        self.interval_timer_received_time_2 = 0
+        self.interval_timer_interval_2 = 3
 
-        event_origin = "Interval Timer"
-        sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
+        event_origin = "Interval_Timer_2"
+        sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback_with_end_time, origin=event_origin)
         sub.start()
+        self.addCleanup(sub.stop)
 
         start_time = self.now_utc()
-        self.interval_timer_end_time = start_time + 5
-        id = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval,
-            end_time=self.interval_timer_end_time,
+        self.interval_timer_end_time_2 = start_time + 7
+        id = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval_2,
+            end_time=self.interval_timer_end_time_2,
             event_origin=event_origin, event_subtype="")
-        self.interval_timer_sent_time = datetime.datetime.utcnow()
+        self.interval_timer_sent_time_2 = datetime.datetime.utcnow()
         self.assertEqual(type(id), str)
 
         # Wait until all events are published
-        gevent.sleep((self.interval_timer_end_time - start_time) + self.interval_timer_interval + 1)
+        gevent.sleep((self.interval_timer_end_time_2 - start_time) + self.interval_timer_interval_2 + 1)
 
         # Validate the number of events generated
-        self.assertEqual(self.interval_timer_count, 2, "Invalid number of timeouts generated. Number of event: %d Expected: 2 Timer id: %s " %(self.interval_timer_count, id))
+        self.assertEqual(self.interval_timer_count_2, 2, "Invalid number of timeouts generated. Number of event: %d Expected: 2 Timer id: %s " %(self.interval_timer_count_2, id))
 
         # Validate the timer was canceled after the end_time is expired
         with self.assertRaises(BadRequest):
             self.ssclient.cancel_timer(id)
+
+    def interval_timer_callback_with_end_time(self, *args, **kwargs):
+        self.interval_timer_received_time_2 = datetime.datetime.utcnow()
+        self.interval_timer_count_2 += 1
+        time_diff = math.fabs( ((self.interval_timer_received_time_2 - self.interval_timer_sent_time_2).total_seconds())
+                               - (self.interval_timer_interval_2 * self.interval_timer_count_2) )
+        # Assert expire time is within +-10 seconds
+        self.assertTrue(time_diff <= 10)
+        log.debug("test_scheduler: interval_timer_callback_with_end_time: time:" + str(self.interval_timer_received_time_2) + " count:" + str(self.interval_timer_count_2))
+
 
     def interval_timer_callback(self, *args, **kwargs):
         self.interval_timer_received_time = datetime.datetime.utcnow()
@@ -208,6 +220,7 @@ class TestSchedulerService(IonIntegrationTestCase):
                                - (self.interval_timer_interval * self.interval_timer_count) )
         # Assert expire time is within +-10 seconds
         self.assertTrue(time_diff <= 10)
+        log.debug("test_scheduler: interval_timer_callback: time:" + str(self.interval_timer_received_time) + " count:" + str(self.interval_timer_count))
 
     def test_cancel_single_timer(self):
         # test creating a new timer that is one-time-only
@@ -226,8 +239,9 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.single_timer_count = 0
         event_origin = "Time_of_Day"
 
-        sub = EventSubscriber(event_type="ResourceEvent", callback=self.single_timer_call_back, origin=event_origin)
+        sub = EventSubscriber(event_type="ResourceEvent", callback=self.single_timer_callback, origin=event_origin)
         sub.start()
+        self.addCleanup(sub.stop)
 
         now = datetime.datetime.utcnow() + timedelta(seconds=3)
         times_of_day =[{'hour': str(now.hour),'minute' : str(now.minute), 'second':str(now.second) }]
@@ -239,9 +253,9 @@ class TestSchedulerService(IonIntegrationTestCase):
         # Validate the event is not generated
         self.assertEqual(self.single_timer_count, 0, "Invalid number of timeouts generated. Number of timeout: %d Expected timeout: 0 Timer id: %s " %(self.single_timer_count, id))
 
-
-    def single_timer_call_back (self, *args, **kwargs):
+    def single_timer_callback (self, *args, **kwargs):
         self.single_timer_count =+ 1
+        log.debug("test_scheduler: single_timer_call_back: time:" + str(self.now_utc()) + " count:" + str(self.single_timer_count))
 
     def test_create_forever_interval_timer(self):
         # Test creating interval timer that runs forever
@@ -254,6 +268,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         event_origin = "Interval Timer Forever"
         sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
         sub.start()
+        self.addCleanup(sub.stop)
 
         id = self.ssclient.create_interval_timer(start_time= self.now_utc(), interval=self.interval_timer_interval,
             end_time=-1,
@@ -295,6 +310,7 @@ class TestSchedulerService(IonIntegrationTestCase):
 
         sub = EventSubscriber(event_type="ResourceEvent", callback=self.tod_callback, origin=event_origin)
         sub.start()
+        self.addCleanup(sub.stop)
 
         # Expires in one days
         expires = time.mktime((datetime.datetime.utcnow() + timedelta(days=2)).timetuple())
@@ -315,6 +331,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.ssclient.cancel_timer(id)
 
 
+
     def tod_callback(self, *args, **kwargs):
         tod_receive_time = datetime.datetime.utcnow()
         self.tod_count += 1
@@ -324,5 +341,6 @@ class TestSchedulerService(IonIntegrationTestCase):
         elif self.tod_count == 2:
             time_diff = math.fabs((tod_receive_time - self.tod_sent_time).total_seconds() - self.expire_sec_2)
             self.assertTrue(time_diff <= 2)
+        log.debug("test_scheduler: tod_callback: time:" + str(tod_receive_time) + " count:" + str(self.tod_count))
 
 

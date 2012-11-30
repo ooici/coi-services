@@ -571,7 +571,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not process_def_obj:
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
-        self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
+        # if no comms_config specified in the driver config
+        if not 'comms_config' in instrument_agent_instance_obj.driver_config:
+            self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
+        # if the comms_config host addr in the driver config is localhost
+        elif 'addr' in instrument_agent_instance_obj.driver_config['comms_config'] and \
+             instrument_agent_instance_obj.driver_config['comms_config']['addr'] == 'localhost':
+                log.debug("IMS:start_instrument_agent_instance comms_server_address: %s", str(instrument_agent_instance_obj.driver_config['comms_config']['addr']) )
+                self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
 
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
 
@@ -623,7 +630,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         driver_config = instrument_agent_instance_obj.driver_config
         comms_config = driver_config.get('comms_config')
-        if(comms_config):
+        if comms_config:
             host = comms_config.get('addr')
         else:
             log.warn("No comms_config specified, using '%s'" % host)

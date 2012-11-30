@@ -197,6 +197,8 @@ class DiscoveryService(BaseDiscoveryService):
         """
         
         def edges(resource_ids=[]):
+            if not isinstance(resource_ids, list):
+                resource_ids = list(resource_ids)
             return self.clients.resource_registry.find_objects_mult(subjects=resource_ids,id_only=True)[0]
             
         visited_resources = deque(edges([resource_id]))
@@ -224,6 +226,8 @@ class DiscoveryService(BaseDiscoveryService):
         """
         
         def edges(resource_ids=[]):
+            if not isinstance(resource_ids,list):
+                resource_ids = list(resource_ids)
             return self.clients.resource_registry.find_subjects_mult(objects=resource_ids,id_only=True)[0]
             
         visited_resources = deque(edges([resource_id]))
@@ -252,6 +256,8 @@ class DiscoveryService(BaseDiscoveryService):
         # Retrieve edges for this resource
         #--------------------------------------------------------------------------------
         def edges(resource_ids=[]):
+            if not isinstance(resource_ids, list):
+                resource_ids = list(resource_ids)
             return self.clients.resource_registry.find_objects_mult(subjects=resource_ids,id_only=True)[0]
             
         gathered = deque()
@@ -278,6 +284,8 @@ class DiscoveryService(BaseDiscoveryService):
         # Retrieve edges for this resource
         #--------------------------------------------------------------------------------
         def edges(resource_ids=[]):
+            if not isinstance(resource_ids, list):
+                resource_ids = list(resource_ids)
             return self.clients.resource_registry.find_subjects_mult(objects=resource_ids,id_only=True)[0]
             
         gathered = deque()
@@ -676,6 +684,8 @@ class DiscoveryService(BaseDiscoveryService):
         if id_only:
             return resource_ids
 
+            if not isinstance(resource_ids, list):
+                resource_ids = list(resource_ids)
         resources = self.clients.resource_registry.read_mult(resource_ids)
 
         return resources
@@ -689,6 +699,8 @@ class DiscoveryService(BaseDiscoveryService):
         if id_only:
             return resource_ids
 
+            if not isinstance(resource_ids, list):
+                resource_ids = list(resource_ids)
         resources = self.clients.resource_registry.read_mult(resource_ids)
 
         return resources
