@@ -65,11 +65,16 @@ class fake_smtplib(object):
         log.info("In fake_smtplib.SMTP method call. class: %s, host: %s" % (str(cls), str(host)))
         return cls(host)
 
-    def sendmail(self, msg_sender, msg_recipient, msg):
-        log.warning('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipient))
+    def sendmail(self, msg_sender= None, msg_recipients=None, msg=None):
+        log.warning('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipients))
         log.info("Fake message sent: %s" % msg)
-        self.sent_mail.put((msg_sender, msg_recipient, msg))
+        self.sent_mail.put((msg_sender, msg_recipients[0], msg))
 
+    def quit(self):
+        """
+        Its a fake smtp client used only for tests. So no need to do anything here...
+        """
+        pass
 
 def setting_up_smtp_client():
     '''
@@ -80,20 +85,23 @@ def setting_up_smtp_client():
     # the default smtp server
     #------------------------------------------------------------------------------------
 
-    ION_SMTP_SERVER = 'mail.oceanobservatories.org'
+    ION_SMTP_SERVER = 'Mail.oceanobservatories.org'
 
     smtp_host = CFG.get_safe('server.smtp.host', ION_SMTP_SERVER)
-    smtp_port = CFG.get_safe('server.smtp.port', 25)
-    smtp_sender = CFG.get_safe('server.smtp.sender')
-    smtp_password = CFG.get_safe('server.smtp.password')
+#    smtp_port = CFG.get_safe('server.smtp.port', 25)
+#    smtp_sender = CFG.get_safe('server.smtp.sender')
+#    smtp_password = CFG.get_safe('server.smtp.password')
 
     if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
         log.debug('Using the real SMTP library to send email notifications!')
 
+#        smtp_client = smtplib.SMTP(smtp_host)
+#        smtp_client.ehlo()
+#        smtp_client.starttls()
+#        smtp_client.login(smtp_sender, smtp_password)
+
         smtp_client = smtplib.SMTP(smtp_host)
-        smtp_client.ehlo()
-        smtp_client.starttls()
-        smtp_client.login(smtp_sender, smtp_password)
+
 
     else:
         log.debug('Using a fake SMTP library to simulate email notifications!')
@@ -143,20 +151,16 @@ def send_email(message, msg_recipient, smtp_client):
     # the 'from' email address for notification emails
     #------------------------------------------------------------------------------------
 
-    ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
-
-    msg_sender = ION_NOTIFICATION_EMAIL_ADDRESS
+    ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
+    smtp_sender = CFG.get_safe('server.smtp.sender', ION_NOTIFICATION_EMAIL_ADDRESS)
 
     msg = MIMEText(msg_body)
     msg['Subject'] = msg_subject
-    msg['From'] = msg_sender
+    msg['From'] = smtp_sender
     msg['To'] = msg_recipient
-    log.debug("UserEventProcessor.subscription_callback(): sending email to %s"\
-    %msg_recipient)
+    log.debug("UNS sending email from %s to %s" % ( smtp_sender,msg_recipient))
 
-    smtp_sender = CFG.get_safe('server.smtp.sender')
-
-    smtp_client.sendmail(smtp_sender, msg_recipient, msg.as_string())
+    smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
 
 #    if CFG.get_safe('system.smtp',False):
 #        smtp_client.close()
