@@ -1870,9 +1870,12 @@ class IONLoader(ImmediateProcess):
             configuration = self._get_typed_value(configuration, targettype="dict")
             configuration["in_dp_id"] = in_dp_id
 
+        persist_data = False
+        if row["persist_data"] == "TRUE":
+            persist_data = True
         #Create and start the workflow
         workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_definition_id=workflow_def_id,
-            input_data_product_id=in_dp_id, configuration=configuration, timeout=30)
+            input_data_product_id=in_dp_id, persist_workflow_data_product=persist_data, configuration=configuration, timeout=30)
 
     def _load_Deployment(self,row):
         constraints = self._get_constraints(row, type='Deployment')

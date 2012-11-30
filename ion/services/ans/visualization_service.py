@@ -422,6 +422,7 @@ class VisualizationService(BaseVisualizationService):
 
         # Extract the retrieval related parameters. Definitely init all parameters first
         query = None
+        image_name = None
         if visualization_parameters :
             query = {'parameters':[]}
             # Error check and damage control. Definitely need time
@@ -437,22 +438,36 @@ class VisualizationService(BaseVisualizationService):
             if 'end_time' in visualization_parameters:
                 query['end_time'] = visualization_parameters['end_time']
 
+            # If an image_name was given, it means the image is already in the storage. Just need the latest granule.
+            # ignore other paramters passed
+            if 'image_name' in visualization_parameters:
+                image_name = visualization_parameters['image_name']
+
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+        #print ">>>>>>>>>>>>>>>>>>>>>>>>> DS_IDS = ", ds_ids
         if ds_ids is None or not ds_ids:
+            log.warn("Specified dataproduct does not have an associated dataset")
             return None
 
         # Ideally just need the latest granule to figure out the list of images
-        #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
+        if image_name:
+            retrieved_granule = self.clients.data_retriever.retrieve_last_granule(ds_ids[0])
+        else:
+            retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
 
+        #print " >>>>>>>>>>>> RETRIEVED GRANULE : " , retrieved_granule
         if retrieved_granule is None:
             return None
 
-        # send the granule through the transform to get the matplotlib graphs
-        mpl_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
-        mpl_stream_def = self.clients.pubsub_management.create_stream_definition('mpl', parameter_dictionary_id=mpl_pdict_id)
-        mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=visualization_parameters, params=mpl_stream_def)
+        # no need to pass data through transform if its already a pre-computed image
+        if image_name:
+            mpl_data_granule = retrieved_granule
+        else:
+            # send the granule through the transform to get the matplotlib graphs
+            mpl_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
+            mpl_stream_def = self.clients.pubsub_management.create_stream_definition('mpl', parameter_dictionary_id=mpl_pdict_id)
+            mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=visualization_parameters, params=mpl_stream_def)
 
         if mpl_data_granule == None:
             return None

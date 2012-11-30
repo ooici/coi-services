@@ -612,7 +612,7 @@ def get_visualization_image(data_product_id, img_name):
     vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
     
     visualization_params = dict()
-    visualization_params['image'] = img_name
+    visualization_params['image_name'] = img_name
     #TODO - add additional query string parameters as needed to dict
 
     image_info = vs_cli.get_visualization_image(data_product_id, visualization_params)

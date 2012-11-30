@@ -307,7 +307,8 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=20)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id,
+            persist_workflow_data_product=True, timeout=20)
 
         workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_output_ids) == 1 )
@@ -333,16 +334,10 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         # Check to see if ingestion worked. Extract the granules from data_retrieval.
         # First find the dataset associated with the output dp product
         ds_ids,_ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasDataset, RT.DataSet, True)
+        retrieve_granule = self.data_retriever.retrieve_last_granule(ds_ids[0])
 
-
-#        def poller():
-#
-#            retrieve_granule = self.data_retriever.retrieve(ds_ids[0])
-#
-#            #Validate the data from each of the messages along the way
-#            return self.validate_mpl_graphs_transform_results(retrieve_granule)
-#
-#        poll(poller, timeout=10)
+        #Validate the data from each of the messages along the way
+        return self.validate_mpl_graphs_transform_results(retrieve_granule)
 
         #Cleanup to make sure delete is correct.
         self.workflowclient.delete_workflow_definition(workflow_def_id)

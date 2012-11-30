@@ -32,6 +32,7 @@ except:
     import sys
     print >> sys.stderr, "Cannot import matplotlib"
 
+mpl_output_image_format = "png"
 
 class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListener):
 
@@ -88,7 +89,7 @@ class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListe
         #Find out the input data product to this process
         in_dp_id = self.CFG.get_safe('in_dp_id')
 
-        print " >>>>>>>>>>>>>> IN DP ID from cfg : ", in_dp_id,  " and stream_names = ", self.stream_names
+        #print " >>>>>>>>>>>>>> IN DP ID from cfg : ", in_dp_id,  " and stream_names = ", self.stream_names
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.rrclient.find_objects(in_dp_id, PRED.hasDataset, RT.DataSet, True)
@@ -106,7 +107,8 @@ class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListe
         mpl_pdict_id = self.dsm_client.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
 
         mpl_stream_def = self.pubsub_client.create_stream_definition('mpl', parameter_dictionary_id=mpl_pdict_id)
-        mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=visualization_parameters, params=mpl_stream_def)
+        fileName = self.CFG.get_safe('graph_time_period')
+        mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=visualization_parameters, params=mpl_stream_def, fileName=fileName)
 
         if mpl_data_granule == None:
             return None
@@ -157,8 +159,8 @@ class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListe
 class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
     @staticmethod
     @SimpleGranuleTransformFunction.validate_inputs
-    def execute(input=None, context=None, config=None, params=None, state=None):
-        log.debug('Matplotlib transform: Received Viz Data Packet')
+    def execute(input=None, context=None, config=None, params=None, state=None, fileName = None):
+
         stream_definition_id = params
         mpl_allowed_numerical_types = ['int32', 'int64', 'uint32', 'uint64', 'float32', 'float64']
 
@@ -210,12 +212,12 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             else:
                 graph_data[varname].extend(vardict[varname])
 
-        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(graph_data, stream_definition_id)
+        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(graph_data, stream_definition_id, fileName)
 
         return out_granule
 
     @classmethod
-    def render_graphs(cls, graph_data, stream_definition_id):
+    def render_graphs(cls, graph_data, stream_definition_id, fileName = None):
 
         # init Matplotlib
         fig = Figure(figsize=(8,4), dpi=200, frameon=True)
@@ -273,7 +275,10 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             else:
                 yAxisLabel = varName
 
-        fileName = yAxisLabel + '_vs_' + xAxisVar + '.png'
+        if not fileName:
+            fileName = yAxisLabel + '_vs_' + xAxisVar
+
+        fileName = fileName + "." + mpl_output_image_format
 
         # Choose a small font for the legend
         legend_font_prop = FontProperties()
@@ -291,19 +296,20 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
         #ax.xaxis.set_major_formatter(hfmt)
 
         # Save the figure to the in memory file
-        canvas.print_figure(imgInMem, format="png")
+        canvas.print_figure(imgInMem, format=mpl_output_image_format)
         imgInMem.seek(0)
 
         # Create output dictionary from the param dict
         out_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
 
-        print " OUT_RDT : ", out_rdt
         # Prepare granule content
         #out_dict = {}
         out_rdt["viz_product_type"] = ["matplotlib_graphs"]
         out_rdt["image_obj"] = [imgInMem.getvalue()]
         out_rdt["image_name"] = [fileName]
         out_rdt["content_type"] = ["image/png"]
+
+        #print " >>>>>>>>>> OUT_IMAGE_NAME : ", out_rdt['image_name']
 
         #out_rdt["graph_image_param_dict"] = np.array([out_dict])
         return out_rdt.to_granule()
