@@ -291,7 +291,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.smtp_client = setting_up_smtp_client()
 
-        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
+        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
 
         #---------------------------------------------------------------------------------------------------
         # Create an event processor
@@ -332,6 +332,9 @@ class UserNotificationService(BaseUserNotificationService):
 
         # Clean up the notification subscriptions' subscribers created in EmailEventProcessor object
         self.event_processor.cleanup()
+
+        # Close the smtp server
+        self.smtp_client.quit()
 
         super(UserNotificationService, self).on_quit()
 
@@ -929,12 +932,11 @@ class UserNotificationService(BaseUserNotificationService):
         msg['Subject'] = msg_subject
         msg['From'] = self.ION_NOTIFICATION_EMAIL_ADDRESS
         msg['To'] = msg_recipient
-        log.debug("EventProcessor.subscription_callback(): sending email to %s"\
-                  %msg_recipient)
+        log.debug("UNS sending batch (digest) email from %s to %s" % (self.ION_NOTIFICATION_EMAIL_ADDRESS, msg_recipient))
 
         smtp_sender = CFG.get_safe('server.smtp.sender')
 
-        smtp_client.sendmail(smtp_sender, msg_recipient, msg.as_string())
+        smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
 
     def update_user_info_object(self, user_id, new_notification, old_notification):
         """

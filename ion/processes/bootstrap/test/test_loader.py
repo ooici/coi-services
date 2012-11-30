@@ -63,7 +63,7 @@ class TestLoader(IonIntegrationTestCase):
         self.assertTrue(len(res) > 1)
         found = False
         for site in res:
-            if site.name=='Logical instrument 1 Demo':
+            if site.name=='Instrument site 1 Demo':
                 self.assertFalse(found, msg='Found more than one InstrumentSite "Logical instrument 1 Demo" -- should have preloaded one')
                 found = True
                 self.assertFalse(site.constraint_list is None)
