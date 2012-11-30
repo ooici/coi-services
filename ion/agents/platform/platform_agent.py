@@ -135,6 +135,10 @@ class PlatformAgent(ResourceAgent):
         self._stream_defs = {}
         self._data_publishers = {}
 
+        # Set of parameter names received in event notification but not
+        # configured. Allows to log corresponding warning only once.
+        self._unconfigured_params = set()
+
         # {subplatform_id: (ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
 
@@ -196,6 +200,8 @@ class PlatformAgent(ResourceAgent):
         if self._plat_driver:
             self._plat_driver.destroy()
             self._plat_driver = None
+
+        self._unconfigured_params.clear()
 
     def _pre_initialize(self):
         """
@@ -506,8 +512,11 @@ class PlatformAgent(ResourceAgent):
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
         if param_name not in rdt:
-            log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r',
-                     self._platform_id, param_name, stream_name)
+            if param_name not in self._unconfigured_params:
+                # an unrecognized attribute for this platform:
+                self._unconfigured_params.add(param_name)
+                log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r',
+                         self._platform_id, param_name, stream_name)
             return
 
         # Note that notification from the driver has the form
