@@ -233,27 +233,26 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         log.debug("DemoStreamAlertTransform got the origin of the event as: %s" % self.origin)
 
         #-------------------------------------------------------------------------------------
-        # If there are any bad values, publish an alert event for each of them, with information about their time stamp
+        # If there are any bad values, publish an alert event for the granule
         #-------------------------------------------------------------------------------------
         if bad_values:
-            for bad_value, time_stamp in zip(bad_values, bad_value_times):
-                # Create the event object
-                event = DeviceStatusEvent(  origin = self.origin,
-                    origin_type='PlatformDevice',
-                    sub_type = self.instrument_variable_name,
-                    value = bad_value,
-                    ts_created=get_ion_ts(),
-                    time_stamp = time_stamp,
-                    valid_values = self.valid_values,
-                    state = DeviceStatusType.OUT_OF_RANGE,
-                    description = "Event to deliver the status of instrument.")
+            # Create the event object
+            event = DeviceStatusEvent(  origin = self.origin,
+                origin_type='PlatformDevice',
+                sub_type = self.instrument_variable_name,
+                values = bad_value,
+                ts_created=get_ion_ts(),
+                time_stamps = time_stamp,
+                valid_values = self.valid_values,
+                state = DeviceStatusType.OUT_OF_RANGE,
+                description = "Event to deliver the status of instrument.")
 
-                # Publish the event
-                self.publisher._publish_event(  event_msg = event,
-                    origin=event.origin,
-                    event_type = event.type_)
+            # Publish the event
+            self.publisher._publish_event(  event_msg = event,
+                origin=event.origin,
+                event_type = event.type_)
 
-                log.debug("DemoStreamAlertTransform published event:::: %s" % event)
+            log.debug("DemoStreamAlertTransform published event:::: %s" % event)
 
     def process_event(self, msg, headers):
         """
