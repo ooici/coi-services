@@ -264,6 +264,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self._start_container()
         self.addCleanup(UserNotificationIntTest.es_cleanup)
+
         self.container.start_rel_from_url('res/deploy/r2deploy.yml', config)
 
         self.unsc = UserNotificationServiceClient()
@@ -277,7 +278,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         process = FakeProcess()
         self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=process)
 
-        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'ION_notifications-do-not-reply@oceanobservatories.org'
+        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
 
     def event_poll(self, poller, timeout):
         success = False
@@ -286,8 +287,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 success = poller()
                 gevent.sleep(0.1) # Let the sockets close by yielding this greenlet
         return success
-
-
 
 
     @staticmethod
