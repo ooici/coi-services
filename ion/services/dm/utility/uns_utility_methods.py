@@ -85,9 +85,7 @@ def setting_up_smtp_client():
     # the default smtp server
     #------------------------------------------------------------------------------------
 
-    ION_SMTP_SERVER = 'Mail.oceanobservatories.org'
-
-    smtp_host = CFG.get_safe('server.smtp.host', ION_SMTP_SERVER)
+    smtp_host = CFG.get_safe('server.smtp.host')
 #    smtp_port = CFG.get_safe('server.smtp.port', 25)
 #    smtp_sender = CFG.get_safe('server.smtp.sender')
 #    smtp_password = CFG.get_safe('server.smtp.password')
