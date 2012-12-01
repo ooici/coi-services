@@ -129,6 +129,7 @@ class IONLoader(ImmediateProcess):
     COL_ORGS = "org_ids"
 
     ID_ORG_ION = "ORG_ION"
+    ID_SYSTEM_ACTOR = "USER_SYSTEM"
 
     def on_start(self):
         # Main operation to perform
@@ -298,6 +299,11 @@ class IONLoader(ImmediateProcess):
             raise iex.BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
         ion_org_id = org_objs[0]._id
         self._register_id(self.ID_ORG_ION, ion_org_id, org_objs[0])
+
+        system_actor, _ = self.container.resource_registry.find_resources(
+            RT.ActorIdentity, name=self.CFG.system.system_actor, id_only=False)
+        system_actor_id = system_actor[0]._id if system_actor else 'anonymous'
+        self._register_id(self.ID_SYSTEM_ACTOR, system_actor_id, system_actor[0] if system_actor else None)
 
     def _prepare_incremental(self):
         """
@@ -761,6 +767,7 @@ class IONLoader(ImmediateProcess):
         name = row["name"]
         description = row['description']
         ims = self._get_service_client("identity_management")
+        system_actor_headers = {'ion-actor-id': self.resource_ids[self.ID_SYSTEM_ACTOR]}
 
         # Prepare contact and UserInfo attributes
         contacts = self._get_contacts(row, field='contact_id', type='User')
@@ -775,18 +782,18 @@ class IONLoader(ImmediateProcess):
         # Build ActorIdentity
         actor_name = "Identity for %s" % user_attrs['name']
         actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
-        actor_id = ims.create_actor_identity(actor_identity_obj)
+        actor_id = ims.create_actor_identity(actor_identity_obj, headers=system_actor_headers)
         actor_identity_obj._id = actor_id
         self._register_id(alias, actor_id, actor_identity_obj)
 
         # Build UserCredentials
         user_credentials_obj = IonObject("UserCredentials", name=subject,
             description="Default credentials for %s" % user_attrs['name'])
-        ims.register_user_credentials(actor_id, user_credentials_obj)
+        ims.register_user_credentials(actor_id, user_credentials_obj, headers=system_actor_headers)
 
         # Build UserInfo
         user_info_obj = IonObject("UserInfo", **user_attrs)
-        ims.create_user_info(actor_id, user_info_obj)
+        ims.create_user_info(actor_id, user_info_obj, headers=system_actor_headers)
 
     def _load_Org(self, row):
         log.trace("Loading Org (ID=%s)", row[self.COL_ID])
