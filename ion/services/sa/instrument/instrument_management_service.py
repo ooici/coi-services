@@ -485,9 +485,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
             for model_stream_name, stream_info_dict  in streams_dict.items():
 
-                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict['stream_def_id'],
+                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict.get('stream_def_id'),
                                                                             stream_def_ids[0]):
-                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict['param_dict_name'])
+                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
                     stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
 
                     stream_config_too[model_stream_name] = {'routing_key'           : stream_route.routing_key,
@@ -518,13 +518,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         stream_config = self._generate_stream_config(instrument_device_id)
 
         # Create driver config.
+
         driver_config = {
             'dvr_mod' : instrument_agent_obj.driver_module,
             'dvr_cls' : instrument_agent_obj.driver_class,
-            'workdir' : tempfile.tempdir,
+            'workdir' : tempfile.gettempdir(),
             'process_type' : ('ZMQPyClassDriverLauncher',),
-            'comms_config' : instrument_agent_instance_obj.driver_config['comms_config'],
-            'pagent_pid' : instrument_agent_instance_obj.driver_config['pagent_pid']
+            'comms_config' : instrument_agent_instance_obj.driver_config.get('comms_config'),
+            'pagent_pid' : instrument_agent_instance_obj.driver_config.get('pagent_pid')
         }
 
         # Create agent config.
@@ -575,7 +576,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not 'comms_config' in instrument_agent_instance_obj.driver_config:
             self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
         # if the comms_config host addr in the driver config is localhost
-        elif 'addr' in instrument_agent_instance_obj.driver_config['comms_config'] and \
+        elif 'addr' in instrument_agent_instance_obj.driver_config.get('comms_config') and \
              instrument_agent_instance_obj.driver_config['comms_config']['addr'] == 'localhost':
                 log.debug("IMS:start_instrument_agent_instance comms_server_address: %s", str(instrument_agent_instance_obj.driver_config['comms_config']['addr']) )
                 self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
@@ -1117,7 +1118,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         agent_config = platform_agent_instance_obj.agent_config
         if 'agent' not in agent_config:
             agent_config['agent'] = {'resource_id': platform_device_id}
-        elif 'resource_id' not in agent_config['agent']:
+        elif 'resource_id' not in agent_config.get('agent'):
             agent_config['agent']['resource_id'] = platform_device_id
 
         # TODO: for platform_id in children in topology:
