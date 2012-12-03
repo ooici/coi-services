@@ -267,7 +267,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                 description = "Event to deliver the status of instrument."
             )
 
-            log.debug("DemoStreamAlertTransform published event:::: %s" % event)
+            log.debug("DemoStreamAlertTransform published event")
 
     def process_event(self, msg, headers):
         """
@@ -294,7 +294,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                     origin=event.origin,
                     event_type = event.type_)
 
-                log.debug("DemoStreamAlertTransform published a NO DATA event: %s" % event)
+                log.debug("DemoStreamAlertTransform published a NO DATA event")
 
             else:
                 self.granules.queue.clear()
@@ -345,7 +345,7 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
                 arr = rdt[time_names[index]]
                 bad_value_times.append(arr[index])
 
-        log.debug("Returning a bad_values: %s, bad_value_times: %s and the origin: %s" % (bad_values, bad_value_times, origin))
+        log.debug("Returning bad_values: %s, bad_value_times: %s and the origin: %s" % (bad_values, bad_value_times, origin))
 
         # return the list of bad values and their timestamps
         return bad_values, bad_value_times, origin
