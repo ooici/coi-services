@@ -232,6 +232,8 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         #-------------------------------------------------------------------------------------
         bad_values, bad_value_times, self.origin = AlertTransformAlgorithm.execute(msg, config = config)
 
+        if not bad_values: return
+
         log.debug("DemoStreamAlertTransform got the origin of the event as: %s" % self.origin)
 
         #-------------------------------------------------------------------------------------
@@ -311,7 +313,7 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
         if origin != input.data_producer_id:
             log.debug("Received an event of the correct type but the wrong source!")
-            return
+            return None, None, None
 
         log.debug("The origin the demo transform is listening to is: %s" % origin)
 
