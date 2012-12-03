@@ -237,20 +237,35 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         #-------------------------------------------------------------------------------------
         if bad_values:
             # Create the event object
-            event = DeviceStatusEvent(  origin = self.origin,
+#            event = DeviceStatusEvent(  origin = self.origin,
+#                origin_type='PlatformDevice',
+#                sub_type = self.instrument_variable_name,
+#                values = bad_value,
+#                ts_created=get_ion_ts(),
+#                time_stamps = time_stamp,
+#                valid_values = self.valid_values,
+#                state = DeviceStatusType.OUT_OF_RANGE,
+#                description = "Event to deliver the status of instrument.")
+#
+#            # Publish the event
+#            self.publisher._publish_event(  event_msg = event,
+#                origin=event.origin,
+#                event_type = event.type_)
+
+            #---------------------------------------------------------------------------------
+            # Publish the event
+            #---------------------------------------------------------------------------------
+            self.publisher.publish_event(
+                event_type = 'DeviceStatusEvent',
+                origin = self.origin,
                 origin_type='PlatformDevice',
                 sub_type = self.instrument_variable_name,
-                values = bad_value,
-                ts_created=get_ion_ts(),
-                time_stamps = time_stamp,
+                values = bad_values,
+                time_stamps = bad_value_times,
                 valid_values = self.valid_values,
                 state = DeviceStatusType.OUT_OF_RANGE,
-                description = "Event to deliver the status of instrument.")
-
-            # Publish the event
-            self.publisher._publish_event(  event_msg = event,
-                origin=event.origin,
-                event_type = event.type_)
+                description = "Event to deliver the status of instrument."
+            )
 
             log.debug("DemoStreamAlertTransform published event:::: %s" % event)
 
