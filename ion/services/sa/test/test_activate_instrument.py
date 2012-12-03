@@ -362,9 +362,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
         #log.debug( "test_activateInstrumentSample: extended_product computed %s", str(extended_product.computed) )
         #log.debug( "test_activateInstrumentSample: extended_product last_granule %s", str(extended_product.computed.last_granule.value) )
-        #self.assertEqual( extended_product.computed.last_granule.value['quality_flag'], 'ok' )
-        print("Fixme: last_granule.value['quality_flag'] should be 'ok', but we got '%s'" %
-              extended_product.computed.last_granule.value['quality_flag'])
+
+        # exact text here keeps changing to fit UI capabilities.  keep assertion general...
+        self.assertTrue( 'ok' in extended_product.computed.last_granule.value['quality_flag'] )
+
         self.assertEqual( 2, len(extended_product.computed.data_datetime.value) )
 
 
