@@ -269,7 +269,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                 # Publish the event
                 self.publisher.publish_event(
                     event_type = 'DeviceCommsEvent',
-                    origin = self.origin,
+                    origin = self.origin or "Not yet computed",
                     origin_type='PlatformDevice',
                     sub_type = self.instrument_variable_name,
                     time_stamp =int(time.time() + 2208988800),  # granules use NTP not unix
