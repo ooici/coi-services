@@ -376,7 +376,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
-                origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, value = 200 )
+                origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
                 origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
