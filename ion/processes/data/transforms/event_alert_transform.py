@@ -138,7 +138,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.timer_interval = None
         self.count = 0
         self.timer_cleanup = (None, None)
-        self.origin = "Not yet computed as no earlier granule was received from instrument"
+        self.origin = ""
 
     def on_start(self):
         super(DemoStreamAlertTransform,self).on_start()
@@ -151,6 +151,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.valid_values = self.CFG.get_safe('process.valid_values', [-200,200])
         self.timer_origin = self.CFG.get_safe('process.timer_origin', 'Interval Timer')
         self.timer_interval = self.CFG.get_safe('process.timer_interval', 6)
+        self.origin = self.CFG.get_safe('process.event_origin', "")
 
         # Check that valid_values is a list
         validate_is_instance(self.valid_values, list)
@@ -219,6 +220,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         config.valid_values = self.valid_values
         config.variable_name = self.instrument_variable_name
         config.time_field_name = self.time_field_name
+        config.origin = self.origin
 
         #-------------------------------------------------------------------------------------
         # Store the granule received
@@ -301,15 +303,19 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         @return bad_values, bad_value_times tuple of lists
         """
 
-        origin = input.data_producer_id
-        log.debug("DemoStreamAlertTransform received a granule from origin: %s" % origin)
-
-        rdt = RecordDictionaryTool.load_from_granule(input)
-
         # Retrieve the name used for the variable_name, the name used for timestamps and the range of valid values from the config
         valid_values = config.get_safe('valid_values', [-100,100])
         variable_name = config.get_safe('variable_name', 'input_voltage')
         preferred_time = config.get_safe('time_field_name', 'preferred_timestamp')
+        origin = config.get_safe('origin', input.data_producer_id)
+
+        if origin != input.data_producer_id:
+            log.debug("Received an event of the correct type but the wrong source!")
+            return
+
+        log.debug("The origin the demo transform is listening to is: %s" % origin)
+
+        rdt = RecordDictionaryTool.load_from_granule(input)
 
         # These variable_names will store the bad values and the timestamps of those values
         bad_values = []
