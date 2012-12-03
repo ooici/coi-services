@@ -236,25 +236,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         # If there are any bad values, publish an alert event for the granule
         #-------------------------------------------------------------------------------------
         if bad_values:
-            # Create the event object
-#            event = DeviceStatusEvent(  origin = self.origin,
-#                origin_type='PlatformDevice',
-#                sub_type = self.instrument_variable_name,
-#                values = bad_value,
-#                ts_created=get_ion_ts(),
-#                time_stamps = time_stamp,
-#                valid_values = self.valid_values,
-#                state = DeviceStatusType.OUT_OF_RANGE,
-#                description = "Event to deliver the status of instrument.")
-#
-#            # Publish the event
-#            self.publisher._publish_event(  event_msg = event,
-#                origin=event.origin,
-#                event_type = event.type_)
-
-            #---------------------------------------------------------------------------------
             # Publish the event
-            #---------------------------------------------------------------------------------
             self.publisher.publish_event(
                 event_type = 'DeviceStatusEvent',
                 origin = self.origin,
@@ -280,20 +262,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         if msg.origin == self.timer_origin:
 
             if self.granules.qsize() == 0:
-                # Create the event object
-#                event = DeviceCommsEvent( origin = self.origin,
-#                    origin_type='PlatformDevice',
-#                    sub_type = self.instrument_variable_name,
-#                    ts_created=get_ion_ts(),
-#                    time_stamp =int(time.time() + 2208988800),  # granules use NTP not unix
-#                    state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
-#                    lapse_interval_seconds=self.timer_interval,
-#                    description = "Event to deliver the communications status of the instrument.")
-#                # Publish the event
-#                self.publisher._publish_event(  event_msg = event,
-#                    origin=event.origin,
-#                    event_type = event.type_)
-
                 # Publish the event
                 self.publisher.publish_event(
                     event_type = 'DeviceCommsEvent',
