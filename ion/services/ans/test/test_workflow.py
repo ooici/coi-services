@@ -337,7 +337,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         retrieve_granule = self.data_retriever.retrieve_last_granule(ds_ids[0])
 
         #Validate the data from each of the messages along the way
-        return self.validate_mpl_graphs_transform_results(retrieve_granule)
+        self.validate_mpl_graphs_transform_results(retrieve_granule)
 
         #Cleanup to make sure delete is correct.
         self.workflowclient.delete_workflow_definition(workflow_def_id)

@@ -17,7 +17,7 @@ from nose.plugins.attrib import attr
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 
-from pyon.public import RT, PRED, LCE
+from pyon.public import RT, PRED, LCE, CFG
 from pyon.core.exception import BadRequest
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from interface.objects import AgentCommand
@@ -247,13 +247,13 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
 
         port_agent_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
+            'device_addr':  CFG.device.sbe37.host,
+            'device_port':  CFG.device.sbe37.port,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
             'port_agent_addr': 'localhost',
-            'command_port': 4002,
-            'data_port': 4003,
+            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+            'data_port': CFG.device.sbe37.port_agent_data_port,
             'log_level': 5,
             'type': PortAgentType.ETHERNET
         }
