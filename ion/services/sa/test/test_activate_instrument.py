@@ -144,14 +144,15 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         print "test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) " %\
                   instDevice_id
 
+
         port_agent_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
+            'device_addr':  CFG.device.sbe37.host,
+            'device_port':  CFG.device.sbe37.port,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
             'port_agent_addr': 'localhost',
-            'command_port': 4003,
-            'data_port': 4000,
+            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+            'data_port': CFG.device.sbe37.port_agent_data_port,
             'log_level': 5,
             'type': PortAgentType.ETHERNET
         }
@@ -362,9 +363,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
         #log.debug( "test_activateInstrumentSample: extended_product computed %s", str(extended_product.computed) )
         #log.debug( "test_activateInstrumentSample: extended_product last_granule %s", str(extended_product.computed.last_granule.value) )
-        #self.assertEqual( extended_product.computed.last_granule.value['quality_flag'], 'ok' )
-        print("Fixme: last_granule.value['quality_flag'] should be 'ok', but we got '%s'" %
-              extended_product.computed.last_granule.value['quality_flag'])
+
+        # exact text here keeps changing to fit UI capabilities.  keep assertion general...
+        self.assertTrue( 'ok' in extended_product.computed.last_granule.value['quality_flag'] )
+
         self.assertEqual( 2, len(extended_product.computed.data_datetime.value) )
 
 
@@ -376,7 +378,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
-                origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, value = 200 )
+                origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
                 origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 

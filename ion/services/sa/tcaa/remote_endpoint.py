@@ -102,8 +102,10 @@ class ServiceCommandQueue(object):
                     'result' : result
                 }
                 self._callback(cmd_result)
+            
+            
                     
-        self._greenelet = gevent.spawn(command_loop)
+        self._greenlet = gevent.spawn(command_loop)
 
     def stop(self):
         """
@@ -112,7 +114,7 @@ class ServiceCommandQueue(object):
             self._greenlet.kill()
             self._greenlet.join()
             self._greenlet = None
-
+            
     def insert(self, cmd):
         """
         """
@@ -171,6 +173,7 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
         """
         """
         for (id, queue) in self._service_command_queues.iteritems():
+            print 'stopping queue %s' % str(id)
             queue.stop()
         self._service_command_queues = {}
 
@@ -291,7 +294,8 @@ class RemoteEndpoint(BaseRemoteEndpoint, EndpointMixin):
         if self._client:
             log.debug('Remote endpoint enqueuing result %s.', str(result))
             self._client.enqueue(result)
-        log.warning('Received a result but no client available to transmit.')
+        else:
+            log.warning('Received a result but no client available to transmit.')
 
     ######################################################################    
     # Commands.

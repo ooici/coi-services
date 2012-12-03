@@ -22,7 +22,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StatusType
 
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, CFG
 from nose.plugins.attrib import attr
 from ooi.logging import log
 import unittest
@@ -298,13 +298,13 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                   instDevice_id)
 
         port_agent_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
+            'device_addr':  CFG.device.sbe37.host,
+            'device_port':  CFG.device.sbe37.port,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
             'port_agent_addr': 'localhost',
-            'command_port': 4002,
-            'data_port': 4003,
+            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+            'data_port': CFG.device.sbe37.port_agent_data_port,
             'log_level': 5,
             'type': PortAgentType.ETHERNET
         }

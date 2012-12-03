@@ -17,7 +17,7 @@ from interface.objects import AttachmentType
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest 
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, CFG
 from nose.plugins.attrib import attr
 
 from interface.objects import LastUpdate, ComputedValueAvailability
@@ -163,13 +163,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
 
         port_agent_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
+            'device_addr':  CFG.device.sbe37.host,
+            'device_port':  CFG.device.sbe37.port,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
             'port_agent_addr': 'localhost',
-            'command_port': 4003,
-            'data_port': 4000,
+            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+            'data_port': CFG.device.sbe37.port_agent_data_port,
             'log_level': 5,
             'type': PortAgentType.ETHERNET
         }

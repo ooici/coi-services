@@ -237,27 +237,23 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         log.debug("DemoStreamAlertTransform got the origin of the event as: %s" % self.origin)
 
         #-------------------------------------------------------------------------------------
-        # If there are any bad values, publish an alert event for each of them, with information about their time stamp
+        # If there are any bad values, publish an alert event for the granule
         #-------------------------------------------------------------------------------------
         if bad_values:
-            for bad_value, time_stamp in zip(bad_values, bad_value_times):
-                # Create the event object
-                event = DeviceStatusEvent(  origin = self.origin,
-                    origin_type='PlatformDevice',
-                    sub_type = self.instrument_variable_name,
-                    value = bad_value,
-                    ts_created=get_ion_ts(),
-                    time_stamp = time_stamp,
-                    valid_values = self.valid_values,
-                    state = DeviceStatusType.OUT_OF_RANGE,
-                    description = "Event to deliver the status of instrument.")
+            # Publish the event
+            self.publisher.publish_event(
+                event_type = 'DeviceStatusEvent',
+                origin = self.origin,
+                origin_type='PlatformDevice',
+                sub_type = self.instrument_variable_name,
+                values = bad_values,
+                time_stamps = bad_value_times,
+                valid_values = self.valid_values,
+                state = DeviceStatusType.OUT_OF_RANGE,
+                description = "Event to deliver the status of instrument."
+            )
 
-                # Publish the event
-                self.publisher._publish_event(  event_msg = event,
-                    origin=event.origin,
-                    event_type = event.type_)
-
-                log.debug("DemoStreamAlertTransform published event:::: %s" % event)
+            log.debug("DemoStreamAlertTransform published a BAD DATA event")
 
     def process_event(self, msg, headers):
         """
@@ -270,21 +266,19 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         if msg.origin == self.timer_origin:
 
             if self.granules.qsize() == 0:
-                # Create the event object
-                event = DeviceCommsEvent( origin = self.origin,
+                # Publish the event
+                self.publisher.publish_event(
+                    event_type = 'DeviceCommsEvent',
+                    origin = self.origin,
                     origin_type='PlatformDevice',
                     sub_type = self.instrument_variable_name,
-                    ts_created=get_ion_ts(),
                     time_stamp =int(time.time() + 2208988800),  # granules use NTP not unix
                     state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
                     lapse_interval_seconds=self.timer_interval,
-                    description = "Event to deliver the communications status of the instrument.")
-                # Publish the event
-                self.publisher._publish_event(  event_msg = event,
-                    origin=event.origin,
-                    event_type = event.type_)
+                    description = "Event to deliver the communications status of the instrument."
+                )
 
-                log.debug("DemoStreamAlertTransform published a NO DATA event: %s" % event)
+                log.debug("DemoStreamAlertTransform published a NO DATA event")
 
             else:
                 self.granules.queue.clear()
@@ -339,7 +333,7 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
                 arr = rdt[time_names[index]]
                 bad_value_times.append(arr[index])
 
-        log.debug("Returning a bad_values: %s, bad_value_times: %s and the origin: %s" % (bad_values, bad_value_times, origin))
+        log.debug("Returning bad_values: %s, bad_value_times: %s and the origin: %s" % (bad_values, bad_value_times, origin))
 
         # return the list of bad values and their timestamps
         return bad_values, bad_value_times, origin
