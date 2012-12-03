@@ -25,7 +25,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from mock import patch
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
-from ion.agents.port.port_agent_process import PortAgentProcessType
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 import gevent
 from sets import Set
 
@@ -234,6 +234,19 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             'command_port': 4002,
             'data_port': 4003,
             'log_level': 5,
+        }
+
+
+        port_agent_config = {
+            'device_addr':  CFG.device.sbe37.host,
+            'device_port':  CFG.device.sbe37.port,
+            'process_type': PortAgentProcessType.UNIX,
+            'binary_path': "port_agent",
+            'port_agent_addr': 'localhost',
+            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+            'data_port': CFG.device.sbe37.port_agent_data_port,
+            'log_level': 5,
+            'type': PortAgentType.ETHERNET
         }
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
