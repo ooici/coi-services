@@ -267,7 +267,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                 description = "Event to deliver the status of instrument."
             )
 
-            log.debug("DemoStreamAlertTransform published event")
+            log.debug("DemoStreamAlertTransform published a BAD DATA event")
 
     def process_event(self, msg, headers):
         """
@@ -281,18 +281,30 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
 
             if self.granules.qsize() == 0:
                 # Create the event object
-                event = DeviceCommsEvent( origin = self.origin,
+#                event = DeviceCommsEvent( origin = self.origin,
+#                    origin_type='PlatformDevice',
+#                    sub_type = self.instrument_variable_name,
+#                    ts_created=get_ion_ts(),
+#                    time_stamp =int(time.time() + 2208988800),  # granules use NTP not unix
+#                    state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
+#                    lapse_interval_seconds=self.timer_interval,
+#                    description = "Event to deliver the communications status of the instrument.")
+#                # Publish the event
+#                self.publisher._publish_event(  event_msg = event,
+#                    origin=event.origin,
+#                    event_type = event.type_)
+
+                # Publish the event
+                self.publisher.publish_event(
+                    event_type = 'DeviceCommsEvent',
+                    origin = self.origin,
                     origin_type='PlatformDevice',
                     sub_type = self.instrument_variable_name,
-                    ts_created=get_ion_ts(),
                     time_stamp =int(time.time() + 2208988800),  # granules use NTP not unix
                     state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
                     lapse_interval_seconds=self.timer_interval,
-                    description = "Event to deliver the communications status of the instrument.")
-                # Publish the event
-                self.publisher._publish_event(  event_msg = event,
-                    origin=event.origin,
-                    event_type = event.type_)
+                    description = "Event to deliver the communications status of the instrument."
+                )
 
                 log.debug("DemoStreamAlertTransform published a NO DATA event")
 
