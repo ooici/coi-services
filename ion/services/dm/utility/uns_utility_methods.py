@@ -175,11 +175,6 @@ def check_user_notification_interest(event, reverse_user_info):
     @retval user_ids list
     '''
 
-    user_list_1 = []
-    user_list_2 = []
-    user_list_3 = []
-    user_list_4 = []
-
     if not isinstance(event, Event):
         raise BadRequest("The input parameter should have been an Event.")
 
@@ -195,19 +190,36 @@ def check_user_notification_interest(event, reverse_user_info):
     if not event or not reverse_user_info:
         raise BadRequest("Missing input parameters for method, check_user_notification_interest().")
 
+    users = set()
+
     if reverse_user_info['event_origin'].has_key(event.origin):
-        user_list_1 = reverse_user_info['event_origin'][event.origin]
+        if event.origin: # for an incoming event that has origin specified (this should be true for almost all events)
+            user_list_1 = set(reverse_user_info['event_origin'][event.origin])
+            if reverse_user_info['event_origin'].has_key(''): # for users who subscribe to any event origins
+                user_list_1 += reverse_user_info['event_origin']['']
+            users = user_list_1
 
     if reverse_user_info['event_origin_type'].has_key(event.origin_type):
-        user_list_2 = reverse_user_info['event_origin_type'][event.origin_type]
+        if event.origin_type: # for an incoming event with origin type specified
+            user_list_2 = reverse_user_info['event_origin_type'][event.origin_type]
+            if reverse_user_info['event_origin_type'].has_key(''): # for users who subscribe to any event origin types
+                user_list_2 += reverse_user_info['event_origin_type']['']
+            users = set.intersection(users, user_list_2)
 
     if reverse_user_info['event_type'].has_key(event.type_):
         user_list_3 = reverse_user_info['event_type'][event.type_]
+        if reverse_user_info['event_type'].has_key(''): # for users who subscribe to any event types
+            user_list_3 += reverse_user_info['event_type']['']
+        users = set.intersection(users, user_list_3)
 
     if reverse_user_info['event_subtype'].has_key(event.sub_type):
-        user_list_4 = reverse_user_info['event_subtype'][event.sub_type]
+        if event.sub_type: # for an incoming event with the sub type specified
+            user_list_4 = reverse_user_info['event_subtype'][event.sub_type]
+            if reverse_user_info['event_subtype'].has_key(''): # for users who subscribe to any event subtypes
+                user_list_4 += reverse_user_info['event_subtype']['']
+            users = set.intersection(users, user_list_4)
 
-    users = list( set.intersection(set(user_list_1), set(user_list_2), set(user_list_3), set(user_list_4)))
+    users = list( users)
 
     return users
 
