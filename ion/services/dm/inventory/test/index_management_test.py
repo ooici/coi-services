@@ -316,35 +316,6 @@ class IndexManagementIntTest(IonIntegrationTestCase):
         for index_id in id_pool:
             rr_cli.delete(index_id)
 
-    @unittest.skip('Deprecated')
-    def test_list_indexes(self):
-        ims_cli = self.ims_cli
-        rr_cli  = self.rr_cli
-        index_name  = self.index_name
-        
-        #======================================
-        # Index Pool
-        #======================================
-        
-        indexes = [
-            Index(name='first'),
-            Index(name='second'),
-            Index(name='third')
-        ]
-        id_pool = list()
-        for index in indexes:
-            id_pool.append(rr_cli.create(index)[0])
-
-        names = set(ims_cli.list_indexes().keys())
-        self.assertTrue(names == set(['first','second','third']))
-
-        #======================================
-        # Clean up
-        #======================================
-
-        for index_id in id_pool:
-            rr_cli.delete(index_id)
-
     def test_create_collection(self):
         ims_cli = self.ims_cli
         rr_cli  = self.rr_cli
