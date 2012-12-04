@@ -6,6 +6,7 @@
 @author Swarbhanu Chatterjee
 '''
 from pyon.util.log import log
+from pyon.core.exception import NotFound
 from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.arg_check import validate_is_instance, validate_true
 from pyon.event.event import EventPublisher, EventSubscriber
@@ -303,7 +304,15 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         valid_values = config.get_safe('valid_values', [-100,100])
         variable_name = config.get_safe('variable_name', 'input_voltage')
         preferred_time = config.get_safe('time_field_name', 'preferred_timestamp')
-        origin = config.get_safe('origin', input.data_producer_id)
+
+        # Get the source of the granules which will be used to set the origin of the DeviceStatusEvent and DeviceCommsEvent events
+        origin = config.get_safe('origin')
+        if not origin:
+            origin = input.data_producer_id
+
+        if not origin:
+            raise NotFound("The DemoStreamAlertTransform could not figure out the origin. It needs to be provided an origin through a config for the DeviceStatus and DeviceCommsEvent events it will publish."
+                           "If not, then the data_producer_id attribute should be filled for the granules that are sent to it so that it can figure out the origin to use.")
 
         if origin != input.data_producer_id:
             log.debug("Received an event of the correct type but the wrong source!")
