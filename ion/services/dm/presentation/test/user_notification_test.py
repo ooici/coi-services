@@ -909,12 +909,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification_request_correct = NotificationRequest(   name = "notification_1",
             origin="instrument_1",
             origin_type="type_1",
-            event_type='ResourceLifecycleEvent')
+            event_type='ResourceLifecycleEvent',
+            event_subtype=''
+        )
 
         notification_request_2 = NotificationRequest(   name = "notification_2",
             origin="instrument_2",
             origin_type="type_2",
-            event_type='DetectionEvent')
+            event_type='DetectionEvent',
+            event_subtype=''
+        )
 
 
         #--------------------------------------------------------------------------------------

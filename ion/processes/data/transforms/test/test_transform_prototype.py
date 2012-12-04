@@ -334,7 +334,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                 'variable_name': 'input_voltage',
                 'time_field_name': 'preferred_timestamp',
                 'valid_values': self.valid_values,
-                'timer_origin': 'Interval Timer'
+                'timer_origin': 'Interval Timer',
+                'event_origin': 'instrument_1'
             }
         }
 
