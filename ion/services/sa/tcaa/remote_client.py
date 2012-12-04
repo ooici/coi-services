@@ -18,6 +18,9 @@ import inspect
 import copy
 import uuid
 
+#3rd party imports
+import gevent
+
 # Zope interfaces.
 from zope.interface import Interface, implements, directlyProvides
 from zope.interface.interface import InterfaceClass
