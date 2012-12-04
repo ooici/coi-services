@@ -105,7 +105,7 @@ class RegistrationProcess(StandaloneProcess):
                 dataset_element.appendChild(source_element)
 
                 reload_element = doc.createElement('reloadEveryNMinutes')
-                text_node = doc.createTextNode('1440')
+                text_node = doc.createTextNode('5')
                 reload_element.appendChild(text_node)
                 dataset_element.appendChild(reload_element)
 
