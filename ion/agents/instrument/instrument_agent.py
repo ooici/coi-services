@@ -828,8 +828,7 @@ class InstrumentAgent(ResourceAgent):
                      self._proc_name, stream_name)
             
         except:
-            log.error('Instrument agent %s could not publish data.',
-                      self._proc_name)
+            log.exception('Instrument agent %s could not publish data.', self._proc_name)
 
     def _async_driver_event_error(self, val, ts):
         """
