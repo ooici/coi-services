@@ -139,7 +139,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.timer_interval = None
         self.count = 0
         self.timer_cleanup = (None, None)
-        self.origin = ""
+        self.origin = ''
 
     def on_start(self):
         super(DemoStreamAlertTransform,self).on_start()
@@ -152,7 +152,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.valid_values = self.CFG.get_safe('process.valid_values', [-200,200])
         self.timer_origin = self.CFG.get_safe('process.timer_origin', 'Interval Timer')
         self.timer_interval = self.CFG.get_safe('process.timer_interval', 6)
-        self.origin = self.CFG.get_safe('process.event_origin', "")
 
         # Check that valid_values is a list
         validate_is_instance(self.valid_values, list)
@@ -221,7 +220,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         config.valid_values = self.valid_values
         config.variable_name = self.instrument_variable_name
         config.time_field_name = self.time_field_name
-        config.origin = self.origin
 
         #-------------------------------------------------------------------------------------
         # Store the granule received
@@ -232,8 +230,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         # Check for good and bad values in the granule
         #-------------------------------------------------------------------------------------
         bad_values, bad_value_times, self.origin = AlertTransformAlgorithm.execute(msg, config = config)
-
-        if not bad_values: return
 
         log.debug("DemoStreamAlertTransform got the origin of the event as: %s" % self.origin)
 
@@ -262,15 +258,15 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         """
         self.count += 1
 
-        log.debug("Got a timer event::: count: %s" % self.count )
+        log.debug("Got a timer event with count: %s" % self.count )
 
-        if msg.origin == self.timer_origin:
+        if msg.origin == self.timer_origin and self.origin:
 
             if self.granules.qsize() == 0:
                 # Publish the event
                 self.publisher.publish_event(
                     event_type = 'DeviceCommsEvent',
-                    origin = self.origin or "Not yet computed",
+                    origin = self.origin,
                     origin_type='PlatformDevice',
                     sub_type = self.instrument_variable_name,
                     time_stamp =int(time.time() + 2208988800),  # granules use NTP not unix
@@ -306,17 +302,11 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         preferred_time = config.get_safe('time_field_name', 'preferred_timestamp')
 
         # Get the source of the granules which will be used to set the origin of the DeviceStatusEvent and DeviceCommsEvent events
-        origin = config.get_safe('origin')
-        if not origin:
-            origin = input.data_producer_id
+
+        origin = input.data_producer_id
 
         if not origin:
-            raise NotFound("The DemoStreamAlertTransform could not figure out the origin. It needs to be provided an origin through a config for the DeviceStatus and DeviceCommsEvent events it will publish."
-                           "If not, then the data_producer_id attribute should be filled for the granules that are sent to it so that it can figure out the origin to use.")
-
-        if origin != input.data_producer_id:
-            log.debug("Received an event of the correct type but the wrong source!")
-            return None, None, None
+            raise NotFound("The DemoStreamAlertTransform could not figure out the origin for DeviceStatusEvent. The data_producer_id attribute should be filled for the granules that are sent to it so that it can figure out the origin to use.")
 
         log.debug("The origin the demo transform is listening to is: %s" % origin)
 
