@@ -32,8 +32,6 @@ from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
-from interface.objects import ProcessDefinition
 
 from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
@@ -44,7 +42,7 @@ import gevent
 
 from pyon.util.context import LocalContextMixin
 
-from interface.objects import ProcessStateEnum
+from interface.objects import ProcessStateEnum, StreamConfiguration, AgentCommand, ProcessDefinition
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
@@ -151,10 +149,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
         instModel_obj = IonObject(  RT.InstrumentModel,
             name='SBE37IMModel',
-            description="SBE37IMModel",
-            stream_configuration= {'raw': 'ctd_raw_param_dict' ,
-                                   'parsed': 'ctd_parsed_param_dict' }
-        )
+            description="SBE37IMModel"  )
         instModel_id = self.imsclient.create_instrument_model(instModel_obj)
 
         return instModel_id
@@ -194,10 +189,13 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             'type': PortAgentType.ETHERNET
         }
 
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
             description="SBE37IMAgentInstance",
-            port_agent_config = port_agent_config)
+            port_agent_config = port_agent_config,
+            stream_configurations = [raw_config, parsed_config])
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
             instAgent_id,

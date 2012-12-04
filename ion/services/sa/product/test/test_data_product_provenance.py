@@ -20,7 +20,7 @@ from pyon.core.exception import BadRequest
 from pyon.public import RT, PRED, CFG
 from nose.plugins.attrib import attr
 
-from interface.objects import LastUpdate, ComputedValueAvailability
+from interface.objects import StreamConfiguration
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.dm.utility.granule_utils import time_series_domain
 import base64
@@ -69,8 +69,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # Create InstrumentModel
         instModel_obj = IonObject(RT.InstrumentModel,
                                   name='SBE37IMModel',
-                                  description="SBE37IMModel",
-                                  stream_configuration= {'parsed': 'ctd_parsed_param_dict' } )
+                                  description="SBE37IMModel" )
 
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
@@ -175,9 +174,12 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         }
 
 
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
+
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
             description="SBE37IMAgentInstance",
-            port_agent_config = port_agent_config)
+            port_agent_config = port_agent_config,
+            stream_configurations = [parsed_config])
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
