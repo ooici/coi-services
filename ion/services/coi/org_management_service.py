@@ -551,7 +551,7 @@ class OrgManagementService(BaseOrgManagementService):
             raise BadRequest("A request to cancel enrollment in the root ION Org is not allowed")
 
         #First remove all associations to any roles
-        role_list = self.find_roles_by_user(org_id, user_id)
+        role_list = self.find_org_roles_by_user(org_id, user_id)
         for user_role in role_list:
             self._delete_role_association(org, user, user_role)
 
