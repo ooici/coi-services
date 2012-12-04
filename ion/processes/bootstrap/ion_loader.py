@@ -79,10 +79,10 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHdjdndOVkUyazZQaUNfYzBUSXJ3Rnc&output=xls"
+#TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHdjdndOVkUyazZQaUNfYzBUSXJ3Rnc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
-#TESTED_DOC=MASTER_DOC
+TESTED_DOC=MASTER_DOC
 
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
@@ -94,6 +94,7 @@ DEFAULT_CATEGORIES = [
     'CoordinateSystem',
     'ParameterDefs',
     'ParameterDictionary',
+    'StreamConfiguration',
     'SensorModel',
     'PlatformModel',
     'InstrumentModel',
@@ -171,7 +172,7 @@ class IONLoader(ImmediateProcess):
         self.unknown_fields = {} # track unknown fields so we only warn once
         self.constraint_defs = {} # alias -> value for refs, since not stored in DB
         self.contact_defs = {} # alias -> value for refs, since not stored in DB
-
+        self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
         # Loads internal bootstrapped resource ids that will be referenced during preload
         self._load_system_ids()
 
@@ -397,7 +398,7 @@ class IONLoader(ImmediateProcess):
             log.trace("Update object type %s using field names %s", objtype, obj_fields.keys())
             obj = existing_obj
         else:
-            if row[self.COL_ID] and 'alt_ids' in schema:
+            if self.COL_ID in row and row[self.COL_ID] and 'alt_ids' in schema:
                 if 'alt_ids' in obj_fields:
                     obj_fields['alt_ids'].append("PRE:"+row[self.COL_ID])
                 else:
@@ -1268,7 +1269,7 @@ class IONLoader(ImmediateProcess):
                 temporal_context=temporal_parameter,
                 headers=self._get_system_actor_headers())
         except NotFound as e:
-            log.error('Missing parameter context %s', e.message)
+            log.error('Parameter dictionary %s missing context: %s', row['name'], e.message)
 
     def _load_PlatformDevice(self, row):
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
@@ -1406,6 +1407,11 @@ class IONLoader(ImmediateProcess):
                     headers=self._get_system_actor_headers())
         self._resource_advance_lcs(row, res_id, "SensorDevice")
 
+    def _load_StreamConfiguration(self, row):
+        """ parse and save for use in *AgentInstance objects """
+        obj = self._create_object_from_row("StreamConfiguration", row, "cfg/")
+        self.stream_config[row['ID']] = obj
+
     def _load_InstrumentAgent(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
             "instrument_management", "create_instrument_agent",
@@ -1467,6 +1473,9 @@ class IONLoader(ImmediateProcess):
                                              'command_port':  int(row['comms_server_cmd_port']),
                                              'data_port':     int(row['comms_server_port']),
                                              'log_level':     5,  }
+
+        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
+        agent_instance.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
         # save
         agent_id = self.resource_ids[row["instrument_agent_id"]]
@@ -1531,6 +1540,9 @@ class IONLoader(ImmediateProcess):
                             'agent_streamconfig_map':  None,  # can we just omit?
                             'driver_config':           driver_config }
         agent_instance.agent_config = { 'platform_config': platform_config }
+
+        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
+        agent_instance.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
         id = self._get_service_client("instrument_management").create_platform_agent_instance(
             agent_instance, platform_agent_id, platform_device_id, headers=self._get_system_actor_headers())
