@@ -3,17 +3,17 @@
 """Observatory Management Service to keep track of observatories sites, logical platform sites, instrument sites,
 and the relationships between them"""
 
-from datetime import timedelta
 import time
 
 
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.util.containers import DotDict, create_unique_identifier
+from pyon.util.containers import create_unique_identifier
 from pyon.agent.agent import ResourceAgentState
 
 from ooi.logging import log
+
 from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
 from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
@@ -29,6 +29,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue
 
+from ion.util.related_resources_crawler import RelatedResourcesCrawler
 
 import constraint
 
@@ -1077,102 +1078,53 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         orgs,_ = self.RR.find_subjects(RT.Org, PRED.hasResource, observatory_id, id_only=False)
         return orgs
 
+
     def find_related_frames_of_reference(self, input_resource_id='', output_resource_type_list=None):
 
-        # function to retrieve all hasSite associations at once
-        # returns 2 lookup tables: (parents, children)
-        # each lookup table is resource_id -> [(type, resource_id), ...]
-        def _get_all_relations():
-            parents = {}
-            children = {}
-            assocs1 = self.RR.find_associations(predicate=PRED.hasSite, id_only=False)
-            for assoc in assocs1:
-                log.trace("_get_all_relations, %s '%s' %s %s '%s'", assoc.st, assoc.s, assoc.p, assoc.ot, assoc.o)
+        # use the related resources crawler
+        finder = RelatedResourcesCrawler()
 
-                if assoc.o in parents:
-                    log.warn("%s '%s' has multiple parents claiming it via %s association", assoc.ot, assoc.o, assoc.p)
-                parents[assoc.o] = [(assoc.st, assoc.s)]
+        # generate the partial function (cached association list)
+        get_assns = finder.generate_related_resources_partial(self.RR, [PRED.hasSite])
 
-                if assoc.s not in children:
-                    children[assoc.s] = []
-                children[assoc.s].append((assoc.ot, assoc.o))
+        # run 2 searches allowing all site-based resource types: one down (subj-obj), one up (obj-subj)
+        full_crawllist = [RT.InstrumentSite, RT.PlatformSite, RT.Subsite, RT.Observatory]
+        search_down = get_assns({PRED.hasSite: (True, False)}, full_crawllist)
+        search_up = get_assns({PRED.hasSite: (False, True)}, full_crawllist)
 
-            return parents, children
+        # the searches return a list of association objects, so compile all the ids by extracting them
+        retval_ids = set([])
 
-        parents, children = _get_all_relations()
+        # we want only those IDs that are not the input resource id
+        for a in search_down(input_resource_id, -1) + search_up(input_resource_id, -1):
+            if a.o not in retval_ids and a.o != input_resource_id:
+                retval_ids.add(a.o)
+            if a.s not in retval_ids and a.s != input_resource_id:
+                retval_ids.add(a.s)
 
-        retval_ids = {}
-        log.trace("retval_ids starts as %s", str(retval_ids))
-        for t in output_resource_type_list:
-            log.trace("adding retval_ids entry for %s", t)
-            retval_ids[t] = []
-        log.trace("retval_ids continues as %s", str(retval_ids))
-
-        log.trace("Find related frames %s to %s", output_resource_type_list, input_resource_id)
-        # take dict, list, and lookup table, return dict of type => ids
-        def _branch_out(acc1, itemlist, lookup):
-            assert type({}) == type(acc1)
-            assert type([]) == type(itemlist)
-            assert type({}) == type(lookup)
-            log.trace("branch_out acc1 is %s", str(acc1))
-
-            # take dict and itemlist, return dict of type => ids
-            def helper(acc2, items):
-                assert type({}) == type(acc2)
-                assert type([]) == type(items)
-                log.trace("helper acc2 is %s, items=%s", str(acc2), str(items))
-
-                if 0 == len(items):
-                    return acc2
-
-                # take dict and resource id, return dict of type => ids
-                def work(acc3, resource_id):
-                    log.trace("work acc3 is %s, evaluating '%s'", str(acc3), resource_id)
-                    if resource_id not in lookup:
-                        #log.debug("lookup fail")
-                        return acc3
-
-                    matches = lookup[resource_id]
-                    next_list = []
-                    for (rt, r_id) in matches:
-                        log.trace("match = (%s, '%s')", rt, r_id)
-                        if rt in acc3:
-                            acc3[rt].append(r_id)
-                        else:
-                            log.trace("ignoring %s '%s'", rt, r_id)
-                        next_list.append(r_id)
-
-                    log.trace("next_list = %s", str(next_list))
-
-                    return helper(acc3, next_list)
-
-                return reduce(work, items, acc2)
-
-            return helper(acc1, itemlist)
-
-
-        in_list = [input_resource_id]
-        log.trace("branching down to children with acc = %s", str(retval_ids))
-        low_branch = _branch_out(retval_ids, in_list, children)
-        log.trace("branching up to parents with acc = %s", str(low_branch))
-        retval_ids = _branch_out(low_branch, in_list, parents)
 
         log.debug("converting retrieved ids to objects = %s" % retval_ids)
-        retval = {}
 
-        res_ids = [res_id for resource_ids in retval_ids.itervalues() for res_id in resource_ids]
-        if res_ids:
-            all_res = self.RR.read_mult(res_ids)
+        #initialize the dict
+        retval = dict((restype, []) for restype in output_resource_type_list)
 
-            res_by_id = dict(zip([res._id for res in all_res], all_res))
-            for rt, resource_ids in retval_ids.iteritems():
-                retval[rt] = []
-                for resource_id in resource_ids:
-                    retval[rt].append(res_by_id[resource_id])
-        else:
-            retval = retval_ids
+        #workaround for read_mult problem
+        all_res = []
+        if retval_ids: all_res = self.RR.read_mult(list(retval_ids))
+        #all_res = self.RR.read_mult(retval_ids)
+
+        # put resources in the slot based on their type
+        for resource in all_res:
+            typename = type(resource).__name__
+            if typename in output_resource_type_list:
+                retval[typename].append(resource)
+
+        # display a count of how many resources we retrieved
+        log.debug("got these resources: %s", dict([(k, len(v)) for k, v in retval.iteritems()]))
 
         return retval
+
+
 
 
 

@@ -126,6 +126,7 @@ class TestAssembly(IonIntegrationTestCase):
         def gen_find_oms_association(output_type):
             def freeze():
                 def finder_fun(obj_id):
+                    log.debug("Finding related %s frames", output_type)
                     ret = c.OMS.find_related_frames_of_reference(obj_id, [output_type])
                     return ret[output_type]
                 return finder_fun
