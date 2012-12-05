@@ -338,13 +338,6 @@ class ZMQPyClassDriverProcess(DriverProcess):
 
         @param stream_info
 
-    def get_packet_factories(self, stream_info):
-        """
-        Construct packet factories from PACKET_CONFIG member of the driver_config
-        and the given stream_info dict.
-
-        @param stream_info
-
         @retval a dict indexed by stream name of the packet factories defined.
         """
 
