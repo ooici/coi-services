@@ -4,6 +4,7 @@
 @description A module containing common utility methods used by UNS and the notification workers.
 '''
 from pyon.public import get_sys_name, CFG
+from pyon.util.arg_check import validate_is_not_none
 from pyon.util.log import log
 from pyon.core.exception import NotFound, BadRequest
 from pyon.event.event import EventPublisher
@@ -84,14 +85,14 @@ def setting_up_smtp_client():
     #------------------------------------------------------------------------------------
     # the default smtp server
     #------------------------------------------------------------------------------------
-
+    smtp_client = None
     smtp_host = CFG.get_safe('server.smtp.host')
-#    smtp_port = CFG.get_safe('server.smtp.port', 25)
-#    smtp_sender = CFG.get_safe('server.smtp.sender')
-#    smtp_password = CFG.get_safe('server.smtp.password')
+    smtp_port = CFG.get_safe('server.smtp.port', 25)
+    smtp_sender = CFG.get_safe('server.smtp.sender')
+    smtp_password = CFG.get_safe('server.smtp.password')
 
     if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
-        log.debug('Using the real SMTP library to send email notifications!')
+        log.debug('Using the real SMTP library to send email notifications! host = %s' % smtp_host)
 
 #        smtp_client = smtplib.SMTP(smtp_host)
 #        smtp_client.ehlo()
@@ -100,7 +101,8 @@ def setting_up_smtp_client():
 
         smtp_client = smtplib.SMTP(smtp_host)
 
-
+        log.debug("Message received after ehlo exchange: %s" % str(smtp_client.ehlo()))
+#        smtp_client.login(smtp_sender, smtp_password)
     else:
         log.debug('Using a fake SMTP library to simulate email notifications!')
 
@@ -157,11 +159,9 @@ def send_email(message, msg_recipient, smtp_client):
     msg['From'] = smtp_sender
     msg['To'] = msg_recipient
     log.debug("UNS sending email from %s to %s" % ( smtp_sender,msg_recipient))
+    log.debug("UNS using the smtp client: %s" % smtp_client)
 
     smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
-
-#    if CFG.get_safe('system.smtp',False):
-#        smtp_client.close()
 
 def check_user_notification_interest(event, reverse_user_info):
     '''

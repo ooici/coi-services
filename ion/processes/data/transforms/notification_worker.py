@@ -104,6 +104,7 @@ class NotificationWorker(TransformEventListener):
         log.debug("Type of event received by notification worker: %s" % msg.type_)
         log.debug("Event received by notification worker: %s" % msg)
         log.debug("Notification worker deduced the following users were interested in the event: %s, event_type: %s, origin: %s" % (user_ids, msg.type_, msg.origin ))
+        log.debug("Using the smtp client server: %s" % self.smtp_client)
 
         #------------------------------------------------------------------------------------
         # Send email to the users

@@ -333,8 +333,8 @@ class UserNotificationService(BaseUserNotificationService):
         # Clean up the notification subscriptions' subscribers created in EmailEventProcessor object
         self.event_processor.cleanup()
 
-        # Close the smtp server
-        self.smtp_client.quit()
+#        # Close the smtp server
+#        self.smtp_client.quit()
 
         super(UserNotificationService, self).on_quit()
 
