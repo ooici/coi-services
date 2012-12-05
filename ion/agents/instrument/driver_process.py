@@ -418,7 +418,7 @@ class ZMQPyClassDriverProcess(DriverProcess):
 #        return self._packet_factories
 
 
-class ZMQEggDriverLauncher(DriverProcess):
+class ZMQEggDriverProcess(DriverProcess):
     """
     Object to facilitate driver processes launch from an egg as an 'eggsecutable'
     """
