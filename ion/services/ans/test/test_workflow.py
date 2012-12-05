@@ -3,7 +3,7 @@
 import unittest, os
 from nose.plugins.attrib import attr
 
-from pyon.public import CFG, RT, LCS, PRED,IonObject
+from pyon.public import log, CFG, RT, LCS, PRED,IonObject
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceProcessClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
@@ -262,16 +262,16 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         self.workflowclient.terminate_data_process_workflow(workflow_id, False)  # Should test true at some point
 
         #Validate the data from each of the messages along the way
-        #self.validate_google_dt_transform_results(results)
+        self.validate_google_dt_transform_results(results)
 
         """
         # Check to see if ingestion worked. Extract the granules from data_retrieval.
         # First find the dataset associated with the output dp product
         ds_ids,_ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasDataset, RT.DataSet, True)
-        retrieve_granule = self.data_retriever.retrieve(ds_ids[0])
+        retrieved_granule = self.data_retriever.retrieve(ds_ids[0])
 
         #Validate the data from each of the messages along the way
-        self.validate_google_dt_transform_results(retrieve_granule)
+        self.validate_google_dt_transform_results(retrieved_granule)
         """
 
         #Cleanup to make sure delete is correct.
@@ -334,10 +334,10 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         # Check to see if ingestion worked. Extract the granules from data_retrieval.
         # First find the dataset associated with the output dp product
         ds_ids,_ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasDataset, RT.DataSet, True)
-        retrieve_granule = self.data_retriever.retrieve_last_granule(ds_ids[0])
+        retrieved_granule = self.data_retriever.retrieve_last_granule(ds_ids[0])
 
         #Validate the data from each of the messages along the way
-        self.validate_mpl_graphs_transform_results(retrieve_granule)
+        self.validate_mpl_graphs_transform_results(retrieved_granule)
 
         #Cleanup to make sure delete is correct.
         self.workflowclient.delete_workflow_definition(workflow_def_id)
