@@ -123,7 +123,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_repo = self.container.instance.event_repository
 
-        self.smtp_client = setting_up_smtp_client()
 
         self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
 
@@ -747,10 +746,14 @@ class UserNotificationService(BaseUserNotificationService):
 
         msg_subject = "(SysName: " + get_sys_name() + ") ION event "
 
+        smtp_client = setting_up_smtp_client()
+
         self.send_batch_email(  msg_body = msg_body,
             msg_subject = msg_subject,
             msg_recipient=self.user_info[user_id]['user_contact'].email,
-            smtp_client=self.smtp_client )
+            smtp_client=smtp_client )
+
+        smtp_client.quit()
 
     def send_batch_email(self, msg_body, msg_subject, msg_recipient, smtp_client):
         """
