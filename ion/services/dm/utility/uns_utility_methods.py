@@ -100,7 +100,7 @@ def setting_up_smtp_client():
 #        smtp_client.login(smtp_sender, smtp_password)
 
         smtp_client = smtplib.SMTP(smtp_host)
-
+        log.debug("In setting up smtp client using the smtp client: %s" % smtp_client)
         log.debug("Message received after ehlo exchange: %s" % str(smtp_client.ehlo()))
 #        smtp_client.login(smtp_sender, smtp_password)
     else:
