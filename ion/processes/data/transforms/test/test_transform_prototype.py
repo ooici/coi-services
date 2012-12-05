@@ -334,7 +334,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                 'variable_name': 'input_voltage',
                 'time_field_name': 'preferred_timestamp',
                 'valid_values': self.valid_values,
-                'timer_origin': 'Interval Timer'
+                'timer_origin': 'Interval Timer',
+                'event_origin': 'instrument_1'
             }
         }
 
@@ -368,9 +369,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # publish a *GOOD* granule
         #-------------------------------------------------------------------------------------
         self.length = 2
-        times = numpy.array([l  for l in xrange(self.length)])
         val = numpy.array([random.uniform(0,50)  for l in xrange(self.length)])
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, times=times)
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val)
 
         self.assertTrue(queue_bad_data.empty())
 
@@ -379,17 +379,20 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         self.number = 2
         val = numpy.array([(110 + l)  for l in xrange(self.length)])
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val,  times = times)
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val)
 
-        for i in xrange(self.length * self.number):
-            event = queue_bad_data.get(timeout=20)
+        for number in xrange(self.number):
+            event = queue_bad_data.get(timeout=40)
             self.assertEquals(event.type_, "DeviceStatusEvent")
             self.assertEquals(event.origin, "instrument_1")
             self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
             self.assertEquals(event.valid_values, self.valid_values)
             self.assertEquals(event.sub_type, 'input_voltage')
-            self.assertTrue(event.value in val)
-            self.assertTrue(event.time_stamp in numpy.array([l  for l in xrange(self.length)]))
+            self.assertTrue(set(event.values) ==  set(val))
+
+            s = set(event.time_stamps)
+            cond = s in [set(numpy.array([1  for l in xrange(self.length)]).tolist()), set(numpy.array([2  for l in xrange(self.length)]).tolist())]
+            self.assertTrue(cond)
 
         # To ensure that only the bad values generated the alert events. Queue should be empty now
         self.assertEquals(queue_bad_data.qsize(), 0)
@@ -415,7 +418,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # publish a *GOOD* granule again
         #-------------------------------------------------------------------------------------
         val = numpy.array([(l + 20)  for l in xrange(self.length)])
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, times = times)
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val)
 
         self.assertTrue(queue_bad_data.empty())
 
@@ -431,13 +434,15 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
         self.assertEquals(event.sub_type, 'input_voltage')
 
-    def _publish_granules(self, stream_id=None, stream_route=None, values = None,number=None, times = None):
+    def _publish_granules(self, stream_id=None, stream_route=None, values = None,number=None):
 
         pub = StandaloneStreamPublisher(stream_id, stream_route)
 
         stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
         stream_def_id = stream_def._id
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+
+        times = numpy.array([number  for l in xrange(self.length)])
 
         for i in xrange(number):
             rdt['input_voltage'] = values
@@ -447,6 +452,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             g = rdt.to_granule()
             g.data_producer_id = 'instrument_1'
 
-            log.debug("granule published by instrument:: %s" % g)
+            log.debug("granule #%s published by instrument:: %s" % ( number,g))
 
             pub.publish(g)

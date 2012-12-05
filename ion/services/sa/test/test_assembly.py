@@ -16,7 +16,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from pyon.core.exception import NotFound, Inconsistent, Unauthorized #, Conflict
-from pyon.public import RT, LCS, LCE, PRED
+from pyon.public import RT, LCS, LCE, PRED,CFG
 from pyon.ion.resource import get_maturity_visibility, OT
 from nose.plugins.attrib import attr
 
@@ -26,9 +26,11 @@ from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
-
 from ion.services.sa.instrument.flag import KeywordFlag
 from ion.services.dm.utility.granule_utils import time_series_domain
+
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 import string
@@ -124,6 +126,7 @@ class TestAssembly(IonIntegrationTestCase):
         def gen_find_oms_association(output_type):
             def freeze():
                 def finder_fun(obj_id):
+                    log.debug("Finding related %s frames", output_type)
                     ret = c.OMS.find_related_frames_of_reference(obj_id, [output_type])
                     return ret[output_type]
                 return finder_fun
@@ -664,15 +667,19 @@ class TestAssembly(IonIntegrationTestCase):
 
 
     def create_inst_agent_instance(self, agent_id, device_id):
+
         port_agent_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
+            'device_addr':  CFG.device.sbe37.host,
+            'device_port':  CFG.device.sbe37.port,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
-            'command_port': 4002,
-            'data_port': 4003,
+            'port_agent_addr': 'localhost',
+            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+            'data_port': CFG.device.sbe37.port_agent_data_port,
             'log_level': 5,
-            }
+            'type': PortAgentType.ETHERNET
+        }
+
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",

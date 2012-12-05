@@ -27,26 +27,26 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def create_actor_identity(self, actor_identity=None):
         # Persist ActorIdentity object and return object _id as OOI id
-        user_id, version = self.clients.resource_registry.create(actor_identity)
-        return user_id
+        actor_id, version = self.clients.resource_registry.create(actor_identity)
+        return actor_id
 
     def update_actor_identity(self, actor_identity=None):
         # Overwrite ActorIdentity object
         self.clients.resource_registry.update(actor_identity)
 
-    def read_actor_identity(self, user_id=''):
+    def read_actor_identity(self, actor_id=''):
         # Read ActorIdentity object with _id matching passed user id
-        actor_identity = self.clients.resource_registry.read(user_id)
+        actor_identity = self.clients.resource_registry.read(actor_id)
         if not actor_identity:
-            raise NotFound("ActorIdentity %s does not exist" % user_id)
+            raise NotFound("ActorIdentity %s does not exist" % actor_id)
         return actor_identity
 
-    def delete_actor_identity(self, user_id=''):
+    def delete_actor_identity(self, actor_id=''):
         # Read and delete specified ActorIdentity object
-        actor_identity = self.clients.resource_registry.read(user_id)
+        actor_identity = self.clients.resource_registry.read(actor_id)
         if not actor_identity:
-            raise NotFound("ActorIdentity %s does not exist" % user_id)
-        self.clients.resource_registry.delete(user_id)
+            raise NotFound("ActorIdentity %s does not exist" % actor_id)
+        self.clients.resource_registry.delete(actor_id)
 
     def find_actor_identity_by_name(self, name=''):
         """Return the ActorIdentity object whose name attribute matches the passed value.
@@ -63,13 +63,13 @@ class IdentityManagementService(BaseIdentityManagementService):
             raise Inconsistent("Multiple ActorIdentity objects with name %s exist" % name)
         return objects[0]
 
-    def register_user_credentials(self, user_id='', credentials=None):
+    def register_user_credentials(self, actor_id='', credentials=None):
         # Create UserCredentials object
         credentials_obj_id, version = self.clients.resource_registry.create(credentials)
         # Create association with user identity object
-        res = self.clients.resource_registry.create_association(user_id, PRED.hasCredentials, credentials_obj_id)
+        res = self.clients.resource_registry.create_association(actor_id, PRED.hasCredentials, credentials_obj_id)
 
-    def unregister_user_credentials(self, user_id='', credentials_name=''):
+    def unregister_user_credentials(self, actor_id='', credentials_name=''):
         # Read UserCredentials
         objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, credentials_name, False)
         if not objects or len(objects) == 0:
@@ -78,23 +78,23 @@ class IdentityManagementService(BaseIdentityManagementService):
             raise Conflict("Multiple UserCredentials objects found for subject %s" % credentials_name)
         user_credentials_id = objects[0]._id
         # Find and break association with ActorIdentity
-        assocs = self.clients.resource_registry.find_associations(user_id, PRED.hasCredentials, user_credentials_id)
+        assocs = self.clients.resource_registry.find_associations(actor_id, PRED.hasCredentials, user_credentials_id)
         if not assocs or len(assocs) == 0:
-            raise NotFound("ActorIdentity to UserCredentials association for user id %s to credential %s does not exist" % (user_id, credentials_name))
+            raise NotFound("ActorIdentity to UserCredentials association for user id %s to credential %s does not exist" % (actor_id, credentials_name))
         association_id = assocs[0]._id
         self.clients.resource_registry.delete_association(association_id)
         # Delete the UserCredentials
         self.clients.resource_registry.delete(user_credentials_id)
 
-    def create_user_info(self, user_id="", user_info=None):
+    def create_user_info(self, actor_id="", user_info=None):
         # Ensure UserInfo association does not already exist
-        objects, assocs = self.clients.resource_registry.find_objects(user_id, PRED.hasInfo, RT.UserInfo)
+        objects, assocs = self.clients.resource_registry.find_objects(actor_id, PRED.hasInfo, RT.UserInfo)
         if objects:
-            raise Conflict("UserInfo already exists for user id %s" % (user_id))
+            raise Conflict("UserInfo already exists for user id %s" % (actor_id))
         # Create UserInfo object
         user_info_id, version = self.clients.resource_registry.create(user_info)
         # Create association with user identity object
-        self.clients.resource_registry.create_association(user_id, PRED.hasInfo, user_info_id)
+        self.clients.resource_registry.create_association(actor_id, PRED.hasInfo, user_info_id)
         return user_info_id
 
     def update_user_info(self, user_info=None):
@@ -137,11 +137,11 @@ class IdentityManagementService(BaseIdentityManagementService):
                 return user_info
         return None
 
-    def find_user_info_by_id(self, user_id=''):
+    def find_user_info_by_id(self, actor_id=''):
         # Look up UserInfo via association with ActorIdentity
-        objects, assocs = self.clients.resource_registry.find_objects(user_id, PRED.hasInfo, RT.UserInfo)
+        objects, assocs = self.clients.resource_registry.find_objects(actor_id, PRED.hasInfo, RT.UserInfo)
         if not objects:
-            raise NotFound("UserInfo for user id %s does not exist" % user_id)
+            raise NotFound("UserInfo for user id %s does not exist" % actor_id)
         user_info = objects[0]
         return user_info
 
@@ -205,25 +205,25 @@ class IdentityManagementService(BaseIdentityManagementService):
 
             if len(subjects) == 0:
                 raise Conflict("ActorIdentity object with subject %s was previously created but is not associated with a ActorIdentity object" % subject)
-            user_id = subjects[0]._id
+            actor_id = subjects[0]._id
             # Find associated UserInfo
             registered = True
             try:
-                self.find_user_info_by_id(user_id)
+                self.find_user_info_by_id(actor_id)
             except NotFound:
                 registered = False
-            log.debug("Signon returning user_id, valid_until, registered: %s, %s, %s" % (user_id, valid_until, str(registered)))
-            return user_id, valid_until, registered
+            log.debug("Signon returning actor_id, valid_until, registered: %s, %s, %s" % (actor_id, valid_until, str(registered)))
+            return actor_id, valid_until, registered
         else:
             log.debug("Signon new subject %s" % (subject))
             # New user.  Create ActorIdentity and UserCredentials
             actor_identity = IonObject("ActorIdentity", {"name": subject})
-            user_id = self.create_actor_identity(actor_identity)
+            actor_id = self.create_actor_identity(actor_identity)
 
             user_credentials = IonObject("UserCredentials", {"name": subject})
-            self.register_user_credentials(user_id, user_credentials)
-            log.debug("Signon returning user_id, valid_until, registered: %s, %s, False" % (user_id, valid_until))
-            return user_id, valid_until, False
+            self.register_user_credentials(actor_id, user_credentials)
+            log.debug("Signon returning actor_id, valid_until, registered: %s, %s, False" % (actor_id, valid_until))
+            return actor_id, valid_until, False
 
     def get_user_info_extension(self, user_info_id=''):
         """Returns an UserInfoExtension object containing additional related information
@@ -231,10 +231,10 @@ class IdentityManagementService(BaseIdentityManagementService):
         @param user_info_id    str
         @retval user_info    UserInfoExtension
         @throws BadRequest    A parameter is missing
-        @throws NotFound    An object with the specified user_id does not exist
+        @throws NotFound    An object with the specified actor_id does not exist
         """
         if not user_info_id:
-            raise BadRequest("The user_id parameter is empty")
+            raise BadRequest("The user_info_id parameter is empty")
 
         extended_resource_handler = ExtendedResourceContainer(self)
         extended_user = extended_resource_handler.create_extended_resource_container(OT.UserInfoExtension, user_info_id)

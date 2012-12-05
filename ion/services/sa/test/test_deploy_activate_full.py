@@ -17,12 +17,10 @@ from nose.plugins.attrib import attr
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 
-from pyon.public import RT, PRED, LCE
+from pyon.public import RT, PRED, LCE, CFG
 from pyon.core.exception import BadRequest
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
-from interface.objects import AgentCommand
-from interface.objects import ProcessStateEnum
-from interface.objects import ProcessDefinition
+from interface.objects import AgentCommand, StreamConfiguration, ProcessStateEnum, ProcessDefinition
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -125,8 +123,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentModel
         #-------------------------------
-        instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel",
-                                stream_configuration= {'raw': 'ctd_raw_param_dict' , 'parsed': 'ctd_parsed_param_dict' })
+        instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel")
         try:
             instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         except BadRequest as ex:
@@ -247,22 +244,26 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
 
         port_agent_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
+            'device_addr':  CFG.device.sbe37.host,
+            'device_port':  CFG.device.sbe37.port,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
             'port_agent_addr': 'localhost',
-            'command_port': 4002,
-            'data_port': 4003,
+            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+            'data_port': CFG.device.sbe37.port_agent_data_port,
             'log_level': 5,
             'type': PortAgentType.ETHERNET
         }
+
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1',
             description="SBE37IMAgentInstanceYear1",
             comms_device_address='sbe37-simulator.oceanobservatories.org',
             comms_device_port=4001,
-            port_agent_config = port_agent_config)
+            port_agent_config = port_agent_config,
+            stream_configurations = [raw_config, parsed_config])
 
 
         oldInstAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,

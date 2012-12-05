@@ -143,14 +143,14 @@ class ServiceGatewayService(BaseServiceGatewayService):
         """
         user_role_event = args[0]
         org_id = user_role_event.origin
-        user_id = user_role_event.user_id
+        actor_id = user_role_event.user_id
         role_name = user_role_event.role_name
-        log.debug("User Role modified: %s %s %s" % (org_id, user_id, role_name))
+        log.debug("User Role modified: %s %s %s" % (org_id, actor_id, role_name))
 
         #Evict the user and their roles from the cache so that it gets updated with the next call.
-        if service_gateway_instance.user_data_cache and service_gateway_instance.user_data_cache.has_key(user_id):
-            log.debug('Evicting user from the user_data_cache: %s' % user_id)
-            service_gateway_instance.user_data_cache.evict(user_id)
+        if service_gateway_instance.user_data_cache and service_gateway_instance.user_data_cache.has_key(actor_id):
+            log.debug('Evicting user from the user_data_cache: %s' % actor_id)
+            service_gateway_instance.user_data_cache.evict(actor_id)
 
 
 
@@ -392,7 +392,7 @@ def validate_request(ion_actor_id, expiry):
     idm_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
     try:
-        user = idm_client.read_actor_identity(user_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
+        user = idm_client.read_actor_identity(actor_id=ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
     except NotFound, e:
         ion_actor_id = DEFAULT_ACTOR_ID  # If the user isn't found default to anonymous
         expiry = DEFAULT_EXPIRY  #Since this is now an anonymous request, there really is no expiry associated with it

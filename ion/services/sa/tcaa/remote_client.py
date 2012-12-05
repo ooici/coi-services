@@ -18,6 +18,9 @@ import inspect
 import copy
 import uuid
 
+#3rd party imports
+import gevent
+
 # Zope interfaces.
 from zope.interface import Interface, implements, directlyProvides
 from zope.interface.interface import InterfaceClass
@@ -26,6 +29,7 @@ from zope.interface.interface import InterfaceClass
 from pyon.core.exception import ConfigNotFound
 from pyon.core.exception import Conflict
 from pyon.core.exception import BadRequest
+from pyon.core.exception import Timeout
 
 # Ion imports.
 from interface.services.sa.iterrestrial_endpoint import ITerrestrialEndpoint
@@ -90,7 +94,7 @@ class RemoteClient(object):
         directlyProvides(self, iface)
 
         # Initialize the async results objects for blocking behavior.
-        self._async_result_evt = None
+        #self._async_result_evt = None
 
     def generate_service_method(self, name):
         """
@@ -147,29 +151,41 @@ class RemoteClient(object):
             elif self._svc_name:
                 origin = self._svc_name + self._xs_name
 
-            self._async_result_evt = AsyncResult()
+            pending_cmd = cmd
+            async_result_evt = AsyncResult()
             
+            def result_callback(evt, *args, **kwargs):
+                """
+                Callback for subscriber retrive blocking results.
+                """
+                #global async_result_evt
+                if evt.type_ == 'RemoteCommandResult':
+                    cmd = evt.command
+                    if cmd.command_id == pending_cmd.command_id:
+                        async_result_evt.set(cmd)                
+
             sub = EventSubscriber(
                 event_type='RemoteCommandResult',
                 origin=origin,
-                callback=self._result_callback)
+                callback=result_callback)
 
             sub.start()
-            self._pending_cmd = cmd
+            #self._pending_cmd = cmd
             cmd = self._te_client.enqueue_command(cmd, link)
-            result = self._async_result_evt.get(timeout=remote_timeout)
-            self._pending_cmd = None
-            sub.stop()
-            if not result:
-                result = cmd
-                
-            self._pending_cmd = None
+            try:
+                result = async_result_evt.get(timeout=remote_timeout)
+                #self._pending_cmd = None
+                sub.stop()                
+            except gevent.Timeout:
+                #self._pending_cmd = None
+                sub.stop()
+                raise Timeout('Timed out waiting for remote result.')
+
             return result
-        
+    
+    """
     def _result_callback(self, evt, *args, **kwargs):
-        """
-        Callback for subscriber retrive blocking results.
-        """
+        #Callback for subscriber retrive blocking results.
         if evt.type_ == 'RemoteCommandResult':
             cmd = evt.command
             if self._pending_cmd:
@@ -177,7 +193,8 @@ class RemoteClient(object):
                     self._pending_cmd = None
                     if self._async_result_evt:
                         self._async_result_evt.set(cmd)
-        
+    """
+    
     def enqueue_command(self, command=None, link=False):
         """
         Enqueue command with terrestrial endoint.

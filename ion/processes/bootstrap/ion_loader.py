@@ -79,7 +79,7 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHdjdndOVkUyazZQaUNfYzBUSXJ3Rnc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE01OXVvMnhraVZtM05rNkthQnVjU1E&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -94,6 +94,7 @@ DEFAULT_CATEGORIES = [
     'CoordinateSystem',
     'ParameterDefs',
     'ParameterDictionary',
+    'StreamConfiguration',
     'SensorModel',
     'PlatformModel',
     'InstrumentModel',
@@ -129,6 +130,7 @@ class IONLoader(ImmediateProcess):
     COL_ORGS = "org_ids"
 
     ID_ORG_ION = "ORG_ION"
+    ID_SYSTEM_ACTOR = "USER_SYSTEM"
 
     def on_start(self):
         # Main operation to perform
@@ -170,7 +172,7 @@ class IONLoader(ImmediateProcess):
         self.unknown_fields = {} # track unknown fields so we only warn once
         self.constraint_defs = {} # alias -> value for refs, since not stored in DB
         self.contact_defs = {} # alias -> value for refs, since not stored in DB
-
+        self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
         # Loads internal bootstrapped resource ids that will be referenced during preload
         self._load_system_ids()
 
@@ -299,6 +301,11 @@ class IONLoader(ImmediateProcess):
         ion_org_id = org_objs[0]._id
         self._register_id(self.ID_ORG_ION, ion_org_id, org_objs[0])
 
+        system_actor, _ = self.container.resource_registry.find_resources(
+            RT.ActorIdentity, name=self.CFG.system.system_actor, id_only=False)
+        system_actor_id = system_actor[0]._id if system_actor else 'anonymous'
+        self._register_id(self.ID_SYSTEM_ACTOR, system_actor_id, system_actor[0] if system_actor else None)
+
     def _prepare_incremental(self):
         """
         Look in the resource registry for any resources that have a preload ID on them so that
@@ -391,7 +398,7 @@ class IONLoader(ImmediateProcess):
             log.trace("Update object type %s using field names %s", objtype, obj_fields.keys())
             obj = existing_obj
         else:
-            if row[self.COL_ID] and 'alt_ids' in schema:
+            if self.COL_ID in row and row[self.COL_ID] and 'alt_ids' in schema:
                 if 'alt_ids' in obj_fields:
                     obj_fields['alt_ids'].append("PRE:"+row[self.COL_ID])
                 else:
@@ -477,16 +484,18 @@ class IONLoader(ImmediateProcess):
         for alt_id in alt_ids:
             if alt_id.startswith(prefix+":"):
                 alt_id_str = alt_id[len(prefix)+1:]
-                #print "**** _get_alt_id", alt_id_str
                 return alt_id_str
-        print "**** _get_alt_id NONE", alt_ids
 
-    def _get_op_headers(self, row):
+    def _get_op_headers(self, row, force_user=True):
         headers = {}
         owner_id = row.get(self.COL_OWNER, None)
         if owner_id:
             owner_id = self.resource_ids[owner_id]
             headers['ion-actor-id'] = owner_id
+            headers['ion-actor-roles'] = {'ION': ['ION_MANAGER', 'ORG_MANAGER']}
+            headers['expiry'] = '0'
+        elif force_user:
+            return self._get_system_actor_headers()
         return headers
 
     def _basic_resource_create(self, row, restype, prefix, svcname, svcop,
@@ -525,12 +534,13 @@ class IONLoader(ImmediateProcess):
                 # TODO: Use the appropriate service call here
                 self.container.resource_registry.update(res_obj)
         else:
-            headers = self._get_op_headers(row)
             if self.bulk and support_bulk:
                 res_id = self._create_bulk_resource(res_obj, res_id_alias)
+                headers = self._get_op_headers(row)
                 self._resource_assign_owner(headers, res_obj)
             else:
                 svc_client = self._get_service_client(svcname)
+                headers = self._get_op_headers(row, force_user=True)
                 res_id = getattr(svc_client, svcop)(res_obj, headers=headers, **kwargs)
                 if res_id:
                     res_obj._id = res_id
@@ -589,7 +599,7 @@ class IONLoader(ImmediateProcess):
                     assoc_obj = self._create_association(org_obj, PRED.hasResource, res_obj)
                 else:
                     svc_client = self._get_service_client("observatory_management")
-                    svc_client.assign_resource_to_observatory_org(res_id, self.resource_ids[org_id])
+                    svc_client.assign_resource_to_observatory_org(res_id, self.resource_ids[org_id], headers=self._get_system_actor_headers())
 
     def _resource_assign_owner(self, headers, res_obj):
         if self.bulk and 'ion-actor-id' in headers:
@@ -754,6 +764,11 @@ class IONLoader(ImmediateProcess):
         end = calendar.timegm(time.strptime(row['end'], format))
         return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
 
+    def _get_system_actor_headers(self):
+        return {'ion-actor-id': self.resource_ids[self.ID_SYSTEM_ACTOR],
+               'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
+               'expiry':'0'}
+
     def _load_User(self, row):
         # TODO: Make the calls below with an actor_id for the web server
         alias = row['ID']
@@ -775,18 +790,18 @@ class IONLoader(ImmediateProcess):
         # Build ActorIdentity
         actor_name = "Identity for %s" % user_attrs['name']
         actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
-        actor_id = ims.create_actor_identity(actor_identity_obj)
+        actor_id = ims.create_actor_identity(actor_identity_obj, headers=self._get_system_actor_headers())
         actor_identity_obj._id = actor_id
         self._register_id(alias, actor_id, actor_identity_obj)
 
         # Build UserCredentials
         user_credentials_obj = IonObject("UserCredentials", name=subject,
             description="Default credentials for %s" % user_attrs['name'])
-        ims.register_user_credentials(actor_id, user_credentials_obj)
+        ims.register_user_credentials(actor_id, user_credentials_obj, headers=self._get_system_actor_headers())
 
         # Build UserInfo
         user_info_obj = IonObject("UserInfo", **user_attrs)
-        ims.create_user_info(actor_id, user_info_obj)
+        ims.create_user_info(actor_id, user_info_obj, headers=self._get_system_actor_headers())
 
     def _load_Org(self, row):
         log.trace("Loading Org (ID=%s)", row[self.COL_ID])
@@ -825,10 +840,10 @@ class IONLoader(ImmediateProcess):
 
         auto_enroll = self._get_typed_value(row["auto_enroll"], targettype="bool")
         if auto_enroll:
-            svc_client.enroll_member(org_id, user_id)
+            svc_client.enroll_member(org_id, user_id, headers=self._get_system_actor_headers())
 
         if role_name != "ORG_MEMBER":
-            svc_client.grant_role(org_id, user_id, role_name)
+            svc_client.grant_role(org_id, user_id, role_name, headers=self._get_system_actor_headers())
 
     def _load_SensorModel(self, row):
         row['sm/reference_urls'] = repr(self._get_typed_value(row['sm/reference_urls'], targettype="simplelist"))
@@ -980,7 +995,8 @@ class IONLoader(ImmediateProcess):
                 self._create_association(psite_obj, PRED.hasSite, site_obj)
             else:
                 svc_client = self._get_service_client("observatory_management")
-                svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id])
+                svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id],
+                    headers=self._get_system_actor_headers())
 
     def _load_Subsite_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("site")
@@ -1048,7 +1064,8 @@ class IONLoader(ImmediateProcess):
                 site_obj = self._get_resource_obj(row[self.COL_ID])
                 self._create_association(psite_obj, PRED.hasSite, site_obj)
             else:
-                svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id])
+                svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id],
+                    headers=self._get_system_actor_headers())
 
         pm_ids = row["platform_model_ids"]
         if pm_ids:
@@ -1059,7 +1076,8 @@ class IONLoader(ImmediateProcess):
                     site_obj = self._get_resource_obj(row[self.COL_ID])
                     self._create_association(site_obj, PRED.hasModel, model_obj)
                 else:
-                    svc_client.assign_platform_model_to_platform_site(self.resource_ids[pm_id], res_id)
+                    svc_client.assign_platform_model_to_platform_site(self.resource_ids[pm_id], res_id,
+                        headers=self._get_system_actor_headers())
 
     def _load_PlatformSite_OOI(self):
 
@@ -1126,7 +1144,8 @@ class IONLoader(ImmediateProcess):
                 site_obj = self._get_resource_obj(row[self.COL_ID])
                 self._create_association(psite_obj, PRED.hasSite, site_obj)
             else:
-                svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id])
+                svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id],
+                    headers=self._get_system_actor_headers())
 
         im_ids = row["instrument_model_ids"]
         if im_ids:
@@ -1137,7 +1156,8 @@ class IONLoader(ImmediateProcess):
                     site_obj = self._get_resource_obj(row[self.COL_ID])
                     self._create_association(site_obj, PRED.hasModel, model_obj)
                 else:
-                    svc_client.assign_instrument_model_to_instrument_site(self.resource_ids[im_id], res_id)
+                    svc_client.assign_instrument_model_to_instrument_site(self.resource_ids[im_id], res_id,
+                        headers=self._get_system_actor_headers())
 
     def _load_InstrumentSite_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("instrument")
@@ -1173,16 +1193,17 @@ class IONLoader(ImmediateProcess):
 
             self._load_InstrumentSite(fakerow)
 
-
     def _load_StreamDefinition(self, row):
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
 #        sd_module = row["StreamContainer_module"]
 #        sd_method = row["StreamContainer_method"]
         pname = row["param_dict_name"]
         svc_client = self._get_service_client("dataset_management")
-        parameter_dictionary_id = svc_client.read_parameter_dictionary_by_name(pname, id_only=True)
+        parameter_dictionary_id = svc_client.read_parameter_dictionary_by_name(pname, id_only=True,
+            headers=self._get_system_actor_headers())
         svc_client = self._get_service_client("pubsub_management")
-        res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id)
+        res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
+            headers=self._get_system_actor_headers())
         self._register_id(row[self.COL_ID], res_id)
     
     def _load_ParameterDefs(self, row):
@@ -1231,8 +1252,10 @@ class IONLoader(ImmediateProcess):
                 setattr(context, additional_attrs[key], row[key])
 
         dataset_management = self._get_service_client('dataset_management')
-        context_id = dataset_management.create_parameter_context(name=row['Name'], parameter_context=context.dump(),
-                                                                 description=row['Description'])
+        context_id = dataset_management.create_parameter_context(
+            name=row['Name'], parameter_context=context.dump(),
+            description=row['Description'],
+            headers=self._get_system_actor_headers())
 
     def _load_ParameterDictionary(self, row):
         s = re.sub(r'\s+','',row['parameters'])
@@ -1242,10 +1265,11 @@ class IONLoader(ImmediateProcess):
             context_ids = [dataset_management.read_parameter_context_by_name(i)._id for i in contexts]
             temporal_parameter = row['temporal_parameter'] or ''
             dataset_management.create_parameter_dictionary(name=row['name'], 
-                        parameter_context_ids=context_ids,
-                        temporal_context=temporal_parameter)
+                parameter_context_ids=context_ids,
+                temporal_context=temporal_parameter,
+                headers=self._get_system_actor_headers())
         except NotFound as e:
-            log.error('Missing parameter context %s', e.message)
+            log.error('Parameter dictionary %s missing context: %s', row['name'], e.message)
 
     def _load_PlatformDevice(self, row):
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
@@ -1271,7 +1295,8 @@ class IONLoader(ImmediateProcess):
                 device_obj = self._get_resource_obj(row[self.COL_ID])
                 self._create_association(device_obj, PRED.hasModel, model_obj)
             else:
-                ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id)
+                ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id,
+                    headers=self._get_system_actor_headers())
 
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
@@ -1323,7 +1348,8 @@ class IONLoader(ImmediateProcess):
                 device_obj = self._get_resource_obj(row[self.COL_ID])
                 self._create_association(device_obj, PRED.hasModel, model_obj)
             else:
-                ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id)
+                ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id,
+                    headers=self._get_system_actor_headers())
         ass_id = row["platform_device_id"]# if 'platform_device_id' in row else None
         if ass_id:
             if self.bulk:
@@ -1331,7 +1357,8 @@ class IONLoader(ImmediateProcess):
                 device_obj = self._get_resource_obj(row[self.COL_ID])
                 self._create_association(parent_obj, PRED.hasDevice, device_obj)
             else:
-                ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id])
+                ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id],
+                    headers=self._get_system_actor_headers())
 
         self._resource_advance_lcs(row, res_id, "InstrumentDevice")
 
@@ -1367,7 +1394,8 @@ class IONLoader(ImmediateProcess):
                 device_obj = self._get_resource_obj(row[self.COL_ID])
                 self._create_association(device_obj, PRED.hasModel, model_obj)
             else:
-                ims_client.assign_sensor_model_to_sensor_device(self.resource_ids[ass_id], res_id)
+                ims_client.assign_sensor_model_to_sensor_device(self.resource_ids[ass_id], res_id,
+                    headers=self._get_system_actor_headers())
         ass_id = row["instrument_device_id"]
         if ass_id:
             if self.bulk:
@@ -1375,8 +1403,14 @@ class IONLoader(ImmediateProcess):
                 device_obj = self._get_resource_obj(row[self.COL_ID])
                 self._create_association(parent_obj, PRED.hasDevice, device_obj)
             else:
-                ims_client.assign_sensor_device_to_instrument_device(res_id, self.resource_ids[ass_id])
+                ims_client.assign_sensor_device_to_instrument_device(res_id, self.resource_ids[ass_id],
+                    headers=self._get_system_actor_headers())
         self._resource_advance_lcs(row, res_id, "SensorDevice")
+
+    def _load_StreamConfiguration(self, row):
+        """ parse and save for use in *AgentInstance objects """
+        obj = self._create_object_from_row("StreamConfiguration", row, "cfg/")
+        self.stream_config[row['ID']] = obj
 
     def _load_InstrumentAgent(self, row):
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
@@ -1401,7 +1435,8 @@ class IONLoader(ImmediateProcess):
                     agent_obj = self._get_resource_obj(row[self.COL_ID])
                     self._create_association(model_obj, PRED.hasAgentDefinition, agent_obj)
                 else:
-                    svc_client.assign_instrument_model_to_instrument_agent(self.resource_ids[im_id], res_id)
+                    svc_client.assign_instrument_model_to_instrument_agent(self.resource_ids[im_id], res_id,
+                        headers=self._get_system_actor_headers())
 
         self._resource_advance_lcs(row, res_id, "InstrumentAgent")
 
@@ -1439,11 +1474,16 @@ class IONLoader(ImmediateProcess):
                                              'data_port':     int(row['comms_server_port']),
                                              'log_level':     5,  }
 
+        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
+        agent_instance.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
+
         # save
         agent_id = self.resource_ids[row["instrument_agent_id"]]
         device_id = self.resource_ids[row["instrument_device_id"]]
         client = self._get_service_client("instrument_management")
-        client.create_instrument_agent_instance(agent_instance, instrument_agent_id=agent_id, instrument_device_id=device_id)
+        client.create_instrument_agent_instance(
+            agent_instance, instrument_agent_id=agent_id, instrument_device_id=device_id,
+            headers=self._get_system_actor_headers())
 
     def _load_PlatformAgent(self, row):
         res_id = self._basic_resource_create(row, "PlatformAgent", "pa/", "instrument_management", "create_platform_agent")
@@ -1454,7 +1494,8 @@ class IONLoader(ImmediateProcess):
         if model_ids:
             model_ids = self._get_typed_value(model_ids, targettype="simplelist")
             for model_id in model_ids:
-                svc_client.assign_platform_model_to_platform_agent(self.resource_ids[model_id], res_id)
+                svc_client.assign_platform_model_to_platform_agent(self.resource_ids[model_id], res_id,
+                    headers=self._get_system_actor_headers())
         self._resource_advance_lcs(row, res_id, "InstrumentAgent")
 
     def _load_PlatformAgent_OOI(self):
@@ -1500,7 +1541,11 @@ class IONLoader(ImmediateProcess):
                             'driver_config':           driver_config }
         agent_instance.agent_config = { 'platform_config': platform_config }
 
-        id = self._get_service_client("instrument_management").create_platform_agent_instance(agent_instance, platform_agent_id, platform_device_id)
+        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
+        agent_instance.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
+
+        id = self._get_service_client("instrument_management").create_platform_agent_instance(
+            agent_instance, platform_agent_id, platform_device_id, headers=self._get_system_actor_headers())
         self.resource_ids[row['ID']] = id
 
     #       TODO:
@@ -1546,13 +1591,15 @@ class IONLoader(ImmediateProcess):
             input_strdef = self._get_typed_value(input_strdef, targettype="simplelist")
         log.trace("Assigning input StreamDefinition to DataProcessDefinition for %s" % input_strdef)
         for insd in input_strdef:
-            svc_client.assign_input_stream_definition_to_data_process_definition(self.resource_ids[insd], res_id)
+            svc_client.assign_input_stream_definition_to_data_process_definition(self.resource_ids[insd], res_id,
+                headers=self._get_system_actor_headers())
 
         output_strdef = row["output_stream_defs"]
         if output_strdef:
             output_strdef = self._get_typed_value(output_strdef, targettype="dict")
         for binding, strdef in output_strdef.iteritems():
-            svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[strdef], res_id, binding)
+            svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[strdef], res_id, binding,
+                headers=self._get_system_actor_headers())
 
     def _load_DataProcess(self, row):
         dpd_id = self.resource_ids[row["data_process_definition_id"]]
@@ -1576,7 +1623,7 @@ class IONLoader(ImmediateProcess):
 
         self._resource_assign_org(row, res_id)
 
-        res_id = svc_client.activate_data_process(res_id)
+        res_id = svc_client.activate_data_process(res_id, headers=self._get_system_actor_headers())
 
     def _load_EventProcessDefinition(self, row):
 #        process_dispatcher = ProcessDispatcherServiceClient()
@@ -1592,7 +1639,8 @@ class IONLoader(ImmediateProcess):
 
         process_dispatcher = self._get_service_client("process_dispatcher")
         data_process_client = self._get_service_client("data_process_management")
-        dbid = process_dispatcher.create_process_definition(process_definition=process_def)
+        dbid = process_dispatcher.create_process_definition(process_definition=process_def,
+            headers=self._get_system_actor_headers())
         process_def._id = dbid
         self.resource_ids[id] = dbid
         self.resource_objs[id] = process_def
@@ -1616,7 +1664,8 @@ class IONLoader(ImmediateProcess):
 
         headers = self._get_op_headers(row)
         process_dispatcher = self._get_service_client("process_dispatcher")
-        process_dispatcher.schedule_process(process_definition_id=process_def_id, configuration=configuration)
+        process_dispatcher.schedule_process(process_definition_id=process_def_id, configuration=configuration,
+            headers=headers)
 # TODO: IonObject types not available...
 #        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
 #        self._register_id(row[self.COL_ID], res_id)
@@ -1652,11 +1701,11 @@ class IONLoader(ImmediateProcess):
         else:
             svc_client = self._get_service_client("data_product_management")
             stream_definition_id = self.resource_ids[row["stream_def_id"]]
-            res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id, headers=headers)
+            res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id, headers=self._get_system_actor_headers())
             self._register_id(row[self.COL_ID], res_id, res_obj)
 
             if not self.debug and row['persist_data']=='1':
-                svc_client.activate_data_product_persistence(res_id)
+                svc_client.activate_data_product_persistence(res_id, headers=headers)
         self._resource_advance_lcs(row, res_id, "DataProduct")
 
     def _load_DataProduct_OOI(self):
@@ -1765,14 +1814,14 @@ class IONLoader(ImmediateProcess):
                 self._create_association(data_producer_obj, PRED.hasParent, parent_obj)
             else:
                 svc_client = self._get_service_client("data_acquisition_management")
-                svc_client.assign_data_product(res_id, dp_id)
+                svc_client.assign_data_product(res_id, dp_id, headers=self._get_system_actor_headers())
         elif type=='InstrumentSite':
             if self.bulk and do_bulk:
                 # Why create a site data product here???
                 pass
             else:
                 svc_client = self._get_service_client('observatory_management')
-                svc_client.create_site_data_product(res_id, dp_id)
+                svc_client.create_site_data_product(res_id, dp_id, headers=self._get_system_actor_headers())
 
     def _load_DataProductLink_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("instrument")
@@ -1853,7 +1902,8 @@ class IONLoader(ImmediateProcess):
             workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
-        workflow_def_id = workflow_client.create_workflow_definition(workflow_def_obj)
+        workflow_def_id = workflow_client.create_workflow_definition(workflow_def_obj,
+            headers=self._get_system_actor_headers())
 
         self._register_id(row[self.COL_ID], workflow_def_id, workflow_def_obj)
 
@@ -1873,9 +1923,12 @@ class IONLoader(ImmediateProcess):
         persist_data_flag = False
         if row["persist_data"] == "TRUE":
             persist_data_flag = True
+            
         #Create and start the workflow
-        workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(workflow_definition_id=workflow_def_id,
-            input_data_product_id=in_dp_id, persist_workflow_data_product=persist_data_flag, configuration=configuration, timeout=30)
+        workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(
+            workflow_definition_id=workflow_def_id,
+            input_data_product_id=in_dp_id, persist_workflow_data_product=persist_data_flag, configuration=configuration, timeout=30,
+            headers=self._get_system_actor_headers())
 
     def _load_Deployment(self,row):
         constraints = self._get_constraints(row, type='Deployment')
@@ -1891,11 +1944,11 @@ class IONLoader(ImmediateProcess):
         ims = self._get_service_client("instrument_management")
 
         deployment_id = oms.create_deployment(deployment)
-        oms.deploy_instrument_site(site_id, deployment_id)
-        ims.deploy_instrument_device(device_id, deployment_id)
+        oms.deploy_instrument_site(site_id, deployment_id, headers=self._get_system_actor_headers())
+        ims.deploy_instrument_device(device_id, deployment_id, headers=self._get_system_actor_headers())
 
         if row['activate']=='1':
-            oms.activate_deployment(deployment_id)
+            oms.activate_deployment(deployment_id, headers=self._get_system_actor_headers())
 
     def delete_ooi_assets(self):
         res_ids = []

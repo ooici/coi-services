@@ -354,13 +354,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         model_obj = model_objs[0]
         instrument_model_id = model_obj._id
 
-        #retrive the stream info for this model
-        streams_dict = model_obj.stream_configuration
-
-        if not streams_dict:
-            raise BadRequest("Device model does not contain stream configuration used in launching the agent. Model: '%s",
-                             str(model_obj) )
-
         #retrieve the associated instrument agent
         agent_objs = self.instrument_agent.find_having_model(instrument_model_id)
         if 1 != len(agent_objs):
@@ -412,6 +405,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                   str(instrument_device_id),
                   str(instrument_agent_instance_obj._id))
 
+        if not instrument_agent_instance_obj.stream_configurations:
+            raise BadRequest("Agent Instance does not contain stream configuration used in launching the agent. Agent Instance object: '%s",
+                             str(instrument_agent_instance_obj) )
+
+
         self._validate_instrument_device_preagentlaunch(instrument_device_id)
 
     def _generate_platform_streamconfig(self, platform_id, device_id):
@@ -447,17 +445,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return stream_config
 
 
-    def _generate_stream_config(self, instrument_device_id=''):
+    def _generate_stream_config(self, instrument_device_id='', instrument_agent_instance_obj=None):
 
-        _stream_config = self.instrument_device.find_stemming_model(instrument_device_id)[0].stream_configuration
+        #_stream_config = self.instrument_device.find_stemming_model(instrument_device_id)[0].stream_configuration
 
         streams_dict = {}
-        for stream_name, param_dict_name in _stream_config.items():
+        for stream_configuration in instrument_agent_instance_obj.stream_configurations:
             #create a stream def for each param dict to match against the existing data products
-            param_dict_id = self.clients.dataset_management.read_parameter_dictionary_by_name(param_dict_name,
+            param_dict_id = self.clients.dataset_management.read_parameter_dictionary_by_name(stream_configuration.parameter_dictionary_name,
                                                                                               id_only=True)
             stream_def_id = self.clients.pubsub_management.create_stream_definition(parameter_dictionary_id=param_dict_id)
-            streams_dict[stream_name] = {'param_dict_name':param_dict_name, 'stream_def_id':stream_def_id}
+            streams_dict[stream_configuration.stream_name] = {'param_dict_name':stream_configuration.parameter_dictionary_name, 'stream_def_id':stream_def_id,
+                                                            'records_per_granule': stream_configuration.records_per_granule, 'granule_publish_rate':stream_configuration.granule_publish_rate }
 
         #retrieve the output products
         data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id,
@@ -485,16 +484,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
             for model_stream_name, stream_info_dict  in streams_dict.items():
 
-                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict['stream_def_id'],
+                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict.get('stream_def_id'),
                                                                             stream_def_ids[0]):
-                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict['param_dict_name'])
+                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
                     stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
 
                     stream_config_too[model_stream_name] = {'routing_key'           : stream_route.routing_key,
                                                             'stream_id'             : product_stream_id,
                                                             'stream_definition_ref' : stream_def_ids[0],
                                                             'exchange_point'        : stream_route.exchange_point,
-                                                            'parameter_dictionary'  : model_param_dict.dump()}
+                                                            'parameter_dictionary'  : model_param_dict.dump(),
+                                                            'records_per_granule'  : stream_info_dict.get('records_per_granule'),
+                                                            'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate')
+                                                            }
 
         return stream_config_too
 
@@ -515,16 +517,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_obj = agent_objs[0]
 
 
-        stream_config = self._generate_stream_config(instrument_device_id)
+        stream_config = self._generate_stream_config(instrument_device_id, instrument_agent_instance_obj)
 
         # Create driver config.
+
         driver_config = {
             'dvr_mod' : instrument_agent_obj.driver_module,
             'dvr_cls' : instrument_agent_obj.driver_class,
-            'workdir' : tempfile.tempdir,
+            'workdir' : tempfile.gettempdir(),
             'process_type' : ('ZMQPyClassDriverLauncher',),
-            'comms_config' : instrument_agent_instance_obj.driver_config['comms_config'],
-            'pagent_pid' : instrument_agent_instance_obj.driver_config['pagent_pid']
+            'comms_config' : instrument_agent_instance_obj.driver_config.get('comms_config'),
+            'pagent_pid' : instrument_agent_instance_obj.driver_config.get('pagent_pid')
         }
 
         # Create agent config.
@@ -575,7 +578,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not 'comms_config' in instrument_agent_instance_obj.driver_config:
             self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
         # if the comms_config host addr in the driver config is localhost
-        elif 'addr' in instrument_agent_instance_obj.driver_config['comms_config'] and \
+        elif 'addr' in instrument_agent_instance_obj.driver_config.get('comms_config') and \
              instrument_agent_instance_obj.driver_config['comms_config']['addr'] == 'localhost':
                 log.debug("IMS:start_instrument_agent_instance comms_server_address: %s", str(instrument_agent_instance_obj.driver_config['comms_config']['addr']) )
                 self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
@@ -1117,7 +1120,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         agent_config = platform_agent_instance_obj.agent_config
         if 'agent' not in agent_config:
             agent_config['agent'] = {'resource_id': platform_device_id}
-        elif 'resource_id' not in agent_config['agent']:
+        elif 'resource_id' not in agent_config.get('agent'):
             agent_config['agent']['resource_id'] = platform_device_id
 
         # TODO: for platform_id in children in topology:
