@@ -35,11 +35,7 @@ class DriverProcessType(BaseEnum):
     Base states for driver launcher types.
     """
     PYTHON_MODULE = 'ZMQPyClassDriverLauncher'
-<<<<<<< HEAD
-    EGG = 'ZMQEggDriverLauncherG'
-=======
     EGG = 'ZMQEggDriverLauncher'
->>>>>>> 8742114278a502a40ebd28480e69b0bdae763a46
 
 
 class DriverProcess(object):
@@ -342,7 +338,6 @@ class ZMQPyClassDriverProcess(DriverProcess):
 
         @param stream_info
 
-<<<<<<< HEAD
     def get_packet_factories(self, stream_info):
         """
         Construct packet factories from PACKET_CONFIG member of the driver_config
@@ -350,8 +345,6 @@ class ZMQPyClassDriverProcess(DriverProcess):
 
         @param stream_info
 
-=======
->>>>>>> 8742114278a502a40ebd28480e69b0bdae763a46
         @retval a dict indexed by stream name of the packet factories defined.
         """
 
@@ -431,12 +424,8 @@ class ZMQPyClassDriverProcess(DriverProcess):
 #
 #        return self._packet_factories
 
-<<<<<<< HEAD
-class ZMQEggDriverLauncher(DriverProcess):
-=======
 
 class ZMQEggDriverProcess(DriverProcess):
->>>>>>> 8742114278a502a40ebd28480e69b0bdae763a46
     """
     Object to facilitate driver processes launch from an egg as an 'eggsecutable'
     """
