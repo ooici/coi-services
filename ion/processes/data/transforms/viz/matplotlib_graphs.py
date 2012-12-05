@@ -13,7 +13,8 @@ from datetime import datetime
 import StringIO
 import time
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
-from ion.core.process.transform import TransformStreamPublisher, TransformEventListener
+from ion.core.process.transform import TransformStreamPublisher, TransformEventListener, TransformStreamListener
+
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from pyon.event.event import EventSubscriber
@@ -34,7 +35,7 @@ except:
 
 mpl_output_image_format = "png"
 
-class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListener):
+class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListener, TransformStreamListener):
 
     """
     This class is used for instantiating worker processes that have subscriptions to data streams and convert
@@ -42,6 +43,7 @@ class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListe
 
     """
     output_bindings = ['graph_image_param_dict']
+    event_timer_interval = None
 
 
     def on_start(self):
@@ -64,17 +66,28 @@ class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListe
         graph_time_periods= self.CFG.get_safe('graph_time_periods')
 
         # If this is meant to be an event driven process, schedule an event to be generated every few minutes/hours
-        event_timer_interval = self.CFG.get_safe('graph_update_interval')
-        if event_timer_interval:
+        self.event_timer_interval = self.CFG.get_safe('graph_update_interval')
+        if self.event_timer_interval:
             event_origin = "Interval_Timer_Matplotlib"
             sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
             sub.start()
 
-            self.interval_timer_id = self.ssclient.create_interval_timer(start_time="now" , interval=self._str_to_secs(event_timer_interval),
+            self.interval_timer_id = self.ssclient.create_interval_timer(start_time="now" , interval=self._str_to_secs(self.event_timer_interval),
                 event_origin=event_origin, event_subtype="")
 
         super(VizTransformMatplotlibGraphs,self).on_start()
 
+    # when tranform is used as a data process
+    def recv_packet(self, packet, in_stream_route, in_stream_id):
+        #Check to see if the class instance was set up as a event triggered transform. If yes, skip the packet
+        if self.event_timer_interval:
+            return
+
+        log.info('Received packet')
+        mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(packet, params=self.get_stream_definition())
+        for stream_name in self.stream_names:
+            publisher = getattr(self, stream_name)
+            publisher.publish(mpl_data_granule)
 
     def get_stream_definition(self):
         stream_id = self.stream_ids[0]
