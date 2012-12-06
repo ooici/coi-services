@@ -22,7 +22,7 @@ class Handler(BaseHandler):
 
     def parse_constraints(self, environ):
         base = os.path.split(self.filepath)
-        coverage = SimplexCoverage.load(base[0], base[1])
+        coverage = SimplexCoverage.load(base[0], base[1],mode='r')
 
         last_modified = formatdate(time.mktime(time.localtime(os.stat(self.filepath)[ST_MTIME])))
         environ['pydap.headers'].append(('Last-modified', last_modified))

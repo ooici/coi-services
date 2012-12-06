@@ -331,9 +331,9 @@ class DatasetManagementService(BaseDatasetManagementService):
         return scov
 
     @classmethod
-    def _get_coverage(cls,dataset_id):
+    def _get_coverage(cls,dataset_id,mode='w'):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        coverage = SimplexCoverage(file_root, dataset_id)
+        coverage = SimplexCoverage(file_root, dataset_id,mode=mode)
         return coverage
 
     @classmethod
