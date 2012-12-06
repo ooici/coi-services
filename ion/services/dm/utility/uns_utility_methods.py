@@ -124,19 +124,22 @@ def send_email(message, msg_recipient, smtp_client):
     event = message.type_
     origin = message.origin
     description = message.description
+    event_obj_as_string = str(message)
 
 
     #------------------------------------------------------------------------------------
     # build the email from the event content
     #------------------------------------------------------------------------------------
 
-    msg_body = string.join(("Event: %s," %  event,
+    msg_body = string.join(("Event type: %s," %  event,
                             "",
                             "Originator: %s," %  origin,
                             "",
-                            "Description: %s," % description ,
+                            "Description: %s," % description,
                             "",
                             "Time stamp: %s," %  time_stamp,
+                            "",
+                            "Event object as a dictionary: %s," %  event_obj_as_string,
                             "",
                             "You received this notification from ION because you asked to be "\
                             "notified about this event from this source. ",
