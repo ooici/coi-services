@@ -155,10 +155,6 @@ class InstrumentAgent(ResourceAgent):
         # stream_config agent config member during process on_init.
         self._data_publishers = {}
 
-        # Factories for stream packets. Constructed by driver
-        # configuration information on transition to inactive.
-        self._packet_factories = {}
-                
     def on_init(self):
         """
         Instrument agent pyon process initialization.
@@ -384,8 +380,6 @@ class InstrumentAgent(ResourceAgent):
         # Start the driver and switch to inactive.
         self._start_driver(self._dvr_config)
 
-        self._construct_packet_factories()
-        
         next_state = ResourceAgentState.INACTIVE
 
         return (next_state, result)
@@ -401,7 +395,6 @@ class InstrumentAgent(ResourceAgent):
         next_state = None
 
         result = self._stop_driver()
-        self._clear_packet_factories()
         next_state = ResourceAgentState.UNINITIALIZED
   
         return (next_state, result)
@@ -455,7 +448,6 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
   
         return (next_state, result)
@@ -495,7 +487,6 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
         
         return (next_state, result)        
@@ -543,7 +534,6 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
         
         return (next_state, result)        
@@ -641,7 +631,6 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
           
         return (next_state, result)        
@@ -1136,26 +1125,7 @@ class InstrumentAgent(ResourceAgent):
                                 publisher for stream %s.', self._proc_name,
                                 stream_name)
 
-    def _construct_packet_factories(self):
-        """
-        Construct packet factories from packet_config member of the
-        driver_config and self.CFG.stream_config.
-        @retval None
-        """
-        self._packet_factories = self._dvr_proc.get_packet_factories(
-            self.CFG.stream_config)
-        log.info('Insturment agent %s constructed its packet factories.',
-                 self._proc_name)
-        
-    def _clear_packet_factories(self):
-        """
-        Delete packet factories.
-        @retval None
-        """
-        self._packet_factories.clear()
-        log.info('Instrument agent %s deleted packet factories.',
-                 self._proc_name)
-        
+
     ###############################################################################
     # Event callback and handling for direct access.
     ###############################################################################
