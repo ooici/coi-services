@@ -705,7 +705,9 @@ class UserNotificationService(BaseUserNotificationService):
 
             # send a notification email to each user using a _send_email() method
             if events_for_message:
-                self.format_and_send_email(events_for_message, user_id, self.smtp_client)
+                self.format_and_send_email(events_for_message = events_for_message,
+                                            user_id = user_id,
+                                            smtp_client=self.smtp_client)
 
         self.smtp_client.quit()
 
@@ -756,7 +758,7 @@ class UserNotificationService(BaseUserNotificationService):
             smtp_client=smtp_client )
 
 
-    def send_batch_email(self, msg_body, msg_subject, msg_recipient, smtp_client):
+    def send_batch_email(self, msg_body = None, msg_subject = None, msg_recipient = None, smtp_client = None):
         """
         Send the email
 

@@ -1397,7 +1397,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         ar_1 = gevent.event.AsyncResult()
         ar_2 = gevent.event.AsyncResult()
 
-        def send_email(events_for_message, user_id):
+        def send_email(events_for_message, user_id, *args, **kwargs):
             log.warning("(in asyncresult) events_for_message: %s" % events_for_message)
             ar_1.set(events_for_message)
             ar_2.set(user_id)
