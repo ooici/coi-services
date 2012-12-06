@@ -4,6 +4,7 @@
 @description A module containing common utility methods used by UNS and the notification workers.
 '''
 from pyon.public import get_sys_name, CFG
+from pyon.util.arg_check import validate_is_not_none
 from pyon.util.log import log
 from pyon.core.exception import NotFound, BadRequest
 from pyon.event.event import EventPublisher
@@ -84,23 +85,24 @@ def setting_up_smtp_client():
     #------------------------------------------------------------------------------------
     # the default smtp server
     #------------------------------------------------------------------------------------
-
+    smtp_client = None
     smtp_host = CFG.get_safe('server.smtp.host')
-#    smtp_port = CFG.get_safe('server.smtp.port', 25)
-#    smtp_sender = CFG.get_safe('server.smtp.sender')
-#    smtp_password = CFG.get_safe('server.smtp.password')
+    smtp_port = CFG.get_safe('server.smtp.port', 25)
+    smtp_sender = CFG.get_safe('server.smtp.sender')
+    smtp_password = CFG.get_safe('server.smtp.password')
 
     if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
-        log.debug('Using the real SMTP library to send email notifications!')
+        log.debug('Using the real SMTP library to send email notifications! host = %s' % smtp_host)
 
 #        smtp_client = smtplib.SMTP(smtp_host)
 #        smtp_client.ehlo()
 #        smtp_client.starttls()
 #        smtp_client.login(smtp_sender, smtp_password)
 
-        smtp_client = smtplib.SMTP(smtp_host)
-
-
+        smtp_client = smtplib.SMTP(smtp_host, smtp_port)
+        log.debug("In setting up smtp client using the smtp client: %s" % smtp_client)
+        log.debug("Message received after ehlo exchange: %s" % str(smtp_client.ehlo()))
+#        smtp_client.login(smtp_sender, smtp_password)
     else:
         log.debug('Using a fake SMTP library to simulate email notifications!')
 
@@ -122,19 +124,22 @@ def send_email(message, msg_recipient, smtp_client):
     event = message.type_
     origin = message.origin
     description = message.description
+    event_obj_as_string = str(message)
 
 
     #------------------------------------------------------------------------------------
     # build the email from the event content
     #------------------------------------------------------------------------------------
 
-    msg_body = string.join(("Event: %s," %  event,
+    msg_body = string.join(("Event type: %s," %  event,
                             "",
                             "Originator: %s," %  origin,
                             "",
-                            "Description: %s," % description ,
+                            "Description: %s," % description,
                             "",
                             "Time stamp: %s," %  time_stamp,
+                            "",
+                            "Event object as a dictionary: %s," %  event_obj_as_string,
                             "",
                             "You received this notification from ION because you asked to be "\
                             "notified about this event from this source. ",
@@ -157,11 +162,15 @@ def send_email(message, msg_recipient, smtp_client):
     msg['From'] = smtp_sender
     msg['To'] = msg_recipient
     log.debug("UNS sending email from %s to %s" % ( smtp_sender,msg_recipient))
+    log.debug("UNS using the smtp client: %s" % smtp_client)
 
-    smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
+    try:
+        smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
+    except: # Can be due to a broken connection... try to create a connection
+        smtp_client = setting_up_smtp_client()
+        log.debug("Connect again...message received after ehlo exchange: %s" % str(smtp_client.ehlo()))
+        smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
 
-#    if CFG.get_safe('system.smtp',False):
-#        smtp_client.close()
 
 def check_user_notification_interest(event, reverse_user_info):
     '''
@@ -199,7 +208,7 @@ def check_user_notification_interest(event, reverse_user_info):
                 user_list_1 += reverse_user_info['event_origin']['']
             users = user_list_1
 
-            log.debug("for event origin %s got interested users here  %s" % (event.origin, users))
+            log.debug("For event origin = %s, UNS got interested users here  %s" % (event.origin, users))
 
     if reverse_user_info['event_origin_type'].has_key(event.origin_type):
         if event.origin_type: # for an incoming event with origin type specified
@@ -208,7 +217,7 @@ def check_user_notification_interest(event, reverse_user_info):
                 user_list_2 += reverse_user_info['event_origin_type']['']
             users = set.intersection(users, user_list_2)
 
-            log.debug("for event_origin_type: %s got interested users here  %s" % (event.origin_type, users))
+            log.debug("For event_origin_type = %s too, UNS got interested users here  %s" % (event.origin_type, users))
 
     if reverse_user_info['event_type'].has_key(event.type_):
         user_list_3 = reverse_user_info['event_type'][event.type_]
@@ -216,7 +225,7 @@ def check_user_notification_interest(event, reverse_user_info):
             user_list_3 += reverse_user_info['event_type']['']
         users = set.intersection(users, user_list_3)
 
-        log.debug("for event_type: %s got interested users here  %s" % (event.type_, users))
+        log.debug("For event_type = %s too, UNS got interested users here  %s" % (event.type_, users))
 
 
     if reverse_user_info['event_subtype'].has_key(event.sub_type):
@@ -226,7 +235,7 @@ def check_user_notification_interest(event, reverse_user_info):
                 user_list_4 += reverse_user_info['event_subtype']['']
             users = set.intersection(users, user_list_4)
 
-            log.debug("for event_subtype: %s got interested users here  %s" % (event.sub_type, users))
+            log.debug("For event_subtype = %s too, UNS got interested users here  %s" % (event.sub_type, users))
 
 
     users = list( users)
