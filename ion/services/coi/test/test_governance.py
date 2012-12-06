@@ -3,7 +3,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import unittest, os, gevent
+import unittest, os, gevent, time, datetime
 from mock import Mock, patch
 from pyon.util.containers import get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
@@ -23,6 +23,8 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
+from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
+
 
 from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
@@ -158,6 +160,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.ims_client = InstrumentManagementServiceProcessClient(node=self.container.node, process=process)
 
         self.ems_client = ExchangeManagementServiceProcessClient(node=self.container.node, process=process)
+
+        self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=process)
+
 
         #Get info on the ION System Actor
         self.system_actor = self.container.governance_controller.get_system_actor()
@@ -330,6 +335,33 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ems_client.create_exchange_space(es_obj)
         self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
 
+        ###########
+        ### Now test access to service create* operations based on roles...
+
+        #Anonymous users should not be allowed
+        with self.assertRaises(Unauthorized) as cm:
+            id = self.ssclient.create_interval_timer(start_time="now", event_origin="Interval_Timer_233",)
+        self.assertIn( 'scheduler(create_interval_timer) has been denied',cm.exception.message)
+
+        #now try creating a new user with a valid actor
+        actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
+        log.info( "user id=" + actor_id)
+        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+
+        #User without OPERATOR or MANAGER role should not be allowed
+        with self.assertRaises(Unauthorized) as cm:
+            id = self.ssclient.create_interval_timer(start_time="now", event_origin="Interval_Timer_233", headers=actor_header)
+        self.assertIn( 'scheduler(create_interval_timer) has been denied',cm.exception.message)
+
+        #Remove the INSTRUMENT_OPERATOR_ROLE from the user.
+        self.org_client.grant_role(self.ion_org._id, actor_id, ORG_MANAGER_ROLE,  headers=self.system_actor_header)
+
+        #Refresh headers with new role
+        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+
+        #User with proper role should now be allowed to access this service operation.
+        id = self.ssclient.create_interval_timer(start_time="now", event_origin="Interval_Timer_233", headers=actor_header)
+
 
 
     @attr('LOCOINT')
@@ -402,6 +434,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.pol_client.delete_policy(test_policy_id, headers=self.system_actor_header)
 
         gevent.sleep(1)  # Wait for events to be published and policy updated
+
 
 
     @attr('LOCOINT')
@@ -795,7 +828,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_r), 4)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
         self.assertEqual(events_r[-1][2].role_name, sap_response2.role_name)
-
 
 
 
