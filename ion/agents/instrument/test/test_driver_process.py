@@ -84,15 +84,6 @@ class TestInstrumentDriverProcess(PyonTestCase):
         self.assertTrue(driver_client)
 
         driver_client.start_messaging(self.event_received)
-        #
-        # Do we need to verify events here?  Is it deterministic behavior?
-        #
-
-        stream_info = CFG.get('stream_config', None)
-
-        #@TODO re-enable this when stream_info is defined
-        #packet_factories = driver_process.get_packet_factories(stream_info)
-        #self.assertTrue(packet_factories)
 
         self.assertGreater(driver_process.memory_usage(), 0)
         log.info("Driver memory usage before stop: %d", driver_process.memory_usage())
@@ -104,7 +95,6 @@ class TestInstrumentDriverProcess(PyonTestCase):
         """
         Test the driver launching process for a class and module
         """
-
         self.assert_driver_process_launch_success(self._class_driver_config)
 
     def test_driver_process_by_egg(self):

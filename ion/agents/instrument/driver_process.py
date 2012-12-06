@@ -51,8 +51,6 @@ class DriverProcess(object):
     _command_port = None
     _event_port = None
 
-    _packet_factories = None
-
     @classmethod
     def get_process(cls, driver_config, test_mode = False):
         """
@@ -65,10 +63,6 @@ class DriverProcess(object):
         """
         type = driver_config.get("process_type")[0]
         driver_module = driver_config.get('dvr_mod')
-
-        log.error("ROGER TYPE " + repr(type))
-
-
 
         if not type:
             raise DriverLaunchException("missing driver config: process_type")
@@ -331,102 +325,27 @@ class ZMQPyClassDriverProcess(DriverProcess):
 
         return [ python, '-c', cmd_str ]
 
-    def get_packet_factories(self, stream_info):
-        """
-        Construct packet factories from PACKET_CONFIG member of the driver_config
-        and the given stream_info dict.
-
-        @param stream_info
-
-        @retval a dict indexed by stream name of the packet factories defined.
-        """
-
-
-        if not self._packet_factories:
-            log.info("generating packet factories")
-            self._packet_factories = {}
-
-            driver_module = self.config.get('dvr_mod')
-            if not driver_module:
-                raise DriverLaunchException("missing driver config: driver_module")
-
-            packet_config = None
-            try:
-                import_str = 'from %s import PACKET_CONFIG' % driver_module
-                exec import_str
-                log.debug("PACKET_CONFIG: %s", PACKET_CONFIG)
-                packet_config = PACKET_CONFIG
-            except:
-                log.error('PACKET_CONFIG undefined in driver module %s ' % driver_module)
-
-            if packet_config:
-                for name in packet_config:
-                    if not name in stream_info:
-                        log.error("Name '%s' not found in stream_info" % name)
-                        continue
-
-                    stream_config = stream_info[name]
-                    try:
-                        packet_builder = create_packet_builder(name, stream_config)
-                        self._packet_factories[name] = packet_builder
-                        log.info('created packet builder for stream %s' % name)
-                    except Exception, e:
-                        log.error('error creating packet builder: %s' % e)
-
-        return self._packet_factories
-
-# TODO remove
-#    def get_packet_factories(self):
-#        """
-#        Construct packet factories from packet_config member of the driver_config.
-#        @retval a list of packet factories defined.
-#        """
-#        if not self._packet_factories:
-#            log.info("generating packet factories")
-#            self._packet_factories = {}
-#
-#            driver_module = self.config.get('dvr_mod')
-#            if not driver_module:
-#                raise DriverLaunchException("missing driver config: driver_module")
-#
-#            # Should we poll the driver process to give us these configurations?  If defined in an interface then
-#            # this method could be generalized for all driver processes.  It also seems like execing an import
-#            # might be unsafe.
-#            import_str = 'from %s import PACKET_CONFIG' % driver_module
-#            try:
-#                exec import_str
-#                log.debug("PACKET_CONFIG: %s", PACKET_CONFIG)
-#                for (name, val) in PACKET_CONFIG.iteritems():
-#                    if val:
-#                        try:
-#                            mod = val[0]
-#                            cls = val[1]
-#                            import_str = 'from %s import %s' % (mod, cls)
-#                            ctor_str = 'ctor = %s' % cls
-#                            exec import_str
-#                            exec ctor_str
-#                            self._packet_factories[name] = ctor
-#
-#                        except Exception, e:
-#                            log.error('error creating packet factory: %s', e)
-#
-#                        else:
-#                            log.info('created packet factory for stream %s', name)
-#            except Exception, e:
-#                log.error('Instrument agent %s had error creating packet factories. %s', e)
-#
-#        return self._packet_factories
-
 
 class ZMQEggDriverProcess(DriverProcess):
-    """
-    Object to facilitate driver processes launch from an egg as an 'eggsecutable'
-    """
+    '''
+    Object to facilitate ZMQ driver processes using a python egg
+
+    Driver config requirements:
+    dvr_egg :: the filename of the egg
+
+    Example:
+
+    driver_config = {
+        dvr_egg: seabird_sbe37smb_ooicore-0.0.1-py2.7.egg
+
+        process_type: DriverProcessType.EGG
+    }
+    @param driver_config configuration parameters for the driver process
+    @param test_mode should the driver be run in test mode
+    '''
     def __init__(self, driver_config, test_mode = False):
         self.config = driver_config
         self.test_mode = test_mode
-
-
 
     def _check_cache_for_egg(self, egg_name):
         """
@@ -506,46 +425,3 @@ class ZMQEggDriverProcess(DriverProcess):
 
         return [ python, '-c', cmd_str ]
 
-    def get_packet_factories(self, stream_info):
-        """
-        Construct packet factories from PACKET_CONFIG member of the driver_config
-        and the given stream_info dict.
-
-        @param stream_info
-
-        @retval a dict indexed by stream name of the packet factories defined.
-        """
-
-
-        if not self._packet_factories:
-            log.info("generating packet factories")
-            self._packet_factories = {}
-
-            driver_module = self.config.get('dvr_mod')
-            if not driver_module:
-                raise DriverLaunchException("missing driver config: driver_module")
-
-            packet_config = None
-            try:
-                import_str = 'from %s import PACKET_CONFIG' % driver_module
-                exec import_str
-                log.debug("PACKET_CONFIG: %s", PACKET_CONFIG)
-                packet_config = PACKET_CONFIG
-            except:
-                log.error('PACKET_CONFIG undefined in driver module %s ' % driver_module)
-
-            if packet_config:
-                for name in packet_config:
-                    if not name in stream_info:
-                        log.error("Name '%s' not found in stream_info" % name)
-                        continue
-
-                    stream_config = stream_info[name]
-                    try:
-                        packet_builder = create_packet_builder(name, stream_config)
-                        self._packet_factories[name] = packet_builder
-                        log.info('created packet builder for stream %s' % name)
-                    except Exception, e:
-                        log.error('error creating packet builder: %s' % e)
-
-        return self._packet_factories
