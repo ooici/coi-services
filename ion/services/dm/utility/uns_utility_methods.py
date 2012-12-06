@@ -161,7 +161,13 @@ def send_email(message, msg_recipient, smtp_client):
     log.debug("UNS sending email from %s to %s" % ( smtp_sender,msg_recipient))
     log.debug("UNS using the smtp client: %s" % smtp_client)
 
-    smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
+    try:
+        smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
+    except: # Can be due to a broken connection... try to create a connection
+        smtp_client = setting_up_smtp_client()
+        log.debug("Connect again...message received after ehlo exchange: %s" % str(smtp_client.ehlo()))
+        smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
+
 
 def check_user_notification_interest(event, reverse_user_info):
     '''

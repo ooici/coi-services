@@ -38,7 +38,6 @@ class NotificationWorker(TransformEventListener):
 
         self.reverse_user_info = None
         self.user_info = None
-        self.smtp_client = setting_up_smtp_client()
 
         #------------------------------------------------------------------------------------
         # Start by loading the user info and reverse user info dictionaries
@@ -109,6 +108,7 @@ class NotificationWorker(TransformEventListener):
 
         for user_id in user_ids:
             msg_recipient = self.user_info[user_id]['user_contact'].email
+            self.smtp_client = setting_up_smtp_client()
             send_email(message = msg, msg_recipient = msg_recipient, smtp_client = self.smtp_client )
 
     def on_stop(self):
