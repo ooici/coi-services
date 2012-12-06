@@ -199,7 +199,7 @@ def check_user_notification_interest(event, reverse_user_info):
                 user_list_1 += reverse_user_info['event_origin']['']
             users = user_list_1
 
-            log.debug("for event origin %s got interested users here  %s" % (event.origin, users))
+            log.debug("For event origin = %s, UNS got interested users here  %s" % (event.origin, users))
 
     if reverse_user_info['event_origin_type'].has_key(event.origin_type):
         if event.origin_type: # for an incoming event with origin type specified
@@ -208,7 +208,7 @@ def check_user_notification_interest(event, reverse_user_info):
                 user_list_2 += reverse_user_info['event_origin_type']['']
             users = set.intersection(users, user_list_2)
 
-            log.debug("for event_origin_type: %s got interested users here  %s" % (event.origin_type, users))
+            log.debug("For event_origin_type = %s too, UNS got interested users here  %s" % (event.origin_type, users))
 
     if reverse_user_info['event_type'].has_key(event.type_):
         user_list_3 = reverse_user_info['event_type'][event.type_]
@@ -216,7 +216,7 @@ def check_user_notification_interest(event, reverse_user_info):
             user_list_3 += reverse_user_info['event_type']['']
         users = set.intersection(users, user_list_3)
 
-        log.debug("for event_type: %s got interested users here  %s" % (event.type_, users))
+        log.debug("For event_type = %s too, UNS got interested users here  %s" % (event.type_, users))
 
 
     if reverse_user_info['event_subtype'].has_key(event.sub_type):
@@ -226,7 +226,7 @@ def check_user_notification_interest(event, reverse_user_info):
                 user_list_4 += reverse_user_info['event_subtype']['']
             users = set.intersection(users, user_list_4)
 
-            log.debug("for event_subtype: %s got interested users here  %s" % (event.sub_type, users))
+            log.debug("For event_subtype = %s too, UNS got interested users here  %s" % (event.sub_type, users))
 
 
     users = list( users)

@@ -657,6 +657,7 @@ class UserNotificationService(BaseUserNotificationService):
         @param start_time int
         @param end_time int
         """
+        self.smtp_client = setting_up_smtp_client()
 
         if end_time <= start_time:
             return
@@ -704,9 +705,12 @@ class UserNotificationService(BaseUserNotificationService):
 
             # send a notification email to each user using a _send_email() method
             if events_for_message:
-                self.format_and_send_email(events_for_message, user_id)
+                self.format_and_send_email(events_for_message, user_id, self.smtp_client)
 
-    def format_and_send_email(self, events_for_message, user_id):
+        self.smtp_client.quit()
+
+
+    def format_and_send_email(self, events_for_message = None, user_id = None, smtp_client = None):
         """
         Format the message for a particular user containing information about the events he is to be notified about
 
@@ -746,14 +750,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         msg_subject = "(SysName: " + get_sys_name() + ") ION event "
 
-        smtp_client = setting_up_smtp_client()
-
         self.send_batch_email(  msg_body = msg_body,
             msg_subject = msg_subject,
             msg_recipient=self.user_info[user_id]['user_contact'].email,
             smtp_client=smtp_client )
 
-        smtp_client.quit()
 
     def send_batch_email(self, msg_body, msg_subject, msg_recipient, smtp_client):
         """
