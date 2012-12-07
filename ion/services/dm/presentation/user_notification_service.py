@@ -764,7 +764,7 @@ class UserNotificationService(BaseUserNotificationService):
                                      "",
                                      "Description: %s" % event.description ,
                                      "",
-                                     "Event time stamp: %s" %  time,
+                                     "Time stamp(s): %s" %  time,
                                      "\r\n",
                                      "------------------------"
                                      "\r\n"))

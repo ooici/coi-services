@@ -163,7 +163,7 @@ def send_email(message, msg_recipient, smtp_client):
                             "",
                             "Description: %s," % description,
                             "",
-                            "Time stamp: %s," %  time,
+                            "Time stamp(s): %s," %  time,
                             "",
                             "Event object as a dictionary: %s," %  event_obj_as_string,
                             "",
