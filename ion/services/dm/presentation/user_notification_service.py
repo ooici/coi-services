@@ -124,7 +124,9 @@ class UserNotificationService(BaseUserNotificationService):
         self.event_repo = self.container.instance.event_repository
 
 
-        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
+#        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
+        self.ION_NOTIFICATION_EMAIL_ADDRESS = CFG.get_safe('server.smtp.sender')
+
 
         #---------------------------------------------------------------------------------------------------
         # Create an event processor
@@ -725,8 +727,36 @@ class UserNotificationService(BaseUserNotificationService):
 
         msg_body = ''
         count = 1
+
         for event in events_for_message:
             # build the email from the event content
+
+            if event.type_ == 'DeviceStatusEvent':
+                time_stamps = []
+                for t in event.time_stamps:
+
+                    # Convert seconds since epoch to human readable form
+                    x = datetime.fromtimestamp(t)
+                    # Convert to the format, 2010-09-12T06:19:54
+                    t = x.isoformat()
+                    time_stamps.append(t)
+
+                # Convert the timestamp list to a string
+                time = str(time_stamps)
+
+            elif event.type_ == 'DeviceCommsEvent':
+                # Convert seconds since epoch to human readable form
+                x = datetime.fromtimestamp(event.time_stamp)
+                # Convert to the format, 2010-09-12T06:19:54
+                time = str(x.isoformat())
+
+            else:
+                # Convert seconds since epoch to human readable form
+                x = datetime.fromtimestamp(event.ts_created)
+                # Convert to the format, 2010-09-12T06:19:54
+                time = str(x.isoformat()) + " (ts_created)"
+
+
             msg_body += string.join(("\r\n",
                                      "Event %s: %s" %  (count, event),
                                      "",
@@ -734,7 +764,7 @@ class UserNotificationService(BaseUserNotificationService):
                                      "",
                                      "Description: %s" % event.description ,
                                      "",
-                                     "Event time stamp: %s" %  event.ts_created,
+                                     "Event time stamp: %s" %  time,
                                      "\r\n",
                                      "------------------------"
                                      "\r\n"))
