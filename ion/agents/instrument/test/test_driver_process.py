@@ -75,7 +75,9 @@ class TestInstrumentDriverProcess(PyonTestCase):
 
         driver_process.launch()
         self.assertTrue(driver_process.getpid())
-        log.info("Driver memory usage after init: %d", driver_process.memory_usage())
+
+        # command not portable
+        #log.info("Driver memory usage after init: %d", driver_process.memory_usage())
 
         self.assertGreater(driver_process._command_port, 0)
         self.assertGreater(driver_process._event_port, 0)
@@ -85,8 +87,9 @@ class TestInstrumentDriverProcess(PyonTestCase):
 
         driver_client.start_messaging(self.event_received)
 
-        self.assertGreater(driver_process.memory_usage(), 0)
-        log.info("Driver memory usage before stop: %d", driver_process.memory_usage())
+        # command not portable
+        # self.assertGreater(driver_process.memory_usage(), 0)
+        # log.info("Driver memory usage before stop: %d", driver_process.memory_usage())
 
         driver_process.stop()
         self.assertFalse(driver_process.getpid())
