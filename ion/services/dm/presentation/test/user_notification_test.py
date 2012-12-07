@@ -997,15 +997,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         maps = msg.split(",")
 
-        event_time = ''
+        event_type = ''
         for map in maps:
             fields = map.split(":")
-            if fields[0].find("Time stamp") > -1:
-                event_time = int(fields[1].strip(" "))
+            log.debug("fields::: %s" % fields)
+            if fields[0].find("type_") > -1:
+                event_type = fields[1].strip(" ").strip("'")
                 break
 
+
+#            if fields[0].find("Time stamp") > -1:
+#                event_time = int(fields[1].strip(" "))
+#                break
+
         # Check that the event sent in the email had time within the user specified range
-        self.assertEquals(event_time, 5)
+        self.assertEquals(event_type, 'ResourceLifecycleEvent')
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')

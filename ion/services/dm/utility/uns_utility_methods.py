@@ -120,7 +120,33 @@ def send_email(message, msg_recipient, smtp_client):
 
     '''
 
-    time_stamp = message.ts_created
+    # Get the time stamp
+
+    if message.type_ == 'DeviceStatusEvent':
+        time_stamps = []
+        for t in message.time_stamps:
+
+            # Convert seconds since epoch to human readable form
+            x = datetime.datetime.fromtimestamp(t)
+            # Convert to the format, 2010-09-12T06:19:54
+            t = x.isoformat()
+            time_stamps.append(t)
+
+        # Convert the timestamp list to a string
+        time = str(time_stamps)
+
+    elif message.type_ == 'DeviceCommsEvent':
+        # Convert seconds since epoch to human readable form
+        x = datetime.datetime.fromtimestamp(message.time_stamp)
+        # Convert to the format, 2010-09-12T06:19:54
+        time = str(x.isoformat())
+
+    else:
+        # Convert seconds since epoch to human readable form
+        x = datetime.datetime.fromtimestamp(message.ts_created)
+        # Convert to the format, 2010-09-12T06:19:54
+        time = str(x.isoformat()) + " (ts_created)"
+
     event = message.type_
     origin = message.origin
     description = message.description
@@ -137,7 +163,7 @@ def send_email(message, msg_recipient, smtp_client):
                             "",
                             "Description: %s," % description,
                             "",
-                            "Time stamp: %s," %  time_stamp,
+                            "Time stamp: %s," %  time,
                             "",
                             "Event object as a dictionary: %s," %  event_obj_as_string,
                             "",
