@@ -125,7 +125,6 @@ class ProcessStateGate(EventSubscriber):
                          self.process_id,
                          timeout)
 
-
         return ret or self.last_chance
 
     def _get_last_chance(self):
@@ -133,6 +132,7 @@ class ProcessStateGate(EventSubscriber):
 
     def _get_first_chance(self):
         return self.first_chance
+
 
 class ProcessDispatcherService(BaseProcessDispatcherService):
 
@@ -388,6 +388,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         name = '-'.join(name_parts)
 
         return name
+
 
 class PDDashiHandler(object):
     """Dashi messaging handlers for the Process Dispatcher"""
@@ -691,6 +692,7 @@ _PD_PYON_PROCESS_STATE_MAP = {
     ProcessStateEnum.REJECTED: "900-REJECTED"
 }
 
+
 class Notifier(object):
     """Sends Process state notifications via ION events
 
@@ -750,38 +752,11 @@ class AnyEEAgentClient(object):
     def __init__(self, process):
         self.process = process
 
-        # it's ok to cache these clients indefinitely. Longer term we may need
-        # to prune this cache if we are dealing with many eeagents that come and
-        # go.
-        self.cache = {}
+    def _get_client_for_eeagent(self, eeagent_id):
+        eeagent_id = str(eeagent_id)
 
-    def _get_client_for_eeagent(self, resource_id, attempts=60):
-
-        cached = self.cache.get(resource_id)
-        if cached:
-            return cached
-
-        exception = None
-        for i in range(0, attempts):
-            try:
-                resource_client = SimpleResourceAgentClient(resource_id, process=self.process)
-                client = ExecutionEngineAgentClient(resource_client)
-                self.cache[resource_id] = client
-                return client
-            except (NotFound, ResourceNotFound, ServerError), e:
-                # This exception catches a race condition, where:
-                # 1. EEagent spawns and starts heartbeater
-                # 2. heartbeat gets sent
-                # 3. PD recieves heartbeat and tries to send a message but EEAgent,
-                #    hasn't been registered yet
-                #
-                # So, we try it a few times hoping that it'll come up
-                log.exception("Couldn't get eeagent client")
-                gevent.sleep(1)
-                exception = e
-        else:
-            raise exception
-
+        resource_client = SimpleResourceAgentClient(eeagent_id, name=eeagent_id, process=self.process)
+        return ExecutionEngineAgentClient(resource_client)
 
     def launch_process(self, eeagent, upid, round, run_type, parameters):
         client = self._get_client_for_eeagent(eeagent)
@@ -908,14 +883,14 @@ class PDNativeBackend(object):
         log.debug("Got EEAgent heartbeat. headers=%s msg=%s", headers, heartbeat)
 
         try:
-            resource_id = heartbeat['resource_id']
+            eeagent_id = heartbeat['eeagent_id']
             beat = heartbeat['beat']
         except KeyError, e:
             log.warn("Invalid EEAgent heartbeat received. Missing: %s -- %s", e, heartbeat)
             return
 
         try:
-            self.core.ee_heartbeat(resource_id, beat)
+            self.core.ee_heartbeat(eeagent_id, beat)
         except (NotFound, ResourceNotFound, ServerError):
             # This exception catches a race condition, where:
             # 1. EEagent spawns and starts heartbeater
@@ -923,9 +898,8 @@ class PDNativeBackend(object):
             # 3. PD recieves heartbeat and tries to send a message but EEAgent,
             #    hasn't been registered yet
             log.exception("Problem processing heartbeat from eeagent")
-        except:
+        except Exception:
             log.exception("Unexpected error while processing heartbeat")
-
 
     def create_definition(self, definition, definition_id=None):
         """
