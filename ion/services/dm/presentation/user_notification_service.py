@@ -760,7 +760,8 @@ class UserNotificationService(BaseUserNotificationService):
 
             x = datetime.fromtimestamp(_convert_unix_to_ntp(t))
             # Convert to the format, 2010-09-12T06:19:54
-            ts_created = str(x.isoformat()) + " (ts_created)"
+#            ts_created = str(x.isoformat()) + " (ts_created)"
+            ts_created = str(x.isoformat())
 
 
             msg_body += string.join(("\r\n",
@@ -770,9 +771,9 @@ class UserNotificationService(BaseUserNotificationService):
                                      "",
                                      "Description: %s" % event.description ,
                                      "",
-                                     "Time stamp(s): %s" %  time,
+                                     "Value of time_stamp(s) attribute of event: %s" %  time,
                                      "",
-                                     "Time of event: %s" %  ts_created,
+                                     "ts_created: %s" %  ts_created,
                                      "\r\n",
                                      "------------------------"
                                      "\r\n"))
