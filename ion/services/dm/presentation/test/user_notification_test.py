@@ -729,7 +729,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         Test that the process_batch() method works
         '''
 
-
         test_start_time = get_ion_ts() # Note this time is in milliseconds
         test_end_time = str(int(get_ion_ts()) + 10000) # Adding 10 seconds
 
@@ -744,9 +743,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # this part of code is in the beginning to allow enough time for the events_index creation
 
         for i in xrange(10):
-
-#            t = now()
-#            t = UserNotificationIntTest.makeEpochTime(t)
 
             event_publisher.publish_event(
                 origin="instrument_1",
