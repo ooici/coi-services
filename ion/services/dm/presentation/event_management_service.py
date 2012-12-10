@@ -132,9 +132,7 @@ class EventManagementService(BaseEventManagementService):
         # The event_process_def is really only a process_def. Read up the process definition
         process_def = self.clients.resource_registry.read(event_process_definition_id)
 
-        log.debug("process_def::: %s" % process_def)
         definition = process_def.definition
-        log.debug("type of definition attribute: %s" % type(definition))
 
         # Fetch or make a new EventProcessDefinitionDetail object
         if definition:
