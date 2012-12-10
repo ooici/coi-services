@@ -1147,10 +1147,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
+        anonymous_user_headers = {'ion-actor-id':'anonymous'}
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
-            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True)
+            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=anonymous_user_headers)
         self.assertIn( 'identity_management(signon) has been denied',cm.exception.message)
 
         #Create user
@@ -1190,7 +1191,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try a basic agent operation anonymously - it should be denied
         with self.assertRaises(Unauthorized) as cm:
-            retval = ia_client.get_capabilities()
+            retval = ia_client.get_capabilities(headers=anonymous_user_headers )
         self.assertIn('(get_capabilities) has been denied',cm.exception.message)
 
         #However the ION Manager should be allowed
@@ -1217,7 +1218,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #This agent operation should not be allowed for anonymous user
         with self.assertRaises(Unauthorized) as cm:
-            retval = ia_client.get_resource_state()
+            retval = ia_client.get_resource_state(headers=anonymous_user_headers)
         self.assertIn('(get_resource_state) has been denied',cm.exception.message)
 
         #This agent operation should not be allowed for a user that is not an Instrument Operator
@@ -1274,7 +1275,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try anonymously - should be denied
         with self.assertRaises(Unauthorized) as cm:
-            ia_client.set_resource(new_params)
+            ia_client.set_resource(new_params, headers=anonymous_user_headers)
         self.assertIn('(set_resource) has been denied',cm.exception.message)
 
         #THey try with user with Instrument Operator role, but should fail with out acquiring a resource
