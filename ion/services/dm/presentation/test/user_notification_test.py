@@ -7,7 +7,7 @@
 '''
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
-from pyon.util.containers import DotDict
+from pyon.util.containers import DotDict, get_ion_ts
 from pyon.public import IonObject, RT, OT, PRED, Container, CFG
 from pyon.core.exception import NotFound, BadRequest
 from pyon.core.bootstrap import get_sys_name
@@ -730,8 +730,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         '''
 
 
-        test_start_time = UserNotificationIntTest.makeEpochTime(datetime.utcnow())
-        test_end_time = UserNotificationIntTest.makeEpochTime(datetime.utcnow() + timedelta(seconds=10))
+        test_start_time = int(get_ion_ts()) # Note this time is in milliseconds
+        test_end_time = int(get_ion_ts()) + 10000 # Adding 10 seconds
 
         #--------------------------------------------------------------------------------------
         # Publish events corresponding to the notification requests just made
@@ -745,15 +745,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         for i in xrange(10):
 
-            t = now()
-            t = UserNotificationIntTest.makeEpochTime(t)
+#            t = now()
+#            t = UserNotificationIntTest.makeEpochTime(t)
 
-            event_publisher.publish_event( ts_created= t ,
+            event_publisher.publish_event(
                 origin="instrument_1",
                 origin_type="type_1",
                 event_type='ResourceLifecycleEvent')
 
-            event_publisher.publish_event( ts_created= t ,
+            event_publisher.publish_event(
                 origin="instrument_3",
                 origin_type="type_3",
                 event_type='ResourceLifecycleEvent')
@@ -862,7 +862,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             for map in maps:
                 fields = map.split(":")
                 if fields[0].find("Time of event") > -1:
-                    event_time = fields[1].strip(" ").strip(" (ts_created)")
+                    event_time = fields[1].strip(" ")
                     break
 
             self.assertIsNotNone(event_time)

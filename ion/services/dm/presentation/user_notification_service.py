@@ -656,8 +656,8 @@ class UserNotificationService(BaseUserNotificationService):
         user that have occurred in a provided time interval, and then an email is sent to the user containing
         the digest of all the events.
 
-        @param start_time int
-        @param end_time int
+        @param start_time int milliseconds
+        @param end_time int milliseconds
         """
         self.smtp_client = setting_up_smtp_client()
 
@@ -729,8 +729,8 @@ class UserNotificationService(BaseUserNotificationService):
         count = 1
 
         for event in events_for_message:
-            # build the email from the event content
 
+            # build the email from the event content
             time = ''
             if event.type_ == 'DeviceStatusEvent':
                 time_stamps = []
@@ -757,10 +757,8 @@ class UserNotificationService(BaseUserNotificationService):
             # Convert seconds since epoch to human readable form
             t = event.ts_created
             if type(t) == str: t = int(t.strip(" "))
-
-            x = datetime.fromtimestamp(_convert_unix_to_ntp(t/1000))
+            x = datetime.fromtimestamp(t/1000)
             # Convert to the format, 2010-09-12T06:19:54
-#            ts_created = str(x.isoformat()) + " (ts_created)"
             ts_created = str(x.isoformat())
 
 
