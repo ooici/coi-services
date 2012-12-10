@@ -649,7 +649,7 @@ class UserNotificationService(BaseUserNotificationService):
         return seconds_since_epoch
 
 
-    def process_batch(self, start_time = 0, end_time = 0):
+    def process_batch(self, start_time = '', end_time = ''):
         """
         This method is launched when an process_batch event is received. The user info dictionary maintained
         by the User Notification Service is used to query the event repository for all events for a particular

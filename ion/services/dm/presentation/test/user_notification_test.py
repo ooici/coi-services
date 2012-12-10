@@ -730,8 +730,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         '''
 
 
-        test_start_time = int(get_ion_ts()) # Note this time is in milliseconds
-        test_end_time = int(get_ion_ts()) + 10000 # Adding 10 seconds
+        test_start_time = get_ion_ts() # Note this time is in milliseconds
+        test_end_time = str(int(get_ion_ts()) + 10000) # Adding 10 seconds
 
         #--------------------------------------------------------------------------------------
         # Publish events corresponding to the notification requests just made
