@@ -338,7 +338,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     @classmethod
     def _get_coverage(cls,dataset_id,mode='w'):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        path = os.path.join(file_root, '%s.cov' % dataset_id)
+        path = os.path.join(file_root, '%s_cov' % dataset_id)
         coverage = SimplexCoverage.pickle_load(path)
         setattr(coverage,'pickle_path',cls._get_coverage_path(dataset_id))
         #coverage = SimplexCoverage(file_root, dataset_id,mode=mode)
@@ -347,7 +347,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     @classmethod
     def _get_coverage_path(cls, dataset_id):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        return os.path.join(file_root, '%s.cov' % dataset_id)
+        return os.path.join(file_root, '%s_cov' % dataset_id)
     
     @classmethod
     def _compare_pc(cls, pc1, pc2):
