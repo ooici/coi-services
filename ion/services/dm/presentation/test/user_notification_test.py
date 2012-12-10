@@ -861,7 +861,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_time = ''
             for map in maps:
                 fields = map.split(":")
-                if fields[0].find("ts_created") > -1:
+                if fields[0].find("Time of event") > -1:
                     event_time = fields[1].strip(" ").strip(" (ts_created)")
                     break
 
