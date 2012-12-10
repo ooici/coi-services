@@ -133,16 +133,15 @@ class EventManagementService(BaseEventManagementService):
         process_def = self.clients.resource_registry.read(event_process_definition_id)
 
         log.debug("process_def::: %s" % process_def)
+        definition = process_def.definition
+        log.debug("type of definition attribute: %s" % type(definition))
 
         # Fetch or make a new EventProcessDefinitionDetail object
-        if process_def.definition:
+        if definition:
             event_process_def_detail = EventProcessDefinitionDetail()
-            if event_types:
-                event_process_def_detail.event_types = process_def.definition.event_types
-            if sub_types:
-                event_process_def_detail.sub_types = process_def.definition.sub_types
-            if origin_types:
-                event_process_def_detail.origin_types = process_def.definition.origin_types
+            event_process_def_detail.event_types = event_types or definition.event_types
+            event_process_def_detail.sub_types = sub_types or definition.sub_types
+            event_process_def_detail.origin_types = origin_types or definition.origin_types
         else:
             detail = EventProcessDefinitionDetail(event_types = event_types, sub_types = sub_types, origin_types = origin_types)
             event_process_def_detail = detail
