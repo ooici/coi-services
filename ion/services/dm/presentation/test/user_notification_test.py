@@ -379,8 +379,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Check the publishing
         #--------------------------------------------------------------------------------------
 
-        received_event_1 = queue.get()
-        received_event_2 = queue.get()
+        received_event_1 = queue.get(timeout=10)
+        received_event_2 = queue.get(timeout=10)
 
         notifications_received = set([received_event_1.notification_id, received_event_2.notification_id])
 
@@ -399,8 +399,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Check that the correct events were published
         #--------------------------------------------------------------------------------------
 
-        received_event_1 = queue.get()
-        received_event_2 = queue.get()
+        received_event_1 = queue.get(timeout=10)
+        received_event_2 = queue.get(timeout=10)
 
         notifications_received = set([received_event_1.notification_id, received_event_2.notification_id])
 
@@ -419,8 +419,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Check that the correct events were published
         #--------------------------------------------------------------------------------------
 
-        received_event_1 = queue.get()
-        received_event_2 = queue.get()
+        received_event_1 = queue.get(timeout=10)
+        received_event_2 = queue.get(timeout=10)
 
         notifications_received = set([received_event_1.notification_id, received_event_2.notification_id])
 
@@ -835,7 +835,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         email_list = []
 
         while not proc1.smtp_client.sent_mail.empty():
-            email_tuple = proc1.smtp_client.sent_mail.get()
+            email_tuple = proc1.smtp_client.sent_mail.get(timeout=10)
             email_list.append(email_tuple)
 
         self.assertEquals(len(email_list), 2)
@@ -889,11 +889,36 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # user_2
         user_2 = UserInfo()
         user_2.name = 'user_2'
-        user_2.contact.phones = ['5551212']
+        user_2.contact.email = 'user_2@gmail.com'
 
 
         user_id_1, _ = self.rrc.create(user_1)
         user_id_2, _ = self.rrc.create(user_2)
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects -- Remember to put names
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(   name = "notification_1",
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent',
+            event_subtype=''
+        )
+
+        notification_request_2 = NotificationRequest(   name = "notification_2",
+            origin="instrument_2",
+            origin_type="type_2",
+            event_type='DeviceStatusEvent',
+            event_subtype=''
+        )
+
+        notification_request_3 = NotificationRequest(   name = "notification_3",
+            origin="instrument_3",
+            origin_type="type_3",
+            event_type='DeviceCommsEvent',
+            event_subtype=''
+        )
 
         #--------------------------------------------------------------------------------------
         # Create notification workers
@@ -923,32 +948,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 procs.append(proc)
 
         #--------------------------------------------------------------------------------------
-        # Make notification request objects -- Remember to put names
-        #--------------------------------------------------------------------------------------
-
-        notification_request_correct = NotificationRequest(   name = "notification_1",
-            origin="instrument_1",
-            origin_type="type_1",
-            event_type='ResourceLifecycleEvent',
-            event_subtype=''
-        )
-
-        notification_request_2 = NotificationRequest(   name = "notification_2",
-            origin="instrument_2",
-            origin_type="type_2",
-            event_type='DetectionEvent',
-            event_subtype=''
-        )
-
-
-        #--------------------------------------------------------------------------------------
         # Create notifications using UNS.
         #--------------------------------------------------------------------------------------
 
-        self.unsc.create_notification(notification=notification_request_correct, user_id=user_id_1)
-        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_1)
+        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
 
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
+        self.unsc.create_notification(notification=notification_request_3, user_id=user_id_2)
+
+        gevent.sleep(4)
 
         #--------------------------------------------------------------------------------------
         # Publish events
@@ -962,54 +970,63 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             origin_type="type_1")
 
         event_publisher.publish_event(
-            event_type = "DetectionEvent",
+            event_type = "DeviceStatusEvent",
             origin="instrument_2",
-            origin_type="type_2")
+            origin_type="type_2",
+            time_stamps = [get_ion_ts(), str(int(get_ion_ts()) + 20)])
+
+        event_publisher.publish_event(
+            event_type = "DeviceCommsEvent",
+            origin="instrument_3",
+            origin_type="type_3",
+            time_stamp = get_ion_ts())
+
 
         #--------------------------------------------------------------------------------------
         # Check that the workers processed the events
         #--------------------------------------------------------------------------------------
 
-        email_sent_by_a_worker = False
         worker_that_sent_email = None
         for proc in procs:
             if not proc.smtp_client.sent_mail.empty():
-                email_sent_by_a_worker = True
                 worker_that_sent_email = proc
                 break
 
-        log.debug("Was email sent by any worker?: %s" % email_sent_by_a_worker)
+        gevent.sleep(4)
 
-        # check fake smtp client for emails sent
-        self.assertTrue(email_sent_by_a_worker)
-
-        email_tuple = None
-        if email_sent_by_a_worker:
-            email_tuple = worker_that_sent_email.smtp_client.sent_mail.get()
-
-        # Parse the email sent and check and make assertions about email body. Make assertions about the sender and recipient
-        msg_sender, msg_recipient, msg = email_tuple
-
-        self.assertEquals(msg_sender, CFG.get_safe('server.smtp.sender') )
-        self.assertTrue(msg_recipient in ['user_1@gmail.com', 'user_2@gmail.com'])
-
-        maps = msg.split(",")
-
-        event_type = ''
-        for map in maps:
-            fields = map.split(":")
-            log.debug("fields::: %s" % fields)
-            if fields[0].find("type_") > -1:
-                event_type = fields[1].strip(" ").strip("'")
-                break
+        email_tuples = []
 
 
-#            if fields[0].find("Time stamp") > -1:
-#                event_time = int(fields[1].strip(" "))
-#                break
+        for c in xrange(3):
+            email_tuple  = worker_that_sent_email.smtp_client.sent_mail.get(timeout=20)
+            email_tuples.append(email_tuple)
+            log.debug("size of sent_mail queue: %s" % worker_that_sent_email.smtp_client.sent_mail.qsize())
+            log.debug("email tuple::: %s" % str(email_tuple))
 
-        # Check that the event sent in the email had time within the user specified range
-        self.assertEquals(event_type, 'ResourceLifecycleEvent')
+        for email_tuple in email_tuples:
+            # Parse the email sent and check and make assertions about email body. Make assertions about the sender and recipient
+            msg_sender, msg_recipient, msg = email_tuple
+
+            self.assertEquals(msg_sender, CFG.get_safe('server.smtp.sender') )
+            self.assertTrue(msg_recipient in ['user_1@gmail.com', 'user_2@gmail.com'])
+
+            maps = msg.split(",")
+
+            event_type = ''
+            for map in maps:
+                fields = map.split(":")
+                log.debug("fields::: %s" % fields)
+                if fields[0].find("type_") > -1:
+                    event_type = fields[1].strip(" ").strip("'")
+                    break
+    #            if fields[0].find("Time stamp") > -1:
+    #                event_time = int(fields[1].strip(" "))
+    #                break
+            if msg_recipient == 'user_1@gmail.com':
+                self.assertTrue(event_type in ['ResourceLifecycleEvent', 'DeviceStatusEvent'])
+            elif msg_recipient == 'user_2@gmail.com':
+                self.assertTrue(event_type in ['DeviceCommsEvent', 'DeviceStatusEvent'])
+
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')

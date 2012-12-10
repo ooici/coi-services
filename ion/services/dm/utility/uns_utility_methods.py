@@ -67,9 +67,10 @@ class fake_smtplib(object):
         return cls(host)
 
     def sendmail(self, msg_sender= None, msg_recipients=None, msg=None):
-        log.warning('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipients))
+        log.warning('c %s, to: "%s"' % (msg_sender,  msg_recipients))
         log.info("Fake message sent: %s" % msg)
         self.sent_mail.put((msg_sender, msg_recipients[0], msg))
+        log.debug("size of the sent_mail queue::: %s" % self.sent_mail.qsize())
 
     def quit(self):
         """
@@ -239,6 +240,7 @@ def check_user_notification_interest(event, reverse_user_info):
 
     @retval user_ids list
     '''
+    log.debug("checking for interested users. Event type: %s, reverse_user_info: %s" % (event.type_, reverse_user_info))
 
     if not isinstance(event, Event):
         raise BadRequest("The input parameter should have been an Event.")
