@@ -111,9 +111,52 @@ def setting_up_smtp_client():
     return smtp_client
 
 def _convert_unix_to_ntp(seconds = None):
+
+    if type(seconds) == str: seconds = int(seconds.strip(" "))
+
     diff = datetime.datetime(1970, 1, 1, 0,0,0) - datetime.datetime(1900, 1, 1, 0, 0, 0)
 
     return seconds - diff.total_seconds()
+
+def _get_time_stamp_for_special_events(message):
+    time = ""
+    if message.type_ == 'DeviceStatusEvent':
+        time_stamps = []
+        for t in message.time_stamps:
+
+            log.debug("Got the time stamp: %s" % t)
+            log.debug("The DeviceStatusEvent is this: %s" % message)
+            # Convert to the format, 2010-09-12T06:19:54
+            _convert_to_human_readable(t)
+            time_stamps.append(t)
+
+        # Convert the timestamp list to a string
+        time = str(time_stamps)
+
+    elif message.type_ == 'DeviceCommsEvent':
+
+        # Convert seconds since epoch to human readable form
+        t = message.time_stamp
+
+        log.debug("Got the time stamp: %s" % t)
+        log.debug("The DeviceCommsEvent is this: %s" % message)
+
+        # Convert to the format, 2010-09-12T06:19:54
+        time = _convert_to_human_readable(t)
+
+    return time
+
+def _convert_to_human_readable(t = ''):
+
+    # Convert seconds since epoch to human readable form
+    if type(t) == str: t = int(t.strip(" "))
+
+    x = datetime.datetime.fromtimestamp( _convert_unix_to_ntp(t) )
+
+    # Convert to the format, 2010-09-12T06:19:54
+    t = x.isoformat()
+
+    return t
 
 def send_email(message, msg_recipient, smtp_client):
     '''
@@ -125,51 +168,19 @@ def send_email(message, msg_recipient, smtp_client):
 
     '''
 
-    # Get the time stamp
-
-    time = ""
-    if message.type_ == 'DeviceStatusEvent':
-        time_stamps = []
-        for t in message.time_stamps:
-
-            # Convert seconds since epoch to human readable form
-            if type(t) == str: t = int(t.strip(" "))
-
-            x = datetime.datetime.fromtimestamp( _convert_unix_to_ntp(t) )
-
-            # Convert to the format, 2010-09-12T06:19:54
-            t = x.isoformat()
-            time_stamps.append(t)
-
-        # Convert the timestamp list to a string
-        time = str(time_stamps)
-
-    elif message.type_ == 'DeviceCommsEvent':
-        # Convert seconds since epoch to human readable form
-        t = message.time_stamp
-        if type(t) == str: t = int(t.strip(" "))
-
-        x = datetime.datetime.fromtimestamp(_convert_unix_to_ntp(t))
-
-        # Convert to the format, 2010-09-12T06:19:54
-        time = str(x.isoformat())
-
     log.debug("Got type of event to notify on: %s" % message.type_)
 
-    t = message.ts_created
-    if type(t) == str: t = int(t.strip(" "))
+    # If DeviceStatusEvent or DeviceCommsEvent, gather the value of the time_stamp(s) attribute
+    time = _get_time_stamp_for_special_events(message)
 
-    # Convert seconds since epoch to human readable form
-    x = datetime.datetime.fromtimestamp(_convert_unix_to_ntp(t))
-    # Convert to the format, 2010-09-12T06:19:54
-    ts_created = str(x.isoformat())
-
+    # Get the diffrent attributes from the event message
     event = message.type_
     origin = message.origin
     description = message.description
     event_obj_as_string = str(message)
+    ts_created = _convert_to_human_readable(message.ts_created)
 
-    #------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------
     # build the email from the event content
     #------------------------------------------------------------------------------------
 
@@ -179,10 +190,10 @@ def send_email(message, msg_recipient, smtp_client):
                             "",
                             "Description: %s," % description,
                             "",
-                            "Time stamp(s): %s," %  time,
+                            "Value of time_stamp(s) attribute of event: %s," %  time,
                             "",
                             "",
-                            "Time of event: %s," %  ts_created,
+                            "ts_created: %s," %  ts_created,
                             "",
                             "Event object as a dictionary: %s," %  event_obj_as_string,
                             "",
@@ -194,6 +205,8 @@ def send_email(message, msg_recipient, smtp_client):
                             "and the emails will not be read."),
         "\r\n")
     msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
+
+    log.debug("msg_body::: %s" % msg_body)
 
     #------------------------------------------------------------------------------------
     # the 'from' email address for notification emails
