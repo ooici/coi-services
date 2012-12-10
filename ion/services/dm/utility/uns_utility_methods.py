@@ -110,37 +110,38 @@ def setting_up_smtp_client():
 
     return smtp_client
 
-def _convert_unix_to_ntp(seconds = None):
+def _convert_unix_to_ntp(unix_seconds = None):
 
-    if type(seconds) == str: seconds = int(seconds.strip(" "))
+    if type(unix_seconds) == str: unix_seconds = int(unix_seconds.strip(" "))
 
     diff = datetime.datetime(1970, 1, 1, 0,0,0) - datetime.datetime(1900, 1, 1, 0, 0, 0)
 
-    return seconds - diff.total_seconds()
+    return unix_seconds + diff.total_seconds()
+
+def _convert_ntp_to_unix(ntp_seconds = None):
+
+    if type(ntp_seconds) == str: ntp_seconds = int(ntp_seconds.strip(" "))
+
+    diff = datetime.datetime(1970, 1, 1, 0,0,0) - datetime.datetime(1900, 1, 1, 0, 0, 0)
+
+    return ntp_seconds - diff.total_seconds()
 
 def _get_time_stamp_for_special_events(message):
+
     time = ""
     if message.type_ == 'DeviceStatusEvent':
         time_stamps = []
         for t in message.time_stamps:
-
-            log.debug("Got the time stamp: %s" % t)
-            log.debug("The DeviceStatusEvent is this: %s" % message)
+            log.debug("Got the time stamp: %s, the DeviceStatusEvent is this: %s " % (t, message))
             # Convert to the format, 2010-09-12T06:19:54
-            _convert_to_human_readable(t)
-            time_stamps.append(t)
-
+            time_stamps.append(_convert_to_human_readable(t))
         # Convert the timestamp list to a string
         time = str(time_stamps)
 
     elif message.type_ == 'DeviceCommsEvent':
-
         # Convert seconds since epoch to human readable form
         t = message.time_stamp
-
-        log.debug("Got the time stamp: %s" % t)
-        log.debug("The DeviceCommsEvent is this: %s" % message)
-
+        log.debug("Got the time stamp: %s, the DeviceCommsEvent is this: %s" % (t, message))
         # Convert to the format, 2010-09-12T06:19:54
         time = _convert_to_human_readable(t)
 
@@ -148,11 +149,9 @@ def _get_time_stamp_for_special_events(message):
 
 def _convert_to_human_readable(t = ''):
 
-    # Convert seconds since epoch to human readable form
+    # Convert milli seconds since epoch to human readable form
     if type(t) == str: t = int(t.strip(" "))
-
-    x = datetime.datetime.fromtimestamp( _convert_unix_to_ntp(t) )
-
+    x = datetime.datetime.fromtimestamp( t/1000 )
     # Convert to the format, 2010-09-12T06:19:54
     t = x.isoformat()
 
@@ -180,7 +179,7 @@ def send_email(message, msg_recipient, smtp_client):
     event_obj_as_string = str(message)
     ts_created = _convert_to_human_readable(message.ts_created)
 
-#------------------------------------------------------------------------------------
+    #------------------------------------------------------------------------------------
     # build the email from the event content
     #------------------------------------------------------------------------------------
 
@@ -191,7 +190,6 @@ def send_email(message, msg_recipient, smtp_client):
                             "Description: %s," % description,
                             "",
                             "Value of time_stamp(s) attribute of event: %s," %  time,
-                            "",
                             "",
                             "ts_created: %s," %  ts_created,
                             "",

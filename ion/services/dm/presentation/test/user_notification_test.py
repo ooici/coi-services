@@ -960,12 +960,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         event_publisher = EventPublisher()
 
-        event_publisher.publish_event(  ts_created= 5,
+        event_publisher.publish_event(
             event_type = "ResourceLifecycleEvent",
             origin="instrument_1",
             origin_type="type_1")
 
-        event_publisher.publish_event(  ts_created= 10,
+        event_publisher.publish_event(
             event_type = "DetectionEvent",
             origin="instrument_2",
             origin_type="type_2")

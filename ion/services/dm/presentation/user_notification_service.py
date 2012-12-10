@@ -758,7 +758,7 @@ class UserNotificationService(BaseUserNotificationService):
             t = event.ts_created
             if type(t) == str: t = int(t.strip(" "))
 
-            x = datetime.fromtimestamp(_convert_unix_to_ntp(t))
+            x = datetime.fromtimestamp(_convert_unix_to_ntp(t/1000))
             # Convert to the format, 2010-09-12T06:19:54
 #            ts_created = str(x.isoformat()) + " (ts_created)"
             ts_created = str(x.isoformat())
