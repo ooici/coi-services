@@ -6,7 +6,7 @@
 """
 
 from ooi.logging import log
-
+from ooi import logging
 
 class RelatedResourcesCrawler(object):
 
@@ -35,7 +35,14 @@ class RelatedResourcesCrawler(object):
             # get the full association list
             master_assn_list = reduce(collect, predicate_list, [])
 
-            log.trace("master assn list is %s", ["%s %s %s" % (a.st, a.p, a.ot) for a in master_assn_list])
+            if log.isEnabledFor(logging.TRACE):
+                summary = {}
+                for a in master_assn_list:
+                    label = "%s %s %s" % (a.st, a.p, a.ot)
+                    if not label in summary: summary[label] = 0
+                    summary[label] += 1
+
+                log.trace("master assn list is %s", ["%s x%d" % (k, v) for k, v in summary.iteritems()])
 
             def get_related_resources_partial_fn(predicate_dictionary, resource_whitelist):
                 """
@@ -83,11 +90,11 @@ class RelatedResourcesCrawler(object):
                     return retval
 
 
-                def get_related_resources_h(acc, input_resource_id, recursion_limit):
+                def get_related_resources_h(accum, input_resource_id, recursion_limit):
                     """
                     This is a recursive helper function that does the work of crawling for related resources
 
-                    The acc is a list of associations that are deemed "Related"
+                    The accum is a tuple: (set of associations that are deemed "Related", set of "seen" resources)
 
                     The input resource id is the current resource being crawled
 
@@ -96,27 +103,41 @@ class RelatedResourcesCrawler(object):
                     The return value is a list of associations
                     """
                     if 0 == recursion_limit:
-                        return acc
+                        return accum
 
                     if -1000 > recursion_limit:
                         log.warn("Terminating related resource recursion, hit -1000")
-                        return acc
+                        return accum
+
+                    acc, seen = accum
 
                     matches = lookup_fn(input_resource_id)
                     log.trace("get_related_resources_h got matches %s",
                               [dict((k, "%s %s %s" % (a.st, a.p, a.ot)) for k, a in matches.iteritems())])
-                    acc = acc | set(matches.values())
-                    log.trace("acc is now %s", ["%s %s %s" % (a.st, a.p, a.ot) for a in acc])
+
+                    unseen = set(matches.keys()) - seen
+                    seen.add(input_resource_id)
+                    acc  = acc  | set(matches.values())
+
+                    #if log.isEnabledFor(logging.TRACE):
+                    #    summary = {}
+                    #    for a in acc:
+                    #        label = "%s %s %s" % (a.st, a.p, a.ot)
+                    #        if not label in summary: summary[label] = 0
+                    #        summary[label] += 1
+                    #    log.trace("acc2 is now %s", ["%s x%d" % (k, v) for k, v in summary.iteritems()])
 
                     def looper(acc2, input_rsrc_id):
                         return get_related_resources_h(acc2, input_rsrc_id, recursion_limit - 1)
 
-                    h_ret = reduce(looper, matches.keys(), acc)
-                    log.trace("h_ret is %s", ["%s %s %s" % (a.st, a.p, a.ot) for a in h_ret])
+                    h_ret = reduce(looper, unseen, (acc, seen))
+                    #h_ret = reduce(looper, unseen, (acc, seen))
+                    #(h_ret_acc, h_ret_seen) = h_ret
+                    #log.trace("h_ret is %s", ["%s %s %s" % (a.st, a.p, a.ot) for a in h_ret_acc])
                     return h_ret
 
 
-                def get_related_resources_fn(input_resource_id, recursion_limit):
+                def get_related_resources_fn(input_resource_id, recursion_limit=1024):
                     """
                     This is the function that finds related resources.
 
@@ -124,7 +145,7 @@ class RelatedResourcesCrawler(object):
 
                     The return value is a list of associations.
                     """
-                    retval = get_related_resources_h(set([]), input_resource_id, recursion_limit)
+                    retval, _ = get_related_resources_h((set([]), set([])), input_resource_id, recursion_limit)
                     log.trace("final_ret is %s", ["%s %s %s" % (a.st, a.p, a.ot) for a in retval])
                     return list(retval)
 
