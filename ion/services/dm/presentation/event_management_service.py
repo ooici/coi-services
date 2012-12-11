@@ -141,8 +141,7 @@ class EventManagementService(BaseEventManagementService):
             event_process_def_detail.sub_types = sub_types or definition.sub_types
             event_process_def_detail.origin_types = origin_types or definition.origin_types
         else:
-            detail = EventProcessDefinitionDetail(event_types = event_types, sub_types = sub_types, origin_types = origin_types)
-            event_process_def_detail = detail
+            event_process_def_detail = EventProcessDefinitionDetail(event_types = event_types, sub_types = sub_types, origin_types = origin_types)
 
 #        event_process_def_detail = process_def.definition or EventProcessDefinitionDetail()
 
