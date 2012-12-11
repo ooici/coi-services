@@ -730,21 +730,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         for event in events_for_message:
 
-            if event.type_ == 'DeviceStatusEvent':
-                time_stamps = []
-                for t in event.time_stamps:
-                    t = _convert_to_human_readable(t)
-                    time_stamps.append(t)
-                # Convert the timestamp list to a string
-                time = str(time_stamps)
-
-            elif event.type_ == 'DeviceCommsEvent':
-                # Convert seconds since epoch to human readable form
-                time = _convert_to_human_readable(event.time_stamp)
-
-            else:
-                time = "None for this event type"
-
             ts_created = _convert_to_human_readable(event.ts_created)
 
             msg_body += string.join(("\r\n",
@@ -753,8 +738,6 @@ class UserNotificationService(BaseUserNotificationService):
                                      "Originator: %s" %  event.origin,
                                      "",
                                      "Description: %s" % event.description or "Not provided",
-                                     "",
-                                     "Value of time_stamp(s) attribute of event: %s" %  time,
                                      "",
                                      "ts_created: %s" %  ts_created,
                                      "\r\n",

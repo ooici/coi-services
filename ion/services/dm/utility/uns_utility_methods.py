@@ -4,6 +4,7 @@
 @description A module containing common utility methods used by UNS and the notification workers.
 '''
 from pyon.public import get_sys_name, CFG
+from pyon.util.ion_time import IonTime
 from pyon.util.arg_check import validate_is_not_none
 from pyon.util.log import log
 from pyon.core.exception import NotFound, BadRequest
@@ -111,55 +112,17 @@ def setting_up_smtp_client():
 
     return smtp_client
 
-def _convert_unix_to_ntp(unix_seconds = None):
-
-    if type(unix_seconds) == str: unix_seconds = int(unix_seconds.strip(" "))
-
-    diff = datetime.datetime(1970, 1, 1, 0,0,0) - datetime.datetime(1900, 1, 1, 0, 0, 0)
-
-    return unix_seconds + diff.total_seconds()
-
-def _convert_ntp_to_unix(ntp_seconds = None):
-
-    if type(ntp_seconds) == str: ntp_seconds = int(ntp_seconds.strip(" "))
-
-    diff = datetime.datetime(1970, 1, 1, 0,0,0) - datetime.datetime(1900, 1, 1, 0, 0, 0)
-
-    return ntp_seconds - diff.total_seconds()
-
-def _get_time_stamp_for_special_events(message):
-
-    time = ""
-    if message.type_ == 'DeviceStatusEvent':
-        time_stamps = []
-        for t in message.time_stamps:
-            log.debug("Got the time stamp: %s, the DeviceStatusEvent is this: %s " % (t, message))
-            # Convert to the format, 2010-09-12T06:19:54
-            time_stamps.append(_convert_to_human_readable(t))
-        # Convert the timestamp list to a string
-        time = str(time_stamps)
-
-    elif message.type_ == 'DeviceCommsEvent':
-        # Convert seconds since epoch to human readable form
-        t = message.time_stamp
-        log.debug("Got the time stamp: %s, the DeviceCommsEvent is this: %s" % (t, message))
-        # Convert to the format, 2010-09-12T06:19:54
-        time = _convert_to_human_readable(t)
-
-    else:
-        time = "None for this event type"
-
-    return time
 
 def _convert_to_human_readable(t = ''):
 
-    # Convert milli seconds since epoch to human readable form
-    if type(t) == str: t = int(t.strip(" "))
-    x = datetime.datetime.fromtimestamp( t/1000 )
-    # Convert to the format, 2010-09-12T06:19:54
-    t = x.isoformat()
+#    # Convert milli seconds since epoch to human readable form
+#    if type(t) == str: t = int(t.strip(" "))
+#    x = datetime.datetime.fromtimestamp( t/1000 )
+#    # Convert to the format, 2010-09-12T06:19:54
+#    t = x.isoformat()
 
-    return t
+    it = IonTime(int(t)/1000.)
+    return str(it)
 
 def send_email(message, msg_recipient, smtp_client):
     '''
@@ -172,9 +135,6 @@ def send_email(message, msg_recipient, smtp_client):
     '''
 
     log.debug("Got type of event to notify on: %s" % message.type_)
-
-    # If DeviceStatusEvent or DeviceCommsEvent, gather the value of the time_stamp(s) attribute
-    time = _get_time_stamp_for_special_events(message)
 
     # Get the diffrent attributes from the event message
     event = message.type_
@@ -192,8 +152,6 @@ def send_email(message, msg_recipient, smtp_client):
                             "Originator: %s," %  origin,
                             "",
                             "Description: %s," % description,
-                            "",
-                            "Value of time_stamp(s) attribute of event: %s," %  time,
                             "",
                             "ts_created: %s," %  ts_created,
                             "",
