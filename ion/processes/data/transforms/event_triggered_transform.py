@@ -122,4 +122,4 @@ class EventTriggeredTransform_B(TransformEventListener, TransformStreamPublisher
         '''
 
         if self.awake:
-            self.output.publish(msg=msg)
+            self.publisher.publish(msg=msg)
