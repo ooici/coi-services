@@ -93,6 +93,15 @@ class TestLoader(IonIntegrationTestCase):
         # check for platform agents
         res,_ = self.container.resource_registry.find_resources(RT.PlatformAgent, id_only=False)
         self.assertTrue(len(res)>0)
+        agent = None
+        for pa in res:
+            if pa.name=='RSN Platform Agent':
+                agent = pa
+                break
+        self.assertTrue(agent)
+        self.assertEquals(2, len(agent.stream_configurations))
+        parsed = agent.stream_configurations[1]
+        self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
 
         # check for platform agents
         res,_ = self.container.resource_registry.find_resources(RT.PlatformAgentInstance, id_only=False)
@@ -103,6 +112,3 @@ class TestLoader(IonIntegrationTestCase):
                 agent_instance = pai
                 break
         self.assertTrue(agent_instance)
-        self.assertEquals(2, len(agent_instance.stream_configurations))
-        parsed = agent_instance.stream_configurations[1]
-        self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
