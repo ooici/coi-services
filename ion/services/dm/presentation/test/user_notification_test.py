@@ -992,12 +992,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 worker_that_sent_email = proc
                 break
 
-        gevent.sleep(4)
-
         email_tuples = []
 
-
-        for c in xrange(3):
+        while not worker_that_sent_email.smtp_client.sent_mail.empty():
             email_tuple  = worker_that_sent_email.smtp_client.sent_mail.get(timeout=20)
             email_tuples.append(email_tuple)
             log.debug("size of sent_mail queue: %s" % worker_that_sent_email.smtp_client.sent_mail.qsize())
