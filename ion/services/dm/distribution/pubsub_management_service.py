@@ -42,7 +42,9 @@ class PubsubManagementService(BasePubsubManagementService):
                 return existing[0]
             raise Conflict('StreamDefinition with the specified name already exists. (%s)' % name)
 
-        if not name: create_unique_identifier()
+        if not name:
+            create_unique_identifier()
+#            name = create_unique_identifier()
 
         stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description)
         stream_definition_id,_  = self.clients.resource_registry.create(stream_definition)
@@ -60,7 +62,7 @@ class PubsubManagementService(BasePubsubManagementService):
             else:
                 raise NotFound('No Stream Definition is associated with this Stream')
         stream_definition = retval or self.clients.resource_registry.read(stream_definition_id)
-        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, object_type=RT.ParameterDictionaryResource, id_only=True)
+        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionaryResource, id_only=True)
         if len(pdicts):
             stream_definition.parameter_dictionary = DatasetManagementService.get_parameter_dictionary(pdicts[0]).dump()
         validate_is_instance(stream_definition,StreamDefinition)

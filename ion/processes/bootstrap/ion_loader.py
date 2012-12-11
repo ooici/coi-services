@@ -1198,8 +1198,6 @@ class IONLoader(ImmediateProcess):
 
     def _load_StreamDefinition(self, row):
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
-#        sd_module = row["StreamContainer_module"]
-#        sd_method = row["StreamContainer_method"]
         pname = row["param_dict_name"]
         svc_client = self._get_service_client("dataset_management")
         parameter_dictionary_id = svc_client.read_parameter_dictionary_by_name(pname, id_only=True,
@@ -1208,7 +1206,7 @@ class IONLoader(ImmediateProcess):
         res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
             headers=self._get_system_actor_headers())
         self._register_id(row[self.COL_ID], res_id)
-    
+
     def _load_ParameterDefs(self, row):
         param_type = row['Parameter Type']
         if param_type == 'record':
@@ -1733,9 +1731,6 @@ class IONLoader(ImmediateProcess):
         else:
             svc_client = self._get_service_client("data_product_management")
             stream_definition_id = self.resource_ids[row["stream_def_id"]]
-            log.debug("create_data_product res_obj %s ", res_obj)
-            log.debug("create_data_product stream_definition_id %s ", stream_definition_id)
-            log.debug("create_data_product parameter dictionary id %s ", self.resource_objs[stream_definition_id].parameter_dictionary_id)
             res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id,
                 headers=headers)
             self._register_id(row[self.COL_ID], res_id, res_obj)
