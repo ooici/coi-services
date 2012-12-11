@@ -47,7 +47,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('SMOKE', group='sa')
+@attr('SMOKE', group='sax')
 #@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
@@ -117,12 +117,17 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         print  'new InstrumentModel id = %s ' % instModel_id
 
+
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
+
         # Create InstrumentAgent
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
                                   driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
-                                  driver_class="SBE37Driver" )
+                                  driver_class="SBE37Driver",
+                                  stream_configurations = [raw_config, parsed_config])
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         print  'new InstrumentAgent id = %s' % instAgent_id
 
@@ -160,8 +165,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
-                                          port_agent_config = port_agent_config,
-                                            stream_configurations = [raw_config, parsed_config])
+                                          port_agent_config = port_agent_config)
 
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
