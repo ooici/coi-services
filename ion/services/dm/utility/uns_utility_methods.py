@@ -67,7 +67,7 @@ class fake_smtplib(object):
         return cls(host)
 
     def sendmail(self, msg_sender= None, msg_recipients=None, msg=None):
-        log.warning('c %s, to: "%s"' % (msg_sender,  msg_recipients))
+        log.warning('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipients))
         log.info("Fake message sent: %s" % msg)
         self.sent_mail.put((msg_sender, msg_recipients[0], msg))
         log.debug("size of the sent_mail queue::: %s" % self.sent_mail.qsize())
