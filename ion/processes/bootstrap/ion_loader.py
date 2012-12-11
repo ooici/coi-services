@@ -1198,8 +1198,6 @@ class IONLoader(ImmediateProcess):
 
     def _load_StreamDefinition(self, row):
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
-#        sd_module = row["StreamContainer_module"]
-#        sd_method = row["StreamContainer_method"]
         pname = row["param_dict_name"]
         svc_client = self._get_service_client("dataset_management")
         parameter_dictionary_id = svc_client.read_parameter_dictionary_by_name(pname, id_only=True,
@@ -1208,7 +1206,7 @@ class IONLoader(ImmediateProcess):
         res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
             headers=self._get_system_actor_headers())
         self._register_id(row[self.COL_ID], res_id)
-    
+
     def _load_ParameterDefs(self, row):
         param_type = row['Parameter Type']
         if param_type == 'record':
@@ -1267,7 +1265,7 @@ class IONLoader(ImmediateProcess):
         try:
             context_ids = [dataset_management.read_parameter_context_by_name(i)._id for i in contexts]
             temporal_parameter = row['temporal_parameter'] or ''
-            dataset_management.create_parameter_dictionary(name=row['name'], 
+            dataset_management.create_parameter_dictionary(name=row['name'],
                 parameter_context_ids=context_ids,
                 temporal_context=temporal_parameter,
                 headers=self._get_system_actor_headers())

@@ -44,8 +44,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.DataProduct, name=data_product.name, id_only=True)
         validate_false(len(res), 'A data product with the name %s already exists.' % data_product.name)
         log.info('Creating DataProduct: %s', data_product.name)
-        log.debug('%s', data_product.__dict__)
-
 
         # Create will validate and register a new data product within the system
         # If the stream definition has a parameter dictionary, use that
