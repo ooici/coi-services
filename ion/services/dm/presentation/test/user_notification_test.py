@@ -951,12 +951,20 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create notifications using UNS.
         #--------------------------------------------------------------------------------------
 
-        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
+        q = gevent.queue.Queue()
 
-        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
-        self.unsc.create_notification(notification=notification_request_3, user_id=user_id_2)
+        id1 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
+        q.put(id1)
 
-        gevent.sleep(4)
+        id2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
+        q.put(id2)
+
+        id3 = self.unsc.create_notification(notification=notification_request_3, user_id=user_id_2)
+        q.put(id3)
+
+        # Wait till all the notifications have been created....
+        for i in xrange(3):
+            q.get(timeout = 10)
 
         #--------------------------------------------------------------------------------------
         # Publish events
@@ -973,7 +981,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_type = "DeviceStatusEvent",
             origin="instrument_2",
             origin_type="type_2",
-            time_stamps = [get_ion_ts(), str(int(get_ion_ts()) + 20)])
+            time_stamps = [get_ion_ts(), str(int(get_ion_ts()) + 60*20*1000)])
 
         event_publisher.publish_event(
             event_type = "DeviceCommsEvent",

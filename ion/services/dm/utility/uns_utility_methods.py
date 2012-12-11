@@ -146,6 +146,9 @@ def _get_time_stamp_for_special_events(message):
         # Convert to the format, 2010-09-12T06:19:54
         time = _convert_to_human_readable(t)
 
+    else:
+        time = "None for this event type"
+
     return time
 
 def _convert_to_human_readable(t = ''):
@@ -176,7 +179,7 @@ def send_email(message, msg_recipient, smtp_client):
     # Get the diffrent attributes from the event message
     event = message.type_
     origin = message.origin
-    description = message.description
+    description = message.description or "Not provided for this event"
     event_obj_as_string = str(message)
     ts_created = _convert_to_human_readable(message.ts_created)
 

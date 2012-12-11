@@ -28,7 +28,7 @@ from ion.services.dm.presentation.sms_providers import sms_providers
 from interface.objects import ProcessDefinition, UserInfo, TemporalBounds, NotificationRequest
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
-from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_unix_to_ntp
+from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_to_human_readable
 
 
 """
@@ -730,44 +730,29 @@ class UserNotificationService(BaseUserNotificationService):
 
         for event in events_for_message:
 
-            # build the email from the event content
-            time = ''
             if event.type_ == 'DeviceStatusEvent':
                 time_stamps = []
                 for t in event.time_stamps:
-
-                    # Convert seconds since epoch to human readable form
-                    if type(t) == str: t = int(t.strip(" "))
-                    x = datetime.fromtimestamp(_convert_unix_to_ntp(t))
-                    # Convert to the format, 2010-09-12T06:19:54
-                    t = x.isoformat()
+                    t = _convert_to_human_readable(t)
                     time_stamps.append(t)
-
                 # Convert the timestamp list to a string
                 time = str(time_stamps)
 
             elif event.type_ == 'DeviceCommsEvent':
                 # Convert seconds since epoch to human readable form
-                t = event.time_stamp
-                if type(t) == str: t = int(t.strip(" "))
-                x = datetime.fromtimestamp(_convert_unix_to_ntp(t))
-                # Convert to the format, 2010-09-12T06:19:54
-                time = str(x.isoformat())
+                time = _convert_to_human_readable(event.time_stamp)
 
-            # Convert seconds since epoch to human readable form
-            t = event.ts_created
-            if type(t) == str: t = int(t.strip(" "))
-            x = datetime.fromtimestamp(t/1000)
-            # Convert to the format, 2010-09-12T06:19:54
-            ts_created = str(x.isoformat())
+            else:
+                time = "None for this event type"
 
+            ts_created = _convert_to_human_readable(event.ts_created)
 
             msg_body += string.join(("\r\n",
                                      "Event %s: %s" %  (count, event),
                                      "",
                                      "Originator: %s" %  event.origin,
                                      "",
-                                     "Description: %s" % event.description ,
+                                     "Description: %s" % event.description or "Not provided",
                                      "",
                                      "Value of time_stamp(s) attribute of event: %s" %  time,
                                      "",
