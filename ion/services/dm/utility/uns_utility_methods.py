@@ -115,12 +115,6 @@ def setting_up_smtp_client():
 
 def _convert_to_human_readable(t = ''):
 
-#    # Convert milli seconds since epoch to human readable form
-#    if type(t) == str: t = int(t.strip(" "))
-#    x = datetime.datetime.fromtimestamp( t/1000 )
-#    # Convert to the format, 2010-09-12T06:19:54
-#    t = x.isoformat()
-
     it = IonTime(int(t)/1000.)
     return str(it)
 
