@@ -153,6 +153,9 @@ class UserNotificationService(BaseUserNotificationService):
         self.process_dispatcher = ProcessDispatcherServiceClient()
         self.event_publisher = EventPublisher()
 
+        # The datastore for events
+        self.event_datastore = self.container.datastore_manager.get_datastore('events')
+
         self.start_time = UserNotificationService.makeEpochTime(self.__now())
 
     def on_quit(self):
@@ -430,7 +433,6 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         @throws NotFound    object with specified parameters does not exist
         """
-        datastore = self.container.datastore_manager.get_datastore('events')
 
 
         # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
@@ -458,7 +460,7 @@ class UserNotificationService(BaseUserNotificationService):
             opts['startkey'] = opts['endkey']
             opts['endkey'] = t
 
-        results = datastore.query_view('event/by_origintype',opts=opts)
+        results = self.event_datastore.query_view('event/by_origintype',opts=opts)
 
         events = []
         for res in results:
@@ -515,8 +517,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         events = []
         for event_id in ret_vals:
-            datastore = self.container.datastore_manager.get_datastore('events')
-            event_obj = datastore.read(event_id)
+            event_obj = self.event_datastore.read(event_id)
             events.append(event_obj)
 
         log.debug("(find_events_extended) UNS found the following relevant events: %s" % events)
@@ -697,8 +698,7 @@ class UserNotificationService(BaseUserNotificationService):
                 ret_vals = self.discovery.parse(search_string)
 
                 for event_id in ret_vals:
-                    datastore = self.container.datastore_manager.get_datastore('events')
-                    event_obj = datastore.read(event_id)
+                    event_obj = self.event_datastore.read(event_id)
                     events_for_message.append(event_obj)
 
             log.debug("Found following events of interest to user, %s: %s" % (user_id, events_for_message))
