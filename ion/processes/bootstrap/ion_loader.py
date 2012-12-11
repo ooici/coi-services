@@ -1267,7 +1267,7 @@ class IONLoader(ImmediateProcess):
         try:
             context_ids = [dataset_management.read_parameter_context_by_name(i)._id for i in contexts]
             temporal_parameter = row['temporal_parameter'] or ''
-            dataset_management.create_parameter_dictionary(name=row['name'], 
+            dataset_management.create_parameter_dictionary(name=row['name'],
                 parameter_context_ids=context_ids,
                 temporal_context=temporal_parameter,
                 headers=self._get_system_actor_headers())
@@ -1733,6 +1733,9 @@ class IONLoader(ImmediateProcess):
         else:
             svc_client = self._get_service_client("data_product_management")
             stream_definition_id = self.resource_ids[row["stream_def_id"]]
+            log.debug("create_data_product res_obj %s ", res_obj)
+            log.debug("create_data_product stream_definition_id %s ", stream_definition_id)
+            log.debug("create_data_product parameter dictionary id %s ", self.resource_objs[stream_definition_id].parameter_dictionary_id)
             res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id,
                 headers=headers)
             self._register_id(row[self.COL_ID], res_id, res_obj)
