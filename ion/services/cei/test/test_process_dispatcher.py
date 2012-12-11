@@ -275,10 +275,10 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         with patch.multiple('ion.services.cei.process_dispatcher_service',
                 get_dashi=DEFAULT, ProcessDispatcherCore=DEFAULT,
-                ProcessDispatcherStore=DEFAULT, EngineRegistry=DEFAULT,
+                get_processdispatcher_store=DEFAULT, EngineRegistry=DEFAULT,
                 PDMatchmaker=DEFAULT) as mocks:
             mocks['get_dashi'].return_value = self.mock_dashi
-            mocks['ProcessDispatcherStore'].return_value = self.mock_store = Mock()
+            mocks['get_processdispatcher_store'].return_value = self.mock_store = Mock()
             mocks['ProcessDispatcherCore'].return_value = self.mock_core = Mock()
             mocks['PDMatchmaker'].return_value = self.mock_matchmaker = Mock()
             mocks['EngineRegistry'].return_value = self.mock_engineregistry = Mock()
