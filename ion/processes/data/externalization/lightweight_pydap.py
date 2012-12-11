@@ -6,6 +6,7 @@ from logging import getLogger
 from pydap.wsgi.file import make_app
 from gevent.wsgi import WSGIServer
 from pyon.util.log import log
+from traceback import print_exc
 
 class LightweightPyDAP(SimpleProcess):
     def on_start(self):

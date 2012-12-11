@@ -388,6 +388,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
+
+    def _validate_instrument_agent(self, instrument_agent_obj):
+        if not instrument_agent_obj.stream_configurations:
+            raise BadRequest("Agent does not contain stream configuration used in launching the agent. Agent Instance object: '%s",
+                             str(instrument_agent_obj) )
+
+
+
     def _validate_instrument_agent_instance(self, instrument_agent_instance_obj):
         """
         Verify that an agent instance is valid for launch.
@@ -404,10 +412,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("L4-CI-SA-RQ-363: device is %s connected to instrument agent instance %s",
                   str(instrument_device_id),
                   str(instrument_agent_instance_obj._id))
-
-        if not instrument_agent_instance_obj.stream_configurations:
-            raise BadRequest("Agent Instance does not contain stream configuration used in launching the agent. Agent Instance object: '%s",
-                             str(instrument_agent_instance_obj) )
 
 
         self._validate_instrument_device_preagentlaunch(instrument_device_id)
@@ -449,8 +453,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #_stream_config = self.instrument_device.find_stemming_model(instrument_device_id)[0].stream_configuration
 
+        #retrieve the agent definition
+        instrument_agent_objs, _ = self.clients.resource_registry.find_objects(instrument_agent_instance_obj._id, PRED.hasAgentDefinition, RT.InstrumentAgent, False)
+        if not instrument_agent_objs:
+            raise NotFound("No Agent Definition attached to this Instrument Agent Instance " + str(instrument_agent_instance_obj))
+
         streams_dict = {}
-        for stream_configuration in instrument_agent_instance_obj.stream_configurations:
+        for stream_configuration in instrument_agent_objs[0].stream_configurations:
             #create a stream def for each param dict to match against the existing data products
             param_dict_id = self.clients.dataset_management.read_parameter_dictionary_by_name(stream_configuration.parameter_dictionary_name,
                                                                                               id_only=True)
@@ -498,6 +507,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                             'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate')
                                                             }
 
+        log.debug("IMS:_generate_stream_config: %s", str(stream_config_too) )
         return stream_config_too
 
 
@@ -556,6 +566,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_device_id = self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)[0]._id
         instrument_model_id  = self.instrument_device.find_stemming_model(instrument_device_id)[0]._id
         instrument_agent_id  = self.instrument_agent.find_having_model(instrument_model_id)[0]._id
+
+        instrument_agent_obj = self.clients.resource_registry.read(instrument_agent_id)
+        self._validate_instrument_agent(instrument_agent_obj)
 
         #retrieve the associated process definition
         process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id,

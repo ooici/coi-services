@@ -182,7 +182,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
             slice_ = slice(start_index, None)
             coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
-            coverage.flush()
+            DatasetManagementService._save_coverage(coverage)
+            #coverage.flush()
 
 
     def persist(self, dataset_granule): #pragma no cover

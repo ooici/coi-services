@@ -68,7 +68,8 @@ class RegistrationProcess(StandaloneProcess):
         result = ''
 
         paths = os.path.split(coverage_path)
-        cov = SimplexCoverage.load(coverage_path)
+        cov = SimplexCoverage.pickle_load(coverage_path)
+        #cov = SimplexCoverage.load(coverage_path)
         #ds = open_url(url)
         doc = xml.dom.minidom.Document()
 
