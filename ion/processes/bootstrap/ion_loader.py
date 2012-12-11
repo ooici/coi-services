@@ -1739,6 +1739,8 @@ class IONLoader(ImmediateProcess):
 
             if not self.debug and row['persist_data']=='1':
                 svc_client.activate_data_product_persistence(res_id, headers=headers)
+
+        self._resource_assign_org(row, res_id)
         self._resource_advance_lcs(row, res_id, "DataProduct")
 
     def _load_DataProduct_OOI(self):
