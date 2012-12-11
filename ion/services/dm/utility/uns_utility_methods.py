@@ -70,6 +70,7 @@ class fake_smtplib(object):
         log.warning('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipients))
         log.info("Fake message sent: %s" % msg)
         self.sent_mail.put((msg_sender, msg_recipients[0], msg))
+        log.debug("size of the sent_mail queue::: %s" % self.sent_mail.qsize())
 
     def quit(self):
         """
@@ -110,6 +111,56 @@ def setting_up_smtp_client():
 
     return smtp_client
 
+def _convert_unix_to_ntp(unix_seconds = None):
+
+    if type(unix_seconds) == str: unix_seconds = int(unix_seconds.strip(" "))
+
+    diff = datetime.datetime(1970, 1, 1, 0,0,0) - datetime.datetime(1900, 1, 1, 0, 0, 0)
+
+    return unix_seconds + diff.total_seconds()
+
+def _convert_ntp_to_unix(ntp_seconds = None):
+
+    if type(ntp_seconds) == str: ntp_seconds = int(ntp_seconds.strip(" "))
+
+    diff = datetime.datetime(1970, 1, 1, 0,0,0) - datetime.datetime(1900, 1, 1, 0, 0, 0)
+
+    return ntp_seconds - diff.total_seconds()
+
+def _get_time_stamp_for_special_events(message):
+
+    time = ""
+    if message.type_ == 'DeviceStatusEvent':
+        time_stamps = []
+        for t in message.time_stamps:
+            log.debug("Got the time stamp: %s, the DeviceStatusEvent is this: %s " % (t, message))
+            # Convert to the format, 2010-09-12T06:19:54
+            time_stamps.append(_convert_to_human_readable(t))
+        # Convert the timestamp list to a string
+        time = str(time_stamps)
+
+    elif message.type_ == 'DeviceCommsEvent':
+        # Convert seconds since epoch to human readable form
+        t = message.time_stamp
+        log.debug("Got the time stamp: %s, the DeviceCommsEvent is this: %s" % (t, message))
+        # Convert to the format, 2010-09-12T06:19:54
+        time = _convert_to_human_readable(t)
+
+    else:
+        time = "None for this event type"
+
+    return time
+
+def _convert_to_human_readable(t = ''):
+
+    # Convert milli seconds since epoch to human readable form
+    if type(t) == str: t = int(t.strip(" "))
+    x = datetime.datetime.fromtimestamp( t/1000 )
+    # Convert to the format, 2010-09-12T06:19:54
+    t = x.isoformat()
+
+    return t
+
 def send_email(message, msg_recipient, smtp_client):
     '''
     A common method to send email with formatting
@@ -120,12 +171,17 @@ def send_email(message, msg_recipient, smtp_client):
 
     '''
 
-    time_stamp = message.ts_created
+    log.debug("Got type of event to notify on: %s" % message.type_)
+
+    # If DeviceStatusEvent or DeviceCommsEvent, gather the value of the time_stamp(s) attribute
+    time = _get_time_stamp_for_special_events(message)
+
+    # Get the diffrent attributes from the event message
     event = message.type_
     origin = message.origin
-    description = message.description
+    description = message.description or "Not provided for this event"
     event_obj_as_string = str(message)
-
+    ts_created = _convert_to_human_readable(message.ts_created)
 
     #------------------------------------------------------------------------------------
     # build the email from the event content
@@ -137,7 +193,9 @@ def send_email(message, msg_recipient, smtp_client):
                             "",
                             "Description: %s," % description,
                             "",
-                            "Time stamp: %s," %  time_stamp,
+                            "Value of time_stamp(s) attribute of event: %s," %  time,
+                            "",
+                            "ts_created: %s," %  ts_created,
                             "",
                             "Event object as a dictionary: %s," %  event_obj_as_string,
                             "",
@@ -149,6 +207,8 @@ def send_email(message, msg_recipient, smtp_client):
                             "and the emails will not be read."),
         "\r\n")
     msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
+
+    log.debug("msg_body::: %s" % msg_body)
 
     #------------------------------------------------------------------------------------
     # the 'from' email address for notification emails
@@ -183,6 +243,7 @@ def check_user_notification_interest(event, reverse_user_info):
 
     @retval user_ids list
     '''
+    log.debug("checking for interested users. Event type: %s, reverse_user_info: %s" % (event.type_, reverse_user_info))
 
     if not isinstance(event, Event):
         raise BadRequest("The input parameter should have been an Event.")
@@ -290,32 +351,32 @@ def calculate_reverse_user_info(user_info=None):
                 if not isinstance(notification, NotificationRequest):
                     continue
 
-                if dict_1.has_key(notification.event_type) and notification.event_type:
+                if dict_1.has_key(notification.event_type) and notification.event_type != '':
                     dict_1[notification.event_type].append(user_id)
                     # to remove duplicate user names
                     dict_1[notification.event_type] = list(set(dict_1[notification.event_type]))
-                else:
+                elif notification.event_type != '':
                     dict_1[notification.event_type] = [user_id]
 
-                if dict_2.has_key(notification.event_subtype) and notification.event_subtype:
+                if dict_2.has_key(notification.event_subtype) and notification.event_subtype != '':
                     dict_2[notification.event_subtype].append(user_id)
                     # to remove duplicate user names
                     dict_2[notification.event_subtype] = list(set(dict_2[notification.event_subtype]))
-                else:
+                elif notification.event_subtype != '':
                     dict_2[notification.event_subtype] = [user_id]
 
-                if dict_3.has_key(notification.origin) and notification.origin:
+                if dict_3.has_key(notification.origin) and notification.origin != '':
                     dict_3[notification.origin].append(user_id)
                     # to remove duplicate user names
                     dict_3[notification.origin] = list(set(dict_3[notification.origin]))
-                else:
+                elif notification.origin != '':
                     dict_3[notification.origin] = [user_id]
 
-                if dict_4.has_key(notification.origin_type) and notification.origin_type:
+                if dict_4.has_key(notification.origin_type) and notification.origin_type != '':
                     dict_4[notification.origin_type].append(user_id)
                     # to remove duplicate user names
                     dict_4[notification.origin_type] = list(set(dict_4[notification.origin_type]))
-                else:
+                elif notification.origin_type != '':
                     dict_4[notification.origin_type] = [user_id]
 
                 reverse_user_info['event_type'] = dict_1
