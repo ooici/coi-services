@@ -29,8 +29,9 @@ class RegistrationProcess(StandaloneProcess):
         self.datasets_xml_path = os.path.join(real_path, filename)
         self.setup_filesystem(real_path)
 
-
     def setup_filesystem(self, path):
+        if os.path.exists(os.path.join(path,'datasets.xml')):
+            return
         zip_str = base64.decodestring(datasets_xml_zip)
         zip_file = StringIO.StringIO()
         zip_file.write(zip_str)
