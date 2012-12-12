@@ -46,7 +46,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='sa')
+@attr('NOTHARDWARE', group='sa')
 #@unittest.skip("needs work")
 #@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):

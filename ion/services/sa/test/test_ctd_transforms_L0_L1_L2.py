@@ -96,7 +96,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('HARDWARE', group='sa')
+@attr('NOTHARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestCTDTransformsIntegration(IonIntegrationTestCase):
     pdict_id = None
