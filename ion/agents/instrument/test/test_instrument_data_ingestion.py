@@ -87,7 +87,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('NOTHARDWARE', group='mi')
+@attr('HARDWARE', group='mi')
 @unittest.skip("does not work")
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestInstrumentDataIngestion(IonIntegrationTestCase):

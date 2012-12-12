@@ -33,7 +33,7 @@ PORT_AGENT_COMMAND_PORT = 3000
 PORT_AGENT_DATA_PORT = 3001
 PORT_AGENT_LOG_LEVEL = 5
 
-@attr('NOTHARDWARE', group='mi')
+@attr('HARDWARE', group='mi')
 class TestPythonEthernetProcess(unittest.TestCase):
     """
     Unit tests for the Port Agent Process using python classes
@@ -182,7 +182,7 @@ class TestPythonEthernetProcess(unittest.TestCase):
         # Verify we don't have a process lingering
         self.assertFalse(process.poll())
 
-@attr('NOTHARDWARE', group='mi')
+@attr('HARDWARE', group='mi')
 class TestUnixEthernetProcess(unittest.TestCase):
     """
     Unit tests for the Port Agent Process using python classes
