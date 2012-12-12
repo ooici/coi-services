@@ -301,7 +301,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         self.launch_producer(stream_id)
-        self.wait_until_we_have_enough_granules(dataset_id,4)
+        self.wait_until_we_have_enough_granules(dataset_id,2)
         
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
