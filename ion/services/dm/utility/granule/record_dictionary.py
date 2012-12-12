@@ -19,6 +19,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.objects import Granule
 
 from coverage_model.parameter import ParameterDictionary
+from coverage_model.parameter_types import QuantityType
 from coverage_model.parameter_values import get_value_class, AbstractParameterValue
 from coverage_model.coverage import SimpleDomainSet
 
@@ -155,7 +156,7 @@ class RecordDictionaryTool(object):
             log.trace('Set shape to %s', self._shp)
         else:
             if isinstance(vals, np.ndarray):
-                validate_equal(vals.shape, self._shp, 'Invalid shape on input')
+                validate_equal(vals.shape, self._shp, 'Invalid shape on input (%s expecting %s)' % (vals.shape, self._shp))
             elif isinstance(vals, list):
                 validate_equal(len(vals), self._shp[0], 'Invalid shape on input')
 
@@ -259,6 +260,37 @@ class RecordDictionaryTool(object):
         flat = serializer.serialize(granule)
         byte_stream = msgpack.packb(flat, default=encode_ion)
         return len(byte_stream)
+
+    @classmethod
+    def append(cls, rdt1, rdt2):
+        assert rdt1.fields == rdt2.fields
+        sd = rdt1._stream_def or rdt2._stream_def
+        if sd:
+            nrdt = cls(stream_definition_id=sd)
+        else:
+            nrdt = cls(parameter_dictionary=rdt1._pdict)
+        
+        for k in rdt1.fields:
+            x = rdt1[k]
+            y = rdt2[k]
+            if x is None and y is None:
+                continue
+
+            if x is None:
+                X = np.empty(rdt1._shp, dtype=rdt1._pdict.get_context(k).param_type.value_encoding)
+                X.fill(rdt1._pdict.get_context(k).fill_value)
+            else:
+                X = x
+
+            if y is None:
+                Y = np.empty(rdt1._shp, dtype=rdt2._pdict.get_context(k).param_type.value_encoding)
+                Y.fill(rdt2._pdict.get_context(k).fill_value)
+            else:
+                Y = y
+
+            nrdt[k] = np.append(X,Y)
+
+        return nrdt
 
     
     @staticmethod

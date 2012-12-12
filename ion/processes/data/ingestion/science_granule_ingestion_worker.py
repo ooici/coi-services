@@ -17,6 +17,7 @@ from couchdb import ResourceNotFound
 from ion.core.process.transform import TransformStreamListener
 import collections
 import numpy
+import gevent
 
 
 
@@ -25,6 +26,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
     def __init__(self, *args,**kwargs):
         super(ScienceGranuleIngestionWorker, self).__init__(*args, **kwargs)
+        self.iqueue = gevent.queue.Queue()
         #--------------------------------------------------------------------------------
         # Ingestion Cache
         # - Datasets
@@ -37,6 +39,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         log.debug('Created datastore %s', self.datastore_name)
+
 
 
     def on_quit(self): #pragma no cover
@@ -106,8 +109,15 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         log.trace('Received incoming granule from route: %s and stream_id: %s', stream_route, stream_id)
         log.trace('Granule contents: %s', msg.__dict__)
         granule = msg
-        self.add_granule(stream_id, granule)
-        self.persist_meta(stream_id, granule)
+        self.iqueue.put(granule)
+        if self.iqueue.qsize() == 10:
+            g = self.iqueue.get()
+            rdt = RecordDictionaryTool.load_from_granule(g)
+            while not self.iqueue.empty():
+                g = self.iqueue.get()
+                rdt = RecordDictionaryTool.append(rdt, RecordDictionaryTool.load_from_granule(g))
+            self.add_granule(stream_id, rdt)
+            self.persist_meta(stream_id, rdt)
         
 
     def persist_meta(self, stream_id, granule):
@@ -116,7 +126,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         # Determine the `time` in the granule
         dataset_id = self.get_dataset(stream_id)
-        rdt = RecordDictionaryTool.load_from_granule(granule)
+        rdt = granule
         time = get_safe(rdt,'time')
         if time is not None and len(time) and isinstance(time,numpy.ndarray):
             time = time[0]
@@ -156,7 +166,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #-------------------------------------------------------------------------------- 
         log.trace('Loaded coverage for %s' , dataset_id)
 
-        rdt = RecordDictionaryTool.load_from_granule(granule)
+        rdt = granule
         log.trace('%s', {i:rdt[i] for i in rdt.fields})
         elements = len(rdt)
         if not elements:

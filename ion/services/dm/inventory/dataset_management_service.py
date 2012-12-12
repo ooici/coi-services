@@ -327,27 +327,23 @@ class DatasetManagementService(BaseDatasetManagementService):
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom, in_memory_storage=True)
-        setattr(scov,'pickle_path',self._get_coverage_path(dataset_id))
+        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
         return scov
 
     @classmethod
     def _save_coverage(cls, coverage):
-        SimplexCoverage.pickle_save(coverage,coverage.pickle_path)
+        coverage.flush()
 
     @classmethod
     def _get_coverage(cls,dataset_id,mode='w'):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        path = os.path.join(file_root, '%s_cov' % dataset_id)
-        coverage = SimplexCoverage.pickle_load(path)
-        setattr(coverage,'pickle_path',cls._get_coverage_path(dataset_id))
-        #coverage = SimplexCoverage(file_root, dataset_id,mode=mode)
+        coverage = SimplexCoverage(file_root, dataset_id,mode=mode)
         return coverage
 
     @classmethod
     def _get_coverage_path(cls, dataset_id):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        return os.path.join(file_root, '%s_cov' % dataset_id)
+        return os.path.join(file_root, '%s' % dataset_id)
     
     @classmethod
     def _compare_pc(cls, pc1, pc2):
