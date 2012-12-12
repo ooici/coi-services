@@ -37,8 +37,8 @@ import numpy, random
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
-@attr('UNIT', group='ctd')
-@unittest.skip('The UNIT tests have to be completely redone')
+@attr('NOTUNIT', group='ctd')
+@unittest.skip('The NOTUNIT tests have to be completely redone')
 class TestCtdTransforms(IonUnitTestCase):
 
     def setUp(self):

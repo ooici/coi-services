@@ -30,7 +30,7 @@ DROPPED NO-IMPACT:
 
 
 - recap of typical launching of the platform tests (*):
-    $ bin/nosetests  -va UNIT  ion/agents/platform
+    $ bin/nosetests  -va NOTUNIT  ion/agents/platform
     ... Ran 31 tests in 5.934s  OK
 
     $ bin/nosetests  -va INT   ion/agents/platform
@@ -85,7 +85,7 @@ Some TODOs:
 
 All tests:
 
-    $ GEN_DIAG=y OMS=embsimulator bin/nosetests --with-pycc -va UNIT -a INT  ion/agents/platform  ion/services/sa/observatory/test/test_oms_launch.py
+    $ GEN_DIAG=y OMS=embsimulator bin/nosetests --with-pycc -va NOTUNIT -a INT  ion/agents/platform  ion/services/sa/observatory/test/test_oms_launch.py
     pyon: sys_name changed from 'None' to 'ion_test_2adc8d'
     Deleted exchanges:
 
@@ -173,7 +173,7 @@ Latest run of tests before merging with agent refactoring:
 
 platform-agent branched out from master's commit
 4fd1e54f908519fbcab2604ea81090e79410be4e (8/1/12):
-    $ bin/nosetests -va UNIT -a INT  ion/agents/platform
+    $ bin/nosetests -va NOTUNIT -a INT  ion/agents/platform
     test_aa_ping (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
     test_ac_getPlatformMap (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok
     test_ad_getPlatformAttributeNames (ion.agents.platform.oms.simulator.test.test_oms_simulator.Test) ... ok

@@ -17,7 +17,7 @@ from interface.services.coi.iorg_management_service import OrgManagementServiceC
 from unittest.case import skip
 from pyon.util.context import LocalContextMixin
 
-@attr('UNIT', group='coi')
+@attr('NOTUNIT', group='coi')
 class TestIdentityManagementService(PyonTestCase):
 
     def setUp(self):

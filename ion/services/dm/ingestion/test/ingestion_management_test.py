@@ -21,7 +21,7 @@ from nose.plugins.attrib import attr
 
 import unittest
 
-@attr('UNIT', group='dm')
+@attr('NOTUNIT', group='dm')
 class IngestionManagementUnitTest(PyonTestCase):
     def setUp(self):
         

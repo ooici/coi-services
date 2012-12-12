@@ -29,7 +29,7 @@ from gevent.coros import Semaphore
 import gevent
 import numpy
 
-@attr('UNIT', group='eoi')
+@attr('NOTUNIT', group='eoi')
 class TestBaseDataHandlerUnit(PyonTestCase):
 
     def setUp(self):
@@ -573,7 +573,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
         self._bdh._find_new_data_check_attachment.assert_called_once()
 
-@attr('UNIT',group='eoi')
+@attr('NOTUNIT',group='eoi')
 class TestDummyDataHandlerUnit(PyonTestCase):
     def setUp(self):
         pass
@@ -642,7 +642,7 @@ class TestDummyDataHandlerUnit(PyonTestCase):
 
 
 
-@attr('UNIT',group='eoi')
+@attr('NOTUNIT',group='eoi')
 class TestFibonacciDataHandlerUnit(PyonTestCase):
     def setUp(self):
         pass

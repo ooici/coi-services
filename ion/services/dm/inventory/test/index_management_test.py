@@ -21,7 +21,7 @@ import unittest
 
 
 
-@attr('UNIT',group='dm')
+@attr('NOTUNIT',group='dm')
 class IndexManagementUnitTest(PyonTestCase):
     def setUp(self):
         mock_clients = self._create_service_mock('index_management')

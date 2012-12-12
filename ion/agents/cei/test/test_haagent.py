@@ -292,7 +292,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
             new_policy=new_policy)
 
 
-@attr('UNIT', group='cei')
+@attr('NOTUNIT', group='cei')
 class ProcessDispatcherSimpleAPIClientTest(PyonTestCase):
 
     def setUp(self):

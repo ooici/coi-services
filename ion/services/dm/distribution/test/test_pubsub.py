@@ -24,7 +24,7 @@ from nose.plugins.attrib import attr
 
 import gevent
 
-@attr('UNIT',group='dm')
+@attr('NOTUNIT',group='dm')
 class PubsubManagementUnitTest(PyonTestCase):
     pass
 

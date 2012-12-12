@@ -19,7 +19,7 @@ import time
 mockDataProcessObj = \
     'ion.services.sa.process.data_process_management_service.IonObject'
     
-@attr('UNIT', group='sa')
+@attr('NOTUNIT', group='sa')
 @unittest.skip('not working')
 class Test_DataProcessManagementService_Unit(PyonTestCase):
 

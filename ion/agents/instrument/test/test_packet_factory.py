@@ -25,7 +25,7 @@ from pyon.util.unit_test import PyonTestCase
 import unittest
 
 @unittest.skip('Broken Test by RDT Refactor, TODO: Fix Test')
-@attr('UNIT', group='mi')
+@attr('NOTUNIT', group='mi')
 class TestPacketFactory(PyonTestCase):
     def setUp(self):
         """

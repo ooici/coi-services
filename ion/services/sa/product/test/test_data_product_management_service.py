@@ -32,7 +32,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@attr('UNIT', group='sa')
+@attr('NOTUNIT', group='sa')
 #@unittest.skip('not working')
 class TestDataProductManagementServiceUnit(PyonTestCase):
 

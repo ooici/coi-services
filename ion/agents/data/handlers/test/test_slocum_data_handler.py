@@ -18,7 +18,7 @@ from ion.agents.data.handlers.handler_utils import list_file_info
 from ion.agents.data.handlers.slocum_data_handler import SlocumDataHandler, SlocumParser
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
-@attr('UNIT', group='eoi')
+@attr('NOTUNIT', group='eoi')
 class TestSlocumDataHandlerUnit(PyonTestCase):
 
     def setUp(self):

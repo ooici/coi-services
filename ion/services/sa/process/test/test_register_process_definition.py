@@ -45,7 +45,7 @@ BASE64_BADPYFILE = """
 2xhc3MgY2xhc3MK
 """
 
-@attr('UNIT', group='sa')
+@attr('NOTUNIT', group='sa')
 class TestRegisterProcessDefinition(PyonTestCase):
 
     def setUp(self):

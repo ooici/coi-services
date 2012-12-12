@@ -23,7 +23,7 @@ from ion.agents.platform.oms.test.oms_test_mixin import OmsTestMixin
 from nose.plugins.attrib import attr
 
 
-@attr('UNIT', group='sa')
+@attr('NOTUNIT', group='sa')
 class Test(IonUnitTestCase, OmsTestMixin):
     """
     Test cases for the simulator, which is instantiated directly (ie.,

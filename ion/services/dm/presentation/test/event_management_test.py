@@ -24,7 +24,7 @@ from mock import Mock, mocksignature
 from nose.plugins.attrib import attr
 import unittest, gevent
 
-@attr('UNIT',group='dm')
+@attr('NOTUNIT',group='dm')
 class EventManagementTest(PyonTestCase):
     def setUp(self):
 

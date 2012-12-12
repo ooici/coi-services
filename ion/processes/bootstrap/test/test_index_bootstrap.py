@@ -24,7 +24,7 @@ import unittest
 use_es = CFG.get_safe('system.elasticsearch',False)
 
 
-@attr('UNIT')
+@attr('NOTUNIT')
 class IndexBootStrapUnitTest(PyonTestCase):
 
     @patch('ion.processes.bootstrap.index_bootstrap.ep.ElasticSearch')

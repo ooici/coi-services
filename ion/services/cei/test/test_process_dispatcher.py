@@ -42,7 +42,7 @@ except ImportError:
 # communication.
 
 
-@attr('UNIT', group='cei')
+@attr('NOTUNIT', group='cei')
 class ProcessDispatcherServiceLocalTest(PyonTestCase):
     """Tests the local backend of the PD
     """
@@ -150,7 +150,7 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.assertTrue(ok)
         self.mock_cc_terminate.assert_called_once_with("process-id")
 
-@attr('UNIT', group='cei')
+@attr('NOTUNIT', group='cei')
 class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
     """Tests the dashi frontend of the PD
     """
@@ -251,7 +251,7 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
 
 
 
-@attr('UNIT', group='cei')
+@attr('NOTUNIT', group='cei')
 class ProcessDispatcherServiceNativeTest(PyonTestCase):
     """Tests the Pyon backend of the PD
     """
@@ -474,7 +474,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
 
 
-@attr('UNIT', group='cei')
+@attr('NOTUNIT', group='cei')
 class ProcessDispatcherServiceBridgeTest(PyonTestCase):
     """Tests the bridge backend of the PD
     """

@@ -25,7 +25,7 @@ from ion.agents.instrument.exceptions import DriverLaunchException
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/agents.instrument/test/test_driver_launcher.py
 
-@attr('UNIT', group='mi')
+@attr('NOTUNIT', group='mi')
 class TestInstrumentDriverProcess(PyonTestCase):
     """
     Unit tests for Driver Process using python classes

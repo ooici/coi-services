@@ -33,7 +33,7 @@ import unittest
 from pyon.util.unit_test import PyonTestCase
 
 
-@attr('UNIT', group='sa')
+@attr('NOTUNIT', group='sa')
 class TestInstrumentManagement(PyonTestCase):
 
     def setUp(self):

@@ -17,7 +17,7 @@ from pyon.util.containers import DotDict
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 import gevent
 
-@attr('UNIT',group='dm')
+@attr('NOTUNIT',group='dm')
 class DemuxTransformUnitTest(PyonTestCase):
     def setUp(self):
         self.demuxer = DemuxTransform()

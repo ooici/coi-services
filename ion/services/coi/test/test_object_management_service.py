@@ -14,7 +14,7 @@ from interface.services.coi.iobject_management_service import ObjectManagementSe
 from ion.services.coi.object_management_service import ObjectManagementService
 
 
-@attr('UNIT', group='coi')
+@attr('NOTUNIT', group='coi')
 class TestObjectManagementServiceUnit(PyonTestCase):
 
     def setUp(self):

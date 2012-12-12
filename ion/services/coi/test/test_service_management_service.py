@@ -13,7 +13,7 @@ from pyon.public import RT, IonObject
 from interface.services.coi.iservice_management_service import ServiceManagementServiceClient
 from ion.services.coi.service_management_service import ServiceManagementService
 
-@attr('UNIT', group='coi')
+@attr('NOTUNIT', group='coi')
 class TestServiceManagementServiceUnit(PyonTestCase):
 
     def setUp(self):

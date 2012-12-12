@@ -18,7 +18,7 @@ import unittest
 from interface.objects import PersistenceInstance, PersistenceSystem, DataStore
 
 
-@attr('UNIT', group='dm_pres')
+@attr('NOTUNIT', group='dm_pres')
 class PreservationManagementServiceTest(PyonTestCase):
 
     def setUp(self):

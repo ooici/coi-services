@@ -13,7 +13,7 @@ from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 from pyon.public import PRED, RT, IonObject
 from ion.services.ans.workflow_management_service import WorkflowManagementService
 
-@attr('UNIT', group='as')
+@attr('NOTUNIT', group='as')
 class TestWorkflowManagementService(PyonTestCase):
 
     def setUp(self):

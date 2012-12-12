@@ -55,7 +55,7 @@ class FakeProcess(LocalContextMixin):
     id = 'scheduler_client'
     process_type = 'simple'
 
-@attr('UNIT',group='dm')
+@attr('NOTUNIT',group='dm')
 class UserNotificationTest(PyonTestCase):
     def setUp(self):
 

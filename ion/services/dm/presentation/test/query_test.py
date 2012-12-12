@@ -14,7 +14,7 @@ from nose.plugins.attrib import attr
 from ion.services.dm.presentation.discovery_service import QueryLanguage
 
 
-@attr('UNIT', group='dm')
+@attr('NOTUNIT', group='dm')
 class QueryLanguageUnitTest(PyonTestCase):
     def setUp(self):
         super(QueryLanguageUnitTest,self).setUp()

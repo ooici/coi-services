@@ -15,7 +15,7 @@ import unittest
 from nose.plugins.attrib import attr
 
 
-@attr('UNIT', group='sa')
+@attr('NOTUNIT', group='sa')
 class TestPlatformAgent(unittest.TestCase):
     """
     Class intended for *unit* tests; currently none as the current focus is

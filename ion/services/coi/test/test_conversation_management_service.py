@@ -15,7 +15,7 @@ from ion.services.coi.conversation_management_service import ConversationManagem
 from interface.services.coi.iconversation_management_service import ConversationManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-@attr('UNIT', group='coi')
+@attr('NOTUNIT', group='coi')
 class TestPolicyManagementService(PyonTestCase):
 
     def setUp(self):

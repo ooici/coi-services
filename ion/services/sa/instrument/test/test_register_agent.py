@@ -91,7 +91,7 @@ VVQFAAPqPb5PdXgLAAEE6AMAAAToAwAAUEsFBgAAAAABAAEAVwAAAFABAAAAAA==
 
 
 
-@attr('UNIT', group='sa')
+@attr('NOTUNIT', group='sa')
 class TestIMSRegisterAgent(PyonTestCase):
 
     def setUp(self):

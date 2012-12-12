@@ -25,7 +25,7 @@ import os
 from pyon.util.log import log
 
 
-@attr('UNIT', group='coi')
+@attr('NOTUNIT', group='coi')
 class TestExchangeManagementService(PyonTestCase):
 
     def setUp(self):

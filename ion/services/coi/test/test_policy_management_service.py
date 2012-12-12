@@ -14,7 +14,7 @@ from pyon.public import PRED, RT, IonObject, OT
 from ion.services.coi.policy_management_service import PolicyManagementService
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceClient
 
-@attr('UNIT', group='coi')
+@attr('NOTUNIT', group='coi')
 class TestPolicyManagementService(PyonTestCase):
 
     def setUp(self):

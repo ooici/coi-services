@@ -39,7 +39,7 @@ import unittest
 use_es = CFG.get_safe('system.elasticsearch',False)
 
 
-@attr('UNIT', group='dm')
+@attr('NOTUNIT', group='dm')
 class DiscoveryUnitTest(PyonTestCase):
     def setUp(self):
         super(DiscoveryUnitTest,self).setUp()

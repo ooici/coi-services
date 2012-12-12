@@ -16,7 +16,7 @@ from ion.services.coi.org_management_service import OrgManagementService
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-@attr('UNIT', group='coi')
+@attr('NOTUNIT', group='coi')
 class TestOrgManagementService(PyonTestCase):
 
     def setUp(self):

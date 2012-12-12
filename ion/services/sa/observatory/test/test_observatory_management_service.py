@@ -33,7 +33,7 @@ from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from pyon.util.unit_test import PyonTestCase
 
 
-@attr('UNIT', group='sa')
+@attr('NOTUNIT', group='sa')
 class TestObservatoryManagement(PyonTestCase):
 
     def setUp(self):

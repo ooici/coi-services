@@ -18,7 +18,7 @@ from pyon.util.unit_test import PyonTestCase
 from nose.plugins.attrib import attr
 
 
-@attr('UNIT', group='dm')
+@attr('NOTUNIT', group='dm')
 class CatalogManagementUnitTest(PyonTestCase):
     def setUp(self):
         super(CatalogManagementUnitTest, self).setUp()

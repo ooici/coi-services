@@ -15,7 +15,7 @@ from pyon.public import RT, PRED
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 import unittest
 
-@attr('UNIT', group='sa')
+@attr('NOTUNIT', group='sa')
 class TestDataAcquisitionManagement(PyonTestCase):
 
     def setUp(self):

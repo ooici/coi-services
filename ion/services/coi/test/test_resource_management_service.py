@@ -18,7 +18,7 @@ from interface.services.coi.iresource_management_service import ResourceManageme
 from interface.services.coi.iobject_management_service import ObjectManagementServiceClient
 
 
-@attr('UNIT', group='coi')
+@attr('NOTUNIT', group='coi')
 class TestResourceManagementServiceUnit(PyonTestCase):
 
     def setUp(self):

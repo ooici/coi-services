@@ -17,7 +17,7 @@ from ion.agents.data.handlers.netcdf_data_handler import NetcdfDataHandler
 from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 from netCDF4 import Dataset
 
-@attr('UNIT', group='eoi')
+@attr('NOTUNIT', group='eoi')
 class TestNetcdfDataHandlerUnit(PyonTestCase):
 
     def setUp(self):
