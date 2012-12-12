@@ -42,9 +42,7 @@ class PubsubManagementService(BasePubsubManagementService):
                 return existing[0]
             raise Conflict('StreamDefinition with the specified name already exists. (%s)' % name)
 
-        if not name:
-            create_unique_identifier()
-#            name = create_unique_identifier()
+        name = name or create_unique_identifier()
 
         stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description)
         stream_definition_id,_  = self.clients.resource_registry.create(stream_definition)
