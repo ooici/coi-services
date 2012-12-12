@@ -48,9 +48,9 @@ class TestInstrumentAgentViaGateway(TestInstrumentAgent):
         log.info('Accessing resource agent client through gateway')
 
 
-    @attr('SMOKE')
-    def test_autosample(self):
-        super(TestInstrumentAgentViaGateway, self).test_autosample()
+    # @attr('SMOKE')
+    # def test_autosample(self):
+    #     super(TestInstrumentAgentViaGateway, self).test_autosample()
 
 
 class ResourceAgentViaServiceGateway(ResourceAgentClient):
