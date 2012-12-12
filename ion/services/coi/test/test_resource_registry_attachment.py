@@ -7,7 +7,7 @@ import unittest
 from nose.plugins.attrib import attr
 
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 class TestResourceRegistryAttachments(IonIntegrationTestCase):
 
     def setUp(self):

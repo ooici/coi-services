@@ -23,7 +23,7 @@ from datetime import timedelta
 from interface.objects import StreamRoute, DeviceStatusType, DeviceCommsType
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
-@attr('INT', group='dm')
+@attr('NOTINT', group='dm')
 class TransformPrototypeIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(TransformPrototypeIntTest, self).setUp()

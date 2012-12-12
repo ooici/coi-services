@@ -108,7 +108,7 @@ TimerSchedulerEntry2: !Extends_AbstractSchedulerEntry
         self.oms.clients.resource_registry.delete.assert_called_once_with('0xBADC0FFEE')
 
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 class TestObjectManagementService(IonIntegrationTestCase):
 
     def setUp(self):

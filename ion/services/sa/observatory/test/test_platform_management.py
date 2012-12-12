@@ -26,7 +26,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 @unittest.skip('capabilities not yet available')
 class TestPlatformManagement(IonIntegrationTestCase):
 

@@ -47,7 +47,7 @@ from ion.services.sa.tcaa.r3pc import R3PCTestBehavior
 # bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_r3pc.py:TestR3PCSocket.test_server_restart
 
 #@unittest.skip('Socket unavailable on buildbot.')
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class TestR3PCSocket(IonIntegrationTestCase):
     """
     """

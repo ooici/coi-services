@@ -188,7 +188,7 @@ class TestIMSRegisterAgent(PyonTestCase):
 
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
 
     def setUp(self):

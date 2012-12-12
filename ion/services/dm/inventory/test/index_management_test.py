@@ -194,7 +194,7 @@ class IndexManagementUnitTest(PyonTestCase):
 
 
 
-@attr('INT',group='dm')
+@attr('NOTINT',group='dm')
 class IndexManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

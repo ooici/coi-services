@@ -255,7 +255,7 @@ class UserNotificationTest(PyonTestCase):
         notification_request.temporal_bounds.end_datetime = self.user_notification.makeEpochTime(now())
         self.mock_rr_client.update.assert_called_once_with(notification_request)
 
-@attr('INT', group='dm')
+@attr('NOTINT', group='dm')
 class UserNotificationIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(UserNotificationIntTest, self).setUp()

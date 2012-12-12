@@ -14,7 +14,7 @@ import gevent
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 @unittest.skip("not working; container doesn't start properly")
 class Test_DirectAccessServer_Integration(IonIntegrationTestCase):
 

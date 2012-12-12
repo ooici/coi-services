@@ -33,7 +33,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class TestDeployment(IonIntegrationTestCase):
 
     def setUp(self):

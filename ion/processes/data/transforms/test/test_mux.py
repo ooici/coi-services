@@ -40,7 +40,7 @@ class DemuxTransformUnitTest(PyonTestCase):
         self.demuxer.publish('incoming',None)
         mock_publish.publish.assert_called_once_with('incoming')
 
-@attr('INT',group='dm')
+@attr('NOTINT',group='dm')
 class DemuxTransformIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

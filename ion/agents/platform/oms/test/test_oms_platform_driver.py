@@ -32,7 +32,7 @@ DVR_CONFIG = {
 }
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
 
     @classmethod

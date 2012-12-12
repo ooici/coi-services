@@ -38,7 +38,7 @@ class VisualizationServiceTestProcess(LocalContextMixin):
     id='visualization_int_test'
     process_type = 'simple'
 
-@attr('INT', group='as')
+@attr('NOTINT', group='as')
 class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
     def setUp(self):

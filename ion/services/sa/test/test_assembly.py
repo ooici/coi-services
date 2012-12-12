@@ -49,7 +49,7 @@ log.info  = mk_logger("INFO")
 log.warn  = mk_logger("WARNING")
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class TestAssembly(IonIntegrationTestCase):
     """
     assembly integration tests at the service level

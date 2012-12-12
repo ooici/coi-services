@@ -20,7 +20,7 @@ from ion.core.function.transform_function import SimpleTransformFunction
 from numbers import Number
 
 
-@attr('INT', group='dm')
+@attr('NOTINT', group='dm')
 class DataRetrieverIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(DataRetrieverIntTest,self).setUp()

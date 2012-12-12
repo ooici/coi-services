@@ -812,7 +812,7 @@ class ExternalDatasetAgentTestBase(object):
         state = retval.result
         self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
 
-#@attr('INT', group='eoi')
+#@attr('NOTINT', group='eoi')
 #class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
 #    # DataHandler config
 #    DVR_CONFIG = {
@@ -844,7 +844,7 @@ class ExternalDatasetAgentTestBase(object):
 #            'max_records':4,
 #            }
 
-@attr('INT', group='eoi')
+@attr('NOTINT', group='eoi')
 class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.base_data_handler',

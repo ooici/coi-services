@@ -35,7 +35,7 @@ RT_SITE = "Site"
 RT_SUBPLATFORMSITE = "SubPlatformSite"
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class TestFindRelatedResources(IonIntegrationTestCase):
     """
     assembly integration tests at the service level

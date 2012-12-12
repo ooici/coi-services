@@ -99,7 +99,7 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
         
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestRemoteEndpoint(IonIntegrationTestCase):
     """

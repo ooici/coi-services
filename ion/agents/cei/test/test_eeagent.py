@@ -74,7 +74,7 @@ class TestProcessSlowStart(BaseService):
         log.info("TestProcessSlowStart started")
 
 
-@attr('INT', group='cei')
+@attr('NOTINT', group='cei')
 class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
 
     @needs_eeagent
@@ -166,7 +166,7 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
         self.wait_for_state(cat_u_pid, [700, 'TERMINATED'])
 
 
-@attr('INT', group='cei')
+@attr('NOTINT', group='cei')
 class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
 
     @needs_eeagent
@@ -246,7 +246,7 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
         self.assertEqual(proc.get('state'), [700, 'TERMINATED'])
 
 
-@attr('INT', group='cei')
+@attr('NOTINT', group='cei')
 class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
     _webserver = None

@@ -416,7 +416,7 @@ class DiscoveryUnitTest(PyonTestCase):
 
 
         
-@attr('INT', group='dm')
+@attr('NOTINT', group='dm')
 @attr('LOCOINT')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 class DiscoveryIntTest(IonIntegrationTestCase):

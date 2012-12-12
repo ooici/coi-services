@@ -70,7 +70,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     @classmethod

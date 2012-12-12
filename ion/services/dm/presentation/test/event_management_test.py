@@ -226,7 +226,7 @@ class EventManagementTest(PyonTestCase):
         pass
 
 
-@attr('INT', group='dm')
+@attr('NOTINT', group='dm')
 class EventManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(EventManagementIntTest, self).setUp()

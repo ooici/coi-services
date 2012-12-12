@@ -110,7 +110,7 @@ class TestCtdTransforms(IonUnitTestCase):
 
 @attr('LOCOINT')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-@attr('INT', group='dm')
+@attr('NOTINT', group='dm')
 class CtdTransformsIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(CtdTransformsIntTest, self).setUp()

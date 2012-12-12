@@ -17,7 +17,7 @@ from gevent import sleep
 from nose.plugins.attrib import attr
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class Test(IonIntegrationTestCase):
 
     def test(self):

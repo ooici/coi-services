@@ -120,7 +120,7 @@ Policy9: !Extends_InformationResource
         self.rms.clients.resource_registry.delete.assert_called_with(resource_id)
 
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 class TestResourceManagementService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -242,7 +242,7 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-@attr('INT', group='rms')
+@attr('NOTINT', group='rms')
 class TestResourceManagementServiceInterface(IonIntegrationTestCase):
 
     def setUp(self):

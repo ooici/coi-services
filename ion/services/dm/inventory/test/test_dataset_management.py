@@ -19,7 +19,7 @@ from nose.plugins.attrib import attr
 import numpy as np
 
 
-@attr('INT', group='dm')
+@attr('NOTINT', group='dm')
 class DatasetManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

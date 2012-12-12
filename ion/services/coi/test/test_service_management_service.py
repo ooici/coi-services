@@ -116,7 +116,7 @@ methods:
         self.mock_clients.resource_registry.delete.assert_called_once_with("123")
 
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 class TestServiceManagementService(IonIntegrationTestCase):
 
     def setUp(self):

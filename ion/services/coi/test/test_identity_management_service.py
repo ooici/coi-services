@@ -433,7 +433,7 @@ class TestIdentityManagementService(PyonTestCase):
 #    def test_signon_known_user(self):
 
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 class TestIdentityManagementServiceInt(IonIntegrationTestCase):
     
     def setUp(self):

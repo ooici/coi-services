@@ -133,7 +133,7 @@ class TestRegisterProcessDefinition(PyonTestCase):
 
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class TestRegisterProcessDefinitionIntegration(IonIntegrationTestCase):
 
     def setUp(self):

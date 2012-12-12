@@ -22,7 +22,7 @@ from ion.agents.platform.oms.test.oms_test_mixin import OmsTestMixin
 from nose.plugins.attrib import attr
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class Test(IonIntegrationTestCase, OmsTestMixin):
 
     @classmethod

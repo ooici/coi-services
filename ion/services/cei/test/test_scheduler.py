@@ -19,7 +19,7 @@ class FakeProcess(LocalContextMixin):
     id = 'scheduler_client'
     process_type = 'simple'
 
-@attr('INT', group='cei')
+@attr('NOTINT', group='cei')
 class TestSchedulerService(IonIntegrationTestCase):
 
     def setUp(self):

@@ -28,7 +28,7 @@ import gevent
 class PubsubManagementUnitTest(PyonTestCase):
     pass
 
-@attr('INT', group='dm')
+@attr('NOTINT', group='dm')
 class PubsubManagementIntTest(IonIntegrationTestCase):
 
     def setUp(self):

@@ -61,7 +61,7 @@ class TestProcess(BaseService):
         pass
 
 
-@attr('INT', group='cei')
+@attr('NOTINT', group='cei')
 class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
     @needs_epu
@@ -324,7 +324,7 @@ class ProcessDispatcherSimpleAPIClientTest(PyonTestCase):
         self.assertEqual(kwargs['configuration'], configuration)
 
 
-@attr('INT', group='cei')
+@attr('NOTINT', group='cei')
 class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
     def _start_webserver(self, port=None):

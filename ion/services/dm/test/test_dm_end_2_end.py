@@ -38,7 +38,7 @@ import os
 import unittest
 import time
 
-@attr('INT',group='dm')
+@attr('NOTINT',group='dm')
 class TestDMEnd2End(IonIntegrationTestCase):
     def setUp(self): # Love the non pep-8 convention
         self._start_container()

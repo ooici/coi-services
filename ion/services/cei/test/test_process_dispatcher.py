@@ -669,7 +669,7 @@ class TestClient(RPCClient):
 
 
 
-@attr('INT', group='cei')
+@attr('NOTINT', group='cei')
 class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
     def setUp(self):

@@ -29,7 +29,7 @@ class WorkflowServiceTestProcess(LocalContextMixin):
     id='workflow_int_test'
     process_type = 'simple'
 
-@attr('INT', group='as')
+@attr('NOTINT', group='as')
 class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
     def setUp(self):

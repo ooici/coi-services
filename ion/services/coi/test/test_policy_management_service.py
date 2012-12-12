@@ -169,7 +169,7 @@ class TestPolicyManagementService(PyonTestCase):
         self.mock_read.assert_called_once_with('bad role', '')
 
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 class TestPolicyManagementServiceInt(IonIntegrationTestCase):
 
     def setUp(self):

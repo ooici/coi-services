@@ -9,7 +9,7 @@ import math
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 import unittest
 
-@attr('INT', group='loader')
+@attr('NOTINT', group='loader')
 class TestLoader(IonIntegrationTestCase):
 
     def setUp(self):

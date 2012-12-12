@@ -20,7 +20,7 @@ from nose.plugins.attrib import attr
 
 import numpy as np
 
-@attr('INT',group='dm')
+@attr('NOTINT',group='dm')
 class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
     xps = []
     xns = []

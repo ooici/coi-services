@@ -147,7 +147,7 @@ class IngestionManagementUnitTest(PyonTestCase):
         self.assertEquals(retval,True)
 
 
-@attr('INT', group='dm')
+@attr('NOTINT', group='dm')
 class IngestionManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

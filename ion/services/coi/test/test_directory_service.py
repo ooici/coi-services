@@ -9,7 +9,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.idirectory_service import DirectoryServiceClient, DirectoryServiceProcessClient
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 class TestDirectoryService(IonIntegrationTestCase):
     
     def setUp(self):

@@ -26,7 +26,7 @@ import numpy
 import time
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 #@unittest.skip('run locally only')
 class TestGranulePublish(IonIntegrationTestCase):
 

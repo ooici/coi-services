@@ -113,7 +113,7 @@ class CatalogManagementUnitTest(PyonTestCase):
 
 
 
-@attr('INT', group='dm')
+@attr('NOTINT', group='dm')
 class CatalogManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(CatalogManagementIntTest,self).setUp()

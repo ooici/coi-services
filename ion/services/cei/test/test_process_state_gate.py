@@ -61,7 +61,7 @@ class TestClient(RPCClient):
 
 
 
-@attr('INT', group='cei')
+@attr('NOTINT', group='cei')
 class ProcessStateGateIntTest(IonIntegrationTestCase):
 
     def setUp(self):

@@ -273,7 +273,7 @@ class TestExchangeManagementService(PyonTestCase):
         self.exchange_management_service.call_management(sentinel.url, sentinel.method)
         self.container.ex_manager._make_management_call.assert_called_once_with(sentinel.url, method=sentinel.method, use_ems=False)
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 @patch.dict('pyon.ion.exchange.CFG', container=DotDict(CFG.container, exchange=DotDict(auto_register=True)))
 class TestExchangeManagementServiceInt(IonIntegrationTestCase):
 
@@ -444,7 +444,7 @@ class TestExchangeManagementServiceInt(IonIntegrationTestCase):
         self.container.ex_manager.delete_xn(xn, use_ems=False)
 
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 class TestContainerExchangeToEms(IonIntegrationTestCase):
     # these tests should auto contact the EMS to do the work
     def setUp(self):

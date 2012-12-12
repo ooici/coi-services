@@ -41,7 +41,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 #@unittest.skip('Not done yet.')
 class TestBulkIngest(IonIntegrationTestCase):
 

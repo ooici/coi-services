@@ -32,7 +32,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
  
-@attr('INT', group='sav')
+@attr('NOTINT', group='sav')
 class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):

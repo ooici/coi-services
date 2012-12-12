@@ -12,7 +12,7 @@ from interface.objects import StreamRoute
 from nose.plugins.attrib import attr
 from gevent.event import Event
 
-@attr('INT',group='dm')
+@attr('NOTINT',group='dm')
 class TestTrasforms(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

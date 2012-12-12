@@ -99,7 +99,7 @@ class TestOrgManagementService(PyonTestCase):
         self.mock_delete.assert_called_once_with('bad')
 
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 class TestOrgManagementServiceInt(IonIntegrationTestCase):
 
     def setUp(self):

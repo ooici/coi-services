@@ -37,7 +37,7 @@ class FakeProcess(LocalContextMixin):
 
     
 
-@attr('INT', group='sa')
+@attr('NOTINT', group='sa')
 class TestDataProcessWithLookupTable(IonIntegrationTestCase):
 
     def setUp(self):

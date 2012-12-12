@@ -14,7 +14,7 @@ from pyon.datastore.datastore import DataStore
 import unittest
 import hashlib
 
-@attr('INT',group='dm')
+@attr('NOTINT',group='dm')
 class FilePersistenceIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()

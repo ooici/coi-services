@@ -127,7 +127,7 @@ class GovernanceTestProcess(LocalContextMixin):
     id='gov_client'
     process_type = 'simple'
 
-@attr('INT', group='coi')
+@attr('NOTINT', group='coi')
 class TestGovernanceInt(IonIntegrationTestCase):
 
 
