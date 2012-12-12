@@ -81,7 +81,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
 
         # Create InstrumentAgent
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver" )
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
+        instAgent_obj = IonObject(RT.InstrumentAgent,
+                                name='agent007',
+                                description="SBE37IMAgent",
+                                driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
+                                driver_class="SBE37Driver",
+                                stream_configurations = [parsed_config] )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -174,12 +180,9 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         }
 
 
-        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
-
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
             description="SBE37IMAgentInstance",
-            port_agent_config = port_agent_config,
-            stream_configurations = [parsed_config])
+            port_agent_config = port_agent_config)
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
