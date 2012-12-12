@@ -29,7 +29,7 @@ from coverage_model.basic_types import AxisTypeEnum
 
 import numpy
 
-@attr('INT_LONG', group='eoi')
+@attr('NOT_INT_LONG', group='eoi')
 class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.slocum_data_handler',

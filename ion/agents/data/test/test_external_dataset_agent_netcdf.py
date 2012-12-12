@@ -29,7 +29,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 
 import numpy
 
-@attr('INT_LONG', group='eoi')
+@attr('NOT_INT_LONG', group='eoi')
 class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod' : 'ion.agents.data.handlers.netcdf_data_handler',
