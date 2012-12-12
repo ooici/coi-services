@@ -276,30 +276,20 @@ class RecordDictionaryTool(object):
             if x is None and y is None:
                 continue
 
-
-            if isinstance(rdt1._pdict.get_context(k).param_type,QuantityType):
-                if x is None:
-                    #TODO: Make more efficient
-                    X = np.ones(rdt1._shp) * rdt1._pdict.get_context(k).fill_value
-                else:
-                    X = x 
-                if y is None:
-                    Y = np.ones(rdt2._shp) * rdt2._pdict.get_context(k).fill_value
-                else:
-                    Y = y
-                nrdt[k] = np.append(X,Y)
+            if x is None:
+                X = np.empty(rdt1._shp, dtype=rdt1._pdict.get_context(k).param_type.value_encoding)
+                X.fill(rdt1._pdict.get_context(k).fill_value)
             else:
-                if x is None:
-                    X = np.empty(rdt1._shp, dtype='|O')
-                    X.fill(None) #TODO: Apply fill value
-                else:
-                    X = x
-                if y is None:
-                    Y = np.empty(rdt2._shp, dtype='|O')
-                    Y.fill(None)
-                else:
-                    Y = y
-                nrdt[k] = np.append(X,Y)
+                X = x
+
+            if y is None:
+                Y = np.empty(rdt1._shp, dtype=rdt2._pdict.get_context(k).param_type.value_encoding)
+                Y.fill(rdt2._pdict.get_context(k).fill_value)
+            else:
+                Y = y
+
+            nrdt[k] = np.append(X,Y)
+
         return nrdt
 
     
