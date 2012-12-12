@@ -452,6 +452,8 @@ class IONLoader(ImmediateProcess):
         elif targettype is 'simplelist':
             if value.startswith('[') and value.endswith(']'):
                 value = value[1:len(value)-1].strip()
+            elif not value.strip():
+                return []
             return list(value.split(','))
         else:
             log.trace('parsing value as %s: %s', targettype, value)
@@ -1418,21 +1420,13 @@ class IONLoader(ImmediateProcess):
         self.stream_config[row['ID']] = obj
 
     def _load_InstrumentAgent(self, row):
-#        res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
-#            "instrument_management", "create_instrument_agent",
-#            support_bulk=True)
-        # create basic object from simple fields
-        instrument_agent = self._create_object_from_row("InstrumentAgent", row, "ia/")
-
-        # add more complicated attributes
         stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
-        instrument_agent.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
+        stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
-        client = self._get_service_client("instrument_management")
-        headers = self._get_op_headers(row)
-        res_id = client.create_instrument_agent(instrument_agent,headers=headers)
-        self.resource_ids[row['ID']] = res_id
-        self.resource_objs[row['ID']] = instrument_agent
+        res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
+            "instrument_management", "create_instrument_agent",
+            set_attributes=dict(stream_configurations=stream_configurations),
+            support_bulk=True)
 
         if self.bulk:
             # Create DataProducer and association
@@ -1468,6 +1462,7 @@ class IONLoader(ImmediateProcess):
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             ooi_rd = OOIReferenceDesignator(ooi_id)
             fakerow['instrument_model_ids'] = ooi_rd.subseries_rd
+            fakerow['stream_configurations'] = ""
 
             if not self._match_filter(ooi_id[:2]):
                 continue
@@ -1492,10 +1487,6 @@ class IONLoader(ImmediateProcess):
                                              'data_port':     int(row['comms_server_port']),
                                              'log_level':     5,  }
 
-#        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
-#        agent_instance.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
-
-        # save
         agent_id = self.resource_ids[row["instrument_agent_id"]]
         device_id = self.resource_ids[row["instrument_device_id"]]
         client = self._get_service_client("instrument_management")
@@ -1505,30 +1496,36 @@ class IONLoader(ImmediateProcess):
             headers=headers)
 
     def _load_PlatformAgent(self, row):
-        #res_id = self._basic_resource_create(row, "PlatformAgent", "pa/", "instrument_management", "create_platform_agent")
-        platform_agent = self._create_object_from_row("PlatformAgent", row, "pa/")
-
         log.debug("_load_PlatformAgent row %s " % str(row))
-        # add more complicated attributes
+
         stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
-        platform_agent.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
+        stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
+
+        res_id = self._basic_resource_create(row, "PlatformAgent", "pa/",
+            "instrument_management", "create_platform_agent",
+            set_attributes=dict(stream_configurations=stream_configurations),
+            support_bulk=True)
+
+        if self.bulk:
+            # Create DataProducer and association
+            pa_obj = self._get_resource_obj(row[self.COL_ID])
+            proc_def_obj = IonObject(RT.ProcessDefinition)
+            pd_id = self._create_bulk_resource(proc_def_obj)
+            self._create_association(pa_obj, PRED.hasProcessDefinition, proc_def_obj)
 
         svc_client = self._get_service_client("instrument_management")
-        headers = self._get_op_headers(row)
-        res_id = svc_client.create_platform_agent(platform_agent,headers=headers)
-        self.resource_ids[row['ID']] = res_id
-        self.resource_objs[row['ID']] = platform_agent
-
-        log.debug("_load_PlatformAgent self.resource_ids %s " % str(self.resource_ids))
-
-
         headers = self._get_op_headers(row)
         model_ids = row["platform_model_ids"]
         if model_ids:
             model_ids = self._get_typed_value(model_ids, targettype="simplelist")
             for model_id in model_ids:
-                svc_client.assign_platform_model_to_platform_agent(self.resource_ids[model_id], res_id,
-                    headers=headers)
+                if self.bulk:
+                    model_obj = self._get_resource_obj(model_id)
+                    agent_obj = self._get_resource_obj(row[self.COL_ID])
+                    self._create_association(model_obj, PRED.hasAgentDefinition, agent_obj)
+                else:
+                    svc_client.assign_platform_model_to_platform_agent(self.resource_ids[model_id], res_id,
+                        headers=headers)
         self._resource_advance_lcs(row, res_id, "InstrumentAgent")
 
     def _load_PlatformAgent_OOI(self):
@@ -1540,6 +1537,7 @@ class IONLoader(ImmediateProcess):
             fakerow['pa/name'] = "Platform Agent for " + ooi_id
             fakerow['platform_model_ids'] = ooi_id + "_PM"
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
+            fakerow['stream_configurations'] = ""
 
             if not self._match_filter(ooi_obj.get('array_list', None)):
                 continue
