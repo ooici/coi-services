@@ -185,7 +185,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.ion_org = self.org_client.find_org()
 
 
-        #Setup access to event respository
+        #Setup access to event repository
         dsm = DatastoreManager()
         ds = dsm.get_datastore("events")
 

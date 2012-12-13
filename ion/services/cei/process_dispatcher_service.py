@@ -19,13 +19,13 @@ from gevent import event as gevent_event
 
 try:
     from epu.processdispatcher.core import ProcessDispatcherCore
-    from epu.processdispatcher.store import ProcessDispatcherStore
+    from epu.processdispatcher.store import get_processdispatcher_store
     from epu.processdispatcher.engines import EngineRegistry
     from epu.processdispatcher.matchmaker import PDMatchmaker
     from epu.dashiproc.epumanagement import EPUManagementClient
 except ImportError:
     ProcessDispatcherCore = None
-    ProcessDispatcherStore = None
+    get_processdispatcher_store = None
     EngineRegistry = None
     PDMatchmaker = None
     EPUManagementClient = None
@@ -789,7 +789,9 @@ class PDNativeBackend(object):
         default_engine = conf.get('default_engine')
         if default_engine is None and len(engine_conf.keys()) == 1:
             default_engine = engine_conf.keys()[0]
-        self.store = ProcessDispatcherStore()
+        self.CFG = service.CFG
+        self.store = get_processdispatcher_store(self.CFG, use_gevent=True)
+        self.store.initialize()
         self.registry = EngineRegistry.from_config(engine_conf, default=default_engine)
 
         # The Process Dispatcher communicates with EE Agents over ION messaging

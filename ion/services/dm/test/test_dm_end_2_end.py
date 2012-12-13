@@ -143,14 +143,16 @@ class TestDMEnd2End(IonIntegrationTestCase):
     def wait_until_we_have_enough_granules(self, dataset_id='',granules=4):
         datastore = self.get_datastore(dataset_id)
         dataset = self.dataset_management.read_dataset(dataset_id)
+        try:
         
-        with gevent.timeout.Timeout(40):
-            success = False
-            while not success:
-                success = len(datastore.query_view(dataset.view_name)) >= granules
-                gevent.sleep(0.1)
-
-        log.info(datastore.query_view(dataset.view_name))
+            with gevent.timeout.Timeout(40):
+                success = False
+                while not success:
+                    success = len(datastore.query_view(dataset.view_name)) >= granules
+                    gevent.sleep(0.1)
+        except:
+            log.info(datastore.query_view(dataset.view_name))
+            raise
 
 
 
@@ -299,7 +301,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         self.launch_producer(stream_id)
-        self.wait_until_we_have_enough_granules(dataset_id,4)
+        self.wait_until_we_have_enough_granules(dataset_id,2)
         
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
@@ -372,21 +374,19 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         self.get_datastore(dataset_id)
         self.ingestion_management.persist_data_stream(stream_id=ctd_stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
-
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = np.arange(10)
-        rdt['temp'] = np.random.randn(10) * 10 + 30
-        rdt['conductivity'] = np.random.randn(10) * 2 + 10
-
         publisher = StandaloneStreamPublisher(ctd_stream_id, route)
-        publisher.publish(rdt.to_granule())
 
-        rdt['time'] = np.arange(10,20)
+        for i in xrange(10):
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+            rdt['time'] = [i]
+            rdt['temp'] = np.random.randn(1) * 10 + 30
+            rdt['conductivity'] = np.random.randn(1) * 2 + 10
 
-        publisher.publish(rdt.to_granule())
+            publisher.publish(rdt.to_granule())
 
 
-        self.wait_until_we_have_enough_granules(dataset_id, 2)
+
+        self.wait_until_we_have_enough_granules(dataset_id, 1)
 
         granule = self.data_retriever.retrieve(dataset_id, 
                                              None,
@@ -415,12 +415,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         # Create the datastore first,
         #--------------------------------------------------------------------------------
         self.get_datastore(dataset_id)
+        for i in xrange(10):
+            self.publish_hifi(stream_id, route, i)
 
-        self.publish_hifi(stream_id,route, 0)
-        self.publish_hifi(stream_id,route, 1)
-        
-
-        self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
+        self.wait_until_we_have_enough_granules(dataset_id,1) 
 
 
         success = False
@@ -428,9 +426,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
 
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                print rdt['time']
 
-                comp = rdt['time'] == np.arange(10) + 10
+                comp = rdt['time'] == np.arange(100)
                 if not isinstance(comp,bool):
                     return comp.all()
                 return False
@@ -444,7 +441,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
 
-                comp = rdt['time'] == np.arange(15,20)
+                comp = rdt['time'] == np.arange(95,100)
                 if not isinstance(comp,bool):
                     return comp.all()
                 return False
@@ -487,7 +484,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.launch_producer(stream_id)
 
-        self.wait_until_we_have_enough_granules(dataset_id,4)
+        self.wait_until_we_have_enough_granules(dataset_id,2)
 
         query = {
             'start_time': 0,
@@ -499,7 +496,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         rdt = RecordDictionaryTool.load_from_granule(retrieved_data)
         comp = np.arange(0,20,2) == rdt['time']
-        self.assertTrue(comp.all(),'%s' % rdt.pretty_print())
+        self.assertTrue(comp.all(),'%s != %s' % (rdt['time'],np.arange(0,20,2)))
         self.assertEquals(set(rdt.iterkeys()), set(['time','temp']))
 
         extents = self.dataset_management.dataset_extents(dataset_id=dataset_id, parameters=['time','temp'])
@@ -516,14 +513,14 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_id = self.create_dataset(pdict_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
         self.get_datastore(dataset_id)
-        self.publish_hifi(stream_id,route,0)
-        self.publish_hifi(stream_id,route,1)
-        self.wait_until_we_have_enough_granules(dataset_id,2)
+        for i in xrange(10):
+            self.publish_hifi(stream_id,route,i)
+        self.wait_until_we_have_enough_granules(dataset_id,1)
         self.ingestion_management.unpersist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id,dataset_id=dataset_id)
-        self.publish_hifi(stream_id,route,2)
-        self.publish_hifi(stream_id,route,3)
-        self.wait_until_we_have_enough_granules(dataset_id,4)
+        for i in xrange(10,20):
+            self.publish_hifi(stream_id,route,i)
+        self.wait_until_we_have_enough_granules(dataset_id,2)
         success = False
         with gevent.timeout.Timeout(5):
             while not success:
@@ -532,7 +529,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
 
-                comp = rdt['time'] == np.arange(0,40)
+                comp = rdt['time'] == np.arange(0,200)
                 if not isinstance(comp,bool):
                     success = comp.all()
                 gevent.sleep(1)

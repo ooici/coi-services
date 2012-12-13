@@ -60,7 +60,7 @@ class ExecutionEngineAgent(SimpleResourceAgent):
 
         interval = self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT)
         if interval > 0:
-            self.heartbeater = HeartBeater(self.CFG, self._factory, self.id, log=log)
+            self.heartbeater = HeartBeater(self.CFG, self._factory, self.resource_id, log=log)
             self.heartbeater.poll()
             self.heartbeat_thread = looping_call(0.1, self.heartbeater.poll)
         else:

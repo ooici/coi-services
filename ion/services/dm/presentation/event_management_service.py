@@ -132,14 +132,20 @@ class EventManagementService(BaseEventManagementService):
         # The event_process_def is really only a process_def. Read up the process definition
         process_def = self.clients.resource_registry.read(event_process_definition_id)
 
+        definition = process_def.definition
+
         # Fetch or make a new EventProcessDefinitionDetail object
-        event_process_def_detail = process_def.definition or EventProcessDefinitionDetail()
-        if event_types:
-            event_process_def_detail.event_types = event_types
-        if sub_types:
-            event_process_def_detail.sub_types = sub_types
-        if origin_types:
-            event_process_def_detail.origin_types = origin_types
+        if definition:
+            event_process_def_detail = EventProcessDefinitionDetail()
+            event_process_def_detail.event_types = event_types or definition.event_types
+            event_process_def_detail.sub_types = sub_types or definition.sub_types
+            event_process_def_detail.origin_types = origin_types or definition.origin_types
+        else:
+            event_process_def_detail = EventProcessDefinitionDetail(event_types = event_types, sub_types = sub_types, origin_types = origin_types)
+
+#        event_process_def_detail = process_def.definition or EventProcessDefinitionDetail()
+
+
 
         # Update the fields of the process definition
         process_def.executable['module'] = module

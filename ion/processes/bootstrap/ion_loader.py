@@ -79,7 +79,8 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE01OXVvMnhraVZtM05rNkthQnVjU1E&output=xls"
+#TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE01OXVvMnhraVZtM05rNkthQnVjU1E&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dDlHWDhhZUgxYzlLZ2VtdjRPQXNYR0E&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -451,6 +452,8 @@ class IONLoader(ImmediateProcess):
         elif targettype is 'simplelist':
             if value.startswith('[') and value.endswith(']'):
                 value = value[1:len(value)-1].strip()
+            elif not value.strip():
+                return []
             return list(value.split(','))
         else:
             log.trace('parsing value as %s: %s', targettype, value)
@@ -900,9 +903,9 @@ class IONLoader(ImmediateProcess):
 
     def _load_InstrumentModel(self, row):
         row['im/reference_urls'] = repr(self._get_typed_value(row['im/reference_urls'], targettype="simplelist"))
-        raw_stream_def = row['raw_stream_def']
-        parsed_stream_def = row['parsed_stream_def']
-        row['im/stream_configuration'] = "{'raw': '%s', 'parsed': '%s'}" % (raw_stream_def, parsed_stream_def)
+        #raw_stream_def = row['raw_stream_def']
+        #parsed_stream_def = row['parsed_stream_def']
+        #row['im/stream_configuration'] = "{'raw': '%s', 'parsed': '%s'}" % (raw_stream_def, parsed_stream_def)
 
         res_id = self._basic_resource_create(row, "InstrumentModel", "im/",
             "instrument_management", "create_instrument_model",
@@ -1198,8 +1201,6 @@ class IONLoader(ImmediateProcess):
 
     def _load_StreamDefinition(self, row):
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
-#        sd_module = row["StreamContainer_module"]
-#        sd_method = row["StreamContainer_method"]
         pname = row["param_dict_name"]
         svc_client = self._get_service_client("dataset_management")
         parameter_dictionary_id = svc_client.read_parameter_dictionary_by_name(pname, id_only=True,
@@ -1208,7 +1209,7 @@ class IONLoader(ImmediateProcess):
         res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
             headers=self._get_system_actor_headers())
         self._register_id(row[self.COL_ID], res_id)
-    
+
     def _load_ParameterDefs(self, row):
         param_type = row['Parameter Type']
         if param_type == 'record':
@@ -1267,7 +1268,7 @@ class IONLoader(ImmediateProcess):
         try:
             context_ids = [dataset_management.read_parameter_context_by_name(i)._id for i in contexts]
             temporal_parameter = row['temporal_parameter'] or ''
-            dataset_management.create_parameter_dictionary(name=row['name'], 
+            dataset_management.create_parameter_dictionary(name=row['name'],
                 parameter_context_ids=context_ids,
                 temporal_context=temporal_parameter,
                 headers=self._get_system_actor_headers())
@@ -1419,8 +1420,12 @@ class IONLoader(ImmediateProcess):
         self.stream_config[row['ID']] = obj
 
     def _load_InstrumentAgent(self, row):
+        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
+        stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
+
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
             "instrument_management", "create_instrument_agent",
+            set_attributes=dict(stream_configurations=stream_configurations),
             support_bulk=True)
 
         if self.bulk:
@@ -1457,6 +1462,7 @@ class IONLoader(ImmediateProcess):
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             ooi_rd = OOIReferenceDesignator(ooi_id)
             fakerow['instrument_model_ids'] = ooi_rd.subseries_rd
+            fakerow['stream_configurations'] = ""
 
             if not self._match_filter(ooi_id[:2]):
                 continue
@@ -1481,10 +1487,6 @@ class IONLoader(ImmediateProcess):
                                              'data_port':     int(row['comms_server_port']),
                                              'log_level':     5,  }
 
-        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
-        agent_instance.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
-
-        # save
         agent_id = self.resource_ids[row["instrument_agent_id"]]
         device_id = self.resource_ids[row["instrument_device_id"]]
         client = self._get_service_client("instrument_management")
@@ -1494,17 +1496,36 @@ class IONLoader(ImmediateProcess):
             headers=headers)
 
     def _load_PlatformAgent(self, row):
-        res_id = self._basic_resource_create(row, "PlatformAgent", "pa/", "instrument_management", "create_platform_agent")
+        log.debug("_load_PlatformAgent row %s " % str(row))
+
+        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
+        stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
+
+        res_id = self._basic_resource_create(row, "PlatformAgent", "pa/",
+            "instrument_management", "create_platform_agent",
+            set_attributes=dict(stream_configurations=stream_configurations),
+            support_bulk=True)
+
+        if self.bulk:
+            # Create DataProducer and association
+            pa_obj = self._get_resource_obj(row[self.COL_ID])
+            proc_def_obj = IonObject(RT.ProcessDefinition)
+            pd_id = self._create_bulk_resource(proc_def_obj)
+            self._create_association(pa_obj, PRED.hasProcessDefinition, proc_def_obj)
 
         svc_client = self._get_service_client("instrument_management")
-
         headers = self._get_op_headers(row)
         model_ids = row["platform_model_ids"]
         if model_ids:
             model_ids = self._get_typed_value(model_ids, targettype="simplelist")
             for model_id in model_ids:
-                svc_client.assign_platform_model_to_platform_agent(self.resource_ids[model_id], res_id,
-                    headers=headers)
+                if self.bulk:
+                    model_obj = self._get_resource_obj(model_id)
+                    agent_obj = self._get_resource_obj(row[self.COL_ID])
+                    self._create_association(model_obj, PRED.hasAgentDefinition, agent_obj)
+                else:
+                    svc_client.assign_platform_model_to_platform_agent(self.resource_ids[model_id], res_id,
+                        headers=headers)
         self._resource_advance_lcs(row, res_id, "InstrumentAgent")
 
     def _load_PlatformAgent_OOI(self):
@@ -1516,6 +1537,7 @@ class IONLoader(ImmediateProcess):
             fakerow['pa/name'] = "Platform Agent for " + ooi_id
             fakerow['platform_model_ids'] = ooi_id + "_PM"
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
+            fakerow['stream_configurations'] = ""
 
             if not self._match_filter(ooi_obj.get('array_list', None)):
                 continue
@@ -1550,8 +1572,8 @@ class IONLoader(ImmediateProcess):
                             'driver_config':           driver_config }
         agent_instance.agent_config = { 'platform_config': platform_config }
 
-        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
-        agent_instance.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
+#        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
+#        agent_instance.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
         headers = self._get_op_headers(row)
         res_id = self._get_service_client("instrument_management").create_platform_agent_instance(

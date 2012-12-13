@@ -28,7 +28,7 @@ from ion.services.dm.presentation.sms_providers import sms_providers
 from interface.objects import ProcessDefinition, UserInfo, TemporalBounds, NotificationRequest
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
-from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
+from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_to_human_readable
 
 
 """
@@ -124,7 +124,9 @@ class UserNotificationService(BaseUserNotificationService):
         self.event_repo = self.container.instance.event_repository
 
 
-        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
+#        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
+        self.ION_NOTIFICATION_EMAIL_ADDRESS = CFG.get_safe('server.smtp.sender')
+
 
         #---------------------------------------------------------------------------------------------------
         # Create an event processor
@@ -647,15 +649,15 @@ class UserNotificationService(BaseUserNotificationService):
         return seconds_since_epoch
 
 
-    def process_batch(self, start_time = 0, end_time = 0):
+    def process_batch(self, start_time = '', end_time = ''):
         """
         This method is launched when an process_batch event is received. The user info dictionary maintained
         by the User Notification Service is used to query the event repository for all events for a particular
         user that have occurred in a provided time interval, and then an email is sent to the user containing
         the digest of all the events.
 
-        @param start_time int
-        @param end_time int
+        @param start_time int milliseconds
+        @param end_time int milliseconds
         """
         self.smtp_client = setting_up_smtp_client()
 
@@ -725,16 +727,36 @@ class UserNotificationService(BaseUserNotificationService):
 
         msg_body = ''
         count = 1
+
         for event in events_for_message:
-            # build the email from the event content
+
+            if event.type_ == 'DeviceStatusEvent':
+                time_stamps = []
+                for t in event.time_stamps:
+                    t = _convert_to_human_readable(t)
+                    time_stamps.append(t)
+                # Convert the timestamp list to a string
+                time = str(time_stamps)
+
+            elif event.type_ == 'DeviceCommsEvent':
+                # Convert seconds since epoch to human readable form
+                time = _convert_to_human_readable(event.time_stamp)
+
+            else:
+                time = "None for this event type"
+
+            ts_created = _convert_to_human_readable(event.ts_created)
+
             msg_body += string.join(("\r\n",
                                      "Event %s: %s" %  (count, event),
                                      "",
                                      "Originator: %s" %  event.origin,
                                      "",
-                                     "Description: %s" % event.description ,
+                                     "Description: %s" % event.description or "Not provided",
                                      "",
-                                     "Event time stamp: %s" %  event.ts_created,
+                                     "Value of time_stamp(s) attribute of event: %s" %  time,
+                                     "",
+                                     "ts_created: %s" %  ts_created,
                                      "\r\n",
                                      "------------------------"
                                      "\r\n"))
