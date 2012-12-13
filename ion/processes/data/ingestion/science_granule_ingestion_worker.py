@@ -144,7 +144,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         lq = self.get_queue(stream_id)
         queue = lq[1]
         queue.put(granule)
-        if queue.qsize() == 10:
+        if queue.qsize() >= self.buffer_limit:
             self.flush_queue(stream_id)
 
     def flush_queue(self,stream_id):
