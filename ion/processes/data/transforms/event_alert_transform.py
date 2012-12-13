@@ -269,8 +269,8 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                     origin = self.origin,
                     origin_type='PlatformDevice',
                     sub_type = self.instrument_variable_name,
-#                    time_stamp =int(time.time() + 2208988800),  # granules use NTP not unix
-                    time_stamp = get_ion_ts(),
+                    time_stamp =int(time.time() + 2208988800),  # granules use NTP not unix
+#                    time_stamp = get_ion_ts(),
                     state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
                     lapse_interval_seconds=self.timer_interval,
                     description = "Event to deliver the communications status of the instrument."
