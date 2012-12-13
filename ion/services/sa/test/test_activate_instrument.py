@@ -311,12 +311,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
-        retval = self._ia_client.execute_resource(cmd)
-        print "test_activateInstrumentSample: return from sample %s" % str(retval)
-        retval = self._ia_client.execute_resource(cmd)
-        print "test_activateInstrumentSample: return from sample %s" % str(retval)
-        retval = self._ia_client.execute_resource(cmd)
-        print "test_activateInstrumentSample: return from sample %s" % str(retval)
+        for i in xrange(10):
+            retval = self._ia_client.execute_resource(cmd)
+            print "test_activateInstrumentSample: return from sample %s" % str(retval)
+
 
         print "test_activateInstrumentSample: calling reset "
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
@@ -332,7 +330,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         log.debug("RDT parsed: %s", str(rdt.pretty_print()) )
         temp_vals = rdt['temp']
-        self.assertTrue(len(temp_vals) == 3)
+        self.assertTrue(len(temp_vals) == 10)
 
 
         replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
@@ -341,7 +339,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("RDT raw: %s", str(rdt.pretty_print()) )
 
         raw_vals = rdt['raw']
-        self.assertTrue(len(raw_vals) == 3)
+        self.assertTrue(len(raw_vals) == 10)
 
 
         print "l4-ci-sa-rq-138"
