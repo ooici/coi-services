@@ -183,10 +183,10 @@ class OrgManagementService(BaseOrgManagementService):
         directory = Directory(orgname=org.name)
 
         #Instantiate initial set of User Roles for this Org
-        manager_role = IonObject(RT.UserRole, name=ORG_MANAGER_ROLE,label='Org Manager', description='Org Manager')
+        manager_role = IonObject(RT.UserRole, name=ORG_MANAGER_ROLE,label='Observatory Administrator', description='Change Observatory Information, assign Roles, post Observatory events')
         self.add_user_role(org_id, manager_role)
 
-        member_role = IonObject(RT.UserRole, name=ORG_MEMBER_ROLE,label='Org Member', description='Org Member')
+        member_role = IonObject(RT.UserRole, name=ORG_MEMBER_ROLE,label='Observatory Member', description='Subscribe to events, set personal preferences')
         self.add_user_role(org_id, member_role)
 
         return org_id
