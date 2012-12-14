@@ -83,7 +83,7 @@ class NotificationWorker(TransformEventListener):
         self.reload_user_info_subscriber = EventSubscriber(
             event_type="ReloadUserInfoEvent",
             origin='UserNotificationService',
-#            queue_name='user_notification',
+            queue_name='notification_worker',
             callback=reload_user_info
         )
         self.reload_user_info_subscriber.start()
