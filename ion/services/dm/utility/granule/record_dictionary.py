@@ -268,7 +268,7 @@ class RecordDictionaryTool(object):
         if sd:
             nrdt = cls(stream_definition_id=sd)
         else:
-            nrdt = cls(parameter_dictionary=rdt1._pdict)
+            nrdt = cls(param_dictionary=rdt1._pdict)
         
         for k in rdt1.fields:
             x = rdt1[k]
