@@ -75,12 +75,16 @@ import logging
 
 DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
+## can set ui_path to keywords 'default' for TESTED_UI_ASSETS or 'candidate' for CANDIDATE_UI_ASSETS
+TESTED_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/'
+CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/Candidates'
+
 ### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
 #TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE01OXVvMnhraVZtM05rNkthQnVjU1E&output=xls"
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dDlHWDhhZUgxYzlLZ2VtdjRPQXNYR0E&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidEZOS29JWG5EWHJkTldzVmdmV2RUX2c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -114,8 +118,6 @@ DEFAULT_CATEGORIES = [
     'DataProduct',
     'DataProcessDefinition',
     'DataProcess',
-    'EventProcessDefinition',
-    'EventProcess',
     'DataProductLink',
     'Attachment',
     'WorkflowDefinition',
@@ -144,7 +146,13 @@ class IONLoader(ImmediateProcess):
         self.attachment_path = self.CFG.get("attachments", self.path + '/attachments')
         self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets")
         default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
+
         self.ui_path = self.CFG.get("ui_path", default_ui_path)
+        if self.ui_path=='default':
+            self.ui_path = TESTED_UI_ASSETS
+        elif self.ui_path=='candidate':
+            self.ui_path = CANDIDATE_UI_ASSETS
+
         scenarios = self.CFG.get("scenario", None)
         category_csv = self.CFG.get("categories", None)
         self.categories = category_csv.split(",") if category_csv else DEFAULT_CATEGORIES
@@ -269,10 +277,19 @@ class IONLoader(ImmediateProcess):
                     # Check if scenario applies
                     if row[self.COL_SCENARIO] not in scenarios:
                         row_skip += 1
+                        if self.COL_ID in row:
+                            log.debug('skipping %s row %s in scenario %s', category, row[self.COL_ID], row[self.COL_SCENARIO])
+                        else:
+                            log.debug('skipping %s row in scenario %s: %r', category, row[self.COL_SCENARIO], row)
                         continue
+
                     row_do += 1
 
-                    log.debug('handling %s row: %r', category, row)
+                    if self.COL_ID in row:
+                        log.debug('handling %s row %s: %r', category, row[self.COL_ID], row)
+                    else:
+                        log.debug('handling %s row: %r', category, row)
+
                     try:
                         catfunc(row)
                     except:
@@ -1276,7 +1293,7 @@ class IONLoader(ImmediateProcess):
             log.error('Parameter dictionary %s missing context: %s', row['name'], e.message)
 
     def _load_PlatformDevice(self, row):
-        contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
+        contacts = self._get_contacts(row, field='contact_ids', type='PlatformDevice')
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
             "instrument_management", "create_platform_device", contacts=contacts,
             support_bulk=True)
@@ -1337,13 +1354,6 @@ class IONLoader(ImmediateProcess):
                 producer_context=IonObject(OT.InstrumentProducerContext), is_primary=True)
             dp_id = self._create_bulk_resource(data_producer_obj, id_alias+"_DPPR")
             self._create_association(id_obj, PRED.hasDataProducer, data_producer_obj)
-
-        #        rr = self._get_service_client("resource_registry")
-#        attachment_ids = self._get_typed_value(row['attachment_ids'], targettype="simplelist")
-#        if attachment_ids:
-#            log.trace('adding attachments to instrument device %s: %r', res_id, attachment_ids)
-#            for id in attachment_ids:
-#                rr.create_association(res_id, PRED.hasAttachment, self.resource_ids[id])
 
         ims_client = self._get_service_client("instrument_management")
         headers = self._get_op_headers(row)
@@ -1572,9 +1582,6 @@ class IONLoader(ImmediateProcess):
                             'driver_config':           driver_config }
         agent_instance.agent_config = { 'platform_config': platform_config }
 
-#        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
-#        agent_instance.stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
-
         headers = self._get_op_headers(row)
         res_id = self._get_service_client("instrument_management").create_platform_agent_instance(
             agent_instance, platform_agent_id, platform_device_id, headers=headers)
@@ -1659,52 +1666,10 @@ class IONLoader(ImmediateProcess):
 
         res_id = svc_client.activate_data_process(res_id, headers=self._get_system_actor_headers())
 
-    def _load_EventProcessDefinition(self, row):
-        res_id = row[self.COL_ID]
-        process_def = self._create_object_from_row("ProcessDefinition", row, "epd/")
-        process_def.executable = { 'module': row['module'], 'class': row['class'] }
-
-        process_dispatcher = self._get_service_client("process_dispatcher")
-        data_process_client = self._get_service_client("data_process_management")
-
-        headers = self._get_op_headers(row)
-        dbid = process_dispatcher.create_process_definition(process_definition=process_def,
-            headers=headers)
-        process_def._id = dbid
-        self.resource_ids[res_id] = dbid
-        self.resource_objs[res_id] = process_def
-
-#        input_strdef = row["input_stream_defs"]
-#        if input_strdef:
-#            input_strdef = self._get_typed_value(input_strdef, targettype="simplelist")
-#        log.trace("Assigning input StreamDefinition to DataProcessDefinition for %s" % input_strdef)
-#        for insd in input_strdef:
-#            data_process_client.assign_input_stream_definition_to_data_process_definition(self.resource_ids[insd], dbid)
-
-    def _load_EventProcess(self, row):
-        process_def_id = self.resource_ids[row["data_process_definition_id"]]
-        log.trace("_load_EventProcess  event_product_def %s", str(process_def_id))
-        in_data_product_id = self.resource_ids[row["in_data_product_id"]]
-        configuration = row["configuration"]
-        if configuration:
-            configuration = self._get_typed_value(configuration, targettype="dict")
-
-        svc_client = self._get_service_client("data_process_management")
-
-        headers = self._get_op_headers(row)
-        process_dispatcher = self._get_service_client("process_dispatcher")
-        process_dispatcher.schedule_process(process_definition_id=process_def_id, configuration=configuration,
-            headers=headers)
-# TODO: IonObject types not available...
-#        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
-#        self._register_id(row[self.COL_ID], res_id)
-#        self._resource_assign_org(row, res_id)
-#        res_id = svc_client.activate_data_process(res_id)
-
     def _load_DataProduct(self, row, do_bulk=False):
         tdom, sdom = time_series_domain()
 
-        contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
+        contacts = self._get_contacts(row, field='contact_ids', type='DataProduct')
         res_obj = self._create_object_from_row("DataProduct", row, "dp/", contacts=contacts, contact_field='contacts')
 
         constraint_id = row['geo_constraint_id']
@@ -1802,29 +1767,6 @@ class IONLoader(ImmediateProcess):
                 fakerow['stream_def_id'] = ''
 
                 self._load_DataProduct(fakerow, do_bulk=self.bulk)
-
-#Data Product Identifier
-#Data Product Name
-#Data Product Level
-#1-D Interpolation (INTERP1) QC
-#Combine QC Flags (CMBNFLG) QC
-#Conductivity Compressibility Compensation (CONDCMP) QC
-#DOORS L2 Science Requirement #(s)
-#DOORS L2 Science Requirement Text
-#DPS DCN(s)
-#Evaluate Polynomial (POLYVAL) QC
-#Global Range Test (GLBLRNG) QC
-#Gradient Test (GREDTST) QC
-#Local Range Test (LOCLRNG) QC
-#Modulus (MODULUS) QC
-#Notes
-#Processing Flow Diagram DCN(s)
-#Regime(s)
-#Solar Elevation (SOLAREL) QC
-#Spike Test (SPKETST) QC
-#Stuck Value Test (STUCKVL) QC
-#Trend Test (TRNDTST) QC
-#Units
 
     def _load_DataProductLink(self, row, do_bulk=False):
         dp_id = self.resource_ids[row["data_product_id"]]
