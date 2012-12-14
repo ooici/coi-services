@@ -273,11 +273,14 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         log.debug( 'new InstrumentModel id = %s ', instModel_id)
 
         # Create InstrumentAgent
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
                                   driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
-                                  driver_class="SBE37Driver" )
+                                  driver_class="SBE37Driver",
+                                    stream_configurations = [raw_config, parsed_config] )
         instAgent_id = self.IMS.create_instrument_agent(instAgent_obj)
         log.debug( 'new InstrumentAgent id = %s', instAgent_id)
 
@@ -308,15 +311,11 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             'type': PortAgentType.ETHERNET
         }
 
-        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
-        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
-
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
                                           comms_device_address='sbe37-simulator.oceanobservatories.org',
                                           comms_device_port=4001,
-                                          port_agent_config = port_agent_config,
-                                          stream_configurations = [raw_config, parsed_config])
+                                          port_agent_config = port_agent_config)
 
 
         instAgentInstance_id = self.IMS.create_instrument_agent_instance(instAgentInstance_obj,

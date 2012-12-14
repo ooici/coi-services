@@ -17,6 +17,8 @@ from couchdb import ResourceNotFound
 from ion.core.process.transform import TransformStreamListener
 import collections
 import numpy
+import gevent
+import time
 
 
 
@@ -32,20 +34,39 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         self._datasets  = collections.OrderedDict()
         self._coverages = collections.OrderedDict()
+        self._queues    = collections.OrderedDict()
     def on_start(self): #pragma no cover
         super(ScienceGranuleIngestionWorker,self).on_start()
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
+        self.buffer_limit   = self.CFG.get_safe('process.buffer_limit',10)
+        self.time_limit     = self.CFG.get_safe('process.time_limit', 10)
+        self.flushing       = gevent.coros.RLock()
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         log.debug('Created datastore %s', self.datastore_name)
+        self.done_flushing = False
+        self.flusher_g = gevent.spawn(self.flusher)
 
 
     def on_quit(self): #pragma no cover
         self.subscriber.stop()
+        self.flush_all()
+        self.done_flushing = True
+        self.flusher_g.join(10)
+        self.flusher_g.kill()
+
         for stream, coverage in self._coverages.iteritems():
             try:
                 coverage.close(timeout=5)
             except:
                 log.exception('Problems closing the coverage')
+    
+    def flusher(self):
+        while not self.done_flushing:
+            then = time.time()
+            while (time.time() - then) < self.time_limit:
+                gevent.sleep(1)
+            self.flush_all()
+
 
 
     def _new_dataset(self, stream_id):
@@ -92,6 +113,20 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self._coverages[stream_id] = result
         return result
 
+    def get_queue(self, stream_id):
+        '''
+        Memoization (LRU) of _new_dataset
+        '''
+        try:
+            result = self._queues.pop(stream_id)
+        except KeyError:
+            result = (gevent.coros.RLock(), gevent.queue.Queue())
+            if len(self._queues) >= self.CACHE_LIMIT:
+                self._queues.popitem(0)
+        self._queues[stream_id] = result
+        return result
+
+
     def recv_packet(self, msg, stream_route, stream_id):
         '''
         Actual ingestion mechanism
@@ -106,8 +141,30 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         log.trace('Received incoming granule from route: %s and stream_id: %s', stream_route, stream_id)
         log.trace('Granule contents: %s', msg.__dict__)
         granule = msg
-        self.add_granule(stream_id, granule)
-        self.persist_meta(stream_id, granule)
+        lq = self.get_queue(stream_id)
+        queue = lq[1]
+        queue.put(granule)
+        if queue.qsize() >= self.buffer_limit:
+            self.flush_queue(stream_id)
+
+    def flush_queue(self,stream_id):
+        lock, queue = self.get_queue(stream_id)
+        lock.acquire()
+        rdt = None
+        while not queue.empty():
+            g = queue.get()
+            if rdt is not None:
+                rdt = RecordDictionaryTool.append(rdt, RecordDictionaryTool.load_from_granule(g))
+            else:
+                rdt = RecordDictionaryTool.load_from_granule(g)
+        if rdt is not None:
+            self.add_granule(stream_id, rdt)
+            self.persist_meta(stream_id, rdt)
+        lock.release()
+
+    def flush_all(self):
+        for stream_id in self._queues.iterkeys():
+            self.flush_queue(stream_id)
         
 
     def persist_meta(self, stream_id, granule):
@@ -116,7 +173,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         # Determine the `time` in the granule
         dataset_id = self.get_dataset(stream_id)
-        rdt = RecordDictionaryTool.load_from_granule(granule)
+        rdt = granule
         time = get_safe(rdt,'time')
         if time is not None and len(time) and isinstance(time,numpy.ndarray):
             time = time[0]
@@ -156,7 +213,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #-------------------------------------------------------------------------------- 
         log.trace('Loaded coverage for %s' , dataset_id)
 
-        rdt = RecordDictionaryTool.load_from_granule(granule)
+        rdt = granule
         log.trace('%s', {i:rdt[i] for i in rdt.fields})
         elements = len(rdt)
         if not elements:

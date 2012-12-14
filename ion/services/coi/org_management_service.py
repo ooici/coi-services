@@ -273,7 +273,7 @@ class OrgManagementService(BaseOrgManagementService):
         if self._find_role(org_id, user_role.name) is not None:
             raise BadRequest("The user role '%s' is already associated with this Org" % user_role.name)
 
-        user_role.org_id = org_id
+        user_role.org_name = org.name
         user_role_id = self.clients.policy_management.create_role(user_role)
 
         aid = self.clients.resource_registry.create_association(org, PRED.hasRole, user_role_id)
@@ -529,8 +529,12 @@ class OrgManagementService(BaseOrgManagementService):
 
         aid = self.clients.resource_registry.create_association(org, PRED.hasMembership, user)
 
+
         if not aid:
             return False
+
+        member_role = self.find_org_role_by_name(org._id,ORG_MEMBER_ROLE )
+        self._add_role_association(org, user, member_role)
 
         return True
 
@@ -736,15 +740,17 @@ class OrgManagementService(BaseOrgManagementService):
         #better indexing/views are available in couch
         ret_list = []
         for role in role_list:
-            if role.org_id == org._id:
+            if role.org_name == org.name:
                 ret_list.append(role)
 
-        #Because a user is enrolled with an Org then the membership role is implied - so add it to the list
-        member_role = self._find_role(org._id, ORG_MEMBER_ROLE)
-        if member_role is None:
-            raise Inconsistent('The %s User Role is not found.' % ORG_MEMBER_ROLE)
+        if org.name == self.container.governance_controller._system_root_org_name:
 
-        ret_list.append(member_role)
+            #Because a user is automatically enrolled with the ION Org then the membership role is implied - so add it to the list
+            member_role = self._find_role(org._id, ORG_MEMBER_ROLE)
+            if member_role is None:
+                raise Inconsistent('The %s User Role is not found.' % ORG_MEMBER_ROLE)
+
+            ret_list.append(member_role)
 
         return ret_list
 
@@ -768,7 +774,7 @@ class OrgManagementService(BaseOrgManagementService):
 
 
     def find_all_roles_by_user(self, user_id=''):
-        """Returns a list of all User Roles roles by Org associated with the specified user.
+        """Returns a dict of all User Roles roles by Org associated with the specified user.
         Will throw a not NotFound exception if either of the IDs do not exist.
 
         @param user_id    str
@@ -782,7 +788,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         org_list = self.find_enrolled_orgs(user_id)
 
-        #Membership with the ION Root Org is implied thrgoun
+        #Membership with the ION Root Org is implied
         for org in org_list:
             role_list = self._find_org_roles_by_user(org, user)
             ret_val[org.name] = role_list
