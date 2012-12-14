@@ -4,6 +4,7 @@
 @description A module containing common utility methods used by UNS and the notification workers.
 '''
 from pyon.public import get_sys_name, CFG
+from pyon.util.ion_time import IonTime
 from pyon.util.arg_check import validate_is_not_none
 from pyon.util.log import log
 from pyon.core.exception import NotFound, BadRequest
@@ -16,44 +17,6 @@ import string
 from email.mime.text import MIMEText
 from gevent import Greenlet
 import datetime
-
-class FakeScheduler(object):
-
-    def __init__(self):
-        self.event_publisher = EventPublisher("SchedulerEvent")
-
-    def set_task(self, task_time, message):
-
-        #------------------------------------------------------------------------------------
-        # get the current time. Ex: datetime.datetime(2012, 7, 12, 14, 30, 6, 769776)
-        #------------------------------------------------------------------------------------
-
-        current_time = datetime.datetime.today()
-
-        #------------------------------------------------------------------------------------
-        # Calculate the time to wait
-        #------------------------------------------------------------------------------------
-        wait_time = datetime.timedelta( days = task_time.day - current_time.day,
-            hours = task_time.hour - current_time.hour,
-            minutes = task_time.minute - current_time.minute,
-            seconds = task_time.second - current_time.second)
-
-        log.info("Fake scheduler calculated wait_time = %s" % wait_time)
-
-        seconds = wait_time.total_seconds()
-
-        if seconds < 0:
-            log.warning("Calculated wait time: %s seconds. Publishing immediately.")
-            seconds = 0
-
-        log.info("Total seconds of wait time = %s" % seconds)
-
-        # this has to be replaced by something better
-        gevent.sleep(seconds)
-
-        self.event_publisher.publish_event(origin='Scheduler', description = message)
-        log.info("Fake scheduler published a SchedulerEvent")
-
 
 class fake_smtplib(object):
 
@@ -111,55 +74,11 @@ def setting_up_smtp_client():
 
     return smtp_client
 
-def _convert_unix_to_ntp(unix_seconds = None):
-
-    if type(unix_seconds) == str: unix_seconds = int(unix_seconds.strip(" "))
-
-    diff = datetime.datetime(1970, 1, 1, 0,0,0) - datetime.datetime(1900, 1, 1, 0, 0, 0)
-
-    return unix_seconds + diff.total_seconds()
-
-def _convert_ntp_to_unix(ntp_seconds = None):
-
-    if type(ntp_seconds) == str: ntp_seconds = int(ntp_seconds.strip(" "))
-
-    diff = datetime.datetime(1970, 1, 1, 0,0,0) - datetime.datetime(1900, 1, 1, 0, 0, 0)
-
-    return ntp_seconds - diff.total_seconds()
-
-def _get_time_stamp_for_special_events(message):
-
-    time = ""
-    if message.type_ == 'DeviceStatusEvent':
-        time_stamps = []
-        for t in message.time_stamps:
-            log.debug("Got the time stamp: %s, the DeviceStatusEvent is this: %s " % (t, message))
-            # Convert to the format, 2010-09-12T06:19:54
-            time_stamps.append(_convert_to_human_readable(t))
-        # Convert the timestamp list to a string
-        time = str(time_stamps)
-
-    elif message.type_ == 'DeviceCommsEvent':
-        # Convert seconds since epoch to human readable form
-        t = message.time_stamp
-        log.debug("Got the time stamp: %s, the DeviceCommsEvent is this: %s" % (t, message))
-        # Convert to the format, 2010-09-12T06:19:54
-        time = _convert_to_human_readable(t)
-
-    else:
-        time = "None for this event type"
-
-    return time
 
 def _convert_to_human_readable(t = ''):
 
-    # Convert milli seconds since epoch to human readable form
-    if type(t) == str: t = int(t.strip(" "))
-    x = datetime.datetime.fromtimestamp( t/1000 )
-    # Convert to the format, 2010-09-12T06:19:54
-    t = x.isoformat()
-
-    return t
+    it = IonTime(int(t)/1000.)
+    return str(it)
 
 def send_email(message, msg_recipient, smtp_client):
     '''
@@ -172,9 +91,6 @@ def send_email(message, msg_recipient, smtp_client):
     '''
 
     log.debug("Got type of event to notify on: %s" % message.type_)
-
-    # If DeviceStatusEvent or DeviceCommsEvent, gather the value of the time_stamp(s) attribute
-    time = _get_time_stamp_for_special_events(message)
 
     # Get the diffrent attributes from the event message
     event = message.type_
@@ -192,8 +108,6 @@ def send_email(message, msg_recipient, smtp_client):
                             "Originator: %s," %  origin,
                             "",
                             "Description: %s," % description,
-                            "",
-                            "Value of time_stamp(s) attribute of event: %s," %  time,
                             "",
                             "ts_created: %s," %  ts_created,
                             "",
