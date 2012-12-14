@@ -32,7 +32,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
  
-@attr('INT', group='sav')
+@attr('INT', group='sa')
 class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -460,7 +460,6 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=instDevice1_id, data_product_id=data_product_id1)
-
 
         instDevice2_obj = IonObject(RT.InstrumentDevice,
             name='SBE37IMDevice2',
