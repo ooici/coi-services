@@ -18,44 +18,6 @@ from email.mime.text import MIMEText
 from gevent import Greenlet
 import datetime
 
-class FakeScheduler(object):
-
-    def __init__(self):
-        self.event_publisher = EventPublisher("SchedulerEvent")
-
-    def set_task(self, task_time, message):
-
-        #------------------------------------------------------------------------------------
-        # get the current time. Ex: datetime.datetime(2012, 7, 12, 14, 30, 6, 769776)
-        #------------------------------------------------------------------------------------
-
-        current_time = datetime.datetime.today()
-
-        #------------------------------------------------------------------------------------
-        # Calculate the time to wait
-        #------------------------------------------------------------------------------------
-        wait_time = datetime.timedelta( days = task_time.day - current_time.day,
-            hours = task_time.hour - current_time.hour,
-            minutes = task_time.minute - current_time.minute,
-            seconds = task_time.second - current_time.second)
-
-        log.info("Fake scheduler calculated wait_time = %s" % wait_time)
-
-        seconds = wait_time.total_seconds()
-
-        if seconds < 0:
-            log.warning("Calculated wait time: %s seconds. Publishing immediately.")
-            seconds = 0
-
-        log.info("Total seconds of wait time = %s" % seconds)
-
-        # this has to be replaced by something better
-        gevent.sleep(seconds)
-
-        self.event_publisher.publish_event(origin='Scheduler', description = message)
-        log.info("Fake scheduler published a SchedulerEvent")
-
-
 class fake_smtplib(object):
 
     def __init__(self,host):
