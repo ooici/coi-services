@@ -47,7 +47,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('SMOKE', group='sax')
+@attr('SMOKE', group='sa')
 #@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
@@ -387,10 +387,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                 origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
         extended_instrument = self.imsclient.get_instrument_device_extension(instDevice_id)
-        #log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
-#        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
-#        self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_WARNING)
-#        self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_OK)
+        log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
+        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
+        self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
+        self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
 
 
         #-------------------------------
