@@ -1149,13 +1149,6 @@ class OrgManagementService(BaseOrgManagementService):
         extended_org.number_of_platforms_deployed = len(extended_org.platforms_deployed)
         extended_org.number_of_instruments = len(extended_org.instruments)
         extended_org.number_of_instruments_deployed = len(extended_org.instruments_deployed)
-
-        #flatten data products list
-        out_list = []
-        for prod_list in extended_org.data_products:
-            for prod in prod_list:
-                out_list.append(prod)
-        extended_org.data_products = out_list
         extended_org.number_of_data_products = len(extended_org.data_products)
 
         return extended_org
