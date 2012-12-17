@@ -7,7 +7,6 @@
 '''
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.datastore.datastore import DataStore
-from pyon.util.arg_check import validate_is_instance
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.util.containers import get_ion_ts, get_safe
 from pyon.public import log, RT, PRED, CFG
@@ -43,14 +42,14 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self.flushing       = gevent.coros.RLock()
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         log.debug('Created datastore %s', self.datastore_name)
-        self.done_flushing = False
+        self.done_flushing = gevent.event.Event()
         self.flusher_g = gevent.spawn(self.flusher)
 
 
     def on_quit(self): #pragma no cover
         self.subscriber.stop()
         self.flush_all()
-        self.done_flushing = True
+        self.done_flushing.set()
         self.flusher_g.join(10)
         self.flusher_g.kill()
 
@@ -61,11 +60,12 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 log.exception('Problems closing the coverage')
     
     def flusher(self):
-        while not self.done_flushing:
-            then = time.time()
-            while (time.time() - then) < self.time_limit:
-                gevent.sleep(1)
-            self.flush_all()
+        then = time.time()
+        while not self.done_flushing.wait(1):
+            if (time.time() - then) >= self.time_limit:
+                then = time.time()
+                self.flush_all()
+
 
 
 
