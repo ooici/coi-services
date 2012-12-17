@@ -543,12 +543,30 @@ class LoadSystemPolicy(ImmediateProcess):
                         </ActionMatch>
                     </Action>
                     <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">stop_direct_access</AttributeValue>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">start</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
-                </Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">stop</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">assign</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">unassign</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    </Actions>
 
                 <Subjects>
                     <Subject>
