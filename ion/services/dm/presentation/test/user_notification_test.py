@@ -646,19 +646,33 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Check the user_info and reverse_user_info got reloaded
         #--------------------------------------------------------------------------------------
         proc1 = self.container.proc_manager.procs.get(pids[0])
+        log.debug("Got the process here: %s" % proc1)
 
-        ar_1 = gevent.event.AsyncResult()
-        ar_2 = gevent.event.AsyncResult()
+#        ar_1 = gevent.event.AsyncResult()
+#        ar_2 = gevent.event.AsyncResult()
 
-        def received_reload(msg, headers):
-            ar_1.set(msg)
-            ar_2.set(headers)
+#        def received_reload(msg, headers):
+#            log.debug("received reload here: msg=%s, headers=%s" % (msg, headers))
+#            ar_1.set(msg)
+#            ar_2.set(headers)
+#
+#
+#        proc1.test_hook = received_reload
+#
+#        log.debug("Got the hooked method here: %s" % proc1.test_hook)
+#        log.debug("proc1.user_info:: %s" % proc1.user_info)
 
+#        reloaded_user_info = ar_1.get(timeout=20)
+#        reloaded_reverse_user_info = ar_2.get(timeout=20)
 
-        proc1.test_hook = received_reload
+        gevent.sleep(4)
 
-        reloaded_user_info = ar_1.get(timeout=10)
-        reloaded_reverse_user_info = ar_2.get(timeout=10)
+        queue = proc1.q
+
+        log.debug("IN the test, got the queue size: %s" % queue.qsize())
+        log.debug("IN the test, got the queue: %s" % queue)
+
+        reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=20)
 
         # read back the registered notification request objects
         notification_request_correct = self.rrc.read(notification_id_1)
@@ -682,8 +696,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         ar_1 = gevent.event.AsyncResult()
         ar_2 = gevent.event.AsyncResult()
 
-        reloaded_user_info = ar_1.get(timeout=10)
-        reloaded_reverse_user_info = ar_2.get(timeout=10)
+        reloaded_user_info = ar_1.get(timeout=20)
+        reloaded_reverse_user_info = ar_2.get(timeout=20)
 
         notification_request_2 = self.rrc.read(notification_id_2)
 
