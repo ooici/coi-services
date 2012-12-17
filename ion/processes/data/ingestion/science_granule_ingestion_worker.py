@@ -33,7 +33,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         self._datasets  = collections.OrderedDict()
         self._coverages = collections.OrderedDict()
-        self._queues    = collections.OrderedDict()
+        self._queues    = {}
     def on_start(self): #pragma no cover
         super(ScienceGranuleIngestionWorker,self).on_start()
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
@@ -113,18 +113,19 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self._coverages[stream_id] = result
         return result
 
+    @classmethod
+    def _new_queue(cls):
+        rlock = gevent.coros.RLock()
+        queue = gevent.queue.Queue()
+        return (rlock, queue)
+
     def get_queue(self, stream_id):
         '''
-        Memoization (LRU) of _new_dataset
+        Memoization (LRU) for retrieving a queue based on the stream id.
         '''
-        try:
-            result = self._queues.pop(stream_id)
-        except KeyError:
-            result = (gevent.coros.RLock(), gevent.queue.Queue())
-            if len(self._queues) >= self.CACHE_LIMIT:
-                self._queues.popitem(0)
-        self._queues[stream_id] = result
-        return result
+        if not stream_id in self._queues:
+            self._queues[stream_id] = self._new_queue()
+        return self._queues[stream_id]
 
 
     def recv_packet(self, msg, stream_route, stream_id):
@@ -141,8 +142,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         log.trace('Received incoming granule from route: %s and stream_id: %s', stream_route, stream_id)
         log.trace('Granule contents: %s', msg.__dict__)
         granule = msg
-        lq = self.get_queue(stream_id)
-        queue = lq[1]
+        lock, queue = self.get_queue(stream_id)
         queue.put(granule)
         if queue.qsize() >= self.buffer_limit:
             self.flush_queue(stream_id)
