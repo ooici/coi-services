@@ -309,3 +309,25 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertEqual(data_product_id, data_product_obj['_id'])
 
         self.delete_data_product_resource(data_product_id)
+
+    def test_list_org_roles(self):
+
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=ionsystem')
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+
+        actor_id = response_data[0][0]['_id']
+        response = self.test_app.get('/ion-service/org_roles/' + actor_id)
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+
+        self.assertIn('ION', response_data)
+        self.assertEqual(len(response_data['ION']), 3)
+        self.assertIn('ION_MANAGER', response_data['ION'])
+        self.assertIn('ORG_MANAGER', response_data['ION'])
+        self.assertIn('ORG_MEMBER', response_data['ION'])
+
+
+
