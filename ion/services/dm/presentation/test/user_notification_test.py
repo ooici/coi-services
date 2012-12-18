@@ -649,7 +649,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         processes =self.container.proc_manager.procs
 
-        gevent.sleep(4)
+#        gevent.sleep(4)
         reloaded_user_info, reloaded_reverse_user_info, process_queue = (None,None,None)
 
         def found_user_info_dicts(processes, *args, **kwargs):
