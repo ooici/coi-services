@@ -1021,7 +1021,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.GO_DIRECT_ACCESS           
         ]
         
-        agt_pars_all = ['example']
+        agt_pars_all = ['example',
+                        'pubfreq_parsed',
+                        'pubfreq_raw'
+                        ]
         
         res_cmds_all =[
             SBE37ProtocolEvent.TEST,
@@ -1131,6 +1134,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'get_resource_state'
         ]
         
+            
         self.assertItemsEqual(agt_cmds, agt_cmds_inactive)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, [])
