@@ -1734,8 +1734,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         gevent.sleep(1)
 
         """
-        def loop():
-            pub = EventPublisher()
+        def loop(publisher):
+            #pub = EventPublisher()
+            pub = publisher
             while True:
                 event_data = {
                     'state': ResourceAgentState.INACTIVE
@@ -1746,8 +1747,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
                 
         gl = []
-        for x in range(5000):
-            gl.append(gevent.spawn(loop))
+        for x in range(20):
+            gl.append(gevent.spawn(loop, publisher))
 
         def cleanup_gl(gl_array):
             gevent.killall(gl_array)
@@ -1757,9 +1758,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         while len(states)>0:
             gevent.sleep(5)
-            #end = time.time() + 5
-            #while time.time() < end:
-            #    pass
             state = states.pop()
             event_data = {
                 'state': state
@@ -1768,7 +1766,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                               origin=IA_RESOURCE_ID, **event_data)
             log.info('Published event %s with result %s.',
                      state, str(result))
-                        
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertEquals(len(self._events_received), 8)
         
