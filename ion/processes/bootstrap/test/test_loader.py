@@ -24,17 +24,17 @@ class TestLoader(IonIntegrationTestCase):
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
     @attr('PRELOAD')
-    def xtest_ui_valid(self):
+    def test_ui_valid(self):
         """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/' """
         self.assert_can_load("BASE,BETA", loadui=True, ui_path='default')
 
     @attr('PRELOAD')
-    def xtest_ui_candidates_valid(self):
+    def test_ui_candidates_valid(self):
         """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/Candidates' """
         self.assert_can_load("BASE,BETA", loadui=True, ui_path='candidate')
 
     @attr('PRELOAD')
-    def xtest_demo_valid(self):
+    def test_demo_valid(self):
         """ make sure R2_DEMO scenario in master google doc
             is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
@@ -42,7 +42,7 @@ class TestLoader(IonIntegrationTestCase):
         self.assert_can_load("BASE,BETA,R2_DEMO", path='master')
 
     @attr('PRELOAD')
-    def xtest_devs_valid(self):
+    def test_devs_valid(self):
         """ make sure DEVS scenario in master google doc
             is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
