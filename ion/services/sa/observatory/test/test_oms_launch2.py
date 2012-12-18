@@ -501,13 +501,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
         finally:
             self._data_subscribers = []
 
-    def _start_event_subscriber(self, event_type="PlatformAlarmEvent", sub_type="power"):
+    def _start_event_subscriber(self, event_type="DeviceEvent", sub_type="platform_event"):
         """
-        Starts event subscriber for events of given event_type ("PlatformAlarmEvent"
-        by default) and given sub_type ("power" by default).
+        Starts event subscriber for events of given event_type ("DeviceEvent"
+        by default) and given sub_type ("platform_event" by default).
         """
-        # TODO note: ion-definitions still using 'PlatformAlarmEvent' but we
-        # should probably define 'PlatformExternalEvent' or something like that.
 
         def consume_event(evt, *args, **kwargs):
             # A callback for consuming events.
