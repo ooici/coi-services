@@ -17,7 +17,12 @@ import gevent
 
 
 class SchedulerService(BaseSchedulerService):
-    schedule_entries = {}
+
+    def __init__(self, *args, **kwargs):
+        BaseSchedulerService.__init__(self, *args, **kwargs)
+
+        self.schedule_entries = {}
+        self._no_reschedule = False
 
     def on_start(self):
         if CFG.get_safe("process.start_mode") == "RESTART":
@@ -26,6 +31,21 @@ class SchedulerService(BaseSchedulerService):
 
     def on_quit(self):
         self.pub.close()
+
+        # throw killswitch on future reschedules
+        self._no_reschedule = True
+
+        # terminate any pending spawns
+        gls = []
+        for i, entry in self.schedule_entries.iteritems():
+            for idx, s in enumerate(entry['spawns']):
+                gls.append(s)
+                if s._start_event is not None:  # still pending
+                    s.kill()
+                    self.__delete(i, idx)
+
+        # wait for all running gls to finish up
+        gevent.joinall(gls, timeout=10)
 
     def __notify(self, task, id, index):
         log.debug("SchedulerService:__notify: - " + task.event_origin + " - Time: " + str(self.__now()) + " - ID: " + id + " -Index:" + str(index))
@@ -110,6 +130,10 @@ class SchedulerService(BaseSchedulerService):
         return id
 
     def __reschedule(self, id, index):
+        if self._no_reschedule:
+            log.debug("SchedulerService:__reschedule: process quitting, refusing to reschedule %s", id)
+            return False
+
         task = self.__get_entry(id)
         expire_time = self.__get_reschedule_expire_time(task, index)
         if expire_time:
