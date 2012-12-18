@@ -1734,25 +1734,27 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         gevent.sleep(1)
 
         """
-        def loop(publisher):
+        def loop(publisher, ev):
             #pub = EventPublisher()
             pub = publisher
-            while True:
+            while not ev.wait(timeout=0.1):
                 event_data = {
                     'state': ResourceAgentState.INACTIVE
-                }                
+                }
                 result = pub.publish_event(event_type='ResourceAgentStateEvent',
                               origin='xxxxzzzz', **event_data)
-                gevent.sleep(.1)
-        
-                
+
         gl = []
         for x in range(20):
-            gl.append(gevent.spawn(loop, publisher))
+            ev = gevent.event.Event()
+            gl.append((gevent.spawn(loop, publisher, ev), ev))
 
         def cleanup_gl(gl_array):
-            gevent.killall(gl_array)
-            gevent.joinall(gl_array)
+            for g in gl_array:
+                g[1].set()
+
+            #gevent.killall(gl_array)
+            gevent.joinall([g[0] for g in gl_array])
         self.addCleanup(cleanup_gl, gl)
         """
 
