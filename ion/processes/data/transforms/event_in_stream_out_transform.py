@@ -23,7 +23,6 @@ class EventToStreamTransform(TransformEventListener, TransformStreamPublisher):
             raise BadRequest("For event-in/stream-out transform, please send the stream_id "
                              "using the special keyword, output")
         self.variables = self.CFG.process.variables or []
-        self.output = self.CFG.process.publish_streams.output
 
     def process_event(self, msg, headers):
         """
@@ -43,4 +42,4 @@ class EventToStreamTransform(TransformEventListener, TransformStreamPublisher):
         Publish on a stream
         """
         log.debug("came here to publish! msg = %s" % msg)
-        self.output.publish(msg=msg)
+        self.publisher.publish(msg=msg)

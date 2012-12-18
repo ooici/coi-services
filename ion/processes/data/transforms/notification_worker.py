@@ -38,7 +38,6 @@ class NotificationWorker(TransformEventListener):
 
         self.reverse_user_info = None
         self.user_info = None
-        self.smtp_client = setting_up_smtp_client()
 
         #------------------------------------------------------------------------------------
         # Start by loading the user info and reverse user info dictionaries
@@ -99,18 +98,19 @@ class NotificationWorker(TransformEventListener):
 
         user_ids = []
         if self.reverse_user_info:
+            log.debug("Notification worker checking for users interested in %s" % msg.type_)
             user_ids = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
 
-        log.debug("Type of event received by notification worker: %s" % msg.type_)
-        log.debug("Notification worker deduced the following users were interested in the event: %s" % user_ids )
-
+        log.debug("Notification worker deduced the following users were interested in the event: %s, event_type: %s, origin: %s" % (user_ids, msg.type_, msg.origin ))
         #------------------------------------------------------------------------------------
         # Send email to the users
         #------------------------------------------------------------------------------------
 
         for user_id in user_ids:
             msg_recipient = self.user_info[user_id]['user_contact'].email
+            self.smtp_client = setting_up_smtp_client()
             send_email(message = msg, msg_recipient = msg_recipient, smtp_client = self.smtp_client )
+            self.smtp_client.quit()
 
     def on_stop(self):
         # close subscribers safely

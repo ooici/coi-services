@@ -34,6 +34,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def on_start(self):
         super(DatasetManagementService,self).on_start()
         self.datastore_name = self.CFG.get_safe('process.datastore_name', self.DEFAULT_DATASTORE)
+        self.inline_data_writes  = self.CFG.get_safe('service.ingestion_management.inline_data_writes', True)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
 #--------
@@ -67,7 +68,9 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.add_stream(dataset_id,stream_id)
 
 
-        self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
+        cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
+        self._save_coverage(cov)
+        cov.close()
 
         return dataset_id
 
@@ -89,10 +92,11 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(dataset_id)
 
-    def register_dataset(self, dataset_id=''):
+    def register_dataset(self, dataset_id='', external_data_product_name=''):
         dataset_obj = self.read_dataset(dataset_id)
         dataset_obj.registered = True
         self.update_dataset(dataset=dataset_obj)
+        external_data_product_name = external_data_product_name or dataset_obj.name
 
         procs,_ = self.clients.resource_registry.find_resources(restype=RT.Process, id_only=True)
         pid = None
@@ -100,9 +104,10 @@ class DatasetManagementService(BaseDatasetManagementService):
             if 'registration_worker' in p:
                 pid = p
         if not pid: 
+            log.warning('No registration worker found')
             return
         rpc_cli = RPCClient(to_name=pid)
-        rpc_cli.request({'coverage_path':self._get_coverage_path(dataset_id)}, op='register_dap_dataset')
+        rpc_cli.request({'dataset_id':dataset_id, 'data_product_name':external_data_product_name}, op='register_dap_dataset')
 
 
 #--------
@@ -319,24 +324,27 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
     def _create_coverage(self, dataset_id, description, parameter_dict, spatial_domain,temporal_domain):
-
         pdict = ParameterDictionary.load(parameter_dict)
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom, inline_data_writes=self.inline_data_writes)
         return scov
 
     @classmethod
-    def _get_coverage(cls,dataset_id):
+    def _save_coverage(cls, coverage):
+        coverage.flush()
+
+    @classmethod
+    def _get_coverage(cls,dataset_id,mode='w'):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        coverage = SimplexCoverage(file_root, dataset_id)
+        coverage = SimplexCoverage(file_root, dataset_id,mode=mode)
         return coverage
 
     @classmethod
     def _get_coverage_path(cls, dataset_id):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        return os.path.join(file_root, dataset_id)
+        return os.path.join(file_root, '%s' % dataset_id)
     
     @classmethod
     def _compare_pc(cls, pc1, pc2):

@@ -44,8 +44,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.DataProduct, name=data_product.name, id_only=True)
         validate_false(len(res), 'A data product with the name %s already exists.' % data_product.name)
         log.info('Creating DataProduct: %s', data_product.name)
-        log.debug('%s', data_product.__dict__)
-
 
         # Create will validate and register a new data product within the system
         # If the stream definition has a parameter dictionary, use that
@@ -240,7 +238,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                 dataset_id=dataset_id)
 
         # register the dataset for externalization
-        self.clients.dataset_management.register_dataset(dataset_id)
+        self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
 
 
         #--------------------------------------------------------------------------------
@@ -560,6 +558,15 @@ class DataProductManagementService(BaseDataProductManagementService):
         extended_product.computed.number_active_subscriptions.value = len(active)
         extended_product.computed.number_active_subscriptions.status = ComputedValueAvailability.PROVIDED
 
+        # replace list of lists with single list
+        replacement_data_products = []
+        for inner_list in extended_product.process_input_data_products:
+            if inner_list:
+                for actual_data_product in inner_list:
+                    if actual_data_product:
+                        replacement_data_products.append(actual_data_product)
+        extended_product.process_input_data_products = replacement_data_products
+
         return extended_product
 
 
@@ -767,8 +774,8 @@ class DataProductManagementService(BaseDataProductManagementService):
                 replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1)
                 #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                #ret.value =  {k : str(k) + ': ' + str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
-                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
+                ret.value =  {k : str(k) + ': ' + str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
+#                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE

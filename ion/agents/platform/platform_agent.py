@@ -135,6 +135,10 @@ class PlatformAgent(ResourceAgent):
         self._stream_defs = {}
         self._data_publishers = {}
 
+        # Set of parameter names received in event notification but not
+        # configured. Allows to log corresponding warning only once.
+        self._unconfigured_params = set()
+
         # {subplatform_id: (ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
 
@@ -196,6 +200,8 @@ class PlatformAgent(ResourceAgent):
         if self._plat_driver:
             self._plat_driver.destroy()
             self._plat_driver = None
+
+        self._unconfigured_params.clear()
 
     def _pre_initialize(self):
         """
@@ -506,14 +512,20 @@ class PlatformAgent(ResourceAgent):
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
         if param_name not in rdt:
-            log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r',
-                     self._platform_id, param_name, stream_name)
+            if param_name not in self._unconfigured_params:
+                # an unrecognized attribute for this platform:
+                self._unconfigured_params.add(param_name)
+                log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r',
+                         self._platform_id, param_name, stream_name)
             return
 
-        # Note that at the moment, notification from the driver has the form
+        # Note that notification from the driver has the form
         # of a non-empty list of pairs (val, ts)
         assert isinstance(param_value, list)
         assert isinstance(param_value[0], tuple)
+
+        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d samples) = %s",
+                 self._platform_id, param_name, len(param_value), str(param_value))
 
         # separate values and timestamps:
         vals, timestamps = zip(*param_value)
@@ -530,10 +542,6 @@ class PlatformAgent(ResourceAgent):
             log.warn("%r: Not including timestamp info in granule: "
                      "temporal_parameter_name not defined in parameter dictionary",
                      self._platform_id)
-
-        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d) = %s (last_ts=%s)",
-                 self._platform_id, param_name, len(vals), str(vals), timestamps[-1])
-
 
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
@@ -627,11 +635,8 @@ class PlatformAgent(ResourceAgent):
                 self._platform_id, stream_name, str(rdt), str(g))
 
     def _handle_external_event_driver_event(self, driver_event):
-        #
-        # TODO appropriate granularity and structure of the event.
 
         event_type = driver_event._event_type
-        ts = driver_event._ts
 
         event_instance = driver_event._event_instance
         platform_id = event_instance.get('platform_id', None)
@@ -642,19 +647,14 @@ class PlatformAgent(ResourceAgent):
         # TODO appropriate origin for the event
         origin = platform_id  # self.resource_id
 
-        # TODO re 'external_alarm_type' and event_type='PlatformAlarmEvent' below:
-        # ion-definitions still has 'PlatformAlarmEvent' and 'external_alarm_type'
-        # but it should be changed so it reflects the more generic "platform event"
-        # term. However, note that there is already a pre-existing 'PlatformEvent'
-        # in ion-definitions so we may need to define 'PlatformExternalEvent'
-        # or something like that.
+        description  = "message: %s" % message
+        description += "; group: %s" % group
+        description += "; external_event_type: %s" % event_type
+        description += "; external_timestamp: %s" % timestamp
 
         event_data = {
-            'description':  message,
-            'sub_type':     group,      # ID of event categorization
-            'ts_created':   ts,         # time of reception at the driver
-            'external_alarm_type':   event_type,
-            'external_timestamp':    timestamp,  # as given by OMS
+            'description':  description,
+            'sub_type':     'platform_event',
         }
 
         log.info("%r: publishing external platform event: event_data=%s",
@@ -662,7 +662,7 @@ class PlatformAgent(ResourceAgent):
 
         try:
             self._event_publisher.publish_event(
-                event_type='PlatformAlarmEvent',
+                event_type='DeviceEvent',
                 origin=origin,
                 **event_data)
 

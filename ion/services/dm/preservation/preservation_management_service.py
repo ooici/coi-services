@@ -66,13 +66,13 @@ class PreservationManagementService(BasePreservationManagementService):
         file_path = file_path or '/'
         if file_path[-1] == '/':
             opts={
-                'start_key' : [file_path], 
-                'end_key'   : [file_path[:-1] + '$']
+                'startkey' : [file_path], 
+                'endkey'   : [file_path[:-1] + '$']
             }
         else:
             opts = {
-                'start_key': [file_path],
-                'end_key' : [file_path,{}]
+                'startkey': [file_path],
+                'endkey' : [file_path,{}]
             }
         retval = {}
         for i in ds.query_view('catalog/file_by_name', opts=opts):

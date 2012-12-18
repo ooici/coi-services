@@ -38,6 +38,7 @@ from gevent.event import AsyncResult
 from gevent import sleep
 
 import time
+import ntplib
 import unittest
 import os
 from nose.plugins.attrib import attr
@@ -304,7 +305,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def _get_resource(self):
         attrNames = self.ATTR_NAMES
-        kwargs = dict(attr_names=attrNames, from_time=time.time())
+        cur_time = ntplib.system_to_ntp_time(time.time())
+        from_time = cur_time - 50  # a 50-sec time window
+        kwargs = dict(attr_names=attrNames, from_time=from_time)
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         attr_values = retval.result

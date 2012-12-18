@@ -14,6 +14,7 @@ from pyon.public import log
 from pyon.public import CFG
 
 # Standard imports.
+import unittest
 
 # 3rd party imports.
 import gevent
@@ -483,7 +484,8 @@ class TestRemoteClient(IonIntegrationTestCase):
 
         self.assertItemsEqual(self._requests_sent.keys(),
                                   self._results_recv.keys())
-
+    
+    #@unittest.skip('For some reason this bastard wont run on the builder.')
     def test_resource_client_blocking(self):
         """
         test_resource_client_blocking
@@ -519,6 +521,7 @@ class TestRemoteClient(IonIntegrationTestCase):
         # Block on terrestrial public telemetry events.
         self._done_telem_evt.get(timeout=CFG.endpoint.receive.timeout)
 
+    #@unittest.skip('For some reason this bastard wont run on the builder.')
     def test_service_client_blocking(self):
         """
         test_service_client_blocking

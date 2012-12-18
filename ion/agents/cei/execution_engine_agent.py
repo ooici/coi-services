@@ -60,7 +60,7 @@ class ExecutionEngineAgent(SimpleResourceAgent):
 
         interval = self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT)
         if interval > 0:
-            self.heartbeater = HeartBeater(self.CFG, self._factory, log=log)
+            self.heartbeater = HeartBeater(self.CFG, self._factory, self.resource_id, log=log)
             self.heartbeater.poll()
             self.heartbeat_thread = looping_call(0.1, self.heartbeater.poll)
         else:
@@ -93,7 +93,7 @@ class ExecutionEngineAgent(SimpleResourceAgent):
 
 
 class HeartBeater(object):
-    def __init__(self, CFG, factory, log=logging):
+    def __init__(self, CFG, factory, process_id, log=logging):
 
         self._log = log
         self._log.log(logging.DEBUG, "Starting the heartbeat thread")
@@ -103,6 +103,7 @@ class HeartBeater(object):
         self._res = None
         self._done = False
         self._factory = factory
+        self.process_id = process_id
         self._publisher = Publisher()
         self._pd_name = CFG.eeagent.get('heartbeat_queue', 'heartbeat_queue')
 
@@ -129,11 +130,11 @@ class HeartBeater(object):
     def beat(self):
         try:
             beat = make_beat_msg(self._factory, self._CFG)
-            message = dict(beat=beat, resource_id=self._CFG.agent.resource_id)
+            message = dict(beat=beat, eeagent_id=self.process_id, resource_id=self._CFG.agent.resource_id)
             to_name = self._pd_name
             self._log.debug("Send heartbeat: %s to %s", message, self._pd_name)
             self._publisher.publish(message, to_name=to_name)
-        except:
+        except Exception:
             self._log.exception("beat failed")
 
 

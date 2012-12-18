@@ -23,6 +23,15 @@ from pyon.public import CFG
 # bin/nosetests -s -v ion/agents/port/test/test_port_agent_process.py
 
 TEST_TIMEOUT = 2
+LOCALHOST = 'localhost'
+
+DEVICE_ADDR = 'localhost'
+DEVICE_PORT = 4001
+
+PORT_AGENT_BINARY = 'port_agent'
+PORT_AGENT_COMMAND_PORT = 3000
+PORT_AGENT_DATA_PORT = 3001
+PORT_AGENT_LOG_LEVEL = 5
 
 @attr('HARDWARE', group='mi')
 class TestPythonEthernetProcess(unittest.TestCase):
@@ -183,17 +192,17 @@ class TestUnixEthernetProcess(unittest.TestCase):
         Setup test cases.
         """
         self._port_config = {
-            'device_addr': CFG.device.sbe37.host,
-            'device_port': CFG.device.sbe37.port,
+            'device_addr': DEVICE_ADDR,
+            'device_port': DEVICE_PORT,
             'process_type': PortAgentProcessType.UNIX,
-            
-            'binary_path': CFG.device.sbe37.port_agent_binary,
-            'command_port': CFG.device.sbe37.port_agent_cmd_port,
-            'data_port': CFG.device.sbe37.port_agent_data_port,
-            'log_level': 5,
+
+            'binary_path': PORT_AGENT_BINARY,
+            'command_port': PORT_AGENT_COMMAND_PORT,
+            'data_port': PORT_AGENT_DATA_PORT,
+            'log_level': PORT_AGENT_LOG_LEVEL
         }
 
-    def test_driver_process(self):
+    def test_launch_process(self):
         """
         Test port agent process launch with default values and a good host and port
         """
@@ -210,16 +219,46 @@ class TestUnixEthernetProcess(unittest.TestCase):
         self.assertEqual(process._log_level, self._port_config.get("log_level"))
 
         process.stop()
-        
+
         # Try start
         process.launch()
 
         # Check that it launched properly
         self.assertTrue(process.get_pid() > 0)
-        self.assertTrue(process.get_data_port(),
-                CFG.device.sbe37.port_agent_data_port)
-        self.assertEqual(process.get_command_port(),
-                CFG.device.sbe37.port_agent_cmd_port)
+        self.assertTrue(process.get_data_port(), PORT_AGENT_DATA_PORT)
+        self.assertEqual(process.get_command_port(), PORT_AGENT_COMMAND_PORT)
+
+        process.stop()
+
+
+    def test_nolaunch_process(self):
+        """
+        Test the port agent doesn't launch when the port agent address is not localhost
+        """
+        self._port_config['port_agent_addr'] = 'somewhere.else'
+
+        process = PortAgentProcess.get_process(self._port_config, test_mode=True)
+        self.assertTrue(process)
+        self.assertTrue(isinstance(process, UnixPortAgentProcess))
+
+        # Verify config
+        self.assertEqual(process._device_addr, self._port_config.get("device_addr"))
+        self.assertEqual(process._device_port, self._port_config.get("device_port"))
+        self.assertEqual(process._binary_path, self._port_config.get("binary_path"))
+        self.assertEqual(process._command_port, self._port_config.get("command_port"))
+        self.assertEqual(process._data_port, self._port_config.get("data_port"))
+        self.assertEqual(process._log_level, self._port_config.get("log_level"))
+        self.assertEqual(process._pa_addr, self._port_config.get("port_agent_addr"))
+
+        process.stop()
+        
+        # Try start
+        process.launch()
+
+        # Check that it launched properly
+        self.assertFalse(process.get_pid())
+        self.assertTrue(process.get_data_port(), PORT_AGENT_DATA_PORT)
+        self.assertEqual(process.get_command_port(), PORT_AGENT_COMMAND_PORT)
 
         process.stop()
 

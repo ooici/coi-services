@@ -86,7 +86,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('INT', group='sak')
+@attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
     def setUp(self):
@@ -501,13 +501,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
         finally:
             self._data_subscribers = []
 
-    def _start_event_subscriber(self, event_type="PlatformAlarmEvent", sub_type="power"):
+    def _start_event_subscriber(self, event_type="DeviceEvent", sub_type="platform_event"):
         """
-        Starts event subscriber for events of given event_type ("PlatformAlarmEvent"
-        by default) and given sub_type ("power" by default).
+        Starts event subscriber for events of given event_type ("DeviceEvent"
+        by default) and given sub_type ("platform_event" by default).
         """
-        # TODO note: ion-definitions still using 'PlatformAlarmEvent' but we
-        # should probably define 'PlatformExternalEvent' or something like that.
 
         def consume_event(evt, *args, **kwargs):
             # A callback for consuming events.
@@ -546,7 +544,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
     def test_hierarchy(self):
         self._create_launch_verify(BASE_PLATFORM_ID)
 
-    @attr('INT', group='sak')
+    @attr('INT', group='sa')
     def test_single_platform(self):
         self._create_launch_verify('LJ01D')
 
@@ -664,8 +662,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self._async_event_result.get(timeout=EVENT_TIMEOUT)
         log.info("Received events: %s", len(self._events_received))
 
+        #get the extended platfrom which wil include platform aggreate status fields
         extended_platform = self.imsclient.get_platform_device_extension(self.device_id)
-        log.debug( 'test_single_platform   extended_platform: %s', str(extended_platform) )
+#        log.debug( 'test_single_platform   extended_platform: %s', str(extended_platform) )
+#        log.debug( 'test_single_platform   power_status_roll_up: %s', str(extended_platform.computed.power_status_roll_up.value) )
+#        log.debug( 'test_single_platform   comms_status_roll_up: %s', str(extended_platform.computed.communications_status_roll_up.value) )
 
         # STOP_EVENT_DISPATCH
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)

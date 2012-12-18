@@ -248,7 +248,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
                              resource_id=self._resource_id,
                              command=cmdstr,
                              args=['arg1', 23],
-                             kwargs={'kwargs1':'someval'},
+                             kwargs={'worktime':3},
                              command_id = str(uuid.uuid4()))
         return cmd
 

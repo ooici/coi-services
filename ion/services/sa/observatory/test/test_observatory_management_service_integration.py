@@ -1,12 +1,14 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import Container, log, IonObject
-from pyon.util.containers import DotDict
+
+from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.event.event import EventPublisher
 from pyon.util.context import LocalContextMixin
+from pyon.util.ion_time import IonTime
 from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
 from pyon.public import RT, PRED
+from pyon.public import Container, log, IonObject
+from pyon.event.event import EventPublisher
 from pyon.agent.agent import ResourceAgentState
 from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -21,7 +23,6 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from nose.plugins.attrib import attr
 import unittest, time
 from ooi.logging import log
-from datetime import date, datetime, timedelta
 
 from ion.services.sa.test.helpers import any_old
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -31,7 +32,7 @@ class FakeProcess(LocalContextMixin):
     name = ''
 
  
-@attr('INT', group='sav')
+@attr('INT', group='sa')
 class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -76,12 +77,12 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.force_delete_instrument_site(resource_ids.instrument_siteb3_id)
         self.OMS.force_delete_instrument_site(resource_ids.instrument_site4_id)
 
-    @unittest.skip('targeting')
+    #@unittest.skip('targeting')
     def test_resources_associations(self):
         resources = self._make_associations()
         self.destroy(resources)
 
-    @unittest.skip('targeting')
+    #@unittest.skip('targeting')
     def test_find_related_frames_of_reference(self):
         # finding subordinates gives a dict of obj lists, convert objs to ids
         def idify(adict):
@@ -261,7 +262,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         
         return ret
 
-    @unittest.skip("targeting")
+    #@unittest.skip("targeting")
     def test_create_observatory(self):
         observatory_obj = IonObject(RT.Observatory,
                                         name='TestFacility',
@@ -270,7 +271,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.force_delete_observatory(observatory_id)
 
 
-    @unittest.skip("targeting")
+    #@unittest.skip("targeting")
     def test_find_observatory_org(self):
         org_obj = IonObject(RT.Org,
                             name='TestOrg',
@@ -460,7 +461,6 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=instDevice1_id, data_product_id=data_product_id1)
 
-
         instDevice2_obj = IonObject(RT.InstrumentDevice,
             name='SBE37IMDevice2',
             description="SBE37IMDevice2",
@@ -492,7 +492,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         #create device state events to use for op /non-op filtering in extended
-        t = self._makeEpochTime( datetime.utcnow() )
+        t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'ResourceAgentStateEvent',
             origin = instDevice1_id, state=ResourceAgentState.STREAMING  )
 
@@ -502,17 +502,3 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         log.debug("test_observatory_org_extended: extended_site:  %s ", str(extended_site))
 
-    @staticmethod
-    def _makeEpochTime(date_time):
-        """
-        provides the seconds since epoch give a python datetime object.
-
-        @param date_time Python datetime object
-        @retval seconds_since_epoch int
-        """
-        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
-        #'2009-07-04 18:30:47'
-        pattern = '%Y-%m-%d %H:%M:%S'
-        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
-
-        return seconds_since_epoch

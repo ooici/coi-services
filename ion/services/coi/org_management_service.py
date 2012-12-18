@@ -183,10 +183,10 @@ class OrgManagementService(BaseOrgManagementService):
         directory = Directory(orgname=org.name)
 
         #Instantiate initial set of User Roles for this Org
-        manager_role = IonObject(RT.UserRole, name=ORG_MANAGER_ROLE,label='Org Manager', description='Org Manager')
+        manager_role = IonObject(RT.UserRole, name=ORG_MANAGER_ROLE,label='Observatory Administrator', description='Change Observatory Information, assign Roles, post Observatory events')
         self.add_user_role(org_id, manager_role)
 
-        member_role = IonObject(RT.UserRole, name=ORG_MEMBER_ROLE,label='Org Member', description='Org Member')
+        member_role = IonObject(RT.UserRole, name=ORG_MEMBER_ROLE,label='Observatory Member', description='Subscribe to events, set personal preferences')
         self.add_user_role(org_id, member_role)
 
         return org_id
@@ -273,7 +273,7 @@ class OrgManagementService(BaseOrgManagementService):
         if self._find_role(org_id, user_role.name) is not None:
             raise BadRequest("The user role '%s' is already associated with this Org" % user_role.name)
 
-        user_role.org_id = org_id
+        user_role.org_name = org.name
         user_role_id = self.clients.policy_management.create_role(user_role)
 
         aid = self.clients.resource_registry.create_association(org, PRED.hasRole, user_role_id)
@@ -529,8 +529,12 @@ class OrgManagementService(BaseOrgManagementService):
 
         aid = self.clients.resource_registry.create_association(org, PRED.hasMembership, user)
 
+
         if not aid:
             return False
+
+        member_role = self.find_org_role_by_name(org._id,ORG_MEMBER_ROLE )
+        self._add_role_association(org, user, member_role)
 
         return True
 
@@ -551,7 +555,7 @@ class OrgManagementService(BaseOrgManagementService):
             raise BadRequest("A request to cancel enrollment in the root ION Org is not allowed")
 
         #First remove all associations to any roles
-        role_list = self.find_roles_by_user(org_id, user_id)
+        role_list = self.find_org_roles_by_user(org_id, user_id)
         for user_role in role_list:
             self._delete_role_association(org, user, user_role)
 
@@ -736,15 +740,17 @@ class OrgManagementService(BaseOrgManagementService):
         #better indexing/views are available in couch
         ret_list = []
         for role in role_list:
-            if role.org_id == org._id:
+            if role.org_name == org.name:
                 ret_list.append(role)
 
-        #Because a user is enrolled with an Org then the membership role is implied - so add it to the list
-        member_role = self._find_role(org._id, ORG_MEMBER_ROLE)
-        if member_role is None:
-            raise Inconsistent('The %s User Role is not found.' % ORG_MEMBER_ROLE)
+        if org.name == self.container.governance_controller._system_root_org_name:
 
-        ret_list.append(member_role)
+            #Because a user is automatically enrolled with the ION Org then the membership role is implied - so add it to the list
+            member_role = self._find_role(org._id, ORG_MEMBER_ROLE)
+            if member_role is None:
+                raise Inconsistent('The %s User Role is not found.' % ORG_MEMBER_ROLE)
+
+            ret_list.append(member_role)
 
         return ret_list
 
@@ -768,7 +774,7 @@ class OrgManagementService(BaseOrgManagementService):
 
 
     def find_all_roles_by_user(self, user_id=''):
-        """Returns a list of all User Roles roles by Org associated with the specified user.
+        """Returns a dict of all User Roles roles by Org associated with the specified user.
         Will throw a not NotFound exception if either of the IDs do not exist.
 
         @param user_id    str
@@ -782,7 +788,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         org_list = self.find_enrolled_orgs(user_id)
 
-        #Membership with the ION Root Org is implied thrgoun
+        #Membership with the ION Root Org is implied
         for org in org_list:
             role_list = self._find_org_roles_by_user(org, user)
             ret_val[org.name] = role_list
@@ -1071,11 +1077,8 @@ class OrgManagementService(BaseOrgManagementService):
         ion_org = self.find_org()
         if org_id == ion_org._id:
 
-            #workaround for direct rr access
-            if hasattr(self.container, 'has_capability') and self.container.has_capability('RESOURCE_REGISTRY'):
-                self._rr = self.container.resource_registry
-            else:
-                self._rr = self.clients.resource_registry
+            # clients.resource_registry may return us the container's resource_registry instance
+            self._rr = self.clients.resource_registry
             log.debug("get_marine_facility_extension: self._rr:  %s ", str(self._rr))
 
             actors_list = self.find_enrolled_users(org_id)
@@ -1110,7 +1113,6 @@ class OrgManagementService(BaseOrgManagementService):
                 if not org_instrument in extended_org.instruments_deployed:
                     instruments_not_deployed.append(org_instrument)
 
-
         platforms_not_deployed = []
         if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed'):
             #clean up the list of deployed platforms
@@ -1129,19 +1131,25 @@ class OrgManagementService(BaseOrgManagementService):
                     platforms_not_deployed.append(org_platform)
 
 
+        # Status computation
+        from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+
+        extended_org.computed.instrument_status = [4]*len(extended_org.instruments)
+        extended_org.computed.platform_status = [4]*len(extended_org.platforms)
+        try:
+            outil = ObservatoryUtil(self)
+            status_rollups = outil.get_status_roll_ups(org_id, extended_org.resource._get_type())
+            extended_org.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_org.instruments]
+            extended_org.computed.platform_status = [status_rollups.get(pdev._id,{}).get("agg",4) for pdev in extended_org.platforms]
+        except Exception as ex:
+            log.exception("Computed attribute failed for %s" % org_id)
+
         #set counter attributes
-        extended_org.number_of_data_products = len(extended_org.data_products)
         extended_org.number_of_platforms = len(extended_org.platforms)
         extended_org.number_of_platforms_deployed = len(extended_org.platforms_deployed)
         extended_org.number_of_instruments = len(extended_org.instruments)
         extended_org.number_of_instruments_deployed = len(extended_org.instruments_deployed)
-
-        #flatten data products list
-        out_list = []
-        for prod_list in extended_org.data_products:
-            for prod in prod_list:
-                out_list.append(prod)
-        extended_org.data_products = out_list
+        extended_org.number_of_data_products = len(extended_org.data_products)
 
         return extended_org
 

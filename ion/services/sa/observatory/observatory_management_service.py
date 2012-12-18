@@ -1,40 +1,35 @@
 #!/usr/bin/env python
 
-"""
-@package ion.services.sa.observatory Implementation of IObservatoryManagementService interface
-@file ion/services/sa/observatory/observatory_management_service.py
-@author
-@brief Observatory Management Service to keep track of observatories sites, logical platform sites, instrument sites,
-and the relationships between them
-"""
+"""Observatory Management Service to keep track of observatories sites, logical platform sites, instrument sites,
+and the relationships between them"""
 
-
+import time
 
 
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.util.containers import DotDict, create_unique_identifier
+from pyon.util.containers import create_unique_identifier
 from pyon.agent.agent import ResourceAgentState
 
 from ooi.logging import log
+
 from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
 from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
-from datetime import date, datetime, timedelta
-import time
+from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
 #for logical/physical associations, it makes sense to search from MFMS
 from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
 from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.objects import OrgTypeEnum, ComputedValueAvailability
+from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue
 
+from ion.util.related_resources_crawler import RelatedResourcesCrawler
 
 import constraint
 
@@ -52,6 +47,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         CFG, log, RT, PRED, LCS, LCE, NotFound, BadRequest, log  #suppress pyflakes errors about "unused import"
 
         self.override_clients(self.clients)
+        self.outil = ObservatoryUtil(self)
 
         self.HIERARCHY_DEPTH = {RT.InstrumentSite: 3,
                                 RT.PlatformSite: 2,
@@ -135,18 +131,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #Instantiate initial set of User Roles for this marine facility
         instrument_operator_role = IonObject(RT.UserRole,
                                              name=INSTRUMENT_OPERATOR_ROLE,
-                                             label='Instrument Operator',
-                                             description='Marine Facility Instrument Operator')
+                                             label='Observatory Operator',   #previously Instrument Operator
+                                             description='Operate and post events related to Observatory Platforms and Instruments')
         self.clients.org_management.add_user_role(org_id, instrument_operator_role)
         observatory_operator_role = IonObject(RT.UserRole,
                                               name=OBSERVATORY_OPERATOR_ROLE,
-                                             label='Observatory Operator',
-                                             description='Marine Facility Observatory Operator')
+                                             label='Observatory Manager',   # previously Observatory Operator
+                                             description='Change Observatory configuration, post Site-related events')
         self.clients.org_management.add_user_role(org_id, observatory_operator_role)
         data_operator_role = IonObject(RT.UserRole,
                                        name=DATA_OPERATOR_ROLE,
-                                       label='Data Operator',
-                                       description='Marine Facility Data Operator')
+                                       label='Observatory Data Operator',  # previously Data Operator
+                                       description='Manipulate and post events related to Observatory Data products')
         self.clients.org_management.add_user_role(org_id, data_operator_role)
         
         return org_id
@@ -1078,192 +1074,57 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def find_org_by_observatory(self, observatory_id=''):
         """
-
         """
         orgs,_ = self.RR.find_subjects(RT.Org, PRED.hasResource, observatory_id, id_only=False)
         return orgs
 
 
-
     def find_related_frames_of_reference(self, input_resource_id='', output_resource_type_list=None):
 
-        # the relative depth of each resource type in our tree
-        depth = self.HIERARCHY_DEPTH
+        # use the related resources crawler
+        finder = RelatedResourcesCrawler()
 
-        input_obj  = self.RR.read(input_resource_id)
-        input_type = input_obj._get_type()
+        # generate the partial function (cached association list)
+        get_assns = finder.generate_related_resources_partial(self.RR, [PRED.hasSite])
 
-        #input type checking
-        if not input_type in depth:
-            raise BadRequest("Input resource type (got %s) must be one of %s" % 
-                             (input_type, self.HIERARCHY_LOOKUP))
-        for t in output_resource_type_list:
-            if not t in depth:
-                raise BadRequest("Output resource types (got %s) must be one of %s" %
-                                 (str(output_resource_type_list), self.HIERARCHY_LOOKUP))
+        # run 2 searches allowing all site-based resource types: one down (subj-obj), one up (obj-subj)
+        full_crawllist = [RT.InstrumentSite, RT.PlatformSite, RT.Subsite, RT.Observatory]
+        search_down = get_assns({PRED.hasSite: (True, False)}, full_crawllist)
+        search_up = get_assns({PRED.hasSite: (False, True)}, full_crawllist)
 
-                             
+        # the searches return a list of association objects, so compile all the ids by extracting them
+        retval_ids = set([])
 
-        subordinates = [x for x in output_resource_type_list if depth[x] > depth[input_type]]
-        superiors    = [x for x in output_resource_type_list if depth[x] < depth[input_type]]
-
-        acc = {}
-        acc[input_type] = [input_obj]
+        # we want only those IDs that are not the input resource id
+        for a in search_down(input_resource_id, -1) + search_up(input_resource_id, -1):
+            if a.o not in retval_ids and a.o != input_resource_id:
+                retval_ids.add(a.o)
+            if a.s not in retval_ids and a.s != input_resource_id:
+                retval_ids.add(a.s)
 
 
-        if subordinates:
-            # figure out the actual depth we need to go
-            deepest_type = input_type #initial value
-            for output_type in output_resource_type_list:
-                if depth[deepest_type] < depth[output_type]:
-                    deepest_type = output_type
+        log.debug("converting retrieved ids to objects = %s" % retval_ids)
 
-            log.debug("Deepest level for search will be '%s'", deepest_type)
+        #initialize the dict
+        retval = dict((restype, []) for restype in output_resource_type_list)
 
-            acc = self._traverse_entity_tree(acc, input_type, deepest_type, True)
+        #workaround for read_mult problem
+        all_res = []
+        if retval_ids: all_res = self.RR.read_mult(list(retval_ids))
+        #all_res = self.RR.read_mult(retval_ids)
 
+        # put resources in the slot based on their type
+        for resource in all_res:
+            typename = type(resource).__name__
+            if typename in output_resource_type_list:
+                retval[typename].append(resource)
 
-        if superiors:
-            highest_type = input_type #initial value
+        # display a count of how many resources we retrieved
+        log.debug("got these resources: %s", dict([(k, len(v)) for k, v in retval.iteritems()]))
 
-            for output_type in output_resource_type_list:
-                if depth[highest_type] > depth[output_type]:
-                    highest_type = output_type
-
-            log.debug("Highest level for search will be '%s'", highest_type)
-
-            acc = self._traverse_entity_tree(acc, highest_type, input_type, False)
-
-        # Don't include input type in response            
-        #TODO: maybe just remove the input resource id 
-        if input_type in acc:
-            stripped = []
-            for r_obj in acc[input_type]:
-                if r_obj._id == input_resource_id:
-                    log.debug("Stripped input from return value")
-                else:
-                    stripped.append(r_obj)
-
-            acc[input_type] = stripped
-                
-
-        return acc
-                    
-
-    def _traverse_entity_tree(self, acc, top_type, bottom_type, downward):
-
-        call_list = self._build_call_list(top_type, bottom_type, downward)
-
-        # start calling functions
-        if downward:
-            for (p, c) in call_list:
-                acc = self._find_subordinate(acc, p, c)
-        else:
-            for (p, c) in call_list:
-                acc = self._find_superior(acc, p, c)
-
-        return acc
+        return retval
 
 
-    def _build_call_list(self, top_type, bottom_type, downward):
-
-        call_list = []
-
-        if downward:
-            step = 1
-            top_ord = self.HIERARCHY_DEPTH[top_type]
-            bot_ord = self.HIERARCHY_DEPTH[bottom_type]
-        else:
-            step = -1
-            top_ord = self.HIERARCHY_DEPTH[bottom_type] - 1
-            bot_ord = self.HIERARCHY_DEPTH[top_type] - 1
-
-
-        for i in range(top_ord, bot_ord, step):
-            child  = self.HIERARCHY_LOOKUP[i + 1]
-            parent = self.HIERARCHY_LOOKUP[i]
-            if downward:
-                tmp = [(parent, parent), (parent, child), (child, child)]
-            else:
-                tmp = [(child, child), (parent, child), (parent, parent)]
-
-
-            for pair in tmp:
-                if not pair in call_list:
-                    #log.debug("adding %s", str(pair))
-                    call_list.append(pair)
-
-        return call_list
-
-
-
-    def _find_subordinate(self, acc, parent_type, child_type):
-        #acc is an accumulated dictionary
-
-        find_fns = {
-            (RT.Observatory, RT.Subsite):         self.observatory.find_stemming_site,
-            (RT.Subsite, RT.Subsite):             self.subsite.find_stemming_subsite,
-            (RT.Subsite, RT.PlatformSite):        self.subsite.find_stemming_platform_site,
-            (RT.PlatformSite, RT.PlatformSite):   self.platform_site.find_stemming_platform_site,
-            (RT.PlatformSite, RT.InstrumentSite): self.platform_site.find_stemming_instrument_site,
-            }
-
-        if (parent_type, child_type) in find_fns:
-            find_fn = find_fns[(parent_type, child_type)]
-        else:
-            find_fn = (lambda x : [])
-        
-        if not parent_type in acc: acc[parent_type] = []
-
-        log.debug("Subordinates: '%s'x%s->'%s'", parent_type, len(acc[parent_type]), child_type)
-
-        #for all parents in the acc, add all their children
-        for parent_obj in acc[parent_type]:
-            parent_id = parent_obj._id
-            for child_obj in find_fn(parent_id):
-                actual_child_type = child_obj._get_type()
-                if not actual_child_type in acc:
-                    acc[actual_child_type] = []
-                acc[actual_child_type].append(child_obj)
-
-        return acc
-
-
-
-    def _find_superior(self, acc, parent_type, child_type):
-        # acc is an accumualted dictionary
-
-        #log.debug("Superiors: '%s'->'%s'", parent_type, child_type)
-        #if True:
-        #    return acc
-            
-        find_fns = {
-            (RT.Observatory, RT.Subsite):         self.observatory.find_having_site,
-            (RT.Subsite, RT.Subsite):             self.subsite.find_having_site,
-            (RT.Subsite, RT.PlatformSite):        self.subsite.find_having_site,
-            (RT.PlatformSite, RT.PlatformSite):   self.platform_site.find_having_site,
-            (RT.PlatformSite, RT.InstrumentSite): self.platform_site.find_having_site,
-            }
-
-        if (parent_type, child_type) in find_fns:
-            find_fn = find_fns[(parent_type, child_type)]
-        else:
-            find_fn = (lambda x : [])
-        
-        if not child_type in acc: acc[child_type] = []
-
-        log.debug("Superiors: '%s'->'%s'x%s", parent_type, child_type, len(acc[child_type]))
-
-        #for all children in the acc, add all their parents
-        for child_obj in acc[child_type]:
-            child_id = child_obj._id
-            for parent_obj in find_fn(child_id):
-                actual_parent_type = parent_obj._get_type()
-                if not actual_parent_type in acc:
-                    acc[actual_parent_type] = []
-                acc[actual_parent_type].append(parent_obj)
-
-        return acc
 
 
 
@@ -1297,15 +1158,32 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
-        #Loop through any attachments and remove the actual content since we don't need to send it to the front end this way
-        #TODO - see if there is a better way to do this in the extended resource frame work.
-        if hasattr(extended_site, 'attachments'):
-            for att in extended_site.attachments:
-                if hasattr(att, 'content'):
-                    delattr(att, 'content')
-
-        #get status of Site instruments
+        # Get status of Site instruments.
         extended_site.instruments_operational, extended_site.instruments_not_operational = self._get_instrument_states(extended_site.instrument_devices)
+
+        # Status computation
+        extended_site.computed.instrument_status = [4]*len(extended_site.instrument_devices)
+        extended_site.computed.platform_status = [4]*len(extended_site.platform_devices)
+
+        extended_site.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        extended_site.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        extended_site.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        extended_site.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        extended_site.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+
+        try:
+            status_rollups = self.outil.get_status_roll_ups(site_id, extended_site.resource._get_type())
+
+            extended_site.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_site.instrument_devices]
+            extended_site.computed.platform_status = [status_rollups.get(pdev._id,{}).get("agg",4) for pdev in extended_site.platform_devices]
+
+            extended_site.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["comms"])
+            extended_site.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["power"])
+            extended_site.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["data"])
+            extended_site.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["loc"])
+            extended_site.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["agg"])
+        except Exception as ex:
+            log.exception("Computed attribute failed for %s" % site_id)
 
         return extended_site
 
@@ -1343,10 +1221,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if instrument_device_obj_list is None:
             instrument_device_list = []
 
-        #call eventsdb to check  data-related events from this device.
-        now = self._makeEpochTime(datetime.utcnow())
-        query_interval = self._makeEpochTime( datetime.utcnow() - timedelta( days=AGENT_STATUS_EVENT_DELTA_DAYS ) )
+        #call eventsdb to check  data-related events from this device. Use UNix vs NTP tiem for now, as resource timestaps are in Unix, data is in NTP
 
+        now = str(int(time.time() * 1000))
+        query_interval = str(int(time.time() - (AGENT_STATUS_EVENT_DELTA_DAYS * 86400) )  *1000)
 
         for device_obj in instrument_device_obj_list:
             # first check the instrument lifecycle state
@@ -1368,18 +1246,3 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return op, non_op
 
-
-    @staticmethod
-    def _makeEpochTime(date_time):
-        """
-        provides the seconds since epoch give a python datetime object.
-
-        @param date_time Python datetime object
-        @retval seconds_since_epoch int
-        """
-        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
-        #'2009-07-04 18:30:47'
-        pattern = '%Y-%m-%d %H:%M:%S'
-        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
-
-        return seconds_since_epoch

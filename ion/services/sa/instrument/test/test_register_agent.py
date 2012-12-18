@@ -273,6 +273,7 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
 
         log.info("L4-CI-SA-RQ-148")
         log.info("L4-CI-SA-RQ-148: The test services shall ensure that test results are incorporated into physical resource metadata. ")
+        log.info("L4-CI-SA-RQ-336: Instrument activation shall support the registration of Instrument Agents")
 
         # cleanup
         self.IMS.force_delete_instrument_agent(inst_agent_id)

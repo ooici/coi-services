@@ -27,7 +27,7 @@ class TestLoader(IonIntegrationTestCase):
         self.assertTrue(len(res) > 1)
         found = False
         for org in res:
-            if org.name=='RSN':
+            if org.name=='Regional_Scale_Nodes':
                 self.assertFalse(found, msg='Found more than one Org "RSN" -- should have preloaded one')
                 found = True
                 self.assertFalse(org.contacts is None)
@@ -36,8 +36,10 @@ class TestLoader(IonIntegrationTestCase):
         self.assertTrue(found, msg='Did not find Org "RSN" -- should have been preloaded')
 
         # check data product
-        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='CTDBP-1012-REC1 Raw', id_only=False)
-        self.assertEquals(1, len(res))
+#        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name='CTDBP-1012-REC1 Raw', id_only=False)
+        target_name = 'NSF Demo - CTDBP-1012-REC1 Raw'
+        res,_ = self.container.resource_registry.find_resources(RT.DataProduct, name=target_name, id_only=False)
+        self.assertEquals(1, len(res), msg='failed to find data product: '+target_name)
         dp = res[0]
         formats = dp.available_formats
         self.assertEquals(2, len(formats))
@@ -62,7 +64,7 @@ class TestLoader(IonIntegrationTestCase):
         self.assertTrue(len(res) > 1)
         found = False
         for site in res:
-            if site.name=='Logical instrument 1 Demo':
+            if site.name=='Instrument site 1 Demo':
                 self.assertFalse(found, msg='Found more than one InstrumentSite "Logical instrument 1 Demo" -- should have preloaded one')
                 found = True
                 self.assertFalse(site.constraint_list is None)
@@ -91,7 +93,22 @@ class TestLoader(IonIntegrationTestCase):
         # check for platform agents
         res,_ = self.container.resource_registry.find_resources(RT.PlatformAgent, id_only=False)
         self.assertTrue(len(res)>0)
+        agent = None
+        for pa in res:
+            if pa.name=='RSN Platform Agent':
+                agent = pa
+                break
+        self.assertTrue(agent)
+        self.assertEquals(2, len(agent.stream_configurations))
+        parsed = agent.stream_configurations[1]
+        self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
 
         # check for platform agents
         res,_ = self.container.resource_registry.find_resources(RT.PlatformAgentInstance, id_only=False)
         self.assertTrue(len(res)>0)
+        agent_instance = None
+        for pai in res:
+            if pai.name=='Platform Agent':
+                agent_instance = pai
+                break
+        self.assertTrue(agent_instance)

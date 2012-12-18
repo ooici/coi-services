@@ -1,18 +1,22 @@
 #!/usr/bin/env python
 
-__author__ = 'Stephen P. Henrie'
+__author__ = 'Stephen P. Henrie, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
-from pyon.util.int_test import IonIntegrationTestCase
-from nose.plugins.attrib import attr
-from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import PRED, RT, IonObject, OT
-from interface.services.coi.iresource_management_service import ResourceManagementServiceClient
-from interface.services.coi.iobject_management_service import ObjectManagementServiceClient
-from ion.services.coi.resource_management_service import ResourceManagementService
-from pyon.public import PRED
 from mock import Mock, patch
+from nose.plugins.attrib import attr
+
+from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
+from pyon.public import PRED, RT, IonObject, OT, log
+from pyon.util.context import LocalContextMixin
+from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
+
+from ion.services.coi.resource_management_service import ResourceManagementService
+
+from interface.services.coi.iresource_management_service import ResourceManagementServiceClient, ResourceManagementServiceProcessClient
+from interface.services.coi.iobject_management_service import ObjectManagementServiceClient
+
 
 @attr('UNIT', group='coi')
 class TestResourceManagementServiceUnit(PyonTestCase):
@@ -228,4 +232,67 @@ Policy5: !Extends_InformationResource
         # Delete a ResourceType that has already been deleted
         with self.assertRaises(NotFound):
             self.rms.delete_resource_type(resource_id, object_id)
+
+
+class FakeProcess(LocalContextMixin):
+    """
+    A fake process used because the test case is not an ion process.
+    """
+    name = ''
+    id=''
+    process_type = ''
+
+@attr('INT', group='rms')
+class TestResourceManagementServiceInterface(IonIntegrationTestCase):
+
+    def setUp(self):
+        # Start container
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        # Now create client to service
+        self.rr = self.container.resource_registry
+        fp = FakeProcess()
+
+        self.rms = ResourceManagementServiceProcessClient(process=fp)
+
+    def test_resource_interface(self):
+        rid1,_ = self.rr.create(IonObject('Resource', name='res1'))
+
+        cap_list = self.rms.get_capabilities(rid1)
+        log.warn("Capabilities: %s", cap_list)
+        self.assertTrue(type(cap_list) is list)
+
+        get_res = self.rms.get_resource(rid1, params=['object_size'])
+        log.warn("Get result: %s", get_res)
+
+        self.rms.set_resource(rid1, params={'description': 'NEWDESC'})
+        res_obj = self.rr.read(rid1)
+        self.assertEquals(res_obj.description, 'NEWDESC')
+
+        self.rr.delete(rid1)
+
+        # Test CRUD
+        rid2 = self.rms.create_resource(IonObject('Resource', name='res2'))
+        res_obj = self.rr.read(rid2)
+        self.assertEquals(res_obj.name, 'res2')
+
+        res_obj.description = 'DESC2'
+        self.rms.update_resource(res_obj)
+        res_obj = self.rr.read(rid2)
+        self.assertEquals(res_obj.description, 'DESC2')
+
+        res_obj2 = self.rms.read_resource(rid2)
+        self.assertEquals(res_obj.description, res_obj2.description)
+
+        self.rms.delete_resource(rid2)
+
+        rid3,_ = self.rr.create(IonObject('InstrumentDevice', name='res3'))
+        rid3_r = self.rr.read(rid3)
+        self.assertEquals(rid3_r.lcstate, "DRAFT_PRIVATE")
+
+        self.rms.execute_lifecycle_transition(rid3, "plan")
+        rid3_r = self.rr.read(rid3)
+        self.assertEquals(rid3_r.lcstate, "PLANNED_PRIVATE")
+
 

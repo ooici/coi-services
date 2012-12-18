@@ -1,0 +1,67 @@
+This file contains hints for running a demo of OOI ION Release 2 out of this repository.
+
+Prerequisites:
+=================
+
+- Git repos in $CODE_DIR:
+  $CODE_DIR/pyon
+  $CODE_DIR/coi-services (this one)
+  $CODE_DIR/ion-ux
+- Virtualenv and buildout set for coi-services and ion-ux
+- ion-ux/config.py properly filled out
+
+Demo setup steps:
+=================
+
+Prepare for start:
+> ant clean
+> bin/buildout
+> bin/generate_interfaces
+
+Start the services container:
+> bin/pycc -fc -r res/deploy/r2deploy.yml
+
+Preload system resources (without OOI resources or UI)
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BASE,BETA,R2_DEMO,BF_DEMO,EER2 path=master attachments=res/preload/r2_ioc/attachments
+
+Preload system UI only
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path='https://userexperience.oceanobservatories.org/database-exports' loadui=True
+
+Preload OOI assets (bulk mode)
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=X path=master assets=res/preload/r2_ioc/ooi_assets loadooi=True bulk=True
+
+Preload system with UI (without OOI assets)
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BASE,BETA,R2_DEMO,BF_DEMO,EER2 path=master ui_path='https://userexperience.oceanobservatories.org/database-exports' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
+
+Start the UI (in ion-ux, virtualenv):
+> python main.py
+
+To restart services container (without full process launch):
+> bin/pycc -r res/deploy/r2deploy.yml bootmode=restart
+
+To show debugging UI:
+> bin/pycc --mx
+
+Demo steps:
+===========
+
+Go to Platforms, select R2 IOC demo
+Start platform agent, then initialize, go_active, run
+
+Variant steps:
+==============
+
+Preload system with UI and OOI assets)
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BASE,BETA,R2_DEMO,BF_DEMO,EER2 path=master ui_path='https://userexperience.oceanobservatories.org/database-exports' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
+
+Run preload from file (not GoogleDoc master):
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BASE,BETA path=res/preload/r2_ioc/R2PreloadedResources.xlsx ui_path='https://userexperience.oceanobservatories.org/database-exports' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
+
+Load OOI assets, filter to only Global Papa:
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BASE,BETA path=master ui_path='https://userexperience.oceanobservatories.org/database-exports' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True loadooi=True ooifilter=GP
+
+Delete OOI assets for a retry:
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=deleteooi
+
+Reload OOI assets, filter to only Global Papa:
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=X path=master assets=res/preload/r2_ioc/ooi_assets loadooi=True

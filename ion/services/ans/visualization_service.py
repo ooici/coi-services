@@ -16,7 +16,6 @@ from pyon.public import IonObject, RT, log, PRED
 from pyon.util.containers import create_unique_identifier, get_safe
 from pyon.core.exception import Inconsistent, BadRequest, NotFound
 from datetime import datetime
-import ntplib
 
 import simplejson
 import math
@@ -52,7 +51,6 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    Throws if specified data product id or its visualization product does not exist
         """
 
-
         query = None
         if visualization_parameters:
             if visualization_parameters.has_key('query'):
@@ -77,7 +75,7 @@ class VisualizationService(BaseVisualizationService):
         else:
             workflow_def_id = self._create_google_dt_workflow_def()
 
-        #Create and start the workflow
+        #Create and start the workflow. Take about 4 secs .. wtf
         workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_def_id, data_product_id, timeout=20)
 
         # detect the output data product of the workflow
@@ -161,7 +159,7 @@ class VisualizationService(BaseVisualizationService):
 
                         # Adjust the ntp time stamp from instruments to standard date tine
                         #varTuple.append(datetime.fromtimestamp(tempTuple[0]))
-                        varTuple.append(datetime.fromtimestamp(ntplib.ntp_to_system_time(tempTuple[0])))
+                        varTuple.append(datetime.fromtimestamp(tempTuple[0]))
 
                         for idx in range(1,len(tempTuple)):
                             # some silly numpy format won't go away so need to cast numbers to floats
@@ -336,7 +334,7 @@ class VisualizationService(BaseVisualizationService):
             if 'parameters' in visualization_parameters:
                 if not 'time' in visualization_parameters['parameters']:
                     visualization_parameters['parameters'].append('time')
-                print ">>>>>>>>>>>>>>>>>>>>  VIS PARAMS :", visualization_parameters['parameters']
+
                 query['parameters'] = visualization_parameters['parameters']
 
             if 'stride_time' in visualization_parameters:
@@ -364,7 +362,7 @@ class VisualizationService(BaseVisualizationService):
         gdt_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
         gdt_stream_def = self.clients.pubsub_management.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
 
-        gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(retrieved_granule, params=gdt_stream_def)
+        gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(retrieved_granule, params=gdt_stream_def, config=visualization_parameters)
         if gdt_data_granule == None:
             return None
 
@@ -424,6 +422,7 @@ class VisualizationService(BaseVisualizationService):
 
         # Extract the retrieval related parameters. Definitely init all parameters first
         query = None
+        image_name = None
         if visualization_parameters :
             query = {'parameters':[]}
             # Error check and damage control. Definitely need time
@@ -439,22 +438,36 @@ class VisualizationService(BaseVisualizationService):
             if 'end_time' in visualization_parameters:
                 query['end_time'] = visualization_parameters['end_time']
 
+            # If an image_name was given, it means the image is already in the storage. Just need the latest granule.
+            # ignore other paramters passed
+            if 'image_name' in visualization_parameters:
+                image_name = visualization_parameters['image_name']
+
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+        #print ">>>>>>>>>>>>>>>>>>>>>>>>> DS_IDS = ", ds_ids
         if ds_ids is None or not ds_ids:
+            log.warn("Specified dataproduct does not have an associated dataset")
             return None
 
         # Ideally just need the latest granule to figure out the list of images
-        #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
+        if image_name:
+            retrieved_granule = self.clients.data_retriever.retrieve_last_granule(ds_ids[0])
+        else:
+            retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
 
+        #print " >>>>>>>>>>>> RETRIEVED GRANULE : " , retrieved_granule
         if retrieved_granule is None:
             return None
 
-        # send the granule through the transform to get the matplotlib graphs
-        mpl_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
-        mpl_stream_def = self.clients.pubsub_management.create_stream_definition('mpl', parameter_dictionary_id=mpl_pdict_id)
-        mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=visualization_parameters, params=mpl_stream_def)
+        # no need to pass data through transform if its already a pre-computed image
+        if image_name:
+            mpl_data_granule = retrieved_granule
+        else:
+            # send the granule through the transform to get the matplotlib graphs
+            mpl_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
+            mpl_stream_def = self.clients.pubsub_management.create_stream_definition('mpl', parameter_dictionary_id=mpl_pdict_id)
+            mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=visualization_parameters, params=mpl_stream_def)
 
         if mpl_data_granule == None:
             return None
@@ -544,7 +557,7 @@ class VisualizationService(BaseVisualizationService):
             for dp in dp_cluster[set_key]:
                 html_description += "<tr>"
                 html_description += "<td>" + dp.name + "</td>"
-                html_description += "<td><a href=\"" + ui_server + "/DataProduct/face/" + str(dp._id) + "/\">" + str(dp._id) + "</a> </td> "
+                html_description += "<td><a class=\"external\" href=\"" + ui_server + "/DataProduct/face/" + str(dp._id) + "/\">" + str(dp._id) + "</a> </td> "
                 html_description += "<td> </td>"
 
                 html_description += "</tr>"

@@ -111,20 +111,7 @@ class OmsClient(object):
 
     def getPlatformAttributeValues(self, platform_id, attrNames, from_time):
         """
-        Returns the values for specific attributes associated with a given
-        platform since a given time.
-
-        @param platform_id  Platform ID
-        @param attrNames 	[attrName, ...]
-                            Names of desired attributes
-        @param from_time    NTP v4 compliant string; time from which the values
-                            are requested
-
-        @retval {platform_id: {attrName : [(attrValue, timestamp), ...], ...}}
-                dict with a single entry for the requested platform ID and value
-                as a list of (value,timestamp) pairs for each attribute.
-                Returned timestamps are also NTP v4 8-byte strings, or the empty
-                string in the cases indicated below.
+        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
         raise NotImplemented()
 

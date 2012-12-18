@@ -2,7 +2,7 @@ import os
 import urllib
 import xml.dom.minidom
 from xml.dom.minidom import parse, parseString
-
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from pyon.ion.process import StandaloneProcess
 from coverage_model.coverage import SimplexCoverage
 from pyon.util.file_sys import FileSystem
@@ -29,8 +29,9 @@ class RegistrationProcess(StandaloneProcess):
         self.datasets_xml_path = os.path.join(real_path, filename)
         self.setup_filesystem(real_path)
 
-
     def setup_filesystem(self, path):
+        if os.path.exists(os.path.join(path,'datasets.xml')):
+            return
         zip_str = base64.decodestring(datasets_xml_zip)
         zip_file = StringIO.StringIO()
         zip_file.write(zip_str)
@@ -40,20 +41,22 @@ class RegistrationProcess(StandaloneProcess):
 
 
 
-    def register_dap_dataset(self, coverage_path):
+    def register_dap_dataset(self, dataset_id, data_product_name=''):
+        coverage_path = DatasetManagementService._get_coverage_path(dataset_id)
         try:
-            self.   add_dataset_to_xml(coverage_path=coverage_path)
+            self.add_dataset_to_xml(coverage_path=coverage_path, product_name=data_product_name)
             self.create_symlink(coverage_path, self.pydap_data_path)
         except:
+            log.exception('Problem registering dataset')
             log.error('Failed to register dataset for coverage path %s' % coverage_path)
 
     def create_symlink(self, coverage_path, pydap_path):
         paths = os.path.split(coverage_path)
         os.symlink(coverage_path, pydap_path + paths[1])
 
-    def add_dataset_to_xml(self, coverage_path):
+    def add_dataset_to_xml(self, coverage_path, product_name=''):
         dom1 = parse(self.datasets_xml_path)
-        dom2 = parseString(self.get_dataset_xml(coverage_path))
+        dom2 = parseString(self.get_dataset_xml(coverage_path,product_name))
         erddap_datasets_element = dom1.getElementsByTagName('erddapDatasets')[0]
         erddap_datasets_element.appendChild(dom2.getElementsByTagName('dataset')[0])
 
@@ -61,11 +64,12 @@ class RegistrationProcess(StandaloneProcess):
         dom1.writexml(f)
         f.close()
 
-    def get_dataset_xml(self, coverage_path):
+    def get_dataset_xml(self, coverage_path, product_name=''):
 
         result = ''
 
         paths = os.path.split(coverage_path)
+        #cov = SimplexCoverage.pickle_load(coverage_path)
         cov = SimplexCoverage.load(coverage_path)
         #ds = open_url(url)
         doc = xml.dom.minidom.Document()
@@ -103,17 +107,17 @@ class RegistrationProcess(StandaloneProcess):
                 dataset_element.appendChild(source_element)
 
                 reload_element = doc.createElement('reloadEveryNMinutes')
-                text_node = doc.createTextNode('1440')
+                text_node = doc.createTextNode('5')
                 reload_element.appendChild(text_node)
                 dataset_element.appendChild(reload_element)
 
                 add_attributes_element = doc.createElement('addAttributes')
 
                 atts = {}
-                atts['title'] = urllib.unquote(cov.name)
+                atts['title'] = product_name or urllib.unquote(cov.name)
                 atts['infoUrl'] = self.pydap_url + paths[1]
                 atts['summary'] = cov.name
-                atts['institution'] = 'ASA'
+                atts['institution'] = 'OOI'
 
                 for key, val in atts.iteritems():
                     att_element = doc.createElement('att')

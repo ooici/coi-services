@@ -16,6 +16,7 @@ __license__ = 'Apache 2.0'
 import sys
 from time import sleep
 import time
+import ntplib
 import httplib
 import yaml
 
@@ -61,7 +62,7 @@ class EventNotifier(object):
         url_dict = self._listeners[event_type]
 
         if not url in url_dict:
-            url_dict[url] = time.time()
+            url_dict[url] = ntplib.system_to_ntp_time(time.time())
             log.trace("added listener=%s for event_type=%s", url, event_type)
 
         return url_dict[url]
@@ -73,7 +74,7 @@ class EventNotifier(object):
 
         unreg_time = 0
         if url in url_dict:
-            unreg_time = time.time()
+            unreg_time = ntplib.system_to_ntp_time(time.time())
             del url_dict[url]
             log.trace("removed listener=%s for event_type=%s", url, event_type)
 
@@ -167,7 +168,7 @@ class EventGenerator(object):
         platform_id = "TODO_some_platform_id_of_type_%s" % event_type['platform_type']
         message = "%s (synthetic event generated from simulator)" % event_type['name']
         group = event_type['group']
-        timestamp = time.time()
+        timestamp = ntplib.system_to_ntp_time(time.time())
         event_instance = {
             'ref_id':       ref_id,
             'message':      message,
@@ -198,7 +199,7 @@ class EventGenerator(object):
         self._keep_running = False
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     #
     # first, call this demo program with command line argument 'listener',
     # then, on a second terminal, with argument 'notifier'
@@ -246,13 +247,41 @@ localhost:8000: listening for event notifications...
 
 TERMINAL 2:
 $ bin/python  ion/agents/platform/oms/simulator/oms_events.py notifier
+2012-11-15 10:35:45,144 DEBUG    MainThread oms_simulator  :66 add_listener added listener=http://localhost:8000 for event_type=44.78
 registered listener to event_type='44.78'
+2012-11-15 10:35:45,144 DEBUG    MainThread oms_simulator  :66 add_listener added listener=http://localhost:8000 for event_type=44.77
 registered listener to event_type='44.77'
+2012-11-15 10:35:45,144 DEBUG    MainThread oms_simulator  :155 __init__ !!!! EventGenerator: pyon not detected: using Thread
 generating events for 15 seconds ...
+2012-11-15 10:35:48,145 DEBUG    Thread-1 oms_simulator  :180 generate_and_notify_event notifying event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'timestamp': 3561993348.14498, 'message': 'low battery (synthetic event generated from simulator)', 'group': 'power', 'ref_id': '44.78'}
+2012-11-15 10:35:48,145 DEBUG    Thread-1 oms_simulator  :108 _notify_listener Notifying event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'timestamp': 3561993348.14498, 'message': 'low battery (synthetic event generated from simulator)', 'group': 'power', 'ref_id': '44.78'} to listener=http://localhost:8000
+2012-11-15 10:35:48,148 DEBUG    Thread-1 oms_simulator  :114 _notify_listener payload=
+	group: power
+	message: low battery (synthetic event generated from simulator)
+	platform_id: TODO_some_platform_id_of_type_UPS
+	ref_id: '44.78'
+	timestamp: 3561993348.14498
+	url: http://localhost:8000
+
+2012-11-15 10:35:48,155 DEBUG    Thread-1 oms_simulator  :129 _notify_listener RESPONSE: 200, OK, MY-RESPONSE. BYE
+2012-11-15 10:35:55,358 DEBUG    Thread-1 oms_simulator  :180 generate_and_notify_event notifying event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'timestamp': 3561993355.3580933, 'message': 'on battery (synthetic event generated from simulator)', 'group': 'power', 'ref_id': '44.77'}
+2012-11-15 10:35:55,358 DEBUG    Thread-1 oms_simulator  :108 _notify_listener Notifying event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'timestamp': 3561993355.3580933, 'message': 'on battery (synthetic event generated from simulator)', 'group': 'power', 'ref_id': '44.77'} to listener=http://localhost:8000
+2012-11-15 10:35:55,360 DEBUG    Thread-1 oms_simulator  :114 _notify_listener payload=
+	group: power
+	message: on battery (synthetic event generated from simulator)
+	platform_id: TODO_some_platform_id_of_type_UPS
+	ref_id: '44.77'
+	timestamp: 3561993355.3580933
+	url: http://localhost:8000
+
+2012-11-15 10:35:55,365 DEBUG    Thread-1 oms_simulator  :129 _notify_listener RESPONSE: 200, OK, MY-RESPONSE. BYE
+2012-11-15 10:36:00,144 DEBUG    MainThread oms_simulator  :198 stop stopping event generation...
+2012-11-15 10:36:00,167 DEBUG    Thread-1 oms_simulator  :195 _run event generation stopped.
+
 
 TERMINAL 1:
-listener got event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'group': 'power', 'url': 'http://localhost:8000', 'timestamp': 1352221197.337092, 'message': 'low battery (synthetic event generated from simulator)', 'ref_id': '44.78'}
-127.0.0.1 - - [2012-11-06 08:59:57] "POST / HTTP/1.1" 200 118 0.002844
-listener got event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'group': 'power', 'url': 'http://localhost:8000', 'timestamp': 1352221204.549481, 'message': 'on battery (synthetic event generated from simulator)', 'ref_id': '44.77'}
-127.0.0.1 - - [2012-11-06 09:00:04] "POST / HTTP/1.1" 200 118 0.002282
+listener got event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'group': 'power', 'url': 'http://localhost:8000', 'timestamp': 3561993348.14498, 'message': 'low battery (synthetic event generated from simulator)', 'ref_id': '44.78'}
+127.0.0.1 - - [2012-11-15 10:35:48] "POST / HTTP/1.1" 200 118 0.003380
+listener got event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'group': 'power', 'url': 'http://localhost:8000', 'timestamp': 3561993355.3580933, 'message': 'on battery (synthetic event generated from simulator)', 'ref_id': '44.77'}
+127.0.0.1 - - [2012-11-15 10:35:55] "POST / HTTP/1.1" 200 118 0.003170
 """

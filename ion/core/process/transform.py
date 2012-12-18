@@ -15,6 +15,7 @@ import logging
 import gevent
 import re
 from pyon.util.log import log
+from copy import copy
 dot = logging.getLogger('dot')
 
 class TransformBase(SimpleProcess):
@@ -131,7 +132,20 @@ class TransformStreamPublisher(TransformStreamProcess):
         self.exchange_point = self.CFG.get_safe('process.exchange_point', 'science_data')
         self.routing_key    = self.CFG.get_safe('process.routing_key', '')
 
-        self.publisher = StreamPublisher(process=self, stream_id=self.stream_id, exchange_point=self.exchange_point, routing_key=self.routing_key)
+        # We do not want processes to make service calls
+        # A StreamPublisher has a behavior built-in to create a stream
+        # If no stream_id and route are specified. 
+        # We will use the container attached endpoints instead of making a new stream
+        if not (self.stream_id or self.routing_key):
+            output_streams = copy(self.CFG.get_safe('process.publish_streams'))
+            first_stream   = output_streams.popitem()
+            try:
+                self.publisher = getattr(self,first_stream[0])
+            except AttributeError:
+                log.warning('no publisher endpoint located')
+                self.publisher = None
+        else:
+            self.publisher = StreamPublisher(process=self, stream_id=self.stream_id, exchange_point=self.exchange_point, routing_key=self.routing_key)
 
     def publish(self, msg, to_name):
         '''
@@ -140,7 +154,8 @@ class TransformStreamPublisher(TransformStreamProcess):
         raise NotImplementedError('Method publish not implemented')
 
     def on_quit(self):
-        self.publisher.close()
+        if self.publisher:
+            self.publisher.close()
         super(TransformStreamPublisher,self).on_quit()
 
 class TransformEventListener(TransformEventProcess):

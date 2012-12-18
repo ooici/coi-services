@@ -62,7 +62,6 @@ from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverParameter
 from mi.core.instrument.data_particle import DataParticle
 from interface.objects import StreamRoute
-
 from interface.objects import AgentCommand
 
 class InstrumentAgentState():
@@ -150,15 +149,12 @@ class InstrumentAgent(ResourceAgent):
 
         self._param_dicts = {}
         self._stream_defs = {}
-
+        self._stream_buffers = {}
+        
         # Dictionary of data stream publishers. Constructed by
         # stream_config agent config member during process on_init.
         self._data_publishers = {}
 
-        # Factories for stream packets. Constructed by driver
-        # configuration information on transition to inactive.
-        self._packet_factories = {}
-                
     def on_init(self):
         """
         Instrument agent pyon process initialization.
@@ -384,8 +380,6 @@ class InstrumentAgent(ResourceAgent):
         # Start the driver and switch to inactive.
         self._start_driver(self._dvr_config)
 
-        self._construct_packet_factories()
-        
         next_state = ResourceAgentState.INACTIVE
 
         return (next_state, result)
@@ -401,7 +395,6 @@ class InstrumentAgent(ResourceAgent):
         next_state = None
 
         result = self._stop_driver()
-        self._clear_packet_factories()
         next_state = ResourceAgentState.UNINITIALIZED
   
         return (next_state, result)
@@ -455,7 +448,6 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
   
         return (next_state, result)
@@ -495,7 +487,6 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
         
         return (next_state, result)        
@@ -543,7 +534,6 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
         
         return (next_state, result)        
@@ -641,7 +631,6 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        self._clear_packet_factories()        
         next_state = ResourceAgentState.UNINITIALIZED
           
         return (next_state, result)        
@@ -796,7 +785,29 @@ class InstrumentAgent(ResourceAgent):
         # If the sample event is encoded, load it back to a dict.
         if isinstance(val, str):
             val = json.loads(val)
+        
+        """
+        try:
+            stream_name = val['stream_name']
+        
+        except KeyError:
+            log.error('Instrument agent %s received sample with missing stream name.',
+                self._proc_name)
+        try:
+            self._stream_buffers[stream_name].insert(0,val)
+        except KeyError:
+            log.error('Instrument agent %s has no buffer for stream %s.',
+                self._proc_name, stream_name)
+        
+        self._stream_buffers[stream_name].append(val)
 
+        state = self._fsm.get_current_state()
+        param_key = 'aparam_pubfreq_'+stream_name
+        pubfreq = getattr(self,param_key)
+        if state != ResourceAgentState.STREAMING or pubfreq == 0:
+            self._publish_stream_buffer(stream_name)
+            
+        """
         try:
             stream_name = val['stream_name']
             publisher = self._data_publishers[stream_name]
@@ -828,9 +839,52 @@ class InstrumentAgent(ResourceAgent):
                      self._proc_name, stream_name)
             
         except:
-            log.error('Instrument agent %s could not publish data.',
-                      self._proc_name)
+            log.exception('Instrument agent %s could not publish data.', self._proc_name)
 
+
+    def _publsih_stream_buffer(self, stream_name):
+        """
+        """
+        
+        try:
+            stream_def = self._stream_defs[stream_name]
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+            publisher = self._data_publishers[stream_name]
+    
+            buf_len = len(self._stream_buffers[stream_name])
+            vals = []
+            for x in buf_len:
+                vals.append(self._stream_buffers[stream_name].pop())
+    
+            val_ids = [x['value_id'] for x in vals[0]['values'] if x['value_id'] in rdt and not x.get('binary')]
+            binary_ids = [x['value_id'] for x in vals[0]['values'] if x['value_id'] in rdt and x.get('binary')]
+            other_ids = [k for k in vals[0].keys() if k in rdt]
+            
+            for id in val_ids:
+                data_arrays[id] = [x['values']['value'] for x in vals if x['values']['value_id']==id]
+                
+            for id in binary_ids:
+                data_arrays[id] = [base64.decode(x['values']['value']) for x in vals if x['values']['value_id']==id]
+
+            for id in other_ids:
+                data_arrays[id] = [x[id] for x in vals]
+    
+            if 'driver_timestamp' in vals[0].keys():        
+                data_arrays['time'] = [x['driver_timestamp'] for x in vals]
+    
+            for (k,v) in data_arrays.iteritems():
+                rdt[k] = numpy.array(v)
+            
+            log.info('Outgoing granule: %s' % ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
+            g = rdt.to_granule(data_producer_id=self.resource_id)
+            publisher.publish(g)
+            log.info('Instrument agent %s published data granule on stream %s.',
+                self._proc_name, stream_name)
+
+        except:
+            log.exception('Instrument agent %s could not publish data on stream %s.',
+                self._proc_name, stream_name)
+        
     def _async_driver_event_error(self, val, ts):
         """
         """
@@ -1125,38 +1179,40 @@ class InstrumentAgent(ResourceAgent):
                     param_dict_flat = stream_config['parameter_dictionary']
                     self._param_dicts[stream_name] = ParameterDictionary.load(param_dict_flat)
                     self._stream_defs[stream_name] = stream_config['stream_definition_ref']
-                    self.route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
-                    publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=self.route)
+                    self._stream_buffers[stream_name] = []
+                    route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
+                    publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=route)
 
                     self._data_publishers[stream_name] = publisher
                     log.info("Instrument agent '%s' created publisher for stream_name "
                          "%s" % (self._proc_name, stream_name))
-                
+                    
+                    
                 except:
-                    log.warning('Instrument agent %s failed to create \
+                    log.error('Instrument agent %s failed to create \
                                 publisher for stream %s.', self._proc_name,
                                 stream_name)
 
-    def _construct_packet_factories(self):
+                param_key = 'aparam_pubfreq_'+stream_name
+                set_key = 'aparam_set_pubfreq_'+stream_name
+                f = self._make_freq_set(stream_name)
+                setattr(self, param_key, 0)
+                from types import MethodType
+                setattr(self, set_key, MethodType(f, self))
+
+    def _make_freq_set(self, stream_name):
         """
-        Construct packet factories from packet_config member of the
-        driver_config and self.CFG.stream_config.
-        @retval None
         """
-        self._packet_factories = self._dvr_proc.get_packet_factories(
-            self.CFG.stream_config)
-        log.info('Insturment agent %s constructed its packet factories.',
-                 self._proc_name)
-        
-    def _clear_packet_factories(self):
-        """
-        Delete packet factories.
-        @retval None
-        """
-        self._packet_factories.clear()
-        log.info('Instrument agent %s deleted packet factories.',
-                 self._proc_name)
-        
+        def set_func(self, val):
+            """
+            """
+            param_key = 'aparam_pubfreq_'+stream_name
+            if not isinstance(val, int) or val < 0:
+                raise BadRequest('Invald publish frequency.')
+            setattr(self,param_key,val)
+            
+        return set_func
+
     ###############################################################################
     # Event callback and handling for direct access.
     ###############################################################################

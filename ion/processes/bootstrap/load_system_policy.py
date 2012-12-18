@@ -181,6 +181,82 @@ class LoadSystemPolicy(ImmediateProcess):
             policy_text, headers=sa_user_header)
 
 
+        ##############
+
+
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+               <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">service</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:receiver-type" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+                <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">update</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">delete</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+            </Target>
+
+        </Rule> '''
+
+        policy_id = policy_client.create_common_service_access_policy( 'Allowed_CUD_Service_Operations_for_Roles',
+            'A global policy rule which specifies operations that are allowed with for OPERATOR AND MANAGER roles',
+            policy_text, headers=sa_user_header)
+
 ##############
 
         policy_text = '''
@@ -414,82 +490,6 @@ class LoadSystemPolicy(ImmediateProcess):
             policy_text, headers=sa_user_header)
 
 
-##############
-
-
-        policy_text = '''
-            <Rule RuleId="%s" Effect="Permit">
-            <Description>
-                %s
-            </Description>
-
-            <Target>
-
-               <Resources>
-                    <Resource>
-                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">process_dispatcher</AttributeValue>
-                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ResourceMatch>
-                    </Resource>
-                </Resources>
-
-                <Actions>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">update</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">delete</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                </Actions>
-
-                <Subjects>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                </Subjects>
-
-            </Target>
-
-        </Rule> '''
-
-        policy_id = policy_client.create_service_access_policy('process_dispatcher', 'PD_Role_Permitted',
-            'Permit these operations in the Process Dispatcher Service for role of Instrument Operator, Observatory Manager and Org Manager',
-            policy_text, headers=sa_user_header)
-
 
         ##############
 
@@ -543,12 +543,30 @@ class LoadSystemPolicy(ImmediateProcess):
                         </ActionMatch>
                     </Action>
                     <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">stop_direct_access</AttributeValue>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">start</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
-                </Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">stop</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">assign</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">unassign</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    </Actions>
 
                 <Subjects>
                     <Subject>
@@ -768,6 +786,65 @@ class LoadSystemPolicy(ImmediateProcess):
         #All resource_agents are kind of handled the same - but the resource-id in the rule is set to the specific type
         policy_id = policy_client.create_service_access_policy('InstrumentDevice', 'Instrument_Agent_Instrument_Operator_Permitted',
             'Permit these operations in an instrument agent for an Instrument Operator',
+            policy_text, headers=sa_user_header)
+
+
+
+
+        ##############
+
+
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+               <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">process_dispatcher</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+            </Target>
+
+        </Rule> '''
+
+        policy_id = policy_client.create_service_access_policy('process_dispatcher', 'Allow_Process_Dispatcher_for_Roles',
+            'A service policy rule allowing all operations in the Process Dispatcher for OPERATOR AND MANAGER roles',
             policy_text, headers=sa_user_header)
 
 

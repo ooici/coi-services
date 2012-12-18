@@ -42,7 +42,7 @@ class PubsubManagementService(BasePubsubManagementService):
                 return existing[0]
             raise Conflict('StreamDefinition with the specified name already exists. (%s)' % name)
 
-        if not name: create_unique_identifier()
+        name = name or create_unique_identifier()
 
         stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description)
         stream_definition_id,_  = self.clients.resource_registry.create(stream_definition)
@@ -60,7 +60,7 @@ class PubsubManagementService(BasePubsubManagementService):
             else:
                 raise NotFound('No Stream Definition is associated with this Stream')
         stream_definition = retval or self.clients.resource_registry.read(stream_definition_id)
-        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, object_type=RT.ParameterDictionaryResource, id_only=True)
+        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionaryResource, id_only=True)
         if len(pdicts):
             stream_definition.parameter_dictionary = DatasetManagementService.get_parameter_dictionary(pdicts[0]).dump()
         validate_is_instance(stream_definition,StreamDefinition)
@@ -203,11 +203,16 @@ class PubsubManagementService(BasePubsubManagementService):
         subscription.exchange_name   = exchange_name
 
         subscription_id, rev = self.clients.resource_registry.create(subscription)
+        self.container.ex_manager.create_xn_queue(exchange_name)
+        xn_ids, _ = self.clients.resource_registry.find_resources(restype=RT.ExchangeName, name=exchange_name, id_only=True)
+        if xn_ids:
+            xn_id = xn_ids[0]
+            self.clients.resource_registry.create_association(xn_id, PRED.hasSubscription, subscription_id)
 
         #---------------------------------
         # Associations
         #---------------------------------
-        
+
         for stream_id in stream_ids:
             self._associate_stream_with_subscription(stream_id, subscription_id)
         
@@ -265,7 +270,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         subscription = self.read_subscription(subscription_id)
 
-        streams, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, subject_type=RT.Stream, predicate=PRED.hasSubscription,id_only=False)
+        streams, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, object_type=RT.Stream, predicate=PRED.hasStream,id_only=False)
         topic_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasTopic, id_only=True)
 
         topic_topology = set()
@@ -298,10 +303,45 @@ class PubsubManagementService(BasePubsubManagementService):
         if self.subscription_is_active(subscription_id):
             raise BadRequest('Clients can not delete an active subscription.')
 
+        xn_objs, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=False)
+        if len(xn_objs) > 1:
+            log.warning('Subscription %s was attached to multiple queues')
         self._deassociate_subscription(subscription_id)
+
+        for xn_obj in xn_objs:
+            subscriptions, assocs = self.clients.resource_registry.find_objects(subject=xn_obj, predicate=PRED.hasSubscription, id_only=True)
+            if not subscriptions:
+                self.clients.exchange_management.undeclare_exchange_name(xn_obj._id)
+
 
         self.clients.resource_registry.delete(subscription_id)
         return True
+
+    def move_subscription(self, subscription_id='', exchange_name=''):
+
+        subscription_obj = self.read_subscription(subscription_id)
+        self.container.ex_manager.create_xn_queue(exchange_name)
+        was_active = self.subscription_is_active(subscription_id)
+        if was_active:
+            self.deactivate_subscription(subscription_id)
+        
+        subscription_obj = self.read_subscription(subscription_id)
+        subscription_obj.exchange_name = exchange_name
+        self.clients.resource_registry.update(subscription_obj)
+
+        xn_ids, _ = self.clients.resource_registry.find_resources(restype=RT.ExchangeName, name=exchange_name, id_only=True)
+        if not xn_ids:
+            return
+
+        _, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+        self._associate_subscription_with_xn(subscription_id, xn_ids[0])
+        if was_active:
+            self.activate_subscription(subscription_id)
+
+
 
     #--------------------------------------------------------------------------------
 
@@ -389,6 +429,9 @@ class PubsubManagementService(BasePubsubManagementService):
         xps, assocs = self.clients.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream,subject_type=RT.ExchangePoint, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
+        subs, assocs = self.clients.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream, subject_type=RT.Subscription, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
         objects, assocs = self.clients.resource_registry.find_objects(subject=stream_id, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
@@ -398,6 +441,11 @@ class PubsubManagementService(BasePubsubManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
+        subjects, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+
+
     def _associate_stream_with_definition(self, stream_id,stream_definition_id):
         self.clients.resource_registry.create_association(subject=stream_id, predicate=PRED.hasStreamDefinition, object=stream_definition_id)
 
@@ -406,6 +454,9 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def _associate_stream_with_exchange_point(self, stream_id, exchange_point_id):
         self.clients.resource_registry.create_association(subject=exchange_point_id, predicate=PRED.hasStream, object=stream_id)
+
+    def _associate_subscription_with_xn(self, subscription_id, exchange_name_id):
+        self.clients.resource_registry.create_association(subject=exchange_name_id, predicate=PRED.hasSubscription, object=subscription_id)
 
     def _associate_topic_with_subscription(self, topic_id, subscription_id):
         self.clients.resource_registry.create_association(subject=subscription_id, predicate=PRED.hasTopic, object=topic_id)
@@ -453,6 +504,8 @@ class PubsubManagementService(BasePubsubManagementService):
     def _child_topics(self, topic_id):
 
         def edges(topic_ids=[]):
+            if not isinstance(topic_ids, list):
+                topic_ids = list(topic_ids)
             return self.clients.resource_registry.find_objects_mult(subjects=topic_ids, id_only=True)[0]
 
         visited_topics = deque([topic_id] + edges([topic_id]))

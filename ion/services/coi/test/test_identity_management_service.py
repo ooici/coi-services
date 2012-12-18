@@ -602,6 +602,8 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 
         self.identity_management_service.delete_user_info(user_info_id)
 
+        self.org_client.revoke_role(ion_org._id, actor_id, 'ORG_MANAGER')
+
         self.identity_management_service.unregister_user_credentials(actor_id, self.subject)
 
         self.identity_management_service.delete_actor_identity(actor_id)
