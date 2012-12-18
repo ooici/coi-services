@@ -38,6 +38,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.ssclient = SchedulerServiceClient()
         self.event_publisher = EventPublisher()
         self.user_notification = UserNotificationServiceClient()
+        self.process_dispatcher = ProcessDispatcherServiceClient()
 
         self.exchange_names = []
         self.exchange_points = []
@@ -121,7 +122,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             module='ion.processes.data.transforms.event_alert_transform',
             class_name='EventAlertTransform',
             configuration= configuration)
-
+        self.addCleanup(self.process_dispatcher.cancel_process, pid)
         self.assertIsNotNone(pid)
 
         #-------------------------------------------------------------------------------------
@@ -232,7 +233,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             module='ion.processes.data.transforms.event_alert_transform',
             class_name='StreamAlertTransform',
             configuration= config)
-
+        self.addCleanup(self.process_dispatcher.cancel_process, pid)
         self.assertIsNotNone(pid)
 
         #-------------------------------------------------------------------------------------
@@ -348,7 +349,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             module='ion.processes.data.transforms.event_alert_transform',
             class_name='DemoStreamAlertTransform',
             configuration= config)
-
+        self.addCleanup(self.process_dispatcher.cancel_process, pid)
         self.assertIsNotNone(pid)
 
         #-------------------------------------------------------------------------------------

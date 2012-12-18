@@ -591,7 +591,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         platform_data_process_id = self.dataprocessclient.create_data_process(self.platform_dprocdef_id, [self.data_product_id], {}, config)
         self.dataprocessclient.activate_data_process(platform_data_process_id)
-
+        self.addCleanup(self.dataprocessclient.delete_data_process, platform_data_process_id)
 
         #-------------------------------
         # Launch Base Platform AgentInstance, connect to the resource agent client
