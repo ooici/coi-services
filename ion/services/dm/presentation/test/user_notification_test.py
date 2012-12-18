@@ -645,8 +645,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info got reloaded
         #--------------------------------------------------------------------------------------
-        proc1 = self.container.proc_manager.procs.get(pids[0])
-        log.debug("Got the process here: %s" % proc1)
+
+        processes =self.container.proc_manager.procs
+
+        worker_process = None
+        gevent.sleep(4)
+        reloaded_user_info, reloaded_reverse_user_info, process_queue = (None,None,None)
+
+
+#        proc1 = self.container.proc_manager.procs.get(pids[0])
+#        log.debug("Got the process here: %s" % proc1)
 
 #        ar_1 = gevent.event.AsyncResult()
 #        ar_2 = gevent.event.AsyncResult()
@@ -665,14 +673,20 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 #        reloaded_user_info = ar_1.get(timeout=20)
 #        reloaded_reverse_user_info = ar_2.get(timeout=20)
 
-        gevent.sleep(4)
+        for key in processes:
+            if key.startswith('notification_worker'):
+                log.debug("got the process: %s" % key)
+                proc1 = processes[key]
+                queue = proc1.q
 
-        queue = proc1.q
+                if queue.qsize() > 0:
+                    reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
+                    self.assertTrue(queue.empty())
+                    worker_process = proc1
+                    break
 
-        log.debug("IN the test, got the queue size: %s" % queue.qsize())
-        log.debug("IN the test, got the queue: %s" % queue)
-
-        reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=20)
+        self.assertIsNotNone(reloaded_user_info)
+        self.assertIsNotNone(reloaded_reverse_user_info)
 
         # read back the registered notification request objects
         notification_request_correct = self.rrc.read(notification_id_1)
@@ -693,11 +707,27 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
-        ar_1 = gevent.event.AsyncResult()
-        ar_2 = gevent.event.AsyncResult()
+#        ar_1 = gevent.event.AsyncResult()
+#        ar_2 = gevent.event.AsyncResult()
+#
+#        reloaded_user_info = ar_1.get(timeout=20)
+#        reloaded_reverse_user_info = ar_2.get(timeout=20)
 
-        reloaded_user_info = ar_1.get(timeout=20)
-        reloaded_reverse_user_info = ar_2.get(timeout=20)
+        gevent.sleep(4)
+
+        for key in processes:
+            if key.startswith('notification_worker'):
+                log.debug("got the process: %s" % key)
+                proc1 = processes[key]
+                queue = proc1.q
+
+                if queue.qsize() > 0:
+                    reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
+                    self.assertTrue(queue.empty())
+                    worker_process = proc1
+                    break
+
+#        reloaded_user_info, reloaded_reverse_user_info = worker_process.q.get(timeout=10)
 
         notification_request_2 = self.rrc.read(notification_id_2)
 

@@ -34,11 +34,8 @@ class NotificationWorker(TransformEventListener):
         '''
         This method exists only to facilitate the testing of the reload of the user_info dictionary
         '''
-        log.debug("TEST HOOK Got the user_info here: %s AND reverse_user_info: %s" % (user_info, reverse_user_info))
+        log
         self.q.put((user_info, reverse_user_info))
-        log.debug("HERERE Got the size of the queue here: %s" % self.q.qsize())
-        log.debug("HERERE Got the queue here: %s" % self.q)
-        pass
 
     def on_start(self):
         super(NotificationWorker,self).on_start()
