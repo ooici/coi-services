@@ -648,41 +648,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         processes =self.container.proc_manager.procs
 
-        worker_process = None
         gevent.sleep(4)
         reloaded_user_info, reloaded_reverse_user_info, process_queue = (None,None,None)
 
-
-#        proc1 = self.container.proc_manager.procs.get(pids[0])
-#        log.debug("Got the process here: %s" % proc1)
-
-#        ar_1 = gevent.event.AsyncResult()
-#        ar_2 = gevent.event.AsyncResult()
-
-#        def received_reload(msg, headers):
-#            log.debug("received reload here: msg=%s, headers=%s" % (msg, headers))
-#            ar_1.set(msg)
-#            ar_2.set(headers)
-#
-#
-#        proc1.test_hook = received_reload
-#
-#        log.debug("Got the hooked method here: %s" % proc1.test_hook)
-#        log.debug("proc1.user_info:: %s" % proc1.user_info)
-
-#        reloaded_user_info = ar_1.get(timeout=20)
-#        reloaded_reverse_user_info = ar_2.get(timeout=20)
-
         for key in processes:
             if key.startswith('notification_worker'):
-                log.debug("got the process: %s" % key)
                 proc1 = processes[key]
                 queue = proc1.q
 
                 if queue.qsize() > 0:
                     reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
                     self.assertTrue(queue.empty())
-                    worker_process = proc1
                     break
 
         self.assertIsNotNone(reloaded_user_info)
@@ -707,27 +683,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
-#        ar_1 = gevent.event.AsyncResult()
-#        ar_2 = gevent.event.AsyncResult()
-#
-#        reloaded_user_info = ar_1.get(timeout=20)
-#        reloaded_reverse_user_info = ar_2.get(timeout=20)
-
         gevent.sleep(4)
 
         for key in processes:
             if key.startswith('notification_worker'):
-                log.debug("got the process: %s" % key)
                 proc1 = processes[key]
                 queue = proc1.q
 
                 if queue.qsize() > 0:
                     reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
                     self.assertTrue(queue.empty())
-                    worker_process = proc1
                     break
-
-#        reloaded_user_info, reloaded_reverse_user_info = worker_process.q.get(timeout=10)
 
         notification_request_2 = self.rrc.read(notification_id_2)
 
