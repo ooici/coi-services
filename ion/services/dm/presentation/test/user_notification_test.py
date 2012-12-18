@@ -692,17 +692,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         gevent.sleep(4)
 
-        for key in processes:
-            if key.startswith('notification_worker'):
-                proc1 = processes[key]
-                queue = proc1.q
-
-                if queue.qsize() > 0:
-                    log.debug("the name 2: %s" % key)
-
-                    reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
-                    self.assertTrue(queue.empty())
-                    break
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes)
 
         notification_request_2 = self.rrc.read(notification_id_2)
 
