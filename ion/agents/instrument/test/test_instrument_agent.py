@@ -1709,6 +1709,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         #self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
         #self.assertGreaterEqual(len(self._samples_received), 6)
 
+    @unittest.skip('This test used to track down publisher threadsafety bug.')
     def test_states_special(self):
         """
         test_states_special
@@ -1733,7 +1734,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         gevent.sleep(1)
 
-        """
         def loop(publisher, ev):
             #pub = EventPublisher()
             pub = publisher
@@ -1756,7 +1756,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             #gevent.killall(gl_array)
             gevent.joinall([g[0] for g in gl_array])
         self.addCleanup(cleanup_gl, gl)
-        """
 
         while len(states)>0:
             gevent.sleep(5)
