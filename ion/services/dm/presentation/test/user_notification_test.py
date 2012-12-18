@@ -8,6 +8,7 @@
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict, get_ion_ts
+from pyon.util.poller import poll
 from pyon.public import IonObject, RT, OT, PRED, Container, CFG
 from pyon.core.exception import NotFound, BadRequest
 from pyon.core.bootstrap import get_sys_name
@@ -651,15 +652,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         gevent.sleep(4)
         reloaded_user_info, reloaded_reverse_user_info, process_queue = (None,None,None)
 
-        for key in processes:
-            if key.startswith('notification_worker'):
-                proc1 = processes[key]
-                queue = proc1.q
+        def found_user_info_dicts(processes, *args, **kwargs):
 
-                if queue.qsize() > 0:
-                    reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
-                    self.assertTrue(queue.empty())
-                    break
+            for key in processes:
+                if key.startswith('notification_worker'):
+                    proc1 = processes[key]
+                    queue = proc1.q
+
+                    if queue.qsize() > 0:
+                        log.debug("the name 1: %s" % key)
+
+                        reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
+                        self.assertTrue(queue.empty())
+                        return reloaded_user_info, reloaded_reverse_user_info
+
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes)
 
         self.assertIsNotNone(reloaded_user_info)
         self.assertIsNotNone(reloaded_reverse_user_info)
@@ -691,6 +698,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 queue = proc1.q
 
                 if queue.qsize() > 0:
+                    log.debug("the name 2: %s" % key)
+
                     reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
                     self.assertTrue(queue.empty())
                     break
