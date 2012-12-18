@@ -34,7 +34,6 @@ class NotificationWorker(TransformEventListener):
         '''
         This method exists only to facilitate the testing of the reload of the user_info dictionary
         '''
-        log
         self.q.put((user_info, reverse_user_info))
 
     def on_start(self):

@@ -8,7 +8,6 @@
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict, get_ion_ts
-from pyon.util.poller import poll
 from pyon.public import IonObject, RT, OT, PRED, Container, CFG
 from pyon.core.exception import NotFound, BadRequest
 from pyon.core.bootstrap import get_sys_name
@@ -649,9 +648,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         processes =self.container.proc_manager.procs
 
-#        gevent.sleep(4)
-        reloaded_user_info, reloaded_reverse_user_info, process_queue = (None,None,None)
-
         def found_user_info_dicts(processes, *args, **kwargs):
 
             for key in processes:
@@ -660,7 +656,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                     queue = proc1.q
 
                     if queue.qsize() > 0:
-                        log.debug("the name 1: %s" % key)
+                        log.debug("the name of the process: %s" % key)
 
                         reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
                         self.assertTrue(queue.empty())
@@ -689,8 +685,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
-
-        gevent.sleep(4)
 
         reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes)
 
