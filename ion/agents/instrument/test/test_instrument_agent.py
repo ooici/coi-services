@@ -81,6 +81,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 # bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
 # bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_freq_params
 # bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
+# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
 
 
 ###############################################################################
@@ -1770,5 +1771,53 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertEquals(len(self._events_received), 8)
         
+    def test_data_buffering(self):
+        """
+        test_data_buffering
+        """
         
+        # Start data subscribers.
+        self._start_data_subscribers(1)
+        self.addCleanup(self._stop_data_subscribers)    
         
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        # Set buffering parameters.
+        freq_params = {
+            'pubfreq_parsed':15,
+            'pubfreq_raw':15
+        }
+        self._ia_client.set_agent(freq_params)
+        retval = self._ia_client.get_agent(['pubfreq_parsed','pubfreq_raw'])
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        
+        gevent.sleep(60)
+        
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+ 
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertLessEqual(len(self._samples_received), 16)
