@@ -40,45 +40,6 @@ class TestPlatformManagement(IonIntegrationTestCase):
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
 
 
-    @unittest.skip("This test has been moved to test_oms_launch2.py which verifies all the capabilities planned to be tested here")
-    def test_get_platform_vitals(self):
-
-        # placeholder for demonstration of L4-CI-SA-RQ-341
-
-        #create a platform with metadata and an initial site and devices
-
-        #create a platform agent and launch the agent instance connected to simulator
-
-        # intialize  simulator configuration and levels
-
-        # retrieve relevant platform information: battery levels, telemetry status, etc
-
-        pass
-
-    @unittest.skip("The capabilities to be demonstrated here have been moved to other tests, test_transform_prototype.py and test_oms_launch2.py")
-    def test_get_platform_vitals_from_logs(self):
-
-        #  L4-CI-SA-RQ-117 : Marine facility shall provide summary statistics for infrastructure resource usage over selected time intervals
-        #todo this test is moved to test_transform_prototype.py. But the test is not yet complete.
-
-        # L4-CI-SA-RQ-114 : Marine facility shall monitor marine infrastructure usage by instruments
-        #todo demonstrating req 114 has been moved to test_transform_prototype.py where it has been shown to be satisfied
-
-        #todo the rest of what is planned below is now being demonstrated in test_oms_launch2.py
-
-        #create a platform with metadata and an initial site and devices
-
-        # subscribe to data product that contains engineering data such as battery power or other
-
-        # create transform to aggregate and summarize engineering data and persist output
-
-        # retrieve summary info
-
-
-
-
-
-        pass
 
     @unittest.skip("TBD")
     def test_platform_resource_policies(self):

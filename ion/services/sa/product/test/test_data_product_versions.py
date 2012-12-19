@@ -130,11 +130,11 @@ class TestDataProductVersions(IonIntegrationTestCase):
             for stream in streams:
                 self.assertTrue(stream.persisted)
 
-        log.debug("This satisfies the requirement that we can persist the streams associated to the data product versions, and therefore "
-                  "can subscribe to them")
+        log.debug("This satisfies L4-CI-DM-RQ-053: 'The dynamic data distribution services shall support multiple versions of a given data topic.' "
+                  "This is true because we have shown above that we can persist the streams associated to the data product versions, and therefore we "
+                  "can subscribe to them. In test_oms_launch2.py, we have tested that activated data products like the ones we have here can be used by data processes "
+                  "to gather streaming data and it all works together correctly. This therefore completes the demonstration of req L4-CI-DM-RQ-053.")
 
-        log.debug("Elsewhere we have tested that activated data products like the one we have here can be used by data processes"
-                  "to gather streaming data")
 
         #---------------------------------------------------------------------------------------------
         # Now delete all the created stuff and look for possible problems in doing so
