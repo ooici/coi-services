@@ -877,6 +877,9 @@ class InstrumentAgent(ResourceAgent):
             publisher = self._data_publishers[stream_name]
     
             buf_len = len(self._stream_buffers[stream_name])
+            if buf_len == 0:
+                return
+            
             vals = []
             for x in range(buf_len):
                 vals.append(self._stream_buffers[stream_name].pop())
