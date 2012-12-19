@@ -285,6 +285,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         return pid
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_demo_stream_granules_processing(self):
         """
         Test that the Demo Stream Alert Transform is functioning. The transform coordinates with the scheduler.
