@@ -467,6 +467,11 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.assertTrue(len(bad_data_events) > 0)
         self.assertTrue(len(no_data_events) > 0)
 
+        log.debug("This satisfies L4-CI-SA-RQ-114 : 'Marine facility shall monitor marine infrastructure usage by instruments.'"
+                  " The req is satisfied because the stream alert transform"
+                  "is able to send device status and communication events over selected time intervals. This capability will be "
+                  "augmented in the future.")
+
     def _publish_granules(self, stream_id=None, stream_route=None, values = None,number=None):
 
         pub = StandaloneStreamPublisher(stream_id, stream_route)

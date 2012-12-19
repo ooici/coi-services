@@ -97,7 +97,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
         log.debug( 'second dp_id = %s', str(dp2_id))
 
 
-        self.client.add_data_product_version_to_collection(data_product_id=dp2_id, data_product_collection_id=dpc_id, version_name="second version", version_description="desc" )
+        self.client.add_data_product_version_to_collection(data_product_id=dp2_id, data_product_collection_id=dpc_id, version_name="second version", version_description="a second version created" )
 
         #test that the links exist
         version_ids, _ = self.rrclient.find_objects(subject=dpc_id, predicate=PRED.hasVersion, id_only=True)
@@ -108,6 +108,37 @@ class TestDataProductVersions(IonIntegrationTestCase):
         self.assertEquals(recent_version_id, dp2_id )
         base_version_id = self.client.get_base_version(dpc_id)
         self.assertEquals(base_version_id, dp_id )
+
+        #---------------------------------------------------------------------------------------------
+        # Now check that we can subscribe to the stream for the data product version
+        #---------------------------------------------------------------------------------------------
+        # Activating the data products contained in the versions held by the data product collection
+        data_product_collection_obj = self.rrclient.read(dpc_id)
+        version_list = data_product_collection_obj.version_list
+
+        self.assertEquals(len(version_list), 2)
+
+        for version in version_list:
+            data_product_id = version.data_product_id
+            self.client.activate_data_product_persistence(data_product_id)
+
+            streams, _ = self.rrclient.find_objects(subject=data_product_id,
+                                                 predicate=PRED.hasStream,
+                                                object_type=RT.Stream)
+            self.assertTrue(len(streams) > 0)
+
+            for stream in streams:
+                self.assertTrue(stream.persisted)
+
+        log.debug("This satisfies L4-CI-DM-RQ-053: 'The dynamic data distribution services shall support multiple versions of a given data topic.' "
+                  "This is true because we have shown above that we can persist the streams associated to the data product versions, and therefore we "
+                  "can subscribe to them. In test_oms_launch2.py, we have tested that activated data products like the ones we have here can be used by data processes "
+                  "to gather streaming data and it all works together correctly. This therefore completes the demonstration of req L4-CI-DM-RQ-053.")
+
+
+        #---------------------------------------------------------------------------------------------
+        # Now delete all the created stuff and look for possible problems in doing so
+        #---------------------------------------------------------------------------------------------
 
         self.client.delete_data_product(dp_id)
         self.client.delete_data_product(dp2_id)
