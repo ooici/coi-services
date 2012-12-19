@@ -18,9 +18,12 @@ class TestLoader(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.ingestion_management = IngestionManagementServiceClient()
 
-    def assert_can_load(self, scenarios, loadui=False, loadooi=False, path=TESTED_DOC):
+    def assert_can_load(self, scenarios, loadui=False, loadooi=False,
+            path=TESTED_DOC, ui_path='default'):
         """ perform preload for given scenarios and raise exception if there is a problem with the data """
-        config = dict(op="load", scenario=scenarios, attachments="res/preload/r2_ioc/attachments", loadui=loadui, loadooi=loadooi, path=path)
+        config = dict(op="load", scenario=scenarios,
+                attachments="res/preload/r2_ioc/attachments",
+                loadui=loadui, loadooi=loadooi, path=path, ui_path=ui_path)
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
     @attr('PRELOAD')
