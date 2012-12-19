@@ -42,7 +42,8 @@ class SchedulerService(BaseSchedulerService):
                 gls.append(s)
                 if s._start_event is not None:  # still pending
                     s.kill()
-                    self.__delete(i, idx)
+
+        self.schedule_entries.clear()
 
         # wait for all running gls to finish up
         gevent.joinall(gls, timeout=10)
