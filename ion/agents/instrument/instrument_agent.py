@@ -35,6 +35,7 @@ import base64
 
 # Packages
 import numpy
+import gevent
 
 # MI exceptions
 from mi.core.exceptions import InstrumentTimeoutException
@@ -150,6 +151,7 @@ class InstrumentAgent(ResourceAgent):
         self._param_dicts = {}
         self._stream_defs = {}
         self._stream_buffers = {}
+        self._stream_greenlets = {}
         
         # Dictionary of data stream publishers. Constructed by
         # stream_config agent config member during process on_init.
@@ -622,6 +624,18 @@ class InstrumentAgent(ResourceAgent):
     # STREAMING event handlers.
     ##############################################################    
 
+    def _handler_streaming_enter(self, *args, **kwargs):
+        """
+        """
+        self._start_publisher_greenlets()
+        super(InstrumentAgent, self)._common_state_enter(*args, **kwargs)
+
+    def _handler_streaming_exit(self, *args, **kwargs):
+        """
+        """
+        self._stop_publisher_greenlets()
+        super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
+
     def _handler_streaming_reset(self, *args, **kwargs):
         """
         """
@@ -786,27 +800,20 @@ class InstrumentAgent(ResourceAgent):
         if isinstance(val, str):
             val = json.loads(val)
         
-        """
         try:
             stream_name = val['stream_name']
-        
-        except KeyError:
-            log.error('Instrument agent %s received sample with missing stream name.',
-                self._proc_name)
-        try:
             self._stream_buffers[stream_name].insert(0,val)
         except KeyError:
-            log.error('Instrument agent %s has no buffer for stream %s.',
-                self._proc_name, stream_name)
-        
-        self._stream_buffers[stream_name].append(val)
+            log.error('Instrument agent %s received sample with bad \
+                stream name %s.', self._proc_name, stream_name)
 
         state = self._fsm.get_current_state()
         param_key = 'aparam_pubfreq_'+stream_name
         pubfreq = getattr(self,param_key)
+
         if state != ResourceAgentState.STREAMING or pubfreq == 0:
             self._publish_stream_buffer(stream_name)
-            
+
         """
         try:
             stream_name = val['stream_name']
@@ -840,12 +847,30 @@ class InstrumentAgent(ResourceAgent):
             
         except:
             log.exception('Instrument agent %s could not publish data.', self._proc_name)
+        """
 
-
-    def _publsih_stream_buffer(self, stream_name):
+    def _publish_stream_buffer(self, stream_name):
         """
         """
         
+        """
+        ['quality_flag', 'preferred_timestamp', 'port_timestamp', 'lon', 'raw', 'internal_timestamp', 'time', 'lat', 'driver_timestamp']
+        ['quality_flag', 'preferred_timestamp', 'temp', 'density', 'port_timestamp', 'lon', 'salinity', 'pressure', 'internal_timestamp', 'time', 'lat', 'driver_timestamp', 'conductivit
+        
+        {"driver_timestamp": 3564867147.743795, "pkt_format_id": "JSON_Data", "pkt_version": 1, "preferred_timestamp": "driver_timestamp", "quality_flag": "ok", "stream_name": "raw",
+        "values": [{"binary": true, "value": "MzIuMzkxOSw5MS4wOTUxMiwgNzg0Ljg1MywgICA2LjE5OTQsIDE1MDUuMTc5LCAxOSBEZWMgMjAxMiwgMDA6NTI6Mjc=", "value_id": "raw"}]}', 'time': 1355878347.744123}
+        
+        {"driver_timestamp": 3564867147.743795, "pkt_format_id": "JSON_Data", "pkt_version": 1, "preferred_timestamp": "driver_timestamp", "quality_flag": "ok", "stream_name": "parsed",
+        "values": [{"value": 32.3919, "value_id": "temp"}, {"value": 91.09512, "value_id": "conductivity"}, {"value": 784.853, "value_id": "pressure"}]}', 'time': 1355878347.744127}
+        
+        {'quality_flag': [u'ok'], 'preferred_timestamp': [u'driver_timestamp'], 'port_timestamp': [None], 'lon': [None], 'raw': ['-4.9733,16.02390, 539.527,   34.2719, 1506.862, 19 Dec 2012, 01:03:07'],
+        'internal_timestamp': [None], 'time': [3564867788.0627117], 'lat': [None], 'driver_timestamp': [3564867788.0627117]}
+        
+        {'quality_flag': [u'ok'], 'preferred_timestamp': [u'driver_timestamp'], 'temp': [-4.9733], 'density': [None], 'port_timestamp': [None], 'lon': [None], 'salinity': [None], 'pressure': [539.527],
+        'internal_timestamp': [None], 'time': [3564867788.0627117], 'lat': [None], 'driver_timestamp': [3564867788.0627117], 'conductivity': [16.0239]}
+        
+        """
+
         try:
             stream_def = self._stream_defs[stream_name]
             rdt = RecordDictionaryTool(stream_definition_id=stream_def)
@@ -853,25 +878,30 @@ class InstrumentAgent(ResourceAgent):
     
             buf_len = len(self._stream_buffers[stream_name])
             vals = []
-            for x in buf_len:
+            for x in range(buf_len):
                 vals.append(self._stream_buffers[stream_name].pop())
     
-            val_ids = [x['value_id'] for x in vals[0]['values'] if x['value_id'] in rdt and not x.get('binary')]
-            binary_ids = [x['value_id'] for x in vals[0]['values'] if x['value_id'] in rdt and x.get('binary')]
-            other_ids = [k for k in vals[0].keys() if k in rdt]
-            
-            for id in val_ids:
-                data_arrays[id] = [x['values']['value'] for x in vals if x['values']['value_id']==id]
-                
-            for id in binary_ids:
-                data_arrays[id] = [base64.decode(x['values']['value']) for x in vals if x['values']['value_id']==id]
+            data_arrays = {}
+            for x in rdt.fields:
+                data_arrays[x] = [None for y in range(buf_len)]
 
-            for id in other_ids:
-                data_arrays[id] = [x[id] for x in vals]
-    
-            if 'driver_timestamp' in vals[0].keys():        
-                data_arrays['time'] = [x['driver_timestamp'] for x in vals]
-    
+            for i in range(buf_len):
+                tomato = vals[i]
+                for (tk, tv) in tomato.iteritems():
+                    if tk == 'values':
+                        for tval_dict in tv:
+                            tval_id = tval_dict['value_id']
+                            if tval_id in rdt:
+                                tval_val = tval_dict['value']
+                                if tval_dict.get('binary', None):
+                                    tval_val = base64.b64decode(tval_val)
+                                data_arrays[tval_id][i] = tval_val
+
+                    elif tk in rdt:
+                        data_arrays[tk][i] = tv
+                        if tk == 'driver_timestamp':
+                            data_arrays['time'][i] = tv    
+            
             for (k,v) in data_arrays.iteritems():
                 rdt[k] = numpy.array(v)
             
@@ -880,7 +910,7 @@ class InstrumentAgent(ResourceAgent):
             publisher.publish(g)
             log.info('Instrument agent %s published data granule on stream %s.',
                 self._proc_name, stream_name)
-
+            
         except:
             log.exception('Instrument agent %s could not publish data on stream %s.',
                 self._proc_name, stream_name)
@@ -1184,6 +1214,7 @@ class InstrumentAgent(ResourceAgent):
                     publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=route)
 
                     self._data_publishers[stream_name] = publisher
+                    self._stream_greenlets[stream_name] = None
                     log.info("Instrument agent '%s' created publisher for stream_name "
                          "%s" % (self._proc_name, stream_name))
                     
@@ -1213,6 +1244,35 @@ class InstrumentAgent(ResourceAgent):
             
         return set_func
 
+    def _start_publisher_greenlets(self):
+        """
+        """
+        for stream in self._stream_greenlets.keys():
+            self._stream_greenlets[stream] = gevent.spawn(self._pub_loop, stream)
+            
+    def _stop_publisher_greenlets(self):
+        """
+        """
+        streams = self._stream_greenlets.keys()
+        greenlets = self._stream_greenlets.values()
+        gevent.killall(greenlets)
+        gevent.joinall(greenlets)
+        for stream in streams:
+            self._stream_greenlets[stream] = None
+            self._publish_stream_buffer(stream)
+            
+            
+    def _pub_loop(self, stream):
+        """
+        """
+        while True:
+            pubfreq = getattr(self, 'aparam_pubfreq_'+stream)
+            if pubfreq == 0:
+                gevent.sleep(1)
+            else:
+                gevent.sleep(pubfreq)
+                self._publish_stream_buffer(stream)
+    
     ###############################################################################
     # Event callback and handling for direct access.
     ###############################################################################
