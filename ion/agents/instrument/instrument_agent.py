@@ -1220,16 +1220,23 @@ class InstrumentAgent(ResourceAgent):
                     
                     
                 except:
-                    log.error('Instrument agent %s failed to create \
-                                publisher for stream %s.', self._proc_name,
-                                stream_name)
+                    log.error('Instrument agent %s failed to create publisher for stream %s.',
+                              self._proc_name, stream_name)
 
-                param_key = 'aparam_pubfreq_'+stream_name
-                set_key = 'aparam_set_pubfreq_'+stream_name
-                f = self._make_freq_set(stream_name)
-                setattr(self, param_key, 0)
-                from types import MethodType
-                setattr(self, set_key, MethodType(f, self))
+                try:
+                    param_key = 'aparam_pubfreq_'+stream_name
+                    set_key = 'aparam_set_pubfreq_'+stream_name
+                    f = self._make_freq_set(stream_name)
+                    pubfreq = stream_config.get('pubfreq',0)
+                    setattr(self, param_key, pubfreq)
+                    from types import MethodType
+                    setattr(self, set_key, MethodType(f, self))
+                    log.info('Instrument agent %s configured pubfreq for stream %s to %i seconds.',
+                        self._proc_name, stream_name, pubfreq)
+                    
+                except:
+                    log.error('Instrument agent %s could not configure pubfreq for stream %s',
+                              self._proc_name, stream_name)
 
     def _make_freq_set(self, stream_name):
         """
