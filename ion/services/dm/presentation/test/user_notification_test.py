@@ -649,7 +649,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         processes =self.container.proc_manager.procs
 
         def found_user_info_dicts(processes, *args, **kwargs):
-
             for key in processes:
                 if key.startswith('notification_worker'):
                     proc1 = processes[key]
@@ -663,6 +662,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                         return reloaded_user_info, reloaded_reverse_user_info
 
         reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes)
+        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         self.assertIsNotNone(reloaded_user_info)
         self.assertIsNotNone(reloaded_reverse_user_info)
@@ -683,8 +683,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Create another notification
         #--------------------------------------------------------------------------------------
-
-        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes)
 
