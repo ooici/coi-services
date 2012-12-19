@@ -204,6 +204,7 @@ class UserNotificationService(BaseUserNotificationService):
         """
         self.batch_processing_subscriber = EventSubscriber(
             event_type="ResourceEvent",
+            queue_name='user_notification',
             origin=process_batch_key,
             callback=process
         )
