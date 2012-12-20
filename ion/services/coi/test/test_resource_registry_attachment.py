@@ -47,3 +47,31 @@ class TestResourceRegistryAttachments(IonIntegrationTestCase):
         #content has changed; it's base64-encoded from what we put in
         self.assertEqual(MY_CONTENT, attachment.content)
 
+        obj = self.RR.read(resource_id)
+        self.assertEqual(obj.name, "foo")
+        obj.name = "TheDudeAbides"
+        obj = self.RR.update(obj)
+        obj = self.RR.read(resource_id)
+        self.assertEqual(obj.name, "TheDudeAbides")
+
+        att = self.RR.find_attachments(resource_id)
+        self.assertNotEqual(att, None)
+
+
+        actor_identity_obj = IonObject("ActorIdentity", name="name")
+        actor_identity_obj_id, actor_identity_obj_rev = self.RR.create(actor_identity_obj)
+        user_info_obj = IonObject("UserInfo", name="name")
+        user_info_obj_id, user_info_obj_rev = self.RR.create(user_info_obj)
+        assoc_id, assoc_rev = self.RR.create_association(actor_identity_obj_id, PRED.hasInfo, user_info_obj_id)
+        self.assertNotEqual(assoc_id, None)
+
+        find_assoc = self.RR.find_associations(actor_identity_obj_id, PRED.hasInfo, user_info_obj_id)
+        self.assertTrue(find_assoc[0]._id == assoc_id)
+        subj = self.RR.find_subjects(RT.ActorIdentity, PRED.hasInfo, user_info_obj_id, True)
+
+        res_obj1 = self.RR.read_object(actor_identity_obj_id, PRED.hasInfo, RT.UserInfo)
+        self.assertEquals(res_obj1._id, user_info_obj_id)
+
+        self.RR.delete_association(assoc_id)
+        self.RR.delete_attachment(att_id)
+        self.RR.delete(resource_id)
