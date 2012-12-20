@@ -988,7 +988,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_type = "DetectionEvent",
             origin="instrument_3",
             origin_type="type_3",
-            time_stamp = get_ion_ts())
+            )
 
 
         #--------------------------------------------------------------------------------------

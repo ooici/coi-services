@@ -302,7 +302,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         queue_bad_data = gevent.queue.Queue()
 
         def bad_data(message, headers):
-            log.debug("Got a BAD data event: %s" % message)
+            log.debug("In the test callback, got a DeviceStatusEvent: %s" % message)
             if message.type_ == "DeviceStatusEvent":
                 queue_bad_data.put(message)
 
@@ -402,7 +402,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         val = numpy.array([(l + 20)  for l in xrange(self.length)])
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val)
 
-        self.assertTrue(queue_bad_data.empty())
+#        self.assertTrue(queue_bad_data.empty())
 
         now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
         events_in_db = self.user_notification.find_events(origin='instrument_1',limit=100, max_datetime=now, descending=True)

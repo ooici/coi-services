@@ -127,18 +127,15 @@ class StreamAlertTransform(TransformStreamListener, TransformEventPublisher):
 
 
 
-class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, TransformEventPublisher):
+class DemoStreamAlertTransform(TransformStreamListener, TransformEventPublisher):
 
     def __init__(self):
         super(DemoStreamAlertTransform,self).__init__()
 
         # the queue of granules that arrive in between two timer events
-        self.granules = gevent.queue.Queue()
+        self.bad_granules = gevent.queue.Queue()
         self.instrument_variable_name = None
-        self.timer_origin = None
-        self.timer_interval = None
         self.count = 0
-        self.timer_cleanup = (None, None)
         self.origin = ''
 
     def on_start(self):
@@ -150,57 +147,15 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.instrument_variable_name = self.CFG.get_safe('process.variable_name', 'input_voltage')
         self.time_field_name = self.CFG.get_safe('process.time_field_name', 'preferred_timestamp')
         self.valid_values = self.CFG.get_safe('process.valid_values', [-200,200])
-        self.timer_origin = self.CFG.get_safe('process.timer_origin', 'Interval Timer')
-        self.timer_interval = self.CFG.get_safe('process.timer_interval', 6)
 
         # Check that valid_values is a list
         validate_is_instance(self.valid_values, list)
 
-        # Start the timer
-        self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=self)
-        id = self._create_interval_timer_with_end_time(timer_interval=self.timer_interval, end_time=-1)
-
     def on_quit(self):
         super(DemoStreamAlertTransform,self).on_quit()
 
-        self.ssclient, sid = self.timer_cleanup
-        DemoStreamAlertTransform._cleanup_timer(self.ssclient, sid)
-
-    @staticmethod
-    def _cleanup_timer(scheduler, schedule_id):
-        """
-        Do a friendly cancel of the scheduled event.
-        If it fails, it's ok.
-        """
-        try:
-            scheduler.cancel_timer(schedule_id)
-        except:
-            log.debug("Couldn't cancel")
-
     def now_utc(self):
         return time.mktime(datetime.datetime.utcnow().timetuple())
-
-    def _create_interval_timer_with_end_time(self,timer_interval= None, end_time = None ):
-        '''
-        A convenience method to set up an interval timer with an end time
-        '''
-        self.timer_received_time = 0
-        self.timer_interval = timer_interval
-
-        start_time = self.now_utc()
-        if not end_time:
-            end_time = start_time + 2 * timer_interval + 1
-
-        # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
-        sid = self.ssclient.create_interval_timer(start_time="now" ,
-            interval=self.timer_interval,
-            end_time=end_time,
-            event_origin="Interval Timer",
-            event_subtype="")
-
-        self.timer_cleanup =  (self.ssclient, sid)
-
-        return sid
 
     def recv_packet(self, msg, stream_route, stream_id):
         '''
@@ -222,11 +177,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         config.time_field_name = self.time_field_name
 
         #-------------------------------------------------------------------------------------
-        # Store the granule received
-        #-------------------------------------------------------------------------------------
-        self.granules.put(msg)
-
-        #-------------------------------------------------------------------------------------
         # Check for good and bad values in the granule
         #-------------------------------------------------------------------------------------
         bad_values, bad_value_times, self.origin = AlertTransformAlgorithm.execute(msg, config = config)
@@ -237,37 +187,52 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         # If there are any bad values, publish an alert event for the granule
         #-------------------------------------------------------------------------------------
         if bad_values:
-            # Publish the event
-            self.publisher.publish_event(
-                event_type = 'DeviceStatusEvent',
-                origin = self.origin,
-                origin_type='PlatformDevice',
-                sub_type = self.instrument_variable_name,
-                values = bad_values,
-                time_stamps = bad_value_times,
-                valid_values = self.valid_values,
-                state = DeviceStatusType.OUT_OF_RANGE,
-                description = "Event to deliver the status of instrument."
-            )
 
-            log.debug("DemoStreamAlertTransform published a BAD DATA event")
+            # Only if this is the first time bad granule has arrived, should we publish a BAD data event
+            if self.bad_granules.empty():
+                # Publish the event
+                self.publisher.publish_event(
+                    event_type = 'DeviceStatusEvent',
+                    origin = self.origin,
+                    origin_type='PlatformDevice',
+                    sub_type = self.instrument_variable_name,
+                    values = bad_values,
+                    time_stamps = bad_value_times,
+                    valid_values = self.valid_values,
+                    state = DeviceStatusType.OUT_OF_RANGE,
+                    description = "Event to deliver the status of instrument."
+                )
 
-#    def process_event(self, msg, headers):
-#        """
-#        When timer events come, if no granule has arrived since the last timer event, publish an alarm
-#        """
-#        self.count += 1
-#
-#        log.debug("Got a timer event with count: %s" % self.count )
-#
-#        if msg.origin == self.timer_origin and self.origin:
-#
-#            if self.granules.qsize() == 0:
-#                # Publish the event
-#                log.debug("DemoStreamAlertTransform published a NO DATA event")
-#
-#            else:
-#                self.granules.queue.clear()
+                log.debug("DemoStreamAlertTransform published a BAD DATA event")
+
+                # Store the granule received
+                self.bad_granules.put(msg)
+
+        else: # The granule has valid data
+
+            # Only if this is the first time a good granule has arrived after bad ones, should we publish a GOOD data event
+            if not self.bad_granules.empty():
+
+                # Publish the event
+                self.publisher.publish_event(
+                    event_type = 'DeviceStatusEvent',
+                    origin = self.origin,
+                    origin_type='PlatformDevice',
+                    sub_type = self.instrument_variable_name,
+                    values = [],
+                    time_stamps = [],
+                    valid_values = self.valid_values,
+                    state = DeviceStatusType.OK,
+                    description = "Event to deliver the status of instrument."
+                )
+
+                log.debug("DemoStreamAlertTransform published a GOOD data event")
+
+                # Bad granule queue should have had one bad granule. We empty it here
+                self.bad_granules.get(timeout=10)
+
+                validate_true(self.bad_granules.empty())
+
 
 class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
