@@ -41,4 +41,8 @@ class TestDirectoryService(IonIntegrationTestCase):
         self.directory_service.unregister("/Foo/Bar", "SomeKey")
         ret = self.directory_service.lookup("/Foo/Bar/SomeKey")
         self.assertTrue(ret == None)
-        
+
+        self.directory_service.reset_ui_specs()
+        status = self.directory_service.get_ui_specs()
+        self.assertNotEqual(status, None)
+
