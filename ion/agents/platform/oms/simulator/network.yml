@@ -259,14 +259,6 @@ network:
                 read_write: read
                 group: power
                 monitorCycleSeconds: 2
-              - attr_id: LJ01D_attr_2
-                type: int
-                units: xyz
-                min_val: -2
-                max_val: 10
-                read_write: write
-                group: power
-                monitorCycleSeconds: 5
               ports:
               - port_id: LJ01D_port_1
                 ip: LJ01D_port_1_IP
