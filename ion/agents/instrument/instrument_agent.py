@@ -56,7 +56,6 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from coverage_model.parameter import ParameterDictionary
 
 # MI imports
 from mi.core.instrument.instrument_driver import DriverEvent
@@ -149,15 +148,25 @@ class InstrumentAgent(ResourceAgent):
         # Dictionary of data stream IDs for data publishing. Constructed
         # by stream_config agent config member during process on_init.
         self._data_streams = {}
-
-        self._param_dicts = {}
+                
+        # Dictionary of stream definition objects.
         self._stream_defs = {}
+        
+        # Data buffers for each stream.
         self._stream_buffers = {}
+        
+        # Publisher timer greenlets for stream buffering.
         self._stream_greenlets = {}
         
         # Dictionary of data stream publishers. Constructed by
         # stream_config agent config member during process on_init.
         self._data_publishers = {}
+
+        # Dictionary of alarm expressions.
+        self._alarm_expr = {}
+        
+        # Dictionary of alarm statuses.
+        self._alarm_status = {}
 
     def on_init(self):
         """
@@ -831,41 +840,6 @@ class InstrumentAgent(ResourceAgent):
         if state != ResourceAgentState.STREAMING or pubfreq == 0:
             self._publish_stream_buffer(stream_name)
 
-        """
-        try:
-            stream_name = val['stream_name']
-            publisher = self._data_publishers[stream_name]
-            #param_dict = self._param_dicts[stream_name]
-            stream_def = self._stream_defs[stream_name]
-            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-            log.info("Stream definition has the followinf fields: %s" % rdt.fields)
-
-            for (k, v) in val.iteritems():
-                if k == 'values':
-                    for x in v:
-                        value_id = x['value_id']
-                        if value_id in rdt:
-                            value = x['value']
-                            if x.get('binary', None):
-                                value = base64.b64decode(value)
-                            rdt[value_id] = numpy.array([value]) # There might be an issue here, if value is a list...
-                    
-                elif k in rdt:
-                    if k == 'driver_timestamp':
-                        rdt['time'] = numpy.array([v])
-                    rdt[k] = numpy.array([v]) # There might be an issue here if value is a list
-
-            log.info('Outgoing granule: %s' % ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
-            g = rdt.to_granule(data_producer_id=self.resource_id)
-            publisher.publish(g)        
-            
-            log.info('Instrument agent %s published data granule on stream %s.',
-                     self._proc_name, stream_name)
-            
-        except:
-            log.exception('Instrument agent %s could not publish data.', self._proc_name)
-        """
-
     def _publish_stream_buffer(self, stream_name):
         """
         """
@@ -1226,18 +1200,14 @@ class InstrumentAgent(ResourceAgent):
                     stream_id = stream_config['stream_id']
                     exchange_point = stream_config['exchange_point']
                     routing_key = stream_config['routing_key']
-                    param_dict_flat = stream_config['parameter_dictionary']
-                    self._param_dicts[stream_name] = ParameterDictionary.load(param_dict_flat)
                     self._stream_defs[stream_name] = stream_config['stream_definition_ref']
                     self._stream_buffers[stream_name] = []
                     route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
                     publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=route)
-
                     self._data_publishers[stream_name] = publisher
                     self._stream_greenlets[stream_name] = None
                     log.info("Instrument agent '%s' created publisher for stream_name "
                          "%s" % (self._proc_name, stream_name))
-                    
                     
                 except:
                     log.error('Instrument agent %s failed to create publisher for stream %s.',
