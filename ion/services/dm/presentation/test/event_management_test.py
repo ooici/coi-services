@@ -351,7 +351,8 @@ class EventManagementIntTest(IonIntegrationTestCase):
         config.process.variables = ['voltage', 'temperature' ]
 
         # Schedule the process
-        self.process_dispatcher.schedule_process(process_definition_id=proc_def_id, configuration=config)
+        pid = self.process_dispatcher.schedule_process(process_definition_id=proc_def_id, configuration=config)
+        self.addCleanup(self.process_dispatcher.cancel_process,pid)
 
         #---------------------------------------------------------------------------------------------
         # Create a subscriber for testing
@@ -438,6 +439,7 @@ class EventManagementIntTest(IonIntegrationTestCase):
                                                                         origins=['or_1', 'or_2'],
                                                                         origin_types=['or_t1', 'or_t2'],
                                                                         out_data_products = output_products)
+        self.addCleanup(self.process_dispatcher.cancel_process, event_process_id)
 
         #---------------------------------------------------------------------------------------------
         # Read the event process object and make assertions
