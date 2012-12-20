@@ -1499,10 +1499,6 @@ class IONLoader(ImmediateProcess):
             set_attributes=dict(driver_config=driver_config, port_agent_config=port_agent_config),
             support_bulk=True)
 
-        iai_obj = self.container.resource_registry.read(res_id)
-
-        org_objs,_ = self.container.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=res_id)
-
         agent_id = self.resource_ids[row["instrument_agent_id"]]
         device_id = self.resource_ids[row["instrument_device_id"]]
         client = self._get_service_client("instrument_management")
@@ -1597,7 +1593,6 @@ class IONLoader(ImmediateProcess):
 
         self.resource_ids[row['ID']] = res_id
 
-        iai_obj = self.container.resource_registry.read(res_id)
 
     #       TODO:
     #           lots of other parameters are necessary, but not part of the object.  somehow they must be saved for later actions.

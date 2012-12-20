@@ -296,11 +296,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         instrument_agent_instance_id = self.instrument_agent_instance.create_one(instrument_agent_instance)
 
         if instrument_agent_id:
-            self.read_instrument_agent(instrument_agent_id)
             self.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
 
         if instrument_device_id:
-            self.read_instrument_device(instrument_device_id)
             self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
         log.debug("create_instrument_agent_instance: device %s now connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
 
@@ -1027,10 +1025,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         platform_agent_instance_id = self.platform_agent_instance.create_one(platform_agent_instance)
 
         if platform_agent_id:
-            self.read_platform_agent(platform_agent_id)
             self.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
         if platform_device_id:
-            self.read_platform_device(platform_device_id)
             self.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
 
         return platform_agent_instance_id
