@@ -152,6 +152,12 @@ class TestPolicyManagementService(PyonTestCase):
         self.assertEqual(ex.message, "Conversation Role 'bad role' does not exist")
         self.mock_read.assert_called_once_with('bad role', '')
 
+    def test_not_implemented_methods(self):
+        self.convo_management_service.create_conversation()
+        self.convo_management_service.update_conversation()
+        self.convo_management_service.read_conversation()
+        self.convo_management_service.delete_conversation()
+
 
 @attr('INT', group='coi')
 class TestPolicyManagementServiceInt(IonIntegrationTestCase):
@@ -181,9 +187,16 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
 
 
     def test_conversation_type_crud(self):
+        bad_obj = IonObject('ConversationType', name='bad name', definition=self.rpc_scribble_protocol)
+        with self.assertRaises(BadRequest):
+            self.convo_management_service.create_conversation_type(bad_obj)
+
         convo_type_obj = IonObject('ConversationType', name='RPC', definition=self.rpc_scribble_protocol)
         convo_type_id = self.convo_management_service.create_conversation_type(convo_type_obj)
         self.assertNotEqual(convo_type_id, None)
+
+        with self.assertRaises(BadRequest):
+            self.convo_management_service.read_conversation_type()
 
         convo_type = None
         convo_type = self.convo_management_service.read_conversation_type(convo_type_id)
@@ -206,16 +219,25 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
         with self.assertRaises(NotFound) as cm:
             self.convo_management_service.delete_conversation_type(convo_type_id)
         self.assertIn("does not exist", cm.exception.message)
+        with self.assertRaises(BadRequest):
+            self.convo_management_service.delete_conversation_type()
 
     def test_conversation_role_crud(self):
+        bad_obj = IonObject("ConversationRole", {"name": "bad name"})
+        with self.assertRaises(BadRequest):
+            self.convo_management_service.create_conversation_role(bad_obj)
         convo_role_obj = IonObject("ConversationRole", {"name": "provider"})
         convo_role_id = self.convo_management_service.create_conversation_role(convo_role_obj)
         self.assertNotEqual(convo_role_id, None)
 
+        with self.assertRaises(BadRequest):
+            self.convo_management_service.read_conversation_role()
         convo_role = None
         convo_role = self.convo_management_service.read_conversation_role(convo_role_id)
         self.assertNotEqual(convo_role, None)
 
+        with self.assertRaises(BadRequest):
+            self.convo_management_service.update_conversation_type(bad_obj)
         convo_role.name = 'requester'
         self.convo_management_service.update_conversation_type(convo_role)
 
@@ -224,6 +246,8 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
         self.assertNotEqual(convo_role, None)
         self.assertEqual(convo_role.name, 'requester')
 
+        with self.assertRaises(BadRequest):
+            self.convo_management_service.delete_conversation_role()
         self.convo_management_service.delete_conversation_role(convo_role_id)
 
         with self.assertRaises(NotFound) as cm:
@@ -250,11 +274,15 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
         convo_role_id = self.convo_management_service.create_conversation_role(convo_role_obj)
         self.assertNotEqual(convo_role_id, None)
 
+        with self.assertRaises(BadRequest):
+            self.convo_management_service.bind_conversation_type_to_role()
         self.convo_management_service.bind_conversation_type_to_role(convo_type_id, convo_role_id)
 
         assoc,_ = self.resource_registry.find_objects(convo_type_id, PRED.hasRole, RT.ConversationRole)
         self.assertEqual(len(assoc),2)
 
+        with self.assertRaises(BadRequest):
+            self.convo_management_service.unbind_conversation_type_to_role()
         self.convo_management_service.unbind_conversation_type_to_role(convo_type_id, convo_role_id)
 
         assoc,_ = self.resource_registry.find_objects(convo_type_id, PRED.hasRole, RT.ConversationRole)

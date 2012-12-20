@@ -455,6 +455,13 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
         actor_identity.name = 'Updated subject'
         self.identity_management_service.update_actor_identity(actor_identity)
 
+        ai = self.identity_management_service.find_actor_identity_by_name(actor_identity.name)
+        self._baseAssertEqual(ai.name, actor_identity.name)
+        with self.assertRaises(NotFound):
+            ai = self.identity_management_service.find_actor_identity_by_name("Yeah, well, you know, that's just, like, your opinion, man.")
+
+        self._baseAssertEqual(ai.name, actor_identity.name)
+
         self.identity_management_service.delete_actor_identity(user_id)
  
         with self.assertRaises(NotFound) as cm:
@@ -596,6 +603,11 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         ion_org = self.org_client.find_org()
         self.org_client.grant_role(ion_org._id, actor_id, 'ORG_MANAGER')
 
+        with self.assertRaises(NotFound):
+            self.identity_management_service.get_user_info_extension('That rug really tied the room together.')
+        with self.assertRaises(BadRequest):
+            self.identity_management_service.get_user_info_extension()
+
         extended_user = self.identity_management_service.get_user_info_extension(user_info_id)
         self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
         self.assertEqual(len(extended_user.roles),2)
@@ -659,6 +671,8 @@ HtjSclGqi8IBmvRkTZI61zTVbGdOKMP90LV1p8noJVLRkZpWRjLxI5xy9El8daAWMdjfrSc=
         # Try to merge with nonexistent email account
         with self.assertRaises(NotFound):
             self.identity_management_service.initiate_account_merge("email3333_333@example.com")
+        with self.assertRaises(BadRequest):
+            self.identity_management_service.initiate_account_merge()
 
         # Create two users
         id, valid_until, registered = self.identity_management_service.signon(certificate, True)
@@ -689,6 +703,8 @@ HtjSclGqi8IBmvRkTZI61zTVbGdOKMP90LV1p8noJVLRkZpWRjLxI5xy9El8daAWMdjfrSc=
         # Try merging accounts with invalid token string
         with self.assertRaises(NotFound):
             self.identity_management_service.complete_account_merge(token_string="0xBeeF", headers={'ion-actor-id':id})
+        with self.assertRaises(BadRequest):
+            self.identity_management_service.complete_account_merge()
 
         # Try merging accounts with a different user
         # Since this user hasn't initiated account merge, the token doesn't exist in his/her UserInfo
