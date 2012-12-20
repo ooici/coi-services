@@ -300,26 +300,19 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
 
         queue_bad_data = gevent.queue.Queue()
-        queue_no_data = gevent.queue.Queue()
 
         def bad_data(message, headers):
             log.debug("Got a BAD data event: %s" % message)
             if message.type_ == "DeviceStatusEvent":
                 queue_bad_data.put(message)
 
-        def no_data(message, headers):
-            log.debug("Got a NO data event: %s" % message)
-            queue_no_data.put(message)
-
         event_subscriber_bad_data = EventSubscriber( origin="instrument_1",
             event_type="DeviceStatusEvent",
             callback=bad_data)
 
         event_subscriber_bad_data.start()
-        event_subscriber_no_data.start()
 
         self.addCleanup(event_subscriber_bad_data.stop)
-        self.addCleanup(event_subscriber_no_data.stop)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Stream Alert Transform... set up the event types to listen to
@@ -402,7 +395,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # Empty the queues and repeat tests
         #-------------------------------------------------------------------------------------
         queue_bad_data.queue.clear()
-        queue_no_data.queue.clear()
 
         #-------------------------------------------------------------------------------------
         # publish a *GOOD* granule again
@@ -418,7 +410,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         log.debug("events::: %s" % events_in_db)
 
         bad_data_events = []
-        no_data_events = []
 
         for event in events_in_db:
             if event.type_ == 'DeviceStatusEvent':
@@ -429,7 +420,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                 self.assertEquals(event.sub_type, 'input_voltage')
 
         self.assertTrue(len(bad_data_events) > 0)
-        self.assertTrue(len(no_data_events) > 0)
 
         log.debug("This satisfies L4-CI-SA-RQ-114 : 'Marine facility shall monitor marine infrastructure usage by instruments.'"
                   " The req is satisfied because the stream alert transform"
