@@ -375,18 +375,17 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         val = numpy.array([(110 + l)  for l in xrange(self.length)])
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val)
 
-        for number in xrange(self.number):
-            event = queue_bad_data.get(timeout=40)
-            self.assertEquals(event.type_, "DeviceStatusEvent")
-            self.assertEquals(event.origin, "instrument_1")
-            self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
-            self.assertEquals(event.valid_values, self.valid_values)
-            self.assertEquals(event.sub_type, 'input_voltage')
-            self.assertTrue(set(event.values) ==  set(val))
+        event = queue_bad_data.get(timeout=40)
+        self.assertEquals(event.type_, "DeviceStatusEvent")
+        self.assertEquals(event.origin, "instrument_1")
+        self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+        self.assertEquals(event.valid_values, self.valid_values)
+        self.assertEquals(event.sub_type, 'input_voltage')
+        self.assertTrue(set(event.values) ==  set(val))
 
-            s = set(event.time_stamps)
-            cond = s in [set(numpy.array([1  for l in xrange(self.length)]).tolist()), set(numpy.array([2  for l in xrange(self.length)]).tolist())]
-            self.assertTrue(cond)
+        s = set(event.time_stamps)
+        cond = s in [set(numpy.array([1  for l in xrange(self.length)]).tolist()), set(numpy.array([2  for l in xrange(self.length)]).tolist())]
+        self.assertTrue(cond)
 
         # To ensure that only the bad values generated the alert events. Queue should be empty now
         self.assertEquals(queue_bad_data.qsize(), 0)
