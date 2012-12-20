@@ -15,7 +15,8 @@ from pyon.public import PRED, RT, IonObject
 from ion.services.coi.org_management_service import OrgManagementService
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from ion.services.coi.policy_management_service import ORG_MEMBER_ROLE, ORG_MANAGER_ROLE
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
+
 
 
 @attr('UNIT', group='coi')
