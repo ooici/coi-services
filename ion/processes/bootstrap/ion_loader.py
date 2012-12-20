@@ -1509,9 +1509,7 @@ class IONLoader(ImmediateProcess):
 
         client.assign_instrument_agent_to_instrument_agent_instance(agent_id, res_id)
         client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
-        log.debug("_load_InstrumentAgentInstance agent_instance: %s", iai_obj)
-        for org_obj in org_objs:
-            log.debug("_load_InstrumentAgentInstance org_obj: %s", org_obj)
+
 
     def _load_PlatformAgent(self, row):
         log.debug("_load_PlatformAgent row %s " % str(row))
@@ -1600,10 +1598,6 @@ class IONLoader(ImmediateProcess):
         self.resource_ids[row['ID']] = res_id
 
         iai_obj = self.container.resource_registry.read(res_id)
-        org_objs,_ = self.container.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=res_id)
-        log.debug("_load_PlatformAgentInstance agent_instance: %s", iai_obj)
-        for org_obj in org_objs:
-            log.debug("_load_PlatformAgentInstance org_obj: %s", org_obj)
 
     #       TODO:
     #           lots of other parameters are necessary, but not part of the object.  somehow they must be saved for later actions.
