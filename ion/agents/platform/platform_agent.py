@@ -25,6 +25,9 @@ from pyon.core.exception import BadRequest
 
 from pyon.core.bootstrap import get_obj_registry
 from pyon.core.object import IonObjectDeserializer
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+
 
 from ion.agents.instrument.common import BaseEnum
 
@@ -266,6 +269,12 @@ class PlatformAgent(ResourceAgent):
         '''
         This function is used for governance validation for the set_resource operation.
         '''
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
@@ -276,6 +285,12 @@ class PlatformAgent(ResourceAgent):
         '''
         This function is used for governance validation for the execute_resource operation.
         '''
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
@@ -286,6 +301,12 @@ class PlatformAgent(ResourceAgent):
         '''
         This function is used for governance validation for the ping_resource operation.
         '''
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
@@ -635,11 +656,8 @@ class PlatformAgent(ResourceAgent):
                 self._platform_id, stream_name, str(rdt), str(g))
 
     def _handle_external_event_driver_event(self, driver_event):
-        #
-        # TODO appropriate granularity and structure of the event.
 
         event_type = driver_event._event_type
-        ts = driver_event._ts
 
         event_instance = driver_event._event_instance
         platform_id = event_instance.get('platform_id', None)
@@ -650,19 +668,14 @@ class PlatformAgent(ResourceAgent):
         # TODO appropriate origin for the event
         origin = platform_id  # self.resource_id
 
-        # TODO re 'external_alarm_type' and event_type='PlatformAlarmEvent' below:
-        # ion-definitions still has 'PlatformAlarmEvent' and 'external_alarm_type'
-        # but it should be changed so it reflects the more generic "platform event"
-        # term. However, note that there is already a pre-existing 'PlatformEvent'
-        # in ion-definitions so we may need to define 'PlatformExternalEvent'
-        # or something like that.
+        description  = "message: %s" % message
+        description += "; group: %s" % group
+        description += "; external_event_type: %s" % event_type
+        description += "; external_timestamp: %s" % timestamp
 
         event_data = {
-            'description':  message,
-            'sub_type':     group,      # ID of event categorization
-            'ts_created':   ts,         # time of reception at the driver
-            'external_alarm_type':   event_type,
-            'external_timestamp':    timestamp,  # as given by OMS
+            'description':  description,
+            'sub_type':     'platform_event',
         }
 
         log.info("%r: publishing external platform event: event_data=%s",
@@ -670,7 +683,7 @@ class PlatformAgent(ResourceAgent):
 
         try:
             self._event_publisher.publish_event(
-                event_type='PlatformAlarmEvent',
+                event_type='DeviceEvent',
                 origin=origin,
                 **event_data)
 

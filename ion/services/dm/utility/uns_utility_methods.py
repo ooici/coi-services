@@ -4,6 +4,7 @@
 @description A module containing common utility methods used by UNS and the notification workers.
 '''
 from pyon.public import get_sys_name, CFG
+from pyon.util.ion_time import IonTime
 from pyon.util.arg_check import validate_is_not_none
 from pyon.util.log import log
 from pyon.core.exception import NotFound, BadRequest
@@ -16,44 +17,6 @@ import string
 from email.mime.text import MIMEText
 from gevent import Greenlet
 import datetime
-
-class FakeScheduler(object):
-
-    def __init__(self):
-        self.event_publisher = EventPublisher("SchedulerEvent")
-
-    def set_task(self, task_time, message):
-
-        #------------------------------------------------------------------------------------
-        # get the current time. Ex: datetime.datetime(2012, 7, 12, 14, 30, 6, 769776)
-        #------------------------------------------------------------------------------------
-
-        current_time = datetime.datetime.today()
-
-        #------------------------------------------------------------------------------------
-        # Calculate the time to wait
-        #------------------------------------------------------------------------------------
-        wait_time = datetime.timedelta( days = task_time.day - current_time.day,
-            hours = task_time.hour - current_time.hour,
-            minutes = task_time.minute - current_time.minute,
-            seconds = task_time.second - current_time.second)
-
-        log.info("Fake scheduler calculated wait_time = %s" % wait_time)
-
-        seconds = wait_time.total_seconds()
-
-        if seconds < 0:
-            log.warning("Calculated wait time: %s seconds. Publishing immediately.")
-            seconds = 0
-
-        log.info("Total seconds of wait time = %s" % seconds)
-
-        # this has to be replaced by something better
-        gevent.sleep(seconds)
-
-        self.event_publisher.publish_event(origin='Scheduler', description = message)
-        log.info("Fake scheduler published a SchedulerEvent")
-
 
 class fake_smtplib(object):
 
@@ -70,6 +33,7 @@ class fake_smtplib(object):
         log.warning('Sending fake message from: %s, to: "%s"' % (msg_sender,  msg_recipients))
         log.info("Fake message sent: %s" % msg)
         self.sent_mail.put((msg_sender, msg_recipients[0], msg))
+        log.debug("size of the sent_mail queue::: %s" % self.sent_mail.qsize())
 
     def quit(self):
         """
@@ -110,6 +74,12 @@ def setting_up_smtp_client():
 
     return smtp_client
 
+
+def _convert_to_human_readable(t = ''):
+
+    it = IonTime(int(t)/1000.)
+    return str(it)
+
 def send_email(message, msg_recipient, smtp_client):
     '''
     A common method to send email with formatting
@@ -120,12 +90,14 @@ def send_email(message, msg_recipient, smtp_client):
 
     '''
 
-    time_stamp = message.ts_created
+    log.debug("Got type of event to notify on: %s" % message.type_)
+
+    # Get the diffrent attributes from the event message
     event = message.type_
     origin = message.origin
-    description = message.description
+    description = message.description or "Not provided for this event"
     event_obj_as_string = str(message)
-
+    ts_created = _convert_to_human_readable(message.ts_created)
 
     #------------------------------------------------------------------------------------
     # build the email from the event content
@@ -137,7 +109,7 @@ def send_email(message, msg_recipient, smtp_client):
                             "",
                             "Description: %s," % description,
                             "",
-                            "Time stamp: %s," %  time_stamp,
+                            "ts_created: %s," %  ts_created,
                             "",
                             "Event object as a dictionary: %s," %  event_obj_as_string,
                             "",
@@ -149,6 +121,8 @@ def send_email(message, msg_recipient, smtp_client):
                             "and the emails will not be read."),
         "\r\n")
     msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
+
+    log.debug("msg_body::: %s" % msg_body)
 
     #------------------------------------------------------------------------------------
     # the 'from' email address for notification emails
@@ -183,6 +157,7 @@ def check_user_notification_interest(event, reverse_user_info):
 
     @retval user_ids list
     '''
+    log.debug("checking for interested users. Event type: %s, reverse_user_info: %s" % (event.type_, reverse_user_info))
 
     if not isinstance(event, Event):
         raise BadRequest("The input parameter should have been an Event.")
@@ -290,32 +265,32 @@ def calculate_reverse_user_info(user_info=None):
                 if not isinstance(notification, NotificationRequest):
                     continue
 
-                if dict_1.has_key(notification.event_type) and notification.event_type:
+                if dict_1.has_key(notification.event_type) and notification.event_type != '':
                     dict_1[notification.event_type].append(user_id)
                     # to remove duplicate user names
                     dict_1[notification.event_type] = list(set(dict_1[notification.event_type]))
-                else:
+                elif notification.event_type != '':
                     dict_1[notification.event_type] = [user_id]
 
-                if dict_2.has_key(notification.event_subtype) and notification.event_subtype:
+                if dict_2.has_key(notification.event_subtype) and notification.event_subtype != '':
                     dict_2[notification.event_subtype].append(user_id)
                     # to remove duplicate user names
                     dict_2[notification.event_subtype] = list(set(dict_2[notification.event_subtype]))
-                else:
+                elif notification.event_subtype != '':
                     dict_2[notification.event_subtype] = [user_id]
 
-                if dict_3.has_key(notification.origin) and notification.origin:
+                if dict_3.has_key(notification.origin) and notification.origin != '':
                     dict_3[notification.origin].append(user_id)
                     # to remove duplicate user names
                     dict_3[notification.origin] = list(set(dict_3[notification.origin]))
-                else:
+                elif notification.origin != '':
                     dict_3[notification.origin] = [user_id]
 
-                if dict_4.has_key(notification.origin_type) and notification.origin_type:
+                if dict_4.has_key(notification.origin_type) and notification.origin_type != '':
                     dict_4[notification.origin_type].append(user_id)
                     # to remove duplicate user names
                     dict_4[notification.origin_type] = list(set(dict_4[notification.origin_type]))
-                else:
+                elif notification.origin_type != '':
                     dict_4[notification.origin_type] = [user_id]
 
                 reverse_user_info['event_type'] = dict_1

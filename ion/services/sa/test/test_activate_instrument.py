@@ -117,12 +117,17 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instModel_id = self.imsclient.create_instrument_model(instModel_obj)
         print  'new InstrumentModel id = %s ' % instModel_id
 
+
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
+
         # Create InstrumentAgent
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
                                   driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
-                                  driver_class="SBE37Driver" )
+                                  driver_class="SBE37Driver",
+                                  stream_configurations = [raw_config, parsed_config])
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         print  'new InstrumentAgent id = %s' % instAgent_id
 
@@ -160,8 +165,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
-                                          port_agent_config = port_agent_config,
-                                            stream_configurations = [raw_config, parsed_config])
+                                          port_agent_config = port_agent_config)
 
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
@@ -307,12 +311,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
-        retval = self._ia_client.execute_resource(cmd)
-        print "test_activateInstrumentSample: return from sample %s" % str(retval)
-        retval = self._ia_client.execute_resource(cmd)
-        print "test_activateInstrumentSample: return from sample %s" % str(retval)
-        retval = self._ia_client.execute_resource(cmd)
-        print "test_activateInstrumentSample: return from sample %s" % str(retval)
+        for i in xrange(10):
+            retval = self._ia_client.execute_resource(cmd)
+            print "test_activateInstrumentSample: return from sample %s" % str(retval)
+
 
         print "test_activateInstrumentSample: calling reset "
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
@@ -328,7 +330,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         log.debug("RDT parsed: %s", str(rdt.pretty_print()) )
         temp_vals = rdt['temp']
-        self.assertTrue(len(temp_vals) == 3)
+        self.assertTrue(len(temp_vals) == 10)
 
 
         replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
@@ -337,7 +339,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("RDT raw: %s", str(rdt.pretty_print()) )
 
         raw_vals = rdt['raw']
-        self.assertTrue(len(raw_vals) == 3)
+        self.assertTrue(len(raw_vals) == 10)
 
 
         print "l4-ci-sa-rq-138"
@@ -385,10 +387,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                 origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
         extended_instrument = self.imsclient.get_instrument_device_extension(instDevice_id)
-        #log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
-#        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
-#        self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_WARNING)
-#        self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_OK)
+        log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
+        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
+        self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
+        self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
 
 
         #-------------------------------

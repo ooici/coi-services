@@ -15,6 +15,7 @@ from pyon.public import log
 
 from pyon.core.exception import ServerError
 from pyon.util.context import LocalContextMixin
+from pyon.public import CFG
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
@@ -36,6 +37,7 @@ from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 
 from gevent.event import AsyncResult
 from gevent import sleep
+from mock import patch
 
 import time
 import ntplib
@@ -45,8 +47,8 @@ from nose.plugins.attrib import attr
 
 
 # TIMEOUT: timeout for each execute_agent call.
-TIMEOUT = 90
-
+# TIMEOUT = 180
+# Carlos: we remove this and use the default patched from CFG
 
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
@@ -71,6 +73,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 180}}})
 class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     @classmethod
@@ -208,10 +211,12 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
     def _assert_state(self, state):
         self.assertEquals(self._get_state(), state)
 
-    def _execute_agent(self, cmd, timeout=TIMEOUT):
+    #def _execute_agent(self, cmd, timeout=TIMEOUT):
+    def _execute_agent(self, cmd):
         log.info("_execute_agent: cmd=%r ...", cmd.command)
         time_start = time.time()
-        retval = self._pa_client.execute_agent(cmd, timeout=timeout)
+        #retval = self._pa_client.execute_agent(cmd, timeout=timeout)
+        retval = self._pa_client.execute_agent(cmd)
         elapsed_time = time.time() - time_start
         log.info("_execute_agent: cmd=%r elapsed_time=%s, retval = %s",
                  cmd.command, elapsed_time, str(retval))
@@ -231,7 +236,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         if self._get_state() == PlatformAgentState.UNINITIALIZED:
             # should get ServerError: "Command not handled in current state"
             with self.assertRaises(ServerError):
-                self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+                #self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+                self._pa_client.execute_agent(cmd)
         else:
             # In all other states the command should be accepted:
             retval = self._execute_agent(cmd)
@@ -395,7 +401,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def test_capabilities(self):
 
-        log.info("test_capabilities starting.  Default timeout=%s", TIMEOUT)
+        #log.info("test_capabilities starting.  Default timeout=%s", TIMEOUT)
+        log.info("test_capabilities starting.  Default timeout=%i", CFG.endpoint.receive.timeout)
 
         agt_cmds_all = [
             PlatformAgentEvent.INITIALIZE,
@@ -605,7 +612,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def test_go_active_and_run(self):
 
-        log.info("test_go_active_and_run starting.  Default timeout=%s", TIMEOUT)
+        #log.info("test_go_active_and_run starting.  Default timeout=%s", TIMEOUT)
+        log.info("test_capabilities starting.  Default timeout=%i", CFG.endpoint.receive.timeout)
+        
 
         self._ping_agent()
 

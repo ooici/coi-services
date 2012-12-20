@@ -40,38 +40,6 @@ class TestPlatformManagement(IonIntegrationTestCase):
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
 
 
-    @unittest.skip("TBD")
-    def test_get_platform_vitals(self):
-
-        # placeholder for demonstration of L4-CI-SA-RQ-341
-
-        #create a platform with metadata and an initial site and devices
-
-        #create a platform agent and launch the agent instance connected to simulator
-
-        # intialize  simulator configuration and levels
-
-        # retrieve relevant platform information: battery levels, telemetry status, etc
-
-        pass
-
-    @unittest.skip("TBD")
-    def test_get_platform_vitals_from_logs(self):
-
-        #  L4-CI-SA-RQ-117 : Marine facility shall provide summary statistics for infrastructure resource usage over selected time intervals
-
-        # L4-CI-SA-RQ-114 : Marine facility shall monitor marine infrastructure usage by instruments
-
-        #create a platform with metadata and an initial site and devices
-
-        # subscribe to data product that contains engineering data such as battery power or other
-
-        # create transform to aggregate and summarize engineering data and persist output
-
-        # retrieve summary info
-
-
-        pass
 
     @unittest.skip("TBD")
     def test_platform_resource_policies(self):

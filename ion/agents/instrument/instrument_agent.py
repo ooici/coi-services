@@ -12,12 +12,14 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 # Pyon imports
-from pyon.public import IonObject, log, RT, PRED, LCS, OT
+from pyon.public import IonObject, log, RT, PRED, LCS, OT, CFG
 from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
 from pyon.util.containers import get_ion_ts
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
 # Pyon exceptions.
 from pyon.core.exception import IonException
@@ -35,6 +37,7 @@ import base64
 
 # Packages
 import numpy
+import gevent
 
 # MI exceptions
 from mi.core.exceptions import InstrumentTimeoutException
@@ -62,7 +65,6 @@ from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverParameter
 from mi.core.instrument.data_particle import DataParticle
 from interface.objects import StreamRoute
-
 from interface.objects import AgentCommand
 
 class InstrumentAgentState():
@@ -150,7 +152,9 @@ class InstrumentAgent(ResourceAgent):
 
         self._param_dicts = {}
         self._stream_defs = {}
-
+        self._stream_buffers = {}
+        self._stream_greenlets = {}
+        
         # Dictionary of data stream publishers. Constructed by
         # stream_config agent config member during process on_init.
         self._data_publishers = {}
@@ -170,7 +174,6 @@ class InstrumentAgent(ResourceAgent):
 
         # Construct stream publishers.
         self._construct_data_publishers()
-
 
     ##############################################################
     # Capabilities interface and event handlers.
@@ -225,6 +228,12 @@ class InstrumentAgent(ResourceAgent):
         '''
         This function is used for governance validation for the set_resource operation.
         '''
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
@@ -235,12 +244,16 @@ class InstrumentAgent(ResourceAgent):
         '''
         This function is used for governance validation for the execute_resource operation.
         '''
+
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
-
-        #if msg['command'].command == ResourceAgentEvent.GO_DIRECT_ACCESS and not com.commitment.exclusive:
-        #    return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (headers['ion-actor-id'], self.resource_id)
 
         return True, ''
 
@@ -248,6 +261,12 @@ class InstrumentAgent(ResourceAgent):
         '''
         This function is used for governance validation for the ping_resource operation.
         '''
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
@@ -622,6 +641,18 @@ class InstrumentAgent(ResourceAgent):
     # STREAMING event handlers.
     ##############################################################    
 
+    def _handler_streaming_enter(self, *args, **kwargs):
+        """
+        """
+        self._start_publisher_greenlets()
+        super(InstrumentAgent, self)._common_state_enter(*args, **kwargs)
+
+    def _handler_streaming_exit(self, *args, **kwargs):
+        """
+        """
+        self._stop_publisher_greenlets()
+        super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
+
     def _handler_streaming_reset(self, *args, **kwargs):
         """
         """
@@ -785,7 +816,22 @@ class InstrumentAgent(ResourceAgent):
         # If the sample event is encoded, load it back to a dict.
         if isinstance(val, str):
             val = json.loads(val)
+        
+        try:
+            stream_name = val['stream_name']
+            self._stream_buffers[stream_name].insert(0,val)
+        except KeyError:
+            log.error('Instrument agent %s received sample with bad \
+                stream name %s.', self._proc_name, stream_name)
 
+        state = self._fsm.get_current_state()
+        param_key = 'aparam_pubfreq_'+stream_name
+        pubfreq = getattr(self,param_key)
+
+        if state != ResourceAgentState.STREAMING or pubfreq == 0:
+            self._publish_stream_buffer(stream_name)
+
+        """
         try:
             stream_name = val['stream_name']
             publisher = self._data_publishers[stream_name]
@@ -818,7 +864,77 @@ class InstrumentAgent(ResourceAgent):
             
         except:
             log.exception('Instrument agent %s could not publish data.', self._proc_name)
+        """
 
+    def _publish_stream_buffer(self, stream_name):
+        """
+        """
+        
+        """
+        ['quality_flag', 'preferred_timestamp', 'port_timestamp', 'lon', 'raw', 'internal_timestamp', 'time', 'lat', 'driver_timestamp']
+        ['quality_flag', 'preferred_timestamp', 'temp', 'density', 'port_timestamp', 'lon', 'salinity', 'pressure', 'internal_timestamp', 'time', 'lat', 'driver_timestamp', 'conductivit
+        
+        {"driver_timestamp": 3564867147.743795, "pkt_format_id": "JSON_Data", "pkt_version": 1, "preferred_timestamp": "driver_timestamp", "quality_flag": "ok", "stream_name": "raw",
+        "values": [{"binary": true, "value": "MzIuMzkxOSw5MS4wOTUxMiwgNzg0Ljg1MywgICA2LjE5OTQsIDE1MDUuMTc5LCAxOSBEZWMgMjAxMiwgMDA6NTI6Mjc=", "value_id": "raw"}]}', 'time': 1355878347.744123}
+        
+        {"driver_timestamp": 3564867147.743795, "pkt_format_id": "JSON_Data", "pkt_version": 1, "preferred_timestamp": "driver_timestamp", "quality_flag": "ok", "stream_name": "parsed",
+        "values": [{"value": 32.3919, "value_id": "temp"}, {"value": 91.09512, "value_id": "conductivity"}, {"value": 784.853, "value_id": "pressure"}]}', 'time': 1355878347.744127}
+        
+        {'quality_flag': [u'ok'], 'preferred_timestamp': [u'driver_timestamp'], 'port_timestamp': [None], 'lon': [None], 'raw': ['-4.9733,16.02390, 539.527,   34.2719, 1506.862, 19 Dec 2012, 01:03:07'],
+        'internal_timestamp': [None], 'time': [3564867788.0627117], 'lat': [None], 'driver_timestamp': [3564867788.0627117]}
+        
+        {'quality_flag': [u'ok'], 'preferred_timestamp': [u'driver_timestamp'], 'temp': [-4.9733], 'density': [None], 'port_timestamp': [None], 'lon': [None], 'salinity': [None], 'pressure': [539.527],
+        'internal_timestamp': [None], 'time': [3564867788.0627117], 'lat': [None], 'driver_timestamp': [3564867788.0627117], 'conductivity': [16.0239]}
+        
+        """
+
+        try:
+            stream_def = self._stream_defs[stream_name]
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+            publisher = self._data_publishers[stream_name]
+    
+            buf_len = len(self._stream_buffers[stream_name])
+            if buf_len == 0:
+                return
+            
+            vals = []
+            for x in range(buf_len):
+                vals.append(self._stream_buffers[stream_name].pop())
+    
+            data_arrays = {}
+            for x in rdt.fields:
+                data_arrays[x] = [None for y in range(buf_len)]
+
+            for i in range(buf_len):
+                tomato = vals[i]
+                for (tk, tv) in tomato.iteritems():
+                    if tk == 'values':
+                        for tval_dict in tv:
+                            tval_id = tval_dict['value_id']
+                            if tval_id in rdt:
+                                tval_val = tval_dict['value']
+                                if tval_dict.get('binary', None):
+                                    tval_val = base64.b64decode(tval_val)
+                                data_arrays[tval_id][i] = tval_val
+
+                    elif tk in rdt:
+                        data_arrays[tk][i] = tv
+                        if tk == 'driver_timestamp':
+                            data_arrays['time'][i] = tv    
+            
+            for (k,v) in data_arrays.iteritems():
+                rdt[k] = numpy.array(v)
+            
+            log.info('Outgoing granule: %s' % ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
+            g = rdt.to_granule(data_producer_id=self.resource_id)
+            publisher.publish(g)
+            log.info('Instrument agent %s published data granule on stream %s.',
+                self._proc_name, stream_name)
+            
+        except:
+            log.exception('Instrument agent %s could not publish data on stream %s.',
+                self._proc_name, stream_name)
+        
     def _async_driver_event_error(self, val, ts):
         """
         """
@@ -1113,19 +1229,77 @@ class InstrumentAgent(ResourceAgent):
                     param_dict_flat = stream_config['parameter_dictionary']
                     self._param_dicts[stream_name] = ParameterDictionary.load(param_dict_flat)
                     self._stream_defs[stream_name] = stream_config['stream_definition_ref']
-                    self.route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
-                    publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=self.route)
+                    self._stream_buffers[stream_name] = []
+                    route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
+                    publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=route)
 
                     self._data_publishers[stream_name] = publisher
+                    self._stream_greenlets[stream_name] = None
                     log.info("Instrument agent '%s' created publisher for stream_name "
                          "%s" % (self._proc_name, stream_name))
-                
+                    
+                    
                 except:
-                    log.warning('Instrument agent %s failed to create \
-                                publisher for stream %s.', self._proc_name,
-                                stream_name)
+                    log.error('Instrument agent %s failed to create publisher for stream %s.',
+                              self._proc_name, stream_name)
 
+                try:
+                    param_key = 'aparam_pubfreq_'+stream_name
+                    set_key = 'aparam_set_pubfreq_'+stream_name
+                    f = self._make_freq_set(stream_name)
+                    pubfreq = stream_config.get('pubfreq',0)
+                    setattr(self, param_key, pubfreq)
+                    from types import MethodType
+                    setattr(self, set_key, MethodType(f, self))
+                    log.info('Instrument agent %s configured pubfreq for stream %s to %i seconds.',
+                        self._proc_name, stream_name, pubfreq)
+                    
+                except:
+                    log.error('Instrument agent %s could not configure pubfreq for stream %s',
+                              self._proc_name, stream_name)
 
+    def _make_freq_set(self, stream_name):
+        """
+        """
+        def set_func(self, val):
+            """
+            """
+            param_key = 'aparam_pubfreq_'+stream_name
+            if not isinstance(val, int) or val < 0:
+                raise BadRequest('Invald publish frequency.')
+            setattr(self,param_key,val)
+            
+        return set_func
+
+    def _start_publisher_greenlets(self):
+        """
+        """
+        for stream in self._stream_greenlets.keys():
+            self._stream_greenlets[stream] = gevent.spawn(self._pub_loop, stream)
+            
+    def _stop_publisher_greenlets(self):
+        """
+        """
+        streams = self._stream_greenlets.keys()
+        greenlets = self._stream_greenlets.values()
+        gevent.killall(greenlets)
+        gevent.joinall(greenlets)
+        for stream in streams:
+            self._stream_greenlets[stream] = None
+            self._publish_stream_buffer(stream)
+            
+            
+    def _pub_loop(self, stream):
+        """
+        """
+        while True:
+            pubfreq = getattr(self, 'aparam_pubfreq_'+stream)
+            if pubfreq == 0:
+                gevent.sleep(1)
+            else:
+                gevent.sleep(pubfreq)
+                self._publish_stream_buffer(stream)
+    
     ###############################################################################
     # Event callback and handling for direct access.
     ###############################################################################

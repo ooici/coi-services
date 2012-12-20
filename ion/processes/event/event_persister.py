@@ -13,8 +13,6 @@ from pyon.public import log
 
 """
 TODO:
-- Make sure this is a singleton or use shared queue
-- More than one process
 - How fast can this receive event messages?
 """
 
@@ -41,10 +39,13 @@ class EventPersister(StandaloneProcess):
     def on_start(self):
         # Persister thread
         self._persist_greenlet = spawn(self._trigger_func, self.persist_interval)
-        log.debug('Publisher Greenlet started in "%s"' % self.__class__.__name__)
+        log.debug('Publisher Greenlet started in "%s"', self.__class__.__name__)
 
         # Event subscription
-        self.event_sub = EventSubscriber(pattern=EventSubscriber.ALL_EVENTS, callback=self._on_event)
+        self.event_sub = EventSubscriber(pattern=EventSubscriber.ALL_EVENTS,
+                                         callback=self._on_event,
+                                         queue_name="event_persister")
+
         self.event_sub.start()
 
     def on_quit(self):

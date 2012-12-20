@@ -19,6 +19,8 @@ from datetime import datetime
 
 import simplejson
 import math
+import ntplib
+import time
 import gevent
 import base64
 from gevent.greenlet import Greenlet
@@ -157,7 +159,6 @@ class VisualizationService(BaseVisualizationService):
 
                         varTuple = []
 
-                        # Adjust the ntp time stamp from instruments to standard date tine
                         #varTuple.append(datetime.fromtimestamp(tempTuple[0]))
                         varTuple.append(datetime.fromtimestamp(tempTuple[0]))
 
@@ -323,10 +324,14 @@ class VisualizationService(BaseVisualizationService):
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
 
+        max_time_steps = None
+        dataset_bounds = None
+        dataset_time_bounds = None
         if visualization_parameters == {}:
             visualization_parameters = None
 
-        # Extract the retrieval related parameters. Definitely init all parameters first
+
+        # Extract the parameters. Definitely init first
         query = None
         if visualization_parameters:
             query = {'parameters':[]}
@@ -337,12 +342,16 @@ class VisualizationService(BaseVisualizationService):
 
                 query['parameters'] = visualization_parameters['parameters']
 
-            if 'stride_time' in visualization_parameters:
-                query['stride_time'] = visualization_parameters['stride_time']
+            # The times passed from UI are system times so convert them to NTP
             if 'start_time' in visualization_parameters:
-                query['start_time'] = visualization_parameters['start_time']
+                query['start_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['start_time'])))
             if 'end_time' in visualization_parameters:
-                query['end_time'] = visualization_parameters['end_time']
+                query['end_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['end_time'])))
+
+            # calculate stride time
+            if 'max_time_steps' in visualization_parameters:
+                max_time_steps = int(visualization_parameters['max_time_steps'])
+
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
@@ -350,7 +359,38 @@ class VisualizationService(BaseVisualizationService):
         if ds_ids is None or not ds_ids:
             raise NotFound("Could not find dataset associated with data product")
 
-        # Ideally just need the latest granule to figure out the list of images
+        # Retrieve the required data. If max time steps were specified, calculate a stride_time factor
+        if max_time_steps:
+
+            dataset_extents = self.clients.dataset_management.dataset_extents(ds_ids[0])
+
+
+            # ********  Dirty hack to get around missing start_time bug. Try to call dataset_bounds several times
+            count = 0
+            while count < 20:
+                count = count + 1
+
+                dataset_bounds = self.clients.dataset_management.dataset_bounds(ds_ids[0])
+                dataset_time_bounds = dataset_bounds['time']
+
+                if dataset_time_bounds[0] != 0:
+                    break
+
+                time.sleep(0.1)
+
+            if dataset_time_bounds[0] == 0:
+                query['stride_time'] == 1
+            else:
+                avg_data_rate = float(dataset_extents['time'][0]) / float(dataset_time_bounds[1] - dataset_time_bounds[0])
+                #print " >>>>>>>>> AVG DATA RATE : ", avg_data_rate
+                num_of_actual_data_points = min((query['end_time'] - query['start_time']), (dataset_time_bounds[1] - dataset_time_bounds[0])) * avg_data_rate
+                #print ">>>>>>>>>>>>>  num_of_actual_data_points : ", num_of_actual_data_points
+                query['stride_time'] = int(math.ceil(float(num_of_actual_data_points) / float(max_time_steps)))
+
+            #print ">>>>>>>>>>>>>>>> TOTAL TIME STEPS : ", dataset_extents ,  " TIME BOUND = ", dataset_time_bounds
+
+
+        #print ">>>>>>>>>>>>> QUERY = ", query
         #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
         retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
         if retrieved_granule is None:
@@ -445,7 +485,7 @@ class VisualizationService(BaseVisualizationService):
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
-        #print ">>>>>>>>>>>>>>>>>>>>>>>>> DS_IDS = ", ds_ids
+
         if ds_ids is None or not ds_ids:
             log.warn("Specified dataproduct does not have an associated dataset")
             return None
@@ -579,3 +619,39 @@ class VisualizationService(BaseVisualizationService):
         kml_content += "</kml>\n"
 
         return kml_content
+
+
+    # **** TEMP METHOD for some profiling .. to be removed as soon as testing is done. Do not check in to Git
+    def get_dummy_googledt(self, dt_size = ""):
+
+        size = int(dt_size)
+        start_time = time.time()
+
+        # generate a dummy json string containing google DT
+        google_dt= "google.visualization.Query.setResponse({\"status\":\"ok\",\"table\":{\"rows\":["
+
+        count = 0
+        while True:
+
+            google_dt += "{\"c\":[{\"v\":\""
+
+            count = count + 1
+            d = datetime.fromtimestamp(start_time + count)
+            google_dt += "Date(" + str(d.year) + "," + str(d.month) + "," + str(d.day) + "," + str(d.hour) + "," + str(d.minute) + "," + str(d.second) + ")\"},"
+
+            # keep adding  rows
+            if count % 2 == 1:
+                google_dt += "{\"v\":2.828434467315674},{\"v\":0.0},{\"v\":-119.5999984741211},{\"v\":0.0},{\"v\":6.928213596343994},{\"v\":32.79999923706055},{\"v\":5.243098257778911e-06}]}"
+            else:
+                google_dt += "{\"v\":-2.828434467315674},{\"v\":0.0},{\"v\":119.5999984741211},{\"v\":0.0},{\"v\":-6.928213596343994},{\"v\":-32.79999923706055},{\"v\":-5.243098257778911e-06}]}"
+
+            if len(google_dt) < size:
+                google_dt += ","
+            else:
+                break
+
+
+        google_dt += "],\"cols\":[{\"type\":\"datetime\",\"id\":\"time\",\"label\":\"time\"},{\"type\":\"number\",\"id\":\"temp\",\"label\":\"temp\"},{\"type\":\"number\",\"id\":\"density\",\"label\":\"density\"},{\"type\":\"number\",\"id\":\"lon\",\"label\":\"lon\"},{\"type\":\"number\",\"id\":\"salinity\",\"label\":\"salinity\"},{\"type\":\"number\",\"id\":\"pressure\",\"label\":\"pressure\"},{\"type\":\"number\",\"id\":\"lat\",\"label\":\"lat\"},{\"type\":\"number\",\"id\":\"conductivity\",\"label\":\"conductivity\"}]},\"reqId\":\"0\",\"version\":\"0.6\"});"
+
+        #print " >>>>>>>>>>>> TIME TAKEN BY get_dummy_googledt() = ", time.time() - start_time, " secs"
+        return google_dt

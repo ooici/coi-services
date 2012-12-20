@@ -34,6 +34,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def on_start(self):
         super(DatasetManagementService,self).on_start()
         self.datastore_name = self.CFG.get_safe('process.datastore_name', self.DEFAULT_DATASTORE)
+        self.inline_data_writes  = self.CFG.get_safe('service.ingestion_management.inline_data_writes', True)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
 #--------
@@ -68,6 +69,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 
         cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
+        self._save_coverage(cov)
         cov.close()
 
         return dataset_id
@@ -322,13 +324,16 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
     def _create_coverage(self, dataset_id, description, parameter_dict, spatial_domain,temporal_domain):
-
         pdict = ParameterDictionary.load(parameter_dict)
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom, inline_data_writes=self.inline_data_writes)
         return scov
+
+    @classmethod
+    def _save_coverage(cls, coverage):
+        coverage.flush()
 
     @classmethod
     def _get_coverage(cls,dataset_id,mode='w'):
@@ -339,7 +344,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     @classmethod
     def _get_coverage_path(cls, dataset_id):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        return os.path.join(file_root, dataset_id)
+        return os.path.join(file_root, '%s' % dataset_id)
     
     @classmethod
     def _compare_pc(cls, pc1, pc2):

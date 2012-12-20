@@ -139,7 +139,11 @@ class TransformStreamPublisher(TransformStreamProcess):
         if not (self.stream_id or self.routing_key):
             output_streams = copy(self.CFG.get_safe('process.publish_streams'))
             first_stream   = output_streams.popitem()
-            self.publisher = first_stream[1]
+            try:
+                self.publisher = getattr(self,first_stream[0])
+            except AttributeError:
+                log.warning('no publisher endpoint located')
+                self.publisher = None
         else:
             self.publisher = StreamPublisher(process=self, stream_id=self.stream_id, exchange_point=self.exchange_point, routing_key=self.routing_key)
 
@@ -150,7 +154,8 @@ class TransformStreamPublisher(TransformStreamProcess):
         raise NotImplementedError('Method publish not implemented')
 
     def on_quit(self):
-        self.publisher.close()
+        if self.publisher:
+            self.publisher.close()
         super(TransformStreamPublisher,self).on_quit()
 
 class TransformEventListener(TransformEventProcess):

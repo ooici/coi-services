@@ -88,4 +88,23 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.pubsub_management.deactivate_subscription(subscription_id)
         self.pubsub_management.delete_subscription(subscription_id)
 
+    def test_granule_append(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+
+        rdt1 = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt1['time'] = np.arange(20)
+        rdt1['temp'] = [6] * 20
+        
+        rdt2 = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt2['time'] = np.arange(20,40)
+        rdt2['temp'] = [7] * 20
+        rdt2['preferred_timestamp'] = ['time'] * 20
+
+        rdt3 = RecordDictionaryTool.append(rdt1, rdt2)
+        self.assertTrue((rdt3['time'] == np.arange(40)).all())
+        self.assertTrue((rdt3['temp'] == np.array([6]*20 + [7]*20)).all())
+        self.assertTrue((rdt3['preferred_timestamp'] == np.array([None] * 20 + ['time'] *20, dtype='|O8')).all())
+        self.assertTrue(rdt3['pressure'] is None)
+
 
