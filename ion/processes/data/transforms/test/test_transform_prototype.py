@@ -21,7 +21,7 @@ import gevent, unittest, os
 import datetime, time
 import random, numpy
 from datetime import timedelta, datetime
-from interface.objects import StreamRoute, DeviceStatusType, DeviceCommsType
+from interface.objects import StreamRoute, DeviceStatusType
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 @attr('INT', group='dm')
@@ -290,8 +290,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
     def test_demo_stream_granules_processing(self):
         """
         Test that the Demo Stream Alert Transform is functioning. The transform coordinates with the scheduler.
-        It is configured to listen to a source that publishes granules. It publishes a DeviceStatusEvent if it
-        receives a granule with bad data or a DeviceCommsEvent if no granule has arrived between two timer events.
+        It is configured to listen to a source that publishes granules. It publishes a bad data DeviceStatusEvent the first time it
+        receives a granule with bad data and then an OK DeviceStatusEvent the first time good data comes in
 
         The transform is configured at launch using a config dictionary.
         """
@@ -314,10 +314,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         event_subscriber_bad_data = EventSubscriber( origin="instrument_1",
             event_type="DeviceStatusEvent",
             callback=bad_data)
-
-        event_subscriber_no_data = EventSubscriber( origin="instrument_1",
-            event_type="DeviceCommsEvent",
-            callback=no_data)
 
         event_subscriber_bad_data.start()
         event_subscriber_no_data.start()
@@ -403,17 +399,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.assertEquals(queue_bad_data.qsize(), 0)
 
         #-------------------------------------------------------------------------------------
-        # Do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
-        #-------------------------------------------------------------------------------------
-        event = queue_no_data.get(timeout=15)
-
-        self.assertEquals(event.type_, "DeviceCommsEvent")
-        self.assertEquals(event.origin, "instrument_1")
-        self.assertEquals(event.origin_type, "PlatformDevice")
-        self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
-        self.assertEquals(event.sub_type, 'input_voltage')
-
-        #-------------------------------------------------------------------------------------
         # Empty the queues and repeat tests
         #-------------------------------------------------------------------------------------
         queue_bad_data.queue.clear()
@@ -427,21 +412,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         self.assertTrue(queue_bad_data.empty())
 
-        #-------------------------------------------------------------------------------------
-        # Again do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
-        #-------------------------------------------------------------------------------------
-
-        event = queue_no_data.get(timeout=20)
-
-        self.assertEquals(event.type_, "DeviceCommsEvent")
-        self.assertEquals(event.origin, "instrument_1")
-        self.assertEquals(event.origin_type, "PlatformDevice")
-        self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
-        self.assertEquals(event.sub_type, 'input_voltage')
-
-        #-------------------------------------------------------------------------------------
-        # Again do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
-        #-------------------------------------------------------------------------------------
         now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
         events_in_db = self.user_notification.find_events(origin='instrument_1',limit=100, max_datetime=now, descending=True)
 
@@ -456,12 +426,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                 self.assertEquals(event.origin, "instrument_1")
                 self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
                 self.assertEquals(event.valid_values, self.valid_values)
-                self.assertEquals(event.sub_type, 'input_voltage')
-            elif event.type_ == 'DeviceCommsEvent':
-                no_data_events.append(event)
-                self.assertEquals(event.origin, "instrument_1")
-                self.assertEquals(event.origin_type, "PlatformDevice")
-                self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
                 self.assertEquals(event.sub_type, 'input_voltage')
 
         self.assertTrue(len(bad_data_events) > 0)

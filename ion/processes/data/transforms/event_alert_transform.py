@@ -13,7 +13,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.core.process.transform import TransformEventListener, TransformStreamListener, TransformEventPublisher
-from interface.objects import DeviceStatusType, DeviceStatusEvent, DeviceCommsEvent, DeviceCommsType
+from interface.objects import DeviceStatusType, DeviceStatusEvent
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 import gevent
 from gevent import queue
@@ -252,34 +252,22 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
 
             log.debug("DemoStreamAlertTransform published a BAD DATA event")
 
-    def process_event(self, msg, headers):
-        """
-        When timer events come, if no granule has arrived since the last timer event, publish an alarm
-        """
-        self.count += 1
-
-        log.debug("Got a timer event with count: %s" % self.count )
-
-        if msg.origin == self.timer_origin and self.origin:
-
-            if self.granules.qsize() == 0:
-                # Publish the event
-                self.publisher.publish_event(
-                    event_type = 'DeviceCommsEvent',
-                    origin = self.origin,
-                    origin_type='PlatformDevice',
-                    sub_type = self.instrument_variable_name,
-                    time_stamp =int(time.time() + 2208988800),  # granules use NTP not unix
-#                    time_stamp = get_ion_ts(),
-                    state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
-                    lapse_interval_seconds=self.timer_interval,
-                    description = "Event to deliver the communications status of the instrument."
-                )
-
-                log.debug("DemoStreamAlertTransform published a NO DATA event")
-
-            else:
-                self.granules.queue.clear()
+#    def process_event(self, msg, headers):
+#        """
+#        When timer events come, if no granule has arrived since the last timer event, publish an alarm
+#        """
+#        self.count += 1
+#
+#        log.debug("Got a timer event with count: %s" % self.count )
+#
+#        if msg.origin == self.timer_origin and self.origin:
+#
+#            if self.granules.qsize() == 0:
+#                # Publish the event
+#                log.debug("DemoStreamAlertTransform published a NO DATA event")
+#
+#            else:
+#                self.granules.queue.clear()
 
 class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
@@ -302,7 +290,7 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         variable_name = config.get_safe('variable_name', 'input_voltage')
         preferred_time = config.get_safe('time_field_name', 'preferred_timestamp')
 
-        # Get the source of the granules which will be used to set the origin of the DeviceStatusEvent and DeviceCommsEvent events
+        # Get the source of the granules which will be used to set the origin of the DeviceStatusEvents
 
         origin = input.data_producer_id
 

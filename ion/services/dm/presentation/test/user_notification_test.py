@@ -917,7 +917,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification_request_3 = NotificationRequest(   name = "notification_3",
             origin="instrument_3",
             origin_type="type_3",
-            event_type='DeviceCommsEvent',
+            event_type='DetectionEvent',
             event_subtype=''
         )
 
@@ -985,7 +985,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             time_stamps = [get_ion_ts(), str(int(get_ion_ts()) + 60*20*1000)])
 
         event_publisher.publish_event(
-            event_type = "DeviceCommsEvent",
+            event_type = "DetectionEvent",
             origin="instrument_3",
             origin_type="type_3",
             time_stamp = get_ion_ts())
@@ -1031,7 +1031,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             if msg_recipient == 'user_1@gmail.com':
                 self.assertTrue(event_type in ['ResourceLifecycleEvent', 'DeviceStatusEvent'])
             elif msg_recipient == 'user_2@gmail.com':
-                self.assertTrue(event_type in ['DeviceCommsEvent', 'DeviceStatusEvent'])
+                self.assertTrue(event_type in ['DetectionEvent', 'DeviceStatusEvent'])
 
 
     @attr('LOCOINT')

@@ -9,7 +9,7 @@ import time
 from pyon.core.exception import BadRequest
 from pyon.public import RT, PRED, OT, IonObject, log
 
-from interface.objects import DeviceStatusType, DeviceCommsType
+from interface.objects import DeviceStatusType
 from interface.objects import ComputedValueAvailability, StatusType
 
 
@@ -153,7 +153,6 @@ class ObservatoryUtil(object):
         min_ts = str(int(time.time() - 3) * 1000)
         # Events come back as 3-tuples of (id, key, obj)
         pwr_events = self.container.event_repository.find_events(event_type=OT.DeviceStatusEvent, start_ts=min_ts, descending=True)
-        comm_events = self.container.event_repository.find_events(event_type=OT.DeviceCommsEvent, start_ts=min_ts, descending=True)
         events = []
         events.extend(pwr_events)
         events.extend(comm_events)
@@ -296,8 +295,6 @@ class ObservatoryUtil(object):
             event_type = event._get_type()
             if event_type == OT.DeviceStatusEvent and event.state == DeviceStatusType.OUT_OF_RANGE:
                 status['power'] = StatusType.STATUS_WARNING
-            elif event_type == OT.DeviceCommsEvent and event.state == DeviceCommsType.DATA_DELIVERY_INTERRUPTION:
-                status['comms'] = StatusType.STATUS_WARNING
             # @TODO data, loc
 
         status['agg'] = self._consolidate_status(status.values())
