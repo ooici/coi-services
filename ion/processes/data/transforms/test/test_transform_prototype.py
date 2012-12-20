@@ -285,6 +285,20 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         return pid
 
+    def poll(self, tries, callback, *args, **kwargs):
+        '''
+        Polling wrapper for queries
+        Elasticsearch may not index and cache the changes right away so we may need
+        a couple of tries and a little time to go by before the results show.
+        '''
+        for i in xrange(tries):
+            retval = callback(*args, **kwargs)
+            if retval:
+                return retval
+            time.sleep(0.2)
+        return None
+
+
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_demo_stream_granules_processing(self):
@@ -401,13 +415,21 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         val = numpy.array([(l + 20)  for l in xrange(self.length)])
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val)
 
-        gevent.sleep(10)
+#        gevent.sleep(10)
 
-        now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
-        events_in_db = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
-        evts = self.user_notification.get_recent_events(resource_id='instrument_1', limit = 5)
+        def find_the_events():
+            now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
+            events = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
+            return events
 
-        log.debug("evts got here using get_recent_events::: %s" % evts)
+        events_in_db = self.poll(9, find_the_events)
+
+
+#        now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
+#        events_in_db = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
+#        evts = self.user_notification.get_recent_events(resource_id='instrument_1', limit = 5)
+#
+#        log.debug("evts got here using get_recent_events::: %s" % evts)
 
         log.debug("events::: %s" % events_in_db)
 
