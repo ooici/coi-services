@@ -403,8 +403,21 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
 #        self.assertTrue(queue_bad_data.empty())
 
+        gevent.sleep(10)
+
         now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
-        events_in_db = self.user_notification.find_events(origin='instrument_1',limit=100, max_datetime=now, descending=True)
+
+        log.debug("now::: %s" % now)
+#        events_in_db = self.user_notification.find_events(origin='instrument_1',limit=100, max_datetime=now, descending=True)
+
+#        events_in_db = self.user_notification.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= 4, max_datetime=7)
+        events_in_db = self.user_notification.find_events(origin= 'instrument_1',type = 'DeviceStatusEvent', limit=100,  max_datetime= now)
+
+        now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
+        events_in_db = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
+        evts = self.user_notification.get_recent_events(resource_id='instrument_1', limit = 5)
+
+        log.debug("evts got here using get_recent_events::: %s" % evts)
 
         log.debug("events::: %s" % events_in_db)
 
@@ -414,7 +427,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             if event.type_ == 'DeviceStatusEvent':
                 bad_data_events.append(event)
                 self.assertEquals(event.origin, "instrument_1")
-                self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+                self.assertTrue(event.state in [DeviceStatusType.OUT_OF_RANGE, DeviceStatusType.OK])
                 self.assertEquals(event.valid_values, self.valid_values)
                 self.assertEquals(event.sub_type, 'input_voltage')
 
