@@ -507,7 +507,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         upids = self._get_managed_upids()
         response = ""
         for upid in upids:
-            response += "%s,ml=5\n" % md5.new(upid).hexdigest()
+            response += "pid=%s&ml=5\n" % upid
         self._set_response(response)
 
         self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
@@ -518,7 +518,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         upids = self._get_managed_upids()
         response = ""
         for upid in upids:
-            response += "%s,ml=1.5\n" % md5.new(upid).hexdigest()
+            response += "pid=%s&ml=1.5\n" % upid
         self._set_response(response)
 
         self.assertEqual(len(self.get_running_procs()), 2)
@@ -537,7 +537,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         upids = self._get_managed_upids()
         response = ""
         for upid in upids:
-            response += "%s,ml=0.5\n" % md5.new(upid).hexdigest()
+            response += "pid=%s&ml=0.5\n" % upid
         self._set_response(response)
 
         self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)

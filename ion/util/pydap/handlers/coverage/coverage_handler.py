@@ -14,7 +14,7 @@ import numpy as np
 
 class Handler(BaseHandler):
 
-    #extensions = re.compile(r"^.*\.cov", re.IGNORECASE)
+    #extensions = re.compile(r"^.*_cov", re.IGNORECASE)
     extensions = re.compile(r'^.*[0-9A-Za-z]{32}', re.IGNORECASE)
 
     def __init__(self, filepath):
@@ -22,7 +22,8 @@ class Handler(BaseHandler):
 
     def parse_constraints(self, environ):
         base = os.path.split(self.filepath)
-        coverage = SimplexCoverage.load(base[0], base[1])
+        coverage = SimplexCoverage.load(base[0], base[1],mode='r')
+        #coverage = SimplexCoverage.pickle_load(self.filepath)
 
         last_modified = formatdate(time.mktime(time.localtime(os.stat(self.filepath)[ST_MTIME])))
         environ['pydap.headers'].append(('Last-modified', last_modified))

@@ -29,8 +29,9 @@ class RegistrationProcess(StandaloneProcess):
         self.datasets_xml_path = os.path.join(real_path, filename)
         self.setup_filesystem(real_path)
 
-
     def setup_filesystem(self, path):
+        if os.path.exists(os.path.join(path,'datasets.xml')):
+            return
         zip_str = base64.decodestring(datasets_xml_zip)
         zip_file = StringIO.StringIO()
         zip_file.write(zip_str)
@@ -68,6 +69,7 @@ class RegistrationProcess(StandaloneProcess):
         result = ''
 
         paths = os.path.split(coverage_path)
+        #cov = SimplexCoverage.pickle_load(coverage_path)
         cov = SimplexCoverage.load(coverage_path)
         #ds = open_url(url)
         doc = xml.dom.minidom.Document()
@@ -105,7 +107,7 @@ class RegistrationProcess(StandaloneProcess):
                 dataset_element.appendChild(source_element)
 
                 reload_element = doc.createElement('reloadEveryNMinutes')
-                text_node = doc.createTextNode('1440')
+                text_node = doc.createTextNode('5')
                 reload_element.appendChild(text_node)
                 dataset_element.appendChild(reload_element)
 

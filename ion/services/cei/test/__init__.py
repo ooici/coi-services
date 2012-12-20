@@ -1,4 +1,5 @@
 from gevent import queue
+from datetime import datetime, timedelta
 
 from pyon.event.event import EventSubscriber
 from pyon.public import log
@@ -31,10 +32,14 @@ class ProcessStateWaiter(object):
         if strict is False, allow intermediary events
         """
 
+        start_time = datetime.now()
+
         assert state in ProcessStateEnum._str_map, "process state %s unknown!" % state
         state_str = ProcessStateEnum._str_map.get(state)
 
         while 1:
+            if datetime.now() - start_time > timedelta(seconds=timeout):
+                raise AssertionError("Waiter timeout! Waited %s seconds for process %s state %s" % (timeout, pid, state_str))
             try:
                 event = self.event_queue.get(timeout=timeout)
             except queue.Empty:

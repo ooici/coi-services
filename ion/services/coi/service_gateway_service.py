@@ -530,6 +530,18 @@ def convert_unicode(data):
 # http://hostname:port/ion-service/list_resource_types?type=InformationResource
 # http://hostname:port/ion-service/list_resource_types?type=TaskableResource
 #
+
+@app.route('/ion-service/org_roles/<actor_id>', methods=['GET','POST'])
+def list_org_roles(actor_id):
+
+    try:
+        ret = service_gateway_instance.container.governance_controller.find_roles_by_actor(convert_unicode(actor_id))
+        return gateway_json_response(ret)
+
+    except Exception, e:
+        return build_error_response(e)
+
+
 @app.route('/ion-service/list_resource_types', methods=['GET','POST'])
 def list_resource_types():
     try:

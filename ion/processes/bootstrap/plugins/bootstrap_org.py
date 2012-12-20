@@ -5,7 +5,7 @@
 __author__ = 'Michael Meisinger, Stephen Henrie'
 
 from ion.core.bootstrap_process import BootstrapPlugin, AbortBootstrap
-from ion.services.coi.policy_management_service import ORG_MANAGER_ROLE, ION_MANAGER
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ION_MANAGER
 from pyon.ion.exchange import ION_ROOT_XS
 from pyon.public import IonObject, RT
 

@@ -109,7 +109,8 @@ class ReplayProcess(BaseReplayProcess):
             validate_is_instance(stride_time, Number, 'stride_time must be a number for striding.')
             ugly_range = np.arange(start_time, end_time, stride_time)
             idx_values = [cls.get_relative_time(coverage,i) for i in ugly_range]
-            idx_values = list(set(idx_values)) # Removing duplicates
+            idx_values = list(set(idx_values)) # Removing duplicates - also mixes the order of the list!!!
+            idx_values.sort()
             slice_ = [idx_values]
 
         elif not (start_time is None and end_time is None):
@@ -156,7 +157,7 @@ class ReplayProcess(BaseReplayProcess):
         as a value in lieu of publishing it on a stream
         '''
         try: 
-            coverage = DatasetManagementService._get_coverage(self.dataset_id)
+            coverage = DatasetManagementService._get_coverage(self.dataset_id,mode='r')
             if coverage.num_timesteps == 0:
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
@@ -231,7 +232,7 @@ class ReplayProcess(BaseReplayProcess):
 
         ts = float(doc.get('ts_create',0))
 
-        coverage = DatasetManagementService._get_coverage(dataset_id)
+        coverage = DatasetManagementService._get_coverage(dataset_id,mode='r')
 
         rdt = cls._coverage_to_granule(coverage,tdoa=slice(cls.get_relative_time(coverage,ts),None))
         coverage.close(timeout=5)
@@ -240,7 +241,7 @@ class ReplayProcess(BaseReplayProcess):
 
     @classmethod
     def get_last_values(cls, dataset_id, number_of_points):
-        coverage = DatasetManagementService._get_coverage(dataset_id)
+        coverage = DatasetManagementService._get_coverage(dataset_id,mode='r')
         if coverage.num_timesteps < number_of_points:
             if coverage.num_timesteps == 0:
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
@@ -252,7 +253,7 @@ class ReplayProcess(BaseReplayProcess):
         return rdt.to_granule()
 
     def _replay(self):
-        coverage = DatasetManagementService._get_coverage(self.dataset_id)
+        coverage = DatasetManagementService._get_coverage(self.dataset_id,mode='r')
         rdt = self._coverage_to_granule(coverage, self.start_time, self.end_time, self.stride_time, self.parameters, self.stream_def_id)
         elements = len(rdt)
         
