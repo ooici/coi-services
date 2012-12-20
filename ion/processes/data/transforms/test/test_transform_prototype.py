@@ -384,7 +384,25 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, times=times)
         good_val = val
         good_times = times
+
+
+        def find_the_events():
+            now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
+            events = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
+            return events
+
+        events_in_db = self.poll(20, find_the_events)
+
         self.assertTrue(queue_bad_data.empty())
+
+        good_data_events = []
+        for event in events_in_db:
+            if event.type_ == 'DeviceStatusEvent':
+                self.assertEquals(event.state , DeviceStatusType.OK)
+                good_data_events.append(event)
+
+        # Assert that only one good data event came the first time it was started
+        self.assertEquals(len(good_data_events), 1)
 
         #-------------------------------------------------------------------------------------
         # publish a few *BAD* granules

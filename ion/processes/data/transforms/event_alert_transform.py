@@ -137,6 +137,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventPublisher)
         self.instrument_variable_name = None
         self.count = 0
         self.origin = ''
+        self.started_receiving_packets = False
 
     def on_start(self):
         super(DemoStreamAlertTransform,self).on_start()
@@ -167,6 +168,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventPublisher)
         '''
 
         log.debug("DemoStreamAlertTransform received a packet!: %s" % msg)
+        self.started_receiving_packets = True
 
         #-------------------------------------------------------------------------------------
         # Set up the config to use to pass info to the transform algorithm
@@ -179,30 +181,29 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventPublisher)
         #-------------------------------------------------------------------------------------
         # Check for good and bad values in the granule
         #-------------------------------------------------------------------------------------
-        bad_values, bad_value_times, self.origin = AlertTransformAlgorithm.execute(msg, config = config)
+        bad_values, bad_value_times, self.origin, values, times = AlertTransformAlgorithm.execute(msg, config = config)
 
         log.debug("DemoStreamAlertTransform got the origin of the event as: %s" % self.origin)
 
         #-------------------------------------------------------------------------------------
         # If there are any bad values, publish an alert event for the granule
         #-------------------------------------------------------------------------------------
-        if bad_values:
+
+        if self.started_receiving_packets: # The transform just started receiving, so it publishes a status event for the first granule received
+            desc="Event published after first granule received by the transform"
+            if bad_values:
+                self._publish_status_event(bad_values=bad_values, bad_time_stamps=bad_value_times, state=DeviceStatusType.OUT_OF_RANGE, desc=desc)
+            else:
+                self._publish_status_event(values=values, time_stamps=times, state=DeviceStatusType.OK, desc=desc)
+
+            log.debug("DemoStreamAlertTransform published a STATUS event because it received a packet for the first time")
+
+        elif bad_values: # Got a granule with OUT OF RANGE data
 
             # Only if this is the first time bad granule has arrived, should we publish a BAD data event
             if self.bad_granules.empty():
                 # Publish the event
-                self.publisher.publish_event(
-                    event_type = 'DeviceStatusEvent',
-                    origin = self.origin,
-                    origin_type='PlatformDevice',
-                    sub_type = self.instrument_variable_name,
-                    values = bad_values,
-                    time_stamps = bad_value_times,
-                    valid_values = self.valid_values,
-                    state = DeviceStatusType.OUT_OF_RANGE,
-                    description = "Event to deliver the status of instrument."
-                )
-
+                self._publish_status_event(bad_values = bad_values, bad_time_stamps=bad_value_times, state=DeviceStatusType.OUT_OF_RANGE, desc="Event to deliver OUT_OF_RANGE status")
                 log.debug("DemoStreamAlertTransform published a BAD DATA event")
 
                 # Store the granule received
@@ -213,19 +214,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventPublisher)
             # Only if this is the first time a good granule has arrived after bad ones, should we publish a GOOD data event
             if not self.bad_granules.empty():
 
-                # Publish the event
-                self.publisher.publish_event(
-                    event_type = 'DeviceStatusEvent',
-                    origin = self.origin,
-                    origin_type='PlatformDevice',
-                    sub_type = self.instrument_variable_name,
-                    values = [],
-                    time_stamps = [],
-                    valid_values = self.valid_values,
-                    state = DeviceStatusType.OK,
-                    description = "Event to deliver the status of instrument."
-                )
-
+                self._publish_status_event(values=values, time_stamps=times, state=DeviceStatusType.OK, desc="Event to deliver OK status")
                 log.debug("DemoStreamAlertTransform published a GOOD data event")
 
                 # Bad granule queue should have had one bad granule. We empty it here
@@ -233,6 +222,21 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventPublisher)
 
                 validate_true(self.bad_granules.empty())
 
+    def _publish_status_event(self, values=None, time_stamps=None, bad_values=None, bad_time_stamps=None, state=None, desc=None):
+
+        self.publisher.publish_event(
+            event_type = 'DeviceStatusEvent',
+            origin = self.origin,
+            origin_type='PlatformDevice',
+            sub_type = self.instrument_variable_name,
+            values = values or [],
+            time_stamps = time_stamps or [],
+            bad_values = bad_values or [],
+            bad_time_stamps = bad_time_stamps or [],
+            valid_values = self.valid_values,
+            state = state,
+            description = desc
+        )
 
 class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
@@ -269,6 +273,7 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         # These variable_names will store the bad values and the timestamps of those values
         bad_values = []
         bad_value_times = []
+        times = []
 
         # retrieve the values and the times from the record dictionary
         values = rdt[variable_name][:]
@@ -285,11 +290,12 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
                 bad_values.append(val)
                 arr = rdt[time_names[index]]
                 bad_value_times.append(arr[index])
+                times.append(arr[index])
 
         log.debug("Returning bad_values: %s, bad_value_times: %s and the origin: %s" % (bad_values, bad_value_times, origin))
 
         # return the list of bad values and their timestamps
-        return bad_values, bad_value_times, origin
+        return bad_values, bad_value_times, origin, values, times
 
 
 
