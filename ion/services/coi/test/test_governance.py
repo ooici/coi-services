@@ -33,7 +33,7 @@ from mi.core.instrument.instrument_driver import DriverConnectionState
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
-from ion.services.coi.policy_management_service import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
 ORG2 = 'Org2'

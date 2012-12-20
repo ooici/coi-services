@@ -13,7 +13,7 @@ from pyon.util.containers import is_basic_identifier, get_ion_ts
 from pyon.core.governance.negotiation import Negotiation
 from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, ComputedValueAvailability
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
-from ion.services.coi.policy_management_service import ORG_MEMBER_ROLE, ORG_MANAGER_ROLE
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
 #Supported Negotiations - perhaps move these to data at some point if there are more negotiation types and/or remove
@@ -183,10 +183,10 @@ class OrgManagementService(BaseOrgManagementService):
         directory = Directory(orgname=org.name)
 
         #Instantiate initial set of User Roles for this Org
-        manager_role = IonObject(RT.UserRole, name=ORG_MANAGER_ROLE,label='Observatory Administrator', description='Change Observatory Information, assign Roles, post Observatory events')
+        manager_role = IonObject(RT.UserRole, name=ORG_MANAGER_ROLE, label='Observatory Administrator', description='Change Observatory Information, assign Roles, post Observatory events')
         self.add_user_role(org_id, manager_role)
 
-        member_role = IonObject(RT.UserRole, name=ORG_MEMBER_ROLE,label='Observatory Member', description='Subscribe to events, set personal preferences')
+        member_role = IonObject(RT.UserRole, name=ORG_MEMBER_ROLE, label='Observatory Member', description='Subscribe to events, set personal preferences')
         self.add_user_role(org_id, member_role)
 
         return org_id

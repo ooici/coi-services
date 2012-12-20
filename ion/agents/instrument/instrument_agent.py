@@ -12,12 +12,14 @@ __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
 # Pyon imports
-from pyon.public import IonObject, log, RT, PRED, LCS, OT
+from pyon.public import IonObject, log, RT, PRED, LCS, OT, CFG
 from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
 from pyon.util.containers import get_ion_ts
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
 # Pyon exceptions.
 from pyon.core.exception import IonException
@@ -173,7 +175,6 @@ class InstrumentAgent(ResourceAgent):
         # Construct stream publishers.
         self._construct_data_publishers()
 
-
     ##############################################################
     # Capabilities interface and event handlers.
     ##############################################################    
@@ -227,6 +228,12 @@ class InstrumentAgent(ResourceAgent):
         '''
         This function is used for governance validation for the set_resource operation.
         '''
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
@@ -237,12 +244,16 @@ class InstrumentAgent(ResourceAgent):
         '''
         This function is used for governance validation for the execute_resource operation.
         '''
+
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
-
-        #if msg['command'].command == ResourceAgentEvent.GO_DIRECT_ACCESS and not com.commitment.exclusive:
-        #    return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (headers['ion-actor-id'], self.resource_id)
 
         return True, ''
 
@@ -250,6 +261,12 @@ class InstrumentAgent(ResourceAgent):
         '''
         This function is used for governance validation for the ping_resource operation.
         '''
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)

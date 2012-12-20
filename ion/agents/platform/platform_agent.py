@@ -25,6 +25,9 @@ from pyon.core.exception import BadRequest
 
 from pyon.core.bootstrap import get_obj_registry
 from pyon.core.object import IonObjectDeserializer
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+
 
 from ion.agents.instrument.common import BaseEnum
 
@@ -266,6 +269,12 @@ class PlatformAgent(ResourceAgent):
         '''
         This function is used for governance validation for the set_resource operation.
         '''
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
@@ -276,6 +285,12 @@ class PlatformAgent(ResourceAgent):
         '''
         This function is used for governance validation for the execute_resource operation.
         '''
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
@@ -286,6 +301,12 @@ class PlatformAgent(ResourceAgent):
         '''
         This function is used for governance validation for the ping_resource operation.
         '''
+        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+            return True, ''
+
+        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+            return False, ''
+
         com = self._get_resource_commitments(headers['ion-actor-id'])
         if com is None:
             return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
