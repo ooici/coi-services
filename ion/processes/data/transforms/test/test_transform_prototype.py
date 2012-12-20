@@ -314,19 +314,23 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
 
         queue_bad_data = gevent.queue.Queue()
+        queue_good_data = gevent.queue.Queue()
 
         def bad_data(message, headers):
             log.debug("In the test callback, got a DeviceStatusEvent: %s" % message)
             if message.type_ == "DeviceStatusEvent":
-                queue_bad_data.put(message)
+                if message.state == DeviceStatusType.OUT_OF_RANGE:
+                    queue_bad_data.put(message)
+                elif message.state == DeviceStatusType.OK:
+                    queue_good_data.put(message)
 
-        event_subscriber_bad_data = EventSubscriber( origin="instrument_1",
+        status_event_subscriber = EventSubscriber( origin="instrument_1",
             event_type="DeviceStatusEvent",
             callback=bad_data)
 
-        event_subscriber_bad_data.start()
+        status_event_subscriber.start()
 
-        self.addCleanup(event_subscriber_bad_data.stop)
+        self.addCleanup(status_event_subscriber.stop)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Stream Alert Transform... set up the event types to listen to
@@ -379,30 +383,30 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         # publish a *GOOD* granule
         #-------------------------------------------------------------------------------------
         self.length = 2
-        val = numpy.array([random.uniform(0,50)  for l in xrange(self.length)])
+        val = numpy.array([(l + 20)  for l in xrange(self.length)])         # feeding in bogus good values
         times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in bogus times
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, times=times)
-        good_val = val
-        good_times = times
+        good_val = list(val)
+        good_times = list(times)
 
 
-        def find_the_events():
-            now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
-            events = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
-            return events
-
-        events_in_db = self.poll(20, find_the_events)
+#        def find_the_events():
+#            now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
+#            events = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
+#            return events
+#
+#        events_in_db = self.poll(20, find_the_events)
 
         self.assertTrue(queue_bad_data.empty())
 
         good_data_events = []
-        for event in events_in_db:
-            if event.type_ == 'DeviceStatusEvent':
-                self.assertEquals(event.state , DeviceStatusType.OK)
-                good_data_events.append(event)
-
-        # Assert that only one good data event came the first time it was started
-        self.assertEquals(len(good_data_events), 1)
+#        for event in events_in_db:
+#            if event.type_ == 'DeviceStatusEvent':
+#                self.assertEquals(event.state , DeviceStatusType.OK)
+#                good_data_events.append(event)
+#
+#        # Assert that only one good data event came the first time it was started
+#        self.assertEquals(len(good_data_events), 1)
 
         #-------------------------------------------------------------------------------------
         # publish a few *BAD* granules
@@ -410,8 +414,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         val = numpy.array([(110 + l)  for l in xrange(self.length)])        # feeding in bogus bad values
         times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in bogus times
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val, times=times)
-        bad_val = val
-        bad_times = times
+        bad_val = list(val)
+        bad_times = list(times)
 
         event = queue_bad_data.get(timeout=40)
         self.assertEquals(event.type_, "DeviceStatusEvent")
@@ -436,11 +440,9 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # publish a *GOOD* granule again
         #-------------------------------------------------------------------------------------
-        val = numpy.array([(l + 20)  for l in xrange(self.length)])         # feeding in bogus good values
-        times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in bogus times
+        val = numpy.array([(l + 20)  for l in xrange(self.length)])         # feeding in same bogus good values as before
+        times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in same bogus times as before
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, times=times)
-        good_val = val
-        good_times = times
 
         def find_the_events():
             now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
@@ -468,8 +470,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                 self.assertEquals(event.sub_type, 'input_voltage')
 
                 if event.state == DeviceStatusType.OK:
-                    self.assertEquals(event.values, [])
-                    self.assertEquals(event.time_stamps, [])
+                    self.assertEquals(event.values, good_val)
+                    self.assertEquals(event.time_stamps, good_times)
                     good_data_events.append(event)
                 else: # It must be a BAD data DeviceStatusEvent
                     self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
