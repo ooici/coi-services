@@ -109,7 +109,8 @@ class ReplayProcess(BaseReplayProcess):
             validate_is_instance(stride_time, Number, 'stride_time must be a number for striding.')
             ugly_range = np.arange(start_time, end_time, stride_time)
             idx_values = [cls.get_relative_time(coverage,i) for i in ugly_range]
-            idx_values = list(set(idx_values)) # Removing duplicates
+            idx_values = list(set(idx_values)) # Removing duplicates - also mixes the order of the list!!!
+            idx_values.sort()
             slice_ = [idx_values]
 
         elif not (start_time is None and end_time is None):
