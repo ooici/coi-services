@@ -388,6 +388,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.number = 2
         val = numpy.array([(110 + l)  for l in xrange(self.length)])
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val)
+        bad_val = val
 
         event = queue_bad_data.get(timeout=40)
         self.assertEquals(event.type_, "DeviceStatusEvent")
@@ -414,8 +415,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         val = numpy.array([(l + 20)  for l in xrange(self.length)])
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val)
-
-#        gevent.sleep(10)
+        good_val = val
 
         def find_the_events():
             now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
@@ -424,26 +424,42 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         events_in_db = self.poll(9, find_the_events)
 
-
-#        now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
-#        events_in_db = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
-#        evts = self.user_notification.get_recent_events(resource_id='instrument_1', limit = 5)
-#
-#        log.debug("evts got here using get_recent_events::: %s" % evts)
-
         log.debug("events::: %s" % events_in_db)
 
         bad_data_events = []
+        good_data_events = []
+
+        event_states = []
+        for event in events_in_db:
+            event_states.append(event.state)
+
+        self.assertEquals(set(event_states), set([DeviceStatusType.OUT_OF_RANGE, DeviceStatusType.OK]))
 
         for event in events_in_db:
+
             if event.type_ == 'DeviceStatusEvent':
-                bad_data_events.append(event)
                 self.assertEquals(event.origin, "instrument_1")
-                self.assertTrue(event.state in [DeviceStatusType.OUT_OF_RANGE, DeviceStatusType.OK])
                 self.assertEquals(event.valid_values, self.valid_values)
                 self.assertEquals(event.sub_type, 'input_voltage')
 
+                if event.state == DeviceStatusType.OK:
+                    self.assertEquals(event.values, [])
+                    self.assertEquals(event.time_stamps, [])
+                    good_data_events.append(event)
+                else: # It must be a BAD data DeviceStatusEvent
+                    self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+                    self.assertEquals(len(event.values), len(bad_val))
+
+                    log.debug("val:::~~~ %s" % bad_val)
+                    for x in xrange(len(event.values)):
+                        log.debug("event.values[x] ::: %s" % event.values[x])
+
+                        self.assertTrue(event.values[x] in bad_val)
+#                    self.assertEquals(event.time_stamps, [])
+                    bad_data_events.append(event)
+
         self.assertTrue(len(bad_data_events) > 0)
+        self.assertTrue(len(good_data_events) > 0)
 
         log.debug("This satisfies L4-CI-SA-RQ-114 : 'Marine facility shall monitor marine infrastructure usage by instruments.'"
                   " The req is satisfied because the stream alert transform"
