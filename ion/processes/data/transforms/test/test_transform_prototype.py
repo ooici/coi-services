@@ -401,17 +401,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         val = numpy.array([(l + 20)  for l in xrange(self.length)])
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val)
 
-#        self.assertTrue(queue_bad_data.empty())
-
         gevent.sleep(10)
-
-        now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
-
-        log.debug("now::: %s" % now)
-#        events_in_db = self.user_notification.find_events(origin='instrument_1',limit=100, max_datetime=now, descending=True)
-
-#        events_in_db = self.user_notification.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= 4, max_datetime=7)
-        events_in_db = self.user_notification.find_events(origin= 'instrument_1',type = 'DeviceStatusEvent', limit=100,  max_datetime= now)
 
         now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
         events_in_db = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
