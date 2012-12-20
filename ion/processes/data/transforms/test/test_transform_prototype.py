@@ -373,22 +373,27 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.exchange_names.append('sub_1')
         self.exchange_points.append('exch_point_1')
 
+        self.number = 2
+
         #-------------------------------------------------------------------------------------
         # publish a *GOOD* granule
         #-------------------------------------------------------------------------------------
         self.length = 2
         val = numpy.array([random.uniform(0,50)  for l in xrange(self.length)])
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val)
-
+        times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in bogus times
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, times=times)
+        good_val = val
+        good_times = times
         self.assertTrue(queue_bad_data.empty())
 
         #-------------------------------------------------------------------------------------
         # publish a few *BAD* granules
         #-------------------------------------------------------------------------------------
-        self.number = 2
-        val = numpy.array([(110 + l)  for l in xrange(self.length)])
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val)
+        val = numpy.array([(110 + l)  for l in xrange(self.length)])        # feeding in bogus bad values
+        times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in bogus times
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val, times=times)
         bad_val = val
+        bad_times = times
 
         event = queue_bad_data.get(timeout=40)
         self.assertEquals(event.type_, "DeviceStatusEvent")
@@ -413,16 +418,18 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # publish a *GOOD* granule again
         #-------------------------------------------------------------------------------------
-        val = numpy.array([(l + 20)  for l in xrange(self.length)])
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val)
+        val = numpy.array([(l + 20)  for l in xrange(self.length)])         # feeding in bogus good values
+        times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in bogus times
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, times=times)
         good_val = val
+        good_times = times
 
         def find_the_events():
             now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
             events = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
             return events
 
-        events_in_db = self.poll(9, find_the_events)
+        events_in_db = self.poll(20, find_the_events)
 
         log.debug("events::: %s" % events_in_db)
 
@@ -449,13 +456,13 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                 else: # It must be a BAD data DeviceStatusEvent
                     self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
                     self.assertEquals(len(event.values), len(bad_val))
+                    self.assertEquals(len(event.time_stamps), len(bad_times))
 
                     log.debug("val:::~~~ %s" % bad_val)
                     for x in xrange(len(event.values)):
                         log.debug("event.values[x] ::: %s" % event.values[x])
-
                         self.assertTrue(event.values[x] in bad_val)
-#                    self.assertEquals(event.time_stamps, [])
+                        self.assertTrue(event.time_stamps[x] in bad_times)
                     bad_data_events.append(event)
 
         self.assertTrue(len(bad_data_events) > 0)
@@ -466,15 +473,13 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                   "is able to send device status and communication events over selected time intervals. This capability will be "
                   "augmented in the future.")
 
-    def _publish_granules(self, stream_id=None, stream_route=None, values = None,number=None):
+    def _publish_granules(self, stream_id=None, stream_route=None, values = None, times = None, number=None):
 
         pub = StandaloneStreamPublisher(stream_id, stream_route)
 
         stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
         stream_def_id = stream_def._id
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-
-        times = numpy.array([number  for l in xrange(self.length)])
 
         for i in xrange(number):
             rdt['input_voltage'] = values
