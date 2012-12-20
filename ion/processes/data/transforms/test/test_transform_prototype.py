@@ -285,7 +285,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         return pid
 
-    def poll(self, tries, callback, *args, **kwargs):
+    def poll(self, tries, callback, number_of_retvals, *args, **kwargs):
         '''
         Polling wrapper for queries
         Elasticsearch may not index and cache the changes right away so we may need
@@ -293,7 +293,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         '''
         for i in xrange(tries):
             retval = callback(*args, **kwargs)
-            if retval:
+            if retval and len(retval) >= number_of_retvals:
                 return retval
             time.sleep(0.2)
         return None
@@ -427,14 +427,12 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         good_event = queue_good_data.get(timeout=40)
         self.assertEquals(good_event.state, DeviceStatusType.OK)
 
-        gevent.sleep(10)
-
         def find_the_events():
             now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
             events = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
             return events
 
-        events_in_db = self.poll(20, find_the_events)
+        events_in_db = self.poll(40, find_the_events, number_of_retvals=2)
 
         log.debug("events::: %s" % events_in_db)
 
@@ -463,9 +461,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
                     self.assertEquals(len(event.values), len(bad_val))
                     self.assertEquals(len(event.time_stamps), len(bad_times))
 
-                    log.debug("val:::~~~ %s" % bad_val)
                     for x in xrange(len(event.values)):
-                        log.debug("event.values[x] ::: %s" % event.values[x])
                         self.assertTrue(event.values[x] in bad_val)
                         self.assertTrue(event.time_stamps[x] in bad_times)
                     bad_data_events.append(event)

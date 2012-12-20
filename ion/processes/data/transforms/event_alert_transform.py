@@ -196,6 +196,8 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventPublisher)
 
             if self.bad_values:
                 state = DeviceStatusType.OUT_OF_RANGE
+                # Store the granule received
+                self.bad_granules.put(msg)
             else:
                 state = DeviceStatusType.OK
 
