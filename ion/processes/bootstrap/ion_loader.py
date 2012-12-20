@@ -1923,7 +1923,7 @@ class IONLoader(ImmediateProcess):
         persist_data_flag = False
         if row["persist_data"] == "TRUE":
             persist_data_flag = True
-            
+
         #Create and start the workflow
         workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(
             workflow_definition_id=workflow_def_id,
