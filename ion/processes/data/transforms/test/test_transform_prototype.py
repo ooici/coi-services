@@ -389,24 +389,11 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         good_val = list(val)
         good_times = list(times)
 
-
-#        def find_the_events():
-#            now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
-#            events = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
-#            return events
-#
-#        events_in_db = self.poll(20, find_the_events)
-
+        # Check out the OK status event
+        good_event = queue_good_data.get(timeout=40)
+        self.assertEquals(good_event.state, DeviceStatusType.OK)
         self.assertTrue(queue_bad_data.empty())
-
-        good_data_events = []
-#        for event in events_in_db:
-#            if event.type_ == 'DeviceStatusEvent':
-#                self.assertEquals(event.state , DeviceStatusType.OK)
-#                good_data_events.append(event)
-#
-#        # Assert that only one good data event came the first time it was started
-#        self.assertEquals(len(good_data_events), 1)
+        self.assertTrue(queue_good_data.empty())
 
         #-------------------------------------------------------------------------------------
         # publish a few *BAD* granules
@@ -424,18 +411,10 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.assertEquals(event.valid_values, self.valid_values)
         self.assertEquals(event.sub_type, 'input_voltage')
         self.assertTrue(set(event.values) ==  set(val))
-
-        s = set(event.time_stamps)
-        cond = s in [set(numpy.array([1  for l in xrange(self.length)]).tolist()), set(numpy.array([2  for l in xrange(self.length)]).tolist())]
-        self.assertTrue(cond)
+        self.assertEquals(event.time_stamps, list(times))
 
         # To ensure that only the bad values generated the alert events. Queue should be empty now
         self.assertEquals(queue_bad_data.qsize(), 0)
-
-        #-------------------------------------------------------------------------------------
-        # Empty the queues and repeat tests
-        #-------------------------------------------------------------------------------------
-        queue_bad_data.queue.clear()
 
         #-------------------------------------------------------------------------------------
         # publish a *GOOD* granule again
@@ -443,6 +422,12 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         val = numpy.array([(l + 20)  for l in xrange(self.length)])         # feeding in same bogus good values as before
         times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in same bogus times as before
         self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, times=times)
+
+        # Did we get the OK status event again?
+        good_event = queue_good_data.get(timeout=40)
+        self.assertEquals(good_event.state, DeviceStatusType.OK)
+
+        gevent.sleep(10)
 
         def find_the_events():
             now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
