@@ -15,6 +15,7 @@ from pyon.public import log
 
 from pyon.core.exception import ServerError
 from pyon.util.context import LocalContextMixin
+from pyon.public import CFG
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
@@ -36,6 +37,7 @@ from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 
 from gevent.event import AsyncResult
 from gevent import sleep
+from mock import patch
 
 import time
 import ntplib
@@ -45,7 +47,7 @@ from nose.plugins.attrib import attr
 
 
 # TIMEOUT: timeout for each execute_agent call.
-TIMEOUT = 90
+TIMEOUT = 180
 
 
 DVR_CONFIG = {
@@ -71,6 +73,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 180}}})
 class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     @classmethod
