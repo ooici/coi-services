@@ -293,19 +293,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
 
-        #validate inputs
-        self.read_instrument_agent(instrument_agent_id)
-        self.read_instrument_device(instrument_device_id)
-
         instrument_agent_instance_id = self.instrument_agent_instance.create_one(instrument_agent_instance)
 
-        self.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
+        if instrument_agent_id:
+            self.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
 
-
-        self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
+        if instrument_device_id:
+            self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
         log.debug("create_instrument_agent_instance: device %s now connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
 
         return instrument_agent_instance_id
+
 
     def update_instrument_agent_instance(self, instrument_agent_instance=None):
         """
@@ -546,6 +544,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'stream_config' : stream_config,
             'agent'         : {'resource_id': instrument_device_id}
         }
+
+        #retrieve the Org name to which this agent instance belongs
+        org_name = ''
+        org_objs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=instrument_agent_instance_obj._id)
+        if org_objs:
+            org_name = org_objs[0].name
+        agent_config['org_name'] = org_name
 
         return driver_config, agent_config
 
@@ -1017,15 +1022,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        #validate inputs
-        self.read_platform_agent(platform_agent_id)
-        self.read_platform_device(platform_device_id)
-
         platform_agent_instance_id = self.platform_agent_instance.create_one(platform_agent_instance)
 
-        self.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
-
-        self.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
+        if platform_agent_id:
+            self.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
+        if platform_device_id:
+            self.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
 
         return platform_agent_instance_id
 
@@ -1140,6 +1142,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         platform_id = agent_config['platform_config']['platform_id']
         stream_config = self._generate_platform_streamconfig( platform_id, platform_device_id )
         agent_config['platform_config']['agent_streamconfig_map'] = { platform_id: stream_config }
+
+        #retrieve the Org name to which this agent instance belongs
+        org_name = ''
+        org_objs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=platform_agent_instance_id)
+        if org_objs:
+            org_name = org_objs[0].name
+        agent_config['org_name'] = org_name
+
 
 #        import pprint
 #        print '============== config within IMS for platform ID: %s ===========' % platform_id

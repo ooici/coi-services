@@ -1494,30 +1494,32 @@ class IONLoader(ImmediateProcess):
             self._load_InstrumentAgent(fakerow)
 
     def _load_InstrumentAgentInstance(self, row):
-        # create basic object from simple fields
-        agent_instance = self._create_object_from_row("InstrumentAgentInstance", row, "iai/")
+        # define complicated attributes
+        driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
+                                            'port':  int(row['comms_server_port']) } }
 
-        # add more complicated attributes
-        agent_instance.driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
-                                                           'port':  int(row['comms_server_port']) } }
+        port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
+                              'device_port':   int(row['iai/comms_device_port']),
+                              'process_type':  PortAgentProcessType.UNIX,
+                              'port_agent_addr': 'localhost',
+                              'type': PortAgentType.ETHERNET,
+                              'binary_path':   "port_agent",
+                              'command_port':  int(row['comms_server_cmd_port']),
+                              'data_port':     int(row['comms_server_port']),
+                              'log_level':     5,  }
 
-        agent_instance.port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
-                                             'device_port':   int(row['iai/comms_device_port']),
-                                             'process_type':  PortAgentProcessType.UNIX,
-                                             'port_agent_addr': 'localhost',
-                                             'type': PortAgentType.ETHERNET,
-                                             'binary_path':   "port_agent",
-                                             'command_port':  int(row['comms_server_cmd_port']),
-                                             'data_port':     int(row['comms_server_port']),
-                                             'log_level':     5,  }
+        res_id = self._basic_resource_create(row, "InstrumentAgentInstance", "iai/",
+            "instrument_management", "create_instrument_agent_instance",
+            set_attributes=dict(driver_config=driver_config, port_agent_config=port_agent_config),
+            support_bulk=True)
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
         device_id = self.resource_ids[row["instrument_device_id"]]
         client = self._get_service_client("instrument_management")
-        headers = self._get_op_headers(row)
-        client.create_instrument_agent_instance(
-            agent_instance, instrument_agent_id=agent_id, instrument_device_id=device_id,
-            headers=headers)
+
+        client.assign_instrument_agent_to_instrument_agent_instance(agent_id, res_id)
+        client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
+
 
     def _load_PlatformAgent(self, row):
         log.debug("_load_PlatformAgent row %s " % str(row))
@@ -1569,9 +1571,6 @@ class IONLoader(ImmediateProcess):
             self._load_PlatformAgent(fakerow)
 
     def _load_PlatformAgentInstance(self, row):
-        # create object with simple field types -- name, description
-        agent_instance = self._create_object_from_row("PlatformAgentInstance", row, "pai/")
-
         # construct values for more complex fields
         platform_id = row['platform_id']
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
@@ -1594,12 +1593,20 @@ class IONLoader(ImmediateProcess):
                             'agent_device_map':        admap,
                             'agent_streamconfig_map':  None,  # can we just omit?
                             'driver_config':           driver_config }
-        agent_instance.agent_config = { 'platform_config': platform_config }
+        agent_config = { 'platform_config': platform_config }
 
-        headers = self._get_op_headers(row)
-        res_id = self._get_service_client("instrument_management").create_platform_agent_instance(
-            agent_instance, platform_agent_id, platform_device_id, headers=headers)
+
+        res_id = self._basic_resource_create(row, "PlatformAgentInstance", "pai/",
+            "instrument_management", "create_platform_agent_instance",
+            set_attributes=dict(agent_config=agent_config),
+            support_bulk=True)
+
+        client = self._get_service_client("instrument_management")
+        client.assign_platform_agent_to_platform_agent_instance(platform_agent_id, res_id)
+        client.assign_platform_agent_instance_to_platform_device(res_id, platform_device_id)
+
         self.resource_ids[row['ID']] = res_id
+
 
     #       TODO:
     #           lots of other parameters are necessary, but not part of the object.  somehow they must be saved for later actions.
