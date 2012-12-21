@@ -295,7 +295,9 @@ class TestResourceManagementServiceInterface(IonIntegrationTestCase):
         with self.assertRaises(BadRequest):
             self.rms.ping_resource(rid2)
         with self.assertRaises(BadRequest):
-            self.rms.get_(rid2)
+            self.rms.get_agent(rid2)
+        with self.assertRaises(BadRequest):
+            self.rms.get_agent_state(rid2)
 
         self.rms.delete_resource(rid2)
 
