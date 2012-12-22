@@ -23,36 +23,47 @@ class ObservatoryUtil(object):
 
     def get_child_sites(self, parent_site_id=None, org_id=None, exclude_types=None, include_parents=True, id_only=True):
         """
-        Returns all child sites for a given parent site_id or a given org_id.
+        Returns all child sites and parent site for a given parent site_id.
+        Returns all child sites and org for a given org_id.
         Return type is a tuple of two elements.
         The first element is a dict mapping site_id to Site object (or None if id_only==True).
         The second element is a dict mapping site_id to a list of direct child site_ids.
+        @param include_parents if True, walk up the parents all the way to the root and include
+        @param id_only if True, return Site objects
         """
+        if parent_site_id and org_id:
+            raise BadRequest("Either parent_site_id OR org_id supported!")
         if exclude_types is None:
             exclude_types = []
+
+        parents = self._get_site_parents()   # Note: root elements are not in list
+
         if org_id:
             obsite_ids,_ = self.container.resource_registry.find_objects(
                 org_id, PRED.hasResource, RT.Observatory, id_only=True)
             if not obsite_ids:
                 return {}, {}
-            parent_site_list = set(obsite_ids)
+            parent_site_id = org_id
+            for obsite_id in obsite_ids:
+                parents[obsite_id] = ('Observatory', org_id, 'Org')
         elif parent_site_id:
-            parent_site_list = set([parent_site_id])
+            if parent_site_id not in parents:
+                parents[parent_site_id] = ('Observatory', None, 'Org')
         else:
             raise BadRequest("Must provide either parent_site_id or org_id")
-        matchlist = []
-        ancestors = {}
-        parents = self._get_site_parents()
-        for p_site in parent_site_list:
-            if org_id and p_site not in parents:
-                parents[p_site] = ('Observatory', org_id, 'Org')
-        for rid, (st, psid, pt) in parents.iteritems():
+
+        matchlist = []  # sites with wanted parent
+        ancestors = {}  # child ids for sites in result set
+        for site_id, (st, parent_id, pt) in parents.iteritems():
+            # Iterate through sites and find the ones with a wanted parent
             if st in exclude_types:
                 continue
-            parent_stack = [rid, psid]
-            while psid:
-                if psid in parent_site_list or (include_parents and rid in parent_site_list):
-                    matchlist.append(rid)
+            parent_stack = [site_id, parent_id]
+            while parent_id:
+                # Walk up to parents
+                if parent_id == parent_site_id:
+                    matchlist.append(site_id)
+                    # Fill out ancestors
                     par = parent_stack.pop()
                     while parent_stack:
                         ch = parent_stack.pop()
@@ -61,28 +72,29 @@ class ObservatoryUtil(object):
                         if ch not in ancestors[par]:
                             ancestors[par].append(ch)
                         par = ch
-                    psid = None
+                    parent_id = None
                 else:
-                    _,psid,_ = parents.get(psid, (None,None,None))
-                    parent_stack.append(psid)
+                    _,parent_id,_ = parents.get(parent_id, (None,None,None))
+                    parent_stack.append(parent_id)
+
+        # Go all the way up to the roots
         if include_parents:
-            for p_site in parent_site_list:
-                child_id = p_site
+            matchlist.append(parent_site_id)
+            child_id = parent_site_id
+            parent = parents.get(child_id, None)
+            while parent:
+                st, parent_id, pt = parent
+                if parent_id:
+                    matchlist.append(parent_id)
+                    if parent_id not in ancestors:
+                        ancestors[parent_id] = []
+                    ancestors[parent_id].append(child_id)
+                child_id = parent_id
                 parent = parents.get(child_id, None)
-                while parent:
-                    st, psid, pt = parent
-                    matchlist.append(psid)
-                    if psid not in ancestors:
-                        ancestors[psid] = []
-                    ancestors[psid].append(child_id)
-                    child_id = psid
-                    parent = parents.get(child_id, None)
 
         if id_only:
             child_site_dict = dict(zip(matchlist, [None]*len(matchlist)))
         else:
-            if org_id and include_parents:
-                matchlist.append(org_id)
             all_res = self.container.resource_registry.read_mult(matchlist) if matchlist else []
             child_site_dict = dict(zip([res._id for res in all_res], all_res))
 
@@ -133,7 +145,7 @@ class ObservatoryUtil(object):
             if dev_id not in all_children:
                 del child_devices[dev_id]
         if device_id not in child_devices:
-            child_devices[device_id] = None
+            child_devices[device_id] = []
         return child_devices
 
     def _get_child_devices(self):
