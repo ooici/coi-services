@@ -23,8 +23,7 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
-    PDLocalBackend, PDNativeBackend, PDBridgeBackend, get_dashi, get_pd_dashi_name,\
-    PDDashiHandler
+    PDLocalBackend, PDNativeBackend, get_dashi, get_pd_dashi_name, PDDashiHandler
 from ion.services.cei.test import ProcessStateWaiter
 
 try:
@@ -150,6 +149,7 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.assertTrue(ok)
         self.mock_cc_terminate.assert_called_once_with("process-id")
 
+
 @attr('UNIT', group='cei')
 class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
     """Tests the dashi frontend of the PD
@@ -248,7 +248,6 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         passed_schedule = args[2]
         assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
         assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
-
 
 
 @attr('UNIT', group='cei')
@@ -474,160 +473,6 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
 
 
-@attr('UNIT', group='cei')
-class ProcessDispatcherServiceBridgeTest(PyonTestCase):
-    """Tests the bridge backend of the PD
-    """
-    def setUp(self):
-        self.pd_service = ProcessDispatcherService()
-        self.pd_service.container = DotDict()
-        self.pd_service.container['resource_registry'] = Mock()
-
-        pdcfg = dict(uri="amqp://hello", topic="pd", exchange="123")
-        self.pd_service.CFG = DotDict()
-        self.pd_service.CFG['process_dispatcher_bridge'] = pdcfg
-        self.pd_service.init()
-        self.assertIsInstance(self.pd_service.backend, PDBridgeBackend)
-        self.pd_service.backend.rr = self.mock_rr = Mock()
-
-        self.event_pub = Mock()
-        self.pd_service.backend.event_pub = self.event_pub
-
-        # sneak in and replace dashi connection method
-        mock_dashi = Mock()
-        mock_dashi.consume.return_value = lambda: None
-        self.pd_service.backend._init_dashi = lambda: mock_dashi
-        self.mock_dashi = mock_dashi
-
-        self.pd_service.start()
-        self.assertEqual(mock_dashi.handle.call_count, 1)
-
-    def tearDown(self):
-        self.pd_service.quit()
-
-    def test_create_schedule(self):
-
-        proc_def = DotDict()
-        proc_def['name'] = "someprocess"
-        proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
-        mock_read_def = Mock()
-        mock_read_def.return_value = proc_def
-        self.pd_service.backend.read_definition = mock_read_def
-
-        pid = self.pd_service.create_process("fake-process-def-id")
-        mock_read_def.assert_called_once_with("fake-process-def-id")
-
-        proc_schedule = DotDict()
-        proc_schedule['target'] = DotDict()
-        proc_schedule.target['constraints'] = {"hats": 4}
-        proc_schedule.target['node_exclusive'] = None
-        proc_schedule.target['execution_engine_id'] = None
-
-        configuration = {"some": "value"}
-        name = 'allthehats'
-
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
-            proc_schedule, configuration, pid, name=name)
-
-        self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
-        self.assertEqual(pid, pid2)
-        self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
-        self.assertEqual(self.mock_dashi.call.call_count, 1)
-        call_args, call_kwargs = self.mock_dashi.call.call_args
-        self.assertEqual(set(call_kwargs),
-            set(['upid', 'definition_id', 'configuration', 'subscribers', 'constraints', 'name']))
-        self.assertEqual(call_kwargs['constraints'],
-            proc_schedule.target['constraints'])
-        self.assertEqual(call_kwargs['subscribers'],
-            self.pd_service.backend.pd_process_subscribers)
-        self.assertEqual(call_args, ("pd", "schedule_process"))
-        self.assertEqual(self.event_pub.publish_event.call_count, 0)
-
-        # trigger some fake async state updates from dashi
-
-        self.pd_service.backend._process_state(dict(upid=pid,
-            state="400-PENDING"))
-        self.assertEqual(self.event_pub.publish_event.call_count, 1)
-
-        self.pd_service.backend._process_state(dict(upid=pid,
-            state="500-RUNNING"))
-        self.assertEqual(self.event_pub.publish_event.call_count, 2)
-
-    def test_cancel(self):
-
-        ok = self.pd_service.cancel_process("process-id")
-
-        self.assertTrue(ok)
-        self.mock_dashi.call.assert_called_once_with("pd", "terminate_process",
-            upid="process-id")
-        self.assertEqual(self.event_pub.publish_event.call_count, 0)
-
-        self.pd_service.backend._process_state(dict(upid="process-id",
-            state="700-TERMINATED"))
-        self.assertEqual(self.event_pub.publish_event.call_count, 1)
-
-    def test_definitions(self):
-        executable = {'module': 'my_module', 'class': 'class'}
-        definition = ProcessDefinition(name="someprocess", executable=executable)
-        pd_id = self.pd_service.create_process_definition(definition)
-        assert self.mock_dashi.call.called
-        self.assertTrue(pd_id)
-        assert self.mock_rr.create.called_once_with(definition, object_id=pd_id)
-
-        self.mock_dashi.call.reset_mock()
-        self.mock_dashi.call.return_value = dict(name="someprocess",
-            executable=executable)
-
-        definition2 = self.pd_service.read_process_definition("someprocess")
-        assert self.mock_dashi.call.called
-        self.assertEqual(definition2.name, "someprocess")
-        self.assertEqual(definition2.executable, executable)
-
-        self.mock_dashi.call.reset_mock()
-        self.pd_service.delete_process_definition("someprocess")
-        assert self.mock_dashi.call.called
-        assert self.mock_rr.delete.called_once_with(pd_id)
-
-    def test_read_process(self):
-
-        self.mock_dashi.call.return_value = dict(upid="processid",
-            state="500-RUNNING")
-        proc = self.pd_service.read_process("processid")
-        assert self.mock_dashi.call.called
-
-        self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
-        self.assertEqual(proc.process_configuration, {})
-
-    def test_read_process_notfound(self):
-
-        self.mock_dashi.call.return_value = None
-
-        with self.assertRaises(NotFound):
-            self.pd_service.read_process("processid")
-        assert self.mock_dashi.call.called
-
-    def test_read_process_with_config(self):
-        config = {"hats": 4}
-        self.mock_dashi.call.return_value = dict(upid="processid",
-            state="500-RUNNING", configuration=config)
-        proc = self.pd_service.read_process("processid")
-        assert self.mock_dashi.call.called
-
-        self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
-        self.assertEqual(proc.process_configuration, config)
-
-    def test_list_processes(self):
-
-        core_procs = [dict(upid="processid", state="500-RUNNING")]
-        self.mock_dashi.call.return_value = core_procs
-        procs = self.pd_service.list_processes()
-        proc = procs[0]
-        self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
-
-
 class TestProcess(BaseService):
     """Test process to deploy via PD
     """
@@ -666,7 +511,6 @@ class TestClient(RPCClient):
 
     def get_process_name(self, pid=None, headers=None, timeout=None):
         return self.request({'pid': pid}, op='get_process_name', headers=headers, timeout=timeout)
-
 
 
 @attr('INT', group='cei')
@@ -854,6 +698,7 @@ def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):
         'agent': {'resource_id': resource_id},
         }
 
+
 @unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 @attr('LOCOINT', group='cei')
@@ -922,7 +767,6 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         if self.dashi:
             self.dashi.cancel()
 
-
     def test_requested_ee(self):
 
         # request non-default engine
@@ -939,7 +783,6 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             process_schedule, process_id=pid)
 
         self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
-
 
         # request unknown engine, with NEVER queuing mode. The request
         # should be rejected.

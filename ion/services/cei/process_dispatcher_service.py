@@ -64,7 +64,6 @@ class ProcessStateGate(EventSubscriber):
         self.last_chance = None
         self.first_chance = None
 
-
         _ = ProcessStateEnum._str_map[self.desired_state] # make sure state exists
         log.info("ProcessStateGate is going to wait on process '%s' for state '%s'",
                 self.process_id,
@@ -154,10 +153,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
     #       CEI EPUM Management Service, this mode cannot be directly used
     #       outside of a CEI launch.
     #
-    #   bridge mode - this is a deprecated mode where the real Process
-    #       Dispatcher runs as an external service and this service "bridges"
-    #       requests to it.
-    #
 
     def on_init(self):
 
@@ -165,12 +160,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
             pd_conf = self.CFG.processdispatcher
         except AttributeError:
             pd_conf = {}
-
-        # temporarily supporting old config format
-        try:
-            pd_bridge_conf = self.CFG.process_dispatcher_bridge
-        except AttributeError:
-            pd_bridge_conf = None
 
         if pd_conf.get('dashi_messaging', False) == True:
 
@@ -189,13 +178,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
 
         pd_backend_name = pd_conf.get('backend')
 
-        # note: this backend is deprecated. Keeping it around only until the system launches
-        # are switched to the Pyon PD implementation.
-        if pd_bridge_conf:
-            log.debug("Using Process Dispatcher Bridge backend -- requires running CEI services.")
-            self.backend = PDBridgeBackend(pd_bridge_conf, self)
-
-        elif not pd_backend_name or pd_backend_name == "container":
+        if not pd_backend_name or pd_backend_name == "container":
             log.debug("Using Process Dispatcher container backend -- spawns processes in local container")
             self.backend = PDLocalBackend(self.container)
 
@@ -995,156 +978,6 @@ class PDNativeBackend(object):
         return self.core.describe_process(None, process_id)
 
 
-class PDBridgeBackend(object):
-    """Scheduling backend to PD that bridges to external CEI Process Dispatcher
-
-    This is deprecated but we are leaving it around for the time being.
-    """
-
-    def __init__(self, conf, service):
-        self.dashi = None
-        self.consumer_thread = None
-
-        # grab config parameters used to connect to backend Process Dispatcher
-        try:
-            self.uri = conf.dashi_uri
-            self.topic = conf.topic
-            self.exchange = conf.dashi_exchange
-        except AttributeError, e:
-            log.warn("Needed Process Dispatcher config not found: %s", e)
-            raise
-
-        self.dashi_name = self.topic + "_bridge"
-        self.pd_process_subscribers = [(self.dashi_name, "process_state")]
-
-        self.event_pub = EventPublisher()
-
-        # use the container RR instance -- talks directly to couchdb
-        self.rr = service.container.resource_registry
-
-    def initialize(self):
-        self.dashi = self._init_dashi()
-        self.dashi.handle(self._process_state, "process_state")
-        self.consumer_thread = gevent.spawn(self.dashi.consume)
-
-    def shutdown(self):
-        if self.dashi:
-            self.dashi.cancel()
-        if self.consumer_thread:
-            self.consumer_thread.join()
-
-    def _init_dashi(self):
-        # we are avoiding directly depending on dashi as this bridging approach
-        # is short term and only used from CEI launches. And we have enough
-        # deps. Where needed we install dashi specially via a separate
-        # buildout config.
-        return get_dashi(self.dashi_name, self.uri, self.exchange)
-
-    def _process_state(self, process):
-        # handle incoming process state updates from the real PD service.
-        # some states map to ION events while others are ignored.
-
-        log.debug("Got process state: %s", process)
-
-        process_id = None
-        state = None
-        if process:
-            process_id = process.get('upid')
-            state = process.get('state')
-
-        if not (process and process_id and state):
-            log.warn("Invalid process state from CEI process dispatcher: %s",
-                process)
-            return
-
-        ion_process_state = _PD_PROCESS_STATE_MAP.get(state)
-        if not ion_process_state:
-            log.debug("Received unknown process state from Process Dispatcher." +
-                      " process=%s state=%s", process_id, state)
-            return
-
-        log.debug("Sending process state event: %s -> %s", process_id, ion_process_state)
-        self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
-            origin=process_id, origin_type="DispatchedProcess",
-            state=ion_process_state)
-
-    def create_definition(self, definition, definition_id=None):
-        """
-        @type definition: ProcessDefinition
-        """
-        definition_id = definition_id or uuid.uuid4().hex
-        args = dict(definition_id=definition_id,
-            definition_type=definition.definition_type,
-            executable=definition.executable, name=definition.name,
-            description=definition.description)
-        self.dashi.call(self.topic, "create_definition", args=args)
-
-        self.rr.create(definition, object_id=definition_id)
-
-        return definition_id
-
-    def read_definition(self, definition_id):
-        definition = self.dashi.call(self.topic, "describe_definition",
-            definition_id=definition_id)
-        if not definition:
-            raise NotFound("process definition %s unknown" % definition_id)
-        return _ion_process_definition_from_core(definition_id, definition)
-
-    def read_definition_by_name(self, definition_name):
-        raise ServerError("reading process definitions by name not supported by this backend")
-
-    def delete_definition(self, definition_id):
-        self.dashi.call(self.topic, "remove_definition",
-            definition_id=definition_id)
-
-        self.rr.delete(definition_id)
-
-    def spawn(self, process_id, definition_id, schedule, configuration, name):
-
-        # note: not doing anything with schedule mode yet: the backend PD
-        # service doesn't fully support it.
-
-        constraints = None
-        if schedule:
-            if schedule.target and schedule.target.constraints:
-                constraints = schedule.target.constraints
-
-        # form a pyon process spec
-        # warning: this spec will change in the near future.
-
-        config = configuration or {}
-
-        proc = self.dashi.call(self.topic, "schedule_process",
-            upid=process_id, definition_id=definition_id, subscribers=self.pd_process_subscribers,
-            constraints=constraints, configuration=config, name=name)
-
-        log.debug("Dashi Process Dispatcher returned process: %s", proc)
-
-        # upid == process_id
-        return process_id
-
-    def cancel(self, process_id):
-
-        if not process_id:
-            raise ValueError("invalid process id")
-
-        proc = self.dashi.call(self.topic, "terminate_process", upid=process_id)
-        log.debug("Dashi Process Dispatcher terminating process: %s", proc)
-        return True
-
-    def list(self):
-        d_processes = self.dashi.call(self.topic, "describe_processes")
-        return [_ion_process_from_core(p) for p in d_processes]
-
-    def read_process(self, process_id):
-        d_process = self.dashi.call(self.topic, "describe_process", upid=process_id)
-        if d_process is None:
-            raise NotFound("process %s unknown" % process_id)
-        process = _ion_process_from_core(d_process)
-
-        return process
-
-
 def _ion_process_from_core(core_process):
     try:
         config = core_process['configuration']
@@ -1165,6 +998,7 @@ def _ion_process_from_core(core_process):
 
     return process
 
+
 def _core_process_from_ion(ion_process):
     process = {
             'state': _PD_PYON_PROCESS_STATE_MAP.get(ion_process.process_state),
@@ -1174,6 +1008,7 @@ def _core_process_from_ion(ion_process):
     }
     return process
 
+
 def _ion_process_definition_from_core(definition_id, core_process_definition):
     procdef = ProcessDefinition(name=core_process_definition.get('name'),
         description=core_process_definition.get('description'),
@@ -1181,6 +1016,7 @@ def _ion_process_definition_from_core(definition_id, core_process_definition):
         executable=core_process_definition.get('executable'))
     procdef._id = definition_id
     return procdef
+
 
 def _core_process_definition_from_ion(ion_process_definition):
     definition = {
@@ -1190,7 +1026,6 @@ def _core_process_definition_from_ion(ion_process_definition):
             'executable': ion_process_definition.executable,
             }
     return definition
-
 
 
 def get_dashi(*args, **kwargs):
