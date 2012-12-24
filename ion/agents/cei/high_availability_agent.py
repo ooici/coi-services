@@ -71,7 +71,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
 
         self.process_definition_id = self.CFG.get_safe("highavailability.process_definition_id")
         self.process_configuration = self.CFG.get_safe("highavailability.process_configuration")
-        aggregator_config = self.CFG.get_safe("highavailability.aggregator")
+        aggregator_config = _get_aggregator_config(self.CFG)
 
         self.service_id = self._register_service()
 
@@ -292,7 +292,6 @@ class ProcessDispatcherSimpleAPIClient(object):
         except Exception:
             log.exception("Couldn't associate service %s to process %s" % (self.service_id, process.process_id))
 
-
     def create_definition(self, definition_id, definition_type, executable,
                           name=None, description=None):
 
@@ -374,5 +373,28 @@ class ProcessDispatcherSimpleAPIClient(object):
             dict_procs.append(dict_proc)
         return dict_procs
 
+
 def _core_hastate_to_service_state(core):
     return ServiceStateEnum._value_map.get(core)
+
+
+def _get_aggregator_config(config):
+    trafficsentinel = config.get_safe("server.trafficsentinel")
+    if trafficsentinel:
+        host = trafficsentinel.get('host')
+        username = trafficsentinel.get('username')
+        password = trafficsentinel.get('password')
+        protocol = trafficsentinel.get('protocol')
+        port = trafficsentinel.get('port')
+
+        if host and username and password:
+            aggregator_config = dict(type='trafficsentinel', host=host,
+                username=username, password=password)
+            if protocol:
+                aggregator_config['protocol'] = protocol
+            if port:
+                aggregator_config['port'] = port
+            return aggregator_config
+
+    # return None if no config. policy will error out if it needs aggregator.
+    return None
