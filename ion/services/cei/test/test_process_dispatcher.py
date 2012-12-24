@@ -144,10 +144,12 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
 
     def test_local_cancel(self):
 
-        ok = self.pd_service.cancel_process("process-id")
+        pid = self.pd_service.create_process("fake-process-def-id")
+
+        ok = self.pd_service.cancel_process(pid)
 
         self.assertTrue(ok)
-        self.mock_cc_terminate.assert_called_once_with("process-id")
+        self.mock_cc_terminate.assert_called_once_with(pid)
 
 
 @attr('UNIT', group='cei')
@@ -164,7 +166,8 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.mock_backend['read_definition'] = Mock()
         self.mock_backend['read_definition_by_name'] = Mock()
         self.mock_backend['delete_definition'] = Mock()
-        self.mock_backend['spawn'] = Mock()
+        self.mock_backend['create'] = Mock()
+        self.mock_backend['schedule'] = Mock()
         self.mock_backend['read_process'] = Mock()
         self.mock_backend['list'] = Mock()
         self.mock_backend['cancel'] = Mock()
@@ -217,10 +220,11 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         queueing_mode = 'RESTART_ONLY'
         restart_mode = 'ABNORMAL'
 
-        self.pd_dashi_handler.schedule_process(upid, definition_id, queueing_mode=queueing_mode, restart_mode=restart_mode, name=name)
+        self.pd_dashi_handler.schedule_process(upid, definition_id,
+            queueing_mode=queueing_mode, restart_mode=restart_mode, name=name)
 
-        self.assertEqual(self.mock_backend.spawn.call_count, 1)
-        args, kwargs = self.mock_backend.spawn.call_args
+        self.assertEqual(self.mock_backend.schedule.call_count, 1)
+        args, kwargs = self.mock_backend.schedule.call_args
         passed_schedule = args[2]
         assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
         assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
@@ -243,8 +247,8 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.mock_backend.read_definition_by_name.assert_called_once_with(definition_name)
         self.assertFalse(self.mock_backend.read_definition.call_count)
 
-        self.assertEqual(self.mock_backend.spawn.call_count, 1)
-        args, kwargs = self.mock_backend.spawn.call_args
+        self.assertEqual(self.mock_backend.schedule.call_count, 1)
+        args, kwargs = self.mock_backend.schedule.call_args
         passed_schedule = args[2]
         assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
         assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
@@ -574,17 +578,10 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.pd_cli.cancel_process(pid)
 
         self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
-        self.waiter.stop()
-
-        oldpid = pid
-
-        pid = self.pd_cli.create_process(self.process_definition_id)
-        self.waiter.start(pid)
 
         pid2 = self.pd_cli.schedule_process(self.process_definition_id,
             process_schedule, configuration={}, process_id=pid)
         self.assertEqual(pid, pid2)
-        self.assertNotEqual(oldpid, pid)
 
         self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
 
@@ -608,7 +605,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         # feed in a string that the process will return -- verifies that
         # configuration actually makes it to the instantiated process
         test_response = uuid.uuid4().hex
-        configuration = {"test_response" : test_response}
+        configuration = {"test_response": test_response}
 
         pid2 = self.pd_cli.schedule_process(self.process_definition_id,
             process_schedule, configuration=configuration, process_id=pid)
@@ -650,9 +647,49 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         # verifies L4-CI-CEI-RQ137
         executable = dict(url="http://somewhere.com/something.py")
         definition = ProcessDefinition(name="test_process", executable=executable)
-        with self.assertRaises(BadRequest) as ar:
+        with self.assertRaises(BadRequest):
             self.pd_cli.create_process_definition(definition)
 
+    def test_idempotency(self):
+        # ensure every operation can be safely retried
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+
+        proc_name = 'myreallygoodname'
+        pid = self.pd_cli.create_process(self.process_definition_id)
+        self.waiter.start(pid)
+
+        # note: if we import UNSCHEDULED state into ProcessStateEnum,
+        # this assertion will need to change.
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
+        self.assertEqual(proc.process_state, ProcessStateEnum.REQUESTED)
+
+        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, configuration={}, process_id=pid, name=proc_name)
+        self.assertEqual(pid, pid2)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
+
+        # repeating schedule is harmless
+        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, configuration={}, process_id=pid, name=proc_name)
+        self.assertEqual(pid, pid2)
+
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
+        self.assertEqual(proc.process_configuration, {})
+        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
+
+        self.pd_cli.cancel_process(pid)
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
+
+        # repeating cancel is harmless
+        self.pd_cli.cancel_process(pid)
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
+        self.assertEqual(proc.process_configuration, {})
+        self.assertEqual(proc.process_state, ProcessStateEnum.TERMINATED)
 
 pd_config = {
     'processdispatcher': {
@@ -674,6 +711,7 @@ pd_config = {
         }
     }
 }
+
 
 def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):
 
