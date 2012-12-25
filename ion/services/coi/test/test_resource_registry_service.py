@@ -174,11 +174,6 @@ class TestResourceRegistry(IonIntegrationTestCase):
             self.resource_registry_service.create_association(actor_identity_obj_id, None, user_info_obj_id)
         self.assertTrue(cm.exception.message == "Association must have all elements set")
 
-        # Bad association type
-        with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasInfo, user_info_obj_id, 'bogustype')
-        self.assertTrue(cm.exception.message == "Unsupported assoc_type: bogustype")
-
         # Subject id or object not provided
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(None, PRED.hasInfo, user_info_obj_id)
@@ -232,10 +227,6 @@ class TestResourceRegistry(IonIntegrationTestCase):
         res_obj2 = self.resource_registry_service.read_subject(RT.ActorIdentity, PRED.hasInfo, user_info_obj_id, id_only=True)
         self.assertEquals(res_obj2, actor_identity_obj_id)
 
-        # Create a similar association to a specific revision
-        # TODO: This is not a supported case so far
-        assoc_id2, assoc_rev2 = self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasInfo, user_info_obj_id, "H2R")
-
         # Search for associations (good cases)
         ret1 = self.resource_registry_service.find_associations(actor_identity_obj_id, PRED.hasInfo, user_info_obj_id)
         ret2 = self.resource_registry_service.find_associations(actor_identity_obj_id, PRED.hasInfo)
@@ -263,23 +254,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
         # Search for associations (bad cases)
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.find_associations(None, None, None)
-        self.assertTrue(cm.exception.message == "Illegal parameters")
-
-        with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_associations(actor_identity_obj_id, None, None)
-        self.assertTrue(cm.exception.message == "Illegal parameters")
-
-        with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_associations(None, None, user_info_obj_id)
-        self.assertTrue(cm.exception.message == "Illegal parameters")
-
-        with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_associations(actor_identity_obj, None, user_info_obj_id)
-        self.assertTrue(cm.exception.message == "Object id not available in subject")
-
-        with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.find_associations(actor_identity_obj_id, None, user_info_obj)
-        self.assertTrue(cm.exception.message == "Object id not available in object")
+        self.assertIn("Illegal parameters", cm.exception.message)
 
         # Find subjects (good cases)
         subj_ret1 = self.resource_registry_service.find_subjects(RT.ActorIdentity, PRED.hasInfo, user_info_obj_id, True)
@@ -360,26 +335,8 @@ class TestResourceRegistry(IonIntegrationTestCase):
         # Get association (bad cases)
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.get_association(None, None, None)
-        self.assertTrue(cm.exception.message == "Illegal parameters")
+        self.assertIn("Illegal parameters", cm.exception.message)
 
-        with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.get_association(actor_identity_obj_id, None, None)
-        self.assertTrue(cm.exception.message == "Illegal parameters")
-
-        with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.get_association(None, None, user_info_obj_id)
-        self.assertTrue(cm.exception.message == "Illegal parameters")
-
-        with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.get_association(actor_identity_obj, None, user_info_obj_id)
-        self.assertTrue(cm.exception.message == "Object id not available in subject")
-
-        with self.assertRaises(BadRequest) as cm:
-            self.resource_registry_service.get_association(actor_identity_obj_id, None, user_info_obj)
-        self.assertTrue(cm.exception.message == "Object id not available in object")
-
-        # Delete one of the associations
-        self.resource_registry_service.delete_association(assoc_id2)
 
         assoc = self.resource_registry_service.get_association(actor_identity_obj_id, PRED.hasInfo, user_info_obj_id)
         self.assertTrue(assoc._id == assoc_id1)
