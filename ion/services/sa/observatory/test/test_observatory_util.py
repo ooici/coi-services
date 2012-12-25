@@ -174,3 +174,8 @@ class TestObservatoryUtil(unittest.TestCase):
 
         child_devices = self.obs_util.get_child_devices('XXX')
         self.assertEquals(len(child_devices), 1)
+
+    def test_get_status_roll_ups(self):
+        self.mu.load_mock_resources(self.res_list)
+        self.mu.load_mock_associations(self.assoc_lis2 + self.assoc_list1 + self.assoc_list2)
+        self.mu.assign_mockres_find_associations(filter_predicate="hasDevice")
