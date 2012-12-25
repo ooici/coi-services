@@ -5,7 +5,7 @@ __license__ = 'Apache 2.0'
 
 import collections, traceback, datetime, time, yaml
 import flask, ast, pprint
-from flask import Flask, request, abort
+from flask import Flask, request, abort, session, render_template
 from gevent.wsgi import WSGIServer
 
 from pyon.core.exception import NotFound, Inconsistent, BadRequest
@@ -13,8 +13,13 @@ from pyon.core.object import IonObjectBase
 from pyon.core.registry import getextends, model_classes
 from pyon.public import Container, StandaloneProcess, log, PRED, RT, IonObject, CFG
 from pyon.util.containers import named_any
-
+from ion.core.msc.interaction_observer import InteractionObserver
 from interface import objects
+
+try:
+    import json
+except:
+    import simplejson as json
 
 #Initialize the flask app
 app = Flask(__name__)
@@ -30,7 +35,7 @@ EDIT_IGNORE_FIELDS = ['rid','restype','lcstate', 'ts_created', 'ts_updated']
 EDIT_IGNORE_TYPES = ['list','dict','bool']
 standard_eventattrs = ['origin', 'ts_created', 'description']
 date_fieldnames = ['ts_created', 'ts_updated']
-
+_io = InteractionObserver()
 
 class ContainerUI(StandaloneProcess):
     """
@@ -38,6 +43,11 @@ class ContainerUI(StandaloneProcess):
     """
     def on_init(self):
         #defaults
+        #defaults
+        app.secret_key = self.CFG.get_safe('container.flask_webapp.secret_key', None)
+        if (app.secret_key is None):
+            raise Exception('Set container.flask_webapp.secret_key in configuration to start successfully')
+
         self.http_server = None
         self.server_hostname = DEFAULT_WEB_SERVER_HOSTNAME
         self.server_port = self.CFG.get_safe('container.flask_webapp.port',DEFAULT_WEB_SERVER_PORT)
@@ -53,6 +63,7 @@ class ContainerUI(StandaloneProcess):
             self.start_service(self.server_hostname, self.server_port)
 
     def on_quit(self):
+        _io.stop()
         self.stop_service()
 
     def start_service(self, hostname=DEFAULT_WEB_SERVER_HOSTNAME, port=DEFAULT_WEB_SERVER_PORT):
@@ -62,6 +73,7 @@ class ContainerUI(StandaloneProcess):
 
         self.http_server = WSGIServer((hostname, port), app, log=self.logging)
         self.http_server.start()
+        _io.start()
         return True
 
     def stop_service(self):
@@ -97,6 +109,7 @@ def process_index():
             "<li><a href='http://localhost:5984/_utils'><b>CouchDB Futon UI (if running)</b></a></li>",
             "<li><a href='http://localhost:55672/'><b>RabbitMQ Management UI (if running)</b></a></li>",
             "<li><a href='http://localhost:9001/'><b>Supervisord UI (if running)</b></a></li>",
+            "<li><a href='/mscweb'><b>System message sequence chart</b></a></li>",
             "</ul></p>",
             "<h2>System and Container Properties</h2>",
             "<p><table>",
@@ -1154,3 +1167,44 @@ def get_datetime(ts, time_millis=False):
     if time_millis:
         dts += "." + ts[-3:]
     return dts
+
+@app.route('/mscweb', methods=['GET','POST'])
+def mscweb():
+
+    if 'last_data' not in session:
+        last_data = {'last_index':0}
+        session['last_data'] = last_data
+
+    return render_template('mschart.html')
+
+
+
+@app.route('/data')
+def data():
+
+    # get associated last request
+    last_data = session['last_data']
+    use_idx = last_data['last_index']
+
+    if use_idx is not None:
+
+        # get open conversations if any saved in the session
+        response_msgs = last_data.get('response_msgs',{})
+
+        # get data out of io
+        rawdata = _io.msg_log[use_idx:]
+        mscdata, response_msgs = _io._get_data(rawdata, response_msgs)
+
+        #store open conversations
+        last_data['response_msgs'] = response_msgs
+        # store last index
+        last_data['last_index'] = len(_io.msg_log)
+        session['last_data'] = last_data
+
+        # jsonize this and return it
+        return json.dumps(mscdata)
+
+    else:
+
+        # may have a timestamp here from the user
+        raise Exception("no can do chief")
